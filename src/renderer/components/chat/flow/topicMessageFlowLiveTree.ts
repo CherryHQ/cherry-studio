@@ -19,7 +19,6 @@ export interface TopicMessageFlowLiveNode {
   status: MessageStatus
   createdAt: string
   siblingsGroupId?: number
-  isInputDraft?: boolean
 }
 
 export interface TopicMessageFlowLiveState {
@@ -90,7 +89,7 @@ export function buildTopicMessageFlowLiveState({
     const parentId = metadata.parentId
     if (parentId == null) return []
 
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const createdAt = metadata.createdAt ?? new Date().toISOString()
     const isStreamingMessage = streamingMessageIds?.has(message.id) ?? false
     const fallbackStatus = message.role === 'assistant' && parts.length === 0 ? 'pending' : 'success'
@@ -119,11 +118,7 @@ export function buildTopicMessageFlowLiveState({
   }
 }
 
-type TopicMessageFlowTreeNode = TreeNode & {
-  isInputDraft?: boolean
-}
-
-function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TopicMessageFlowTreeNode {
+function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TreeNode {
   return {
     id: node.id,
     parentId: node.parentId,
@@ -133,8 +128,7 @@ function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TopicM
     modelId: node.modelId ?? existing?.modelId ?? null,
     status: node.status,
     createdAt: node.createdAt,
-    hasChildren: existing?.hasChildren ?? false,
-    ...(node.isInputDraft ? { isInputDraft: true } : {})
+    hasChildren: existing?.hasChildren ?? false
   }
 }
 
@@ -152,7 +146,7 @@ export function mergeTopicMessageFlowLiveTree(
 ): TreeResponse {
   if (!liveState) return tree
 
-  const regularNodes = new Map<string, TopicMessageFlowTreeNode>()
+  const regularNodes = new Map<string, TreeNode>()
   const siblingGroups = new Map<string, TreeResponse['siblingsGroups'][number]>()
   const existingTreeNodes = new Map<string, TreeNode>()
   const groupedNodeIds = new Set<string>()

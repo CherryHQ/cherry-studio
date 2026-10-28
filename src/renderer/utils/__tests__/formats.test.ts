@@ -1,40 +1,35 @@
 import { describe, expect, it } from 'vitest'
 
-import { encodeHTML, extractHtmlTitle, getFileNameFromHtmlTitle, removeSvgEmptyLines } from '../formats'
+import { cleanMarkdownContent, extractHtmlTitle, getFileNameFromHtmlTitle, removeSvgEmptyLines } from '../formats'
 
 describe('formats', () => {
-  describe('encodeHTML', () => {
-    it('should encode all special HTML characters', () => {
-      const input = `Tom & Jerry's "cat" <dog>`
-      const result = encodeHTML(input)
-      expect(result).toBe('Tom &amp; Jerry&apos;s &quot;cat&quot; &lt;dog&gt;')
+  describe('cleanMarkdownContent', () => {
+    it('should preserve dots in version numbers', () => {
+      expect(cleanMarkdownContent('v2.1.312 released')).toBe('v2.1.312 released')
     })
 
-    it('should return the same string if no special characters', () => {
-      const input = 'Hello World!'
-      const result = encodeHTML(input)
-      expect(result).toBe('Hello World!')
+    it('should preserve dots in names', () => {
+      expect(cleanMarkdownContent('node.js')).toBe('node.js')
     })
 
-    it('should return empty string if input is empty', () => {
-      const input = ''
-      const result = encodeHTML(input)
-      expect(result).toBe('')
+    it('should preserve dots in Chinese release notes', () => {
+      expect(cleanMarkdownContent('2.1.7 版本新增了知识库引用来源预览和 PDF 附件上传功能。')).toBe(
+        '2.1.7 版本新增了知识库引用来源预览和 PDF 附件上传功能。'
+      )
     })
 
-    it('should encode single special character', () => {
-      expect(encodeHTML('&')).toBe('&amp;')
-      expect(encodeHTML('<')).toBe('&lt;')
-      expect(encodeHTML('>')).toBe('&gt;')
-      expect(encodeHTML('"')).toBe('&quot;')
-      expect(encodeHTML("'")).toBe('&apos;')
+    it('should still strip other special characters', () => {
+      expect(cleanMarkdownContent('a_b*c~d`e[f]g|h/i(j)')).toBe('abcdefghij')
     })
 
-    it('should throw if input is not a string', () => {
-      // @ts-expect-error purposely pass wrong type to test error branch
-      expect(() => encodeHTML(null)).toThrow()
-      // @ts-expect-error purposely pass wrong type to test error branch
-      expect(() => encodeHTML(undefined)).toThrow()
+    it('should remove images and URLs while preserving link text', () => {
+      expect(cleanMarkdownContent('see ![img](http://a/b.png) and [link](http://x) and https://y/z')).toBe(
+        'see and link and'
+      )
+    })
+
+    it('should preserve dots in numbers, hostnames, and sentence endings', () => {
+      expect(cleanMarkdownContent('Upgraded to 1.2.3 from example.com.')).toBe('Upgraded to 1.2.3 from example.com.')
     })
   })
 
@@ -88,11 +83,6 @@ describe('formats', () => {
     it('should remove special characters and replace spaces with hyphens', () => {
       expect(getFileNameFromHtmlTitle('File@Name#Test')).toBe('FileNameTest')
       expect(getFileNameFromHtmlTitle('File Name Test')).toBe('File-Name-Test')
-    })
-
-    it('should handle mixed languages', () => {
-      expect(getFileNameFromHtmlTitle('中文English123')).toBe('中文English123')
-      expect(getFileNameFromHtmlTitle('中文 English 123')).toBe('中文-English-123')
     })
 
     it('should handle empty string', () => {

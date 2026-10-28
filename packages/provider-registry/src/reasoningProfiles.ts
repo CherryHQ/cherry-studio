@@ -1,7 +1,9 @@
 import type { ReasoningEffort } from './schemas/enums'
+import type { ReasoningWireDialect } from './schemas/model'
 import type { ReasoningFormatType } from './schemas/provider'
 import type {
   ReasoningFormatWireProfile,
+  ReasoningWireMode,
   ReasoningWireOperation,
   ReasoningWireProfile,
   ReasoningWireTarget,
@@ -37,6 +39,59 @@ const mode = (operations: NonBudgetOperation[], rest: Omit<NonBudgetMode, 'opera
   ...rest
 })
 
+/** Budget-dialect operation — writes the resolved thinking-token count. */
+const budgetTokens = (target: ReasoningWireTarget): ReasoningWireOperation => ({
+  target,
+  value: { source: 'budget' }
+})
+
+/**
+ * Gemini 2.x budget dialect: `thinkingBudget` in tokens (0 = off, -1 = dynamic).
+ * These models hard-reject the Gemini 3 `thinkingLevel` field, so every provider
+ * proxying them over `google-generate-content` lands here via `wireDialect`.
+ */
+const geminiBudgetWire: ReasoningWireProfile = {
+  off: mode([literal('thinkingConfig.includeThoughts', false), literal('thinkingConfig.thinkingBudget', 0)]),
+  auto: mode([literal('thinkingConfig.includeThoughts', true), literal('thinkingConfig.thinkingBudget', -1)]),
+  effort: {
+    operations: [literal('thinkingConfig.includeThoughts', true), budgetTokens('thinkingConfig.thinkingBudget')],
+    budget: { missing: { type: 'fallback', value: -1 } }
+  }
+}
+
+/**
+ * Claude <=4.5 budget dialect: `thinking.type=enabled` + `budget_tokens`.
+ * `adaptive` is 4.6+, so pre-adaptive SKUs resolve here. `auto` and `effort` are
+ * deliberately identical — the dialect has no effort knob on the wire, so a
+ * selected effort tier is expressed purely as a token budget.
+ */
+const anthropicEnabledBudget = {
+  operations: [
+    literal('thinking.type', 'enabled'),
+    budgetTokens('thinking.budgetTokens'),
+    literal('sendReasoning', true)
+  ],
+  budget: { missing: { type: 'fallback' as const, value: 13_312 }, clampToMaxTokens: true }
+}
+
+const anthropicBudgetWire: ReasoningWireProfile = {
+  off: mode([literal('thinking.type', 'disabled')]),
+  auto: anthropicEnabledBudget,
+  effort: anthropicEnabledBudget
+}
+
+const anthropicAdaptiveWire = {
+  auto: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
+  effort: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized'), effort('effort')], {
+    effortMap: { minimal: 'low' }
+  })
+}
+
+const anthropicAlwaysOnWire = {
+  ...anthropicAdaptiveWire,
+  default: anthropicAdaptiveWire.auto
+}
+
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {
   const suffix = summaryTarget ? [summary(summaryTarget)] : []
   return {
@@ -46,21 +101,64 @@ const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfil
   }
 }
 
+const REASONING_SUMMARY_OPERATIONS = [
+  // A literal default the assistant setting overwrites when present — later operation wins.
+  literal('reasoningSummary', 'auto'),
+  summary('reasoningSummary')
+] satisfies ReasoningWireOperation[]
+
+function stripReasoningSummary(mode: ReasoningWireMode | undefined): ReasoningWireMode | undefined {
+  if (!mode) return undefined
+  const operations = mode.operations.filter((operation) => operation.target !== 'reasoningSummary')
+  return operations.length > 0 ? ({ ...mode, operations } as ReasoningWireMode) : undefined
+}
+
+/** Apply a user's explicit compatibility choice to an OpenAI Responses wire. */
+export function configureOpenAIResponsesSummary(profile: ReasoningWireProfile, enabled: boolean): ReasoningWireProfile {
+  if (profile.disabled) return profile
+
+  const configured: ReasoningWireProfile = { ...profile }
+  for (const key of ['default', 'auto', 'effort'] as const) {
+    const mode = stripReasoningSummary(configured[key])
+    if (enabled) {
+      configured[key] = {
+        ...mode,
+        operations: [...(mode?.operations ?? []), ...REASONING_SUMMARY_OPERATIONS]
+      } as ReasoningWireMode
+    } else if (mode) {
+      configured[key] = mode
+    } else {
+      delete configured[key]
+    }
+  }
+  return configured
+}
+
+/**
+ * OpenAI's own Responses reasoning wire. Third-party hosts opt in through an
+ * endpoint dialect override because some reject `reasoning.summary`.
+ */
+export const openaiResponsesSummaryWire = configureOpenAIResponsesSummary(genericEffort(), true)
+
 const formatProfiles = {
   'openai-chat': {
     wire: genericEffort()
   },
+  // No `reasoning.summary` here: third-party Responses hosts emit summaries unasked and reject the
+  // field (Ark 400s on it). OpenAI's own hosts opt in via `openaiResponsesSummaryWire`.
   'openai-responses': {
-    wire: genericEffort('reasoningSummary')
+    wire: genericEffort()
   },
   anthropic: {
     wire: {
-      off: mode([literal('thinking.type', 'disabled')]),
-      auto: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
-      effort: mode(
-        [literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized'), effort('effort')],
-        { effortMap: { minimal: 'low' } }
-      )
+      ...anthropicAdaptiveWire,
+      off: mode([literal('thinking.type', 'disabled')])
+    },
+    budgetWire: anthropicBudgetWire,
+    alwaysOnWire: anthropicAlwaysOnWire,
+    betweenToolsWire: {
+      ...anthropicAlwaysOnWire,
+      off: mode([literal('thinking.type', 'between_tools')])
     }
   },
   gemini: {
@@ -68,7 +166,8 @@ const formatProfiles = {
       off: mode([literal('thinkingConfig.includeThoughts', false), literal('thinkingConfig.thinkingLevel', 'minimal')]),
       auto: mode([literal('thinkingConfig.includeThoughts', true)]),
       effort: mode([literal('thinkingConfig.includeThoughts', true), effort('thinkingConfig.thinkingLevel')])
-    }
+    },
+    budgetWire: geminiBudgetWire
   },
   ollama: {
     wire: {
@@ -83,3 +182,14 @@ const formatProfiles = {
 } as const satisfies Record<ReasoningFormatType, ReasoningFormatWireProfile>
 
 export const REASONING_FORMAT_PROFILES: Record<ReasoningFormatType, ReasoningFormatWireProfile> = formatProfiles
+
+/** Select a generation's native wire only when the serving format supports it. */
+export function selectFormatWire(
+  profile: ReasoningFormatWireProfile,
+  dialect: ReasoningWireDialect | undefined
+): ReasoningWireProfile {
+  if (dialect === 'budget' && profile.budgetWire) return profile.budgetWire
+  if (dialect === 'adaptive-always' && profile.alwaysOnWire) return profile.alwaysOnWire
+  if (dialect === 'adaptive-between-tools' && profile.betweenToolsWire) return profile.betweenToolsWire
+  return profile.wire
+}

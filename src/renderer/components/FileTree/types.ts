@@ -1,6 +1,7 @@
-import type { DragPosition, TreeListSlotArgs } from '@cherrystudio/ui'
-import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import type React from 'react'
+
+import type { DragPosition, TreeListSlotArgs } from '@cherrystudio/ui'
+import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
 
 export type FileTreeNodeKind = 'file' | 'folder'
 
@@ -32,6 +33,9 @@ export interface FileTreeAnimationSlot {
 export interface FileTreeProps {
   nodes: FileTreeNode[]
 
+  /** Accessible name for the tree surface. */
+  ariaLabel?: string
+
   expandedIds?: ReadonlySet<string>
   defaultExpandedIds?: ReadonlySet<string>
   onExpandedChange?: (next: ReadonlySet<string>) => void
@@ -52,7 +56,7 @@ export interface FileTreeProps {
   /** Optional trailing slot per row - e.g. ContextMenu trigger, action buttons, badges. */
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
   /** Optional command-system context menu items for the whole row (Cherry/Native presentation). */
-  getMenuItems?: (node: FileTreeNode) => readonly CommandContextMenuExtraItem[]
+  getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 
   /** Override default folder/file icons. */
   fileIcon?: (node: FileTreeNode) => React.ReactNode

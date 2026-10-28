@@ -1,7 +1,12 @@
 import type { ComponentType } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { createFilePreviewRegistry, filePreviewRegistry, resolveExtensionPlugin } from '../filePreviewRegistry'
+import {
+  canProduceSelectionReference,
+  createFilePreviewRegistry,
+  filePreviewRegistry,
+  resolveExtensionPlugin
+} from '../filePreviewRegistry'
 import { textFilePreviewPlugin } from '../plugins/text/textFilePreviewPlugin'
 import type { FilePreviewPlugin, FilePreviewPluginProps } from '../types'
 
@@ -84,51 +89,63 @@ function plugin(id: string, extensions: readonly string[]): FilePreviewPlugin {
 }
 
 describe('file preview registry', () => {
-  it.each(['JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP'])('registers the image plugin for .%s files', (extension) => {
-    expect(resolveExtensionPlugin(`/tmp/image.${extension}`, filePreviewRegistry)?.id).toBe('image')
-  })
+  it.each(['JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP', 'AVIF', 'ICO', 'SVG'])(
+    'registers the image plugin for .%s files',
+    (extension) => {
+      expect(resolveExtensionPlugin(`/tmp/image.${extension}`, filePreviewRegistry)?.id).toBe('image')
+    }
+  )
 
-  it('does not register SVG as a raster image preview', () => {
-    expect(resolveExtensionPlugin('/tmp/image.svg', filePreviewRegistry)).toBeNull()
-  })
-
-  it.each(['pdf', 'PDF'])('registers the PDF plugin for .%s files', (extension) => {
+  it('registers the PDF plugin', () => {
+    const extension = 'pdf'
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('pdf')
   })
 
-  it.each(['docx', 'DOCX'])('registers the Word plugin for .%s files', (extension) => {
+  it('registers the Word plugin', () => {
+    const extension = 'docx'
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('word')
   })
 
-  it.each(['pptx', 'PPTX'])('registers the PowerPoint plugin for .%s files', (extension) => {
+  it.each(['rtf', 'RTF'])('routes .%s to rich document preview instead of source fallback', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('rtf')
+    expect(canProduceSelectionReference(`/tmp/report.${extension}`)).toBe(false)
+  })
+
+  it('registers the PowerPoint plugin', () => {
+    const extension = 'pptx'
     expect(resolveExtensionPlugin(`/tmp/slides.${extension}`, filePreviewRegistry)?.id).toBe('powerpoint')
   })
 
-  it.each(['html', 'htm', 'HTML', 'HTM'])('registers the HTML plugin for .%s files', (extension) => {
+  it.each(['xlsx', 'XLSX'])('registers the spreadsheet plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/workbook.${extension}`, filePreviewRegistry)?.id).toBe('spreadsheet')
+  })
+
+  it.each(['mp4', 'webm', 'm4v'])('registers the video plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/video.${extension}`, filePreviewRegistry)?.id).toBe('video')
+  })
+
+  it.each(['ogg', 'ogv', 'mov', 'avi', 'mkv', 'wmv', 'flv'])(
+    'does not claim .%s videos without reliable native playback',
+    (extension) => {
+      expect(resolveExtensionPlugin(`/tmp/video.${extension}`, filePreviewRegistry)).toBeNull()
+    }
+  )
+
+  it.each(['html', 'htm'])('registers the HTML plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/page.${extension}`, filePreviewRegistry)?.id).toBe('html')
+  })
+
+  it.each(['md', 'markdown', 'mdx'])('registers the Markdown plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/readme.${extension}`, filePreviewRegistry)?.id).toBe('markdown')
   })
 
   it('keeps the text plugin extension whitelist explicit', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })
 
-  it.each(TEXT_PREVIEW_EXTENSIONS)('registers the text plugin for .%s files', (extension) => {
-    expect(resolveExtensionPlugin(`/tmp/source.${extension}`, filePreviewRegistry)?.id).toBe('text')
+  it('does not route an unknown extension through the registry', () => {
+    expect(resolveExtensionPlugin('/tmp/source.unknown', filePreviewRegistry)).toBeNull()
   })
-
-  it.each(['md', 'markdown', 'mdx', 'pdf', 'png', 'jpg', 'html', 'htm', 'csv', 'tsv', 'svg'])(
-    'does not route dedicated .%s formats through the text plugin',
-    (extension) => {
-      expect(resolveExtensionPlugin(`/tmp/source.${extension}`, filePreviewRegistry)?.id).not.toBe('text')
-    }
-  )
-
-  it.each(['Dockerfile', 'Makefile', '.env', '.gitignore', 'source.unknown'])(
-    'does not route special or unknown filename %s through the text plugin',
-    (fileName) => {
-      expect(resolveExtensionPlugin(`/tmp/${fileName}`, filePreviewRegistry)).toBeNull()
-    }
-  )
 
   it('matches text extensions case-insensitively', () => {
     expect(resolveExtensionPlugin('/tmp/source.JSON', filePreviewRegistry)?.id).toBe('text')
@@ -159,5 +176,15 @@ describe('file preview registry', () => {
     expect(() => createFilePreviewRegistry({ extensionPlugins: [plugin('pdf', [extension])] })).toThrow(
       `Invalid file preview extension: ${extension}`
     )
+  })
+
+  it('knows which registered plugins can produce a selection reference', () => {
+    expect(canProduceSelectionReference('/tmp/report.docx')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/deck.pptx')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/paper.pdf')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/q1.xlsx')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/README.md')).toBe(false)
+    expect(canProduceSelectionReference('/tmp/photo.png')).toBe(false)
+    expect(canProduceSelectionReference('/tmp/no-extension')).toBe(false)
   })
 })

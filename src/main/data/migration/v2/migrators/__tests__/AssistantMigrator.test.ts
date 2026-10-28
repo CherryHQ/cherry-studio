@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { AssistantMigrator, mergeOldAssistants } from '../AssistantMigrator'

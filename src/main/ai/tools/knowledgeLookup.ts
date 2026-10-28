@@ -20,20 +20,25 @@
  * `WebSearchService` honours one). Add one here only once the service does.
  */
 
-import { basename } from 'node:path'
+import PQueue from 'p-queue'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import type {
   KbGrepOutput,
+  KbListInput,
   KbListOutput,
   KbListOutputItem,
+  KbManageAddItem,
   KbManageOutput,
   KbReadInput,
   KbReadOutput,
   KbSearchOutput,
   KbTreeOutput
 } from '@shared/ai/builtinTools'
+import { KB_LIST_DEFAULT_LIMIT } from '@shared/ai/builtinTools'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeAddItemInput,
@@ -42,17 +47,15 @@ import type {
   KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
 import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
-import PQueue from 'p-queue'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('KnowledgeLookup')
 
 const SAMPLE_LIMIT = 8
 const NOTE_SNIPPET_MAX_CHARS = 80
 /**
- * Max concurrent `listRootItems` reads behind one kb_list call. A user with 50+ KBs would otherwise
- * fire 50 concurrent SQLite reads; 8 in-flight keeps the agent loop responsive without overwhelming
- * the knowledge service. (listRootItems is a pure Drizzle/SQLite read — no vector store.)
+ * Max concurrent `listRootItems` reads behind one bounded kb_list page. Eight in-flight keeps the
+ * agent loop responsive without overwhelming the knowledge service. (listRootItems is a pure
+ * Drizzle/SQLite read — no vector store.)
  */
 const KB_LIST_ROOT_ITEMS_CONCURRENCY = 8
 
@@ -70,35 +73,13 @@ const KNOWLEDGE_BASE_NOT_FOUND_RESOURCE = 'KnowledgeBase'
  */
 const KNOWLEDGE_CONCEPT_CONTENT_NOT_FOUND_RESOURCE = 'Knowledge concept content'
 
-export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's private knowledge base — local documents, notes, web clippings.
+export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's documents, notes, and clippings. Pass known baseIds, else kb_list first; cite with [cite:id].`
 
-Use this when:
-- The user references "my notes" / "my documents" / their own materials
-- The question references topics likely covered in stored documents
-- Specific factual lookup that isn't general knowledge
+export const KNOWLEDGE_LIST_DESCRIPTION = `List knowledge bases or outline one with baseId. Metadata only; use kb_search or kb_read for content.`
 
-Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
+export const KNOWLEDGE_READ_DESCRIPTION = `Read one document by baseId and conceptId, or grep it with pattern. Cite with [cite:id].`
 
-export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
-
-Two modes, selected by \`baseId\`:
-- Omit \`baseId\` to list the available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
-
-export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
-
-Pass the \`conceptId\` and \`baseId\` from a kb_search hit (or a kb_list outline). Two modes, selected by \`pattern\`:
-- Omit \`pattern\` to read the document text: kb_search returns short matching chunks, kb_read returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
-- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.`
-
-export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
-
-Set \`action\`:
-- "add": import one new source. Set \`type\` and its field — "file" (\`path\`: an absolute local file path), "url" (\`url\`), or "note" (\`content\`, optional \`title\`). The source is copied in and indexed.
-- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs (the \`conceptId\` field of a kb_search hit or a kb_list outline) to remove.
-- "refresh": re-index documents (re-read the source, rebuild chunks/embeddings). Set \`conceptIds\`.
-
-Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from kb_search or a kb_list outline first; ids that don't resolve come back in \`notFound\`.`
+export const KNOWLEDGE_MANAGE_DESCRIPTION = `Add, delete, or re-index knowledge documents, or create a knowledge base (action="create"). Destructive; get conceptIds first and confirm the user's request.`
 
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both
@@ -124,13 +105,27 @@ export type KnowledgeManageResultOrError = KbManageOutput | KnowledgeLookupError
 export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
   'Knowledge base search failed (the embedding provider or vector store errored); tell the user instead of retrying.'
 
-/** kb_list infra failure (e.g. `KnowledgeService.listBases()` threw) — a fixed note, not a raw error string. */
+/** kb_list infra failure (e.g. `KnowledgeService.listBasesForDiscovery()` threw) — a fixed note, not a raw error string. */
 export const KNOWLEDGE_LIST_ERROR_NOTE =
   'Listing the knowledge bases failed (a knowledge-service error); tell the user instead of retrying.'
 
+/**
+ * A stored tool result that matches none of the shapes below (an output written by an older build, a
+ * trimmed/rendered envelope, a non-object). The `toModelOutput` formatters re-run over EVERY tool
+ * part of the conversation on every turn (`convertToModelMessages`), so one unreadable part must
+ * degrade to this note — throwing breaks every later turn of that conversation, not just the part.
+ */
+export const KNOWLEDGE_UNREADABLE_OUTPUT_NOTE =
+  'This knowledge base tool result could not be read back from the conversation history. Ignore it — call kb_list to re-check the current knowledge bases before acting on it.'
+
+/** Narrow to the object shapes the formatters below discriminate on; anything else is unreadable. */
+function isObjectOutput<T>(output: T): output is T & object {
+  return typeof output === 'object' && output !== null && !Array.isArray(output)
+}
+
 export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): output is KnowledgeLookupError {
   // kb_search success is always the results array; the error object is the only non-array shape.
-  // (kb_list can't use this — its success is an array OR a tree object; see knowledgeListModelOutput.)
+  // kb_list has two object success shapes, so it uses explicit property discriminants instead.
   return !Array.isArray(output)
 }
 
@@ -163,7 +158,10 @@ export async function searchKnowledge(
   const perBase = await Promise.all(
     targetIds.map(async (baseId) => {
       try {
-        return { ok: true as const, results: await knowledgeService.search(baseId, query) }
+        const results = await knowledgeService.search(baseId, query)
+        // Tag each hit with the base it came from: the flatMap below loses the closure, and
+        // `conceptId` alone is only unique within one base.
+        return { ok: true as const, results: results.map((result) => ({ result, baseId })) }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         logger.warn('KnowledgeService.search failed', { baseId, query, error: message })
@@ -180,21 +178,24 @@ export async function searchKnowledge(
   }
 
   const merged = perBase.flatMap((r) => (r.ok ? r.results : []))
-  const dedupedByContent = new Map<string, KnowledgeSearchResult>()
-  for (const result of merged) {
-    const existing = dedupedByContent.get(result.pageContent)
-    if (!existing || result.score > existing.score) {
-      dedupedByContent.set(result.pageContent, result)
+  const dedupedByContent = new Map<string, { result: KnowledgeSearchResult; baseId: string }>()
+  for (const hit of merged) {
+    const existing = dedupedByContent.get(hit.result.pageContent)
+    if (!existing || hit.result.score > existing.result.score) {
+      dedupedByContent.set(hit.result.pageContent, hit)
     }
   }
-  const sorted = [...dedupedByContent.values()].sort((a, b) => b.score - a.score)
+  const sorted = [...dedupedByContent.values()].sort((a, b) => b.result.score - a.result.score)
 
-  return sorted.map((result, index) => ({
-    id: index + 1,
-    // Provenance so the model can follow a hit with kb_read. conceptId
+  const prefix = newCitePrefix()
+  return sorted.map(({ result, baseId }, index) => ({
+    id: citeId(prefix, index),
+    // Provenance so the model can follow a hit with kb_read. baseId pairs with
+    // conceptId to identify the document (conceptId is base-relative). conceptId
     // is absent only for a not-yet-indexed snapshot (no relativePath); title is
     // always set. type is the item kind (file / url / note); `?.` keeps the map
     // resilient to a result without metadata (none in production).
+    baseId,
     conceptId: result.conceptId,
     title: result.title,
     type: result.metadata?.itemType,
@@ -240,6 +241,10 @@ async function readConcept(
   try {
     const result = await application.get('KnowledgeService').readConcept(baseId, conceptId, range)
     return {
+      // One slice, one source — index 0 yields the call's only cite id.
+      id: citeId(newCitePrefix(), 0),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId,
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,
@@ -257,6 +262,10 @@ async function readConcept(
 export function knowledgeReadModelOutput(
   output: KnowledgeReadResultOrError
 ): { type: 'text'; value: string } | { type: 'json'; value: KbReadOutput | KbGrepOutput } {
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_read output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
@@ -291,6 +300,10 @@ async function grepConcept(
   try {
     const result = await application.get('KnowledgeService').grepConcept(baseId, conceptId, options)
     return {
+      // Every match is in this one document, so the call yields a single cite id.
+      id: citeId(newCitePrefix(), 0),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId,
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,
@@ -408,26 +421,32 @@ function readTree(
 /**
  * kb_list dispatch: list the user's bases, or — when a `baseId` is supplied — outline that one
  * base's structure. One tool with two modes (see KNOWLEDGE_LIST_DESCRIPTION); both cores share the
- * `{ error }` contract, so this only routes by the presence of `baseId`. AI-SDK adapters normalize
- * their strict-schema sentinels before calling this core; MCP callers omit unused fields directly.
+ * `{ error }` contract, so this only routes by the presence of `baseId`. Both callers (AI-SDK tool
+ * and MCP bridge) omit the fields their mode does not use, so no sentinel translation happens here.
  */
 export async function listOrOutlineKnowledge(
-  input: { query?: string; groupId?: string; baseId?: string; maxDepth?: number },
+  input: KbListInput,
   allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   if (input.baseId) {
     return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
   }
-  return listKnowledgeBases(input.query, input.groupId, allowedIds)
+  return listKnowledgeBases(input, allowedIds)
 }
 
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
-/** kb_manage input shape shared after AI-SDK strict sentinels have been normalized. */
+/**
+ * kb_manage input shape — the fields the chosen `action` does not use are simply absent.
+ * `create` targets no existing base (it takes `name` instead of `baseId`); every other action
+ * operates on `baseId`.
+ */
 type ManageKnowledgeInput = {
-  baseId: string
-  action: 'add' | 'delete' | 'refresh'
+  baseId?: string
+  action: 'add' | 'delete' | 'refresh' | 'create'
+  name?: string
+  items?: KbManageAddItem[]
   type?: 'file' | 'url' | 'note'
   path?: string
   url?: string
@@ -436,11 +455,20 @@ type ManageKnowledgeInput = {
   conceptIds?: string[]
 }
 
+/** The add-source fields, shared verbatim by the single-source form (top level) and each `items` entry. */
+type ManageAddSource = Pick<ManageKnowledgeInput, 'type' | 'path' | 'url' | 'content' | 'title'>
+
 /**
- * Apply a destructive knowledge-base change (add / delete / refresh). Like the
+ * Apply a destructive knowledge-base change (add / delete / refresh / create). Like the
  * read cores it never throws: an out-of-scope base, a missing required field, an
  * unknown base, or a service error all return `{ error }` with a message the model
  * can act on. `allowedIds` scopes which bases are reachable (empty = all).
+ *
+ * `create` is deliberately NOT scoped to `allowedIds`: the scope ceiling governs which
+ * *existing* bases an agent may reach, and a freshly created one is not in it. Every
+ * create is user-approved like the other actions (kb_manage is a `required` tool), and
+ * the caller decides what the new base grants — the Claude Code bridge elevates it into
+ * the creating session's scope; the AI-SDK path leaves binding it to the user.
  *
  * The caller is responsible for gating the call behind user approval — this core
  * executes the mutation unconditionally once invoked.
@@ -449,14 +477,44 @@ export async function manageKnowledge(
   input: ManageKnowledgeInput,
   allowedIds: readonly string[]
 ): Promise<KnowledgeManageResultOrError> {
-  if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
-    logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
-    return { error: `Knowledge base "${input.baseId}" is not available to this assistant.` }
-  }
   try {
     const service = application.get('KnowledgeService')
+    if (input.action === 'create') {
+      const name = input.name?.trim()
+      if (!name) {
+        return { error: 'kb_manage create requires `name` — the display name of the new knowledge base.' }
+      }
+      const base = await service.createBase({ name })
+      return { action: 'create', created: { baseId: base.id, name: base.name } }
+    }
+    if (!input.baseId) {
+      return { error: `kb_manage ${input.action} requires \`baseId\` — a knowledge base id from kb_list.` }
+    }
+    if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
+      logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
+      return { error: `Knowledge base "${input.baseId}" is not available to this assistant.` }
+    }
     switch (input.action) {
       case 'add': {
+        if (input.items) {
+          if (input.type || input.path || input.url || input.content || input.title) {
+            return {
+              error:
+                'kb_manage add accepts either `items` (batch) or the single-source form (`type` + its field) — not both in one call.'
+            }
+          }
+          const built: ValidatedAddInput[] = []
+          for (const [index, item] of input.items.entries()) {
+            const result = buildAddInput(item)
+            if (!result.ok) return { error: `items[${index}]: ${result.error}` }
+            built.push(result)
+          }
+          await service.addItems(
+            input.baseId,
+            built.map((entry) => entry.input)
+          )
+          return { action: 'add', added: built.map((entry) => entry.source) }
+        }
         const built = buildAddInput(input)
         if (!built.ok) return { error: built.error }
         await service.addItems(input.baseId, [built.input])
@@ -479,7 +537,7 @@ export async function manageKnowledge(
         return { action: 'refresh', refreshed: applied, notFound }
       }
       default:
-        return { error: 'kb_manage requires `action` to be "add", "delete", or "refresh".' }
+        return { error: 'kb_manage requires `action` to be "add", "delete", "refresh", or "create".' }
     }
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
@@ -498,6 +556,10 @@ export async function manageKnowledge(
 export function knowledgeManageModelOutput(
   output: KnowledgeManageResultOrError
 ): { type: 'text'; value: string } | { type: 'json'; value: KbManageOutput } {
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_manage output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
@@ -507,20 +569,28 @@ export function knowledgeManageModelOutput(
 /** Either a validated add input plus the source identifier to report, or a steer string for a missing/invalid field. */
 type AddInputResult = { ok: true; input: KnowledgeAddItemInput; source: string } | { ok: false; error: string }
 
+/** A validated add source — what batch `items` collection accumulates before one `addItems` call. */
+type ValidatedAddInput = Extract<AddInputResult, { ok: true }>
+
 /**
- * Turn the flat kb_manage `add` payload into a validated {@link KnowledgeAddItemInput}.
- * The per-type required field is checked first (a clear steer when it is missing),
- * then the assembled item is run through {@link KnowledgeAddItemInputSchema} so an
- * invalid value (e.g. a non-absolute file path) is rejected before it reaches the
- * filesystem boundary. `source` is the identifier reported back as `added`.
+ * Turn one kb_manage add source (the single-source top-level fields, or one `items` entry)
+ * into a validated {@link KnowledgeAddItemInput}. The per-type required field is checked first
+ * (a clear steer when it is missing), then the assembled item is run through
+ * {@link KnowledgeAddItemInputSchema} so an invalid value (e.g. a non-absolute file path) is
+ * rejected before it reaches the filesystem boundary. `source` is the identifier reported
+ * back as `added`.
  */
-function buildAddInput(input: ManageKnowledgeInput): AddInputResult {
+function buildAddInput(input: ManageAddSource): AddInputResult {
   switch (input.type) {
     case 'file': {
       if (!input.path) {
         return { ok: false, error: 'kb_manage add with type "file" requires `path` — an absolute local file path.' }
       }
-      const source = basename(input.path)
+      // Source is the user-facing identifier stored on the row. Reindex rebuilds
+      // from this path; storing only the basename breaks every kb_manage refresh
+      // call after PR #19829 made reindex re-acquire from the real source
+      // (issue #19954).
+      const source = input.path
       return validateAddInput({ type: 'file', data: { source, path: input.path } }, source)
     }
     case 'url': {
@@ -572,47 +642,76 @@ function deriveNoteSource(content: string, title?: string | null): string {
 }
 
 async function listKnowledgeBases(
-  query: string | null | undefined,
-  groupId: string | null | undefined,
+  input: KbListInput,
   allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')
-    const allBases = knowledgeService.listBases()
-    const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
-
-    // null and undefined both mean "no group filter" — kb_list's nullable input passes null for that.
-    const groupFiltered = groupId != null ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
+    const page = knowledgeService.listBasesForDiscovery({
+      limit: input.limit ?? KB_LIST_DEFAULT_LIMIT,
+      ...(input.cursor ? { cursor: input.cursor } : {}),
+      ...(input.query ? { query: input.query } : {}),
+      ...(input.groupId ? { groupId: input.groupId } : {}),
+      scope: toKnowledgeBaseDiscoveryScope(allowedIds)
+    })
 
     // Build each base's summary with bounded concurrency (see KB_LIST_ROOT_ITEMS_CONCURRENCY).
     // `throwOnTimeout: true` keeps p-queue's add() return type as the value (not `T | void`), so the
     // ordered map stays typed; map preserves order and no task is given a timeout.
     const queue = new PQueue({ concurrency: KB_LIST_ROOT_ITEMS_CONCURRENCY })
     const items: KbListOutputItem[] = await Promise.all(
-      groupFiltered.map((base) => queue.add(() => buildOutputItem(base, knowledgeService), { throwOnTimeout: true }))
+      page.items.map((base) => queue.add(() => buildOutputItem(base, knowledgeService), { throwOnTimeout: true }))
     )
 
-    const lowered = query?.toLowerCase()
-    if (!lowered) return items
-    return items.filter((item) => matchesQuery(item, lowered))
+    return {
+      items,
+      total: page.total,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
+    }
   } catch (error) {
-    // `listBases()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
+    // `listBasesForDiscovery()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
     // error string through the MCP catch-all, mirroring kb_search's all-bases-failed path.
     const message = error instanceof Error ? error.message : String(error)
-    logger.warn('KnowledgeService.listBases failed', { error: message })
+    logger.warn('KnowledgeService.listBasesForDiscovery failed', { error: message })
     return { error: message }
   }
 }
 
+function toKnowledgeBaseDiscoveryScope(allowedIds: readonly string[]) {
+  const [first, ...rest] = allowedIds
+  return first === undefined
+    ? { kind: 'unrestricted' as const }
+    : { kind: 'restricted' as const, baseIds: [first, ...rest] as readonly [string, ...string[]] }
+}
+
 export function knowledgeListModelOutput(
   output: KnowledgeListResultOrError,
-  input: { query?: string | null; groupId?: string | null; baseId?: string | null }
+  input: { query?: string | null; groupId?: string | null; baseId?: string | null; cursor?: string | null }
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput | KbTreeOutput } {
   const outlineMode = input?.baseId != null
 
-  // List mode success is the array of bases.
-  if (Array.isArray(output)) {
-    if (output.length === 0) {
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_list output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
+
+  if ('error' in output) {
+    // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
+    // the raw listBasesForDiscovery() infra error behind a fixed note (mirrors kb_search's all-failed path).
+    return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
+  }
+
+  // `Array.isArray` rather than the key alone: a stored part can carry `items`/`nodes` without the
+  // array (or neither), and a bare deref of the missing one is what crashed the whole conversation.
+  if ('items' in output && Array.isArray(output.items)) {
+    if (output.items.length === 0) {
+      if (output.total > 0 || input?.cursor) {
+        return {
+          type: 'text',
+          value:
+            'This knowledge-base cursor is exhausted or stale. Call kb_list again without cursor, keeping the same query and groupId filters if they still apply.'
+        }
+      }
       const filtered = Boolean(input?.query) || Boolean(input?.groupId)
       return {
         type: 'text',
@@ -624,17 +723,18 @@ export function knowledgeListModelOutput(
     return { type: 'json', value: output }
   }
 
-  // Non-array: an outline-mode tree object, or an `{ error }`.
-  if ('error' in output) {
-    // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
-    // the raw listBases() infra error behind a fixed note (mirrors kb_search's all-failed path).
-    return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
-  }
   // Outline mode success: one base's tree.
-  if (output.nodes.length === 0) {
-    return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+  if ('nodes' in output && Array.isArray(output.nodes)) {
+    if (output.nodes.length === 0) {
+      return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+    }
+    return { type: 'json', value: output }
   }
-  return { type: 'json', value: output }
+
+  logger.warn('kb_list output matches no known shape; rendering the unreadable-output note', {
+    keys: Object.keys(output)
+  })
+  return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
 }
 
 function buildOutputItem(
@@ -702,9 +802,4 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
     default:
       return null
   }
-}
-
-function matchesQuery(item: KbListOutputItem, lowered: string): boolean {
-  if (item.name.toLowerCase().includes(lowered)) return true
-  return item.sampleSources.some((source) => source.toLowerCase().includes(lowered))
 }

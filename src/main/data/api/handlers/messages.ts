@@ -14,21 +14,22 @@ import {
   DeleteMessageQuerySchema,
   type MessageSchemas,
   PathThroughQuerySchema,
-  TreeQuerySchema,
+  ReserveBranchSchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import type { HandlersFor } from '@shared/data/api/types'
 import { MessageDataSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
+  '/messages/:id/reply-group': {
+    DELETE: async ({ params }) => {
+      return messageService.deleteReplyGroup(params.id)
+    }
+  },
+
   '/topics/:topicId/tree': {
-    GET: async ({ params, query }) => {
-      const q = TreeQuerySchema.parse(query ?? {})
-      return messageService.getTree(params.topicId, {
-        rootId: q.rootId,
-        nodeId: q.nodeId,
-        depth: q.depth
-      })
+    GET: async ({ params }) => {
+      return messageService.getTree(params.topicId)
     }
   },
 
@@ -74,7 +75,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
       const q = DeleteMessageQuerySchema.parse(query ?? {})
       const cascade = q.cascade ?? false
       const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
-      return messageService.delete(params.id, cascade, activeNodeStrategy)
+      return messageService.delete(params.id, cascade, activeNodeStrategy, q.awaitingInputOnly ?? false)
     }
   },
 
@@ -82,6 +83,13 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = MessageDataSchema.parse(body)
       return messageService.createSibling(params.id, parsed)
+    }
+  },
+
+  '/messages/:id/branches': {
+    POST: async ({ params, body }) => {
+      const parsed = ReserveBranchSchema.parse(body)
+      return messageService.reserveBranch(params.id, parsed.activate ?? true)
     }
   }
 }

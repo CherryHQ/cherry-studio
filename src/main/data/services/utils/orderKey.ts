@@ -10,12 +10,13 @@
  * Rule: Do NOT import `fractional-indexing` outside this file.
  */
 
-import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { and, type AnyColumn, asc, desc, eq, getTableName, gt, inArray, lt, ne, type SQL } from 'drizzle-orm'
 import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing'
+
+import { loggerService } from '@logger'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 
 const logger = loggerService.withContext('orderKey')
 
@@ -32,7 +33,6 @@ const logger = loggerService.withContext('orderKey')
  * Drizzle's `BetterSQLite3Database<TSchema>` generic parameter would otherwise force
  * call-site casts with no safety benefit.
  */
-// biome-ignore lint: intentionally loose — see JSDoc above.
 type TxLike = any
 
 /**

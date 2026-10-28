@@ -1,17 +1,37 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+
+vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
+
 const mocks = vi.hoisted(() => ({
-  commandHandlers: new Map<string, () => void>(),
+  closeTab: vi.fn(),
+  closeTabs: vi.fn(),
+  detachTab: vi.fn(),
+  setActiveTab: vi.fn(),
+  commandHandlers: new Map<string, { handler: () => void; options?: { enabled?: boolean } }>(),
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
+  activeTabId: 'home',
   platformState: { isMac: false },
+  tabs: [
+    {
+      id: 'home',
+      isDormant: false,
+      title: 'Chat',
+      type: 'route' as const,
+      url: '/app/chat'
+    }
+  ],
   tabBarProps: undefined as Record<string, unknown> | undefined,
-  showSearchPopup: vi.fn()
+  showSearchPopup: vi.fn(),
+  hideSearchPopup: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
@@ -21,12 +41,13 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return mocks.platformState.isMac
-  }
+  },
+  isLinux: false
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: (command: string, handler: () => void) => {
-    mocks.commandHandlers.set(command, handler)
+  useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
+    mocks.commandHandlers.set(command, { handler, options })
   }
 }))
 
@@ -41,32 +62,31 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
-    show: mocks.showSearchPopup
+    show: mocks.showSearchPopup,
+    hide: mocks.hideSearchPopup
   }
 }))
 
-vi.mock('../../../hooks/tab', () => ({
-  useMainWindowNavigation: vi.fn(),
-  useTabs: () => ({
-    activeTabId: 'home',
-    closeTab: vi.fn(),
-    openTab: vi.fn(),
-    pinTab: vi.fn(),
-    reorderTabs: vi.fn(),
-    setActiveTab: vi.fn(),
-    tabs: [
-      {
-        id: 'home',
-        isDormant: false,
-        title: 'Chat',
-        type: 'route',
-        url: '/app/chat'
-      }
-    ],
-    unpinTab: vi.fn(),
-    updateTab: vi.fn()
-  })
-}))
+vi.mock('../../../hooks/tab', async () => {
+  const actual = (await vi.importActual('../../../hooks/tab')) as Record<string, unknown>
+  return {
+    ...(actual as object),
+    useMainWindowNavigation: vi.fn(),
+    useTabs: () => ({
+      activeTabId: mocks.activeTabId,
+      closeTab: mocks.closeTab,
+      closeTabs: mocks.closeTabs,
+      detachTab: mocks.detachTab,
+      openTab: vi.fn(),
+      pinTab: vi.fn(),
+      reorderTabs: vi.fn(),
+      setActiveTab: mocks.setActiveTab,
+      tabs: mocks.tabs,
+      unpinTab: vi.fn(),
+      updateTab: vi.fn()
+    })
+  }
+})
 
 vi.mock('../../app/Sidebar', () => ({
   default: () => <aside data-testid="sidebar" />
@@ -95,7 +115,7 @@ vi.mock('../AppShellTabBar', () => ({
 }))
 
 vi.mock('../TabRouter', () => ({
-  TabRouter: () => <section data-testid="tab-router" />
+  TabRouter: ({ tab }: { tab: { id: string } }) => <section data-testid="tab-router" data-tab-id={tab.id} />
 }))
 
 import { AppShell } from '../AppShell'
@@ -103,10 +123,21 @@ import { AppShell } from '../AppShell'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  MockUseCacheUtils.resetMocks()
   mocks.commandHandlers.clear()
   mocks.ipcHandlers.clear()
   mocks.ipcRequest.mockResolvedValue(false)
+  mocks.activeTabId = 'home'
   mocks.platformState.isMac = false
+  mocks.tabs = [
+    {
+      id: 'home',
+      isDormant: false,
+      title: 'Chat',
+      type: 'route',
+      url: '/app/chat'
+    }
+  ]
   mocks.tabBarProps = undefined
 })
 
@@ -122,12 +153,193 @@ describe('AppShell', () => {
     expect(provider).not.toContainElement(screen.getByTestId('tab-bar'))
   })
 
+  it('applies the compact minimum window size for the active chat tab and resets it on leaving', async () => {
+    mocks.tabs = [
+      ...mocks.tabs,
+      {
+        id: 'agents',
+        isDormant: false,
+        title: 'Agents',
+        type: 'route',
+        url: '/app/agents'
+      },
+      {
+        id: 'files',
+        isDormant: false,
+        title: 'Files',
+        type: 'route',
+        url: '/app/files'
+      }
+    ]
+
+    const { rerender } = render(<AppShell />)
+
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('window.main.set_minimum_size', {
+        width: SECOND_MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      })
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.main.reset_minimum_size')
+
+    // Switching between two compact tabs must not re-issue the IPC pair.
+    mocks.ipcRequest.mockClear()
+    mocks.activeTabId = 'agents'
+    rerender(<AppShell />)
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.main.set_minimum_size', expect.anything())
+
+    mocks.activeTabId = 'files'
+    rerender(<AppShell />)
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('window.main.reset_minimum_size')
+    })
+  })
+
   it('opens global search from the shell-level shortcut', () => {
     render(<AppShell />)
 
-    mocks.commandHandlers.get('app.search')?.()
+    mocks.commandHandlers.get('app.search')?.handler()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses the active Settings tab and hides workspace navigation', () => {
+    const settingsTab = {
+      id: 'settings',
+      isDormant: false,
+      title: 'Settings',
+      type: 'route' as const,
+      url: '/settings/provider'
+    }
+    mocks.tabs = [...mocks.tabs, settingsTab]
+    mocks.activeTabId = settingsTab.id
+
+    render(<AppShell />)
+
+    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
+    expect(mocks.tabBarProps).toMatchObject({
+      activeTabId: settingsTab.id,
+      isFocusedTab: true,
+      tabs: [settingsTab]
+    })
+    expect(screen.getAllByTestId('tab-router').map((router) => router.dataset.tabId)).toEqual(['home', 'settings'])
+  })
+
+  it('keeps a background Settings tab in the positional tab-bar list', () => {
+    mocks.tabs = [
+      ...mocks.tabs,
+      {
+        id: 'settings',
+        isDormant: false,
+        title: 'Settings',
+        type: 'route',
+        url: '/settings/provider'
+      },
+      {
+        id: 'files',
+        isDormant: false,
+        title: 'Files',
+        type: 'route',
+        url: '/app/files'
+      }
+    ]
+    mocks.activeTabId = 'files'
+
+    render(<AppShell />)
+
+    // AppShellTabBar sends positional reorder indices to TabsProvider, so this list must stay unfiltered.
+    const tabBarTabs = mocks.tabBarProps?.tabs as Array<{ id: string }> | undefined
+    expect(tabBarTabs?.map((tab) => tab.id)).toEqual(['home', 'settings', 'files'])
+  })
+
+  it('restores the tab that was active before Settings when the focused tab closes or detaches', () => {
+    const workspaceTabs = [
+      { id: 'first', isDormant: false, title: 'First', type: 'route' as const, url: '/app/chat' },
+      { id: 'second', isDormant: false, title: 'Second', type: 'route' as const, url: '/app/files' },
+      { id: 'third', isDormant: false, title: 'Third', type: 'route' as const, url: '/app/notes' }
+    ]
+    const settingsTab = {
+      id: 'settings',
+      isDormant: false,
+      title: 'Settings',
+      type: 'route' as const,
+      url: '/settings/provider'
+    }
+    mocks.tabs = workspaceTabs
+    mocks.activeTabId = 'first'
+    const view = render(<AppShell />)
+
+    mocks.tabs = [...workspaceTabs, settingsTab]
+    mocks.activeTabId = settingsTab.id
+    view.rerender(<AppShell />)
+
+    const closeFocusedTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeFocusedTab?.(settingsTab.id)
+
+    expect(mocks.closeTabs).toHaveBeenCalledWith([settingsTab.id], 'first')
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+
+    const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachFocusedTab?.(settingsTab.id)
+
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'first')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+  })
+
+  it('restores the most recently accessed workspace tab when Settings is restored active', () => {
+    const settingsTab = {
+      id: 'settings',
+      isDormant: false,
+      lastAccessTime: 400,
+      title: 'Settings',
+      type: 'route' as const,
+      url: '/settings/provider'
+    }
+    mocks.tabs = [
+      { id: 'home', isDormant: true, lastAccessTime: 300, title: 'Home', type: 'route', url: '/app/chat' },
+      { id: 'files', isDormant: true, lastAccessTime: 100, title: 'Files', type: 'route', url: '/app/files' },
+      settingsTab,
+      {
+        id: 'translate',
+        isDormant: true,
+        lastAccessTime: 200,
+        title: 'Translate',
+        type: 'route',
+        url: '/app/translate'
+      }
+    ]
+    mocks.activeTabId = settingsTab.id
+
+    render(<AppShell />)
+
+    const closeFocusedTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeFocusedTab?.(settingsTab.id)
+    expect(mocks.closeTabs).toHaveBeenCalledWith([settingsTab.id], 'home')
+
+    const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachFocusedTab?.(settingsTab.id)
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'home')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+  })
+
+  it('blocks and dismisses global search while the Settings tab is focused', () => {
+    mocks.tabs = [
+      ...mocks.tabs,
+      {
+        id: 'settings',
+        isDormant: false,
+        title: 'Settings',
+        type: 'route',
+        url: '/settings/provider'
+      }
+    ]
+    mocks.activeTabId = 'settings'
+
+    render(<AppShell />)
+    mocks.commandHandlers.get('app.search')?.handler()
+
+    expect(mocks.showSearchPopup).not.toHaveBeenCalled()
+    expect(mocks.hideSearchPopup).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the Windows and Linux tab bar inside the content column beside the sidebar', () => {
@@ -239,5 +451,96 @@ describe('AppShell', () => {
     expect(await screen.findByTestId('macos-traffic-light-spacer')).toBeInTheDocument()
     expect(screen.getByTestId('macos-traffic-light-drag-region')).toBeInTheDocument()
     expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
+  })
+
+  it('cycles tabs via command handlers', () => {
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' },
+      { id: 'tab3', isDormant: false, title: 'Tab 3', type: 'route', url: '/app/agents' }
+    ]
+
+    // home -> next -> tab2
+    const { rerender } = render(<AppShell />)
+    mocks.commandHandlers.get('tab.next')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab2')
+
+    // tab3 -> next -> home
+    mocks.activeTabId = 'tab3'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.next')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+
+    // tab2 -> prev -> home
+    mocks.activeTabId = 'tab2'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.prev')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+
+    // home -> prev -> tab3
+    mocks.activeTabId = 'home'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.prev')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab3')
+  })
+
+  it('disables tab cycling commands when there is no reachable next tab', () => {
+    const { rerender } = render(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
+    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+
+    mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
+    mocks.activeTabId = 'missing'
+    rerender(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
+    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+
+    mocks.activeTabId = 'home'
+    rerender(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: true })
+    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: true })
+  })
+
+  it('closes the active tab from the tab-close shortcut', () => {
+    mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
+    mocks.activeTabId = 'tab2'
+
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
+    expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
+  })
+
+  it('closes the last tab from the shortcut instead of the window, landing on the Launchpad fallback', () => {
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
+    // TabsProvider turns a zero-tab close into the Launchpad fallback tab, so the
+    // shortcut must share the tab bar's close path instead of closing the window.
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
+  })
+
+  it('keeps the last-tab close via the tab bar on the empty-state fallback', () => {
+    render(<AppShell />)
+    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeTab?.('home')
+
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
+  })
+
+  it('disables the tab-close shortcut when no tab is active', () => {
+    mocks.activeTabId = 'missing'
+
+    render(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.close')?.options).toEqual({ enabled: false })
   })
 })

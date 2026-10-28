@@ -1,8 +1,9 @@
-import type { Topic } from '@renderer/types/topic'
 import { render } from '@testing-library/react'
 import type React from 'react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import {
@@ -25,17 +26,16 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsBlob: vi.fn(),
+    captureScrollableAsDataUrl: vi.fn()
+  },
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
 
 vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn()
-}))
-
-vi.mock('@renderer/utils/image', () => ({
-  captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
@@ -64,6 +64,7 @@ const topic = {
   id: 'topic-1',
   assistantId: 'assistant-1',
   name: 'Topic',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: []
@@ -112,7 +113,9 @@ function renderWithProvider(children: ReactNode, renderConfig: Partial<typeof de
       getMessageActivityState: () => ({
         isProcessing: false,
         isStreamTarget: false,
-        isApprovalAnchor: false
+        isApprovalAnchor: false,
+        isActiveTurnProcessing: false,
+        isStreamLive: false
       }),
       translationLanguages: []
     },
@@ -129,32 +132,16 @@ function renderWithProvider(children: ReactNode, renderConfig: Partial<typeof de
 }
 
 describe('MessageMenuBar', () => {
-  it('hides token usage when estimated tokens are disabled', () => {
+  it('shows assistant token usage in the bubble footer toolbar regardless of the estimated-tokens setting', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
-        isLastMessage
-        isAssistantMessage
-        isProcessing={false}
-        messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
-      />
-    )
-
-    expect(container.querySelector('.message-tokens')).toBeNull()
-  })
-
-  it('shows assistant token usage in the bubble footer toolbar', () => {
-    const { container } = renderWithProvider(
-      <MessageMenuBar
-        message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}
         messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
       />,
-      { showEstimatedTokens: true }
+      { showEstimatedTokens: false }
     )
 
     expect(container.querySelector('.message-tokens')).toHaveTextContent('42 Tokens')

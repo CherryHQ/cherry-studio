@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -5,6 +8,7 @@ import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -12,8 +16,6 @@ import { toast } from '@renderer/services/toast'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { isWin } from '@renderer/utils/platform'
 import { defaultLanguage } from '@shared/utils/languages'
-import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWindowRuntime')
 
@@ -101,4 +103,8 @@ export function useWindowRuntime(): void {
   // Each BrowserWindow has its own SWR cache, so both keep their own invalidation.
   useTopicAutoRenameSync()
   useAgentSessionAutoRenameSync()
+
+  // Launcher-list convergence after IPC-side writes: exactly once per window,
+  // and outside every `<Activity>`.
+  useMiniAppListSync()
 }

@@ -1,6 +1,6 @@
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import type * as ComposerDraftModule from '../../../composerDraft'
 import type { ComposerSerializedDraft } from '../../../tokens'
@@ -133,7 +133,7 @@ describe('getComposerHistoryText', () => {
   it('drops a knowledge prompt span so the replayed entry cannot claim an unauthorized base', () => {
     const draft = promptDraft('summarize ', [{ kind: 'knowledge', text: KNOWLEDGE_PROMPT }])
 
-    const history = getComposerHistoryText(createComposerUserMessageParts(draft as ComposerSerializedDraft))
+    const history = getComposerHistoryText(createComposerUserMessageParts(draft))
 
     expect(history).not.toContain('kb-1')
     expect(history).not.toContain(KNOWLEDGE_PROMPT)
@@ -147,7 +147,7 @@ describe('getComposerHistoryText', () => {
       { kind: 'skill', text: SKILL_PROMPT }
     ])
 
-    const history = getComposerHistoryText(createComposerUserMessageParts(draft as ComposerSerializedDraft))
+    const history = getComposerHistoryText(createComposerUserMessageParts(draft))
 
     expect(history).toContain(SKILL_PROMPT)
     expect(history).not.toContain(KNOWLEDGE_PROMPT)
@@ -156,12 +156,12 @@ describe('getComposerHistoryText', () => {
   it('leaves a knowledge-free draft byte-identical rather than rewriting tokens to clipboard markers', () => {
     const draft = promptDraft('summarize ', [{ kind: 'skill', text: SKILL_PROMPT }])
 
-    const history = getComposerHistoryText(createComposerUserMessageParts(draft as ComposerSerializedDraft))
+    const history = getComposerHistoryText(createComposerUserMessageParts(draft))
 
     expect(history).toBe(draft.text)
   })
 
   it('passes a part without composer metadata through untouched', () => {
-    expect(getComposerHistoryText([{ type: 'text', text: 'plain text' } as CherryMessagePart])).toBe('plain text')
+    expect(getComposerHistoryText([{ type: 'text', text: 'plain text' }])).toBe('plain text')
   })
 })

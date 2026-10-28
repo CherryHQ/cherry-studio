@@ -1,8 +1,9 @@
-import type { UniqueModelId } from '@shared/data/types/model'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import { ClaudeConfigFields } from '../ClaudeConfigFields'
 
@@ -109,7 +110,7 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }) => (
     <div data-testid="role-model-selector" data-value={value ?? ''}>
       {trigger}
-      <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1' as UniqueModelId)}>
+      <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1')}>
         select role model
       </button>
       <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
@@ -133,6 +134,8 @@ function renderFields(
     onChange?: (next: Record<string, unknown>) => void
     section?: 'all' | 'basic' | 'advanced'
     onSettingsNavigate?: (navigate: () => void) => void
+    providerId?: string
+    gatewayModels?: Map<UniqueModelId, Model>
   } = {}
 ) {
   const onChange = options.onChange ?? vi.fn()
@@ -141,9 +144,10 @@ function renderFields(
       config={options.config ?? {}}
       onChange={onChange}
       section={options.section ?? 'advanced'}
-      providerId="anthropic"
+      providerId={options.providerId ?? 'anthropic'}
       modelFilter={() => true}
       onSettingsNavigate={options.onSettingsNavigate}
+      gatewayModels={options.gatewayModels}
     />
   )
 
@@ -294,7 +298,7 @@ describe('ClaudeConfigFields', () => {
 
     expect(onChange).toHaveBeenCalledWith({
       env: {
-        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5 [1M]',
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5[1M]',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
       }
     })
@@ -346,6 +350,36 @@ describe('ClaudeConfigFields', () => {
       env: {
         ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-opus-4-1'
+      }
+    })
+  })
+
+  it('round-trips detailed role models through gateway addresses', () => {
+    const gatewayModels = new Map<UniqueModelId, Model>([
+      [
+        'anthropic::claude-fable-1',
+        { id: 'anthropic::claude-fable-1', providerId: 'anthropic', apiModelId: 'claude-fable-api' } as unknown as Model
+      ],
+      [
+        'anthropic::claude-opus-4-1',
+        { id: 'anthropic::claude-opus-4-1', providerId: 'anthropic', apiModelId: 'claude-opus-api' } as unknown as Model
+      ]
+    ])
+    const { onChange } = renderFields({
+      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic:claude-fable-api' } },
+      providerId: 'cherry-api-gateway',
+      gatewayModels
+    })
+
+    expect(screen.getAllByTestId('role-model-selector')[0]).toHaveAttribute('data-value', 'anthropic::claude-fable-1')
+
+    const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
+    fireEvent.click(within(fableRow as HTMLElement).getByText('select role model'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      env: {
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic:claude-opus-api',
+        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'anthropic:claude-opus-api'
       }
     })
   })

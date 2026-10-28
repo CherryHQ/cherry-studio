@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -116,14 +115,15 @@ describe('Dialog primitive', () => {
     expect(content).toHaveClass(
       'data-[state=open]:animation-duration-[260ms]',
       'data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-      'data-[state=open]:zoom-in-99',
       'data-[state=open]:slide-in-from-bottom-4',
       'data-[state=closed]:animation-duration-[200ms]',
       'data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
-      'data-[state=closed]:zoom-out-99',
       'data-[state=closed]:slide-out-to-bottom-4',
       'motion-reduce:animate-none'
     )
+    // Scaling the whole content layer re-rasterizes it every frame; large emoji lists lose most frames.
+    expect(content).not.toHaveClass('data-[state=open]:zoom-in-99')
+    expect(content).not.toHaveClass('data-[state=closed]:zoom-out-99')
   })
 
   it('supports fade-scale motion without directional translation for alerts and confirmations', () => {
@@ -137,16 +137,26 @@ describe('Dialog primitive', () => {
 
     const content = document.querySelector('[data-slot="dialog-content"]')
 
-    expect(content).toHaveClass(
-      'data-[state=open]:fade-in-0',
-      'data-[state=open]:zoom-in-99',
-      'data-[state=closed]:fade-out-0',
-      'data-[state=closed]:zoom-out-99'
-    )
+    expect(content).toHaveClass('data-[state=open]:fade-in-0', 'data-[state=closed]:fade-out-0')
+    expect(content).not.toHaveClass('data-[state=open]:zoom-in-99')
+    expect(content).not.toHaveClass('data-[state=closed]:zoom-out-99')
     expect(content).not.toHaveClass(
       'data-[state=open]:slide-in-from-bottom-4',
       'data-[state=closed]:slide-out-to-bottom-4'
     )
+  })
+
+  it('marks dialog content as no-drag so it stays clickable over titlebar drag regions', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const content = document.querySelector('[data-slot="dialog-content"]')
+    expect(content).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
   it('keeps content mounted while its close animation is active', () => {
@@ -358,5 +368,30 @@ describe('Dialog primitive', () => {
 
     await waitFor(() => expect(screen.queryByRole('option', { name: 'Beta' })).not.toBeInTheDocument())
     expect(handleOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('names the close control Close by default', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+  })
+
+  it('uses a caller-provided closeLabel as the close control name', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined} closeLabel="关闭">
+          <DialogTitle>频道日志</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
   })
 })

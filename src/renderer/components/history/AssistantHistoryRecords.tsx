@@ -1,41 +1,56 @@
+import { Bot } from 'lucide-react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import type {
-  TopicActionContext,
-  TopicExportMenuOptions
-} from '@renderer/components/chat/actions/topicContextMenuActions'
+import type { TopicActionContext } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
 import {
+  cancelTopicRenaming,
   finishTopicRenaming,
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
   useTopicMutations
 } from '@renderer/hooks/useTopic'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import {
+  restoreRecycleBinItem,
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
+import { getErrorMessage } from '@renderer/utils/error'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { Bot } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
+import type {
+  HistoryBulkDeleteResult,
+  HistoryRecordDescriptor,
+  HistoryRowActions,
+  HistoryRowState
+} from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAssistantSources,
@@ -49,10 +64,22 @@ const logger = loggerService.withContext('AssistantHistoryRecords')
 
 type HistoryTopicItem = ApiTopic & { assistantId: string | undefined; pinned: boolean }
 
+function AssistantHistoryRowState({
+  topicId,
+  children
+}: {
+  topicId: string
+  children: (state: HistoryRowState) => ReactElement
+}) {
+  const { isRenaming } = useTopicRenameState(topicId)
+  return children({ isRenaming })
+}
+
 interface AssistantHistoryRecordsProps {
   activeRecordId?: string | null
   onClose: () => void
-  onRecordSelect?: (topic: RendererTopic | null) => void
+  onRecordSelect?: (topic: RendererTopic) => void
+  onActiveRecordChange?: (topic: RendererTopic | null) => void
   toolbarLeading?: ReactNode
 }
 
@@ -60,26 +87,32 @@ const AssistantHistoryRecords = ({
   activeRecordId,
   onClose,
   onRecordSelect,
+  onActiveRecordChange: onActiveTopicChange,
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
+  const clearTopicMessages = useClearTopicMessages()
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
-  const { topics: rawTopics, isLoadingAll: isTopicsLoading } = useAssistantTopicsSource()
+  const { topics: rawTopics, rendererTopics, isLoadingAll: isTopicsLoading, refetch } = useAssistantTopicsSource()
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
-  const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
-  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics, batchUpdateTopics } = useTopicMutations()
+  const {
+    updateTopic: patchTopic,
+    deleteTopic: deleteTopicById,
+    deleteTopics,
+    restoreTopic,
+    batchUpdateTopics
+  } = useTopicMutations()
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
     joplin: 'data.export.menus.joplin',
     markdown: 'data.export.menus.markdown',
     markdown_reason: 'data.export.menus.markdown_reason',
-    notes: 'data.export.menus.notes',
     notion: 'data.export.menus.notion',
     obsidian: 'data.export.menus.obsidian',
     plain_text: 'data.export.menus.plain_text',
@@ -87,18 +120,14 @@ const AssistantHistoryRecords = ({
     yuque: 'data.export.menus.yuque'
   })
   const { pinnedIds: topicPinnedIds, togglePin: toggleTopicPin } = usePins('topic')
+  const { items: optimisticTopics, rename: renameTopicOptimistically } = useOptimisticResourceName(rawTopics)
 
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
-  const renamingTopicIdSet = useMemo(
-    () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
-    [renamingTopics]
-  )
-  const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
-
   const topics = useMemo<HistoryTopicItem[]>(
-    () => rawTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
-    [isTopicPinned, rawTopics]
+    () =>
+      optimisticTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
+    [isTopicPinned, optimisticTopics]
   )
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const assistantRankById = useMemo(
@@ -116,12 +145,24 @@ const AssistantHistoryRecords = ({
     [assistantRankById, groupNow, topics]
   )
 
+  const optimisticTopicById = useMemo(
+    () => new Map(optimisticTopics.map((topic) => [topic.id, topic])),
+    [optimisticTopics]
+  )
+  // The shared mapped list carries `pinned: false`; copy only rows with an optimistic name or pin override.
   const rendererTopicById = useMemo(
     () =>
       new Map(
-        topics.map((topic) => [topic.id, { ...mapApiTopicToRendererTopic(topic), pinned: isTopicPinned(topic.id) }])
+        rendererTopics.map((topic) => {
+          const optimisticName = optimisticTopicById.get(topic.id)?.name
+          const pinned = isTopicPinned(topic.id)
+          return [
+            topic.id,
+            optimisticName !== topic.name || pinned ? { ...topic, name: optimisticName ?? topic.name, pinned } : topic
+          ]
+        })
       ),
-    [isTopicPinned, topics]
+    [isTopicPinned, optimisticTopicById, rendererTopics]
   )
   const getRendererTopic = useCallback(
     (topic: ApiTopic): RendererTopic =>
@@ -160,14 +201,14 @@ const AssistantHistoryRecords = ({
       const title = topic.name || t('chat.default.topic.name')
       if (conversationNav.openConversationTab(topic.id, title, { forceNew: true })) return
 
-      onRecordSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
+      onRecordSelect?.(getRendererTopic(topic))
       onClose()
     },
-    [conversationNav, onClose, onRecordSelect, rendererTopicById, t]
+    [conversationNav, getRendererTopic, onClose, onRecordSelect, t]
   )
 
   const updateTopic = useCallback(
-    (topic: RendererTopic) =>
+    (topic: Pick<RendererTopic, 'id' | 'isNameManuallyEdited' | 'name'>) =>
       patchTopic(topic.id, { name: topic.name, isNameManuallyEdited: topic.isNameManuallyEdited }),
     [patchTopic]
   )
@@ -193,8 +234,9 @@ const AssistantHistoryRecords = ({
         await deleteTopicById(topic.id)
       } catch (err) {
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
-        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-        toast.error(message)
+        if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+        else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else toast.error(err instanceof Error ? err.message : t('recycle_bin.move_failed'))
         return
       }
 
@@ -205,25 +247,51 @@ const AssistantHistoryRecords = ({
           topic.id,
           (candidate) => candidate.id
         )
-        onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
+        onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
+
+      showRecycleBinUndo({
+        itemName: topic.name || t('chat.default.topic.name'),
+        onUndo: () =>
+          restoreRecycleBinItem({
+            id: topic.id,
+            restore: restoreTopic,
+            getActive: (id) => dataApiService.get(`/topics/${id}`),
+            refresh: refetch
+          })
+      })
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
+    [activeRecordId, deleteTopicById, getRendererTopic, onActiveTopicChange, refetch, restoreTopic, t, timeSortedTopics]
   )
 
   const handleBulkDeleteTopics = useCallback(
-    async (ids: string[]): Promise<readonly string[] | undefined> => {
+    async (ids: string[]): Promise<HistoryBulkDeleteResult> => {
       try {
-        const result = await deleteTopics(ids)
-        return result.deletedIds
-      } catch (err) {
-        logger.error('Failed to bulk delete topics from history records', { ids, err })
-        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-        toast.error(message)
-        return undefined
+        const archived = await deleteTopics(ids)
+        const deletedIds = [...archived.deletedIds]
+        showRecycleBinBatchUndo({
+          itemCount: deletedIds.length,
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedIds,
+              restore: restoreTopic,
+              getActive: (id) => dataApiService.get(`/topics/${id}`),
+              refresh: refetch
+            })
+        })
+        return { succeeded: deletedIds, failed: [] }
+      } catch (error) {
+        logger.error('Failed to bulk delete topics from history records', { ids, error })
+        await refetch().catch((refreshError) => {
+          logger.warn('Failed to refresh topics after bulk delete', refreshError as Error, { ids })
+        })
+        if (isTrashTargetNotFoundError(error)) toast.info(t('recycle_bin.already_moved'))
+        else if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else toast.error(t('recycle_bin.move_failed'))
+        return { succeeded: [], failed: ids.map((id) => ({ id, error: getErrorMessage(error) })) }
       }
     },
-    [deleteTopics, t]
+    [deleteTopics, refetch, restoreTopic, t]
   )
 
   const handleBulkMoveTopics = useCallback(
@@ -264,9 +332,7 @@ const AssistantHistoryRecords = ({
     [batchUpdateTopics, t]
   )
 
-  const handleClearMessages = useCallback((topic: RendererTopic) => {
-    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
+  const handleClearMessages = useCallback((topic: RendererTopic) => clearTopicMessages(topic.id), [clearTopicMessages])
 
   const handleAutoRename = useCallback(
     async (topic: RendererTopic) => {
@@ -274,15 +340,27 @@ const AssistantHistoryRecords = ({
       if (messages.length < 2) return
 
       startTopicRenaming(topic.id)
+      let didPersistRename = false
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
-          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          try {
+            await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+            didPersistRename = true
+          } catch (err) {
+            logger.error('Failed to save automatically renamed topic from history records', { topicId: topic.id, err })
+            const message = err instanceof Error ? err.message : t('common.save_failed')
+            toast.error(message)
+          }
         } else if (summaryError) {
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
       } finally {
-        finishTopicRenaming(topic.id)
+        if (didPersistRename) {
+          finishTopicRenaming(topic.id)
+        } else {
+          cancelTopicRenaming(topic.id)
+        }
       }
     },
     [t, updateTopic]
@@ -290,12 +368,15 @@ const AssistantHistoryRecords = ({
 
   const handleRenameTopic = useCallback(
     async (topicId: string, name: string) => {
-      const topic = rendererTopicById.get(topicId)
+      const topic = topics.find((candidate) => candidate.id === topicId)
       const trimmedName = name.trim()
       if (!topic || !trimmedName || trimmedName === topic.name) return
 
       try {
-        await updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
+        await renameTopicOptimistically(topic, trimmedName, async () => {
+          await updateTopic({ id: topic.id, name: trimmedName, isNameManuallyEdited: true })
+          return true
+        })
         toast.success(t('common.saved'))
       } catch (err) {
         logger.error('Failed to rename topic from history records', { topicId, err })
@@ -303,7 +384,7 @@ const AssistantHistoryRecords = ({
         toast.error(message)
       }
     },
-    [rendererTopicById, t, updateTopic]
+    [renameTopicOptimistically, t, topics, updateTopic]
   )
 
   const getTopicActionContext = useCallback(
@@ -311,9 +392,10 @@ const AssistantHistoryRecords = ({
       const topic = getRendererTopic(apiTopic)
 
       return createTopicActionContext({
-        exportMenuOptions: exportMenuOptions as TopicExportMenuOptions,
+        exportMenuOptions,
+        isArchiveBlocked: false,
         isActiveInCurrentTab: false,
-        isRenaming: isTopicRenaming(topic.id),
+        isRenaming: false,
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
@@ -334,7 +416,6 @@ const AssistantHistoryRecords = ({
       handleClearMessages,
       handleDeleteTopicFromMenu,
       handlePinTopic,
-      isTopicRenaming,
       notesPath,
       t,
       topics.length
@@ -346,17 +427,17 @@ const AssistantHistoryRecords = ({
   const getSourceId = useCallback((topic: HistoryTopicItem) => getTopicSourceId(topic, assistantById), [assistantById])
   const matchesSearch = useCallback(
     (topic: HistoryTopicItem, keywords: string) =>
-      (topic.name || t('chat.default.topic.name')).toLowerCase().includes(keywords),
+      matchesSearchText(topic.name || t('chat.default.topic.name'), keywords),
     [t]
   )
   const onActiveRecordChange = useCallback(
-    (topic: HistoryTopicItem | null) => onRecordSelect?.(topic ? getRendererTopic(topic) : null),
-    [getRendererTopic, onRecordSelect]
+    (topic: HistoryTopicItem | null) => onActiveTopicChange?.(topic ? getRendererTopic(topic) : null),
+    [getRendererTopic, onActiveTopicChange]
   )
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
-      getUpdatedAt: (topic: HistoryTopicItem) => topic.updatedAt,
+      getUpdatedAt: (topic: HistoryTopicItem) => topic.lastActivityAt,
       getSourceLabel: (topic: HistoryTopicItem) =>
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {
@@ -376,8 +457,15 @@ const AssistantHistoryRecords = ({
       rowHeight: 32,
       getSelectLabel: (topic: HistoryTopicItem) =>
         `${t('common.select')} ${topic.name || t('chat.default.topic.name')}`,
-      getRowActions: (topic: HistoryTopicItem, openRename: (id: string, name: string) => void) => {
-        const contextOverride = { onStartRename: () => openRename(topic.id, topic.name ?? '') }
+      renderRowState: (topic: HistoryTopicItem, render: (state: HistoryRowState) => ReactElement) => (
+        <AssistantHistoryRowState topicId={topic.id}>{render}</AssistantHistoryRowState>
+      ),
+      getRowActions: (
+        topic: HistoryTopicItem,
+        openRename: (id: string, name: string) => void,
+        { isRenaming }: { isRenaming: boolean }
+      ) => {
+        const contextOverride = { isRenaming, onStartRename: () => openRename(topic.id, topic.name ?? '') }
         const actions = topicMenuPreset.getActions(topic, contextOverride)
         return {
           actions,
@@ -466,7 +554,7 @@ const AssistantHistoryRecords = ({
       loadingDescription: t('history.records.loading.description'),
       pinLabel: t('chat.topics.pin'),
       unpinLabel: t('chat.topics.unpin'),
-      deleteLabel: t('common.delete'),
+      deleteLabel: t('common.archive'),
       renameDialogTitle: t('chat.topics.edit.title')
     }
   }

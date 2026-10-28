@@ -1,17 +1,22 @@
 import { arch } from 'node:os'
 
+import { app, BrowserWindow } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { requestDataReset } from '@main/services/dataReset'
+import { cacheCleanupService } from '@main/services/cacheCleanup'
+import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
+import { regionService } from '@main/services/RegionService'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
+import { getAndroidDownloadUrl } from '@main/utils/mobileAppDownload'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { app, BrowserWindow, webContents } from 'electron'
 
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
+  'app.mobile.get_android_download_url': async () => getAndroidDownloadUrl(await regionService.getCountry()),
   'app.get_info': async () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,
@@ -37,18 +42,19 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
     requestUserDataRelocation(path, copy)
   },
+  'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
+  'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
   'app.relaunch': async () => application.relaunch(),
   'app.adjust_zoom': async ({ delta, reset = false }) => {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)
     return application.get('PreferenceService').get('app.zoom_factor')
   },
-  'app.set_spell_check_enabled': async (isEnable) => {
-    webContents.getAllWebContents().forEach((w) => w.session.setSpellCheckerEnabled(isEnable))
-  },
   'app.data_reset.request': async () => requestDataReset(),
+  'app.migration_v2.rerun': async () => requestV1Remigration(),
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },
+  'app.updater.release_notes.get': async () => application.get('AppUpdaterService').getReleaseHistory(),
   'app.updater.quit_and_install': async () => {
     application.get('AppUpdaterService').quitAndInstall()
   }

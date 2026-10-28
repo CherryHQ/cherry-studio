@@ -1,4 +1,7 @@
+import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import {
   type AgentGlobalSkillRow,
@@ -14,8 +17,11 @@ import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
-import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
-import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
+import {
+  type InstalledSkill,
+  type ListSkillsQuery,
+  SKILL_LIST_MEMBERSHIP_DIMENSIONS
+} from '@shared/data/api/schemas/skills'
 
 /**
  * DataApi service for the `agent_global_skill` and `agent_skill` join tables.
@@ -30,7 +36,11 @@ export class AgentGlobalSkillService {
   }
 
   getById(id: string): InstalledSkill | null {
-    const rows = this.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1).all()
+    return this.getByIdTx(this.db, id)
+  }
+
+  getByIdTx(tx: DbOrTx, id: string): InstalledSkill | null {
+    const rows = tx.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1).all()
     if (!rows[0]) return null
     return this.rowToInstalledSkill(rows[0])
   }
@@ -49,9 +59,10 @@ export class AgentGlobalSkillService {
   /**
    * List skills with optional search + per-agent `isEnabled` projection.
    *
-   * When `query.agentId` is provided each row's `isEnabled` reflects the
-   * `agent_skill` join state, defaulting to enabled for builtin skills when no
-   * join row exists yet; otherwise it is forced to `false`.
+   * Without an agent, every installed skill is returned for the global
+   * settings catalog and `isEnabled` is false. With `query.agentId`, globally
+   * disabled skills are excluded from the Agent capability catalog; remaining
+   * rows project the `agent_skill` preference (with builtins enabled by default).
    */
   list(query: ListSkillsQuery = {}): InstalledSkill[] {
     const conditions: SQL[] = []
@@ -59,6 +70,7 @@ export class AgentGlobalSkillService {
     if (query.agentId) {
       const agent = agentService.getAgent(query.agentId)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', query.agentId)
+      conditions.push(eq(agentGlobalSkillTable.isEnabled, true))
     }
 
     if (query.search) {
@@ -79,12 +91,13 @@ export class AgentGlobalSkillService {
             .all()
         : this.db.select().from(agentGlobalSkillTable).orderBy(asc(agentGlobalSkillTable.createdAt)).all()
     const skills = rows.map((row) => this.rowToInstalledSkill(row))
-    if (!query.agentId) {
-      return skills.map((s) => ({ ...s, isEnabled: false }))
-    }
+    if (!query.agentId) return skills
 
     const enabledMap = this.loadEnabledMap(query.agentId)
-    return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin' }))
+    return skills.map((s) => ({
+      ...s,
+      isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin'
+    }))
   }
 
   /** Every row from `agent_global_skill`, ordered by createdAt. Used to seed new agents with builtins. */
@@ -98,13 +111,39 @@ export class AgentGlobalSkillService {
   }
 
   insertTx(tx: DbOrTx, values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {
-    const [inserted] = tx.insert(agentGlobalSkillTable).values(values).returning().all()
+    const [inserted] = tx
+      .insert(agentGlobalSkillTable)
+      .values({ isEnabled: true, ...values })
+      .returning()
+      .all()
     if (!inserted) throw new Error(`Failed to insert agent_global_skill row: ${values.folderName}`)
     return inserted
   }
 
   update(id: string, patch: Partial<Omit<InsertAgentGlobalSkillRow, 'id' | 'createdAt' | 'updatedAt'>>): void {
     this.updateTx(application.get('DbService').getDb(), id, patch)
+  }
+
+  updateGlobalEnabled(id: string, isGlobalEnabled: boolean): InstalledSkill | null {
+    const [updated] = this.db
+      .update(agentGlobalSkillTable)
+      .set({ isEnabled: isGlobalEnabled })
+      .where(eq(agentGlobalSkillTable.id, id))
+      .returning()
+      .all()
+    if (!updated) return null
+
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [id] },
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [id]
+      },
+      { endpoint: '/skills/:skillId', entityIds: [id] }
+    ])
+    return this.rowToInstalledSkill(updated)
   }
 
   updateTx(
@@ -154,6 +193,38 @@ export class AgentGlobalSkillService {
         set: { isEnabled }
       })
       .run()
+  }
+
+  /** Publish the agent-scoped Skill projection only after its caller-owned transaction commits. */
+  notifyAgentSkillChange(skillId: string): void {
+    notifyDataApiDataChange([
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [skillId]
+      }
+    ])
+  }
+
+  notifySkillProjectionChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [skillId] },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
+  }
+
+  notifySkillMembershipChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'membership', entityIds: [skillId] },
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [skillId]
+      },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
   }
 
   /**
@@ -251,7 +322,8 @@ export class AgentGlobalSkillService {
       version: row.version,
       sourceTags: row.tags,
       contentHash: row.contentHash,
-      isEnabled: row.isEnabled,
+      isGlobalEnabled: row.isEnabled,
+      isEnabled: false,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     }

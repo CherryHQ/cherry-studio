@@ -1,114 +1,116 @@
-import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
-import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Override the global lightweight '@cherrystudio/ui' stand-in with the real theme
-// utils — this test locks the provider + theme-resolution behavior end-to-end.
-vi.mock('@cherrystudio/ui', async () => {
-  const utils = await vi.importActual<typeof codeEditorUtils>(
-    '@cherrystudio/ui/components/composites/code-editor/utils'
-  )
-  return {
-    getCmThemeNames: utils.getCmThemeNames,
-    getCmThemeByName: utils.getCmThemeByName
-  }
-})
+import { getCodeBlockPalette } from '@cherrystudio/ui/code-block'
+import { loadCodeTheme } from '@cherrystudio/ui/code-highlight'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ theme: 'light' })
-}))
+vi.unmock('@cherrystudio/ui')
 
-vi.mock('@renderer/hooks/useMermaid', () => ({
-  useMermaid: () => {}
-}))
+const themeState = vi.hoisted(() => ({ theme: 'light' as 'light' | 'dark' }))
+vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: themeState.theme }) }))
 
-vi.mock('@renderer/services/ShikiStreamService', () => ({
-  shikiStreamService: {
-    dispose: vi.fn(),
-    highlightCodeChunk: vi.fn(),
-    highlightStreamingCode: vi.fn(),
-    cleanupTokenizers: vi.fn(),
-    getShikiPreProperties: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/utils/shiki', () => ({
-  getShiki: vi.fn(async () => ({ bundledThemesInfo: [{ id: 'one-light', displayName: 'One Light', type: 'light' }] })),
-  getHighlighter: vi.fn(),
-  getMarkdownIt: vi.fn(),
-  loadLanguageIfNeeded: vi.fn(),
-  loadThemeIfNeeded: vi.fn()
-}))
-
-const Probe = () => {
-  const { themeNames, activeCmTheme } = useCodeStyle()
+function Probe() {
+  const { codeBlockStyle, activeCodeTheme, isCodeThemeDark } = useCodeStyle()
+  const { themeNames } = useCodeStyleThemeCatalog()
   return (
-    <>
-      <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>
-      <span data-testid="cm-theme-type">{typeof activeCmTheme}</span>
-      <span data-testid="cm-theme-string">{typeof activeCmTheme === 'string' ? activeCmTheme : ''}</span>
-    </>
+    <div aria-label="Code appearance" style={codeBlockStyle}>
+      <output aria-label="Selected code theme">{activeCodeTheme}</output>
+      <span>{isCodeThemeDark ? 'Dark code' : 'Light code'}</span>
+      <select aria-label="Available code themes">
+        {themeNames.map((name) => (
+          <option key={name}>{name}</option>
+        ))}
+      </select>
+    </div>
   )
 }
-
-const renderProvider = () =>
-  render(
-    <CodeStyleProvider>
-      <Probe />
-    </CodeStyleProvider>
-  )
-
-describe('CodeStyleProvider', () => {
+const appearance = () => screen.getByLabelText('Code appearance')
+describe('shared code appearance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
+    themeState.theme = 'light'
   })
 
-  it('throws when useCodeStyle is used outside CodeStyleProvider', () => {
-    expect(() => render(<Probe />)).toThrow('useCodeStyle must be used within a CodeStyleProvider')
-  })
-
-  it('provides cm theme names and resolves the saved cm theme when code editor is enabled', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
-
-    renderProvider()
-
-    // The first waitFor in this file pays the real (cold) dynamic import of
-    // @uiw/codemirror-themes-all; under a fully loaded worker pool that takes
-    // several seconds, so it needs more than the 1s waitFor default. Later
-    // tests reuse the module-level cmThemesPromise cache and stay fast.
-    await waitFor(
-      () => {
-        expect(screen.getByTestId('has-dracula').textContent).toBe('true')
-        expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
-      },
-      { timeout: 15000 }
+  it('keeps the message palette independent of the CodeMirror preference', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.viewer.theme_light': 'nord',
+      'chat.code.editor.theme_light': 'dracula'
+    })
+    render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
     )
+    const palette = getCodeBlockPalette(await loadCodeTheme('nord'))
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-syntax-keyword')).toBe(palette['--code-syntax-keyword'])
+    )
+    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('nord')
+    expect(screen.getByText('Dark code')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'dracula' })).toBeInTheDocument()
   })
 
-  it('resolves basic string cm themes without loading a themes-all extension', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dark')
-
-    renderProvider()
-
-    await waitFor(() => {
-      expect(screen.getByTestId('cm-theme-string').textContent).toBe('dark')
+  it('updates the palette when the app theme changes', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.viewer.theme_light': 'one-light',
+      'chat.code.viewer.theme_dark': 'nord'
     })
+    const { rerender } = render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    const light = getCodeBlockPalette(await loadCodeTheme('one-light'))
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-background')).toBe(light['--code-background'])
+    )
+    themeState.theme = 'dark'
+    rerender(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    const dark = getCodeBlockPalette(await loadCodeTheme('nord'))
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-background')).toBe(dark['--code-background'])
+    )
+    expect(screen.getByText('Dark code')).toBeInTheDocument()
   })
 
-  it('falls back to shiki theme names when code editor is disabled', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
+  it('falls back to a valid palette for a removed theme identifier', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'theme-deleted-upstream')
+    render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    await waitFor(() => expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('cherry'))
+  })
 
-    renderProvider()
+  it('defaults to the transparent Cherry theme and follows the app mode without switching themes', async () => {
+    const { rerender } = render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-background')).toBe(
+        'var(--cherry-code-background, transparent)'
+      )
+    )
+    expect(appearance().style.getPropertyValue('--code-syntax-keyword')).toMatch(/^var\(--cherry-code-keyword, /)
+    expect(screen.getByText('Light code')).toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(screen.getByTestId('has-dracula').textContent).toBe('false')
-      expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
-    })
+    themeState.theme = 'dark'
+    rerender(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('cherry')
+    expect(screen.getByText('Dark code')).toBeInTheDocument()
   })
 })

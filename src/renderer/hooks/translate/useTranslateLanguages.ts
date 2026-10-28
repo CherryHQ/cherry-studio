@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
@@ -6,19 +9,18 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { isTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { langCodeToI18nKey } from '@shared/data/presets/translateLanguages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { type MutationFeedbackOptions, useMutationFeedback } from './useMutationFeedback'
 
 const logger = loggerService.withContext('translate/useTranslateLanguages')
 
 export const useTranslateLanguages = (options?: {
+  enabled?: boolean
   add?: MutationFeedbackOptions
   update?: MutationFeedbackOptions
   remove?: MutationFeedbackOptions
 }) => {
-  const { data, error } = useQuery('/translate/languages')
+  const { data, error, refetch } = useQuery('/translate/languages', { enabled: options?.enabled })
   const { t } = useTranslation()
 
   const toastedRef = useRef(false)
@@ -138,7 +140,7 @@ export const useTranslateLanguages = (options?: {
   const status: 'loading' | 'error' | 'ready' =
     languages !== undefined ? 'ready' : error !== undefined ? 'error' : 'loading'
 
-  return { languages, getLabel, getLanguage, add, update, remove, error, status }
+  return { languages, getLabel, getLanguage, add, update, remove, error, status, refetch }
 }
 
 export const useLanguages = useTranslateLanguages

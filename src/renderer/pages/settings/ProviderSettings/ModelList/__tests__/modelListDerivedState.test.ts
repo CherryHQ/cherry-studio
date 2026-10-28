@@ -1,7 +1,6 @@
-import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import {
   applyModelFilters,
@@ -41,7 +40,7 @@ const models = [
     name: 'Gamma',
     providerId: 'openai',
     group: 'chat',
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.WEB_SEARCH],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
     isEnabled: true
   },
   {
@@ -85,6 +84,35 @@ describe('modelListDerivedState', () => {
     ]
 
     expect(Object.keys(groupModels(groupedModels as any))).toEqual(['deepseek', 'openai'])
+  })
+
+  it('repairs legacy provider-id groups while preserving explicit user groups', () => {
+    const groupedModels = [
+      {
+        id: 'opencode::deepseek-v4-pro',
+        apiModelId: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        providerId: 'opencode',
+        group: 'opencode',
+        capabilities: [],
+        isEnabled: true
+      },
+      {
+        id: 'opencode::gpt-5.6-sol',
+        apiModelId: 'gpt-5.6-sol',
+        name: 'GPT 5.6 Sol',
+        providerId: 'opencode',
+        group: 'Featured',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    const groups = groupModels(groupedModels as any, false, { preferModelGroup: true })
+
+    expect(groups.deepseek.map((model) => model.id)).toEqual(['opencode::deepseek-v4-pro'])
+    expect(groups.Featured.map((model) => model.id)).toEqual(['opencode::gpt-5.6-sol'])
+    expect(groups.opencode).toBeUndefined()
   })
 
   it('applies search text and capability filters together', () => {
@@ -199,23 +227,12 @@ describe('modelListDerivedState', () => {
     ])
   })
 
-  it('derives counts, booleans, and status map', () => {
-    const modelStatuses: ModelWithStatus[] = [
-      {
-        kind: 'ok',
-        model: models[0],
-        status: HealthStatus.SUCCESS,
-        keyResults: [],
-        checking: false,
-        latency: 120
-      }
-    ]
-
+  it('derives counts and visibility', () => {
     const derivedState = calculateModelListDerivedState({
       models: models as any,
       searchText: '',
-      selectedCapabilityFilter: 'all',
-      modelStatuses
+      selectedFilter: 'all',
+      failedModelIds: new Set()
     })
 
     expect(derivedState.modelCount).toBe(5)
@@ -234,15 +251,28 @@ describe('modelListDerivedState', () => {
       transcription: 0
     })
     expect(derivedState.duplicateModelNames.has('Alpha')).toBe(true)
-    expect(derivedState.modelStatusMap.get('openai::reasoning-free')).toEqual(modelStatuses[0])
+    expect(derivedState.failedModelCount).toBe(0)
+  })
+
+  it('filters models whose checked credentials all failed', () => {
+    const fullyFailedModel = models[3]
+    const derivedState = calculateModelListDerivedState({
+      models: models as any,
+      searchText: '',
+      selectedFilter: 'failed',
+      failedModelIds: new Set([fullyFailedModel.id])
+    })
+
+    expect(derivedState.failedModelCount).toBe(1)
+    expect(derivedState.filteredModels.map((model) => model.id)).toEqual([fullyFailedModel.id])
   })
 
   it('applies search but not the selected type filter to tab counts', () => {
     const derivedState = calculateModelListDerivedState({
       models: models as any,
       searchText: 'alpha',
-      selectedCapabilityFilter: 'embedding',
-      modelStatuses: []
+      selectedFilter: 'embedding',
+      failedModelIds: new Set()
     })
 
     expect(derivedState.filteredModels.map((model) => model.id)).toEqual(['openai::embedding-alpha'])
@@ -263,8 +293,8 @@ describe('modelListDerivedState', () => {
     const derivedState = calculateModelListDerivedState({
       models: [],
       searchText: 'missing',
-      selectedCapabilityFilter: 'all',
-      modelStatuses: []
+      selectedFilter: 'all',
+      failedModelIds: new Set()
     })
 
     expect(derivedState.hasNoModels).toBe(true)
@@ -282,5 +312,6 @@ describe('modelListDerivedState', () => {
       speech: 0,
       transcription: 0
     })
+    expect(derivedState.failedModelCount).toBe(0)
   })
 })

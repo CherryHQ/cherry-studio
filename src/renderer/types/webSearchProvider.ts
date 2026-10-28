@@ -1,9 +1,10 @@
 import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
-import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
-import { objectValues } from '@renderer/utils/object'
 import * as z from 'zod'
+
+import type OpenAI from '@cherrystudio/openai'
+import { objectValues } from '@renderer/utils/object'
 
 export const WebSearchProviderIds = {
   zhipu: 'zhipu',

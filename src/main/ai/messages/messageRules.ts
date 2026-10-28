@@ -5,14 +5,55 @@
  * end-to-end. Each step is pure and preserves element references when it changes nothing.
  */
 
-import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
+import { createHash } from 'node:crypto'
 
-import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
+import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
+
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
+
+import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
+import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */
 function contentToParts(content: unknown): unknown[] {
   if (typeof content === 'string') return content.length > 0 ? [{ type: 'text', text: content }] : []
   return Array.isArray(content) ? content : []
+}
+
+const TERMINAL_LOCAL_TOOL_STATES = new Set(['output-available', 'output-error', 'output-denied'])
+
+function isCompletedLocalTool(part: UIMessage['parts'][number]): boolean {
+  return isToolUIPart(part) && part.providerExecuted !== true && TERMINAL_LOCAL_TOOL_STATES.has(part.state)
+}
+
+function isAssistantContinuation(part: UIMessage['parts'][number]): boolean {
+  return part.type === 'text' || part.type === 'reasoning' || part.type === 'file'
+}
+
+/** Restore inferable step boundaries that the v1 flat-block migration could not persist. */
+function restoreLegacyToolStepBoundaries(messages: UIMessage[]): UIMessage[] {
+  let out: UIMessage[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant' || message.parts.some((part) => part.type === 'step-start')) return
+
+    let parts: UIMessage['parts'] | undefined
+    let completedToolGroup = false
+    message.parts.forEach((part, partIndex) => {
+      if (completedToolGroup && isAssistantContinuation(part)) {
+        parts ??= message.parts.slice(0, partIndex)
+        parts.push({ type: 'step-start' })
+        completedToolGroup = false
+      }
+      parts?.push(part)
+      if (isCompletedLocalTool(part)) completedToolGroup = true
+    })
+
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
 }
 
 /**
@@ -62,20 +103,209 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
   )
 }
 
+/** Intersection of the provider rules: OpenAI `^[a-zA-Z0-9_-]{1,64}$`, Gemini's leading letter/underscore. */
+const WIRE_TOOL_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/
+const NAME_DIGEST_LENGTH = 8
+
+/**
+ * Sanitizing and truncating are both many-to-one, so a digest of the original name is what
+ * keeps two legacy names distinct — `@ai-sdk/google` serializes `functionCall`/`functionResponse`
+ * history by name with no tool-call id, so a collision there mispairs calls with results.
+ */
+function toWireToolName(name: string): string {
+  const digest = createHash('sha1').update(name).digest('hex').slice(0, NAME_DIGEST_LENGTH)
+  const sanitized = name.replace(/[^A-Za-z0-9_-]/g, '_')
+  const head = (/^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`).slice(0, 63 - NAME_DIGEST_LENGTH)
+  return `${head}_${digest}`
+}
+
+/**
+ * Make an illegal `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
+ * `toolName` for display (`ChatMappings`), and unlike v1 — which never replayed tool blocks —
+ * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and result
+ * share one part, so the pair stays consistent.
+ *
+ * A name this request declares is never rewritten: the API Gateway shares this path and keys its
+ * `ToolSet` by the client's own function name (which Gemini allows to hold `.` / `:`), so
+ * rewriting it would desync history from the declaration and skip the tool's `toModelOutput`.
+ */
+export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], tools?: ToolSet): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) return
+      parts ??= [...message.parts]
+      parts[partIndex] = { ...part, toolName: toWireToolName(part.toolName) }
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
+ * Drop tool parts still parked on an unanswered approval card.
+ *
+ * A turn that ends `awaiting-approval` persists its `approval-requested` parts, and
+ * `convertToModelMessages` turns those into a `tool-call` with no tool result —
+ * `ignoreIncompleteToolCalls` only covers `input-streaming`/`input-available`. Once the
+ * card is abandoned (app restart, branch switch) every later turn replays that dangling
+ * call and strict providers reject it (DeepSeek Responses: "No tool output found for tool
+ * call …", #17936). `approval-responded` is kept: the continue-conversation turn replays
+ * exactly that to resume execution.
+ */
+export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[] {
+  return messages.map((message) => {
+    if (!message.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) return message
+    return {
+      ...message,
+      parts: message.parts.filter((part) => !isToolUIPart(part) || part.state !== 'approval-requested')
+    }
+  })
+}
+
+/** Replay input that is not a JSON object reaches providers as tool_use.input; Anthropic rejects it: "Input should be an object" (#22503).
+ * Drop the whole part (call, result and approval) from replay; the stored/UI part stays untouched.
+ */
+function dropNonObjectToolInputs(messages: UIMessage[]): UIMessage[] {
+  let out: UIMessage[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    let parts: UIMessage['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (
+        isToolUIPart(part) &&
+        (part.state === 'output-error' ||
+          part.state === 'output-available' ||
+          part.state === 'output-denied' ||
+          part.state === 'approval-responded')
+      ) {
+        const input =
+          part.state === 'output-error' ? (part.input ?? ('rawInput' in part ? part.rawInput : undefined)) : part.input
+        const isObject = input !== null && typeof input === 'object' && !Array.isArray(input)
+        if (!isObject) {
+          parts ??= message.parts.slice(0, partIndex)
+          return
+        }
+      }
+      parts?.push(part)
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
+ * Two persisted parts can share one wire id (#22441). Strict providers require exactly
+ * one call and one result per id, so keep the strongest local evidence in its own slot.
+ */
+export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T[] {
+  const groups = new Map<
+    string,
+    { messageIndex: number; partIndex: number; priority: number; providerExecuted: boolean }
+  >()
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part)) return
+      const priority =
+        part.state === 'output-error' ||
+        part.state === 'output-denied' ||
+        (part.state === 'output-available' && part.preliminary !== true)
+          ? 2
+          : part.state === 'approval-responded'
+            ? 1
+            : 0
+      const group = groups.get(part.toolCallId)
+      if (!group) {
+        groups.set(part.toolCallId, {
+          messageIndex,
+          partIndex,
+          priority,
+          providerExecuted: part.providerExecuted === true
+        })
+      } else {
+        group.providerExecuted ||= part.providerExecuted === true
+        if (priority > group.priority) Object.assign(group, { messageIndex, partIndex, priority })
+      }
+    })
+  })
+
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    const parts = message.parts.filter((part, partIndex) => {
+      if (!isToolUIPart(part)) return true
+      const group = groups.get(part.toolCallId)!
+      return group.providerExecuted || (group.messageIndex === messageIndex && group.partIndex === partIndex)
+    })
+    if (parts.length !== message.parts.length) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
+ * Give the model the same attributed wording the runtimes send. Rewrites the copy handed to
+ * `convertToModelMessages`, covering both the answered (`approval-responded`) and the terminal
+ * (`output-denied`) shapes; the stored part keeps the raw reason for the card and the DB.
+ */
+export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part)) return
+      const approval = (part as { approval?: { approved?: boolean; reason?: string } }).approval
+      if (approval?.approved !== false) return
+      const reason = withUserDenialFeedback(approval.reason)
+      if (reason === approval.reason) return
+      parts ??= [...message.parts]
+      parts[partIndex] = { ...part, approval: { ...approval, reason } } as T['parts'][number]
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
 /**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
- * strip media the model can't accept → convert, dropping incomplete tool calls that
- * would otherwise dangle without a result → merge adjacent same-role turns left by
- * drops → placeholder any turn that still converted to empty content. See #16195.
+ * render persisted tool-output envelopes back into their <persisted-output> markers →
+ * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
+ * strip media the model can't accept → drop tool
+ * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
+ * restore inferable legacy step boundaries →
+ * convert, dropping incomplete tool calls that would otherwise dangle without a result →
+ * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
+ * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
+ * left by drops → placeholder any turn that still converted to empty content. See #16195.
  */
 export async function toModelMessages(
   messages: UIMessage[],
   caps?: MediaCapabilities,
-  tools?: ToolSet
+  tools?: ToolSet,
+  toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
-  const shaped = stripUnsupportedMedia(messages, caps ?? ALL_MEDIA)
+  const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
+  const shaped = restoreLegacyToolStepBoundaries(
+    deduplicateLocalToolParts(
+      dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
+    )
+  )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
-  return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
+  const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
+  return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

@@ -1,6 +1,13 @@
+import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
+import type { ChannelStatus } from '@shared/data/types/channel'
+import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
+import type { Currency } from '@shared/data/types/model'
+import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -122,9 +129,26 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
+  // Detached Chat/Agent windows keep pane state within their renderer process. These values are
+  // seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.sidebar.width': number
+  'ui.window.chat.artifact_pane.width': number
+  'ui.window.chat.resource_pane.width': number
+  'ui.window.chat.right_pane_open_override': boolean | null
+  'ui.window.agent.right_pane_open_override': boolean | null
+
+  // Detached Chat/Agent windows keep list-group expansion within their renderer process. These
+  // values are seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.topic.expansion.time': string[]
+  'ui.window.chat.topic.expansion.assistant': string[] | null
+  'ui.window.agent.session.expansion.time': string[]
+  'ui.window.agent.session.expansion.agent': string[] | null
+  'ui.window.agent.session.expansion.workdir': string[] | null
 
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
@@ -133,11 +157,8 @@ export type UseCacheSchema = {
   'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
-  'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
-  'mini_app.current_id': string
-  'mini_app.show': boolean
-  'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
+  'mini_app.split': { appId: string | null } | null
 
   // Topic management
   'topic.renaming': string[]
@@ -145,6 +166,10 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  // Per-session composer draft. Renderer memory only; app restart discards it.
+  'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
+  // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
+  'agent.ask_user_question_draft.${approvalId}': CacheValueTypes.CacheAskUserQuestionDraft
 
   // Translate page state management
   /** Input text */
@@ -204,16 +229,31 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.composer_draft.${topicId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  },
   'chat.scroll_anchor.${topicId}': null,
+  'ui.window.chat.sidebar.width': 275,
+  'ui.window.chat.artifact_pane.width': 460,
+  'ui.window.chat.resource_pane.width': 275,
+  'ui.window.chat.right_pane_open_override': null,
+  'ui.window.agent.right_pane_open_override': null,
+  'ui.window.chat.topic.expansion.time': [],
+  'ui.window.chat.topic.expansion.assistant': null,
+  'ui.window.agent.session.expansion.time': [],
+  'ui.window.agent.session.expansion.agent': null,
+  'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
   // MiniApp management
-  'mini_app.opened_keep_alive': [],
-  'mini_app.current_id': '',
-  'mini_app.show': false,
-  'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
+  'mini_app.split': null,
 
   // Topic management
   'topic.renaming': [],
@@ -221,6 +261,19 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.composer_draft.${sessionId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    workspaceKey: '',
+    agentId: ''
+  },
+  'agent.ask_user_question_draft.${approvalId}': {
+    selectedAnswers: {},
+    customAnswers: {},
+    currentIndex: 0
+  },
 
   // Translate page state management
   'translate.input': '',
@@ -254,17 +307,32 @@ export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  'doctor.state.${scope}': CacheValueTypes.CacheDoctorState
+  'doctor.agent.${scope}': CacheValueTypes.CacheDoctorAgentState
+  'network.online': boolean
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
+  'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
+  'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
+  'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
+  'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
+  'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
+  'feature.deepseek_harness.status': ManagedToolStatusState
+  'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  'feature.remote_access.discovery_status': 'inactive' | 'starting' | 'available' | 'unavailable'
+  'feature.api_gateway.lan_running': boolean
+  // Main-owned, session-only local model status and download progress.
+  'local_model.statuses': LocalModelStatusSnapshots
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -282,21 +350,58 @@ export type SharedCacheSchema = {
   // active, then left to linger under a short TTL after the job exits so the
   // polled item status can reach its terminal state before the value vanishes.
   'knowledge.item.embedding_progress.${itemId}': number | null
+  // A mini app opened via `openSmartMiniApp` (OpenClaw's dashboard, the S3 help page,
+  // the release notes) has no database row, so `/app/mini-app/<id>` is unresolvable
+  // through DataApi. Publishing the descriptor here — not into the keep-alive list,
+  // which doubles as the per-window WebView LRU — makes it readable by every window
+  // and outlives any single window's eviction, so detaching such a tab and attaching
+  // it back both keep resolving. Memory-only: the URL can hold a session secret (the
+  // OpenClaw dashboard embeds the gateway auth token) and must not reach disk.
+  // Nothing evicts an entry — that is the point, and it costs a handful of rows per
+  // session. Null is the cache miss (see the `jobs.state` precedent above).
+  'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Apps that want the user's attention, and why (a host-added permission, or an update).
+  // Main-owned runtime state, shared with every renderer window.
+  'mini_app.attention': CacheValueTypes.CacheMiniAppAttention[]
+  'channel.status.${channelId}': ChannelStatus | null
+  'storage.health': StorageHealth
+  'backup.auto_sync.state.${type}': AutoBackupEvent | null
+  // Directory copy progress for a knowledge item, main -> all windows. Like
+  // embedding progress, the prepare job owns this runtime-only value.
+  'knowledge.item.directory_copy_progress.${itemId}': number | null
+  // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
+  // mirrors the progress of the job the item waits on here when it changes, so the row can
+  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  'knowledge.item.file_processing_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'doctor.state.${scope}': { status: 'idle' },
+  'doctor.agent.${scope}': { status: 'idle' },
+  'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
+  'agent.session.background_tasks.${sessionId}': [],
+  'agent.session.task_events.${sessionId}': {},
+  'agent.session.flow_parts.${sessionId}.${messageId}': [],
+  'agent.session.turn_origin.${sessionId}.${messageId}': null,
+  'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
+  'feature.deepseek_harness.status': { status: 'stopped' },
+  'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'feature.remote_access.discovery_status': 'inactive',
+  'feature.api_gateway.lan_running': false,
+  'local_model.statuses': {},
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
@@ -304,7 +409,14 @@ export const DefaultSharedCache: SharedCacheSchema = {
   // keys are populated by JobManager when actual jobs exist.
   'jobs.state.${jobId}': null,
   'jobs.progress.${jobId}': { progress: 0 },
-  'knowledge.item.embedding_progress.${itemId}': null
+  'knowledge.item.embedding_progress.${itemId}': null,
+  'mini_app.transient_descriptor.${appId}': null,
+  'mini_app.attention': [],
+  'channel.status.${channelId}': null,
+  'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
+  'backup.auto_sync.state.${type}': null,
+  'knowledge.item.directory_copy_progress.${itemId}': null,
+  'knowledge.item.file_processing_progress.${itemId}': null
 }
 
 /**
@@ -312,6 +424,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
+  'ui.browser.import_prompt_hidden': boolean
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
@@ -322,6 +435,9 @@ export type RendererPersistCacheSchema = {
   'ui.sidebar.width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
+  // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
+  // width dragged for an artifact never widens the list (and vice versa).
+  'ui.chat.resource_pane.width': number
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -329,6 +445,8 @@ export type RendererPersistCacheSchema = {
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
   // default; booleans preserve an explicit user choice across page re-entry.
   'ui.chat.right_pane_open_override': boolean | null
+  // Classic assistant rail group collapse, kept separate from topic display-mode groups.
+  'ui.assistant.entity_rail.expansion': string[]
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
@@ -344,14 +462,38 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
+  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.device_connections.step': 'download' | 'connect' | 'complete'
+  // Usage statistics view selections, persisted so leaving and re-entering the page restores
+  // them. The heatmap drill-down date stays component-local: a stored past date would reopen
+  // the page on an empty range.
+  'settings.usage.window': '30d' | '90d' | '365d'
+  'settings.usage.group_by': 'provider' | 'model' | 'apiKey' | 'source'
+  'settings.usage.chart_metric': 'tokens' | 'requests' | 'cost'
+  'settings.usage.chart_type': 'stack' | 'pie' | 'bar' | 'line'
+  'settings.usage.rollup': 'total' | 'daily' | 'weekly' | 'monthly'
+  'settings.usage.top_count': 5 | 10 | 20
+  'settings.usage.heatmap_metric': 'tokens' | 'cost'
+  'settings.usage.entry_sort_by': AiUsageRecordListSortBy
+  'settings.usage.entry_sort_order': AiUsageRecordSortOrder
+  // Null defers to the cost-total fallback (USD, else the first currency with usage).
+  'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
-  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
+  // Last successful external-open target per directory or file-extension scope.
+  'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
+  // Screenshot overlay tool preferences — persisted because muscle memory should survive restarts,
+  // and main's relay of renderer persist writes also keeps a session's per-display overlays in step.
+  'ui.screenshot.color_mode': 'hex' | 'rgb'
+  'ui.screenshot.annotation_color': string
+  'ui.screenshot.annotation_stroke_width': number
+  'ui.screenshot.annotation_font_size': number
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
+  'ui.browser.import_prompt_hidden': false,
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
@@ -359,11 +501,13 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
-  'ui.chat.artifact_pane.width': 460,
+  'ui.chat.artifact_pane.width': 280,
+  'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
   'ui.chat.right_pane_open_override': null,
+  'ui.assistant.entity_rail.expansion': [],
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': null,
   'ui.agent.last_used_session_id': null,
@@ -374,9 +518,27 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
+  'settings.provider.filter_mode': 'all',
+  'settings.device_connections.step': 'download',
+  'settings.usage.window': '30d',
+  'settings.usage.group_by': 'provider',
+  'settings.usage.chart_metric': 'tokens',
+  'settings.usage.chart_type': 'bar',
+  'settings.usage.rollup': 'daily',
+  'settings.usage.top_count': 10,
+  'settings.usage.heatmap_metric': 'tokens',
+  'settings.usage.entry_sort_by': 'createdAt',
+  'settings.usage.entry_sort_order': 'desc',
+  'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
-  'agent.open_external_app.last_used_target': null,
-  'ui.emoji.recently_used': []
+  'external_app.target.preferences': {},
+  'ui.emoji.recently_used': [],
+  'ui.screenshot.color_mode': 'hex',
+  // Each must be a member of the matching preset list in renderer/windows/screenshot/constants.ts,
+  // or the overlay opens with no swatch, width or size marked as current.
+  'ui.screenshot.annotation_color': '#F54A45',
+  'ui.screenshot.annotation_stroke_width': 4,
+  'ui.screenshot.annotation_font_size': 20
 }
 
 /**
@@ -387,6 +549,10 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'browser.favicons': Record<string, string>
+  // Last completed automatic-backup attempt (or manual backup) per backend.
+  // AutoBackupService owns this restart-safe scheduling baseline.
+  'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -398,6 +564,8 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'browser.favicons': {},
+  'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

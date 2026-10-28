@@ -1,4 +1,3 @@
-import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 import { describe, expect, it } from 'vitest'
 
 import { mergeProviderOptions } from '../factory'
@@ -11,7 +10,7 @@ const opts = (o: Record<string, Record<string, unknown>>): Partial<TypedProvider
 describe('mergeProviderOptions', () => {
   it('deep merges provider options for the same provider', () => {
     const reasoningOptions: Partial<TypedProviderOptions> = {
-      openrouter: { reasoning: { enabled: true, effort: 'medium' } } as OpenRouterProviderOptions
+      openrouter: { reasoning: { enabled: true, effort: 'medium' } }
     }
     const webSearchOptions = opts({ openrouter: { plugins: [{ id: 'web', max_results: 5 }] } })
 
@@ -25,7 +24,7 @@ describe('mergeProviderOptions', () => {
 
   it('preserves options from other providers while merging', () => {
     const openRouter: Partial<TypedProviderOptions> = {
-      openrouter: { reasoning: { enabled: true, effort: 'medium' } } as OpenRouterProviderOptions
+      openrouter: { reasoning: { enabled: true, effort: 'medium' } }
     }
     const openAI: Partial<TypedProviderOptions> = { openai: { reasoningEffort: 'low' } }
     const merged = mergeProviderOptions(openRouter, openAI)

@@ -1,7 +1,10 @@
+import { Check } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ColFlex,
-  Combobox,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -11,10 +14,13 @@ import {
   HelpTooltip,
   Label
 } from '@cherrystudio/ui'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { KnowledgeBaseSelector } from '@renderer/components/KnowledgeBaseSelector'
 import CustomTag from '@renderer/components/tags/CustomTag'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { getMessageTitle } from '@renderer/services/ExportService'
 import {
   analyzeMessagesContent,
   analyzeTopicContent,
@@ -28,11 +34,12 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import type { Topic } from '@renderer/types/topic'
 import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
-import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import {
+  resolveKnowledgeFileBatch,
+  resolveKnowledgeFileMetadataEntryData,
+  selectKnowledgeFileBatchOutcome
+} from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
-import { Check } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
 
@@ -108,7 +115,7 @@ interface SaveResult {
 
 type Props = ShowParams & PopupInjectedProps<SaveResult | null>
 
-const getNoteSource = (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
+const getNoteSource = async (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
   const trimmedSourceTitle = sourceTitle?.trim()
 
   if (trimmedSourceTitle) {
@@ -127,7 +134,7 @@ const getNoteSource = (source: ContentSource, fallbackConversationTitle: string,
     return source.data.title.trim() || fallbackConversationTitle
   }
 
-  return source.data.id
+  return getMessageTitle(source.data)
 }
 
 const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, open, resolve }) => {
@@ -137,6 +144,8 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([])
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
+  const [lastUsedBaseId, setLastUsedBaseId] = useState<string | null>(null)
+  const [lastUsedLoaded, setLastUsedLoaded] = useState(false)
   const { bases } = useKnowledgeBases()
   const { submit: submitKnowledgeItems } = useAddKnowledgeItems(selectedBaseId || '')
   const { t } = useTranslation()
@@ -191,7 +200,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     return Object.entries(CONTENT_TYPE_CONFIG)
       .map(([type, config]) => {
         const contentType = type as ContentType
-        const count = contentStats[contentType as keyof ContentStats] || 0
+        const count = contentStats[contentType] || 0
         const descriptionKey =
           isConversationMode && 'topicDescription' in config && config.topicDescription
             ? config.topicDescription
@@ -240,15 +249,39 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     }
   }, [selectedBaseId, bases, contentTypeOptions, selectedTypes, isNoteMode])
 
-  // 默认选择第一个可用知识库
+  // Prefer the last-used base once the stored preference arrives; fall back to
+  // the first available one when it is missing or no longer usable.
   useEffect(() => {
-    if (!selectedBaseId) {
-      const firstAvailableBase = bases.find((base) => base.status === 'completed')
-      if (firstAvailableBase) {
-        setSelectedBaseId(firstAvailableBase.id)
-      }
+    let cancelled = false
+    preferenceService
+      .get('chat.save.knowledge.last_base_id')
+      .then((value) => {
+        if (!cancelled) {
+          setLastUsedBaseId(value ?? null)
+          setLastUsedLoaded(true)
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to load last-used knowledge base:', error as Error)
+        if (!cancelled) {
+          setLastUsedLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
     }
-  }, [bases, selectedBaseId])
+  }, [])
+
+  useEffect(() => {
+    if (selectedBaseId || !lastUsedLoaded) {
+      return
+    }
+    const lastUsedBase = bases.find((base) => base.id === lastUsedBaseId && base.status === 'completed')
+    const preferredBase = lastUsedBase ?? bases.find((base) => base.status === 'completed')
+    if (preferredBase) {
+      setSelectedBaseId(preferredBase.id)
+    }
+  }, [bases, selectedBaseId, lastUsedBaseId, lastUsedLoaded])
 
   // 默认选择所有可用内容类型
   useEffect(() => {
@@ -306,7 +339,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       }
 
       const items: KnowledgeAddItemInput[] = []
-      const noteSource = getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
+      const noteSource = await getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
 
       if (isNoteMode) {
         const note = source.data
@@ -356,43 +389,50 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          const fileResults = await Promise.allSettled(result.files.map(resolveKnowledgeFileMetadataEntryData))
-          const fileData = fileResults.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []))
-          const failedFiles = fileResults.flatMap((item, index) =>
-            item.status === 'rejected'
-              ? [
-                  {
-                    index,
-                    source: result.files[index]?.origin_name || result.files[index]?.name,
-                    reason: item.reason instanceof Error ? item.reason.message : String(item.reason)
-                  }
-                ]
-              : []
+          const fileBatch = await resolveKnowledgeFileBatch(
+            result.files,
+            resolveKnowledgeFileMetadataEntryData,
+            (file) => file.origin_name || file.name
           )
-          const failedCount = failedFiles.length
+          const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
+          if (fileOutcome.fatal !== undefined) {
+            throw fileOutcome.fatal
+          }
 
-          if (failedCount > 0) {
+          if (fileOutcome.skipped.length > 0) {
             logger.warn('Failed to resolve some knowledge file entries', {
-              failedCount,
-              totalCount: fileResults.length,
-              failedFiles
+              failedCount: fileOutcome.skipped.length,
+              totalCount: result.files.length,
+              failedFiles: fileOutcome.skipped.map(({ index, source, reason }) => ({ index, source, reason }))
             })
-            toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: failedCount }))
+            toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
           }
 
           items.push(
-            ...fileData.map((data) => ({
+            ...fileOutcome.resolved.map((data) => ({
               type: 'file' as const,
               data
             }))
           )
-          savedCount += fileData.length
+          savedCount += fileOutcome.resolved.length
         }
       }
 
-      if (items.length > 0) {
-        await submitKnowledgeItems(items)
+      if (items.length === 0) {
+        // Every selected entry was skipped (e.g. all referenced files are missing).
+        // Nothing was saved, so report failure instead of a zero-item success;
+        // the partial-failure warning above already tells the user why.
+        resolve({ success: false, savedCount: 0 })
+        return
       }
+
+      await submitKnowledgeItems(items)
+      // Only remember the base when the save actually produced knowledge items;
+      // a zero-item save returns early above and is not remembered as the
+      // last-used base.
+      preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
+        logger.warn('Failed to persist last-used knowledge base:', error as Error)
+      })
 
       resolve({ success: true, savedCount })
     } catch (error) {
@@ -414,6 +454,8 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       }
 
       toast.error(errorMessage)
+      resolve({ success: false, savedCount: 0 })
+    } finally {
       setLoading(false)
     }
   }
@@ -424,7 +466,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
   const renderEmptyState = () => (
     <div className="flex min-h-[100px] items-center justify-center text-center">
-      <span className="text-muted-foreground text-sm">{uiState.message}</span>
+      <span className="text-sm text-muted-foreground">{uiState.message}</span>
     </div>
   )
 
@@ -432,24 +474,18 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>{t('chat.save.knowledge.select.base.title')}</Label>
-        <Combobox
-          className="w-full"
+        <KnowledgeBaseSelector
+          aria-label={t('chat.save.knowledge.select.base.title')}
           emptyText={t('common.no_results')}
-          error={!formState.hasValidBase && !!selectedBaseId}
-          filterOption={(option, search) =>
-            [option.label, option.value].filter(Boolean).join(' ').toLowerCase().includes(search.trim().toLowerCase())
-          }
-          onChange={(value) => setSelectedBaseId(Array.isArray(value) ? value[0] : value)}
+          invalid={!formState.hasValidBase && !!selectedBaseId}
+          onChange={setSelectedBaseId}
           options={knowledgeBaseOptions}
           placeholder={t('chat.save.knowledge.select.base.placeholder')}
-          popoverClassName="w-(--radix-popover-trigger-width)"
           searchPlaceholder={t('common.search')}
-          searchPlacement="trigger"
-          searchable
           value={selectedBaseId}
         />
         {!formState.hasValidBase && selectedBaseId && (
-          <p className="text-destructive text-xs">{t('chat.save.knowledge.error.invalid_base')}</p>
+          <p className="text-xs text-destructive">{t('chat.save.knowledge.error.invalid_base')}</p>
         )}
       </div>
 
@@ -488,7 +524,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       {!isNoteMode && (
         <div className="mt-4 flex min-h-10 items-center rounded-md bg-muted p-3">
           {formState.selectedCount > 0 && (
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-muted-foreground">
               {t(
                 isConversationMode
                   ? 'chat.save.topic.knowledge.select.content.selected_tip'
@@ -501,10 +537,10 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
             </span>
           )}
           {formState.hasNoSelection && (
-            <span className="text-warning text-xs">{t('chat.save.knowledge.error.no_content_selected')}</span>
+            <span className="text-xs text-warning">{t('chat.save.knowledge.error.no_content_selected')}</span>
           )}
           {!formState.hasNoSelection && formState.selectedCount === 0 && (
-            <span className="text-muted-foreground text-xs opacity-0">&nbsp;</span>
+            <span className="text-xs text-muted-foreground opacity-0">&nbsp;</span>
           )}
         </div>
       )}

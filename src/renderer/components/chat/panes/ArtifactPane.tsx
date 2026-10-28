@@ -1,36 +1,23 @@
-import { Button, CodeEditor, ConfirmDialog, Markdown, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { loggerService } from '@logger'
-import ImagePreviewPanel from '@renderer/components/ArtifactPreview/image/ImagePreviewPanel'
-import type { OfficePreviewPanelProps } from '@renderer/components/ArtifactPreview/office/OfficePreviewPanel'
-import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
-import CodeViewer from '@renderer/components/CodeViewer'
-import type { CommandContextMenuExtraItem } from '@renderer/components/command'
-import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
-import { FinderIcon } from '@renderer/components/icons/SvgIcon'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import {
-  FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
-  type FileEditSession
-} from '@renderer/hooks/useFileEditSession'
-import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
-import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import { toast } from '@renderer/services/toast'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
-import { buildEditorUrl } from '@renderer/utils/editor'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { joinPath } from '@renderer/utils/path'
-import { isMac, isWin } from '@renderer/utils/platform'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { toFileUrl } from '@shared/utils/file'
-import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+  AlertCircle,
+  ArrowLeft,
+  ChevronDown,
+  ClipboardCopy,
+  Copy,
+  CopySlash,
+  Eye,
+  RotateCw,
+  Sparkles,
+  SquareDashedMousePointer,
+  SquarePen,
+  TextQuote,
+  X
+} from 'lucide-react'
 import {
-  type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
+  lazy,
   type ReactNode,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -39,9 +26,52 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type ArtifactPaneFileSelection, WORKSPACE_ROOT_ID } from './artifactPanePath'
-import OpenExternalAppButton from './OpenExternalAppButton'
-import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
+import {
+  Button,
+  ButtonGroup,
+  ConfirmDialog,
+  MenuItem,
+  MenuList,
+  NormalTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { canProduceSelectionReference, FilePreview } from '@renderer/components/FilePreview'
+import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
+import {
+  FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
+  type FileEditSession
+} from '@renderer/hooks/useFileEditSession'
+import { useFileSize } from '@renderer/hooks/useFileSize'
+import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { toast } from '@renderer/services/toast'
+import type { SelectionReference } from '@renderer/types/selectionReference'
+import { getFileExtension } from '@renderer/utils/file'
+import { joinPath } from '@renderer/utils/path'
+import { isWin } from '@renderer/utils/platform'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import {
+  type ArtifactPaneFileSelection,
+  getArtifactPaneSelectionPath,
+  getArtifactPaneSelectionDisplayPath,
+  getCopyableAbsolutePath,
+  getPathBasename,
+  WORKSPACE_ROOT_ID
+} from './artifactPanePath'
+import {
+  type ArtifactFileTreeErrorKind,
+  type ArtifactFileTreeModel,
+  isSelectableFileNode,
+  useArtifactFileTreeModel
+} from './useArtifactFileTreeModel'
 
 // Re-exported from their home modules so existing imports of these from
 // `ArtifactPane` keep working.
@@ -53,14 +83,24 @@ export {
 } from './artifactPanePath'
 
 const logger = loggerService.withContext('ArtifactPane')
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
+
+const ARTIFACT_FILE_TREE_ERROR_KEYS = {
+  invalid_path: {
+    description: 'agent.preview_pane.tree_error.invalid_path.description',
+    title: 'agent.preview_pane.tree_error.invalid_path.title'
+  },
+  load_error: {
+    description: 'agent.preview_pane.tree_error.load_error.description',
+    title: 'agent.preview_pane.tree_error.load_error.title'
+  }
+} as const satisfies Record<ArtifactFileTreeErrorKind, { description: string; title: string }>
 
 export interface ArtifactPaneProps {
   workspacePath?: string
   maximized?: boolean
   previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose?: () => void
-  pdfLayoutPending?: boolean
-  pdfLayoutRefreshKey?: number
   selectedFile?: string | null
   onSelectedFileChange?: (file: string | null) => void
   /** Caller-owned expanded folder ids. The synthetic workspace root is managed internally. */
@@ -72,48 +112,28 @@ export interface ArtifactPaneProps {
   enableFileSearch?: boolean
 }
 
-interface ArtifactFilePreviewProps {
-  workspacePath?: string
-  filePath?: string | null
-  isText: IsTextState
-  fileSize: FileSizeState
-  pdfLayoutPending?: boolean
-  pdfLayoutRefreshKey?: number
-  contentRefreshKey?: number
-  contentOverride?: string
-}
-
 export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
-/** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
-const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = `${ARTIFACT_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MiB`
+const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
+const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
+const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])
+const TOOLBAR_SPLIT_BUTTON_GROUP_CLASS = 'h-8 overflow-hidden rounded-md border border-border-subtle'
+const TOOLBAR_SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
+const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 
-// Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
-// not text-vs-binary classification. Text detection lives in `useIsTextFile`.
-const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
-const HTML_EXT = new Set(['.html', '.htm'])
-const PDF_EXT = new Set(['.pdf'])
-const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx'])
-// Binary but renderable via `<img>` from a `file://` URL — no text read needed.
-const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.avif', '.svg'])
-
-const extOf = (name: string): string => {
-  const dot = name.lastIndexOf('.')
-  return dot < 0 ? '' : name.slice(dot).toLowerCase()
+function getPreviewFileTitle(selection: ArtifactPaneFileSelection): string {
+  // displayName is the attachment filename; filePath may be a managed copy.
+  if (selection.displayName) return selection.displayName
+  return getPathBasename(selection.filePath)
 }
 
-const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
-const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
-const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
-export const isOfficeDocumentFile = (name: string) => OFFICE_DOCUMENT_EXT.has(extOf(name))
-export const isImageFile = (name: string) => IMAGE_EXT.has(extOf(name))
-
-function getPreviewFileTitle(filePath: string): string {
-  const segments = filePath
-    .trim()
-    .split(/[/\\]+/)
-    .filter(Boolean)
-  return segments.at(-1) ?? filePath
+function canCopyFileContent(filePath: string | null, isText: string, fileSize: { status: string; size?: number }) {
+  if (!filePath || fileSize.status !== 'ok' || typeof fileSize.size !== 'number') return false
+  const extension = getFileExtension(filePath)
+  if (COPYABLE_DOCUMENT_EXTENSIONS.has(extension)) return fileSize.size <= DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES
+  if (NON_TEXT_DOCUMENT_EXTENSIONS.has(extension)) return false
+  return isText === 'text' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 }
 
 function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
@@ -121,360 +141,13 @@ function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id
   return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
 }
 
-function renderFileManagerIcon(): ReactNode {
-  return isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />
-}
-
-type PdfPreviewPanelComponent = ComponentType<{
-  filePath: string
-  fileName: string
-  refreshKey: number
-}>
-type OfficePreviewPanelComponent = ComponentType<OfficePreviewPanelProps>
-
-let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
-let officePreviewPanelPromise: Promise<OfficePreviewPanelComponent> | null = null
-
-// `ArtifactFilePreview` re-derives `parsedBase` on every render; dedupe the
-// warn per offending path so an open preview doesn't flood the log.
-const warnedArtifactBasePaths = new Set<string>()
-
-const loadPdfPreviewPanel = () => {
-  pdfPreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel')
-    .then((module) => module.default)
-    .catch((err: unknown) => {
-      pdfPreviewPanelPromise = null
-      throw err
-    })
-  return pdfPreviewPanelPromise
-}
-
-const loadOfficePreviewPanel = () => {
-  officePreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/office/OfficePreviewPanel')
-    .then((module) => module.default)
-    .catch((err: unknown) => {
-      officePreviewPanelPromise = null
-      throw err
-    })
-  return officePreviewPanelPromise
-}
-
-export function ArtifactFilePreview({
-  workspacePath,
-  filePath,
-  isText,
-  fileSize,
-  pdfLayoutPending = false,
-  pdfLayoutRefreshKey = 0,
-  contentRefreshKey = 0,
-  contentOverride
-}: ArtifactFilePreviewProps) {
-  const { t } = useTranslation()
-  const [fileContent, setFileContent] = useState<string | null>(null)
-  const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
-  const [pdfPreviewLoadError, setPdfPreviewLoadError] = useState<Error | null>(null)
-  const [OfficePreviewPanel, setOfficePreviewPanel] = useState<OfficePreviewPanelComponent | null>(null)
-  const [officePreviewLoadError, setOfficePreviewLoadError] = useState<Error | null>(null)
-  const [readError, setReadError] = useState<Error | null>(null)
-  const [loadingContent, setLoadingContent] = useState(false)
-  const isPdfPreview = filePath ? isPdfFile(filePath) : false
-  const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
-  const isImagePreview = filePath ? isImageFile(filePath) : false
-  // The draft re-renders this per keystroke, so decide the cap from `length`
-  // alone where possible (UTF-8 is 1–3 bytes per UTF-16 code unit) and pay a
-  // full encode only in the gray zone — never a per-keystroke Blob of the file.
-  const contentOverrideOversized = useMemo(() => {
-    if (contentOverride === undefined) return null
-    if (contentOverride.length > ARTIFACT_PREVIEW_MAX_SIZE_BYTES) return true
-    if (contentOverride.length * 3 <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES) return false
-    return new TextEncoder().encode(contentOverride).byteLength > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
-  }, [contentOverride])
-  const oversizedForPreview =
-    !isPdfPreview &&
-    !isOfficeDocumentPreview &&
-    !isImagePreview &&
-    (contentOverrideOversized ?? (fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
-
-  useEffect(() => {
-    if (contentOverride !== undefined) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    if (!filePath || !workspacePath) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    // Binary previewers render straight from disk or external apps; no readText needed.
-    if (isPdfFile(filePath) || isOfficeDocumentFile(filePath) || isImageFile(filePath)) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    // Wait for both sniffs to settle before paying the readText cost — gates
-    // out binary files, oversized files, and inaccessible paths.
-    if (isText !== 'text' || fileSize.status !== 'ok' || oversizedForPreview) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    const absPath = joinPath(workspacePath, filePath)
-    let cancelled = false
-    setReadError(null)
-    setLoadingContent(true)
-
-    void (async () => {
-      try {
-        const text = await window.api.fs.readText(absPath)
-        if (cancelled) return
-        setFileContent(text)
-      } catch (err) {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error(`Failed to read file: ${absPath}`, normalized)
-        setFileContent(null)
-        setReadError(normalized)
-      } finally {
-        if (!cancelled) setLoadingContent(false)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [contentOverride, contentRefreshKey, filePath, workspacePath, isText, fileSize.status, oversizedForPreview])
-
-  useEffect(() => {
-    if (!isPdfPreview) {
-      setPdfPreviewLoadError(null)
-      return
-    }
-    if (pdfLayoutPending || PdfPreviewPanel) return
-
-    let cancelled = false
-    setPdfPreviewLoadError(null)
-
-    loadPdfPreviewPanel()
-      .then((component) => {
-        if (!cancelled) setPdfPreviewPanel(() => component)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error('Failed to load PDF preview panel', normalized)
-        setPdfPreviewLoadError(normalized)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [PdfPreviewPanel, filePath, isPdfPreview, pdfLayoutPending])
-
-  useEffect(() => {
-    if (!isOfficeDocumentPreview) {
-      setOfficePreviewLoadError(null)
-      return
-    }
-    if (OfficePreviewPanel) return
-
-    let cancelled = false
-    setOfficePreviewLoadError(null)
-
-    loadOfficePreviewPanel()
-      .then((component) => {
-        if (!cancelled) setOfficePreviewPanel(() => component)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error('Failed to load Office preview panel', normalized)
-        setOfficePreviewLoadError(normalized)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [OfficePreviewPanel, isOfficeDocumentPreview])
-
-  if (!workspacePath) {
-    return (
-      <EmptyState
-        icon={Sparkles}
-        title={t('agent.preview_pane.empty.title')}
-        description={t('agent.preview_pane.empty.description')}
-      />
-    )
-  }
-  if (!filePath) {
-    return <EmptyState icon={FileText} title={t('agent.preview_pane.select_file')} />
-  }
-
-  // PDF: binary but renderable; bypass isText gating.
-  if (isPdfFile(filePath)) {
-    if (pdfPreviewLoadError) {
-      return <EmptyState icon={AlertCircle} title={t('common.error')} description={pdfPreviewLoadError.message} />
-    }
-    if (pdfLayoutPending || !PdfPreviewPanel) {
-      return (
-        <div className="flex h-full w-full items-center justify-center">
-          <LoadingState label={t('common.loading')} />
-        </div>
-      )
-    }
-    return (
-      <PdfPreviewPanel
-        key={`pdf-${filePath}-${pdfLayoutRefreshKey}`}
-        filePath={joinPath(workspacePath, filePath)}
-        fileName={filePath}
-        refreshKey={pdfLayoutRefreshKey}
-      />
-    )
-  }
-
-  // Image: binary but renderable via `<img>`; bypass isText / size gating.
-  if (isImageFile(filePath)) {
-    const base = joinPath(workspacePath, filePath)
-    const parsedBase = AbsoluteFilePathSchema.safeParse(base)
-    if (!parsedBase.success && !warnedArtifactBasePaths.has(base)) {
-      warnedArtifactBasePaths.add(base)
-      logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
-        path: base
-      })
-    }
-    return (
-      <ImagePreviewPanel
-        key={`image-${filePath}-${contentRefreshKey}`}
-        src={parsedBase.success ? toFileUrl(parsedBase.data) : ''}
-        fileName={filePath}
-      />
-    )
-  }
-
-  if (oversizedForPreview) {
-    return (
-      <EmptyState
-        icon={FileText}
-        title={t('agent.preview_pane.too_large.title')}
-        description={t('agent.preview_pane.too_large.description', { limit: ARTIFACT_PREVIEW_MAX_SIZE_LABEL })}
-      />
-    )
-  }
-
-  if (isText === 'pending' || fileSize.status === 'pending') {
-    return <LoadingState variant="skeleton" rows={4} />
-  }
-  // A failed size sniff means the file couldn't be stat'd (missing / moved /
-  // inaccessible). This is the report surface for opening a file that no longer
-  // exists — callers just open the file and let this pane explain the failure,
-  // rather than pre-checking existence over IPC.
-  if (fileSize.status === 'error') {
-    return (
-      <EmptyState
-        icon={AlertCircle}
-        title={t('agent.preview_pane.unavailable.title')}
-        description={t('agent.preview_pane.unavailable.description')}
-      />
-    )
-  }
-  if (isOfficeDocumentPreview) {
-    if (officePreviewLoadError) {
-      return <EmptyState icon={AlertCircle} title={t('common.error')} description={officePreviewLoadError.message} />
-    }
-    if (!OfficePreviewPanel) {
-      return (
-        <div className="flex h-full w-full items-center justify-center">
-          <LoadingState label={t('common.loading')} />
-        </div>
-      )
-    }
-    return (
-      <OfficePreviewPanel
-        filePath={filePath}
-        fileName={filePath}
-        sourceFilePath={joinPath(workspacePath, filePath)}
-        sourceSize={fileSize.status === 'ok' ? fileSize.size : undefined}
-        className="min-h-0"
-        refreshKey={contentRefreshKey}
-      />
-    )
-  }
-  if (isText === 'binary') {
-    return (
-      <EmptyState
-        icon={FileText}
-        title={t('agent.preview_pane.preview')}
-        description={t('agent.preview_pane.code_unavailable')}
-      />
-    )
-  }
-
-  if (loadingContent && contentOverride === undefined) {
-    return <LoadingState variant="skeleton" rows={4} />
-  }
-
-  if (readError && contentOverride === undefined) {
-    return (
-      <EmptyState
-        icon={AlertCircle}
-        title={t('agent.preview_pane.unavailable.title')}
-        description={t('agent.preview_pane.unavailable.description')}
-      />
-    )
-  }
-
-  const effectiveContent = contentOverride ?? fileContent ?? ''
-
-  if (isHtmlFile(filePath)) {
-    const htmlBasePath = joinPath(workspacePath, filePath)
-    const parsedBase = AbsoluteFilePathSchema.safeParse(htmlBasePath)
-    if (!parsedBase.success && !warnedArtifactBasePaths.has(htmlBasePath)) {
-      warnedArtifactBasePaths.add(htmlBasePath)
-      logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
-        path: htmlBasePath
-      })
-    }
-    return (
-      <HtmlPreviewFrame
-        key={`html-${filePath}-${contentRefreshKey}`}
-        html={effectiveContent}
-        title={filePath}
-        baseUrl={parsedBase.success ? toFileUrl(parsedBase.data) : undefined}
-      />
-    )
-  }
-  if (isMarkdownFile(filePath)) {
-    return (
-      <div className="min-w-0 px-5 py-4">
-        <Markdown id={`md-${filePath}-${contentRefreshKey}`}>{effectiveContent}</Markdown>
-      </div>
-    )
-  }
-  return (
-    <CodeViewer
-      key={`preview-${filePath}-${contentRefreshKey}`}
-      value={effectiveContent}
-      language={getLanguageByFilePath(filePath)}
-      wrapped={false}
-    />
-  )
-}
+const OPEN_TARGET_LOOKUP_TIMEOUT_MS = 1_000
 
 interface ArtifactPaneViewBaseProps {
   workspacePath?: string
   maximized?: boolean
   previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose?: () => void
-  pdfLayoutPending?: boolean
-  pdfLayoutRefreshKey?: number
   enableFileSearch?: boolean
   /** Directory-tree model owned by the surrounding artifact capability. */
   model: ArtifactFileTreeModel
@@ -486,6 +159,12 @@ interface ArtifactPaneViewBaseProps {
   fileSession?: FileEditSession
   editMode?: 'preview' | 'edit'
   onEditModeChange?: (mode: 'preview' | 'edit') => void
+  /**
+   * Hands the preview's current selection to a composer. Supplying it is what
+   * turns selection capture on: without it the preview never reports one and no
+   * quote affordance is offered.
+   */
+  onInsertSelectionReference?: (reference: SelectionReference) => void
 }
 
 type ArtifactPaneViewProps = ArtifactPaneViewBaseProps &
@@ -505,6 +184,11 @@ type ArtifactPaneViewProps = ArtifactPaneViewBaseProps &
 /**
  * Presentational artifact pane: renders file tree and selected-file overlay
  * preview from the supplied model.
+ *
+ * Escape is handled in two places and never at the document level: the overlay owns it for anything
+ * focused inside it, and the pane root covers the picker toggle, which sits in the pane header as the
+ * overlay's sibling. The picker takes precedence over closing the preview, because losing the mode is
+ * cheaper to recover from than losing the preview.
  */
 export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const {
@@ -512,8 +196,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     maximized = false,
     previewFileSelection = null,
     onPreviewClose,
-    pdfLayoutPending = false,
-    pdfLayoutRefreshKey = 0,
     enableFileSearch = false,
     model,
     selectedFile,
@@ -522,45 +204,55 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onSearchKeywordChange,
     fileSession,
     editMode = 'preview',
-    onEditModeChange
+    onEditModeChange,
+    onInsertSelectionReference
   } = props
   const { t } = useTranslation()
-  const { activeCmTheme } = useCodeStyle()
-  const { data: externalApps } = useExternalApps({ enabled: true })
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const [knownFileSizeBytes, setKnownFileSizeBytes] = useState<number | undefined>(undefined)
   const [staleConflictOpen, setStaleConflictOpen] = useState(false)
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false)
+  const [selectionReference, setSelectionReference] = useState<SelectionReference | null>(null)
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
   const { refresh, reloadExpandedDirectories } = model
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
+  const previewSelectionWorkspacePath = previewFileSelection?.workspacePath
+  const parsedPreviewWorkspacePath = useMemo(
+    () => (previewSelectionWorkspacePath ? AbsoluteFilePathSchema.safeParse(previewSelectionWorkspacePath) : null),
+    [previewSelectionWorkspacePath]
+  )
+  const hasInvalidPreviewSelection = Boolean(previewFileSelection && !parsedPreviewWorkspacePath?.success)
+  const validPreviewFileSelection = parsedPreviewWorkspacePath?.success ? previewFileSelection : null
+  const effectiveTreeErrorKind: ArtifactFileTreeErrorKind | undefined = hasInvalidPreviewSelection
+    ? 'invalid_path'
+    : model.errorKind
+  const treeErrorKeys = effectiveTreeErrorKind ? ARTIFACT_FILE_TREE_ERROR_KEYS[effectiveTreeErrorKind] : undefined
+  const hasInvalidWorkspacePath = effectiveTreeErrorKind === 'invalid_path'
   const overlaySelection = useMemo(
     () =>
-      previewFileSelection
-        ? previewFileSelection
-        : workspacePath && selectedFile
+      validPreviewFileSelection
+        ? validPreviewFileSelection
+        : workspacePath && !hasInvalidWorkspacePath && selectedFile
           ? { workspacePath, filePath: selectedFile }
           : null,
-    [previewFileSelection, selectedFile, workspacePath]
+    [hasInvalidWorkspacePath, selectedFile, validPreviewFileSelection, workspacePath]
+  )
+  const [pickerActive, setPickerActive] = useState(false)
+  const pickerAvailable = Boolean(
+    onInsertSelectionReference &&
+    overlaySelection &&
+    canProduceSelectionReference(getArtifactPaneSelectionPath(overlaySelection))
   )
   const overlayWorkspacePath = overlaySelection?.workspacePath
   const overlayFilePath = overlaySelection?.filePath
-  const previewWorkspacePath = overlayWorkspacePath ?? workspacePath
+  const previewWorkspacePath = overlayWorkspacePath ?? (hasInvalidWorkspacePath ? undefined : workspacePath)
   const previewFilePath = overlayFilePath ?? selectedFile
   const previewKey = `${previewWorkspacePath ?? ''}\0${previewFilePath ?? ''}`
   const previousPreviewKeyRef = useRef(previewKey)
-  const availableEditors = useMemo(
-    () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],
-    [externalApps]
-  )
-  const fileManagerName = useMemo(() => {
-    if (isMac) return t('agent.session.file_manager.finder')
-    if (isWin) return t('agent.session.file_manager.file_explorer')
-    return t('agent.session.file_manager.files')
-  }, [t])
 
   const handleSelectedChange = useCallback(
     (id: string | null) => {
@@ -573,16 +265,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [model.nodeById, onSelectedFileChange]
   )
 
-  const isPdfSelection = previewFilePath ? isPdfFile(previewFilePath) : false
-  const isOfficeDocumentSelection = previewFilePath ? isOfficeDocumentFile(previewFilePath) : false
-  const isImageSelection = previewFilePath ? isImageFile(previewFilePath) : false
-  const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection && !isImageSelection
-  const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
-  const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
+  const isText = useIsTextFile(previewWorkspacePath, previewFilePath)
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
+  const canCopyPreviewContent = canCopyFileContent(previewFilePath ?? null, isText, fileSize)
   const hasActiveEditSession = editMode === 'edit' && fileSession?.status === 'ready'
   const canEditSelection =
-    Boolean(fileSession && overlaySelection) &&
+    Boolean(fileSession && overlaySelection && !overlaySelection.readOnly) &&
     isText === 'text' &&
     (hasActiveEditSession || (fileSize.status === 'ok' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
   const isEditDirty = fileSession?.isDirty ?? false
@@ -593,7 +281,33 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setContentRefreshToken(0)
     setKnownFileSizeBytes(undefined)
     setStaleConflictOpen(false)
+    setSelectionReference(null)
   }, [previewKey])
+
+  // The host owns the captured reference. Clear it as soon as refresh starts,
+  // before metadata resolves and the retained plugin receives its new refresh key.
+  useEffect(() => {
+    setSelectionReference(null)
+  }, [contentRefreshToken])
+
+  // The editor replaces the preview, taking the plugin that owns the selection
+  // with it — anything captured before the switch is no longer on screen.
+  useEffect(() => {
+    if (editMode === 'edit') setSelectionReference(null)
+  }, [editMode])
+
+  // The picker is a mode of the preview, so it ends with the preview. It survives a file switch to another
+  // pickable file on purpose — the button stays on while the user gathers references.
+  useEffect(() => {
+    if (editMode === 'edit' || !pickerAvailable) setPickerActive(false)
+  }, [editMode, pickerAvailable])
+
+  // Switching capture off is the one moment the plugin cannot report null itself: its callback is
+  // already gone. (Escape is handled by handleOverlayKeyDown and handlePaneKeyDown, not here.)
+  useEffect(() => {
+    if (pickerActive) return
+    setSelectionReference(null)
+  }, [pickerActive])
 
   // Successful writes return an exact byte size through the edit session.
   // Invalidate the separate metadata gate whenever that size changes so a
@@ -604,10 +318,15 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setContentRefreshToken((value) => value + 1)
   }, [fileSession?.savedSizeBytes])
 
-  // Surface an external-change conflict (a stale autosave) as the reload dialog.
+  // Surface an unresolved external-change conflict as the reload dialog;
+  // autosave stays paused until it is resolved. saveError changes reopen it.
+  const conflictResolvedRef = useRef(false)
   useEffect(() => {
-    if (fileSession?.conflict) setStaleConflictOpen(true)
-  }, [fileSession?.conflict])
+    if (fileSession?.conflict) {
+      conflictResolvedRef.current = false
+      setStaleConflictOpen(true)
+    }
+  }, [fileSession?.conflict, fileSession?.saveError])
 
   // A file that cannot be edited in place (binary / oversize) can't enter edit
   // mode — toast why and fall back to preview.
@@ -627,8 +346,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // Autosave I/O failure: the draft stays in the editor and automatic retries
   // pause until the user explicitly retries or discards it.
   useEffect(() => {
-    if (fileSession?.saveError) toast.error(t('agent.preview_pane.edit.save_failed'))
-  }, [fileSession?.saveError, t])
+    if (!fileSession?.saveError) return
+    if (fileSession.metadataRecoveryPending) {
+      toast.warning(t('agent.preview_pane.edit.metadata_pending'))
+    } else {
+      toast.error(t('agent.preview_pane.edit.save_failed'))
+    }
+  }, [fileSession?.metadataRecoveryPending, fileSession?.saveError, t])
 
   useEffect(() => {
     if (!overlayWorkspacePath || !overlayFilePath) return
@@ -641,35 +365,42 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileSessionReload = fileSession?.reload
   const fileSessionFlush = fileSession?.flush
   const fileSessionDiscard = fileSession?.discard
+  const editorLoading = fileSession?.status === 'loading'
+  // Menu items outlive their opening render (the portal stays up across
+  // renders), so every value they read at click time must live in a ref.
+  const editModeRef = useRef(editMode)
+  editModeRef.current = editMode
+  const editorLoadingRef = useRef(editorLoading)
+  editorLoadingRef.current = editorLoading
+  const canEditSelectionRef = useRef(canEditSelection)
+  canEditSelectionRef.current = canEditSelection
+  const canCopyPreviewContentRef = useRef(canCopyPreviewContent)
+  canCopyPreviewContentRef.current = canCopyPreviewContent
+  const isEditDirtyRef = useRef(isEditDirty)
+  isEditDirtyRef.current = isEditDirty
+  const fileSessionReloadRef = useRef(fileSessionReload)
+  fileSessionReloadRef.current = fileSessionReload
+  const overlayPathsRef = useRef<{ displayPath?: string; filePath?: string; workspacePath?: string }>({})
+  overlayPathsRef.current = {
+    displayPath: overlaySelection ? getArtifactPaneSelectionDisplayPath(overlaySelection) : undefined,
+    filePath: overlayFilePath,
+    workspacePath: overlayWorkspacePath
+  }
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
-    if (
-      overlayWorkspacePath &&
-      overlayFilePath &&
-      (isText === 'text' || isOfficeDocumentSelection || isImageSelection)
-    ) {
+    const { filePath, workspacePath } = overlayPathsRef.current
+    if (workspacePath && filePath) {
       setContentRefreshToken((value) => value + 1)
     }
-    if (editMode === 'edit' && fileSessionReload && !isEditDirty) {
-      void fileSessionReload().catch((error: unknown) => {
+    const reload = fileSessionReloadRef.current
+    if (editModeRef.current === 'edit' && reload && !isEditDirtyRef.current) {
+      void reload().catch((error: unknown) => {
         logger.error('Failed to refresh editable file snapshot', error as Error)
         toast.error(t('agent.preview_pane.edit.refresh_failed'))
       })
     }
-  }, [
-    editMode,
-    fileSessionReload,
-    isImageSelection,
-    isEditDirty,
-    isOfficeDocumentSelection,
-    isText,
-    overlayFilePath,
-    overlayWorkspacePath,
-    refresh,
-    reloadExpandedDirectories,
-    t
-  ])
+  }, [refresh, reloadExpandedDirectories, t])
 
   const handleClosePreview = useCallback(() => {
     if (onPreviewClose) {
@@ -679,86 +410,102 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onSelectedFileChange(null)
   }, [onPreviewClose, onSelectedFileChange])
 
+  // React 19 delegates events at the root container, so a document-level listener would never see a keydown
+  // whose SyntheticEvent.stopPropagation() this handler already called.
   const handleOverlayKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key !== 'Escape') return
+      if (pickerActive) {
+        event.stopPropagation()
+        setPickerActive(false)
+        return
+      }
       event.stopPropagation()
       handleClosePreview()
     },
-    [handleClosePreview]
+    [handleClosePreview, pickerActive]
   )
 
-  const openPath = useCallback(
+  // With headerVariant="pane" the picker toggle sits in the pane header, a sibling of the overlay, so its
+  // Escape never reaches handleOverlayKeyDown. The overlay stops its own Escape, so this never double-fires.
+  const handlePaneKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Escape' || !pickerActive) return
+      event.stopPropagation()
+      setPickerActive(false)
+    },
+    [pickerActive]
+  )
+
+  const copyPath = useCallback(
     async (path: string) => {
       try {
-        await window.api.file.openPath(path)
+        await navigator.clipboard.writeText(path)
+        toast.success(t('message.copy.success'))
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
+        logger.error('Failed to copy path', error as Error)
+        toast.error(t('message.copy.failed'))
       }
     },
     [t]
   )
 
-  const showInFolder = useCallback(
-    async (path: string) => {
-      try {
-        await window.api.file.showInFolder(path)
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
-      }
-    },
-    [t]
-  )
+  const handleCopyPreviewPath = useCallback(async () => {
+    const { displayPath } = overlayPathsRef.current
+    if (!displayPath) return
+    await copyPath(getCopyableAbsolutePath(displayPath, isWin))
+  }, [copyPath])
+
+  const handleCopyPreviewContent = useCallback(async () => {
+    const { filePath, workspacePath } = overlayPathsRef.current
+    if (!filePath || !workspacePath || !canCopyPreviewContentRef.current) return
+    try {
+      const absolutePath = getArtifactPaneSelectionPath({ workspacePath, filePath })
+      const extension = getFileExtension(absolutePath)
+      const content = COPYABLE_DOCUMENT_EXTENSIONS.has(extension)
+        ? await window.api.file.readExternal(absolutePath, true)
+        : await window.api.fs.readText(absolutePath)
+      await navigator.clipboard.writeText(content)
+      toast.success(t('message.copy.success'))
+    } catch (error) {
+      logger.error('Failed to copy file content', error as Error)
+      toast.error(t('message.copy.failed'))
+    }
+  }, [t])
 
   const getFileTreeMenuItems = useCallback(
-    (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
+    async (node: FileTreeNode): Promise<readonly CommandContextMenuExtraItem[]> => {
       const targetPath = getFileTreeNodeTargetPath(workspacePath, node)
       if (!targetPath) return []
 
-      if (node.kind === 'file') {
-        return [
-          {
-            type: 'item',
-            id: 'open-default-app',
-            label: t('agent.preview_pane.default_app'),
-            icon: <FileText size={16} />,
-            onSelect: () => void openPath(targetPath)
-          },
-          {
-            type: 'item',
-            id: 'show-in-folder',
-            label: fileManagerName,
-            icon: renderFileManagerIcon(),
-            onSelect: () => void showInFolder(targetPath)
-          },
-          ...availableEditors.map<CommandContextMenuExtraItem>((app) => ({
-            type: 'item',
-            id: `open-editor-${app.id}`,
-            label: app.name,
-            icon: getEditorIcon(app),
-            onSelect: () => window.open(buildEditorUrl(app, targetPath))
-          }))
-        ]
-      }
-
-      return [
+      const copyItems: CommandContextMenuExtraItem[] = [
+        { type: 'separator' },
         {
           type: 'item',
-          id: 'open-file-manager',
-          label: fileManagerName,
-          icon: renderFileManagerIcon(),
-          onSelect: () => void openPath(targetPath)
-        },
-        ...availableEditors.map<CommandContextMenuExtraItem>((app) => ({
-          type: 'item',
-          id: `open-editor-${app.id}`,
-          label: app.name,
-          icon: getEditorIcon(app),
-          onSelect: () => window.open(buildEditorUrl(app, targetPath))
-        }))
+          id: 'copy-path',
+          label: t('agent.preview_pane.copy_path'),
+          icon: <Copy size={16} />,
+          onSelect: () => void copyPath(getCopyableAbsolutePath(targetPath, isWin))
+        }
       ]
+      if (node.id !== WORKSPACE_ROOT_ID) {
+        copyItems.push({
+          type: 'item',
+          id: 'copy-relative-path',
+          label: t('agent.preview_pane.copy_relative_path'),
+          icon: <CopySlash size={16} />,
+          onSelect: () => void copyPath(node.id)
+        })
+      }
+
+      const openItems = await loadOpenTargetMenuItems({
+        targetPath,
+        pathKind: node.kind === 'file' ? 'file' : 'directory',
+        t
+      })
+      return [...openItems, ...copyItems]
     },
-    [availableEditors, fileManagerName, openPath, showInFolder, t, workspacePath]
+    [copyPath, t, workspacePath]
   )
 
   // Memoized so the file-tree element below keeps its identity across the
@@ -780,21 +527,40 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [handleRefresh, t]
   )
 
+  const pickerToggle = useMemo(
+    () =>
+      pickerAvailable && editMode !== 'edit' ? (
+        <Tooltip content={t('agent.preview_pane.pick_selection')} delay={800}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={cn(
+              'text-muted-foreground hover:bg-accent hover:text-foreground',
+              pickerActive && 'bg-accent text-foreground'
+            )}
+            aria-label={t('agent.preview_pane.pick_selection')}
+            aria-pressed={pickerActive}
+            onClick={() => setPickerActive((active) => !active)}>
+            <SquareDashedMousePointer size={16} />
+          </Button>
+        </Tooltip>
+      ) : null,
+    [editMode, pickerActive, pickerAvailable, t]
+  )
+
   const searchToolbar = useMemo(
     () =>
       props.headerVariant === 'pane' ? undefined : (
         <div className="flex shrink-0 items-center gap-1">
           {refreshButton}
-          {workspacePath ? <OpenExternalAppButton workdir={workspacePath} /> : null}
+          {workspacePath && !hasInvalidWorkspacePath ? (
+            <OpenTargetButton targetPath={workspacePath} pathKind="directory" />
+          ) : null}
         </div>
       ),
-    [props.headerVariant, refreshButton, workspacePath]
+    [hasInvalidWorkspacePath, props.headerVariant, refreshButton, workspacePath]
   )
-
-  const isSelectedHtmlPreview = previewFilePath ? isHtmlFile(previewFilePath) : false
-  const isSelectedPdfPreview = isPdfSelection
-  const isSelectedOfficePreview = isOfficeDocumentSelection
-  const isSelectedImagePreview = isImageSelection
 
   const handleEditorModeChange = useCallback(
     (mode: 'preview' | 'edit') => {
@@ -815,6 +581,16 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     }
   }, [fileSession, t])
 
+  const handleKeepDraftAfterConflict = useCallback(async () => {
+    if (!fileSession) return
+    try {
+      await fileSession.keepDraft()
+    } catch (error) {
+      logger.error('Failed to keep the artifact draft after a write conflict', error as Error)
+      toast.error(t('agent.preview_pane.edit.save_failed'))
+    }
+  }, [fileSession, t])
+
   const handleRetryFailedSave = useCallback(async () => {
     if (!fileSessionFlush) return
     try {
@@ -825,21 +601,201 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     }
   }, [fileSessionFlush])
 
-  const handleDiscardFailedSave = useCallback(() => {
-    fileSessionDiscard?.()
+  const handleDiscardFailedSave = useCallback(async () => {
+    try {
+      await fileSessionDiscard?.()
+    } catch {
+      /* The retained session exposes the failure. */
+    }
   }, [fileSessionDiscard])
 
-  const editorLoading = fileSession?.status === 'loading'
   const nextEditorMode = editMode === 'preview' ? 'edit' : 'preview'
   const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
   const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
+
+  // Header right-click menu: synchronous tab actions as baseline, best-effort async open targets.
+  // The items factory snapshots display state but reads refs at click time so portals never act stale.
+  const buildTabActionItems = useCallback(
+    (snapshot?: {
+      canCopyPreviewContent?: boolean
+      canEditSelection?: boolean
+      editMode?: 'preview' | 'edit'
+      editorLoading?: boolean
+    }): CommandContextMenuExtraItem[] => {
+      const canEdit = snapshot?.canEditSelection ?? canEditSelectionRef.current
+      const canCopyContent = snapshot?.canCopyPreviewContent ?? canCopyPreviewContentRef.current
+      const currentMode = snapshot?.editMode ?? editModeRef.current
+      const isLoading = snapshot?.editorLoading ?? editorLoadingRef.current
+      // Label and action must promise the same thing: navigate to the mode this
+      // item was built for, even if the toolbar toggled while the menu was open.
+      const targetMode = currentMode === 'preview' ? 'edit' : 'preview'
+      const label = t(targetMode === 'edit' ? 'common.edit' : 'common.preview')
+      const ModeIcon = targetMode === 'edit' ? SquarePen : Eye
+      return [
+        ...(canEdit
+          ? [
+              {
+                type: 'item' as const,
+                id: 'artifact-pane.overlay.toggle-edit-mode',
+                label,
+                icon: <ModeIcon size={14} />,
+                enabled: !isLoading,
+                onSelect: () => {
+                  if (editorLoadingRef.current) return
+                  handleEditorModeChange(targetMode)
+                }
+              }
+            ]
+          : []),
+        ...(canCopyContent
+          ? [
+              {
+                type: 'item' as const,
+                id: 'artifact-pane.overlay.copy-content',
+                label: t('agent.preview_pane.copy_content'),
+                icon: <ClipboardCopy size={14} />,
+                onSelect: () => void handleCopyPreviewContent()
+              }
+            ]
+          : []),
+        ...(overlaySelection
+          ? [
+              {
+                type: 'item' as const,
+                id: 'artifact-pane.overlay.copy-path',
+                label: t('agent.preview_pane.copy_path'),
+                icon: <Copy size={14} />,
+                onSelect: () => void handleCopyPreviewPath()
+              }
+            ]
+          : []),
+        {
+          type: 'item' as const,
+          id: 'artifact-pane.overlay.refresh',
+          label: t('agent.preview_pane.refresh'),
+          icon: <RotateCw size={14} />,
+          onSelect: handleRefresh
+        },
+        { type: 'separator' },
+        {
+          type: 'item' as const,
+          id: 'artifact-pane.overlay.close',
+          label: t('agent.preview_pane.close'),
+          icon: <X size={14} />,
+          onSelect: handleClosePreview
+        }
+      ]
+    },
+    [
+      handleClosePreview,
+      handleCopyPreviewContent,
+      handleCopyPreviewPath,
+      handleEditorModeChange,
+      handleRefresh,
+      overlaySelection,
+      t
+    ]
+  )
+
+  // Pending baseline rendered synchronously while open targets resolve; the
+  // menus are disabled without a selection, so skip building items entirely.
+  const tabActionItems = useMemo(
+    () =>
+      overlaySelection ? buildTabActionItems({ canCopyPreviewContent, canEditSelection, editMode, editorLoading }) : [],
+    [buildTabActionItems, canCopyPreviewContent, canEditSelection, editMode, editorLoading, overlaySelection]
+  )
+
+  const primaryCopyLabel = t(canCopyPreviewContent ? 'agent.preview_pane.copy_content' : 'agent.preview_pane.copy_path')
+  const handlePrimaryCopy = canCopyPreviewContent ? handleCopyPreviewContent : handleCopyPreviewPath
+  const previewCopyAction = overlaySelection ? (
+    <ButtonGroup
+      attached={false}
+      aria-label={t('common.copy')}
+      className={cn(TOOLBAR_SPLIT_BUTTON_GROUP_CLASS, 'gap-0')}>
+      <NormalTooltip content={primaryCopyLabel} delayDuration={500}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn('w-8 min-w-8', TOOLBAR_SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+          aria-label={primaryCopyLabel}
+          onClick={() => void handlePrimaryCopy()}>
+          {canCopyPreviewContent ? <ClipboardCopy size={14} /> : <Copy size={14} />}
+        </Button>
+      </NormalTooltip>
+      <Popover open={copyMenuOpen} onOpenChange={setCopyMenuOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={cn('w-6 min-w-6', TOOLBAR_SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+            aria-label={t('common.more')}>
+            <ChevronDown size={14} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-40 p-1" align="end">
+          <MenuList>
+            {canCopyPreviewContent ? (
+              <MenuItem
+                label={t('agent.preview_pane.copy_content')}
+                icon={<ClipboardCopy size={14} />}
+                onClick={() => {
+                  setCopyMenuOpen(false)
+                  void handleCopyPreviewContent()
+                }}
+              />
+            ) : null}
+            <MenuItem
+              label={t('agent.preview_pane.copy_path')}
+              icon={<Copy size={14} />}
+              onClick={() => {
+                setCopyMenuOpen(false)
+                void handleCopyPreviewPath()
+              }}
+            />
+          </MenuList>
+        </PopoverContent>
+      </Popover>
+    </ButtonGroup>
+  ) : null
+
+  // Open-target items can outlive their opening render (the menu stays open
+  // across file switches), so drop them when the selection changed mid-flight.
+  const currentPreviewKeyRef = useRef(previewKey)
+  currentPreviewKeyRef.current = previewKey
+
+  const getOverlayMenuItems = useCallback(async (): Promise<readonly CommandContextMenuExtraItem[]> => {
+    if (!overlaySelection) return []
+    let openTargetItems: readonly CommandContextMenuExtraItem[] = []
+    try {
+      const targetPath = getArtifactPaneSelectionPath(overlaySelection)
+      const timeoutPromise = new Promise<readonly CommandContextMenuExtraItem[]>((resolve) =>
+        setTimeout(() => resolve([]), OPEN_TARGET_LOOKUP_TIMEOUT_MS)
+      )
+      openTargetItems = await Promise.race([
+        loadOpenTargetMenuItems({ targetPath, pathKind: 'file', t }),
+        timeoutPromise
+      ])
+    } catch (error) {
+      logger.warn('Failed to resolve open targets for the opened-file header menu', error as Error)
+    }
+    // Selection changed mid-flight: the resolved items point at the previous
+    // path, so rebuild the baseline from live refs instead.
+    if (currentPreviewKeyRef.current !== previewKey) return buildTabActionItems()
+    return [
+      ...openTargetItems,
+      ...(openTargetItems.length ? [{ type: 'separator' } as const] : []),
+      ...buildTabActionItems()
+    ]
+  }, [buildTabActionItems, overlaySelection, previewKey, t])
 
   const paneHeader =
     props.headerVariant === 'pane' ? (
       <div
         data-testid="artifact-pane-header"
-        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
-        <div className="flex min-w-0 flex-1 items-center gap-0.5">
+        className="flex min-h-(--navbar-height) shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">
+        <div className="flex min-w-7 flex-1 items-center gap-0.5">
           {overlaySelection ? (
             <Tooltip content={t('common.back')} delay={800}>
               <Button
@@ -854,12 +810,22 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Tooltip>
           ) : null}
           <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
-            <div
-              data-testid="artifact-pane-header-title"
-              className="min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm"
-              title={overlaySelection?.filePath}>
-              {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
-            </div>
+            <CommandContextMenu
+              key={previewKey}
+              location="webcontents.context"
+              disabled={!overlaySelection}
+              pendingExtraItems={tabActionItems}
+              getExtraItems={getOverlayMenuItems}>
+              <div
+                data-testid="artifact-pane-header-title"
+                className={cn(
+                  'min-w-0 flex-1 truncate text-sm font-medium text-foreground select-none',
+                  overlaySelection && 'cursor-context-menu'
+                )}
+                title={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : undefined}>
+                {overlaySelection ? getPreviewFileTitle(overlaySelection) : props.paneTitle}
+              </div>
+            </CommandContextMenu>
             {overlaySelection && isEditDirty ? (
               <span
                 className="size-1.5 shrink-0 rounded-full bg-warning"
@@ -869,7 +835,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1">
           {canEditSelection ? (
             <>
               <Tooltip content={modeActionLabel} delay={800}>
@@ -887,9 +853,15 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
             </>
           ) : null}
+          {previewCopyAction}
+          {previewCopyAction ? <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" /> : null}
           {previewWorkspacePath ? (
             <>
-              <OpenExternalAppButton workdir={previewWorkspacePath} filePath={overlaySelection?.filePath} />
+              <OpenTargetButton
+                targetPath={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : previewWorkspacePath}
+                pathKind={overlaySelection ? 'file' : 'directory'}
+              />
+              {pickerToggle}
               {refreshButton}
               <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
             </>
@@ -899,25 +871,42 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
     ) : null
 
+  // Not cleared on click: the composer receives the reference over a window event and can still refuse it
+  // (no room in the input) without reporting back, so clearing here would drop the selection on a failure.
+  const handleInsertSelectionReference = useCallback(() => {
+    if (!selectionReference) return
+    onInsertSelectionReference?.(selectionReference)
+  }, [onInsertSelectionReference, selectionReference])
+
   const previewContent = overlaySelection ? (
-    <ArtifactFilePreview
-      workspacePath={overlaySelection.workspacePath}
-      filePath={overlaySelection.filePath}
-      isText={isText}
-      fileSize={fileSize}
-      pdfLayoutPending={pdfLayoutPending}
-      pdfLayoutRefreshKey={pdfLayoutRefreshKey}
-      contentRefreshKey={contentRefreshToken}
-      contentOverride={editMode === 'edit' && fileSession?.status === 'ready' ? fileSession.draft : undefined}
+    <FilePreview
+      filePath={getArtifactPaneSelectionPath(overlaySelection)}
+      refreshKey={contentRefreshToken}
+      type={overlaySelection.previewType ?? 'artifact'}
+      onSelectionReference={onInsertSelectionReference && pickerActive ? setSelectionReference : undefined}
     />
   ) : null
+
+  const selectionReferenceChip =
+    onInsertSelectionReference && selectionReference ? (
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="absolute right-4 bottom-4 z-10 gap-1.5 rounded-full shadow-md"
+        onClick={handleInsertSelectionReference}>
+        <TextQuote size={14} />
+        {t('agent.preview_pane.quote_selection')}
+      </Button>
+    ) : null
 
   const renderOverlay = () => {
     if (!overlaySelection) return null
 
     const overlayActions = (
       <>
-        <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+        <OpenTargetButton targetPath={getArtifactPaneSelectionPath(overlaySelection)} pathKind="file" />
+        {pickerToggle}
         {refreshButton}
         <Tooltip content={t('agent.preview_pane.close')} delay={800}>
           <Button
@@ -933,10 +922,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </>
     )
 
-    const contentClassName =
-      isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
-        ? 'overflow-hidden'
-        : 'overflow-auto'
     return (
       <div
         ref={overlayRef}
@@ -945,9 +930,18 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         onKeyDown={handleOverlayKeyDown}
         className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {props.headerVariant === 'pane' ? null : (
-          <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
-              <span className="truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-subtle pr-2 pl-3">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-foreground">
+              <CommandContextMenu
+                key={previewKey}
+                location="webcontents.context"
+                disabled={!overlaySelection}
+                pendingExtraItems={tabActionItems}
+                getExtraItems={getOverlayMenuItems}>
+                <span className="cursor-context-menu truncate" title={getArtifactPaneSelectionPath(overlaySelection)}>
+                  {getPreviewFileTitle(overlaySelection)}
+                </span>
+              </CommandContextMenu>
               {isEditDirty && (
                 <span
                   className="size-1.5 shrink-0 rounded-full bg-warning"
@@ -974,6 +968,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
                 </>
               )}
+              {previewCopyAction}
               {overlayActions}
             </div>
           </div>
@@ -981,17 +976,25 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {fileSession?.saveError && (
           <div
             role="alert"
-            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-bg px-3 py-2 text-error-text text-xs">
+            className="flex shrink-0 items-center gap-2 border-b border-error-border bg-error-subtle px-3 py-2 text-xs text-error-subtle-foreground">
             <AlertCircle className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1">{t('agent.preview_pane.edit.save_failed')}</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={fileSession.isSaving}
-              onClick={() => void handleRetryFailedSave()}>
-              {t('common.retry')}
-            </Button>
+            <span className="min-w-0 flex-1">
+              {t(
+                fileSession.metadataRecoveryPending
+                  ? 'agent.preview_pane.edit.metadata_pending'
+                  : 'agent.preview_pane.edit.save_failed'
+              )}
+            </span>
+            {!fileSession.metadataRecoveryPending && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={fileSession.isSaving}
+                onClick={() => void handleRetryFailedSave()}>
+                {t('common.retry')}
+              </Button>
+            )}
             <Button
               type="button"
               variant="destructive"
@@ -1002,27 +1005,29 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Button>
           </div>
         )}
-        <div className={cn('min-h-0 flex-1', contentClassName)}>
+        <div data-file-edit className="relative min-h-0 flex-1 overflow-hidden">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
-            <CodeEditor
-              key={previewKey}
-              value={fileSession.draft}
-              language={getLanguageByFilePath(overlaySelection.filePath)}
-              theme={activeCmTheme}
-              onChange={(content) => fileSession.setDraft(content)}
-              height="100%"
-              expanded={false}
-              wrapped={false}
-              fontSize={14}
-              style={{ minHeight: 0 }}
-              options={{ keymap: true, lineNumbers: true }}
-            />
+            <Suspense fallback={<LoadingState label={t('common.loading')} />}>
+              <FileEditor
+                key={`${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+                sessionKey={`artifact:${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+                readOnly={fileSession.readOnly}
+                value={fileSession.draft}
+                fileName={getPathBasename(overlaySelection.filePath)}
+                onChange={fileSession.setDraft}
+                wrapLines
+                className="h-full"
+              />
+            </Suspense>
           ) : canEditSelection && editMode === 'edit' && fileSession?.status === 'loading' ? (
             <div className="flex h-full items-center justify-center">
               <LoadingState label={t('common.loading')} />
             </div>
           ) : (
-            previewContent
+            <>
+              {previewContent}
+              {selectionReferenceChip}
+            </>
           )}
         </div>
       </div>
@@ -1050,9 +1055,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           searchClearLabel={t('common.clear')}
           getMenuItems={getFileTreeMenuItems}
           emptyState={
-            <div className="px-2 py-3 text-muted-foreground text-xs">
-              {model.error
-                ? t('common.error')
+            <div className="px-2 py-3 text-xs text-muted-foreground">
+              {treeErrorKeys
+                ? t(treeErrorKeys.title)
                 : trimmedFileSearch
                   ? t('agent.preview_pane.no_search_results')
                   : workspacePath
@@ -1067,7 +1072,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       model.filteredTree,
       model.effectiveExpandedIds,
       model.setExpandedIds,
-      model.error,
+      treeErrorKeys,
       selectedFile,
       handleSelectedChange,
       enableFileSearch,
@@ -1099,7 +1104,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     )
   }
 
-  if (model.error && !overlaySelection) {
+  if (treeErrorKeys && !overlaySelection) {
     return (
       <div
         ref={artifactPaneRef}
@@ -1108,7 +1113,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           maximized && 'rounded-lg border border-border-subtle shadow-sm'
         )}>
         {paneHeader}
-        <EmptyState icon={AlertCircle} title={t('common.error')} description={model.error.message} />
+        <EmptyState icon={AlertCircle} title={t(treeErrorKeys.title)} description={t(treeErrorKeys.description)} />
       </div>
     )
   }
@@ -1116,6 +1121,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   return (
     <div
       ref={artifactPaneRef}
+      onKeyDown={handlePaneKeyDown}
       className={cn(
         'flex h-full min-h-0 flex-col overflow-hidden text-card-foreground',
         maximized && 'rounded-lg border border-border-subtle shadow-sm'
@@ -1123,7 +1129,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       {paneHeader}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
-          <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div
+            data-artifact-file-tree-scroll-region
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-[var(--chat-composer-inset,0px)]">
             {fileTreeContent}
           </div>
         </aside>
@@ -1131,13 +1139,23 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
       <ConfirmDialog
         open={staleConflictOpen}
-        onOpenChange={setStaleConflictOpen}
+        onOpenChange={(open) => {
+          setStaleConflictOpen(open)
+          if (open || conflictResolvedRef.current) return
+          void handleKeepDraftAfterConflict()
+        }}
         title={t('agent.preview_pane.edit.conflict.title')}
         description={t('agent.preview_pane.edit.conflict.description')}
         confirmText={t('agent.preview_pane.edit.conflict.reload')}
         cancelText={t('agent.preview_pane.edit.conflict.keep_draft')}
         destructive
-        onConfirm={handleReloadAfterConflict}
+        onConfirm={() => {
+          // Close before the async reload so the dialog's auto-close cannot land
+          // after a failure publish reset the guard.
+          conflictResolvedRef.current = true
+          setStaleConflictOpen(false)
+          void handleReloadAfterConflict()
+        }}
       />
     </div>
   )
@@ -1154,8 +1172,6 @@ const ArtifactPane = ({
   maximized = false,
   previewFileSelection,
   onPreviewClose,
-  pdfLayoutPending = false,
-  pdfLayoutRefreshKey = 0,
   selectedFile: selectedFileProp,
   onSelectedFileChange,
   fileTreeExpandedIds: fileTreeExpandedIdsProp,
@@ -1255,8 +1271,6 @@ const ArtifactPane = ({
       maximized={maximized}
       previewFileSelection={effectivePreviewFileSelection}
       onPreviewClose={onPreviewClose}
-      pdfLayoutPending={pdfLayoutPending}
-      pdfLayoutRefreshKey={pdfLayoutRefreshKey}
       enableFileSearch={enableFileSearch}
       model={model}
       selectedFile={selectedFile}

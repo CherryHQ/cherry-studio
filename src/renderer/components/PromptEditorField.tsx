@@ -1,76 +1,16 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-
-import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { EditorView } from '@codemirror/view'
-import { usePreference } from '@data/hooks/usePreference'
-import { tags } from '@lezer/highlight'
-import { useTheme } from '@renderer/hooks/useTheme'
-import { cn } from '@renderer/utils/style'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { EditorState } from '@uiw/react-codemirror'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-const PROMPT_EDITOR_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
-
-const promptEditorThemeSpec = {
-  '&': {
-    backgroundColor: 'var(--background)',
-    color: 'var(--foreground)'
-  },
-  '.cm-scroller': {
-    backgroundColor: 'var(--background)'
-  },
-  '.cm-content': {
-    caretColor: 'var(--foreground)',
-    padding: 'calc(var(--spacing) * 3)'
-  },
-  '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: 'var(--foreground)'
-  },
-  '.cm-activeLine': {
-    backgroundColor: 'transparent'
-  },
-  '.cm-placeholder': {
-    color: PROMPT_EDITOR_PLACEHOLDER_COLOR
-  },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'var(--accent) !important'
-  }
-}
-
-const promptEditorHighlighting = syntaxHighlighting(
-  HighlightStyle.define([
-    { tag: tags.content, color: 'var(--foreground)' },
-    {
-      tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6],
-      color: 'var(--foreground)',
-      fontWeight: 'var(--font-weight-medium)'
-    },
-    { tag: tags.strong, color: 'var(--foreground)', fontWeight: 'var(--font-weight-bold)' },
-    { tag: tags.emphasis, color: 'var(--foreground)', fontStyle: 'italic' },
-    {
-      tag: [tags.link, tags.url],
-      color: 'var(--primary)',
-      textDecoration: 'underline'
-    },
-    { tag: [tags.monospace, tags.quote], color: 'var(--foreground)' },
-    { tag: tags.comment, color: PROMPT_EDITOR_SECONDARY_COLOR, fontStyle: 'italic' },
-    {
-      tag: [tags.processingInstruction, tags.contentSeparator],
-      color: PROMPT_EDITOR_SECONDARY_COLOR
-    }
-  ])
-)
-
-const promptEditorThemes = {
-  light: [EditorView.theme(promptEditorThemeSpec), promptEditorHighlighting],
-  dark: [EditorView.theme(promptEditorThemeSpec, { dark: true }), promptEditorHighlighting]
-}
+import { Button, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
+import { StaticMarkdown } from '@renderer/components/markdown'
+import { cn } from '@renderer/utils/style'
 
 export interface PromptEditorFieldHandles {
   insertText: (text: string) => boolean
@@ -91,6 +31,7 @@ interface PromptEditorFieldProps {
   maxHeight?: string
   autoFocus?: boolean
   fill?: boolean
+  disabled?: boolean
 }
 
 export function PromptEditorField({
@@ -107,18 +48,30 @@ export function PromptEditorField({
   minHeight = '200px',
   maxHeight = '50vh',
   autoFocus = false,
-  fill = false
+  fill = false,
+  disabled = false
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
-  const { theme } = useTheme()
   const previewId = useId()
   const [fontSize] = usePreference('chat.message.font_size')
   const [showPreview, setShowPreview] = useState(value.length > 0)
   const previousResetPreviewKey = useRef(resetPreviewKey)
   const codeEditorRef = useRef<CodeEditorHandles | null>(null)
+  const [session, setSession] = useState(() => ({
+    accepted: value,
+    stateRef: { current: null as EditorState | null },
+    epoch: 0
+  }))
+  if (session.accepted !== value) {
+    const echoed = session.stateRef.current?.sliceDoc() === value
+    setSession({
+      accepted: value,
+      stateRef: echoed ? session.stateRef : { current: null },
+      epoch: session.epoch + Number(!echoed)
+    })
+  }
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
-  const promptEditorTheme = theme === ThemeMode.dark ? promptEditorThemes.dark : promptEditorThemes.light
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
 
   useImperativeHandle(ref, () => ({
@@ -138,14 +91,16 @@ export function PromptEditorField({
   // CodeMirror only focuses on clicks that land on its content. Clicking the gutter or the
   // empty area below the text leaves the editor unfocused, so forward those clicks manually.
   const handleEditorAreaMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (effectiveShowPreview) return
+    if (disabled || effectiveShowPreview) return
     if ((event.target as HTMLElement).closest('.cm-content')) return
     event.preventDefault()
     codeEditorRef.current?.focus?.()
   }
 
   return (
-    <Field data-invalid={hasError || undefined} className={fill ? 'min-h-0 flex-1 gap-1.5' : 'gap-1.5'}>
+    <Field
+      data-invalid={hasError || undefined}
+      className={fill ? 'min-h-0 max-w-full min-w-0 flex-1 gap-1.5' : 'max-w-full min-w-0 gap-1.5'}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {label}
@@ -157,41 +112,45 @@ export function PromptEditorField({
             type="button"
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
-            disabled={value.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border px-2 py-[3px] font-normal text-muted-foreground text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-            {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
+            disabled={disabled || value.length === 0}
+            className="flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 text-xs font-normal text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
             <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>
         </div>
       </div>
 
-      <FieldContent className={fill ? 'min-h-0' : undefined}>
+      <FieldContent className={fill ? 'min-h-0 max-w-full min-w-0' : 'max-w-full min-w-0'}>
         <div
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
+            'max-w-full min-w-0 overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
-            hasError
-              ? 'border-destructive/50 focus-within:border-destructive/60'
-              : 'border-border focus-within:border-border-hover'
+            hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring',
+            disabled && 'cursor-not-allowed opacity-50'
           )}>
           {effectiveShowPreview ? (
             <div
-              className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}
+              className={cn(
+                'prompt-preview markdown max-w-full min-w-0 overflow-auto p-3 text-xs text-foreground',
+                fill && 'min-h-0 flex-1'
+              )}
               style={fill ? undefined : { minHeight, maxHeight }}
-              onDoubleClick={() => setShowPreview(false)}>
-              <Markdown id={previewId}>{previewValue || value}</Markdown>
+              onDoubleClick={() => !disabled && setShowPreview(false)}>
+              <StaticMarkdown id={previewId}>{previewValue || value}</StaticMarkdown>
             </div>
           ) : (
-            <CodeEditor
+            <LazyCodeEditor
+              key={session.epoch}
               ref={codeEditorRef}
-              theme={promptEditorTheme}
+              stateRef={session.stateRef}
               fontSize={fontSize - 1}
               value={value}
               autoFocus={autoFocus}
               language="markdown"
               onChange={handleChange}
+              editable={!disabled}
               options={{ foldGutter: false, lineNumbers: false }}
               expanded={false}
               className={fill ? 'min-h-0 flex-1' : undefined}
@@ -203,7 +162,7 @@ export function PromptEditorField({
           )}
         </div>
         <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
-        <div className="flex justify-between text-muted-foreground/80 text-xs">
+        <div className="flex justify-between text-xs text-muted-foreground">
           <span>{t('library.config.prompt.dblclick_hint')}</span>
           <span className="tabular-nums">
             {t('library.config.prompt.tokens_label')}

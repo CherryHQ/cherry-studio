@@ -1,5 +1,30 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`DashScope request boundary > chat-like (qwen-image-3.0) → messages[] + prompt_extend/watermark/negative_prompt: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "input": {
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "a fox",
+          },
+        ],
+        "role": "user",
+      },
+    ],
+  },
+  "model": "qwen-image-3.0",
+  "parameters": {
+    "n": 2,
+    "negative_prompt": "blurry",
+    "prompt_extend": true,
+    "size": "1328*1328",
+    "watermark": false,
+  },
+}
+`;
+
 exports[`DashScope request boundary > chat-like (qwen-image-edit) → messages[] with inlined image: satisfies the wire contract and matches snapshot 1`] = `
 {
   "input": {

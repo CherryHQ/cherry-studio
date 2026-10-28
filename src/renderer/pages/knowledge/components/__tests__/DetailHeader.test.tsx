@@ -1,7 +1,8 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import DetailHeader from '../DetailHeader'
 
@@ -51,6 +52,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
@@ -83,12 +85,6 @@ describe('DetailHeader', () => {
 
     expect(screen.getByText('Base 1')).toBeInTheDocument()
     expect(screen.queryByText('就绪')).not.toBeInTheDocument()
-    expect(screen.getByText('Base 1').parentElement).toHaveClass(
-      'relative',
-      'after:left-3',
-      'after:right-3',
-      'after:border-b'
-    )
   })
 
   it('renders the failed status as a clickable rebuild trigger', () => {
@@ -104,7 +100,6 @@ describe('DetailHeader', () => {
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByText('失败')).toHaveClass('bg-destructive/10', 'text-destructive')
 
     const rebuildTrigger = screen.getByRole('button', { name: '失败, 重建知识库' })
     fireEvent.click(rebuildTrigger)

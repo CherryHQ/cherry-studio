@@ -30,16 +30,15 @@ const supportWith = (key: string, options: string[], def: string) => ({
   modes: { generate: { supports: { [key]: { type: 'enum', options, default: def } } } }
 })
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-image-1',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'p1',
+  providerId: 'openai',
+  model: 'gpt-image-1',
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  ...overrides
+})
 
 describe('PaintingImageSkeleton', () => {
   beforeAll(() => {
@@ -180,11 +179,11 @@ describe('PaintingImageSkeleton', () => {
 
     beforeEach(() => {
       clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400)
-      clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
-        this: HTMLElement
-      ) {
-        return this.dataset.testid === 'painting-skeleton-top-bar-measure' ? 40 : 300
-      })
+      clientHeight = vi
+        .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+        .mockImplementation(function (this: HTMLElement) {
+          return this.dataset.testid === 'painting-skeleton-top-bar-measure' ? 40 : 300
+        })
     })
 
     afterEach(() => {

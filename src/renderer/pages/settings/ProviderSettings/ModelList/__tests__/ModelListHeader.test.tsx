@@ -30,13 +30,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 const baseProps = {
-  isBusy: false,
+  providerId: 'openai',
   hasNoModels: false,
   searchText: '',
   setSearchText: vi.fn(),
-  selectedTypeFilter: 'all' as const,
-  setSelectedTypeFilter: vi.fn(),
+  selectedFilter: 'all' as const,
+  setSelectedFilter: vi.fn(),
   typeCounts: emptyTypeCounts,
+  failedModelCount: 0,
   groupsExpanded: true,
   onToggleGroupsExpanded: vi.fn()
 }
@@ -61,12 +62,14 @@ describe('ModelListHeader', () => {
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
   })
 
-  it('toggles all model groups from the header action', () => {
-    render(<ModelListHeader {...baseProps} />)
+  it('disables billing and filtering together when the provider has no models', () => {
+    const { rerender } = render(<ModelListHeader {...baseProps} hasNoModels />)
+    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.provider.billing.title' })).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
-
-    expect(baseProps.onToggleGroupsExpanded).toHaveBeenCalledTimes(1)
+    rerender(<ModelListHeader {...baseProps} />)
+    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'settings.provider.billing.title' })).toBeEnabled()
   })
 
   it('renders provider documentation links when websites are available', () => {
@@ -130,9 +133,13 @@ describe('ModelListHeader', () => {
     expect(screen.getByRole('tab', { name: 'models.type.text' })).toBeInTheDocument()
   })
 
-  it('marks the filter button active when a non-default type filter is selected', () => {
-    render(<ModelListHeader {...baseProps} selectedTypeFilter="embedding" />)
+  it('shows the failed-model filter only when the latest check found failures', () => {
+    const { rerender } = render(<ModelListHeader {...baseProps} />)
 
-    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toHaveClass('text-foreground')
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.filter.label' }))
+    expect(screen.queryByRole('tab', { name: 'settings.models.check.filter_failed' })).not.toBeInTheDocument()
+
+    rerender(<ModelListHeader {...baseProps} failedModelCount={2} />)
+    expect(screen.getByRole('tab', { name: 'settings.models.check.filter_failed' })).toBeInTheDocument()
   })
 })

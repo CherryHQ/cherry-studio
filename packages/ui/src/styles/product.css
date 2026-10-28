@@ -10,8 +10,12 @@
 :root {
   /* Shared product semantics */
   --background-subtle: var(--cs-background-subtle);
+  --foreground-tertiary: var(--cs-foreground-tertiary);
+  --foreground-disabled: var(--cs-foreground-disabled);
   --border-subtle: var(--cs-border-subtle);
   --border-strong: var(--cs-border-strong);
+  --border-selected: var(--cs-border-selected);
+  --link: var(--cs-blue-600);
 
   /* Feedback */
   --success: var(--cs-success);
@@ -36,13 +40,29 @@
   --inline-code: rgba(0, 0, 0, 0.06);
   --inline-code-foreground: rgb(218, 97, 92);
 
+  /* Default code theme: cherryCodeTheme maps syntax to these; `background` stays transparent */
+  --cherry-code-background: transparent;
+  --cherry-code-foreground: var(--foreground);
+  --cherry-code-muted: var(--muted-foreground);
+  --cherry-code-selection: color-mix(in oklab, var(--link) 20%, transparent);
+  --cherry-code-keyword: var(--cs-violet-700);
+  --cherry-code-string: var(--cs-emerald-700);
+  --cherry-code-constant: var(--cs-amber-700);
+  --cherry-code-type: var(--cs-cyan-700);
+  --cherry-code-function: var(--cs-blue-600);
+  --cherry-code-tag: var(--cs-rose-700);
+  --cherry-code-link: var(--link);
+  --cherry-code-inserted: var(--cs-green-700);
+  --cherry-code-deleted: var(--cs-red-600);
+
   /* Stable product domain: references and search highlights */
   --reference: #cfe1ff;
   --reference-foreground: #000;
   --reference-subtle: #f1f7ff;
   --highlight-foreground: var(--foreground);
-  --highlight: var(--cs-amber-50);
-  --highlight-accent: var(--cs-amber-100);
+  --highlight: var(--cs-amber-200);
+  --highlight-accent: var(--cs-orange-400);
+  --markdown-important: var(--cs-violet-600);
 
   /* Stable product domain: conversation surfaces.
    * The conversation is a three-level stack: `--chat-message-well` is the recessed
@@ -64,12 +84,32 @@
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
+
+  /* Stable product domain: cross-surface resource-list rows */
+  --resource-list-row-hover: var(--background-subtle);
+  --resource-list-row-active: var(--accent);
+  --resource-list-row-active-foreground: var(--accent-foreground);
+  --resource-list-row-selected: var(--accent);
+  --resource-list-row-selected-foreground: var(--accent-foreground);
 }
 
 .dark {
+  /* Shared product semantics */
+  --link: var(--cs-blue-400);
+
   /* Stable product domain: rich text and code */
   --code-block: #323232;
   --inline-code: #323232;
+
+  /* Default code theme: one lightness band so no hue dominates */
+  --cherry-code-keyword: var(--cs-violet-300);
+  --cherry-code-string: var(--cs-emerald-300);
+  --cherry-code-constant: var(--cs-orange-300);
+  --cherry-code-type: var(--cs-cyan-300);
+  --cherry-code-function: var(--cs-blue-300);
+  --cherry-code-tag: var(--cs-rose-300);
+  --cherry-code-inserted: var(--cs-green-400);
+  --cherry-code-deleted: var(--cs-red-400);
 
   /* Stable product domain: references and search highlights */
   --reference: #404040;
@@ -77,7 +117,8 @@
   --reference-subtle: #0b0e12;
   --highlight-foreground: var(--foreground);
   --highlight: var(--cs-amber-900);
-  --highlight-accent: var(--cs-amber-800);
+  --highlight-accent: var(--cs-orange-800);
+  --markdown-important: var(--cs-violet-400);
 
   /* Stable product domain: conversation surfaces.
    * `--chat-message-well` carries the same 0.55 alpha as `--background`, so the

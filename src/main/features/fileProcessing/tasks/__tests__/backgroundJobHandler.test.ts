@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Unit tests for backgroundJobHandler.
  *
@@ -8,7 +10,6 @@
  */
 import type { JobContext } from '@main/core/job/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../shared'
 
@@ -31,7 +32,7 @@ const {
   processorRegistryMock: {} as Record<string, unknown>,
   persistResultMock: vi.fn(),
   capabilityHandlerMock: {
-    mode: 'background' as 'background' | 'remote-poll',
+    mode: 'background',
     prepare: vi.fn()
   },
   preparedExecuteMock: vi.fn()
@@ -134,23 +135,69 @@ beforeEach(() => {
 })
 
 describe('backgroundJobHandler.execute', () => {
-  it('declares the background job contract', () => {
-    expect(backgroundJobHandler.recovery).toBe('retry')
-    expect(
-      backgroundJobHandler.defaultQueue?.({
-        feature: 'image_to_text',
-        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
-        processorId: 'tesseract'
-      })
-    ).toBe('file-processing.tesseract')
-    expect(backgroundJobHandler.defaultConcurrency).toBe(2)
-    expect(backgroundJobHandler.defaultRetryPolicy).toEqual({
-      maxAttempts: 1,
-      backoff: 'none',
-      baseDelayMs: 0,
-      maxDelayMs: 0
+  it('runs an auto capability as a remote job under the persisted background type', async () => {
+    capabilityHandlerMock.mode = 'auto'
+    const startRemote = vi.fn(async () => ({
+      providerTaskId: 'remote-1',
+      remoteContext: {},
+      status: 'pending',
+      progress: 0
+    }))
+    setupCapability({
+      mode: 'remote-poll',
+      startRemote,
+      toPersistable: () => ({ providerTaskId: 'remote-1' }),
+      pollRemote: async () => ({ status: 'completed', output: { kind: 'text', text: 'remote result' } })
     })
-    expect(backgroundJobHandler.defaultTimeoutMs).toBe(15 * 60_000)
+    const ctx = createCtx()
+    expect(await backgroundJobHandler.execute(ctx)).toEqual({
+      artifact: { kind: 'text', format: 'plain', text: 'remote result' }
+    })
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({ remoteState: { providerTaskId: 'remote-1' } })
+  })
+
+  it('resumes an auto remote job without repeating its upload', async () => {
+    capabilityHandlerMock.mode = 'auto'
+    const startRemote = vi.fn(() => {
+      throw new Error('Must not submit twice')
+    })
+    const remoteState = { providerTaskId: 'existing-remote' }
+    setupCapability({
+      mode: 'remote-poll',
+      startRemote,
+      rehydrate: (state: typeof remoteState) => ({ providerTaskId: state.providerTaskId, remoteContext: {} }),
+      pollRemote: async (job: { providerTaskId: string }) => ({
+        status: 'completed',
+        output: { kind: 'text', text: job.providerTaskId }
+      })
+    })
+    expect(await backgroundJobHandler.execute(createCtx({ metadata: { remoteState } }))).toEqual({
+      artifact: { kind: 'text', format: 'plain', text: 'existing-remote' }
+    })
+    expect(startRemote).not.toHaveBeenCalled()
+    expect(capabilityHandlerMock.prepare.mock.calls[0][3]).toEqual({ remoteState })
+  })
+
+  it('does not poll or write artifacts after saving the remote id fails', async () => {
+    capabilityHandlerMock.mode = 'auto'
+    const pollRemote = vi.fn()
+    setupCapability({
+      mode: 'remote-poll',
+      startRemote: async () => ({ providerTaskId: 'remote-1', remoteContext: {}, status: 'pending', progress: 0 }),
+      toPersistable: () => ({ providerTaskId: 'remote-1' }),
+      pollRemote
+    })
+    await expect(
+      backgroundJobHandler.execute(
+        createCtx({
+          patchMetadata: async () => {
+            throw new Error('disk full')
+          }
+        })
+      )
+    ).rejects.toThrow('disk full')
+    expect(pollRemote).not.toHaveBeenCalled()
+    expect(persistResultMock).not.toHaveBeenCalled()
   })
 
   it('returns inline text artifact for image_to_text output', async () => {

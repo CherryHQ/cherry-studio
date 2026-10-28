@@ -1,7 +1,8 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
 // Deferred so the popup's imperative shell (this module, statically imported by
 // AppShell / ShellTabBarActions / AgentChatNavbar) no longer
@@ -24,6 +25,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent
+        data-ui="app.search"
         showCloseButton={false}
         onOpenAutoFocus={(event) => event.preventDefault()}
         overlayClassName="z-1001 bg-black/50 backdrop-blur-[8px]"

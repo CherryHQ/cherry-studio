@@ -1,11 +1,12 @@
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import MarkdownEditor from '@renderer/components/MarkdownEditor'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from './primitives/ProviderSettingsDrawer'
 import { drawerClasses } from './primitives/ProviderSettingsPrimitives'
@@ -37,7 +38,7 @@ const PopupContainer: FC<Props> = ({ providerId, open, resolve }) => {
       await updateProvider({ providerSettings: { ...provider?.settings, notes } })
       resolve({})
     } catch {
-      toast.error(t('blocks.edit.save.failed.label'))
+      toast.error(t('common.save_failed'))
     } finally {
       setSaving(false)
     }

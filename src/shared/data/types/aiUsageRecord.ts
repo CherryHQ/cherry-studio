@@ -10,9 +10,11 @@
 import * as z from 'zod'
 
 import { CURRENCY, objectValues } from './model'
+import { BillingResolutionSchema } from './providerBilling'
 
 const FiniteNonnegativeNumberSchema = z.number().nonnegative().refine(Number.isFinite)
 const FiniteNonnegativeIntegerSchema = z.number().int().nonnegative().refine(Number.isSafeInteger)
+const FinitePositiveIntegerSchema = z.number().int().positive().refine(Number.isSafeInteger)
 
 export const AiUsageRecordKindSchema = z.enum(['invocation', 'legacy-aggregate'])
 export type AiUsageRecordKind = z.infer<typeof AiUsageRecordKindSchema>
@@ -33,11 +35,34 @@ export const AiUsageCostBreakdownSchema = z.strictObject({
 export type AiUsageCostBreakdown = z.infer<typeof AiUsageCostBreakdownSchema>
 
 export const AiUsagePricingSnapshotSchema = z.strictObject({
+  billing: BillingResolutionSchema.optional(),
   currency: z.enum(objectValues(CURRENCY)),
   inputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
   outputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
   cacheReadPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
   cacheWritePerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+  inputTokenTiers: z
+    .array(
+      z.strictObject({
+        minInputTokens: FinitePositiveIntegerSchema,
+        inputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+        outputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+        cacheReadPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+        cacheWritePerMillionTokens: FiniteNonnegativeNumberSchema.optional()
+      })
+    )
+    .superRefine((tiers, ctx) => {
+      for (let index = 1; index < tiers.length; index++) {
+        if (tiers[index].minInputTokens <= tiers[index - 1].minInputTokens) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [index, 'minInputTokens'],
+            message: 'minInputTokens must be strictly increasing'
+          })
+        }
+      }
+    })
+    .optional(),
   perImage: z
     .strictObject({
       price: FiniteNonnegativeNumberSchema,
@@ -83,8 +108,9 @@ export type AiUsageRecordModality = z.infer<typeof AiUsageRecordModalitySchema>
  * User-facing source that produced the usage:
  * - `assistant`: regular chat topic owned by an assistant
  * - `agent`: agent session message
+ * - `mini-app`: locally installed mini app
  */
-export const AiUsageRecordSourceTypeSchema = z.enum(['assistant', 'agent'])
+export const AiUsageRecordSourceTypeSchema = z.enum(['assistant', 'agent', 'mini-app'])
 export type AiUsageRecordSourceType = z.infer<typeof AiUsageRecordSourceTypeSchema>
 
 export const AiUsageRecordEntrySchema = z.strictObject({

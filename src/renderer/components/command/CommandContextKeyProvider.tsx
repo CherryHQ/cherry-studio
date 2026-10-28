@@ -1,3 +1,5 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import {
   ContextKeyRegisterContext,
@@ -7,7 +9,6 @@ import {
 } from '@renderer/hooks/command'
 import type { ContextValue } from '@shared/types/command'
 import { ContextKeyService } from '@shared/utils/command'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 interface ContextEntry {
   id: number
@@ -35,11 +36,13 @@ const buildSnapshot = (
 export function CommandContextKeyProvider({ children }: { children: React.ReactNode }) {
   const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
   const [selectionEnabled] = usePreference('feature.selection.enabled')
+  const [screenshotEnabled] = usePreference('feature.screenshot.enabled')
   const baseValuesRef = useRef(
     new Map<RendererCommandContextKey, ContextValue>([
       ['platform', rendererPlatform],
       ['feature.quick_assistant.enabled', quickAssistantEnabled],
-      ['feature.selection.enabled', selectionEnabled]
+      ['feature.selection.enabled', selectionEnabled],
+      ['feature.screenshot.enabled', screenshotEnabled]
     ])
   )
   const stacksRef = useRef(new Map<RendererCommandContextKey, ContextEntry[]>())
@@ -54,8 +57,9 @@ export function CommandContextKeyProvider({ children }: { children: React.ReactN
     baseValuesRef.current.set('platform', rendererPlatform)
     baseValuesRef.current.set('feature.quick_assistant.enabled', quickAssistantEnabled)
     baseValuesRef.current.set('feature.selection.enabled', selectionEnabled)
+    baseValuesRef.current.set('feature.screenshot.enabled', screenshotEnabled)
     publishSnapshot()
-  }, [publishSnapshot, quickAssistantEnabled, selectionEnabled])
+  }, [publishSnapshot, quickAssistantEnabled, screenshotEnabled, selectionEnabled])
 
   const register = useCallback(
     (key: RendererCommandContextKey, value: ContextValue) => {

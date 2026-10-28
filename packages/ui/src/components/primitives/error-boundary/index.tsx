@@ -26,13 +26,13 @@ const DefaultFallback: ComponentType<CustomFallbackProps> = (props: CustomFallba
   } = props
 
   return (
-    <div className="flex justify-center items-center w-full p-2">
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 w-full">
+    <div className="flex w-full items-center justify-center p-2">
+      <div className="w-full rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" size={20} />
+          <AlertTriangle className="mt-0.5 flex-shrink-0 text-red-500 dark:text-red-400" size={20} />
           <div className="flex-1">
-            <h3 className="text-red-800 dark:text-red-200 font-medium text-sm mb-1">{errorMessage}</h3>
-            <p className="text-red-700 dark:text-red-300 text-sm mb-3">{formatErrorMessage(error)}</p>
+            <h3 className="mb-1 text-sm font-medium text-red-800 dark:text-red-200">{errorMessage}</h3>
+            <p className="mb-3 text-sm text-red-700 dark:text-red-300">{formatErrorMessage(error)}</p>
             <div className="flex gap-2">
               {onDebugClick && (
                 <Button size="sm" variant="destructive" onClick={onDebugClick}>

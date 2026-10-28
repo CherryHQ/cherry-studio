@@ -1,12 +1,16 @@
+import { mkdirSync, unlinkSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { hashContent } from '@main/utils/file/contentHash'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, UrlStringSchema } from '@shared/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -57,7 +61,8 @@ describe('internal/entry/create.createInternal', () => {
         set: vi.fn(),
         invalidate: vi.fn(),
         clear: vi.fn()
-      }
+      },
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
     }
   })
 
@@ -69,19 +74,69 @@ describe('internal/entry/create.createInternal', () => {
   describe('source: bytes', () => {
     it('writes content to {filesDir}/{id}.{ext} and inserts a parsed FileEntry', async () => {
       const data = new Uint8Array([0x01, 0x02, 0x03, 0x04])
-      const entry = await createInternal(deps, { source: 'bytes', data, name: 'doc', ext: 'bin' })
+      const entry = await createInternal(deps, {
+        source: 'bytes',
+        data,
+        name: 'doc',
+        ext: 'bin',
+        cleanupPolicy: 'manual'
+      })
       expect(entry.origin).toBe('internal')
       expect(entry.name).toBe('doc')
       expect(entry.ext).toBe('bin')
       if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
+      expect(entry.contentHash).toBe(hashContent(data))
       const physical = path.join(filesDir, `${entry.id}.bin`)
       const onDisk = await readFile(physical)
       expect(Buffer.from(onDisk).equals(Buffer.from(data))).toBe(true)
     })
 
+    it('always inserts a fresh entry for identical content without querying candidates', async () => {
+      const data = new Uint8Array([0x01, 0x02, 0x03])
+      const candidateSpy = vi.spyOn(fileEntryService, 'findInternalByContentHash')
+      const first = await createInternal(deps, {
+        source: 'bytes',
+        data,
+        name: 'first',
+        ext: 'bin',
+        cleanupPolicy: 'manual'
+      })
+      const second = await createInternal(deps, {
+        source: 'bytes',
+        data,
+        name: 'second',
+        ext: 'bin',
+        cleanupPolicy: 'manual'
+      })
+      expect(first.id).not.toBe(second.id)
+      expect(candidateSpy).not.toHaveBeenCalled()
+    })
+
+    it('derives the hash from actual bytes even if an untyped caller injects contentHash', async () => {
+      const suppliedHash = 'xxh3-64:deadbeefdeadbeef'
+      const data = new Uint8Array([0x01])
+      const entry = await createInternal(deps, {
+        source: 'bytes',
+        data,
+        name: 'provided',
+        ext: 'bin',
+        cleanupPolicy: 'manual',
+        contentHash: suppliedHash
+      } as never)
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.contentHash).toBe(hashContent(data))
+      expect(entry.contentHash).not.toBe(suppliedHash)
+    })
+
     it('writes a row that survives schema parse (brand contract)', async () => {
-      const entry = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0]), name: 'x', ext: null })
+      const entry = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0]),
+        name: 'x',
+        ext: null,
+        cleanupPolicy: 'manual'
+      })
       const found = fileEntryService.getById(entry.id)
       expect(found.id).toBe(entry.id)
       if (found.origin !== 'internal') throw new Error('expected internal entry')
@@ -93,12 +148,19 @@ describe('internal/entry/create.createInternal', () => {
       // written but BEFORE the DB row commits. Without the bestEffortCleanup
       // call in createInternal, the orphan blob would persist until the next
       // startup file sweep — the regression this test pins.
-      const insertErr = new Error('UNIQUE constraint failed: file_entry.id')
+      const insertErr = Object.assign(new Error(`private input at ${filesDir}`), { code: 'SQLITE_CONSTRAINT' })
+      mockMainLoggerService.warn.mockClear()
       const spy = vi.spyOn(fileEntryService, 'create').mockImplementationOnce(() => {
         throw insertErr
       })
       await expect(
-        createInternal(deps, { source: 'bytes', data: new Uint8Array([1, 2, 3]), name: 'rollback-doc', ext: 'bin' })
+        createInternal(deps, {
+          source: 'bytes',
+          data: new Uint8Array([1, 2, 3]),
+          name: 'rollback-doc',
+          ext: 'bin',
+          cleanupPolicy: 'manual'
+        })
       ).rejects.toBe(insertErr)
       spy.mockRestore()
 
@@ -106,6 +168,39 @@ describe('internal/entry/create.createInternal', () => {
       const { readdir } = await import('node:fs/promises')
       const remaining = await readdir(filesDir)
       expect(remaining).toEqual([])
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        [expect.stringContaining('DB insert failed'), { id: expect.any(String), code: 'SQLITE_CONSTRAINT' }]
+      ])
+      expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(filesDir)
+    })
+
+    it('reports failed rollback without logging physical paths or the private insert error', async () => {
+      const insertErr = new Error(`private input at ${filesDir}`)
+      mockMainLoggerService.warn.mockClear()
+      vi.spyOn(fileEntryService, 'create').mockImplementationOnce((row) => {
+        if (row.origin !== 'internal') throw new Error('expected internal entry')
+        const physical = path.join(filesDir, `${row.id}.bin`)
+        unlinkSync(physical)
+        mkdirSync(physical)
+        throw insertErr
+      })
+      await expect(
+        createInternal(deps, {
+          source: 'bytes',
+          data: new Uint8Array([1]),
+          name: 'private',
+          ext: 'bin',
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+      ).rejects.toBe(insertErr)
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        [expect.stringContaining('DB insert failed'), { id: expect.any(String), code: 'UNKNOWN' }],
+        [
+          expect.stringContaining('cleanup unlink failed'),
+          { id: expect.any(String), code: expect.stringMatching(/^(EPERM|EISDIR)$/) }
+        ]
+      ])
+      expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(filesDir)
     })
   })
 
@@ -139,11 +234,16 @@ describe('internal/entry/create.createInternal', () => {
 
     it('downloads to storage and derives name + ext from the URL path basename', async () => {
       routes.set('/photos/sunset.png', { status: 200, body: Buffer.from([0x89, 0x50, 0x4e, 0x47]) })
-      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/photos/sunset.png` as never })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: `${baseUrl}/photos/sunset.png` as never,
+        cleanupPolicy: 'manual'
+      })
       expect(entry.name).toBe('sunset')
       expect(entry.ext).toBe('png')
       if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
+      expect(entry.contentHash).toBe(hashContent(new Uint8Array([0x89, 0x50, 0x4e, 0x47])))
       // Verify the downloaded bytes ended up at the expected storage path.
       const physical = path.join(filesDir, `${entry.id}.png`)
       const buf = await readFile(physical)
@@ -152,16 +252,49 @@ describe('internal/entry/create.createInternal', () => {
 
     it('derives ext=null when the URL path has no recognisable extension', async () => {
       routes.set('/no-extension-here', { status: 200, body: Buffer.from('hi') })
-      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/no-extension-here` as never })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: `${baseUrl}/no-extension-here` as never,
+        cleanupPolicy: 'manual'
+      })
       expect(entry.name).toBe('no-extension-here')
       expect(entry.ext).toBeNull()
+    })
+
+    it.each([
+      { url: '/photo.PNG?token=secret', request: '/photo.PNG?token=secret', name: 'photo', ext: 'png' },
+      { url: '/photo.png#preview.jpg', request: '/photo.png', name: 'photo', ext: 'png' },
+      {
+        url: '/photo.png?signature=a.b/c#preview.gif',
+        request: '/photo.png?signature=a.b/c',
+        name: 'photo',
+        ext: 'png'
+      },
+      { url: '/download?filename=photo.png', request: '/download?filename=photo.png', name: 'download', ext: null },
+      { url: '/download#photo.png', request: '/download', name: 'download', ext: null }
+    ])('uses pathname metadata while downloading the full URL: $url', async ({ url, request, name, ext }) => {
+      const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+      routes.set(request, { status: 200, body: bytes })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: UrlStringSchema.parse(`${baseUrl}${url}`),
+        cleanupPolicy: 'manual'
+      })
+      expect(entry).toMatchObject({ name, ext, size: bytes.length, contentHash: hashContent(bytes) })
+      expect(fileEntryService.getById(entry.id)).toMatchObject({ name, ext })
+      const physical = path.join(filesDir, `${entry.id}${ext ? `.${ext}` : ''}`)
+      expect(await readFile(physical)).toEqual(bytes)
     })
 
     it('strips only the final dot segment when the path contains multiple dots', async () => {
       // urlTail keeps the part before the LAST dot as the name; extWithoutDot
       // takes only the final segment as ext. So `foo.bar.baz` → name `foo.bar`, ext `baz`.
       routes.set('/foo.bar.baz', { status: 200, body: Buffer.from('hi') })
-      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/foo.bar.baz` as never })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: `${baseUrl}/foo.bar.baz` as never,
+        cleanupPolicy: 'manual'
+      })
       expect(entry.name).toBe('foo.bar')
       expect(entry.ext).toBe('baz')
     })
@@ -170,14 +303,20 @@ describe('internal/entry/create.createInternal', () => {
       // URL like `http://example.com/` has pathname '/', whose split('/').pop()
       // is the empty string — urlTail then falls through to u.hostname.
       routes.set('/', { status: 200, body: Buffer.from('hi') })
-      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/` as never })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: `${baseUrl}/` as never,
+        cleanupPolicy: 'manual'
+      })
       expect(entry.name).toBe('127.0.0.1')
       expect(entry.ext).toBeNull()
     })
 
     it('propagates the download error and writes no DB row when the server returns non-2xx', async () => {
       routes.set('/missing', { status: 404, body: Buffer.from('gone') })
-      await expect(createInternal(deps, { source: 'url', url: `${baseUrl}/missing` as never })).rejects.toThrow()
+      await expect(
+        createInternal(deps, { source: 'url', url: `${baseUrl}/missing` as never, cleanupPolicy: 'manual' })
+      ).rejects.toThrow()
       // No DB row should have been inserted.
       const all = await dbh.db.select().from((await import('@data/db/schemas/file')).fileEntryTable)
       expect(all).toHaveLength(0)
@@ -189,12 +328,48 @@ describe('internal/entry/create.createInternal', () => {
       const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]) // PNG magic
       const base64 = Buffer.from(bytes).toString('base64')
       const dataUri = `data:image/png;base64,${base64}` as `data:${string};base64,${string}`
-      const entry = await createInternal(deps, { source: 'base64', data: dataUri })
+      const entry = await createInternal(deps, { source: 'base64', data: dataUri, cleanupPolicy: 'manual' })
       expect(entry.origin).toBe('internal')
       if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
       expect(entry.ext).toBe('png')
       expect(entry.name.length).toBeGreaterThan(0)
+      expect(entry.contentHash).toBe(hashContent(bytes))
+    })
+
+    it('accepts base64 data: URIs with media type parameters', async () => {
+      const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0])
+      const base64 = Buffer.from(bytes).toString('base64')
+      const dataUri = `data:image/jpeg;name=foo;base64,${base64}` as `data:${string};base64,${string}`
+      const entry = await createInternal(deps, {
+        source: 'base64',
+        data: dataUri,
+        name: 'jpeg-with-params',
+        cleanupPolicy: 'manual'
+      })
+
+      expect(entry.origin).toBe('internal')
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.name).toBe('jpeg-with-params')
+      expect(entry.ext).toBe('jpg')
+      expect(entry.size).toBe(bytes.length)
+      const physical = path.join(filesDir, `${entry.id}.jpg`)
+      const onDisk = await readFile(physical)
+      expect(Buffer.from(onDisk).equals(Buffer.from(bytes))).toBe(true)
+    })
+  })
+
+  describe('source: path', () => {
+    it('hashes the copied physical file', async () => {
+      const source = path.join(tmp, 'source.txt')
+      await writeFile(source, 'copied content')
+      const entry = await createInternal(deps, {
+        source: 'path',
+        path: source as AbsoluteFilePath,
+        cleanupPolicy: 'manual'
+      })
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.contentHash).toBe(hashContent('copied content'))
     })
   })
 
@@ -202,7 +377,7 @@ describe('internal/entry/create.createInternal', () => {
     it('on insert: registers the entry in the reverse index AND records a "present" observation', async () => {
       const file = path.join(tmp, 'ext-new.txt')
       await writeFile(file, 'hello')
-      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
+      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
       expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(e.id, expect.any(String))
       expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.any(String), 'present', 'ops')
     })
@@ -210,11 +385,11 @@ describe('internal/entry/create.createInternal', () => {
     it('on reuse (same canonical path): does NOT add a duplicate index entry', async () => {
       const file = path.join(tmp, 'ext-reuse.txt')
       await writeFile(file, 'hello')
-      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
+      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
       vi.mocked(deps.danglingCache.addEntry).mockClear()
       vi.mocked(deps.danglingCache.onFsEvent).mockClear()
       // Second call resolves to the already-inserted row.
-      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
+      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
       expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
       expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
     })
@@ -229,7 +404,9 @@ describe('internal/entry/create.createInternal', () => {
       vi.spyOn(fileEntryService, 'findCaseInsensitivePeers').mockImplementationOnce(() => {
         throw probeErr
       })
-      await expect(ensureExternal(deps, { externalPath: file as AbsoluteFilePath })).rejects.toBe(probeErr)
+      await expect(
+        ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
+      ).rejects.toBe(probeErr)
     })
   })
 
@@ -256,9 +433,44 @@ describe('internal/entry/create.createInternal', () => {
         // exact miss, finds the first as a case-insensitive peer, realpaths
         // both to the same string, and returns the existing entry.
         await writeFile(upper, 'x')
-        const first = await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath })
-        const second = await ensureExternal(deps, { externalPath: lower as AbsoluteFilePath })
+        const first = await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        const second = await ensureExternal(deps, { externalPath: lower as AbsoluteFilePath, cleanupPolicy: 'manual' })
         expect(second.id).toBe(first.id)
+      }
+    )
+
+    it.skipIf(process.platform === 'linux')(
+      'inserts instead of failing when a concurrent cleanup reclaims the peer during realpath',
+      async () => {
+        // The peer lookup is synchronous, but `resolveCaseCollisionPeer` awaits
+        // fs.realpath — that yield lets the cleanup pass reclaim the peer, whose
+        // shape (auto policy, zero refs, past grace) is precisely its target.
+        // `ensureExternal` is contracted to *ensure an entry exists*, so losing
+        // that race must fall through to the insert, not reject an add-to-library.
+        const upper = path.join(tmp, 'RACE.txt')
+        const lower = path.join(tmp, 'race.txt')
+        await writeFile(upper, 'x')
+        const first = await ensureExternal(deps, {
+          externalPath: upper as AbsoluteFilePath,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+
+        // Delete the row as the peers are handed back: by the time the awaited
+        // realpath resolves and the peer is re-read, it is genuinely gone — the
+        // same state a real interleaved cleanup pass would leave behind.
+        const findPeers = fileEntryService.findCaseInsensitivePeers.bind(fileEntryService)
+        vi.spyOn(fileEntryService, 'findCaseInsensitivePeers').mockImplementationOnce((canonical) => {
+          const peers = findPeers(canonical)
+          fileEntryService.delete(first.id)
+          return peers
+        })
+
+        const second = await ensureExternal(deps, {
+          externalPath: lower as AbsoluteFilePath,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        expect(second.id).not.toBe(first.id)
+        expect(fileEntryService.findById(second.id)).not.toBeNull()
       }
     )
 
@@ -269,10 +481,10 @@ describe('internal/entry/create.createInternal', () => {
         const lower = path.join(tmp, 'collide.txt')
         await writeFile(upper, 'A')
         await writeFile(lower, 'a')
-        await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath })
-        await expect(ensureExternal(deps, { externalPath: lower as AbsoluteFilePath })).rejects.toThrow(
-          /case-collision/i
-        )
+        await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        await expect(
+          ensureExternal(deps, { externalPath: lower as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        ).rejects.toThrow(/case-collision/i)
       }
     )
 
@@ -302,9 +514,43 @@ describe('internal/entry/create.createInternal', () => {
           createdAt: Date.now(),
           updatedAt: Date.now()
         })
-        await expect(ensureExternal(deps, { externalPath: realFile as AbsoluteFilePath })).rejects.toThrow(
-          /case-collision/i
-        )
+        await expect(
+          ensureExternal(deps, { externalPath: realFile as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        ).rejects.toThrow(/case-collision/i)
+      }
+    )
+
+    it.skipIf(process.platform === 'linux')(
+      'upgrades delete_when_unreferenced to manual through the case-collision peer reuse path',
+      async () => {
+        const upper = path.join(tmp, 'UPGRADE.txt')
+        const lower = path.join(tmp, 'upgrade.txt')
+        await writeFile(upper, 'x')
+        const first = await ensureExternal(deps, {
+          externalPath: upper as AbsoluteFilePath,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        expect(first.cleanupPolicy).toBe('delete_when_unreferenced')
+        const second = await ensureExternal(deps, { externalPath: lower as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        expect(second.id).toBe(first.id)
+        expect(second.cleanupPolicy).toBe('manual')
+      }
+    )
+
+    it.skipIf(process.platform === 'linux')(
+      'does not downgrade manual to delete_when_unreferenced through the case-collision peer reuse path',
+      async () => {
+        const upper = path.join(tmp, 'NODOWNGRADE.txt')
+        const lower = path.join(tmp, 'nodowngrade.txt')
+        await writeFile(upper, 'x')
+        const first = await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        expect(first.cleanupPolicy).toBe('manual')
+        const second = await ensureExternal(deps, {
+          externalPath: lower as AbsoluteFilePath,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        expect(second.id).toBe(first.id)
+        expect(second.cleanupPolicy).toBe('manual')
       }
     )
   })
@@ -326,7 +572,10 @@ describe('internal/entry/create.createInternal', () => {
 
       const file = path.join(tmp, `${nfdName}.txt`)
       await writeFile(file, 'x')
-      const entry = await ensureExternal(deps, { externalPath: AbsoluteFilePathSchema.parse(file) })
+      const entry = await ensureExternal(deps, {
+        externalPath: AbsoluteFilePathSchema.parse(file),
+        cleanupPolicy: 'manual'
+      })
 
       if (entry.origin !== 'external') throw new Error('expected external entry')
       // The stored externalPath is byte-faithful — the exact NFD bytes we passed,
@@ -339,6 +588,34 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.name).not.toBe(nfcName)
       // Round-trip equality through path.basename holds byte-for-byte.
       expect(path.basename(canonical, '.txt')).toBe(entry.name)
+    })
+  })
+
+  describe('cleanupPolicy', () => {
+    it('persists the caller-supplied cleanupPolicy', async () => {
+      const entry = await createInternal(deps, {
+        source: 'bytes',
+        data: new TextEncoder().encode('x'),
+        name: 'gc-probe',
+        ext: 'txt',
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(entry.cleanupPolicy).toBe('delete_when_unreferenced')
+    })
+
+    it('ensureExternal reuse upgrades delete_when_unreferenced to manual but never downgrades', async () => {
+      const extPath = path.join(tmp, 'cleanup-policy.txt') as AbsoluteFilePath
+      await writeFile(extPath, 'x')
+      const first = await ensureExternal(deps, { externalPath: extPath, cleanupPolicy: 'delete_when_unreferenced' })
+      expect(first.cleanupPolicy).toBe('delete_when_unreferenced')
+      const upgraded = await ensureExternal(deps, { externalPath: extPath, cleanupPolicy: 'manual' })
+      expect(upgraded.id).toBe(first.id)
+      expect(upgraded.cleanupPolicy).toBe('manual')
+      const notDowngraded = await ensureExternal(deps, {
+        externalPath: extPath,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(notDowngraded.cleanupPolicy).toBe('manual')
     })
   })
 })

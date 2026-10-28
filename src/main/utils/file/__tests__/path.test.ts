@@ -1,16 +1,66 @@
-import { chmod, mkdtemp, rm } from 'node:fs/promises'
+import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
+import { canonicalizePathForContainment, canWrite, isOutsidePath, isPathInside, isSameOrInside } from '../path'
+
+describe('canonicalizePathForContainment', () => {
+  const dirLinkType = process.platform === 'win32' ? 'junction' : 'dir'
+  let root: string
+  let outside: string
+
+  beforeEach(async () => {
+    root = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-containment-root-')))
+    outside = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-containment-outside-')))
+  })
+
+  afterEach(async () => {
+    await Promise.all([root, outside].map((dir) => rm(dir, { recursive: true, force: true })))
+  })
+
+  it('resolves an existing path through a symlink to where it really lives', async () => {
+    await writeFile(path.join(outside, 'secret.txt'), 'secret')
+    await symlink(outside, path.join(root, 'escape'), dirLinkType)
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'escape', 'secret.txt'), { allowMissing: false })
+    ).resolves.toBe(path.join(outside, 'secret.txt'))
+  })
+
+  it('resolves a missing target below a symlink to where it would be created', async () => {
+    await symlink(outside, path.join(root, 'escape'), dirLinkType)
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'escape', 'new', 'file.txt'), { allowMissing: true })
+    ).resolves.toBe(path.join(outside, 'new', 'file.txt'))
+  })
+
+  it('returns undefined for a missing target when missing targets are not allowed', async () => {
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'missing.txt'), { allowMissing: false })
+    ).resolves.toBeUndefined()
+  })
+
+  it.skipIf(process.platform === 'win32')('returns undefined for a dangling file symlink', async () => {
+    await symlink(path.join(outside, 'missing.txt'), path.join(root, 'dangling'))
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'dangling'), { allowMissing: true })
+    ).resolves.toBeUndefined()
+  })
+
+  it('returns undefined for a missing target below a dangling directory symlink', async () => {
+    await symlink(path.join(outside, 'missing-dir'), path.join(root, 'dangling-dir'), dirLinkType)
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'dangling-dir', 'new.txt'), { allowMissing: true })
+    ).resolves.toBeUndefined()
+  })
 })
-
-import { canWrite, isPathInside, isUnderInternalStorage } from '../path'
 
 describe('isPathInside', () => {
   it('returns true when child is directly inside parent', () => {
@@ -37,14 +87,18 @@ describe('isPathInside', () => {
     expect(isPathInside('/foo/bar/../baz', '/foo/bar')).toBe(false)
   })
 
+  // The naive `startsWith('..')` check reads this as an escape; it is an ordinary child directory.
+  it('accepts a child whose name merely starts with two dots', () => {
+    expect(isPathInside('/foo/bar/..archive', '/foo/bar')).toBe(true)
+    expect(isPathInside(path.join('/foo/bar', '..archive', 'SKILL.md'), '/foo/bar')).toBe(true)
+    expect(isPathInside('/foo/bar/...dots', '/foo/bar')).toBe(true)
+  })
+
   it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
     'matches case-insensitively on darwin / win32 (filesystem default)',
     () => {
-      // Regression guard: previously `path.relative` compared bytes
-      // exactly, letting `/users/me/data/files/x` slip past a check
-      // against `/Users/me/Data/Files` on a default macOS install.
-      // `isUnderInternalStorage` derives from this and was bypassable
-      // for any future Phase 2 caller using it as a permission gate.
+      // Regression guard: a lexical containment check must not treat
+      // differently-cased paths as unrelated on a case-insensitive host.
       expect(isPathInside('/Users/me/Data/Files/x.txt', '/users/me/data/files')).toBe(true)
       expect(isPathInside('/USERS/ME/DATA/FILES/x.txt', '/users/me/data/files')).toBe(true)
     }
@@ -57,17 +111,44 @@ describe('isPathInside', () => {
   })
 })
 
-describe('isUnderInternalStorage', () => {
-  it('returns true for paths inside the feature.files.data dir', () => {
-    expect(isUnderInternalStorage('/mock/feature.files.data/abc.png')).toBe(true)
+describe('isSameOrInside', () => {
+  it('accepts equality and descendants', () => {
+    expect(isSameOrInside('/foo/bar', '/foo/bar')).toBe(true)
+    expect(isSameOrInside('/foo/bar/baz.txt', '/foo/bar')).toBe(true)
   })
 
-  it('returns false for paths outside the feature.files.data dir', () => {
-    expect(isUnderInternalStorage('/etc/passwd')).toBe(false)
+  it('rejects ancestors and siblings', () => {
+    expect(isSameOrInside('/foo', '/foo/bar')).toBe(false)
+    expect(isSameOrInside('/foo/baz', '/foo/bar')).toBe(false)
   })
 
-  it('returns false for the feature.files.data dir itself (only strict descendants count)', () => {
-    expect(isUnderInternalStorage('/mock/feature.files.data')).toBe(false)
+  it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
+    'matches equality case-insensitively on darwin / win32',
+    () => {
+      expect(isSameOrInside('/Users/me/Data/Files', '/users/me/data/files')).toBe(true)
+    }
+  )
+})
+
+describe('isOutsidePath', () => {
+  it('rejects a relative path that walks out of the base', () => {
+    expect(isOutsidePath('..')).toBe(true)
+    expect(isOutsidePath(path.join('..', 'sibling'))).toBe(true)
+  })
+
+  it('rejects an absolute path, which ignores the base entirely', () => {
+    expect(isOutsidePath(path.resolve('/elsewhere'))).toBe(true)
+  })
+
+  it('accepts the base itself and any descendant of it', () => {
+    expect(isOutsidePath('')).toBe(false)
+    expect(isOutsidePath(path.join('nested', 'skill'))).toBe(false)
+  })
+
+  // The naive `startsWith('..')` check reads this as an escape; it is an ordinary child directory.
+  it('accepts a child whose name merely starts with two dots', () => {
+    expect(isOutsidePath('..archive')).toBe(false)
+    expect(isOutsidePath(path.join('..archive', 'SKILL.md'))).toBe(false)
   })
 })
 

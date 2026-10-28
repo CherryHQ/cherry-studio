@@ -1,3 +1,10 @@
+---
+description: Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots
+sources:
+  - src/renderer/services/aiTransport/TopicStreamSubscription.ts
+  - src/renderer/hooks/useExecutionOverlay.ts
+---
+
 # Execution Overlay
 
 The renderer-side counterpart of Main's `pipeStreamLoop`. Both sides
@@ -67,7 +74,7 @@ class that owns:
   arrived between `register` and the reader's first `read()` are
   already buffered in the stream's internal queue — late readers never
   miss replayed chunks.
-- **Terminal demux.** `Ai_StreamDone` / `Ai_StreamError` close the
+- **Terminal demux.** `ai.stream.done` / `ai.stream.error` close the
   matching branch and fan out an `ExecutionTerminal` (`{ isAbort,
   isError }`) to listeners; if the payload carries `isTopicDone` or no
   `executionId`, every branch terminates together. An explicit
@@ -79,7 +86,7 @@ class that owns:
 | Layer | Owner | Action |
 |---|---|---|
 | Renderer-local subscription | `TopicStreamSubscription.unregister` / `dispose` | Closes the branch reader, drops listener ref count; Main keeps generating |
-| Generation abort | Main (via `useChatWithHistory.stop` → Chat → `Ai_Stream_Abort`) | Stops the LLM |
+| Generation abort | Main (via `useChatWithHistory.stop` → `ai.stream.abort`) | Stops the LLM |
 
 `TopicStreamSubscription` NEVER aborts the LLM. Closing all branches
 is the renderer equivalent of `streamDetach` — Main keeps streaming,
@@ -102,7 +109,7 @@ const { overlay, liveAssistants, disposeOverlay, reset, clear } = useExecutionOv
   topicId,
   activeExecutions,      // ActiveExecution[] from useTopicStreamStatus
   uiMessages,            // current DB snapshot
-  { onFinish }
+  { onUpdate, onFinish, onLeave }
 )
 ```
 
@@ -112,6 +119,13 @@ rAF batching keyed by `topicId`. The hook only acquires/releases a
 refcounted view and reads it via `useSyncExternalStore` — unmounting
 (route/tab/conversation switch) does **not** tear the stream down,
 and remounting restores the live overlay synchronously.
+
+`onUpdate(executionId, { attemptId, message })` receives each assembled live snapshot,
+including typed text/reasoning/tool parts. Consumers select their eligible attempt and
+body parts; the transport does not depend on voice services. `onFinish` supplies the
+terminal snapshot once. `onLeave` runs when this view releases its topic subscription;
+view-owned work such as automatic reading stops while the retained overlay and Main
+chat generation continue. Callback updates do not reattach the stream.
 
 ### One reader per turn, zero cross-turn state
 
@@ -249,7 +263,7 @@ src/renderer/pages/home/useChatRuntimeState.ts                     ← consumer 
    `disposeOverlay(messageId)` call that runs **before** the DB
    revalidation promise resolves is a flicker bug.
 5. **`TopicStreamSubscription` never aborts.** It only detaches.
-   Anything in this layer that calls `Ai_Stream_Abort` is in the
+   Anything in this layer that calls `ai.stream.abort` is in the
    wrong place — abort belongs to `useChatWithHistory.stop`.
 6. **Ref-counted attach.** A new attach must NOT fire when another
    execution is already registered for the same topic. A new detach

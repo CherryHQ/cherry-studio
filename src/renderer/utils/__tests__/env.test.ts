@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseKeyValueString, serializeKeyValueString } from '../env'
+import { parseKeyValueString } from '../env'
 
 describe('parseKeyValueString', () => {
   it('should parse empty string', () => {
@@ -95,100 +95,48 @@ KEY=third`
       'API-URL_123': 'https://api.example.com/v1/users'
     })
   })
-})
 
-describe('serializeKeyValueString', () => {
-  it('should serialize empty record', () => {
-    expect(serializeKeyValueString({})).toBe('')
+  it.each([
+    ['Authorization=Bearer xxx-proxy@!@#', { Authorization: 'Bearer xxx-proxy@!@#' }],
+    ['Authorization=Bearer xxx-proxy@#!@', { Authorization: 'Bearer xxx-proxy@#!@' }],
+    ['A=abc#', { A: 'abc#' }],
+    ['A=a#b', { A: 'a#b' }],
+    ['A=#secret', { A: '#secret' }],
+    ['A=a # b', { A: 'a # b' }],
+    ['A=a##b', { A: 'a##b' }],
+    ['A=can\'t"`#x', { A: 'can\'t"`#x' }],
+    ['A=a#  ', { A: 'a#' }],
+    ['A=%23#%25', { A: '%23#%25' }],
+    ['A="x" #tail', { A: '"x" #tail' }],
+    ["A='x' #tail", { A: "'x' #tail" }],
+    ['A=`x` #tail', { A: '`x` #tail' }]
+  ])('preserves literal hashes in %j', (input, expected) => {
+    expect(parseKeyValueString(input)).toEqual(expected)
   })
 
-  it('should serialize simple key-value pairs', () => {
-    expect(serializeKeyValueString({ KEY: 'value', OTHER: 'test' })).toBe('KEY=value\nOTHER=test')
-  })
-
-  it('should single-quote values containing #', () => {
-    const serialized = serializeKeyValueString({ TOKEN: 'abc#123' })
-    expect(serialized).toBe("TOKEN='abc#123'")
-  })
-
-  it('should single-quote values containing newlines', () => {
-    const serialized = serializeKeyValueString({ KEY: 'line1\nline2' })
-    expect(serialized).toBe("KEY='line1\nline2'")
-  })
-
-  it('should single-quote values with leading/trailing whitespace', () => {
-    const serialized = serializeKeyValueString({ KEY: ' spaced ' })
-    expect(serialized).toBe("KEY=' spaced '")
-  })
-
-  it('should not quote values containing double quotes (dotenv handles them unquoted)', () => {
-    const serialized = serializeKeyValueString({ KEY: 'say "hello"' })
-    expect(serialized).toBe('KEY=say "hello"')
-  })
-
-  it('should not quote values containing backslashes', () => {
-    const serialized = serializeKeyValueString({ KEY: 'c:\\temp\\file' })
-    expect(serialized).toBe('KEY=c:\\temp\\file')
-  })
-
-  it('should use backtick quotes for # values containing single quotes', () => {
-    const serialized = serializeKeyValueString({ KEY: "it's #here" })
-    expect(serialized).toBe("KEY=`it's #here`")
-  })
-
-  it('should round-trip with parseKeyValueString for values with #', () => {
-    const original = { TOKEN: 'abc#123', SIMPLE: 'value' }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
-  })
-
-  it('should round-trip with parseKeyValueString for multiline values', () => {
-    const original = { KEY: 'line1\nline2\nline3' }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
-  })
-
-  it('should round-trip with parseKeyValueString for values with double quotes', () => {
-    const original = { KEY: 'say "hello"' }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
-  })
-
-  it('should round-trip with parseKeyValueString for values with backslashes', () => {
-    const original = { KEY: 'c:\\temp\\file' }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
-  })
-
-  it('should round-trip with parseKeyValueString for backslash+hash values', () => {
-    const original = { KEY: 'c:\\temp\\x#1' }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
-  })
-
-  it('should round-trip values with both single quotes and # using backticks', () => {
-    const original = { KEY: "it's #here" }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
-  })
-
-  it('should round-trip values with both quote types and #', () => {
-    const original = { KEY: `it's "here" #1` }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
-  })
-
-  it('should round-trip multiline values containing double quotes', () => {
-    const original = { KEY: 'line1\nhe said "hi"' }
-    const serialized = serializeKeyValueString(original)
-    const parsed = parseKeyValueString(serialized)
-    expect(parsed).toEqual(original)
+  it.each([
+    ['A="a#b"', { A: 'a#b' }],
+    ["A='a#b'", { A: 'a#b' }],
+    ['A=`a#b`', { A: 'a#b' }],
+    ['A=%23%25%ZZ%2523', { A: '%23%25%ZZ%2523' }],
+    ['A=" value # "', { A: ' value # ' }],
+    ['  KEY = value  ', { KEY: 'value' }],
+    ['KEY=   ', { KEY: '' }],
+    ['\n \n', {}],
+    ['#COMMENT=x\n  # other=y\nB=2', { B: '2' }],
+    ['A="first\n# middle=x\nlast"\nB=2', { A: 'first\n# middle=x\nlast', B: '2' }],
+    ['A="first\r\n# middle=x\r\nlast"\r\nB=2', { A: 'first\n# middle=x\nlast', B: '2' }],
+    ['A=one\r\nB=two\r\n', { A: 'one', B: 'two' }],
+    ['A="x\\ny\\rz#"', { A: 'x\ny\rz#' }],
+    ["A='x\\ny\\rz#'", { A: 'x\\ny\\rz#' }],
+    ['A=`x\\ny\\rz#`', { A: 'x\\ny\\rz#' }],
+    ['A: value', { A: 'value' }],
+    ['export A=value', { A: 'value' }],
+    ['=value\nB=2', { B: '2' }],
+    ['BAD KEY=value\nB=2', { B: '2' }],
+    ['BAD%KEY=value\nB=2', { B: '2' }],
+    ['BAD#KEY=value\nB=2', { B: '2' }]
+  ])('retains dotenv compatibility for %j', (input, expected) => {
+    expect(parseKeyValueString(input)).toEqual(expected)
   })
 })

@@ -1,3 +1,6 @@
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * useDataChange hook tests (real hook implementation).
  *
@@ -9,8 +12,6 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Tests exercise the real hook; the global renderer setup otherwise replaces
 // the useDataApi module with a mock for consuming components.
@@ -19,7 +20,7 @@ vi.unmock('@data/hooks/useDataApi')
 import { useDataChange } from '../useDataApi'
 
 const mockService = dataApiService as unknown as {
-  onDataChanged: ReturnType<typeof vi.fn>
+  onDataChanged: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   _emitDataChange: (effects: DataApiDataChangeEffect[]) => void
   _resetMockState: () => void
 }
@@ -79,5 +80,42 @@ describe('useDataChange', () => {
     expect(mockService.onDataChanged).toHaveBeenCalledTimes(1)
     expect(first).not.toHaveBeenCalled()
     expect(second).toHaveBeenCalledExactlyOnceWith([effect])
+  })
+
+  it('delivers only effects matching the subscribed route parameters', () => {
+    const listener = vi.fn()
+    renderHook(() => useDataChange('/topics/:id', listener, { routeParams: { id: 't1' } }))
+
+    const matching: DataApiDataChangeEffect = {
+      endpoint: '/topics/:id',
+      routeParams: { id: 't1' },
+      entityIds: ['t1']
+    }
+    const unscoped: DataApiDataChangeEffect = { endpoint: '/topics/:id', entityIds: ['t1'] }
+    mockService._emitDataChange([
+      matching,
+      { endpoint: '/topics/:id', routeParams: { id: 't2' }, entityIds: ['t2'] },
+      unscoped
+    ])
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith([matching, unscoped])
+  })
+
+  it('uses the latest route parameters without resubscribing', () => {
+    const listener = vi.fn()
+    const { rerender } = renderHook(({ id }) => useDataChange('/topics/:id', listener, { routeParams: { id } }), {
+      initialProps: { id: 't1' }
+    })
+
+    rerender({ id: 't2' })
+    const effect: DataApiDataChangeEffect = {
+      endpoint: '/topics/:id',
+      routeParams: { id: 't2' },
+      entityIds: ['t2']
+    }
+    mockService._emitDataChange([effect])
+
+    expect(mockService.onDataChanged).toHaveBeenCalledTimes(1)
+    expect(listener).toHaveBeenCalledExactlyOnceWith([effect])
   })
 })

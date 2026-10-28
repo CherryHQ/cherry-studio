@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit/compat'
+import { vi } from 'vitest'
+
 import type {
   InferSharedCacheValue,
   InferUseCacheValue,
@@ -9,8 +12,6 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSubscriber } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'es-toolkit/compat'
-import { vi } from 'vitest'
 
 /**
  * Local mirror of production's `CacheSetStateAction` — importing it from
@@ -252,7 +253,7 @@ export const createMockCacheService = (
       if (persistCache.has(key)) {
         return persistCache.get(key) as RendererPersistCacheSchema[K]
       }
-      return DefaultRendererPersistCache[key]
+      return DefaultRendererPersistCache[key] as RendererPersistCacheSchema[K]
     }),
 
     setPersist: vi.fn(
@@ -260,12 +261,13 @@ export const createMockCacheService = (
         // Mirrors production: resolve the updater against the latest stored value,
         // then drop no-op writes so tests observe the same notification count as
         // the real service (several call sites rely on that suppression).
-        const nextValue =
+        const nextValue = (
           typeof value === 'function'
             ? (value as (prev: RendererPersistCacheSchema[K]) => RendererPersistCacheSchema[K])(
-                mockCacheService.getPersist(key)
+                mockCacheService.getPersist(key) as RendererPersistCacheSchema[K]
               )
             : value
+        ) as RendererPersistCacheSchema[K]
 
         if (isEqual(persistCache.get(key), nextValue)) {
           return
@@ -475,7 +477,7 @@ export const MockCacheService = {
 
     // ============ Persist Cache ============
     getPersist<K extends RendererPersistCacheKey>(key: K): RendererPersistCacheSchema[K] {
-      return mockCacheService.getPersist(key)
+      return mockCacheService.getPersist(key) as RendererPersistCacheSchema[K]
     }
 
     setPersist<K extends RendererPersistCacheKey>(

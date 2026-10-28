@@ -4,6 +4,7 @@ import {
   getComposerFileTokenSourceId
 } from '@renderer/utils/message/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { McpResource } from '@shared/types/mcp'
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
@@ -26,34 +27,46 @@ export function fileToComposerToken(file: ComposerAttachment): ComposerDraftToke
   }
 }
 
-/**
- * The pick has to reach the model as text, because nothing else tells it a base was attached: the
- * `data-knowledge-scope` part only gates which bases the kb_* tools accept, and it is dropped before
- * the model ever sees the message. Left unsaid, the model falls back to the kb_* tools' own
- * descriptions, which are deliberately conservative ("use this when the user references *my
- * notes*") — so it skips retrieval until the user says the words out loud.
- *
- * It states the fact and points at the tool family, but names no individual tool and gives no
- * timing. Two reasons. "The user attached knowledge base X" IS the user referencing their own
- * materials, so it *satisfies* that conservative condition rather than arguing with it — the tool
- * descriptions (tuned against EnterpriseRAG-Bench) stay the single place deciding when to retrieve.
- * And which tool comes next is genuinely open: `kb_read` and `kb_list` are as often right as
- * `kb_search`, so pinning one here would narrow the model for no gain.
- *
- * The id is load-bearing, not decoration — every kb_* tool addresses a base by id, and `kb_search`
- * requires a non-empty `baseIds` documented as "picked from the result of kb_list", so carrying it
- * here saves an otherwise mandatory kb_list round-trip.
- *
- * Each picked base contributes its own sentence (chips serialize independently, separated by the
- * space the editor inserts after each one), so this must stay short and self-contained.
- */
+/** Model-visible instruction: the scope part is dropped, while the attached base ID already identifies the search target. */
 export function knowledgeBaseToComposerToken(base: KnowledgeBase): ComposerDraftToken {
   return {
     id: composerKnowledgeBaseTokenId(base),
     kind: 'knowledge',
     label: base.name,
-    promptText: `The user attached knowledge base "${base.name}" (id: ${base.id}) — use that id with the kb_* tools.`,
+    promptText: `The user attached knowledge base "${base.name}" (id: ${base.id}). Include "${base.id}" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.`,
     payload: base
+  }
+}
+
+/** Keyed by server *id*, not name: server names carry no unique constraint, so two servers can
+ *  publish the same uri under the same name and their chips would otherwise collide. */
+export const composerMcpResourceTokenId = (resource: Pick<McpResource, 'serverId' | 'uri'>) =>
+  `mcp-resource:${resource.serverId}:${resource.uri}`
+
+/**
+ * A picked MCP resource the composer did not inline — binary content, or text past
+ * `MCP_RESOURCE_INLINE_MAX_CHARS`. Same contract as the knowledge token above: the
+ * `(serverId, uri)` pair is load-bearing (it is exactly what `mcp_resource_read` takes), and the
+ * sentence names the tool because nothing else tells the model the attachment exists.
+ */
+export function mcpResourceToComposerToken(
+  resource: McpResource,
+  options: { reader: 'mcp_resource_read' | 'runtime' } = { reader: 'mcp_resource_read' }
+): ComposerDraftToken {
+  const name = resource.name || resource.uri
+  // Agent sessions reach resources through their own MCP bridge, so naming the chat builtin there
+  // would point the model at a tool its runtime does not have.
+  const instruction =
+    options.reader === 'mcp_resource_read'
+      ? `read it with mcp_resource_read using serverId "${resource.serverId}" and uri "${resource.uri}"`
+      : `read it from MCP server "${resource.serverName}" at uri "${resource.uri}"`
+  return {
+    id: composerMcpResourceTokenId(resource),
+    kind: 'reference',
+    label: name,
+    description: resource.uri,
+    promptText: `The user attached MCP resource "${name}" from server "${resource.serverName}" — ${instruction}.`,
+    payload: resource
   }
 }
 

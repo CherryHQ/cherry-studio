@@ -12,20 +12,22 @@
  * accessor + Zod.
  */
 
+import { ipcApi } from '@renderer/ipc'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import { createFilePathHandle } from '@shared/utils/file'
+import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 export function withComposerFilePartMeta(
   part: FileUIPart,
-  attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind'>,
+  attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind' | 'path'>,
   fileEntryId?: string
 ): FileUIPart {
   return withCherryMeta(part, {
     ...(fileEntryId ? { fileEntryId } : {}),
     fileTokenSourceId: attachment.fileTokenSourceId,
-    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {})
+    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {}),
+    ...(attachment.path ? { originalPath: attachment.path } : {})
   })
 }
 
@@ -35,8 +37,8 @@ export function withComposerFilePartMeta(
  * `fileEntryId` plus a `file://` URL pointing at the freshly-copied physical file.
  *
  * `ComposerAttachment.path` is already an `AbsoluteFilePath` — producers validate
- * it — so the only precondition left here is that the path is *present*: an
- * attachment reconstructed for message editing carries none, and such an
+ * it. A captured image instead carries an owned Blob. An
+ * attachment reconstructed for message editing carries neither, and such an
  * attachment must never be re-sent through `createInternalEntry` (the edit flow
  * reuses the original part instead).
  *
@@ -51,23 +53,40 @@ export function withComposerFilePartMeta(
  */
 export async function buildFilePartsForAttachments(attachments: ComposerAttachment[]): Promise<FileUIPart[]> {
   const paths = attachments.map((attachment) => {
-    if (!attachment.path) {
-      throw new Error(`Cannot send attachment "${attachment.origin_name || attachment.name}": it has no file path`)
+    if (!attachment.path && !attachment.blob) {
+      throw new Error(
+        `Cannot send attachment "${attachment.origin_name || attachment.name}": it has no file path or image data`
+      )
     }
     return attachment.path
   })
   return Promise.all(
     attachments.map(async (attachment, index) => {
-      const entry = await window.api.file.createInternalEntry({
-        source: 'path',
-        path: paths[index]
-      })
+      const entry = attachment.blob
+        ? await window.api.file.createInternalEntry({
+            source: 'bytes',
+            data: new Uint8Array(await attachment.blob.arrayBuffer()),
+            name: attachment.origin_name || attachment.name,
+            ext: attachment.ext.replace(/^\./, '') || null,
+            cleanupPolicy: 'delete_when_unreferenced'
+          })
+        : await window.api.file.createInternalEntry({
+            source: 'path',
+            path: paths[index]!,
+            cleanupPolicy: 'delete_when_unreferenced'
+          })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
-      const metadata = await window.api.file.getMetadata(createFilePathHandle(physicalPath))
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
+      if (metadata === null) {
+        // The physical file was just created by createInternalEntry above, so an
+        // unreadable (null) metadata means a broken internal invariant — surface
+        // it here rather than silently shipping an octet-stream part.
+        throw new Error(`Failed to read metadata for freshly created file entry ${entry.id}`)
+      }
       const basePart: FileUIPart = {
         type: 'file',
         mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',
-        url: `file://${physicalPath}`,
+        url: toFileUrl(physicalPath),
         filename: attachment.origin_name || attachment.name
       }
       return withComposerFilePartMeta(basePart, attachment, entry.id)

@@ -1,7 +1,9 @@
-import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { sortBy } from 'es-toolkit/compat'
+
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import {
+  deriveModelGroupName,
   isEmbeddingModel,
   isGenerateAudioModel,
   isGenerateImageModel,
@@ -10,7 +12,6 @@ import {
   isRerankModel,
   isSpeechToTextModel
 } from '@shared/utils/model'
-import { sortBy, toPairs } from 'es-toolkit/compat'
 
 import { normalizeModelGroupName } from './grouping'
 import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'
@@ -35,17 +36,18 @@ export const MODEL_LIST_CAPABILITY_FILTERS = [
 ] as const
 
 export type ModelListCapabilityFilter = (typeof MODEL_LIST_CAPABILITY_FILTERS)[number]
+export type ModelListFilter = ModelListCapabilityFilter | 'failed'
 export type ModelListCapabilityCounts = Record<ModelListCapabilityFilter, number>
 
 export type ModelListDerivedState = {
   filteredModels: Model[]
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
+  failedModelCount: number
   duplicateModelNames: Set<string>
   modelCount: number
   hasVisibleModels: boolean
   hasNoModels: boolean
-  modelStatusMap: Map<string, ModelWithStatus>
 }
 
 export const MODEL_COUNT_THRESHOLD = 10
@@ -53,46 +55,66 @@ export const MODEL_COUNT_THRESHOLD = 10
 type CalculateModelListDerivedStateInput = {
   models: Model[]
   searchText: string
-  selectedCapabilityFilter: ModelListCapabilityFilter
-  modelStatuses: ModelWithStatus[]
+  selectedFilter: ModelListFilter
+  failedModelIds: ReadonlySet<string>
 }
 
 function getModelIdGroupName(model: Model): string | undefined {
   const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-  const pathParts = modelId.split('/')
-  if (pathParts.length > 1) {
-    return pathParts[0]
-  }
-
-  const familyName = modelId.split('-')[0]?.trim()
-  return familyName !== modelId ? familyName : undefined
+  return deriveModelGroupName(modelId)
 }
 
+/**
+ * Groups in an explicit order: first appearance in `models`, or alphabetical
+ * when `preserveGroupOrder` is false.
+ *
+ * This is the order-preserving view, and a `ModelGroups` record cannot carry
+ * that order. JavaScript enumerates integer-like keys in ascending numeric
+ * order ahead of insertion order, so a group named `10` always surfaces before
+ * `2` no matter which order the models were in. Group names come from
+ * `model.group`, which is free text, so `10` and `2` are names a user can
+ * genuinely create. Callers that render an ordered list must read this rather
+ * than `Object.keys(groupModels(...))`.
+ */
+export const groupModelEntries = (
+  models: Model[],
+  preserveGroupOrder = false,
+  options: GroupModelsOptions = {}
+): Array<[string, Model[]]> => {
+  const grouped = new Map<string, Model[]>()
+  for (const model of models) {
+    const inferredGroup = getModelIdGroupName(model)
+    const hasLegacyProviderGroup = inferredGroup !== undefined && model.group?.trim() === model.providerId
+    const shouldPreferStoredGroup = options.preferModelGroup && !hasLegacyProviderGroup
+    const preferredGroup = shouldPreferStoredGroup ? model.group : inferredGroup
+    const fallbackGroup = shouldPreferStoredGroup ? inferredGroup : model.group
+    const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
+    const bucket = grouped.get(groupName)
+    if (bucket) {
+      bucket.push(model)
+    } else {
+      grouped.set(groupName, [model])
+    }
+  }
+
+  const entries = Array.from(grouped.entries())
+  return preserveGroupOrder ? entries : sortBy(entries, [0])
+}
+
+/**
+ * The same grouping as a plain record, for callers that only look a group up by
+ * name or count its members. Consumers that render an ordered list need
+ * {@link groupModelEntries} instead.
+ */
 export const groupModels = (
   models: Model[],
   preserveGroupOrder = false,
   options: GroupModelsOptions = {}
-): ModelGroups => {
-  const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const preferredGroup = options.preferModelGroup ? model.group : getModelIdGroupName(model)
-    const fallbackGroup = options.preferModelGroup ? getModelIdGroupName(model) : model.group
-    const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
-    if (!acc[groupName]) {
-      acc[groupName] = []
-    }
-    acc[groupName].push(model)
-    return acc
-  }, {})
-
-  if (preserveGroupOrder) {
-    return grouped
-  }
-
-  return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
+): ModelGroups =>
+  groupModelEntries(models, preserveGroupOrder, options).reduce((acc, [key, value]) => {
     acc[key] = value
     return acc
   }, {} as ModelGroups)
-}
 
 // Text-to-speech is the only audio-output sub-kind we can single out from
 // generic audio generation today (the `AUDIO_GENERATION` capability backs
@@ -137,8 +159,9 @@ export const applyModelFilters = (
   return searchedModels.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
 }
 
-export const countModelsInGroups = (groups: ModelGroups): number => {
-  return Object.values(groups).reduce((acc, group) => acc + group.length, 0)
+export const countModelsInGroups = (groups: ModelGroups | ReadonlyArray<readonly [string, Model[]]>): number => {
+  const buckets = Array.isArray(groups) ? groups.map(([, models]) => models) : Object.values(groups)
+  return buckets.reduce((acc, group) => acc + group.length, 0)
 }
 
 export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCounts => {
@@ -161,19 +184,25 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
 export const calculateModelListDerivedState = ({
   models,
   searchText,
-  selectedCapabilityFilter,
-  modelStatuses
+  selectedFilter,
+  failedModelIds
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
-  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
+  const searchedModels = applyModelFilters(models, searchText, 'all')
+  const capabilityFilteredModels =
+    selectedFilter === 'failed' ? searchedModels : applyModelFilters(searchedModels, '', selectedFilter)
+  const filteredModels =
+    selectedFilter === 'failed'
+      ? capabilityFilteredModels.filter((model) => failedModelIds.has(model.id))
+      : capabilityFilteredModels
 
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: getCapabilityModelCounts(applyModelFilters(models, searchText, 'all')),
+    capabilityModelCounts: getCapabilityModelCounts(searchedModels),
+    failedModelCount: searchedModels.filter((model) => failedModelIds.has(model.id)).length,
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,
-    hasNoModels: models.length === 0,
-    modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status]))
+    hasNoModels: models.length === 0
   }
 }

@@ -1,9 +1,11 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../rag'
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   groupId: null,

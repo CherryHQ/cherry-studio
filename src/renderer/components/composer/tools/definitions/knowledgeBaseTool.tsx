@@ -1,7 +1,8 @@
+import { useCallback } from 'react'
+
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { useCallback } from 'react'
 
 import { composerKnowledgeBaseTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
 import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'

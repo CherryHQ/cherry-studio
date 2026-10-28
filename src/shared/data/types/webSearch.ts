@@ -1,3 +1,4 @@
+import type { WebSearchResult as SharedWebSearchResult } from '@cherrystudio/web-search'
 import type {
   WebSearchCapability,
   WebSearchCompressionMethod,
@@ -12,16 +13,13 @@ export function normalizeWebSearchCutoffLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
 }
 
-export type WebSearchResult = {
-  title: string
-  content: string
-  url: string
-  sourceInput: string
-}
+export type WebSearchResult = { -readonly [Key in keyof SharedWebSearchResult]: SharedWebSearchResult[Key] }
 
 export type WebSearchResponse = {
   query?: string
   providerId: WebSearchProviderId
+  /** All providers that contributed results when per-input fallback produced a mixed response. */
+  providerIds?: WebSearchProviderId[]
   capability: WebSearchCapability
   inputs: string[]
   results: WebSearchResult[]

@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
@@ -12,7 +11,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   if (!HTMLElement.prototype.hasPointerCapture) {
     HTMLElement.prototype.hasPointerCapture = () => false
   }
@@ -30,6 +29,23 @@ afterEach(() => {
 })
 
 describe('SelectContent', () => {
+  it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
+    render(
+      <Select defaultValue="alpha">
+        <SelectTrigger aria-label="Mode">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="alpha">Alpha</SelectItem>
+        </SelectContent>
+      </Select>
+    )
+
+    const trigger = screen.getByRole('combobox', { name: 'Mode' })
+    expect(trigger).toHaveClass('focus-visible:border-primary')
+    expect(trigger).not.toHaveClass('aria-expanded:border-primary')
+  })
+
   it('opens and closes without controlled open props', async () => {
     render(
       <Select defaultValue="alpha">

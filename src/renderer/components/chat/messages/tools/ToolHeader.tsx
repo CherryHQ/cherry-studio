@@ -1,12 +1,10 @@
-import { Flex, Tooltip } from '@cherrystudio/ui'
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type { McpTool } from '@renderer/types/tool'
 import {
   Bot,
   DoorOpen,
   FileEdit,
   FileSearch,
   FileText,
+  FileType,
   FolderSearch,
   Globe,
   ListTodo,
@@ -16,18 +14,26 @@ import {
   ShieldCheck,
   Terminal,
   ToolCase,
+  Workflow as WorkflowIcon,
   Wrench
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Flex, Tooltip } from '@cherrystudio/ui'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
-import { AgentToolsType } from './shared/agentToolTypes'
+import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from './shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
+const SESSION_CREATE_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
 export interface ToolActivity {
   label: string
   description?: string
@@ -72,6 +78,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.Edit]: { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' },
   [AgentToolsType.MultiEdit]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' },
   [AgentToolsType.WebSearch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
+  [PROVIDER_WEB_SEARCH_TOOL_NAME]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
   [AgentToolsType.WebFetch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' },
   [AgentToolsType.NotebookEdit]: { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' },
   [AgentToolsType.TodoWrite]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' },
@@ -81,7 +88,9 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
-  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
+  [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' },
+  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' },
+  [TO_MARKDOWN_RUNTIME_TOOL_NAME]: { icon: <FileType size={14} />, labelKey: 'message.tools.labels.toMarkdown' }
 }
 
 const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />
@@ -372,6 +381,12 @@ export function getReadableToolActivity(
   active: boolean,
   t: Translate
 ): ToolActivity | undefined {
+  if (toolName === 'automation_repl' || toolName === 'mcp__automation__js') {
+    return { label: getStringArg(args, 'title') ?? t('message.tools.automation.execute') }
+  }
+  if (toolName === 'automation_repl_reset' || toolName === 'mcp__automation__reset') {
+    return { label: t('message.tools.automation.reset') }
+  }
   const labels = getActivityLabels(active, t)
   const searchText = getStringInput(args) ?? getStringArg(args, 'pattern') ?? getStringArg(args, 'query')
 
@@ -382,6 +397,17 @@ export function getReadableToolActivity(
         label: labels.handle,
         description:
           getStringArg(args, 'description') ?? getStringArg(args, 'prompt') ?? t('message.tools.activity.assistantTask')
+      }
+    case AgentToolsType.Workflow:
+      return {
+        label: active ? t('message.tools.workflow.orchestrating') : t('message.tools.workflow.started'),
+        description: getStringArg(args, 'name') ?? t('message.tools.workflow.workflow')
+      }
+    case SESSION_CREATE_TOOL_NAME:
+    case SESSION_CREATE_RUNTIME_TOOL_NAME:
+      return {
+        label: t(active ? 'message.tools.sessionCreate.creating' : 'message.tools.sessionCreate.created'),
+        description: getStringArg(args, 'title') ?? t('message.tools.sessionCreate.untitled')
       }
     case AgentToolsType.TaskCreate:
       return {
@@ -438,6 +464,7 @@ export function getReadableToolActivity(
         description: getReadablePathTarget(getStringArg(args, 'file_path') ?? getStringArg(args, 'notebook_path'), t)
       }
     case AgentToolsType.WebSearch:
+    case PROVIDER_WEB_SEARCH_TOOL_NAME:
       return { label: labels.search, description: getReadableSearchTarget(getStringArg(args, 'query'), t) }
     case AgentToolsType.WebFetch:
       return {
@@ -519,13 +546,13 @@ const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>
 )
 
 const DESCRIPTION_CLASS =
-  'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-foreground-secondary'
+  'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-muted-foreground'
 
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span className={[DESCRIPTION_CLASS, className].filter(Boolean).join(' ')} {...props} />
 )
 
-const STATS_CLASS = 'shrink-0 whitespace-nowrap font-normal text-[13px] text-foreground-secondary'
+const STATS_CLASS = 'shrink-0 whitespace-nowrap font-normal text-[13px] text-muted-foreground'
 
 const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span className={[STATS_CLASS, className].filter(Boolean).join(' ')} {...props} />
@@ -536,7 +563,7 @@ const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) 
     <code
       data-testid="tool-command-preview"
       title={fullText}
-      className="hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] text-foreground-secondary leading-4 sm:block">
+      className="hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] text-muted-foreground leading-4 sm:block">
       {text}
     </code>
   )
@@ -550,7 +577,7 @@ function getToolNameClassName(variant: ToolHeaderProps['variant']): string {
   return [
     'items-center gap-1.5',
     variant === 'collapse-label' &&
-      'font-normal text-foreground-secondary group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-muted',
+      'font-normal text-muted-foreground group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-tertiary',
     variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-primary'
   ]
     .filter(Boolean)
@@ -646,7 +673,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
 
   const toolName = propToolName || tool?.name || 'Tool'
 
-  const status = propStatus || (toolResponse?.status as ToolStatus)
+  const status = propStatus || toolResponse?.status
   const hasError = propHasError ?? toolResponse?.response?.isError === true
   const args = toolResponse?.arguments ?? propArgs
   const activity = getReadableToolActivity(toolName, args, isStreaming || isActiveStatus(status), t)

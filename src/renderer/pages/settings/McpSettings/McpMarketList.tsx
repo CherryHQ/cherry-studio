@@ -1,10 +1,22 @@
-import { Composio, Glama, Higress, Mcp, Mcpso, Modelscope, Pulse, Smithery, Zhipu } from '@cherrystudio/ui/icons'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { cn } from '@renderer/utils/style'
 import { ExternalLink } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  Composio,
+  Glama,
+  Higress,
+  Mcp,
+  Mcpso,
+  Modelscope,
+  Pulse,
+  Smithery,
+  Zhipu
+} from '@cherrystudio/ui/icons/providers'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { openExternalWebsite } from '@renderer/services/website'
+import { cn } from '@renderer/utils/style'
 
 const mcpMarkets = [
   {
@@ -83,7 +95,7 @@ const McpMarketList: FC = () => {
       <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.findMore')}</SettingTitle>
       <MarketGrid>
         {mcpMarkets.map((resource) => (
-          <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
+          <MarketCard key={resource.name} onClick={() => void openExternalWebsite(resource.url)}>
             <MarketIconWrap>
               {typeof resource.logo !== 'string' ? (
                 <resource.logo.Avatar size={22} shape="rounded" />
@@ -114,7 +126,7 @@ const MarketGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const MarketCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-15 cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-transparent px-3 py-2.5 transition-colors hover:bg-accent',
+      'flex min-h-15 cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-transparent px-3 py-2.5 transition-colors hover:bg-accent',
       className
     )}
     {...props}
@@ -142,15 +154,12 @@ const MarketName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 )
 
 const ExternalLinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex shrink-0 items-center text-foreground-muted', className)} {...props} />
+  <div className={cn('flex shrink-0 items-center text-foreground-tertiary', className)} {...props} />
 )
 
 const MarketDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn(
-      'mt-0.5 line-clamp-1 overflow-hidden text-[13px] text-foreground-secondary leading-[1.35]',
-      className
-    )}
+    className={cn('mt-0.5 line-clamp-1 overflow-hidden text-[13px] text-muted-foreground leading-[1.35]', className)}
     {...props}
   />
 )

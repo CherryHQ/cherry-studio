@@ -1,9 +1,10 @@
-import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
-import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
-import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 
 import { MessageActionButton } from './MessageActionButton'
 import type {
@@ -76,9 +77,11 @@ const ActionButtonWithConfirm = ({
   tooltip?: ReactNode | false
 }) => {
   const disabled = !action.availability.enabled
+  const label = typeof action.label === 'string' ? action.label : undefined
   const button = (
     <MessageActionButton
       className="message-action-button"
+      aria-label={label}
       onClick={(e) => {
         e.stopPropagation()
         if (!action.confirm) {
@@ -102,6 +105,7 @@ const ActionButtonWithConfirm = ({
       {(open) => (
         <MessageActionButton
           className="message-action-button"
+          aria-label={label}
           onClick={(e) => {
             e.stopPropagation()
             open()
@@ -212,6 +216,7 @@ const TranslateMenuPopover = ({
               type: 'item' as const,
               id: item.key,
               label: item.label,
+              enabled: item.enabled,
               onSelect: () => {
                 void item.onSelect()
               }
@@ -280,18 +285,20 @@ export function renderModelPickerToolbarAction({
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
-    <Tooltip content={action.label} delay={800}>
-      {actionContext.actions.renderRegenerateModelPicker?.({
-        message: actionContext.message,
-        messageParts: actionContext.messageParts,
-        trigger: (
-          <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
-            {action.icon}
-          </MessageActionButton>
-        ),
-        onOpenChange: onMenuOpenChange
-      }) ?? null}
-    </Tooltip>
+    <span className="contents" onClick={(event) => event.stopPropagation()}>
+      <Tooltip content={action.label} delay={800}>
+        {actionContext.actions.renderRegenerateModelPicker?.({
+          message: actionContext.message,
+          messageParts: actionContext.messageParts,
+          trigger: (
+            <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
+              {action.icon}
+            </MessageActionButton>
+          ),
+          onOpenChange: onMenuOpenChange
+        }) ?? null}
+      </Tooltip>
+    </span>
   )
 }
 
@@ -323,12 +330,19 @@ export function renderTranslateToolbarAction({
 
   if (translationItems.length === 0) return null
 
+  const handleMenuOpenChange = (open: boolean) => {
+    if (open) {
+      actionContext.actions.requestTranslationLanguages?.()
+    }
+    onMenuOpenChange?.(open)
+  }
+
   return (
     <TranslateToolbarAction
       action={action}
       translationItems={translationItems}
       softHoverBg={softHoverBg}
-      onMenuOpenChange={onMenuOpenChange}
+      onMenuOpenChange={handleMenuOpenChange}
     />
   )
 }

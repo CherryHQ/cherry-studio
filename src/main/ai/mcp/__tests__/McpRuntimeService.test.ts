@@ -1,113 +1,49 @@
-import { BaseService } from '@main/core/lifecycle'
-import type { McpServer } from '@shared/data/types/mcpServer'
+import { EventEmitter } from 'node:events'
+
+import { SdkError, SdkErrorCode, SseError, UnauthorizedError } from '@modelcontextprotocol/client'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
 }))
+const interactionMocks = vi.hoisted(() => ({
+  getWindow: vi.fn<() => object | undefined>(() => ({})),
+  send: vi.fn(),
+  broadcastToType: vi.fn()
+}))
+const connectionFactoryMocks = vi.hoisted(() => ({
+  createExternal: vi.fn()
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ McpCatalogService: mcpCatalogMock } as Record<string, unknown>)
+  return mockApplicationFactory({
+    McpCatalogService: mcpCatalogMock,
+    WindowManager: { getWindow: interactionMocks.getWindow },
+    IpcApiService: { send: interactionMocks.send, broadcastToType: interactionMocks.broadcastToType }
+  } as Record<string, unknown>)
 })
+
+vi.mock('../connections/ExternalMcpConnection', () => ({
+  createExternalMcpConnection: connectionFactoryMocks.createExternal
+}))
 
 const getByIdMock = vi.fn<(id: string) => McpServer>()
+const deleteServerMock = vi.fn()
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
-    getById: (id: string) => getByIdMock(id)
+    getById: (id: string) => getByIdMock(id),
+    delete: (id: string) => deleteServerMock(id)
   }
 }))
 
-// Mock the MCP SDK transports + Client so we can drive the transport-fallback path without
-// a real network server. SSE connect throws a 405 (mirrors the issue); streamableHttp succeeds.
-const mcpSdkMock = vi.hoisted(() => {
-  class SseError extends Error {
-    code: number
-    constructor(code: number, message: string) {
-      super(`SSE error: ${message}`)
-      this.code = code
-    }
-  }
-  class SSEClientTransport {
-    kind = 'sse' as const
-    close = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
-    }
-  }
-  class StreamableHTTPClientTransport {
-    kind = 'streamableHttp' as const
-    close = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
-    }
-  }
-  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
-  class Client {
-    setNotificationHandler = vi.fn()
-    _transport: { kind: string } | undefined = undefined
-    close = vi.fn().mockImplementation(async () => {
-      this._transport = undefined
-    })
-    ping = vi.fn().mockResolvedValue(true)
-    connectCalls: Array<{ kind: string }> = []
-    constructor() {
-      clients.push(this)
-    }
-    async connect(transport: { kind: string }) {
-      // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
-      // start() leaves it set. This is what makes the fallback retry fail unless client.close()
-      // resets it — the test would not catch that regression otherwise.
-      if (this._transport) {
-        throw new Error('Already connected to a transport. Call close() before connecting to a new transport')
-      }
-      this._transport = transport
-      this.connectCalls.push({ kind: transport.kind })
-      if (transport.kind === 'sse') {
-        throw new SseError(405, 'Non-200 status code (405)')
-      }
-      if (mcpSdkMock.state.failStreamable) {
-        throw new StreamableHTTPError(mcpSdkMock.state.failStreamableCode ?? 503, 'boom')
-      }
-    }
-  }
-  class StreamableHTTPError extends Error {
-    code: number
-    constructor(code: number, message?: string) {
-      super(message ?? 'boom')
-      this.code = code
-    }
-  }
-  return {
-    SseError,
-    SSEClientTransport,
-    StreamableHTTPClientTransport,
-    Client,
-    StreamableHTTPError,
-    clients,
-    state: { failStreamable: false, failStreamableCode: 503 }
-  }
-})
-
-vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
-  SseError: mcpSdkMock.SseError,
-  SSEClientTransport: mcpSdkMock.SSEClientTransport
-}))
-vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
-  StreamableHTTPClientTransport: mcpSdkMock.StreamableHTTPClientTransport,
-  StreamableHTTPError: mcpSdkMock.StreamableHTTPError
-}))
-vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
-  Client: mcpSdkMock.Client
-}))
-
-const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
-  '../McpRuntimeService'
-)
+const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
+  await import('../McpRuntimeService')
 
 /** Build the JSON server key the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -122,13 +58,14 @@ function serverKeyFor(id: string): string {
   })
 }
 
-/** A deferred whose resolution mirrors the real connect: it lands the client in `this.clients`. */
-function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason: unknown) => void } {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
     resolve = res
+    reject = rej
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('McpRuntimeService.setServerStatus', () => {
@@ -175,73 +112,625 @@ describe('McpRuntimeService.setServerStatus', () => {
   })
 })
 
-describe('McpRuntimeService.closeClientsForServer', () => {
+describe('McpRuntimeService embedded interaction authorization', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    interactionMocks.getWindow.mockReset().mockReturnValue(new EventEmitter())
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'Trusted server' } as McpServer)
+    interactionMocks.send.mockReset()
+  })
+
+  it('targets the originating window and accepts a response only from that window', async () => {
+    const service = new McpRuntimeService()
+    const pending = service.requestInteraction({
+      serverId: 'server-1',
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'sampling',
+      payload: { maxTokens: 20 },
+      signal: new AbortController().signal
+    })
+    const requestId = interactionMocks.send.mock.calls[0]?.[2].requestId as string
+
+    await expect(service.respondInteraction({ requestId, decision: 'accept' }, 'window-2')).resolves.toBe(false)
+    await expect(service.respondInteraction({ requestId, decision: 'accept' }, 'window-1')).resolves.toBe(true)
+    await expect(pending).resolves.toMatchObject({ requestId, decision: 'accept' })
+    expect(interactionMocks.send).toHaveBeenCalledWith(
+      'window-1',
+      'mcp.interaction.requested',
+      expect.objectContaining({
+        requestId,
+        topicId: 'topic-1',
+        kind: 'sampling',
+        serverId: 'server-1',
+        serverName: 'Trusted server'
+      })
+    )
+    expect(interactionMocks.send).toHaveBeenCalledWith('window-1', 'mcp.interaction.ended', { requestId })
+    await expect(service.respondInteraction({ requestId, decision: 'accept' }, 'window-1')).resolves.toBe(false)
+  })
+
+  it('validates accepted form values in Main and releases an invalid pending form when its window closes', async () => {
+    const service = new McpRuntimeService()
+    const window = new EventEmitter()
+    interactionMocks.getWindow.mockReturnValue(window)
+    const pending = service.requestInteraction({
+      serverId: 'server-1',
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'elicitation',
+      payload: {
+        method: 'elicitation/create',
+        params: {
+          message: 'Count',
+          requestedSchema: {
+            type: 'object',
+            properties: { count: { type: 'integer', minimum: 1 } },
+            required: ['count']
+          }
+        }
+      },
+      signal: new AbortController().signal
+    })
+    const requestId = interactionMocks.send.mock.calls[0][2].requestId
+    await expect(
+      service.respondInteraction({ requestId, decision: 'accept', value: { count: 0 } }, 'window-1')
+    ).rejects.toThrow()
+    expect(interactionMocks.send).not.toHaveBeenCalledWith('window-1', 'mcp.interaction.ended', { requestId })
+    const rejected = expect(pending).rejects.toThrow(/window/i)
+    window.emit('closed')
+    await rejected
+    expect(interactionMocks.send).toHaveBeenCalledWith('window-1', 'mcp.interaction.ended', { requestId })
+    await expect(
+      service.respondInteraction({ requestId, decision: 'accept', value: { count: 1 } }, 'window-1')
+    ).resolves.toBe(false)
+  })
+
+  it.each([undefined, 'legacy-id'])('authorizes URL elicitation with protocol ID %s', async (elicitationId) => {
+    const service = new McpRuntimeService()
+    const payload = {
+      method: 'elicitation/create',
+      params: {
+        mode: 'url',
+        message: 'Authorize access',
+        url: 'https://example.com/authorize',
+        ...(elicitationId ? { elicitationId } : {})
+      }
+    }
+    const pending = service.requestInteraction({
+      serverId: 'server-1',
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'elicitation',
+      payload,
+      signal: new AbortController().signal
+    })
+    const requestId = interactionMocks.send.mock.calls[0][2].requestId
+    expect(interactionMocks.send.mock.calls[0][2].payload).toEqual(payload)
+    await service.respondInteraction({ requestId, decision: 'accept' }, 'window-1')
+    await expect(pending).resolves.toEqual({ requestId, decision: 'accept' })
+
+    expect(() =>
+      service.requestInteraction({
+        serverId: 'server-1',
+        windowId: 'window-1',
+        topicId: 'topic-1',
+        kind: 'elicitation',
+        payload: { ...payload, params: { ...payload.params, url: 'invalid URL' } },
+        signal: new AbortController().signal
+      })
+    ).toThrow()
+  })
+
+  it('rejects without an active window and cancels a pending authorization with its tool call', async () => {
+    const service = new McpRuntimeService()
+    interactionMocks.getWindow.mockReturnValueOnce(undefined)
+    await expect(
+      service.requestInteraction({
+        serverId: 'server-1',
+        windowId: 'missing',
+        topicId: 'topic-1',
+        kind: 'roots',
+        payload: {},
+        signal: new AbortController().signal
+      })
+    ).rejects.toThrow(/originating window is unavailable/)
+
+    const controller = new AbortController()
+    const pending = service.requestInteraction({
+      serverId: 'server-1',
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'elicitation',
+      payload: {
+        method: 'elicitation/create',
+        params: { message: 'Confirm', requestedSchema: { type: 'object', properties: {} } }
+      },
+      signal: controller.signal
+    })
+    controller.abort(new Error('tool call cancelled'))
+    await expect(pending).rejects.toThrow('tool call cancelled')
+  })
+})
+
+describe('McpRuntimeService connection ownership', () => {
+  const server = { id: 'server-1', name: 'docs', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReturnValue(server)
+    deleteServerMock.mockReset()
+  })
+
+  it('exposes instructions only while the current active configuration owns its connection', async () => {
+    const service = new McpRuntimeService()
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+    const connection = {
+      era: 'modern',
+      instructions: 'Search the docs.',
+      listTools: async () => [],
+      close: async () => {}
+    }
+    vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+    await service.listTools(server.id)
+    expect(service.getConnectedServerInstructions(server.id)).toMatchObject({
+      serverId: server.id,
+      text: 'Search the docs.'
+    })
+    getByIdMock.mockReturnValue({ ...server, isActive: false })
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+    getByIdMock.mockReturnValue({ ...server, baseUrl: 'https://other.example/mcp' })
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+    getByIdMock.mockReturnValue(server)
+    await service.stopServer(server.id)
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+  })
+
+  it('shares a failed health probe and backs off before creating one replacement for concurrent callers', async () => {
+    const service = new McpRuntimeService()
+    const health = createDeferred<void>()
+    const closing = createDeferred<void>()
+    const stale = { health: vi.fn(() => health.promise), close: vi.fn(() => closing.promise) }
+    const tools = [{ name: 'ready', inputSchema: { type: 'object' } }]
+    const connection = { era: 'modern', listTools: vi.fn().mockResolvedValue(tools) }
+    ;(service as any).connections.set(service.getServerKey(server), stale)
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+
+    const first = service.listTools(server.id)
+    const second = service.listTools(server.id)
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'connection is stale')
+    const failed = expect(Promise.all([first, second])).rejects.toBe(failure)
+    health.reject(failure)
+    await vi.waitFor(() => expect(stale.close).toHaveBeenCalledTimes(1))
+    const retryAt = (service as any).connectFailures.get(service.getServerKey(server)).retryAt
+    const now = vi.spyOn(Date, 'now').mockReturnValue(retryAt)
+    try {
+      closing.resolve()
+      await failed
+      expect(stale.health).toHaveBeenCalledTimes(1)
+      expect(create).not.toHaveBeenCalled()
+      await expect(Promise.all([service.listTools(server.id), service.listTools(server.id)])).resolves.toEqual([
+        tools,
+        tools
+      ])
+      expect(create).toHaveBeenCalledTimes(1)
+    } finally {
+      now.mockRestore()
+    }
+    expect((service as any).connections.get(service.getServerKey(server))).toBe(connection)
+  })
+
+  it.each(['restart', 'stop', 'remove', 'shutdown'])('awaits failed-health cleanup on %s', async (operation) => {
+    const service = new McpRuntimeService()
+    const closing = createDeferred<void>()
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'connection is stale')
+    const stale = {
+      health: async () => {
+        throw failure
+      },
+      close: vi.fn(() => closing.promise)
+    }
+    const key = service.getServerKey(server)
+    ;(service as any).connections.set(key, stale)
+    const replacement = { era: 'legacy', health: async () => {}, listTools: async () => [], close: vi.fn() }
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(replacement)
+    const failed = expect(service.listTools(server.id)).rejects.toBe(failure)
+    await vi.waitFor(() => expect(stale.close).toHaveBeenCalledTimes(1))
+
+    let completed = false
+    const action =
+      operation === 'restart'
+        ? service.restartServer(server.id)
+        : operation === 'stop'
+          ? service.stopServer(server.id)
+          : operation === 'remove'
+            ? service.removeServer(server.id)
+            : (service as any).onStop()
+    const pending = action.then(() => {
+      completed = true
+    })
+    const waiting =
+      operation === 'restart' ? expect(service.listTools(server.id)).resolves.toEqual([]) : Promise.resolve()
+    try {
+      if (operation === 'restart') {
+        const caller = new AbortController()
+        const cancelled = expect(
+          service.getPrompt({ serverId: server.id, name: 'ready', signal: caller.signal })
+        ).rejects.toThrow('cancel closing waiter')
+        caller.abort(new Error('cancel closing waiter'))
+        await cancelled
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(completed).toBe(false)
+      expect(create).not.toHaveBeenCalled()
+    } finally {
+      closing.resolve()
+      await Promise.all([failed, pending, waiting])
+    }
+
+    expect(stale.close).toHaveBeenCalledTimes(1)
+    expect((service as any).connections.get(key)).toBe(operation === 'restart' ? replacement : undefined)
+    if (operation === 'restart') {
+      expect(create).toHaveBeenCalledTimes(1)
+      expect(await service.getServerLogs(server.id)).toContainEqual(
+        expect.objectContaining({ message: 'Server connected (legacy)' })
+      )
+    }
+  })
+
+  it('cancels only the caller waiting on shared initialization', async () => {
+    const service = new McpRuntimeService()
+    const activation = createDeferred<unknown>()
+    let activationSignal!: AbortSignal
+    vi.spyOn(service as any, 'createConnection').mockImplementation((_server, _context, signal) => {
+      activationSignal = signal as AbortSignal
+      activationSignal.addEventListener('abort', () => activation.reject(activationSignal.reason), { once: true })
+      return activation.promise
+    })
+    const caller = new AbortController()
+    const first = service.getPrompt({ serverId: server.id, name: 'ready', signal: caller.signal })
+    const second = service.getPrompt({ serverId: server.id, name: 'ready' })
+    const cancelled = expect(first).rejects.toThrow('cancel first caller')
+    caller.abort(new Error('cancel first caller'))
+    await cancelled
+    expect(activationSignal.aborted).toBe(false)
+
+    const result = { messages: [{ role: 'user', content: { type: 'text', text: 'ready' } }] }
+    activation.resolve({ era: 'modern', getPrompt: vi.fn().mockResolvedValue(result) })
+    await expect(second).resolves.toEqual(result)
+    expect((service as any).pendingConnections.size).toBe(0)
+  })
+
+  it('cancels a health waiter without interrupting another caller or replacing the connection', async () => {
+    const service = new McpRuntimeService()
+    const health = createDeferred<void>()
+    const tools = [{ name: 'ready', inputSchema: { type: 'object' } }]
+    const connection = { health: () => health.promise, listTools: async () => tools }
+    ;(service as any).connections.set(service.getServerKey(server), connection)
+    const create = vi.spyOn(service as any, 'createConnection')
+    const controller = new AbortController()
+    const cancelled = expect(
+      service.getPrompt({ serverId: server.id, name: 'ready', signal: controller.signal })
+    ).rejects.toThrow('cancel waiter')
+    const active = service.listTools(server.id)
+    controller.abort(new Error('cancel waiter'))
+    await cancelled
+    health.resolve()
+    await expect(active).resolves.toEqual(tools)
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it.each(['stop', 'remove', 'shutdown'])('cancels initialization and awaits cleanup on %s', async (operation) => {
+    const service = new McpRuntimeService()
+    const cleanup = createDeferred<void>()
+    let activationSignal!: AbortSignal
+    vi.spyOn(service as any, 'createConnection').mockImplementation((_server, _context, signal) => {
+      activationSignal = signal as AbortSignal
+      return new Promise((_resolve, reject) => {
+        activationSignal.addEventListener('abort', () => cleanup.promise.then(() => reject(activationSignal.reason)), {
+          once: true
+        })
+      })
+    })
+    const pending = service.listTools(server.id)
+    const cancelled = expect(pending).rejects.toThrow(/abort/i)
+    const closing =
+      operation === 'stop'
+        ? service.stopServer(server.id)
+        : operation === 'remove'
+          ? service.removeServer(server.id)
+          : (service as any).onStop()
+
+    expect(activationSignal.aborted).toBe(true)
+    expect(deleteServerMock).not.toHaveBeenCalled()
+    cleanup.resolve()
+    await Promise.all([closing, cancelled])
+    expect((service as any).pendingConnections.size).toBe(0)
+    expect((service as any).connections.size).toBe(0)
+    if (operation === 'remove') expect(deleteServerMock).toHaveBeenCalledWith(server.id)
+  })
+
+  it('removes a server without waiting for its pending health probe or reconnecting afterward', async () => {
+    const service = new McpRuntimeService()
+    const health = createDeferred<void>()
+    const close = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).connections.set(service.getServerKey(server), { health: () => health.promise, close })
+    const create = vi.spyOn(service as any, 'createConnection')
+    const pending = service.listTools(server.id)
+    const removed = expect(pending).rejects.toThrow(/removed/)
+
+    await service.removeServer(server.id)
+    expect(close).toHaveBeenCalledTimes(1)
+    health.resolve()
+    await removed
+    expect(create).not.toHaveBeenCalled()
+  })
+})
+
+describe('McpRuntimeService connect retry gate', () => {
+  const server = { id: 'server-1', name: 'docs', isActive: true, baseUrl: 'https://a.example/mcp' } as McpServer
+  const rejected = new SseError(412, 'Non-200 status code (412)', {} as ErrorEvent)
+  const connection = { era: 'modern', listTools: async () => [], close: async () => {} }
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
+    getByIdMock.mockReturnValue(server)
+    connectionFactoryMocks.createExternal.mockReset()
+  })
+
+  it('does not reconnect after a non-retryable failure until restart or a config change', async () => {
+    const service = new McpRuntimeService()
+    const create = vi.spyOn(service as any, 'createConnection').mockRejectedValueOnce(rejected)
+
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    await expect(service.getServerVersion(server.id)).resolves.toBeNull()
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    expect(create).toHaveBeenCalledTimes(1)
+
+    create.mockResolvedValue(connection)
+    getByIdMock.mockReturnValue({ ...server, baseUrl: 'https://b.example/mcp' })
+    await expect(service.listTools(server.id)).resolves.toEqual([])
+
+    getByIdMock.mockReturnValue(server)
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    await service.restartServer(server.id)
+    expect(create).toHaveBeenCalledTimes(3)
+  })
+
+  it('shows browser authorization and stops reconnecting after the user cancels it', async () => {
+    const service = new McpRuntimeService()
+    connectionFactoryMocks.createExternal.mockImplementation(
+      ({ onAuthorizationStarted, signal }: { onAuthorizationStarted: () => void; signal: AbortSignal }) => {
+        onAuthorizationStarted()
+        return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
+      }
+    )
+
+    const pending = service.listTools(server.id)
+    const status = () => MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)
+    await vi.waitFor(() => expect(status()).toMatchObject({ state: 'connecting', authorizing: true }))
+
+    service.cancelAuthorization(server.id)
+    await expect(pending).rejects.toBeInstanceOf(UnauthorizedError)
+    expect(status()).toMatchObject({ state: 'error' })
+    expect(status()).not.toHaveProperty('authorizing')
+    await expect(service.listTools(server.id)).rejects.toBeInstanceOf(UnauthorizedError)
+    expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets a caller that can open the browser sign in after a background attempt needed authorization', async () => {
+    const service = new McpRuntimeService()
+    const connection = { era: 'modern', serverVersion: '1.0.0', close: async () => {} }
+    connectionFactoryMocks.createExternal.mockImplementation(
+      async ({ allowInteractiveAuthorization }: { allowInteractiveAuthorization: boolean }) => {
+        if (!allowInteractiveAuthorization) throw new UnauthorizedError('sign-in required')
+        return connection
+      }
+    )
+
+    await expect(service.listTools(server.id)).rejects.toBeInstanceOf(UnauthorizedError)
+    await expect(service.listTools(server.id)).rejects.toBeInstanceOf(UnauthorizedError)
+    expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(1)
+
+    await expect(service.getServerVersion(server.id)).resolves.toBe('1.0.0')
+    expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads a version passively without connecting or starting sign-in', async () => {
+    const service = new McpRuntimeService()
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue({
+      era: 'modern',
+      serverVersion: '2.0.0',
+      listTools: async () => [],
+      close: async () => {}
+    })
+
+    await expect(service.getServerVersion(server.id, false)).resolves.toBeNull()
+    expect(create).not.toHaveBeenCalled()
+
+    await service.listTools(server.id)
+    await expect(service.getServerVersion(server.id, false)).resolves.toBe('2.0.0')
+    expect(create).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a transient failure only after its backoff and stops after the attempt budget', async () => {
+    const service = new McpRuntimeService()
+    const create = vi.spyOn(service as any, 'createConnection').mockRejectedValue(new Error('ECONNRESET'))
+    let now = 1_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      await expect(service.listTools(server.id)).rejects.toThrow('ECONNRESET')
+      await expect(service.listTools(server.id)).rejects.toThrow('ECONNRESET')
+      expect(create).toHaveBeenCalledTimes(attempt)
+      now += 10_000 * 2 ** (attempt - 1)
+    }
+    now += 24 * 60 * 60 * 1000
+    await expect(service.listTools(server.id)).rejects.toThrow('ECONNRESET')
+    expect(create).toHaveBeenCalledTimes(5)
+    vi.mocked(Date.now).mockRestore()
+  })
+
+  it('bounds successful handshakes followed by failed health checks and allows manual recovery', async () => {
+    const service = new McpRuntimeService()
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'health timeout')
+    const connection = {
+      era: 'legacy',
+      health: vi.fn().mockRejectedValue(failure),
+      listTools: async () => [],
+      close: vi.fn()
+    }
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+    let now = 1_000_000
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    try {
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        await expect(service.listTools(server.id)).resolves.toEqual([])
+        await expect(service.listTools(server.id)).rejects.toBe(failure)
+        await expect(service.listTools(server.id)).rejects.toBe(failure)
+        expect(create).toHaveBeenCalledTimes(attempt)
+        now += 10_000 * 2 ** (attempt - 1)
+      }
+      now += 24 * 60 * 60 * 1000
+      await expect(service.listTools(server.id)).rejects.toBe(failure)
+      expect(create).toHaveBeenCalledTimes(5)
+      expect(connection.close).toHaveBeenCalledTimes(5)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({ state: 'error' })
+      connection.health.mockResolvedValue(undefined)
+      await service.restartServer(server.id)
+      await expect(service.listTools(server.id)).resolves.toEqual([])
+      expect(create).toHaveBeenCalledTimes(6)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
+        state: 'connected'
+      })
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('resets the retry budget after confirmed health, not merely a successful handshake', async () => {
+    const service = new McpRuntimeService()
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'health timeout')
+    const connection = {
+      era: 'legacy',
+      health: vi.fn().mockRejectedValue(failure),
+      listTools: async () => [],
+      close: vi.fn()
+    }
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+    let now = 1_000_000
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    try {
+      await service.listTools(server.id)
+      await expect(service.listTools(server.id)).rejects.toBe(failure)
+      now += 10_000
+      await service.listTools(server.id)
+      connection.health.mockResolvedValueOnce(undefined)
+      await service.listTools(server.id)
+      await expect(service.listTools(server.id)).rejects.toBe(failure)
+      now += 10_000
+      await expect(service.listTools(server.id)).resolves.toEqual([])
+      expect(create).toHaveBeenCalledTimes(3)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it.each(['stop', 'restart'].flatMap((operation) => [false, true].map((failed) => ({ operation, failed }))))(
+    'ignores a late health result after $operation (failed: $failed)',
+    async ({ operation, failed }) => {
+      const service = new McpRuntimeService()
+      const health = createDeferred<void>()
+      const existing = { health: () => health.promise, close: vi.fn() }
+      ;(service as any).connections.set(service.getServerKey(server), existing)
+      const replacement = { era: 'legacy', health: async () => {}, listTools: async () => [], close: vi.fn() }
+      const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(replacement)
+      const waiting = service.listTools(server.id)
+      const cancelled = expect(waiting).rejects.toMatchObject({ name: 'AbortError' })
+      if (operation === 'restart') await service.restartServer(server.id)
+      else await service.stopServer(server.id)
+      if (failed) health.reject(new SdkError(SdkErrorCode.RequestTimeout, 'late timeout'))
+      else health.resolve()
+      await cancelled
+      expect(create).toHaveBeenCalledTimes(operation === 'restart' ? 1 : 0)
+      expect((service as any).connectFailures.size).toBe(0)
+      expect((service as any).connections.get(service.getServerKey(server))).toBe(
+        operation === 'restart' ? replacement : undefined
+      )
+    }
+  )
+})
+
+describe('McpRuntimeService.closeConnectionsForServer', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
   })
 
-  it('closes a client that is already connected for the server', async () => {
+  it('closes a connection that is already connected for the server', async () => {
     const service = new McpRuntimeService()
     const close = vi.fn().mockResolvedValue(undefined)
     const key = serverKeyFor('server-1')
-    ;(service as any).clients.set(key, { close })
+    ;(service as any).connections.set(key, { close })
 
-    await (service as any).closeClientsForServer('server-1')
+    await (service as any).closeConnectionsForServer('server-1')
 
     expect(close).toHaveBeenCalledTimes(1)
-    expect((service as any).clients.size).toBe(0)
+    expect((service as any).connections.size).toBe(0)
   })
 
-  it('awaits an in-flight connect and closes the client it resolves into clients', async () => {
+  it('awaits an in-flight connect and closes the connection it resolves into the table', async () => {
     const service = new McpRuntimeService()
     const close = vi.fn().mockResolvedValue(undefined)
     const key = serverKeyFor('server-1')
-    const client = { close }
+    const connection = { close }
 
     // Mirror the real connect path: the pending promise, once awaited, lands the
-    // client in `this.clients` so the subsequent close loop can find and close it.
+    // connection in `this.connections` so the subsequent close loop can find and close it.
     const deferred = createDeferred<{ close: typeof close }>()
     const pending = deferred.promise.then((c) => {
-      ;(service as any).clients.set(key, c)
+      ;(service as any).connections.set(key, c)
       return c
     })
-    ;(service as any).pendingClients.set(key, pending)
+    ;(service as any).pendingConnections.set(key, pending)
 
-    const closePromise = (service as any).closeClientsForServer('server-1')
+    const closePromise = (service as any).closeConnectionsForServer('server-1')
 
     // The close must not have happened yet — it is still awaiting the in-flight connect.
     expect(close).not.toHaveBeenCalled()
 
-    deferred.resolve(client)
+    deferred.resolve(connection)
     await closePromise
 
     expect(close).toHaveBeenCalledTimes(1)
-    expect((service as any).clients.size).toBe(0)
+    expect((service as any).connections.size).toBe(0)
   })
 
   it('does not throw when an in-flight connect rejects', async () => {
     const service = new McpRuntimeService()
     const key = serverKeyFor('server-1')
     const pending = Promise.reject(new Error('connect failed'))
-    ;(service as any).pendingClients.set(key, pending)
+    ;(service as any).pendingConnections.set(key, pending)
 
-    await expect((service as any).closeClientsForServer('server-1')).resolves.toBeUndefined()
-    expect((service as any).clients.size).toBe(0)
+    await expect((service as any).closeConnectionsForServer('server-1')).resolves.toBeUndefined()
+    expect((service as any).connections.size).toBe(0)
   })
 
-  it('only closes clients whose key matches the target server id', async () => {
+  it('only closes connections whose key matches the target server id', async () => {
     const service = new McpRuntimeService()
     const closeA = vi.fn().mockResolvedValue(undefined)
     const closeB = vi.fn().mockResolvedValue(undefined)
-    ;(service as any).clients.set(serverKeyFor('server-1'), { close: closeA })
-    ;(service as any).clients.set(serverKeyFor('server-2'), { close: closeB })
+    ;(service as any).connections.set(serverKeyFor('server-1'), { close: closeA })
+    ;(service as any).connections.set(serverKeyFor('server-2'), { close: closeB })
 
-    await (service as any).closeClientsForServer('server-1')
+    await (service as any).closeConnectionsForServer('server-1')
 
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).not.toHaveBeenCalled()
-    expect((service as any).clients.has(serverKeyFor('server-2'))).toBe(true)
+    expect((service as any).connections.has(serverKeyFor('server-2'))).toBe(true)
   })
 })
 
@@ -267,6 +756,60 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReset()
+    interactionMocks.broadcastToType.mockClear()
+    connectionFactoryMocks.createExternal.mockReset()
+  })
+
+  it('redacts server notification credentials before buffering and broadcasting the log', async () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv' } as McpServer
+    getByIdMock.mockReturnValue(server)
+    const data = {
+      message: 'connected',
+      authorization: 'Bearer bearer-secret',
+      nested: { client_secret: 'client-secret', refresh_token: 'refresh-secret', requestState: 'state-secret' },
+      details: 'Authorization: Bearer inline-secret'
+    }
+    ;(service as any).connectionEvents(server).log('info', 'server', data)
+
+    const logs = await service.getServerLogs(server.id)
+    expect(logs).toHaveLength(1)
+    expect(logs[0].message).toContain('connected')
+    expect(logs[0].data).toMatchObject({ message: 'connected', authorization: '<redacted>' })
+    expect(interactionMocks.broadcastToType.mock.calls).toHaveLength(1)
+    const exposed = JSON.stringify({ logs, broadcasts: interactionMocks.broadcastToType.mock.calls })
+    for (const secret of ['bearer-secret', 'client-secret', 'refresh-secret', 'state-secret', 'inline-secret']) {
+      expect(exposed).not.toContain(secret)
+    }
+    expect(data.authorization).toBe('Bearer bearer-secret')
+  })
+
+  it('redacts stdio credentials before buffering and broadcasting stderr', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'server-1',
+      name: 'stdio-server',
+      type: 'stdio',
+      command: 'node',
+      installSource: 'manual'
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+    connectionFactoryMocks.createExternal.mockImplementation(
+      async ({ log }: { log: { stdio(message: string): void } }) => {
+        log.stdio('request failed: Authorization: Bearer stderr-secret')
+        return { close: vi.fn() }
+      }
+    )
+
+    await (service as any).createConnection(server)
+
+    const logs = await service.getServerLogs(server.id)
+    expect(logs).toMatchObject([
+      { level: 'stderr', message: 'request failed: Authorization: "<redacted>"', source: 'stdio' }
+    ])
+    expect(JSON.stringify({ logs, broadcasts: interactionMocks.broadcastToType.mock.calls })).not.toContain(
+      'stderr-secret'
+    )
   })
 
   // Regression: connect used to mutate `server.env` in place before emitServerLog recomputed
@@ -303,9 +846,15 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
 
 describe('redactSensitive (mcp-services-3)', () => {
   it('redacts sensitive keys', () => {
-    const out = redactSensitive({ authorization: 'Bearer x', apiKey: 'k', keep: 'ok' })
+    const out = redactSensitive({
+      authorization: 'Bearer x',
+      apiKey: 'k',
+      requestState: 'opaque-state',
+      keep: 'ok'
+    }) as Record<string, unknown>
     expect(out.authorization).toBe('<redacted>')
     expect(out.apiKey).toBe('<redacted>')
+    expect(out.requestState).toBe('<redacted>')
     expect(out.keep).toBe('ok')
   })
 
@@ -325,14 +874,14 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     getByIdMock.mockReset()
     mcpCatalogMock.clearSharedToolsCache.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
-    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
 
   // listTools is cache-only, so a failed restart must clear the shared tools cache —
   // otherwise the old config's tools would stay visible to agents/chat forever.
   it('clears the shared tools cache and does not refresh when restart fails', async () => {
     const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateClient').mockRejectedValue(new Error('bad config'))
+    vi.spyOn(service as any, 'getOrCreateConnection').mockRejectedValue(new Error('bad config'))
 
     await expect(service.restartServer('server-1')).rejects.toThrow('bad config')
 
@@ -342,69 +891,11 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
   it('clears then repopulates the shared tools cache on a successful restart', async () => {
     const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({})
+    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue({})
 
     await service.restartServer('server-1')
 
     expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
     expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
-  })
-})
-
-describe('McpRuntimeService transport fallback (issue #16891)', () => {
-  beforeEach(() => {
-    BaseService.resetInstances()
-    MockMainCacheServiceUtils.resetMocks()
-    mcpSdkMock.state.failStreamable = false
-    mcpSdkMock.state.failStreamableCode = 503
-  })
-
-  function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
-    return {
-      id: 'sse-server',
-      name: 'actuarymcp',
-      type,
-      baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
-      isActive: true
-    } as unknown as McpServer
-  }
-
-  type MockClient = InstanceType<typeof mcpSdkMock.Client>
-
-  it('falls back to Streamable HTTP when an sse-typed server rejects the SSE GET with 405', async () => {
-    const service = new McpRuntimeService()
-    const client = (await (service as any).getOrCreateClient(urlServer('sse'))) as unknown as MockClient
-
-    // SSE attempt (405) then Streamable HTTP attempt (success) — exactly two connect calls.
-    expect(client.connectCalls.map((c) => c.kind)).toEqual(['sse', 'streamableHttp'])
-  })
-
-  it('connects on the first try for a correctly configured streamableHttp server (no fallback)', async () => {
-    const service = new McpRuntimeService()
-    const client = (await (service as any).getOrCreateClient(urlServer('streamableHttp'))) as unknown as MockClient
-
-    expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp'])
-  })
-
-  it('propagates the error when both transports fail', async () => {
-    // Force the Streamable HTTP attempt to also fail (5xx) so the fallback exhausts both candidates.
-    mcpSdkMock.state.failStreamable = true
-    mcpSdkMock.state.failStreamableCode = 503
-
-    const service = new McpRuntimeService()
-    await expect((service as any).getOrCreateClient(urlServer('sse'))).rejects.toThrow()
-  })
-
-  it('does NOT fall back when a streamableHttp server returns 401 (auth must surface, not SSE)', async () => {
-    // A 401 from the Streamable HTTP transport is an auth/permission error, not a transport
-    // mismatch — it must not be masked by falling back to the SSE transport.
-    mcpSdkMock.state.failStreamable = true
-    mcpSdkMock.state.failStreamableCode = 401
-
-    const service = new McpRuntimeService()
-    await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow()
-
-    // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
-    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
   })
 })

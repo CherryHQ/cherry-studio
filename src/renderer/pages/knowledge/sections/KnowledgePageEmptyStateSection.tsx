@@ -1,5 +1,6 @@
-import { EmptyState } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
 
@@ -13,7 +14,7 @@ const KnowledgePageEmptyStateSection = () => {
   const { openCreateBaseDialog } = useKnowledgePage()
 
   return (
-    <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <main data-ui="knowledge.view" className="flex min-h-0 min-w-0 flex-1 flex-col">
       <EmptyState
         illustration="book"
         title={t('knowledge.empty')}

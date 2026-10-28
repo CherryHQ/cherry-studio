@@ -1,3 +1,14 @@
+---
+description: How each endpoint config's adapterFamily field selects the @ai-sdk package, and the two write paths that set it
+sources:
+  - src/main/ai/provider/endpoint.ts
+  - packages/provider-registry/src/registry-utils.ts
+  - packages/provider-registry/data/providers.json
+  - packages/provider-registry/src/providers/new-api.ts
+  - src/main/ai/provider/custom/wire/wireProfile.ts
+  - src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts
+---
+
 # Adapter Family
 
 `adapterFamily` is the optional field on each `EndpointConfig` that picks
@@ -38,6 +49,22 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 One signal, no heuristics. Tested with 54 cases in
 `provider/__tests__/endpoint.test.ts`.
 
+### New API image endpoints
+
+The New API preset declares `newapi` for both `openai-image-generation` and
+`openai-image-edit`. This adapter derives `/v1` from the configured gateway
+host before the image SDK appends `/images/generations` or `/images/edits`.
+The terminal `openai-compatible` fallback does not perform this relay-specific
+version handling and can request an unversioned path that returns the gateway
+web UI instead of image JSON.
+
+Image endpoints inherit the configured primary host unless the user supplies
+a separate image base URL. Explicit paths and the trailing `#` opt-out retain
+the existing New API URL rules; no model-name exception is needed.
+
+Image parameters use the existing OpenAI and diffusion wire mappings, with
+unmapped vendor parameters preserved under the SDK's `newapi` options key.
+
 ## Write paths
 
 `adapterFamily` is a derived value computed at row-write time, never at
@@ -61,6 +88,30 @@ export function inferAdapterFamily(endpointType, catalogConfig?): string {
 | `jina-rerank` | `jina-rerank` |
 | `openai-responses` | `openai` |
 | everything else | `openai-compatible` (terminal fallback) |
+
+### Two adapters serve `openai-responses`
+
+`openai` (`@ai-sdk/openai`) and `open-responses` (`@ai-sdk/open-responses`) both
+speak the Responses protocol; the endpoint's **implementation completeness**
+picks between them:
+
+- **Superset endpoints — `openai`.** OpenAI, Azure, and the third parties that
+  implement the protocol faithfully (DeepSeek, Ark/doubao, DashScope, relays).
+  Verified live: all three accept OpenAI-native reasoning input items
+  (`{ id, summary }`), `store`, and encrypted CoT. They also serve built-in web
+  search *with citations*, and only this adapter parses the annotation, image,
+  file-search, and `response.created` events — routing them elsewhere silently
+  drops those. Missing features on their side are harmless (unknown fields are
+  ignored), and vendor quirks are cheap to patch here: a non-spec event
+  (DeepSeek's `response.reasoning_text.delta`) or a required field Ark wants and
+  OpenAI tolerates (`status` on assistant items).
+- **Subset endpoints — `open-responses`.** Minimal servers that implement the
+  core only and may reject the extras: the HuggingFace router today, LM Studio /
+  vLLM / self-hosted next. They have no citations to lose, and the neutral
+  adapter sends the minimal body.
+
+Rule of thumb: **a missing feature belongs on `openai`; a conflicting field
+belongs on `open-responses`.**
 
 ### Write paths
 
@@ -112,4 +163,5 @@ mirrors this for catalog entries.
 ## Where to read more
 
 - Runtime usage: [Provider Resolution](./provider-resolution.md)
+- State placement: [Provider State Ownership](./provider-state-ownership.md)
 - Catalog: `packages/provider-registry/data/providers.json`

@@ -1,20 +1,15 @@
+import { useCallback, useMemo } from 'react'
+
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { writeComposerRichClipboardContent } from '@renderer/utils/message/composerClipboard'
-import { useCallback, useMemo } from 'react'
 
 export type MessagePlatformActions = Pick<
   MessageListActions,
-  | 'copyText'
-  | 'copyRichContent'
-  | 'copyImage'
-  | 'exportTableAsExcel'
-  | 'notifyInfo'
-  | 'notifySuccess'
-  | 'notifyWarning'
-  | 'notifyError'
->
+  'copyText' | 'copyRichContent' | 'copyImage' | 'exportTableAsExcel' | 'notifyInfo' | 'notifySuccess' | 'notifyWarning'
+> &
+  Required<Pick<MessageListActions, 'notifyError'>>
 
 export function useMessagePlatformActions(): MessagePlatformActions {
   const copyText = useCallback<NonNullable<MessageListActions['copyText']>>(async (text, options) => {

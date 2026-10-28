@@ -1,10 +1,13 @@
-import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
-import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { CherryMessagePart, ReasoningUIPart } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isToolUIPart } from 'ai'
 
+import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
+import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
+
+import { agentInlineResultPresentationRegistry } from '../tools/agent'
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
+import { isGeneratedImageResultPart } from '../tools/painting/generateImageTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 
 export interface PartEntry {
@@ -33,6 +36,10 @@ export interface CompletedMessagePartLayout {
   reportEntries: readonly PartEntry[]
 }
 
+interface MessagePartLayoutOptions {
+  keepIntermediateAssistantText?: boolean
+}
+
 const HIDDEN_PART_TYPES = new Set([
   'step-start',
   'source-url',
@@ -43,25 +50,16 @@ const HIDDEN_PART_TYPES = new Set([
   'data-clear'
 ])
 
-const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([
-  'text',
-  'data-code',
-  'data-compact',
-  'data-translation',
-  'data-compaction-anchor'
-])
-
 const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])
 
 export function isHiddenPart(part: CherryMessagePart): boolean {
-  return HIDDEN_PART_TYPES.has(part.type as string)
+  return HIDDEN_PART_TYPES.has(part.type)
 }
 
 function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {
-  if ((part.type as string) === 'text') return isEmptyContentPart(part)
-  if ((part.type as string) !== 'reasoning') return false
-  const reasoningPart = part as ReasoningUIPart
-  return reasoningPart.state !== 'streaming' && isEmptyContentPart(part)
+  if (part.type === 'text') return isEmptyContentPart(part)
+  if (part.type !== 'reasoning') return false
+  return part.state !== 'streaming' && isEmptyContentPart(part)
 }
 
 function hasVisibleComposerToken(part: CherryMessagePart): boolean {
@@ -78,14 +76,15 @@ function hasVisibleComposerToken(part: CherryMessagePart): boolean {
 }
 
 function isEmptyContentPart(part: CherryMessagePart): boolean {
-  const partType = part.type as string
-  if (partType !== 'text' && partType !== 'reasoning') return false
-  return !(part as { text?: string }).text?.trim() && !hasVisibleComposerToken(part)
+  // Narrow on `part.type` itself; an aliased copy would not discriminate the
+  // union, which is what previously forced a `part as { text?: string }` cast.
+  if (part.type !== 'text' && part.type !== 'reasoning') return false
+  return !part.text?.trim() && !hasVisibleComposerToken(part)
 }
 
 function isEllipsisOnlyTextPart(part: CherryMessagePart): boolean {
-  if ((part.type as string) !== 'text') return false
-  return /^(?:\.{3}|…)$/.test((part as { text?: string }).text?.trim() ?? '')
+  if (part.type !== 'text') return false
+  return /^(?:\.{3}|…)$/.test(part.text?.trim() ?? '')
 }
 
 function findAdjacentMeaningfulPart(
@@ -102,7 +101,7 @@ function findAdjacentMeaningfulPart(
 }
 
 function isProcessContentPart(part: CherryMessagePart | undefined): boolean {
-  return !!part && (isToolUIPart(part) || (part.type as string) === 'reasoning')
+  return !!part && (isToolUIPart(part) || part.type === 'reasoning')
 }
 
 /**
@@ -139,15 +138,22 @@ function isAskUserQuestionPart(part: CherryMessagePart): boolean {
   return isToolUIPart(part) && isAskUserQuestionToolName(getPartToolName(part))
 }
 
+function isInlineResultToolPart(part: CherryMessagePart): boolean {
+  return (
+    isChannelAuthQrPart(part) ||
+    agentInlineResultPresentationRegistry.isResultPart(part) ||
+    isGeneratedImageResultPart(part)
+  )
+}
+
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {
-  if ((part.type as string) !== 'reasoning') return false
-  const reasoningPart = part as ReasoningUIPart
-  return reasoningPart.state === 'streaming' || isReasoningMessagePart(part)
+  if (part.type !== 'reasoning') return false
+  return part.state === 'streaming' || isReasoningMessagePart(part)
 }
 
 export function isProcessToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
-  return !isAskUserQuestionPart(part) && !isChannelAuthQrPart(part)
+  return !isAskUserQuestionPart(part) && !isInlineResultToolPart(part)
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
@@ -160,9 +166,13 @@ function isVisibleProcessPart(part: CherryMessagePart): boolean {
  * Hidden transport markers are discarded without splitting process history.
  * Within each region bounded by an interactive or side-channel tool, visible
  * content through the last reasoning/tool part belongs to one process item.
- * Only the trailing content remains outside as the current result candidate.
+ * By default, only the trailing content remains outside as the current result
+ * candidate. The opt-in layout also keeps intermediate text outside.
  */
-export function projectLiveMessageParts(entries: readonly PartEntry[]): LiveMessagePartLayoutItem[] {
+export function projectLiveMessageParts(
+  entries: readonly PartEntry[],
+  { keepIntermediateAssistantText = false }: MessagePartLayoutOptions = {}
+): LiveMessagePartLayoutItem[] {
   const items: LiveMessagePartLayoutItem[] = []
   let regionEntries: PartEntry[] = []
 
@@ -177,7 +187,18 @@ export function projectLiveMessageParts(entries: readonly PartEntry[]): LiveMess
 
     if (lastProcessPosition >= 0) {
       const processEntries = regionEntries.slice(0, lastProcessPosition + 1)
-      items.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
+      if (keepIntermediateAssistantText) {
+        const foldedEntries = processEntries.filter((entry) => entry.part.type !== 'text')
+        for (const entry of processEntries) {
+          if (entry.part.type === 'text') {
+            items.push({ kind: 'part', key: entry.index, entry })
+          } else if (entry === foldedEntries[0]) {
+            items.push({ kind: 'process', key: entry.index, entries: foldedEntries })
+          }
+        }
+      } else {
+        items.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
+      }
     }
 
     const resultStart = lastProcessPosition + 1
@@ -218,30 +239,55 @@ export function findOpenTextTailIndex(entries: readonly PartEntry[]): number | n
     const entry = entries[position]
     if (isHiddenPart(entry.part)) continue
 
-    const partType = entry.part.type as string
-    if (partType === 'text') {
-      return (entry.part as { state?: string }).state === 'streaming' ? entry.index : null
+    // Narrow on the part itself, not an aliased `type`, so `state` is typed.
+    if (entry.part.type === 'text') {
+      return entry.part.state === 'streaming' ? entry.index : null
     }
-    return partType === 'data-code' ? entry.index : null
+    return entry.part.type === 'data-code' ? entry.index : null
   }
 
   return null
 }
 
+/**
+ * Does this part count as the assistant's actual answer (as opposed to process
+ * noise like tool calls and reasoning)? The layout splits the process group at
+ * the last such part.
+ *
+ * Switches on `part.type` directly rather than a `Set.has` + string alias:
+ * `CherryMessagePart` is a discriminated union, so each `case` narrows `part`
+ * and its payload is typed. Testing membership through an aliased
+ * `const partType = part.type` never narrows, which is what forced the
+ * `part as { text?: string }` / `part as { data?: … }` casts this replaces.
+ */
 export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
-  const partType = part.type as string
-  if (!SUBSTANTIVE_ANSWER_PART_TYPES.has(partType)) return false
-  if (partType === 'data-compaction-anchor') return true
-  if (partType === 'text') return !!(part as { text?: string }).text?.trim() || hasVisibleComposerToken(part)
-  return !!(part as { data?: { content?: string } }).data?.content?.trim()
+  switch (part.type) {
+    // Turn-start / agent-session folds sit on a turn boundary, so they read as a
+    // separator and close the process group. An in-loop fold happens BETWEEN
+    // tool calls of one continuous loop — treating it as substantive would split
+    // that loop's group in two, with a rule drawn through the middle. Keep it
+    // inside the group as a status row instead.
+    case 'data-compaction-anchor':
+      return part.data.phase !== 'in-loop'
+    case 'data-conversation-reset':
+      return true
+    case 'text':
+      return !!part.text?.trim() || hasVisibleComposerToken(part)
+    case 'data-code':
+    case 'data-compact':
+    case 'data-translation':
+      return !!part.data?.content?.trim()
+    default:
+      return false
+  }
 }
 
 function isAssociatedResultPart(part: CherryMessagePart): boolean {
-  return ASSOCIATED_RESULT_PART_TYPES.has(part.type as string)
+  return ASSOCIATED_RESULT_PART_TYPES.has(part.type)
 }
 
 export function isReasoningMessagePart(part: CherryMessagePart): boolean {
-  return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
+  return part.type === 'reasoning' && !!part.text?.trim()
 }
 
 export function isResultPart(part: CherryMessagePart): boolean {
@@ -254,13 +300,19 @@ export function isResultPart(part: CherryMessagePart): boolean {
  * {@link projectLiveMessageParts}; this function intentionally performs no
  * streaming-state inference.
  */
-export function projectCompletedMessageParts(entries: readonly PartEntry[]): CompletedMessagePartLayout {
+export function projectCompletedMessageParts(
+  entries: readonly PartEntry[],
+  { keepIntermediateAssistantText = false }: MessagePartLayoutOptions = {}
+): CompletedMessagePartLayout {
   const reportEntries: PartEntry[] = []
+  const forkEntries: PartEntry[] = []
   const contentEntries: PartEntry[] = []
 
   for (let position = 0; position < entries.length; position++) {
     const entry = entries[position]
-    if (isReportToolPart(entry.part)) {
+    if (entry.part.type === 'data-agent-session-fork') {
+      forkEntries.push(entry)
+    } else if (isReportToolPart(entry.part)) {
       reportEntries.push(entry)
     } else if (!isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)) {
       contentEntries.push(entry)
@@ -331,14 +383,15 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   }
 
   const isDirectResult = (entry: PartEntry, position: number) =>
-    isChannelAuthQrPart(entry.part) ||
+    isInlineResultToolPart(entry.part) ||
+    (keepIntermediateAssistantText && entry.part.type === 'text' && isSubstantiveAnswerPart(entry.part)) ||
     (position >= resultStart &&
       position < resultEnd &&
       (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part)))
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),
-    resultEntries: contentEntries.filter(isDirectResult),
+    resultEntries: [...contentEntries.filter(isDirectResult), ...forkEntries],
     reportEntries
   }
 }

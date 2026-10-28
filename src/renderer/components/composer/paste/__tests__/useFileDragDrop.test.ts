@@ -1,10 +1,12 @@
-import { toast } from '@renderer/services/toast'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { act, renderHook } from '@testing-library/react'
 import type { TFunction } from 'i18next'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { anyFileExt } from '@renderer/utils/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { getSingleDroppedPathFromText, useFileDragDrop } from '../useFileDragDrop'
 
@@ -15,11 +17,12 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
 const fileApi = {
   get: vi.fn(),
-  getPathForFile: vi.fn(),
-  isDirectory: vi.fn(),
-  isTextFile: vi.fn()
+  getPathForFile: vi.fn()
 }
 const t = ((key: string) => key) as TFunction
 
@@ -53,8 +56,7 @@ describe('useFileDragDrop', () => {
   beforeEach(() => {
     fileApi.get.mockReset()
     fileApi.getPathForFile.mockReset()
-    fileApi.isDirectory.mockReset()
-    fileApi.isTextFile.mockReset()
+    mocks.request.mockReset()
     vi.mocked(toast.info).mockReset()
     vi.mocked(toast.error).mockReset()
     Object.defineProperty(window, 'api', {
@@ -81,7 +83,7 @@ describe('useFileDragDrop', () => {
     })
     const onTextDropped = vi.fn()
     const onFolderPathDropped = vi.fn()
-    fileApi.isDirectory.mockResolvedValue(false)
+    mocks.request.mockResolvedValue({ kind: 'file' })
     fileApi.get.mockResolvedValue(file)
 
     const { result } = renderHook(() =>
@@ -99,7 +101,7 @@ describe('useFileDragDrop', () => {
       await result.current.handleDrop?.(createDropEvent(path))
     })
 
-    expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path })
     expect(fileApi.get).toHaveBeenCalledWith(path)
     expect(setFiles).toHaveBeenCalledTimes(1)
     expect(files).toEqual([expect.objectContaining({ path, origin_name: 'a.md' })])
@@ -119,7 +121,7 @@ describe('useFileDragDrop', () => {
     const nativeFile = { name: 'finder.md' } as File
     fileApi.getPathForFile.mockReturnValue(path)
     fileApi.get.mockResolvedValue(file)
-    fileApi.isDirectory.mockResolvedValue(false)
+    mocks.request.mockResolvedValue({ kind: 'file' })
 
     const { result } = renderHook(() =>
       useFileDragDrop({
@@ -137,7 +139,7 @@ describe('useFileDragDrop', () => {
     })
 
     expect(fileApi.getPathForFile).toHaveBeenCalledWith(nativeFile)
-    expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path })
     expect(files).toEqual([expect.objectContaining({ path, origin_name: 'finder.md' })])
     expect(onTextDropped).not.toHaveBeenCalled()
     expect(onFolderPathDropped).not.toHaveBeenCalled()
@@ -152,7 +154,7 @@ describe('useFileDragDrop', () => {
     const nativeFile = { name: 'Project Notes' } as File
     fileApi.getPathForFile.mockReturnValue(path)
     fileApi.get.mockResolvedValue(directory)
-    fileApi.isDirectory.mockResolvedValue(true)
+    mocks.request.mockResolvedValue({ kind: 'directory' })
 
     const { result } = renderHook(() =>
       useFileDragDrop({
@@ -170,7 +172,7 @@ describe('useFileDragDrop', () => {
     })
 
     expect(fileApi.getPathForFile).toHaveBeenCalledWith(nativeFile)
-    expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path })
     expect(onFolderPathDropped).toHaveBeenCalledWith(path)
     expect(setFiles).not.toHaveBeenCalled()
     expect(onTextDropped).not.toHaveBeenCalled()
@@ -192,7 +194,9 @@ describe('useFileDragDrop', () => {
     const nativeDirectory = { name: 'Project Notes' } as File
     fileApi.getPathForFile.mockImplementation((item: File) => (item === nativeFile ? filePath : directoryPath))
     fileApi.get.mockImplementation((path: string) => Promise.resolve(path === filePath ? file : directory))
-    fileApi.isDirectory.mockImplementation((path: string) => Promise.resolve(path === directoryPath))
+    mocks.request.mockImplementation((_route: string, handle: { path: string }) =>
+      Promise.resolve({ kind: handle.path === directoryPath ? 'directory' : 'file' })
+    )
 
     const { result } = renderHook(() =>
       useFileDragDrop({
@@ -209,8 +213,8 @@ describe('useFileDragDrop', () => {
       await result.current.handleDrop?.(createDropEvent('/Users/jd/Notes', [nativeFile, nativeDirectory]))
     })
 
-    expect(fileApi.isDirectory).toHaveBeenCalledWith(filePath)
-    expect(fileApi.isDirectory).toHaveBeenCalledWith(directoryPath)
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: filePath })
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: directoryPath })
     expect(onFolderPathDropped).toHaveBeenCalledWith(directoryPath)
     expect(files).toEqual([expect.objectContaining({ path: filePath, origin_name: 'finder.md' })])
     expect(onTextDropped).not.toHaveBeenCalled()
@@ -222,7 +226,7 @@ describe('useFileDragDrop', () => {
     const setFiles = vi.fn()
     const onTextDropped = vi.fn()
     const onFolderPathDropped = vi.fn()
-    fileApi.isDirectory.mockResolvedValue(true)
+    mocks.request.mockResolvedValue({ kind: 'directory' })
 
     const { result } = renderHook(() =>
       useFileDragDrop({
@@ -239,7 +243,7 @@ describe('useFileDragDrop', () => {
       await result.current.handleDrop?.(createDropEvent(path))
     })
 
-    expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path })
     expect(onFolderPathDropped).toHaveBeenCalledWith(path)
     expect(setFiles).not.toHaveBeenCalled()
     expect(onTextDropped).not.toHaveBeenCalled()
@@ -265,54 +269,19 @@ describe('useFileDragDrop', () => {
       await result.current.handleDrop?.(createDropEvent('plain text'))
     })
 
-    expect(fileApi.isDirectory).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalled()
     expect(onTextDropped).toHaveBeenCalledWith('plain text')
     expect(onFolderPathDropped).not.toHaveBeenCalled()
     expect(setFiles).not.toHaveBeenCalled()
   })
 
-  it.each(['/Users/jd/Missing/a.md', '/api/v1/users'])(
-    'keeps missing path-like text as text when the path does not resolve: %s',
-    async (path) => {
-      const setFiles = vi.fn()
-      const onTextDropped = vi.fn()
-      const onFolderPathDropped = vi.fn()
-      fileApi.isDirectory.mockResolvedValue(false)
-      fileApi.get.mockResolvedValue(null)
-
-      const { result } = renderHook(() =>
-        useFileDragDrop({
-          supportedExts: ['.md'],
-          setFiles,
-          onTextDropped,
-          onFolderPathDropped,
-          enabled: true,
-          t
-        })
-      )
-
-      await act(async () => {
-        await result.current.handleDrop?.(createDropEvent(path))
-      })
-
-      expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
-      expect(fileApi.get).toHaveBeenCalledWith(path)
-      expect(onTextDropped).toHaveBeenCalledWith(path)
-      expect(onFolderPathDropped).not.toHaveBeenCalled()
-      expect(setFiles).not.toHaveBeenCalled()
-      expect(toast.info).not.toHaveBeenCalled()
-      expect(toast.error).not.toHaveBeenCalled()
-    }
-  )
-
-  it('shows the unsupported-file toast only after a dropped path resolves to a file', async () => {
-    const path = '/Users/jd/Notes/archive.bin'
+  it('keeps missing URL-like text as text when the path does not resolve', async () => {
+    const path = '/api/v1/users'
     const setFiles = vi.fn()
     const onTextDropped = vi.fn()
     const onFolderPathDropped = vi.fn()
-    fileApi.isDirectory.mockResolvedValue(false)
-    fileApi.get.mockResolvedValue({ ...createFileMetadata(path), ext: '.bin' })
-    fileApi.isTextFile.mockResolvedValue(false)
+    mocks.request.mockResolvedValue({ kind: 'file' })
+    fileApi.get.mockResolvedValue(null)
 
     const { result } = renderHook(() =>
       useFileDragDrop({
@@ -329,12 +298,78 @@ describe('useFileDragDrop', () => {
       await result.current.handleDrop?.(createDropEvent(path))
     })
 
-    expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path })
+    expect(fileApi.get).toHaveBeenCalledWith(path)
+    expect(onTextDropped).toHaveBeenCalledWith(path)
+    expect(onFolderPathDropped).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('shows the unsupported-file toast only after a dropped path resolves to a file', async () => {
+    const path = '/Users/jd/Notes/archive.bin'
+    const setFiles = vi.fn()
+    const onTextDropped = vi.fn()
+    const onFolderPathDropped = vi.fn()
+    mocks.request.mockResolvedValue({ kind: 'file' })
+    fileApi.get.mockResolvedValue({ ...createFileMetadata(path), ext: '.bin' })
+
+    const { result } = renderHook(() =>
+      useFileDragDrop({
+        supportedExts: ['.md'],
+        setFiles,
+        onTextDropped,
+        onFolderPathDropped,
+        enabled: true,
+        t
+      })
+    )
+
+    await act(async () => {
+      await result.current.handleDrop?.(createDropEvent(path))
+    })
+
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path })
     expect(fileApi.get).toHaveBeenCalledWith(path)
     expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
     expect(toast.error).not.toHaveBeenCalled()
     expect(onTextDropped).not.toHaveBeenCalled()
     expect(onFolderPathDropped).not.toHaveBeenCalled()
     expect(setFiles).not.toHaveBeenCalled()
+  })
+
+  it('attaches an unlisted binary format when the surface declares the wildcard', async () => {
+    // The agent composer's shape: it only ever hands the path to the agent, so a
+    // format no modality catalog lists must still attach instead of being refused.
+    const path = '/Users/jd/Models/weights.onnx'
+    const file = { ...createFileMetadata(path), ext: '.onnx' }
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const onTextDropped = vi.fn()
+    const onFolderPathDropped = vi.fn()
+    mocks.request.mockResolvedValue({ kind: 'file', type: FILE_TYPE.OTHER })
+    fileApi.get.mockResolvedValue(file)
+
+    const { result } = renderHook(() =>
+      useFileDragDrop({
+        supportedExts: ['.md', anyFileExt],
+        setFiles,
+        onTextDropped,
+        onFolderPathDropped,
+        enabled: true,
+        t
+      })
+    )
+
+    await act(async () => {
+      await result.current.handleDrop?.(createDropEvent(path))
+    })
+
+    expect(files).toEqual([expect.objectContaining({ path, origin_name: 'weights.onnx' })])
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(onTextDropped).not.toHaveBeenCalled()
   })
 })

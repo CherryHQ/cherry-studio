@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildNodeProxyEnvironment, getProxyEnvironment, getProxyProtocol } from '../proxyEnv'
+import { buildNodeProxyEnvironment, getProxyEnvironment, getProxyProtocol, proxyUrlHasCredentials } from '../proxyEnv'
 
 describe('proxyEnv', () => {
   it('exports standard HTTP proxy env vars for http proxies', () => {
@@ -64,5 +64,15 @@ describe('proxyEnv', () => {
       HTTP_PROXY: 'http://127.0.0.1:7890',
       NO_PROXY: 'localhost'
     })
+  })
+
+  it.each([
+    ['http://user:password@proxy.example:8080', true],
+    ['socks5://user:password@proxy.example:1080', true],
+    ['http://proxy.example:8080', false],
+    ['not a proxy url', false],
+    [undefined, false]
+  ])('detects embedded proxy credentials in %s', (proxyUrl, expected) => {
+    expect(proxyUrlHasCredentials(proxyUrl)).toBe(expected)
   })
 })

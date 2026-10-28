@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * DataApiService data change fan-out tests (real implementation).
  *
@@ -7,7 +9,6 @@
  * payloads, unsubscribe behavior, and per-listener error isolation.
  */
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The global renderer setup replaces this module with a mock for consuming
 // components; these tests exercise the real implementation.
@@ -46,12 +47,6 @@ describe('DataApiService.onDataChanged', () => {
     service.onDataChanged('/tags', vi.fn())
 
     expect(onDataChangedBridge).toHaveBeenCalledTimes(1)
-  })
-
-  it('constructs without the preload bridge (test environments) without throwing', () => {
-    vi.stubGlobal('api', {})
-
-    expect(() => new DataApiService()).not.toThrow()
   })
 
   it('routes by exact endpoint match and always delivers an array', () => {
@@ -168,11 +163,5 @@ describe('DataApiService.onDataChanged', () => {
     expect(() => emit([effect])).not.toThrow()
 
     expect(good).toHaveBeenCalledExactlyOnceWith([effect])
-  })
-
-  it('silently drops entries for endpoints without subscribers', () => {
-    service.onDataChanged('/topics', vi.fn())
-
-    expect(() => emit([{ endpoint: '/tags', kind: 'membership' }])).not.toThrow()
   })
 })

@@ -1,7 +1,9 @@
+import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
+import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
+
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { DataApiError } from '@shared/data/api/errors'
-import type { ErrorHandler } from 'elysia'
 
 import type { OutputFormat } from './adapters'
 
@@ -30,6 +32,20 @@ const openaiEnvelope = (type: string, message: string, code: string) => ({ error
 /** Cherry REST envelope — mirrors the v2 `DataApiError` vocabulary. */
 const restEnvelope = (code: string, message: string, details?: Record<string, unknown>) => ({
   error: { code, message, ...(details ? { details } : {}) }
+})
+
+/**
+ * JSON-RPC 2.0 error envelope for the MCP proxy. Not typed as the SDK's
+ * `JSONRPCErrorResponse`: that type declares `id?: string | number`, while the SDK's own
+ * Streamable HTTP transport writes `id: null` for errors with no request to attribute
+ * them to. The wire shape a client sees is what has to match, so it wins over the type.
+ */
+export const MCP_TRANSPORT_ERROR = -32000
+
+export const jsonRpcEnvelope = (code: ProtocolErrorCode | typeof MCP_TRANSPORT_ERROR, message: string) => ({
+  jsonrpc: JSONRPC_VERSION,
+  error: { code, message },
+  id: null
 })
 
 /** Google (Gemini) dialect envelope: `{ error: { code, message, status } }`. */
@@ -62,16 +78,24 @@ function googleStatusName(status: number): string {
 }
 
 /**
- * Best-effort `{ status, message, type }` from any thrown value — a real `Error`,
+ * Best-effort `{ status, message, type, name, code }` from any thrown value — a real `Error`,
  * an OpenAI / AI-SDK error, or a `SerializedError` plain object (carrying
  * `statusCode` / `message`, as produced by `AiStreamManager.onError` and thrown by
- * `processMessage`). Reads only status/message/type; the AI-SDK `APICallError`
+ * `processMessage`). Reads only status/message/type/name/code; the AI-SDK `APICallError`
  * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
  * are intentionally ignored so they never reach the client.
  */
-function extractError(error: unknown): { status?: number; message?: string; type?: string } {
+function extractError(error: unknown): {
+  status?: number
+  message?: string
+  type?: string
+  name?: string
+  code?: string
+} {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
+    name?: unknown
+    code?: unknown
     status?: unknown
     statusCode?: unknown
     message?: unknown
@@ -83,7 +107,9 @@ function extractError(error: unknown): { status?: number; message?: string; type
   const message =
     typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
-  return { status, message, type }
+  const name = typeof e.name === 'string' ? e.name : undefined
+  const code = typeof e.code === 'string' ? e.code : undefined
+  return { status, message, type, name, code }
 }
 
 /**
@@ -97,6 +123,24 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   const fallback = 'Internal server error'
   if (status !== undefined) return message && message.length > 0 ? message : fallback
   return isDev && message && message.length > 0 ? message : fallback
+}
+
+function normalizeProviderError(error: unknown): { statusCode: number; message: string; type?: string } {
+  const { status, message, type, name, code } = extractError(error)
+  if (status !== undefined)
+    return { statusCode: status >= 200 && status < 300 ? 502 : status, message: safeMessage(status, message), type }
+  if (
+    name === 'TimeoutError' ||
+    message === 'Upstream idle timeout exceeded' ||
+    message === 'Stream idle timeout exceeded' ||
+    message === 'Idle timeout exceeded'
+  ) {
+    return { statusCode: 504, message: 'Upstream request timed out', type }
+  }
+  if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
+    return { statusCode: 504, message: 'Upstream stream aborted', type }
+  }
+  return { statusCode: 500, message: safeMessage(undefined, message), type }
 }
 
 /** Anthropic error `type` for a status (the Anthropic vocabulary uses `api_error` for 5xx). */
@@ -118,8 +162,7 @@ function transformAnthropicError(error: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { status, message, type } = extractError(error)
-  const statusCode = status ?? 500
+  const { statusCode, message, type } = normalizeProviderError(error)
   const errorType = type ?? anthropicTypeForStatus(statusCode)
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
@@ -127,7 +170,7 @@ function transformAnthropicError(error: unknown): {
       : undefined
   return {
     statusCode,
-    errorResponse: { type: 'error', error: { type: errorType, message: safeMessage(status, message), requestId } }
+    errorResponse: { type: 'error', error: { type: errorType, message, requestId } }
   }
 }
 
@@ -151,10 +194,9 @@ function transformOpenAiError(error: unknown): {
   statusCode: number
   errorResponse: { error: { message: string; type: string; code: string } }
 } {
-  const { status, message } = extractError(error)
-  const statusCode = status ?? 500
+  const { statusCode, message } = normalizeProviderError(error)
   const { type, code } = openaiTypeAndCodeForStatus(statusCode)
-  return { statusCode, errorResponse: { error: { message: safeMessage(status, message), type, code } } }
+  return { statusCode, errorResponse: { error: { message, type, code } } }
 }
 
 /**
@@ -167,9 +209,8 @@ function transformGoogleError(error: unknown): {
   statusCode: number
   errorResponse: { error: { code: number; message: string; status: string } }
 } {
-  const { status, message } = extractError(error)
-  const statusCode = status ?? 500
-  return { statusCode, errorResponse: googleEnvelope(statusCode, safeMessage(status, message)) }
+  const { statusCode, message } = normalizeProviderError(error)
+  return { statusCode, errorResponse: googleEnvelope(statusCode, message) }
 }
 
 /**
@@ -278,7 +319,7 @@ export function googleErrorHandler({ code, error, status }: GatewayErrorContext)
  * Cherry REST error handler — for Cherry's own endpoints (`knowledge-bases`,
  * `models`) and the app-level fallback (`/health`, `/`, unmatched routes). Speaks
  * the same `{ error: { code, message, details? } }` vocabulary as the v2 data
- * layer (`ErrorCode` / `ERROR_STATUS_MAP`), so there is no provider delegate.
+ * layer (`ProtocolErrorCode` / `ERROR_STATUS_MAP`), so there is no provider delegate.
  */
 export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (error instanceof DataApiError) {
@@ -302,8 +343,41 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   )
 }
 
+/**
+ * MCP proxy dialect (`POST /v1/mcps/:id/mcp`). The peer is an MCP transport, not a REST
+ * client, so a framework-level failure it never reaches the route for — a body Elysia
+ * could not parse, an unknown server id — must still arrive as JSON-RPC.
+ *
+ * `MCP_TRANSPORT_ERROR` for the resource failures: `ProtocolErrorCode` names -32000
+ * `ConnectionClosed`, which is not what happened, and it is the code both the SDK's
+ * transport and this route's 403/405 responders already use for a transport-level refusal.
+ */
+function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
+  if (code === 'PARSE') {
+    return status(400, jsonRpcEnvelope(ProtocolErrorCode.ParseError, 'Parse error'))
+  }
+  if (code === 'VALIDATION') {
+    return status(400, jsonRpcEnvelope(ProtocolErrorCode.InvalidRequest, messageOf(error, 'Invalid Request')))
+  }
+  if (code === 'NOT_FOUND') {
+    return status(404, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Not found'))
+  }
+  if (error instanceof DataApiError) {
+    return status(error.status, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, error.message))
+  }
+
+  logger.error('API gateway request error', { code, error })
+  return status(
+    500,
+    jsonRpcEnvelope(ProtocolErrorCode.InternalError, isDev ? messageOf(error, 'Internal error') : 'Internal error')
+  )
+}
+
+/** Only the JSON-RPC proxy leaf speaks MCP; `/v1/mcps` and `/v1/mcps/:id` stay REST. */
+const MCP_PROXY_PATH = /^\/v1\/mcps\/[^/]+\/mcp$/
+
 /** Select the response dialect from the request path. */
-function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'rest' {
+function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'mcp' | 'rest' {
   let pathname = ''
   try {
     pathname = new URL(request.url).pathname
@@ -313,6 +387,7 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
   if (pathname.startsWith('/v1beta')) return 'google'
+  if (MCP_PROXY_PATH.test(pathname)) return 'mcp'
   return 'rest'
 }
 
@@ -323,6 +398,10 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
  * per-group handler would be shadowed by this fallback.
  */
 export function gatewayErrorHandler(ctx: GatewayErrorContext) {
+  // Elysia wraps parser exceptions, including explicit HTTP responses, in ParseError.
+  if (ctx.code === 'PARSE' && ctx.error.cause instanceof ElysiaCustomStatusResponse) {
+    return ctx.error.cause
+  }
   switch (dialectForPath(ctx.request)) {
     case 'anthropic':
       return anthropicErrorHandler(ctx)
@@ -330,6 +409,8 @@ export function gatewayErrorHandler(ctx: GatewayErrorContext) {
       return openaiErrorHandler(ctx)
     case 'google':
       return googleErrorHandler(ctx)
+    case 'mcp':
+      return mcpErrorHandler(ctx)
     default:
       return restErrorHandler(ctx)
   }

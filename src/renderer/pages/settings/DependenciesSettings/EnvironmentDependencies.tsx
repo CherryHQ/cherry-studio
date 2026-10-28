@@ -1,3 +1,24 @@
+import { Icon } from '@iconify/react'
+import { useNavigate } from '@tanstack/react-router'
+import {
+  ArrowBigUp,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  FolderOpen,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Settings2,
+  Terminal,
+  Trash2,
+  TriangleAlert
+} from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -20,8 +41,8 @@ import {
   SelectDropdown
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
 import {
   BinaryInstallErrorDialog,
   BinaryInstallFailureRow,
@@ -30,11 +51,14 @@ import {
 } from '@renderer/components/BinaryInstallErrorDialog'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { BinaryInstallSettings, CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
+  BABELDOC_MINIMUM_VERSION,
+  BABELDOC_TOOL_NAME,
   BINARY_INSTALL_PREFERENCE_KEY,
   type BinaryToolPreset,
   isRuntimeDependency,
@@ -49,25 +73,6 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import { useNavigate } from '@tanstack/react-router'
-import {
-  ArrowBigUp,
-  Download,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  FolderOpen,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Settings2,
-  Terminal,
-  Trash2,
-  TriangleAlert
-} from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   GITHUB_MIRROR_PRESETS,
@@ -80,7 +85,24 @@ const logger = loggerService.withContext('EnvironmentDependencies')
 
 type CleanupBlockedResult = Extract<BinaryRemoveResult, { status: 'cleanup_blocked' }>
 
-const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
+// A first install asks for the exact version rather than letting main resolve
+// `latest`: that resolves against whichever PyPI mirror answers, and a lagging
+// one hands back a build Cherry's BabelDOC progress parser predates — which the
+// next availability check flags as outdated, costing a second full download.
+// Explicit updates still target latest.
+const FRESH_INSTALL_VERSIONS: Record<string, string> = { [BABELDOC_TOOL_NAME]: BABELDOC_MINIMUM_VERSION }
+
+// Tools whose brand mark isn't in an icon font (iconify) ship a bundled image instead, keyed by
+// preset name. Lives here rather than on the shared preset, which must not import renderer assets.
+const TOOL_IMAGE_ICONS: Record<string, string> = {
+  'babeldoc-stream': babeldocIcon
+}
+
+const ToolIcon: FC<{ name?: string; icon?: string; className?: string }> = ({ name, icon, className }) => {
+  const imageSrc = name ? TOOL_IMAGE_ICONS[name] : undefined
+  if (imageSrc) {
+    return <img src={imageSrc} alt="" className={cn('size-5 rounded-[5px]', className)} />
+  }
   if (icon) {
     return <Icon icon={icon} className={cn('size-5', className)} />
   }
@@ -133,18 +155,27 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
-  const refreshState = useCallback(async () => {
+  const refreshState = useCallback(async (propagateError = false): Promise<boolean> => {
     const requestId = ++resolutionRequestIdRef.current
     try {
       const nextSnapshots = await ipcApi.request(
         'binary.get_tool_snapshots',
         PRESETS_BINARY_TOOLS.map((tool) => tool.name)
       )
-      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
+      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return false
       setSnapshots(nextSnapshots)
       setResolutionsReady(true)
+      const queryFailure = Object.values(nextSnapshots).find(
+        (snapshot) => snapshot.application?.status === 'unknown' && snapshot.application.reason === 'query_failed'
+      )?.application
+      if (propagateError && queryFailure?.status === 'unknown') {
+        throw new Error(queryFailure.message ?? queryFailure.reason)
+      }
+      return true
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
+      if (propagateError) throw error
+      return false
     }
   }, [])
 
@@ -153,23 +184,30 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
       try {
-        const versions = await ipcApi.request('binary.get_latest_versions', force)
+        const [versionsResult, stateResult] = await Promise.allSettled([
+          ipcApi.request('binary.get_latest_versions', force),
+          force ? refreshState(true) : Promise.resolve(true)
+        ])
+        if (versionsResult.status === 'rejected') throw versionsResult.reason
+        if (stateResult.status === 'rejected') throw stateResult.reason
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
-          setLatestVersions(versions)
+          setLatestVersions(versionsResult.value)
           // Only the manual refresh (force) gets a toast — the background check on
           // mount must stay silent.
-          if (force) toast.success(t('settings.dependencies.updateCheckSuccess'))
+          if (force && stateResult.value) toast.success(t('settings.dependencies.updateCheckSuccess'))
         }
-        return versions
+        return versionsResult.value
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
-        if (force) toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
+          toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        }
         return null
       } finally {
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
       }
     },
-    [t]
+    [refreshState, t]
   )
 
   useEffect(() => {
@@ -184,7 +222,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }, [fetchLatestVersions, mini])
 
   useIpcOn('binary.availability_changed', () => {
+    latestRequestIdRef.current++
     setLatestVersions(null)
+    setCheckingUpdates(false)
     void refreshState()
   })
 
@@ -322,12 +362,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     <div className="flex flex-col gap-5">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
-          <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
+          <h1 className="text-[15px] leading-6 font-semibold text-foreground">{t('settings.dependencies.title')}</h1>
+          <span className="text-xs text-foreground-tertiary">{totalCount}</span>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-foreground-muted hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => void fetchLatestVersions(true)}
             disabled={checkingUpdates}
             aria-label={t('settings.dependencies.checkUpdates')}
@@ -341,7 +381,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-foreground-muted hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => setShowInstallSettings(true)}
             aria-label={t('settings.dependencies.installSettings.title')}
             title={t('settings.dependencies.installSettings.title')}>
@@ -352,7 +392,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             {t('settings.dependencies.addTool')}
           </Button>
         </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('settings.dependencies.description')}</p>
       </div>
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -383,7 +423,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               onInstall={() =>
                 installTool(
                   tool.name,
-                  snapshot?.operation?.status === 'failed' ? snapshot.operation.targetVersion : undefined
+                  snapshot?.operation?.status === 'failed'
+                    ? snapshot.operation.targetVersion
+                    : FRESH_INSTALL_VERSIONS[tool.name]
                 )
               }
               onUpdate={() => installTool(tool.name, latestVersion ?? 'latest')}
@@ -534,7 +576,7 @@ const BinaryToolPresetCard: FC<{
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -543,13 +585,13 @@ const BinaryToolPresetCard: FC<{
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
               present ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
             )}>
-            <ToolIcon icon={tool.icon} />
+            <ToolIcon name={tool.name} icon={tool.icon} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-foreground text-sm leading-5">{tool.displayName}</span>
+              <span className="text-sm leading-5 text-foreground">{tool.displayName}</span>
               {tool.displayName !== tool.name && (
-                <span className="text-muted-foreground/60 text-xs">({tool.name})</span>
+                <span className="text-xs text-foreground-tertiary">({tool.name})</span>
               )}
             </div>
             {present && (
@@ -562,7 +604,7 @@ const BinaryToolPresetCard: FC<{
                 {latestVersion && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] leading-4 text-success-subtle-foreground">
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
@@ -587,7 +629,7 @@ const BinaryToolPresetCard: FC<{
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="text-foreground-muted hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={onUpdate}
                 disabled={busy}
                 aria-label={t('settings.dependencies.update')}
@@ -598,7 +640,7 @@ const BinaryToolPresetCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground-muted hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
               onClick={onRemove}
               disabled={busy}
               aria-label={t('settings.dependencies.uninstall')}
@@ -609,23 +651,23 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={description}>
+      <p className="mt-2.5 line-clamp-2 text-xs leading-4 text-muted-foreground" title={description}>
         {description}
       </p>
 
       <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-foreground-muted transition-colors hover:text-foreground"
-          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
+          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => void openExternalWebsite(tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
         {tool.homepage && (
           <button
             type="button"
-            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-foreground-muted transition-colors hover:text-foreground"
-            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
+            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            onClick={() => void openExternalWebsite(tool.homepage!)}>
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
@@ -636,7 +678,7 @@ const BinaryToolPresetCard: FC<{
             onClick={onOpenPath}
             aria-label={t('settings.dependencies.openBinariesDir')}
             title={t('settings.dependencies.openBinariesDir')}
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-foreground-muted transition-colors hover:text-foreground">
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
         )}
@@ -647,7 +689,7 @@ const BinaryToolPresetCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
+        <div className="mt-3 border-t border-border pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -720,7 +762,7 @@ const CustomToolCard: FC<{
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -732,8 +774,8 @@ const CustomToolCard: FC<{
             <ToolIcon />
           </div>
           <div className="min-w-0">
-            <span className="text-foreground text-sm leading-5">{tool.name}</span>
-            <div className="mt-0.5 text-muted-foreground text-xs">{toolSpec}</div>
+            <span className="text-sm leading-5 text-foreground">{tool.name}</span>
+            <div className="mt-0.5 text-xs text-muted-foreground">{toolSpec}</div>
             {installed && (
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 {installedVersion && (
@@ -757,7 +799,7 @@ const CustomToolCard: FC<{
                 {latestVersion && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] leading-4 text-success-subtle-foreground">
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
@@ -771,7 +813,7 @@ const CustomToolCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground-muted hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground"
               onClick={onUpdate}
               disabled={busy}
               aria-label={t('settings.dependencies.update')}
@@ -783,7 +825,7 @@ const CustomToolCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground-muted hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground"
               onClick={onOpenPath}
               aria-label={t('settings.dependencies.openBinariesDir')}
               title={t('common.open')}>
@@ -793,7 +835,7 @@ const CustomToolCard: FC<{
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-foreground-muted hover:text-destructive"
+            className="text-muted-foreground hover:text-destructive"
             aria-label={t('settings.dependencies.remove')}
             title={t('settings.dependencies.remove')}
             onClick={onRemove}
@@ -808,7 +850,7 @@ const CustomToolCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
+        <div className="mt-3 border-t border-border pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -934,12 +976,13 @@ function AddToolDialog({
         <div className="flex flex-col gap-3 py-2">
           <div className="relative">
             <Input
+              autoFocus
               placeholder={t('settings.dependencies.searchRegistry')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             {searching && (
-              <Loader2 className="-translate-y-1/2 absolute top-1/2 right-3 size-3.5 text-muted-foreground motion-safe:animate-spin" />
+              <Loader2 className="absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-muted-foreground motion-safe:animate-spin" />
             )}
             {results.length > 0 && (
               <div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-md">
@@ -950,19 +993,19 @@ function AddToolDialog({
                     className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
                     onClick={() => selectResult(r)}>
                     <span className="font-medium">{r.name}</span>
-                    <span className="text-muted-foreground text-xs">{r.tool}</span>
+                    <span className="text-xs text-muted-foreground">{r.tool}</span>
                   </button>
                 ))}
               </div>
             )}
-            {searchError && <p className="mt-1 text-destructive text-xs">{t('settings.dependencies.searchFailed')}</p>}
+            {searchError && <p className="mt-1 text-xs text-destructive">{t('settings.dependencies.searchFailed')}</p>}
           </div>
 
           {selectedName && (
             <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
               <Terminal className="size-4 text-muted-foreground" />
               <span className="text-sm">{selectedName}</span>
-              <span className="text-muted-foreground text-xs">{selectedTool}</span>
+              <span className="text-xs text-muted-foreground">{selectedTool}</span>
             </div>
           )}
 
@@ -1003,9 +1046,10 @@ const UrlPresetField: FC<{
   presetLabel: string
   value: string
   presets: readonly InstallSettingPreset[]
+  autoFocus?: boolean
   onChange: (value: string) => void
   onCommit: (value: string) => void
-}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange, onCommit }) => {
+}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, autoFocus, onChange, onCommit }) => {
   const { t } = useTranslation()
   const inputId = useId()
   const descriptionId = useId()
@@ -1024,6 +1068,7 @@ const UrlPresetField: FC<{
       <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
       <div className="flex items-center gap-2">
         <Input
+          autoFocus={autoFocus}
           id={inputId}
           value={value}
           placeholder={placeholder}
@@ -1046,8 +1091,8 @@ const UrlPresetField: FC<{
             renderSelected={() => null}
             renderItem={(item) => (
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-foreground text-sm">{item.label}</span>
-                {item.url && <span className="break-all text-muted-foreground text-xs">{item.url}</span>}
+                <span className="truncate text-sm text-foreground">{item.label}</span>
+                {item.url && <span className="text-xs break-all text-muted-foreground">{item.url}</span>}
               </div>
             )}
           />
@@ -1130,6 +1175,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
           <UrlPresetField
+            autoFocus
             label={t('settings.dependencies.installSettings.githubMirror.label')}
             description={t('settings.dependencies.installSettings.githubMirror.help')}
             invalidHint={t('settings.dependencies.installSettings.invalidUrl')}

@@ -13,24 +13,17 @@ import { DEFAULT_COST_CURRENCY, parseDateKey, startOfLocalDay, toDateKey } from 
 export const WINDOW_KEYS = ['30d', '90d', '365d'] as const
 export const GROUP_BY_KEYS = ['provider', 'model', 'apiKey', 'source'] as const
 export const METRIC_KEYS = ['tokens', 'requests', 'cost'] as const
-export const CHART_TYPE_KEYS = ['stack', 'pie', 'bar', 'line'] as const
+export const CHART_TYPE_KEYS = ['bar', 'line', 'pie'] as const
 export const ROLLUP_KEYS = ['total', 'daily', 'weekly', 'monthly'] as const
+export const TREND_ROLLUP_KEYS = ['daily', 'weekly', 'monthly'] as const
 export const TOP_COUNT_KEYS = [5, 10, 20] as const
-export const TOTAL_CHART_TYPES = ['stack', 'pie'] as const
-export const PERIOD_CHART_TYPES = ['bar', 'line'] as const
-export const CHART_COLORS = [
-  'var(--chart-1)',
-  'var(--chart-2)',
-  'var(--chart-3)',
-  'var(--chart-4)',
-  'var(--chart-5)'
-] as const
 
 export type WindowKey = (typeof WINDOW_KEYS)[number]
 export type GroupByKey = (typeof GROUP_BY_KEYS)[number]
 export type UsageMetricKey = (typeof METRIC_KEYS)[number]
 export type UsageChartType = (typeof CHART_TYPE_KEYS)[number]
 export type UsageRollupKey = (typeof ROLLUP_KEYS)[number]
+export type UsageTopCount = (typeof TOP_COUNT_KEYS)[number]
 
 export const EMPTY_TIMELINE_BUCKETS: AiUsageRecordTimelineBucket[] = []
 export const EMPTY_STATS_METRICS: AiUsageRecordStatsMetrics = {
@@ -79,7 +72,6 @@ export const METRIC_LABEL_KEYS: Record<UsageMetricKey, string> = {
 }
 
 export const CHART_TYPE_LABEL_KEYS: Record<UsageChartType, string> = {
-  stack: 'settings.usage.chart.stack',
   bar: 'settings.usage.chart.bar',
   line: 'settings.usage.chart.line',
   pie: 'settings.usage.chart.pie'
@@ -134,14 +126,6 @@ export function getPreviousWindowRange(windowKey: WindowKey): BoundedTimeRange {
   return {
     from: startOfLocalDay(previousFrom).getTime(),
     to: endOfLocalDay(previousTo).getTime()
-  }
-}
-
-export function rangeFromDateKey(value: string): BoundedTimeRange {
-  const date = parseDateKey(value)
-  return {
-    from: startOfLocalDay(date).getTime(),
-    to: endOfLocalDay(date).getTime()
   }
 }
 

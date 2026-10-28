@@ -15,36 +15,28 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
+import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import {
   type ImageGenerationMode,
   type ImageGenerationSupport,
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
-import * as z from 'zod'
 
-import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'
+import { type GenerateImageToolInput, editInputImageLimit, limitGenerateImageInputIds } from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
-export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit an image using the user's configured painting model.
-
-Use this when:
-- The user asks you to draw, paint, illustrate, or generate an image, picture, logo, or icon.
-- The user asks you to modify a previously generated image and provides its FileEntry id.
-
-Notes:
-- Describe the desired image or edit vividly in the prompt.
-- Pass image_ids only when editing or using existing images as references.
-- Generation can take 10-60 seconds.
-- Requires a painting model configured in Settings > Default Model. If none is set this returns a
-  configuration note — tell the user instead of retrying.`
+export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit an image with the user's painting model. Pass image_ids only for edits; needs a configured model.`
 
 /**
  * A failed generation must be distinguishable from "ran fine, produced files":
@@ -103,6 +95,13 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   if (!uniqueModelId) return null
 
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  try {
+    modelService.getByKey(providerId, modelId)
+  } catch (error) {
+    if (isDataApiNotFoundError(error)) return null
+    throw error
+  }
+
   return {
     uniqueModelId,
     support: providerRegistryService.getImageGenerationSupport(providerId, modelId)
@@ -141,8 +140,11 @@ function extractParamValues(
   return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
 }
 
-async function resolveInputImages(imageIds: readonly string[]): Promise<string[]> {
-  const ids = limitGenerateImageInputIds(imageIds)
+async function resolveInputImages(
+  imageIds: readonly string[],
+  support: ConfiguredPaintingModel['support']
+): Promise<string[]> {
+  const ids = limitGenerateImageInputIds(imageIds, editInputImageLimit(support))
   return Promise.all(
     ids.map(async (id) => {
       const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
@@ -168,7 +170,7 @@ export async function generateImageFromPrompt(
   let inputImages: string[] | undefined
   if (mode === 'edit') {
     try {
-      inputImages = await resolveInputImages(input.image_ids ?? [])
+      inputImages = await resolveInputImages(input.image_ids ?? [], support)
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Failed to resolve generate_image input images', { error })
@@ -183,6 +185,13 @@ export async function generateImageFromPrompt(
       mode,
       ...(inputImages && { inputImages }),
       paramValues: extractParamValues(input, support, mode),
+      // `manual` (confirmed no ref backing): this builtin tool's output only lives
+      // in the tool-call part's text result — it is never emitted as a `file` part,
+      // so `extractChatMessageFileEntryIds` skips it and none of the *_file_ref
+      // tables register it. Auto-reclaiming it would unrecoverably delete images
+      // still shown in chat history. Tracked in #17169: once the output is
+      // registered as a chat_message ref upstream, flip to 'delete_when_unreferenced'.
+      cleanupPolicy: 'manual',
       requestOptions: signal ? { signal } : undefined
     })
     return files.map((file) => ({ id: file.id, name: file.name }))

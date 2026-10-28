@@ -1,0 +1,1 @@
+{"level":"error","message":"Migration failed while linking skills","stack":"Error: EPERM: operation not permitted, symlink 'C:/Users/u/skills' -> 'C:/app/skills'","timestamp":"2026-08-20 10:00:00"}

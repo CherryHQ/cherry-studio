@@ -5,7 +5,13 @@ export {
   useAssistantMutationsById,
   useImportAssistantMutation
 } from './assistantAdapter'
-export { promptAdapter, usePromptMutations, usePromptMutationsById } from './promptAdapter'
+export {
+  promptAdapter,
+  usePromptBindingMutations,
+  usePromptMutations,
+  usePromptMutationsById,
+  usePromptTargetMutations
+} from './promptAdapter'
 export { skillAdapter, useSkillMutationsById } from './skillAdapter'
 export type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 export { useResourceCatalogController } from './useResourceCatalogController'

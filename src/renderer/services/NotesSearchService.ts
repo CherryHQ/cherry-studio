@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import type { NotesTreeNode } from '@renderer/types/note'
 
 const logger = loggerService.withContext('NotesSearchService')
@@ -113,6 +114,13 @@ export async function searchFileContent(
 
       let match: RegExpExecArray | null
       while ((match = pattern.exec(line)) !== null) {
+        // `exec` does not advance lastIndex on a zero-width match, so a pattern
+        // such as `.*` or `^` would fill the result list with the same empty hit
+        // and stop the file from being searched further.
+        if (match[0].length === 0) {
+          pattern.lastIndex = match.index + 1
+          continue
+        }
         const matchStart = match.index
         const matchEnd = matchStart + match[0].length
 
@@ -168,27 +176,6 @@ export function matchFileName(node: NotesTreeNode, keyword: string, caseSensitiv
   const name = caseSensitive ? node.name : node.name.toLowerCase()
   const key = caseSensitive ? keyword : keyword.toLowerCase()
   return name.includes(key)
-}
-
-/**
- * Flatten tree to extract file nodes
- */
-export function flattenTreeToFiles(nodes: NotesTreeNode[]): NotesTreeNode[] {
-  const result: NotesTreeNode[] = []
-
-  function traverse(nodes: NotesTreeNode[]) {
-    for (const node of nodes) {
-      if (node.type === 'file') {
-        result.push(node)
-      }
-      if (node.children && node.children.length > 0) {
-        traverse(node.children)
-      }
-    }
-  }
-
-  traverse(nodes)
-  return result
 }
 
 /**

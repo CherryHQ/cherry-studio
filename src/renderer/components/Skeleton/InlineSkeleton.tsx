@@ -1,5 +1,6 @@
-import { Skeleton } from '@cherrystudio/ui'
 import type { FC } from 'react'
+
+import { Skeleton } from '@cherrystudio/ui'
 
 export interface SkeletonSpanProps {
   width?: string

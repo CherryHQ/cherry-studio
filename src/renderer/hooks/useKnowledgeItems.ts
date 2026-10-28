@@ -1,7 +1,9 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemListResponse, KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
 import {
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
   type KnowledgeAddConflictStrategy,
@@ -10,7 +12,6 @@ import {
   type KnowledgeItem,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
 
@@ -56,7 +57,11 @@ const refreshKnowledgeItemsCaches = async (
   }
 }
 
-export const useKnowledgeItems = (baseId: string, groupId: string | null = null) => {
+export const useKnowledgeItems = (
+  baseId: string,
+  groupId: string | null = null,
+  sort: KnowledgeItemSort | null = null
+) => {
   // Without this, polling revalidates only page 0 (SWR's `revalidateFirstPage` default), and a
   // pure status flip never changes the keyset cursors, so later pages keep their key — a
   // non-terminal row on page ≥2 would stay stale forever AND keep `hasNonTerminalItem` true,
@@ -68,7 +73,12 @@ export const useKnowledgeItems = (baseId: string, groupId: string | null = null)
 
   // `null` lists the base's top-level items; a directory item's id lists that directory's
   // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
-  const query = useMemo(() => ({ groupId }), [groupId])
+  const sortBy = sort?.sortBy
+  const sortOrder = sort?.sortOrder
+  const query = useMemo(
+    () => ({ groupId, ...(sortBy && sortOrder ? { sortBy, sortOrder } : {}) }),
+    [groupId, sortBy, sortOrder]
+  )
 
   const { pages, isLoading, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases/:id/items', {
     params: { id: baseId },
@@ -78,6 +88,7 @@ export const useKnowledgeItems = (baseId: string, groupId: string | null = null)
     swrOptions: {
       refreshInterval: (pages?: KnowledgeItemListResponse[]) =>
         hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0,
+      keepPreviousData: false,
       revalidateAll: revalidateAllPages
     }
   })
@@ -125,7 +136,7 @@ export const useKnowledgeItems = (baseId: string, groupId: string | null = null)
   useEffect(() => {
     setIsLoadingMore(false)
     loadStartPagesRef.current = 0
-  }, [baseId, groupId])
+  }, [baseId, groupId, sortBy, sortOrder])
 
   return {
     items,

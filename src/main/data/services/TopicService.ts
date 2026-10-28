@@ -2,7 +2,12 @@
 
 import { randomBytes } from 'node:crypto'
 
+import type { SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -17,14 +22,15 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   DuplicateTopicDto,
+  LatestTopicQuery,
   ListTopicsQuery,
+  MoveTopicDto,
+  ReusableTopicPlaceholderResponse,
+  ReuseOrCreateTopicDto,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
-import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
@@ -55,8 +61,10 @@ function rowToTopic(row: TopicRow): Topic {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    updatedAt: timestampToISO(row.updatedAt),
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined
   }
 }
 
@@ -113,6 +121,38 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  notifyReadModelChange(
+    topicIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: { deleted?: boolean } = {}
+  ): void {
+    if (topicIds.length === 0) return
+    const entityIds = [...new Set(topicIds)]
+    // A terminal single delete scopes its by-id effect to that exact id; batches keep
+    // one broadcast-wide entry per the shared data-change contract (batch = one entry,
+    // and one entry can carry only one routeParams).
+    const byIdEffects: DataApiDataChangeEffect[] =
+      options.deleted && entityIds.length === 1
+        ? [{ endpoint: '/topics/:id', routeParams: { id: entityIds[0] }, entityIds }]
+        : [{ endpoint: '/topics/:id', entityIds }]
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind, entityIds },
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      ...byIdEffects,
+      { endpoint: '/topics/latest' }
+    ])
+  }
+
+  notifyPurged(topicIds: readonly string[]): void {
+    if (topicIds.length === 0) return
+    this.notifyReadModelChange(topicIds, 'membership')
+    notifyDataApiDataChange([
+      { endpoint: '/topics/:topicId/messages', kind: 'membership' },
+      { endpoint: '/topics/:topicId/tree' },
+      { endpoint: '/messages/:id' }
+    ])
+  }
+
   getById(id: string): Topic {
     const db = application.get('DbService').getDb()
 
@@ -131,27 +171,89 @@ export class TopicService {
   }
 
   /**
-   * The single most-recently-updated non-deleted topic across all assistants, or
+   * The single most-recently-active non-deleted topic across all assistants, or
    * `null` when the library is empty.
    *
    * First-entry restore resumes the last-touched conversation. It cannot read the
    * regular first page of `listByCursor` for this: that page is pinned-first then
-   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-updated
-   * topic is not guaranteed to be on it. This `updatedAt DESC LIMIT 1` proves global
+   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-active
+   * topic is not guaranteed to be on it. This `lastActivityAt DESC LIMIT 1` proves global
    * latest independent of how the rail happens to page.
+   *
+   * An optional `assistantId` narrows the scan to one assistant's topics — used by
+   * per-assistant sidebar entries to resume that assistant's last conversation.
    */
-  getLatestUpdated(): Topic | null {
+  getLatestActive(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()
+    const ownerFilter =
+      query.assistantId === 'unlinked'
+        ? isNull(assistantTable.id)
+        : query.assistantId
+          ? eq(assistantTable.id, query.assistantId)
+          : undefined
 
     const [row] = db
-      .select()
+      .select({ topic: topicTable })
       .from(topicTable)
-      .where(isNull(topicTable.deletedAt))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(isNull(topicTable.deletedAt), ownerFilter))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(1)
       .all()
 
-    return row ? rowToTopic(row) : null
+    return row ? rowToTopic(row.topic) : null
+  }
+
+  /** Reuse or create one exact empty placeholder under a serialized write transaction. */
+  reuseOrCreatePlaceholder(dto: ReuseOrCreateTopicDto): ReusableTopicPlaceholderResponse {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      if (dto.assistantId) assertActiveAssistantTx(tx, dto.assistantId)
+
+      const [reusable] = tx
+        .select({ topic: topicTable })
+        .from(topicTable)
+        .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+        .where(
+          and(
+            isNull(topicTable.deletedAt),
+            dto.assistantId ? eq(assistantTable.id, dto.assistantId) : isNull(topicTable.assistantId),
+            dto.excludeTopicId ? notInArray(topicTable.id, [dto.excludeTopicId]) : undefined,
+            isNull(topicTable.activeNodeId),
+            eq(topicTable.isNameManuallyEdited, false),
+            sql`trim(${topicTable.name}) = ''`
+          )
+        )
+        .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+        .limit(1)
+        .all()
+
+      if (reusable) return { row: reusable.topic, created: false }
+      return {
+        row: this.createTx(tx, { assistantId: dto.assistantId ?? undefined }),
+        created: true
+      }
+    })
+
+    if (result.created) {
+      this.notifyReadModelChange([result.row.id], 'membership')
+      logger.info('Created empty topic', { id: result.row.id })
+    }
+
+    return { topic: rowToTopic(result.row), created: result.created }
+  }
+
+  /** Monotonically advance a topic's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
+    const updated = tx
+      .update(topicTable)
+      .set({
+        lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${topicTable.updatedAt}, ${timestamp})`
+      })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
   ensureTraceId(topicId: string): string {
@@ -177,31 +279,35 @@ export class TopicService {
   }
 
   create(dto: CreateTopicDto): Topic {
-    const dbService = application.get('DbService')
-    const messageService = getDataService('MessageService')
-
-    const row = dbService.withWriteTx((tx) => {
-      const topicRow = insertWithOrderKey(
-        tx,
-        topicTable,
-        {
-          name: dto.name,
-          assistantId: dto.assistantId,
-          activeNodeId: null
-        },
-        {
-          pkColumn: topicTable.id,
-          position: 'first',
-          scope: isNull(topicTable.deletedAt)
-        }
-      ) as TopicRow
-      messageService.createRootMessageTx(tx, topicRow.id)
-      return topicRow
-    })
+    const row = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created empty topic', { id: row.id })
 
     return rowToTopic(row)
+  }
+
+  private createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
+    const createdAt = Date.now()
+    const topicRow = insertWithOrderKey(
+      tx,
+      topicTable,
+      {
+        name: dto.name,
+        assistantId: dto.assistantId,
+        activeNodeId: null,
+        lastActivityAt: createdAt,
+        createdAt,
+        updatedAt: createdAt
+      },
+      {
+        pkColumn: topicTable.id,
+        position: 'first',
+        scope: isNull(topicTable.deletedAt)
+      }
+    ) as TopicRow
+    getDataService('MessageService').createRootMessageTx(tx, topicRow.id)
+    return topicRow
   }
 
   duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Topic {
@@ -257,6 +363,7 @@ export class TopicService {
 
       return rowToTopic(updatedTopicRow)
     })
+    this.notifyReadModelChange([copiedTopic.id], 'membership')
 
     logger.info('Duplicated topic path into new topic', {
       sourceTopicId,
@@ -302,36 +409,99 @@ export class TopicService {
 
       return rowToTopic(row)
     })
+    this.notifyReadModelChange([id], 'projection')
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
     return topic
   }
 
-  /**
-   * Hard delete + tag/pin purge. Any future soft-delete path MUST also
-   * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
-   * makes `listByCursor`'s JOIN silently hide the topic from both sections.
-   *
-   * TODO: Clean up associated files (images, attachments) from disk.
-   */
-  delete(id: string): void {
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+  /** Atomically update a topic's assistant and global order. */
+  move(id: string, dto: MoveTopicDto): Topic {
+    const topic = application.get('DbService').withWriteTx((tx) => {
+      const [target] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!target) throw DataApiErrorFactory.notFound('Topic', id)
 
-    logger.info('Deleted topic', { id })
+      assertActiveAssistantTx(tx, dto.assistantId)
+
+      if ('before' in dto.order || 'after' in dto.order) {
+        const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
+        if (anchorId === id) {
+          const message = 'move: anchor topic must differ from the moved topic'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+
+        const [anchor] = tx
+          .select({ assistantId: topicTable.assistantId })
+          .from(topicTable)
+          .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
+          .limit(1)
+          .all()
+        if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
+        if (anchor.assistantId !== dto.assistantId) {
+          const message = 'move: anchor topic must belong to the target assistant'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+      }
+
+      tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
+      applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+        pkColumn: topicTable.id,
+        scope: isNull(topicTable.deletedAt)
+      })
+
+      const [row] = tx.select().from(topicTable).where(eq(topicTable.id, id)).limit(1).all()
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+      return rowToTopic(row)
+    })
+    this.notifyReadModelChange([id], 'projection')
+    return topic
   }
 
-  deleteByIds(ids: string[]): DeleteTopicsResult {
+  /** Move an active topic to the Recycle Bin by default; permanently remove only a topic already there. */
+  delete(id: string, options: { permanent?: boolean } = {}): void {
     const dbService = application.get('DbService')
-    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) =>
+      options.permanent === true
+        ? this.purgeManyByIdsTx(tx, [id], { requireAll: true })
+        : this.trashManyByIdsTx(tx, [id], { requireAll: true })
+    )
+    this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
+    pinService.notifyPurged()
 
-    logger.info('Deleted topics', { count: deletedIds.length })
+    logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id })
+  }
+
+  deleteByIds(
+    ids: string[],
+    options: { permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): DeleteTopicsResult {
+    const dbService = application.get('DbService')
+    const deletedIds = dbService.withWriteTx((tx) =>
+      options.permanent === true
+        ? this.purgeManyByIdsTx(tx, ids, { requireAll: true, targetState: options.targetState })
+        : this.trashManyByIdsTx(tx, ids, { requireAll: true })
+    )
+    this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
+    if (deletedIds.length > 0) pinService.notifyPurged()
+
+    logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Moved topics to Recycle Bin', {
+      count: deletedIds.length
+    })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  private deleteManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
+  private trashManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean; deletedAt?: number } = {}
+  ): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
@@ -340,7 +510,50 @@ export class TopicService {
       .from(topicTable)
       .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
       .all()
-    const deletedIds = rows.map((row) => row.id)
+    const trashedIds = rows.map((row) => row.id)
+
+    if (options.requireAll && trashedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(trashedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+      throw DataApiErrorFactory.notFound('Topic', missingId)
+    }
+    if (trashedIds.length === 0) return []
+
+    const deletedAt = options.deletedAt ?? Date.now()
+    for (let i = 0; i < trashedIds.length; i += SQLITE_INARRAY_CHUNK) {
+      tx.update(topicTable)
+        .set({ deletedAt })
+        .where(inArray(topicTable.id, trashedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
+        .run()
+    }
+    tagService.purgeForEntitiesTx(tx, 'topic', trashedIds)
+    pinService.purgeForEntitiesTx(tx, 'topic', trashedIds)
+
+    return trashedIds
+  }
+
+  private purgeManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): string[] {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
+
+    const deletedIds: string[] = []
+    for (let i = 0; i < uniqueIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const rows = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(
+          and(
+            inArray(topicTable.id, uniqueIds.slice(i, i + SQLITE_INARRAY_CHUNK)),
+            options.targetState === 'active' ? isNull(topicTable.deletedAt) : isNotNull(topicTable.deletedAt)
+          )
+        )
+        .all()
+      deletedIds.push(...rows.map((row) => row.id))
+    }
 
     if (options.requireAll && deletedIds.length !== uniqueIds.length) {
       const foundIds = new Set(deletedIds)
@@ -350,16 +563,59 @@ export class TopicService {
     if (deletedIds.length === 0) return []
 
     const messageService = getDataService('MessageService')
-    messageService.purgeByTopicIdsTx(tx, deletedIds)
-    tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
+    for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      messageService.purgeByTopicIdsTx(tx, chunk)
+      tagService.purgeForEntitiesTx(tx, 'topic', chunk)
+      pinService.purgeForEntitiesTx(tx, 'topic', chunk)
+      tx.delete(topicTable).where(inArray(topicTable.id, chunk)).run()
+    }
 
     return deletedIds
   }
 
+  restore(id: string): Topic {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .update(topicTable)
+      .set({ deletedAt: null })
+      .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+
+    this.notifyReadModelChange([id], 'membership')
+    logger.info('Restored topic', { id })
+    return rowToTopic(row)
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(isNotNull(topicTable.deletedAt), lt(topicTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    return this.purgeManyByIdsTx(
+      tx,
+      rows.map((row) => row.id)
+    )
+  }
+
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
     application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: [nodeId]
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: [nodeId] },
+      { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+      { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+    ])
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }
@@ -431,10 +687,12 @@ export class TopicService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
+    const idFilter = query.ids ? inArray(topicTable.id, query.ids) : undefined
+    const inTrash = query.inTrash === true
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
-    if (cursor.section === 'pin') {
+    if (!inTrash && cursor.section === 'pin') {
       const pinAfter = cursor.orderKey
         ? or(
             gt(pinTable.orderKey, cursor.orderKey),
@@ -445,7 +703,7 @@ export class TopicService {
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), pinAfter, search))
+        .where(and(isNull(topicTable.deletedAt), idFilter, pinAfter, search))
         .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
         .limit(limit + 1)
         .all()
@@ -485,17 +743,32 @@ export class TopicService {
 
     let topicAfter: SQL | undefined
     if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      topicAfter = or(
-        gt(topicTable.orderKey, cursor.orderKey),
-        and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-      )
+      topicAfter = inTrash
+        ? or(
+            lt(topicTable.updatedAt, Number(cursor.orderKey)),
+            and(eq(topicTable.updatedAt, Number(cursor.orderKey)), gt(topicTable.id, cursor.id))
+          )
+        : or(
+            gt(topicTable.orderKey, cursor.orderKey),
+            and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
+          )
     }
 
     const topicRows = db
       .select()
       .from(topicTable)
-      .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
-      .orderBy(asc(topicTable.orderKey), asc(topicTable.id))
+      .where(
+        and(
+          inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
+          idFilter,
+          notInArray(topicTable.id, pinnedSubquery),
+          topicAfter,
+          search
+        )
+      )
+      .orderBy(
+        ...(inTrash ? [desc(topicTable.updatedAt), asc(topicTable.id)] : [asc(topicTable.orderKey), asc(topicTable.id)])
+      )
       .limit(remaining + 1)
       .all()
 
@@ -507,7 +780,7 @@ export class TopicService {
     let nextCursor: string | undefined
     if (hasMoreInTopic) {
       const last = topicRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.orderKey, last.id)
+      nextCursor = encodeEntityCursor(inTrash ? String(last.updatedAt) : last.orderKey, last.id)
     }
 
     return { items: items.map((i) => i.topic), nextCursor }
@@ -529,12 +802,12 @@ export class TopicService {
         name: topicTable.name,
         assistantId: topicTable.assistantId,
         assistantName: assistantTable.name,
-        updatedAt: topicTable.updatedAt
+        lastActivityAt: topicTable.lastActivityAt
       })
       .from(topicTable)
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(limit)
       .all()
 
@@ -543,7 +816,7 @@ export class TopicService {
       id: row.id,
       title: row.name,
       subtitle: row.assistantName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { topicId: row.id, assistantId: row.assistantId ?? undefined }
     }))
   }
@@ -570,16 +843,44 @@ export class TopicService {
     })
   }
 
+  listIdsByAssistantTx(tx: DbOrTx, assistantId: string): string[] {
+    return tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(eq(topicTable.assistantId, assistantId))
+      .orderBy(asc(topicTable.id))
+      .all()
+      .map((row) => row.id)
+  }
+
+  listActiveIdsByAssistant(assistantId: string): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .orderBy(asc(topicTable.id))
+      .all()
+      .map((row) => row.id)
+  }
+
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
+    this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
+  deleteByAssistantIdTx(
+    tx: DbOrTx,
+    assistantId: string,
+    options: { validateAssistant?: boolean; deletedAt?: number; permanent?: boolean } = {}
+  ): string[] {
     if (options.validateAssistant ?? true) {
       assertActiveAssistantTx(tx, assistantId)
     }
@@ -587,12 +888,21 @@ export class TopicService {
     const rows = tx
       .select({ id: topicTable.id })
       .from(topicTable)
-      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .where(and(eq(topicTable.assistantId, assistantId), options.permanent ? undefined : isNull(topicTable.deletedAt)))
       .all()
 
-    return this.deleteManyByIdsTx(
+    if (options.permanent) {
+      const ids = rows.map((row) => row.id)
+      return [
+        ...this.purgeManyByIdsTx(tx, ids, { targetState: 'active' }),
+        ...this.purgeManyByIdsTx(tx, ids, { targetState: 'trashed' })
+      ]
+    }
+
+    return this.trashManyByIdsTx(
       tx,
-      rows.map((row) => row.id)
+      rows.map((row) => row.id),
+      { deletedAt: options.deletedAt }
     )
   }
 }

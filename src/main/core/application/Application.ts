@@ -1,6 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { app, dialog } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import {
   type Disposable,
@@ -13,10 +16,9 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, dialog, ipcMain } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { ServiceRegistry } from './serviceRegistry'
 
@@ -26,6 +28,8 @@ const logger = loggerService.withContext('Lifecycle')
 interface QuitPreventionHold extends Disposable {
   readonly id: string
 }
+
+type QuitGuard = () => boolean | Promise<boolean>
 
 /**
  * Application
@@ -39,6 +43,9 @@ export class Application {
   private isBootstrapped = false
   private isShuttingDown = false
   private _isQuitting = false
+  private quitGuardsPending = false
+  private quitGuardsPassed = false
+  private readonly quitGuards = new Set<QuitGuard>()
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
@@ -240,6 +247,11 @@ export class Application {
    * Shutdown the application.
    * Stops and destroys all lifecycle-managed services gracefully.
    * Also handles legacy service cleanup (bootConfig, logger).
+   *
+   * Each service carries its own teardown ceiling (see `stopAll`), so a stuck
+   * `onStop()` no longer costs the services behind it their turn. Whether this
+   * shutdown was clean is stated on the `Shutdown complete` line — that is the
+   * first line to read when diagnosing one.
    */
   public async shutdown(): Promise<void> {
     if (this.isShuttingDown) {
@@ -261,12 +273,21 @@ export class Application {
     }
 
     // Stop all lifecycle-managed services (reverse init order)
-    await this.lifecycleManager.stopAll()
+    const stopSummary = await this.lifecycleManager.stopAll()
 
     // Destroy all lifecycle-managed services
-    await this.lifecycleManager.destroyAll()
+    const destroySummary = await this.lifecycleManager.destroyAll()
 
-    logger.info(`Shutdown complete (${(performance.now() - start).toFixed(3)}ms)`)
+    // Kept per pass rather than concatenated: a service that times out in stop
+    // is then skipped in destroy, so a flat list would carry its name twice with
+    // no way to tell which pass each entry came from.
+    const elapsed = `${(performance.now() - start).toFixed(3)}ms`
+    const unclean = [stopSummary, destroySummary].some((s) => s.timedOut.length > 0 || s.failed.length > 0)
+    if (unclean) {
+      logger.warn(`Shutdown complete, but not cleanly (${elapsed})`, { stop: stopSummary, destroy: destroySummary })
+    } else {
+      logger.info(`Shutdown complete (${elapsed})`)
+    }
 
     // Close logger LAST — after this point, no more logging
     loggerService.finish()
@@ -419,6 +440,12 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
+    // Last resort, not the working mechanism. Starvation is handled one level
+    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
+    // only catches the case where enough services burn their whole ceiling to
+    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
+    // every timer here it is powerless against a synchronously blocking
+    // `onStop()`, which never yields the event loop for it to fire on.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
       process.exit(1)
@@ -460,10 +487,37 @@ export class Application {
       if (!this.canQuit()) {
         event.preventDefault()
         this._isQuitting = false // Reset — quit was blocked, not actually quitting
+        this.quitGuardsPassed = false
         const reasons = [...this.quitPreventionHolds.values()].join(', ')
         logger.info(`Quit prevented: ${reasons}`)
         return
       }
+      if (!this._isQuitting && !this.quitGuardsPassed) {
+        if (this.quitGuardsPending) {
+          event.preventDefault()
+          return
+        }
+        this.quitGuardsPending = true
+        try {
+          const allowed = this.checkQuitGuards()
+          if (typeof allowed !== 'boolean') {
+            event.preventDefault()
+            void this.finishQuitGuards(allowed)
+            return
+          }
+          this.quitGuardsPending = false
+          if (!allowed) {
+            event.preventDefault()
+            return
+          }
+        } catch (error) {
+          this.quitGuardsPending = false
+          event.preventDefault()
+          logger.error('Failed to evaluate quit guards', error as Error)
+          return
+        }
+      }
+      this.quitGuardsPassed = false
       this._isQuitting = true
     })
 
@@ -473,6 +527,7 @@ export class Application {
 
       event.preventDefault()
 
+      // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
       const timer = setTimeout(() => {
         logger.warn('Forced exit after shutdown timeout (will-quit)')
         process.exit(1)
@@ -485,6 +540,39 @@ export class Application {
           app.exit(0)
         })
     })
+  }
+
+  private checkQuitGuards(guards = this.quitGuards.values()): boolean | Promise<boolean> {
+    for (const guard of guards) {
+      const allowed = guard()
+      if (typeof allowed !== 'boolean') {
+        return allowed.then(
+          (approved) =>
+            approved &&
+            this.quitGuards.has(guard) &&
+            !this._isQuitting &&
+            !this.isShuttingDown &&
+            this.checkQuitGuards(guards)
+        )
+      }
+      if (!allowed) return false
+    }
+    return true
+  }
+
+  private async finishQuitGuards(decision: Promise<boolean>): Promise<void> {
+    let allowed = false
+    try {
+      allowed = await decision
+    } catch (error) {
+      logger.error('Failed to evaluate quit guards', error as Error)
+    } finally {
+      this.quitGuardsPending = false
+    }
+    if (allowed && !this._isQuitting && !this.isShuttingDown) {
+      this.quitGuardsPassed = true
+      this.quit()
+    }
   }
 
   /**
@@ -507,17 +595,17 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    ipcMain.handle(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
+    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
       this.relaunch(options)
     })
 
-    ipcMain.handle(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
+    handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
       const hold = this.preventQuit(reason)
       this.ipcQuitHolds.set(hold.id, hold)
       return hold.id
     })
 
-    ipcMain.handle(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
+    handleGuarded(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
       const hold = this.ipcQuitHolds.get(holdId)
       if (hold) {
         hold.dispose()
@@ -543,6 +631,16 @@ export class Application {
    */
   public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
     return this.container.getOptional(name)
+  }
+
+  /**
+   * Resolve a service only if the container already created it — never
+   * registers, instantiates, or throws. For preboot-era callers that run before
+   * `bootstrap()` and must degrade gracefully; use `get()` everywhere else.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
   }
 
   /**
@@ -585,15 +683,27 @@ export class Application {
     }
   }
 
+  /**
+   * Register a user-quit guard. All guards must approve, in registration order.
+   * Async decisions share one pending quit attempt; errors cancel it. Hard holds take precedence.
+   * @returns A disposable that unregisters the guard and invalidates its pending approval.
+   */
+  public registerQuitGuard(guard: QuitGuard): Disposable {
+    const registeredGuard = () => guard()
+    this.quitGuards.add(registeredGuard)
+    return { dispose: () => this.quitGuards.delete(registeredGuard) }
+  }
+
   private canQuit(): boolean {
     return this.quitPreventionHolds.size === 0
   }
 
   /**
-   * Graceful quit: set flag then trigger the Electron quit event chain.
+   * Graceful quit through the Electron quit event chain.
    * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
-  public quit(): void {
+  public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
+    if (reason === 'system-shutdown') this.quitGuardsPassed = true
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
       // handler preventDefault'd and broke the chain), this gives the user a
@@ -603,7 +713,6 @@ export class Application {
       return
     }
     logger.info('Quitting application...')
-    this._isQuitting = true
     app.quit()
   }
 

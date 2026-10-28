@@ -1,5 +1,5 @@
 export const statusBadgeClassNames = {
-  completed: 'border-transparent bg-success/10 text-success',
-  processing: 'border-transparent bg-warning/10 text-warning',
-  failed: 'border-transparent bg-destructive/10 text-destructive'
+  completed: 'border-success-border bg-success-subtle text-success-subtle-foreground',
+  processing: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+  failed: 'border-error-border bg-error-subtle text-error-subtle-foreground'
 } as const

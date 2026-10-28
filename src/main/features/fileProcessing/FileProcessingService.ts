@@ -1,20 +1,21 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions } from '@main/core/job/types'
+import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
-import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
+import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'
+import { probeOpenMineru } from './processors/openMineru/protocol'
 import { processorRegistry } from './processors/registry'
-import { backgroundJobHandler } from './tasks/backgroundJobHandler'
+import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
 import type { FileProcessingJobPayload } from './tasks/shared'
 import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
+import { getApiKey, getRequiredApiHost, getRequiredCapability } from './utils/provider'
 
 const logger = loggerService.withContext('FileProcessingService')
 
@@ -27,6 +28,7 @@ export class FileProcessingService extends BaseService {
     // startup recovery sweep sees them when re-dispatching non-terminal jobs.
     const jobManager = application.get('JobManager')
     jobManager.registerHandler('file-processing.background', backgroundJobHandler)
+    jobManager.registerHandler('file-processing.background-local', localBackgroundJobHandler)
     jobManager.registerHandler('file-processing.remote-poll', remotePollJobHandler)
     logger.info('File processing service initialized')
   }
@@ -41,13 +43,20 @@ export class FileProcessingService extends BaseService {
    * processor/config/version.
    *
    * The handler.mode field on the capability handler determines the JobRegistry
-   * type to enqueue under (background vs remote-poll). This is a synchronous
-   * lookup — no `await prepare()` is needed at enqueue time.
+   * type to enqueue under (background vs remote-poll), and for background the
+   * processor's `runtime` picks the local or remote half. Both are synchronous
+   * lookups — no `await prepare()` is needed at enqueue time.
+   *
+   * `options.recovery` overrides the handler's restart behavior (resume) for a
+   * caller that will not read the result of a job resumed after a restart.
+   *
+   * @returns The job's handle. Its `finished` promise lives in this process only, so it does
+   *   not resolve for a job that a restart resumes.
    */
   async startJob(
     input: StartFileProcessingJobInput,
-    options: Pick<EnqueueOptions, 'parentId'> = {}
-  ): Promise<JobSnapshot> {
+    options: Pick<EnqueueOptions, 'parentId' | 'recovery'> = {}
+  ): Promise<JobHandle> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -68,9 +77,17 @@ export class FileProcessingService extends BaseService {
       ...(context ? { context } : {})
     }
 
-    const type = handler.mode === 'background' ? 'file-processing.background' : 'file-processing.remote-poll'
+    const type =
+      handler.mode === 'remote-poll'
+        ? 'file-processing.remote-poll'
+        : processorRegistry[config.id].runtime === 'local'
+          ? 'file-processing.background-local'
+          : 'file-processing.background'
     const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
+    const handle = jobManager.enqueue(type, payload, {
+      ...(options.parentId ? { parentId: options.parentId } : {}),
+      recovery: options.recovery
+    })
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,
@@ -81,7 +98,7 @@ export class FileProcessingService extends BaseService {
       output
     })
 
-    return handle.snapshot
+    return handle
   }
 
   /**
@@ -96,10 +113,41 @@ export class FileProcessingService extends BaseService {
     return ocrImageToText(file, signal)
   }
 
+  /**
+   * Processors this machine could run — the settings pages list exactly these.
+   *
+   * Filters on platform support only. A processor whose local model is not
+   * downloaded yet still belongs in the list: hiding it strands the user, since
+   * its settings entry is where the download button lives.
+   */
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
     const processorIds = Object.entries(processorRegistry)
-      .filter(([, processor]) => processor.isAvailable())
+      .filter(([, processor]) => processor.isSupported())
       .map(([processorId]) => processorId as FileProcessorId)
     return ListAvailableFileProcessorsResultSchema.parse({ processorIds })
+  }
+
+  /** Reachability is distinct from a successful protocol or authentication check. */
+  async checkOpenMineruConnectivity(): Promise<boolean> {
+    const processorId = 'open-mineru'
+    const feature = 'document_to_markdown'
+    const config = getFileProcessorConfigById(processorId)
+    const capability = getRequiredCapability(config, feature, processorId)
+
+    let apiHost: string
+    try {
+      apiHost = getRequiredApiHost(capability)
+    } catch {
+      // No host to reach — the user cleared it, which is its own kind of "down".
+      return false
+    }
+
+    try {
+      const probe = await probeOpenMineru({ apiHost, apiKey: getApiKey(config, processorId) })
+      return probe.kind === 'supported' || probe.kind === 'http-error'
+    } catch (error) {
+      logger.debug('File processor connectivity probe failed', { processorId, apiHost, error })
+      return false
+    }
   }
 }

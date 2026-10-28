@@ -14,7 +14,8 @@ describe('resolveProviderIconRef', () => {
     { providerId: 'baidu-cloud', expectedToExist: true },
     { providerId: 'aws-bedrock', expectedToExist: true },
     { providerId: 'aionly', expectedToExist: true },
-    { providerId: 'gitee-ai', expectedToExist: true }
+    { providerId: 'gitee-ai', expectedToExist: true },
+    { providerId: 'litellm', expectedToExist: true }
   ]
 
   for (const { providerId, expectedToExist } of testCases) {
@@ -85,6 +86,7 @@ describe('resolveModelIconRef — pattern boundaries (#10, #11, #12)', () => {
 
 describe('resolveModelIconRef — dedicated model marks', () => {
   const gptCases = [
+    ['openai/gpt-6-astra', 'gpt-6-astra'],
     ['openai/gpt-5.6-luna-pro', 'gpt-5-6-luna'],
     ['gpt-5.5-pro', 'gpt-5-5-pro'],
     ['gpt-5.4-mini', 'gpt-5-4-mini'],
@@ -139,7 +141,9 @@ describe('resolveModelIconRef — dedicated model marks', () => {
     ['internvl-3', 'internlm'],
     ['01-ai/yi-large', 'yi'],
     ['baidu/ernie-4.5', 'wenxin'],
-    ['stepfun/step-3.5-flash', 'stepfun']
+    ['stepfun/step-3.5-flash', 'stepfun'],
+    ['k3', 'kimi'],
+    ['k3-256k', 'kimi']
   ] as const
 
   it.each(familyCases)('routes %s to %s', (modelId, key) => {
@@ -151,6 +155,7 @@ describe('resolveModelIconRef — dedicated model marks', () => {
     expect(resolveModelIconRef('influxdb-query')?.key).not.toBe('flux')
     expect(resolveModelIconRef('sonarqube-code')?.key).not.toBe('perplexity')
     expect(resolveModelIconRef('sparkling-image')?.key).not.toBe('kling')
+    expect(resolveModelIconRef('k3po')?.key).not.toBe('kimi')
   })
 })
 

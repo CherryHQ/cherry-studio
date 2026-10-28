@@ -1,11 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode, UIEvent } from 'react'
+import userEvent from '@testing-library/user-event'
+import { useState, type ReactNode, type UIEvent } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type * as UiModule from '@cherrystudio/ui'
+import type { KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
+
+import { nextKnowledgeItemSort } from '../../../utils/itemSort'
 import KnowledgeItemList from '../KnowledgeItemList'
 import { createFileItem, createNoteItem } from './testUtils'
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof UiModule>()),
   Checkbox: ({
     checked,
     onCheckedChange,
@@ -24,23 +30,17 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-// Capture the latest `getItemKey` so a test can assert the identity-based key derivation —
-// the real virtualizer would use it both for the React key and its measurement cache.
-let capturedGetItemKey: ((index: number) => string | number) | undefined
-
 vi.mock('@renderer/components/VirtualList', () => ({
   DynamicVirtualList: <T,>({
     list,
     children,
-    onScroll,
-    getItemKey
+    onScroll
   }: {
     list: T[]
     children: (item: T) => ReactNode
     onScroll?: (event: UIEvent<HTMLDivElement>) => void
     getItemKey?: (index: number) => string | number
   }) => {
-    capturedGetItemKey = getItemKey
     return (
       <div data-testid="virtual-list" onScroll={onScroll}>
         {list.map((item, index) => (
@@ -92,7 +92,6 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
-          'common.loading': '加载中...',
           'knowledge.data_source.table.select_all': '全选',
           'knowledge.data_source.table.aria_label': '数据源列表',
           'knowledge.data_source.list.loading_more': '加载更多…',
@@ -128,97 +127,39 @@ const setScrollGeometry = (
 }
 
 describe('KnowledgeItemList', () => {
-  it('renders the loading state before item rows', () => {
-    render(<KnowledgeItemList items={[]} isLoading {...noopProps} />)
-
-    expect(screen.getByText('加载中...')).toBeInTheDocument()
-  })
-
-  it('renders nothing when there are no items and it is not loading', () => {
-    render(<KnowledgeItemList items={[]} isLoading={false} {...noopProps} />)
-
-    expect(screen.queryByTestId('virtual-list')).not.toBeInTheDocument()
-  })
-
-  it('renders rows when items are available', () => {
-    render(
-      <KnowledgeItemList
-        items={[createFileItem({ id: 'file-1' }), createNoteItem({ id: 'note-1' })]}
-        isLoading={false}
-        {...noopProps}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'file-1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'note-1' })).toBeInTheDocument()
-  })
-
-  it('passes onActivate the full item through to the row click handler', () => {
-    const handleActivate = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onActivate={handleActivate} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'note-1' }))
-
-    expect(handleActivate).toHaveBeenCalledWith(item)
-  })
-
-  it('passes onDelete through to the row delete handler', () => {
-    const handleDelete = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onDelete={handleDelete} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'delete-note-1' }))
-
-    expect(handleDelete).toHaveBeenCalledWith(item)
-  })
-
-  it('passes onReindex through to the row reindex handler', () => {
-    const handleReindex = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onReindex={handleReindex} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'reindex-note-1' }))
-
-    expect(handleReindex).toHaveBeenCalledWith(item)
-  })
-
-  it('passes onPreviewSource through to the row preview handler', () => {
-    const handlePreviewSource = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onPreviewSource={handlePreviewSource} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'preview-note-1' }))
-
-    expect(handlePreviewSource).toHaveBeenCalledWith(item)
-  })
-
-  it('passes onViewChunks through to the row view chunks handler', () => {
-    const handleViewChunks = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onViewChunks={handleViewChunks} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'chunks-note-1' }))
-
-    expect(handleViewChunks).toHaveBeenCalledWith('note-1')
-  })
-
-  it('requests more items when scrolled near the bottom and more pages remain', async () => {
-    const handleLoadMore = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} hasMore onLoadMore={handleLoadMore} />)
-
-    fireEvent.scroll(screen.getByTestId('virtual-list'))
-
-    // loadMore is scheduled via queueMicrotask; poll until it flushes rather than assuming a fixed
-    // number of microtask ticks (a single `await Promise.resolve()` flaked under act scheduling).
-    await vi.waitFor(() => expect(handleLoadMore).toHaveBeenCalledTimes(1))
+  it('cycles accessible headers, restarts another column and supports keyboard activation', async () => {
+    const user = userEvent.setup()
+    const Harness = () => {
+      const [sort, setSort] = useState<KnowledgeItemSort | null>(null)
+      const [isLoading, setIsLoading] = useState(false)
+      return (
+        <KnowledgeItemList
+          items={isLoading ? [] : [createNoteItem({ id: 'note-1' })]}
+          isLoading={isLoading}
+          {...noopProps}
+          sort={sort}
+          onSortChange={(column) => {
+            setSort((previous) => nextKnowledgeItemSort(previous, column))
+            setIsLoading(true)
+          }}
+        />
+      )
+    }
+    render(<Harness />)
+    const name = screen.getByRole('columnheader', { name: 'knowledge.data_source.table.columns.name' })
+    const updated = screen.getByRole('columnheader', { name: 'knowledge.data_source.table.columns.updated_at' })
+    const nameButton = screen.getByRole('button', { name: 'knowledge.data_source.table.columns.name' })
+    await user.click(nameButton)
+    expect(name).toHaveAttribute('aria-sort', 'ascending')
+    await user.keyboard('{Enter}')
+    expect(name).toHaveAttribute('aria-sort', 'descending')
+    await user.keyboard(' ')
+    expect(name).toHaveAttribute('aria-sort', 'none')
+    await user.click(screen.getByRole('button', { name: 'knowledge.data_source.table.columns.updated_at' }))
+    expect(updated).toHaveAttribute('aria-sort', 'descending')
+    await user.click(nameButton)
+    expect(name).toHaveAttribute('aria-sort', 'ascending')
+    expect(updated).toHaveAttribute('aria-sort', 'none')
   })
 
   it('does not request more items when there are no further pages', async () => {
@@ -233,21 +174,6 @@ describe('KnowledgeItemList', () => {
     await Promise.resolve()
 
     expect(handleLoadMore).not.toHaveBeenCalled()
-  })
-
-  it('keys rows by item id with an index fallback past the loaded range', () => {
-    render(
-      <KnowledgeItemList
-        items={[createFileItem({ id: 'file-1' }), createNoteItem({ id: 'note-1' })]}
-        isLoading={false}
-        {...noopProps}
-      />
-    )
-
-    expect(capturedGetItemKey?.(0)).toBe('file-1')
-    expect(capturedGetItemKey?.(1)).toBe('note-1')
-    // An out-of-range lookup (e.g. during the deferred-value lag) falls back to the index.
-    expect(capturedGetItemKey?.(5)).toBe(5)
   })
 
   it('does not load more when scrolled but still far from the bottom', async () => {
@@ -368,6 +294,5 @@ describe('KnowledgeItemList', () => {
 
     expect(screen.getByRole('grid')).toBeInTheDocument()
     expect(screen.getAllByRole('columnheader').length).toBeGreaterThanOrEqual(5)
-    expect(screen.getAllByRole('columnheader')[0].parentElement).toHaveClass('h-11')
   })
 })

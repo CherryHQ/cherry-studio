@@ -1,6 +1,6 @@
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 
 /**
  * Painting row — a frozen receipt of a completed image generation.
@@ -21,7 +21,7 @@ export const paintingTable = sqliteTable(
     modelId: text('model_id'),
     prompt: text().notNull(),
     ...orderKeyColumns,
-    ...createUpdateTimestamps
+    ...createUpdateDeleteTimestamps
   },
   (t) => [orderKeyIndex('painting')(t)]
 )

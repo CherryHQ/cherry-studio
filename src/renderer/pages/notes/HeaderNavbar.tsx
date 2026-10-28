@@ -1,3 +1,7 @@
+import { t } from 'i18next'
+import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -26,14 +30,10 @@ import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { findNode } from '@renderer/services/NotesTreeService'
 import { toast } from '@renderer/services/toast'
-import type { NotesTreeNode } from '@renderer/types/note'
-import { t } from 'i18next'
-import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
 
 import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
-import NotesSettings from './NotesSettings'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
@@ -43,7 +43,7 @@ interface HeaderNavbarProps {
   getCurrentNoteContent?: () => string
   onToggleStar?: (nodeId: string) => void
   onExpandPath?: (treePath: string) => void
-  onRenameNode?: (nodeId: string, newName: string) => void
+  onRenameNode?: RenameNote
 }
 
 const HeaderNavbar = ({
@@ -157,13 +157,19 @@ const HeaderNavbar = ({
 
   useCommandHandler('app.print', handlePrint, { enabled: isActiveTab && activeNode?.type === 'file' })
 
-  const handleShowSettings = useCallback(() => {
-    void ContentPopup.show({
-      title: t('notes.settings.title'),
-      content: <NotesSettings />,
-      width: 600,
-      styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
-    })
+  const handleShowSettings = useCallback(async () => {
+    try {
+      const { default: NotesSettings } = await import('./NotesSettings')
+      void ContentPopup.show({
+        title: t('notes.settings.title'),
+        content: <NotesSettings />,
+        width: 600,
+        styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
+      })
+    } catch (error) {
+      logger.error('Failed to load notes settings:', error as Error)
+      toast.error(t('common.error'))
+    }
   }, [])
 
   const handleBreadcrumbClick = useCallback(
@@ -179,9 +185,9 @@ const HeaderNavbar = ({
     setTitleValue(e.target.value)
   }, [])
 
-  const handleTitleBlur = useCallback(() => {
+  const handleTitleBlur = useCallback(async () => {
     if (activeNode && titleValue.trim() && titleValue.trim() !== activeNode.name.replace('.md', '')) {
-      onRenameNode?.(activeNode.id, titleValue.trim())
+      await onRenameNode?.(activeNode.id, titleValue.trim())
     } else if (activeNode) {
       // 如果没有更改或为空，恢复原始值
       setTitleValue(activeNode.name.replace('.md', ''))
@@ -218,7 +224,7 @@ const HeaderNavbar = ({
     if (item.children) {
       return (
         <div key={item.key} className="space-y-1">
-          <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
+          <div className="flex items-center gap-2.5 px-2.5 py-1 text-xs font-medium text-muted-foreground">
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
           </div>
@@ -230,7 +236,7 @@ const HeaderNavbar = ({
     const isActive = item.isActive?.(settings)
     const suffix =
       item.printAction && printCommand.shortcutLabel ? (
-        <span className="text-muted-foreground text-xs">{printCommand.shortcutLabel}</span>
+        <span className="text-xs text-muted-foreground">{printCommand.shortcutLabel}</span>
       ) : isActive ? (
         <Check size={14} />
       ) : undefined
@@ -252,7 +258,7 @@ const HeaderNavbar = ({
           } else if (item.printAction) {
             void handlePrint()
           } else if (item.showSettingsPopup) {
-            handleShowSettings()
+            void handleShowSettings()
           } else if (item.action) {
             item.action(settings, updateSettings)
           }
@@ -300,6 +306,8 @@ const HeaderNavbar = ({
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <BaseNavbarIcon
               className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              aria-label={t('navbar.hide_sidebar')}
+              aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
@@ -309,6 +317,8 @@ const HeaderNavbar = ({
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <BaseNavbarIcon
               className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              aria-label={t('navbar.show_sidebar')}
+              aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
@@ -327,21 +337,21 @@ const HeaderNavbar = ({
                   <Fragment key={item.key}>
                     <BreadcrumbItem className={cn('min-w-0 shrink', isLastItem && 'min-w-0 flex-1')}>
                       {isCurrentNote ? (
-                        <div className="flex w-full min-w-0 max-w-none flex-1 items-center">
+                        <div className="flex w-full max-w-none min-w-0 flex-1 items-center">
                           <Input
                             ref={titleInputRef}
                             value={titleValue}
                             onChange={handleTitleChange}
                             onBlur={handleTitleBlur}
                             onKeyDown={handleTitleKeyDown}
-                            className="h-auto min-w-0 flex-1 border-0! bg-transparent! p-0 font-[inherit] text-inherit leading-[inherit] shadow-none outline-none focus-visible:border-transparent! focus-visible:ring-0! dark:bg-transparent!"
+                            className="h-auto min-w-0 flex-1 border-0! bg-transparent! p-0 font-[inherit] leading-[inherit] text-inherit shadow-none outline-none focus-visible:border-transparent! focus-visible:ring-0! dark:bg-transparent!"
                           />
                         </div>
                       ) : (
                         <span
                           className={cn(
-                            'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
-                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-primary hover:underline'
+                            'inline-block max-w-37.5 min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap',
+                            item.isFolder && !isLastItem && 'cursor-pointer text-link hover:underline'
                           )}
                           onClick={() => handleBreadcrumbClick(item)}>
                           {item.title}
@@ -363,23 +373,22 @@ const HeaderNavbar = ({
       <NavbarRight className="pr-0">
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
-            <div
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-muted-foreground"
+            <BaseNavbarIcon
+              aria-label={activeNode.isStarred ? t('notes.unstar') : t('notes.star')}
+              aria-pressed={activeNode.isStarred}
               onClick={handleToggleStarred}>
               {activeNode.isStarred ? <Star size={18} className="fill-amber-400 text-amber-400" /> : <Star size={18} />}
-            </div>
+            </BaseNavbarIcon>
           </Tooltip>
         )}
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <div>
-              <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground">
-                  <MoreHorizontal size={18} />
-                </BaseNavbarIcon>
-              </Tooltip>
-            </div>
-          </PopoverTrigger>
+          <Tooltip title={t('common.more')} delay={800}>
+            <PopoverTrigger asChild>
+              <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground" aria-label={t('common.more')}>
+                <MoreHorizontal size={18} />
+              </BaseNavbarIcon>
+            </PopoverTrigger>
+          </Tooltip>
           <PopoverContent align="end" className="w-64 p-1.5">
             <MenuList>{menuItems.map(renderMenuItem)}</MenuList>
           </PopoverContent>

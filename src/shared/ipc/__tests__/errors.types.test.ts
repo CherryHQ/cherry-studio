@@ -7,7 +7,7 @@ import { IpcErrorCode } from '../errors/IpcError'
  * errors.test.ts; these assertions lock the *type* shape B3 exists to provide — an
  * open union (domain codes welcome) whose framework members keep their literals.
  *
- * Enforced by `pnpm typecheck` (tsgo); vitest's esbuild path does not check types.
+ * Enforced by `pnpm typecheck` (tsc); vitest's esbuild path does not check types.
  */
 describe('IpcErrorCode open-enum type contract', () => {
   it('keeps the union open: an arbitrary domain code is assignable', () => {

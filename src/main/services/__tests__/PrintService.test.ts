@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { WindowType } from '@main/core/window/types'
 import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 
 import { buildPrintableHtml, PrintService } from '../PrintService'
 
@@ -65,7 +66,7 @@ describe('PrintService', () => {
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({
       canceled: false,
       filePath: '/tmp/Meeting Notes.pdf'
-    } as never)
+    })
     writeFile.mockResolvedValue(undefined)
   })
 
@@ -121,7 +122,6 @@ describe('PrintService', () => {
     expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
     expect(executeJavaScript.mock.invocationCallOrder[0]).toBeLessThan(printToPDF.mock.invocationCallOrder[0])
     expect(printToPDF).toHaveBeenCalledWith({
-      margins: { marginType: 'default' },
       pageSize: 'A4',
       preferCSSPageSize: true,
       printBackground: true
@@ -138,6 +138,62 @@ describe('PrintService', () => {
 
     expect(result).toBe(false)
     expect(open).not.toHaveBeenCalled()
+  })
+
+  describe('save dialog parenting (Unicode file names)', () => {
+    const senderId = 'main-1'
+    const ownerWindow = { id: 'owner-window', isDestroyed: () => false }
+    const printWindow = {
+      loadURL,
+      showInactive,
+      webContents: {
+        printToPDF,
+        print,
+        executeJavaScript
+      }
+    }
+
+    it('parents the save dialog to the caller window, keeping a CJK file name', async () => {
+      getWindow.mockImplementation((id: string) => (id === senderId ? ownerWindow : printWindow))
+      const service = new PrintService()
+
+      const result = await service.exportToPdf({ ...payload, title: '会议记录' }, senderId)
+
+      expect(result).toBe(true)
+      expect(getWindow).toHaveBeenCalledWith(senderId)
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+        ownerWindow,
+        expect.objectContaining({ defaultPath: '会议记录.pdf' })
+      )
+      expect(writeFile).toHaveBeenCalled()
+    })
+
+    it('falls back to an unparented dialog when the caller window is gone', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+      const service = new PrintService()
+
+      const result = await service.exportToPdf({ ...payload, title: '会议记录' }, null)
+
+      expect(result).toBe(false)
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '会议记录.pdf' }))
+      expect(open).not.toHaveBeenCalled()
+    })
+
+    it('falls back to an unparented dialog when the caller window is destroyed', async () => {
+      getWindow.mockImplementation((id: string) =>
+        id === senderId ? { ...ownerWindow, isDestroyed: () => true } : printWindow
+      )
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+      const service = new PrintService()
+
+      const result = await service.exportToPdf({ ...payload, title: '会议记录' }, senderId)
+
+      expect(result).toBe(false)
+      expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]).toHaveLength(1)
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '会议记录.pdf' }))
+      expect(open).not.toHaveBeenCalled()
+    })
   })
 
   it('closes the WindowManager entry when the print window cannot be resolved', async () => {

@@ -1,169 +1,91 @@
-import PlantUmlPreview from '@renderer/components/Preview/PlantUmlPreview'
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Use vi.hoisted to manage mocks
+import PlantUmlPreview from '../PlantUmlPreview'
+
 const mocks = vi.hoisted(() => ({
-  ImagePreviewLayout: vi.fn(({ children, loading, error, enableToolbar, source }) => (
-    <div data-testid="image-preview-layout" data-source={source}>
-      {enableToolbar && <div data-testid="toolbar">Toolbar</div>}
-      {loading && <div data-testid="loading">Loading...</div>}
-      {error && <div data-testid="error">{error}</div>}
-      <div data-testid="preview-content">{children}</div>
-    </div>
-  )),
   renderSvgInShadowHost: vi.fn(),
-  useDebouncedRender: vi.fn(),
-  logger: {
-    warn: vi.fn()
+  renderFunction: undefined as ((content: string, container: HTMLDivElement) => Promise<void>) | undefined
+}))
+
+vi.mock('../hooks/useDebouncedRender', () => ({
+  useDebouncedRender: (
+    _content: string,
+    renderFunction: (content: string, container: HTMLDivElement) => Promise<void>
+  ) => {
+    mocks.renderFunction = renderFunction
+    return {
+      containerRef: { current: null },
+      error: null,
+      isLoading: false,
+      triggerRender: vi.fn(),
+      cancelRender: vi.fn(),
+      clearError: vi.fn(),
+      setLoading: vi.fn()
+    }
   }
 }))
 
-vi.mock('@renderer/components/Preview/ImagePreviewLayout', () => ({
-  default: mocks.ImagePreviewLayout
+vi.mock('../ImagePreviewLayout', () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/Preview/utils', () => ({
+vi.mock('../utils', () => ({
   renderSvgInShadowHost: mocks.renderSvgInShadowHost
 }))
 
-vi.mock('@renderer/components/Preview/hooks/useDebouncedRender', () => ({
-  useDebouncedRender: mocks.useDebouncedRender
-}))
-
 describe('PlantUmlPreview', () => {
-  const diagram = '@startuml\nA -> B\n@enduml'
-  const mockContainerRef = { current: document.createElement('div') }
-
-  // Helper function to create mock useDebouncedRender return value
-  const createMockHookReturn = (overrides = {}) => ({
-    containerRef: mockContainerRef,
-    error: null,
-    isLoading: false,
-    triggerRender: vi.fn(),
-    cancelRender: vi.fn(),
-    clearError: vi.fn(),
-    setLoading: vi.fn(),
-    ...overrides
-  })
+  const content = '@startuml\nA -> B\n@enduml'
+  const fetchMock = vi.fn()
 
   beforeEach(() => {
-    // Setup default successful state
-    mocks.useDebouncedRender.mockReturnValue(createMockHookReturn())
+    vi.clearAllMocks()
+    mocks.renderFunction = undefined
+    vi.stubGlobal('fetch', fetchMock)
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
-  describe('basic rendering', () => {
-    it('should match snapshot', () => {
-      const { container } = render(<PlantUmlPreview enableToolbar>{diagram}</PlantUmlPreview>)
-      expect(container).toMatchSnapshot()
+  it('fetches and renders the encoded PlantUML diagram', async () => {
+    const container = document.createElement('div')
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue('<svg><text>diagram</text></svg>')
     })
 
-    it('should handle valid plantuml diagram', () => {
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
+    render(<PlantUmlPreview>{content}</PlantUmlPreview>)
+    await mocks.renderFunction?.(content, container)
 
-      // Component should render without throwing
-      expect(screen.getByTestId('image-preview-layout')).toBeInTheDocument()
-      expect(mocks.useDebouncedRender).toHaveBeenCalledWith(
-        diagram,
-        expect.any(Function),
-        expect.objectContaining({ debounceDelay: 300 })
-      )
-    })
-
-    it('should handle empty content', () => {
-      render(<PlantUmlPreview>{''}</PlantUmlPreview>)
-
-      // Component should render without throwing
-      expect(screen.getByTestId('image-preview-layout')).toBeInTheDocument()
-      expect(mocks.useDebouncedRender).toHaveBeenCalledWith('', expect.any(Function), expect.any(Object))
-    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/^https:\/\/www\.plantuml\.com\/plantuml\/svg\/[A-Za-z0-9_-]+$/)
+    )
+    expect(mocks.renderSvgInShadowHost).toHaveBeenCalledWith('<svg><text>diagram</text></svg>', container)
   })
 
-  describe('loading state', () => {
-    it('should show loading indicator when rendering', () => {
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ isLoading: true }))
-
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
-
-      expect(screen.getByTestId('loading')).toBeInTheDocument()
-    })
-
-    it('should not show loading indicator when not rendering', () => {
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ isLoading: false }))
-
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
-
-      expect(screen.queryByTestId('loading')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('error handling', () => {
-    it('should show network error message', () => {
-      const networkError = 'Network Error: Unable to connect to PlantUML server. Please check your network connection.'
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: networkError }))
-
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
-
-      const errorElement = screen.getByTestId('error')
-      expect(errorElement).toBeInTheDocument()
-      expect(errorElement).toHaveTextContent(networkError)
-    })
-
-    it('should show syntax error message for invalid diagram', () => {
-      const syntaxError =
+  it.each([
+    {
+      status: 400,
+      statusText: 'Bad Request',
+      message:
         'Diagram rendering failed (400): This is likely due to a syntax error in the diagram. Please check your code.'
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: syntaxError }))
+    },
+    {
+      status: 503,
+      statusText: 'Service Unavailable',
+      message: 'Diagram rendering failed (503): The PlantUML server is temporarily unavailable. Please try again later.'
+    },
+    {
+      status: 418,
+      statusText: "I'm a teapot",
+      message: "Diagram rendering failed, server returned: 418 I'm a teapot"
+    }
+  ])('reports the user-facing error for a $status response', async ({ status, statusText, message }) => {
+    fetchMock.mockResolvedValue({ ok: false, status, statusText })
+    render(<PlantUmlPreview>{content}</PlantUmlPreview>)
 
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
-
-      const errorElement = screen.getByTestId('error')
-      expect(errorElement).toBeInTheDocument()
-      expect(errorElement).toHaveTextContent(syntaxError)
-    })
-
-    it('should show server error message', () => {
-      const serverError =
-        'Diagram rendering failed (503): The PlantUML server is temporarily unavailable. Please try again later.'
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: serverError }))
-
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
-
-      const errorElement = screen.getByTestId('error')
-      expect(errorElement).toBeInTheDocument()
-      expect(errorElement).toHaveTextContent(serverError)
-    })
-
-    it('should show generic error message for other errors', () => {
-      const genericError = "Diagram rendering failed, server returned: 418 I'm a teapot"
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: genericError }))
-
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
-
-      const errorElement = screen.getByTestId('error')
-      expect(errorElement).toBeInTheDocument()
-      expect(errorElement).toHaveTextContent(genericError)
-    })
-
-    it('should not show error when rendering is successful', () => {
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: null }))
-
-      render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
-
-      expect(screen.queryByTestId('error')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('ref forwarding', () => {
-    it('should forward ref to ImagePreviewLayout', () => {
-      const ref = { current: null }
-      render(<PlantUmlPreview ref={ref}>{diagram}</PlantUmlPreview>)
-
-      // The ref should be passed to ImagePreviewLayout
-      expect(mocks.ImagePreviewLayout).toHaveBeenCalledWith(expect.objectContaining({ ref }), undefined)
-    })
+    await expect(mocks.renderFunction?.(content, document.createElement('div'))).rejects.toThrow(message)
   })
 })

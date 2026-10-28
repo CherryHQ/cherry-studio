@@ -1,5 +1,6 @@
-import { Separator } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+
+import { Separator } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Separator> = {
   title: 'Components/Primitives/Separator',

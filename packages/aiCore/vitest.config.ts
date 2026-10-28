@@ -18,7 +18,7 @@ export default defineConfig({
       '@cherrystudio/ai-sdk-provider': path.resolve(__dirname, './test_utils/mocks/ai-sdk-provider.ts')
     }
   },
-  esbuild: {
+  oxc: {
     target: 'node18'
   }
 })

@@ -1,16 +1,23 @@
+import type { ReactNode } from 'react'
+
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
-import type { Citation } from '@renderer/types/message'
-import type { MessageExportView } from '@renderer/types/messageExport'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
+import type { Citation, MessageUiState } from '@renderer/types/message'
+import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle,
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
+import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
+import type { FileHandle } from '@shared/data/types/file'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -21,26 +28,30 @@ import type {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { FileUrlString } from '@shared/types/file'
-import type { ReactNode } from 'react'
 
-export interface MessageUiState {
-  foldSelected?: boolean
-  multiModelMessageStyle?: string
-  useful?: boolean
-  disclosures?: Record<string, boolean>
-}
+import type { ActionAvailabilityInput } from '../actions/actionTypes'
+
+export type { MessageUiState } from '@renderer/types/message'
+
+export type SelectAllState = boolean | 'indeterminate'
+
+// Lives in `@renderer/types/message` so data hooks can import it without
+// reaching into the component layer; re-exported for component consumers.
+export type { MessageListSelectAllPagination } from '@renderer/types/message'
 
 export interface MessageListSelectionState {
   enabled: boolean
   isMultiSelectMode: boolean
   selectedMessageIds?: readonly string[]
+  selectAllState?: SelectAllState
+  selectAllDisabled?: boolean
+  /** True while select-all is waiting for older message pages to finish loading. */
+  isSelectAllLoading?: boolean
 }
 
 export interface MessageListRuntime {
   scrollToBottom: () => void
-  captureLocalSendScrollEligibility: () => void
   locateMessage: (messageId: string) => void
   copyTopicImage: () => Promise<void>
   exportTopicImage: () => Promise<void>
@@ -64,11 +75,30 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+  isActiveTurnProcessing: boolean
+  isStreamLive: boolean
+}
+
+export interface MessageActivityStore {
+  getSnapshot: (message: MessageListItem) => MessageActivityState
+  subscribe: (message: MessageListItem, listener: () => void) => () => void
 }
 
 export interface MessageFileView {
   displayName: string
   previewUrl?: FileUrlString
+}
+
+/**
+ * A message attachment the user can open or preview.
+ *
+ * Carries a `FileHandle` rather than a path: Main owns path resolution, so no
+ * renderer surface reconstructs one from the part's `file://` URL.
+ */
+export interface MessageAttachmentTarget {
+  handle: FileHandle
+  name: string
+  ext: string
 }
 
 export interface MessageMenuExportOptions {
@@ -136,12 +166,6 @@ export interface MessageErrorDiagnosisResult {
   steps: MessageErrorDiagnosisStep[]
 }
 
-export interface MessageErrorDiagnosisContext {
-  errorSource?: string
-  providerName?: string
-  modelId?: string
-}
-
 export interface MessageErrorDiagnosisInput {
   message: MessageListItem
   partId: string
@@ -174,8 +198,7 @@ export interface MessageErrorDetailInput {
   message: MessageListItem
   partId: string
   error?: SerializedError
-  cachedDiagnosis?: MessageErrorDiagnosisResult
-  diagnosisContext?: MessageErrorDiagnosisContext
+  localizedErrorMessage?: string
 }
 
 export interface OpenAgentToolFlowInput {
@@ -183,6 +206,8 @@ export interface OpenAgentToolFlowInput {
   toolName?: string
   title?: string
 }
+
+export type MessageInputFilePreview = InputFilePreview
 
 export interface RemoveMessageErrorPartInput {
   messageId: string
@@ -206,6 +231,8 @@ export interface MessageListItem {
   siblingsGroupId?: number
   isActiveBranch?: boolean
   stats?: MessageStats
+  delivery?: AgentSessionDelivery
+  turnOrigin?: AutonomousTurnOrigin
   mentions?: Array<{
     id: string
     name: string
@@ -216,16 +243,36 @@ export interface MessageListItem {
   isContextBoundary?: boolean
 }
 
+/**
+ * The message topology the anchor rail derives its turns from — deliberately
+ * the complete set of fields it may read.
+ *
+ * Streaming rewrites message content and array identity on every chunk but
+ * never the topology, so projecting onto these fields lets the rail keep a
+ * referentially stable `messages` prop and skip the render entirely. Reading
+ * any other field from the rail means widening this type first, which is a
+ * compile error rather than a silently stale render.
+ */
+export interface AnchorMessage {
+  id: string
+  role: MessageListItem['role']
+  isActiveBranch?: boolean
+  isContextBoundary?: boolean
+}
+
 export interface MessageRenderConfig {
+  subagentListTitle?: string
   userName: string
   narrowMode: boolean
   messageStyle: ChatMessageStyle
   messageFont: string
   fontSize: number
   renderInputMessageAsMarkdown: boolean
+  userMessageDefaultExpanded: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
+  keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
@@ -241,9 +288,11 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   messageFont: 'system',
   fontSize: 14,
   renderInputMessageAsMarkdown: false,
+  userMessageDefaultExpanded: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,
@@ -266,6 +315,11 @@ export interface MessageStreamingLayers {
   liveMessageIds: readonly string[]
 }
 
+export interface MessageTailSlot {
+  messageId: string
+  content: ReactNode
+}
+
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
@@ -273,6 +327,10 @@ export interface MessageListState {
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Transient presentation inside the scroller, excluded from history actions and exports. */
+  afterMessages?: ReactNode
+  /** Optional adapter-owned content rendered after one message's body. */
+  messageTail?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
    *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
    *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
@@ -287,35 +345,42 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
-  /** Monotonic counter incremented only after this renderer opens a local user turn. */
-  localSendGeneration?: number
-  readonly?: boolean
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
   editingMessageId?: string | null
   translationLanguages?: TranslateLanguage[]
+  translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
+  messageActivityStore?: MessageActivityStore
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   isMessageTranslating?: (messageId: string) => boolean
-  getFileView?: (file: FileMetadata) => MessageFileView
+  getFileView?: (file: Pick<FileMetadata, 'origin_name' | 'ext' | 'created_at'>) => MessageFileView
   isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
-  externalCodeEditors?: ExternalAppInfo[]
   getTranslationLanguageLabel?: (
     language: TranslateLangCode | TranslateLanguage | null,
     withEmoji?: boolean
   ) => string | undefined
 }
 
+/** Shared list mechanics; page adapters provide data and capabilities, not separate geometry or loading timing. */
+export const DEFAULT_MESSAGE_LIST_CONFIG = {
+  estimateSize: 400,
+  overscan: 6,
+  loadOlderDelayMs: 0,
+  loadingResetDelayMs: 600
+} as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
+
 export interface MessageListActions {
+  openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
   bindMessageRuntime?: (messageId: string, runtime: MessageRuntime) => void | (() => void)
   bindMessageGroupRuntime?: (messageIds: string[], runtime: MessageGroupRuntime) => void | (() => void)
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
-  saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
+  saveCodeBlock?: (data: { msgBlockId: string; originalContent: string; newContent: string }) => void | Promise<void>
   saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
   saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
   saveToKnowledge?: (message: MessageExportView) => void | Promise<void>
@@ -328,15 +393,17 @@ export interface MessageListActions {
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
-  openFile?: (file: FileMetadata) => void | Promise<void>
-  openPath?: (path: string) => void | Promise<void>
-  /** Probe whether a path points at a directory (fs.stat-backed; resolves false on missing). */
+  openDiagnosticReport?: (description?: string) => void
+  resolvePath?: (path: string) => string
+  previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
   isDirectory?: (path: string) => Promise<boolean>
+  openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
+  openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
+  isAgentToolFlowActive?: (toolCallId: string) => boolean
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
-  showInFolder?: (path: string) => void | Promise<void>
+  openBrowserUrl?: (url: string) => void
   openExternalUrl?: (url: string) => void | Promise<void>
-  openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
@@ -350,7 +417,7 @@ export interface MessageListActions {
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void
   notifyError?: (message: string) => void
-  previewFile?: (file: FileMetadata) => void | Promise<void>
+  previewFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   subscribeToolProgress?: (toolId: string, onProgress: (progress: number) => void) => void | (() => void)
   respondToolApproval?: (input: MessageToolApprovalInput) => void | Promise<void>
@@ -360,17 +427,26 @@ export interface MessageListActions {
   removeMessageErrorPart?: (input: RemoveMessageErrorPartInput) => void | Promise<void>
   openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
   navigateErrorTarget?: (target: string) => void | Promise<void>
+  requestTranslationLanguages?: () => void
+  retryTranslationLanguages?: () => void
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
   abortMessageTranslation?: (messageId: string) => void | Promise<void>
   removeMessageTranslation?: (messageId: string) => void | Promise<void>
   renderRegenerateModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
   selectMessage?: (messageId: string, selected: boolean) => void
+  toggleSelectAllMessages?: (checked: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   saveSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  exportSelectedMessages?: (
+    messageIds: readonly string[] | undefined,
+    target: MessageExportTarget
+  ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
+  canEditMessage?: (message: MessageListItem) => boolean
+  editLabel?: string
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   /** Open the inline editor for a message. Absent = editing unavailable (read-only embeds). */
   startEditing?: (
@@ -381,9 +457,15 @@ export interface MessageListActions {
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
+  forkSession?: {
+    label: string
+    availability: (message: MessageListItem) => ActionAvailabilityInput
+    run: (messageId: string) => void | Promise<void>
+  }
+  copyBranchToNewTopic?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
-  deleteMessageGroup?: (parentId: string) => void | Promise<void>
-  deleteMessageGroupWithConfirm?: (parentId: string) => void | Promise<void>
+  deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
+  deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
 }
 
@@ -392,6 +474,8 @@ export interface MessageListMeta {
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
   imageExportFileName?: string
+  /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
+  aiUsageMessageKind?: AiUsageRecordMessageKind
 }
 
 export interface MessageListProviderValue {

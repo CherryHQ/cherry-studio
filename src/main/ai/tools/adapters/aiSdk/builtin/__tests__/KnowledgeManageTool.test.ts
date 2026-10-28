@@ -1,17 +1,19 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addItems = vi.fn()
 const deleteConcepts = vi.fn()
 const refreshConcepts = vi.fn()
+const createBase = vi.fn()
 const loggerWarn = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeService') return { addItems, deleteConcepts, refreshConcepts }
+      if (name === 'KnowledgeService') return { addItems, deleteConcepts, refreshConcepts, createBase }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -32,8 +34,10 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 type ManageArgs = {
-  baseId: string
-  action: 'add' | 'delete' | 'refresh'
+  baseId?: string
+  action: 'add' | 'delete' | 'refresh' | 'create'
+  name?: string
+  items?: Array<{ type?: 'file' | 'url' | 'note'; path?: string; url?: string; content?: string; title?: string }>
   type?: 'file' | 'url' | 'note'
   path?: string
   url?: string
@@ -42,22 +46,12 @@ type ManageArgs = {
   conceptIds?: string[]
 }
 
-type StrictManageArgs = Omit<Required<ManageArgs>, 'type'> & {
-  type: NonNullable<ManageArgs['type']> | 'none'
-}
-
 function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: StrictManageArgs, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (args: ManageArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(
-    {
-      type: 'none',
-      path: '',
-      url: '',
-      content: '',
-      title: '',
-      conceptIds: [],
-      ...args
-    },
+    // Fields the action does not use are omitted, not sentinel-valued — kb_manage runs without
+    // `strict`, so its schema is plain optionals.
+    args,
     {
       toolCallId: 'tc-1',
       messages: [],
@@ -66,7 +60,7 @@ function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
         abortSignal: new AbortController().signal
       }
-    } as ToolExecutionOptions
+    }
   )
 }
 
@@ -75,6 +69,7 @@ describe('kb_manage', () => {
     addItems.mockReset()
     deleteConcepts.mockReset()
     refreshConcepts.mockReset()
+    createBase.mockReset()
     loggerWarn.mockReset()
     addItems.mockResolvedValue({ status: 'added' })
     deleteConcepts.mockResolvedValue({ applied: [], notFound: [] })
@@ -102,16 +97,16 @@ describe('kb_manage', () => {
     expect(deleteConcepts).not.toHaveBeenCalled()
   })
 
-  it('adds a file by absolute path, deriving the source name from the basename', async () => {
+  it('adds a file by absolute path, storing the full path as source (REGRESSION #19954)', async () => {
     const result = await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'file', path: '/Users/me/docs/report.pdf' },
       { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(addItems).toHaveBeenCalledWith('kb-1', [
-      { type: 'file', data: { source: 'report.pdf', path: '/Users/me/docs/report.pdf' } }
+      { type: 'file', data: { source: '/Users/me/docs/report.pdf', path: '/Users/me/docs/report.pdf' } }
     ])
-    expect(result).toEqual({ action: 'add', added: ['report.pdf'] })
+    expect(result).toEqual({ action: 'add', added: ['/Users/me/docs/report.pdf'] })
   })
 
   it('rejects a non-absolute file path via schema validation and does not add', async () => {
@@ -149,6 +144,32 @@ describe('kb_manage', () => {
       { type: 'note', data: { source: 'First line', content: 'First line\nsecond line' } }
     ])
     expect(result).toEqual({ action: 'add', added: ['First line'] })
+  })
+
+  it('creates a knowledge base via the shared core and reports it', async () => {
+    createBase.mockResolvedValueOnce({ id: 'kb-new', name: 'Research' })
+
+    const result = await callExecute({ action: 'create', name: 'Research' }, { knowledgeBaseIds: ['kb-1'] })
+
+    expect(createBase).toHaveBeenCalledWith({ name: 'Research' })
+    expect(result).toEqual({ action: 'create', created: { baseId: 'kb-new', name: 'Research' } })
+  })
+
+  it('imports a batch of items in one service call', async () => {
+    const result = await callExecute(
+      {
+        baseId: 'kb-1',
+        action: 'add',
+        items: [
+          { type: 'note', content: 'first' },
+          { type: 'url', url: 'https://example.com/a' }
+        ]
+      },
+      { knowledgeBaseIds: ['kb-1'] }
+    )
+
+    expect(addItems).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ action: 'add', added: ['first', 'https://example.com/a'] })
   })
 
   it('returns a steer and does not add when a required add field is missing', async () => {

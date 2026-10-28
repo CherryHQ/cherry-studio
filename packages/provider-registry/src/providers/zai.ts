@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'zai',
   name: 'zai',
+  availableInEditions: ['global'],
   baseUrl: 'https://api.z.ai/api/paas/v4/',
   anthropic: 'https://api.z.ai/api/anthropic',
   website: {

@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
 import type {
@@ -9,7 +11,6 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
@@ -78,7 +79,11 @@ const binaryApplicationSchema: z.ZodType<BinaryApplication> = z.discriminatedUni
   z.object({ status: z.literal('broken'), version: z.string().optional() }),
   z.object({ status: z.literal('absent') }),
   z.object({ status: z.literal('conflict') }),
-  z.object({ status: z.literal('unknown'), reason: z.enum(['backend_unavailable', 'query_failed']) })
+  z.object({
+    status: z.literal('unknown'),
+    reason: z.enum(['backend_unavailable', 'query_failed']),
+    message: z.string().optional()
+  })
 ])
 
 const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [

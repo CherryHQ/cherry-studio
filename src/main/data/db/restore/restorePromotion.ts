@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
-import { loggerService } from '@logger'
 import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
@@ -534,7 +535,7 @@ function rollbackPreCommit(ctx: PromotionContext): void {
 
 /**
  * Post-commit failure (integrity or a later step): the promoted DB is live
- * but unacceptable. Park it for forensics, restore the aside, and undo ALL
+ * but unacceptable. Park it in staging, restore the aside, and undo ALL
  * file operations — entries were applied by now, so reverting only the DB
  * would leave an "old DB + new files" inconsistent state.
  *
@@ -545,10 +546,14 @@ function rollbackPreCommit(ctx: PromotionContext): void {
  */
 function revertPostCommit(ctx: PromotionContext): void {
   if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
-    const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
+    const parked = path.join(
+      application.getPath('feature.backup.restore.staging'),
+      ctx.journal.restoreId,
+      'failed.sqlite'
+    )
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
-    logger.warn('Promoted DB failed post-commit checks — parked for forensics', { parked })
+    logger.warn('Promoted DB failed post-commit checks — parked until rollback completes', { parked })
   }
   restoreLiveFromAside(ctx)
   inverseManifest(ctx)
@@ -621,7 +626,7 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  * safety check, so the crash net can still locate the parked aside.
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
-  writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)
+  writeRestoreJournal({ ...ctx.journal, state, step })
   const stagingRoot = application.getPath('feature.backup.restore.staging')
   fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
 }

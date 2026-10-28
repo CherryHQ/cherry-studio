@@ -1,4 +1,8 @@
-import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
+import {
+  type LocalStorageRecord,
+  MIGRATION_LOCAL_STORAGE_KEYS,
+  MigrationIpcChannels
+} from '@shared/data/migration/v2/types'
 
 export class LocalStorageExporter {
   private exportPath: string
@@ -9,13 +13,18 @@ export class LocalStorageExporter {
   }
 
   async export(): Promise<string> {
-    const records: LocalStorageRecord[] = []
+    this.exportedCount = 0
+    await window.electron.ipcRenderer.invoke(
+      MigrationIpcChannels.WriteExportFile,
+      this.exportPath,
+      'localStorage',
+      '[',
+      'overwrite'
+    )
 
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key === null) continue
-
+    for (const key of MIGRATION_LOCAL_STORAGE_KEYS) {
       const rawValue = localStorage.getItem(key)
+      if (rawValue === null) continue
       let value: unknown = rawValue
 
       // Try to parse JSON values
@@ -27,24 +36,30 @@ export class LocalStorageExporter {
         }
       }
 
-      records.push({ key, value })
+      const record: LocalStorageRecord = { key, value }
+      await window.electron.ipcRenderer.invoke(
+        MigrationIpcChannels.WriteExportFile,
+        this.exportPath,
+        'localStorage',
+        `${this.exportedCount > 0 ? ',' : ''}${JSON.stringify(record)}`,
+        'append'
+      )
+      this.exportedCount += 1
     }
 
-    this.exportedCount = records.length
-
-    // Write via IPC (reuse existing WriteExportFile channel)
     await window.electron.ipcRenderer.invoke(
-      'migration:write-export-file',
+      MigrationIpcChannels.WriteExportFile,
       this.exportPath,
       'localStorage',
-      JSON.stringify(records)
+      ']',
+      'append'
     )
 
     return `${this.exportPath}/localStorage.json`
   }
 
   hasData(): boolean {
-    return localStorage.length > 0
+    return MIGRATION_LOCAL_STORAGE_KEYS.some((key) => localStorage.getItem(key) !== null)
   }
 
   getEntryCount(): number {

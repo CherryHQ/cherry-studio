@@ -1,3 +1,7 @@
+import { CircleHelp } from 'lucide-react'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ColFlex,
@@ -13,9 +17,6 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
-import { CircleHelp } from 'lucide-react'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export const TopicNamingSettings = () => {
   const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
@@ -30,7 +31,7 @@ export const TopicNamingSettings = () => {
     <section>
       <SettingSubtitle className="mt-0 mb-3">{t('settings.models.topic_naming.label')}</SettingSubtitle>
 
-      <ColFlex className="items-stretch rounded-md border border-border-muted">
+      <ColFlex className="items-stretch rounded-md border border-border-subtle">
         <RowFlex className="min-h-11 items-center justify-between gap-4 px-3 py-2.5">
           <div className="text-foreground text-sm">{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
@@ -44,7 +45,7 @@ export const TopicNamingSettings = () => {
               <div className="truncate text-foreground text-sm">{t('settings.models.topic_naming.prompt')}</div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-foreground-muted">
+                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-muted-foreground">
                     <CircleHelp size={14} />
                   </Button>
                 </PopoverTrigger>

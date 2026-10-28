@@ -1,9 +1,13 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl, tryFileUrlToPath } from '../url'
 
 describe('normalizeExt', () => {
   it('normalizes dotted, cased, and boundary-padded extensions', () => {
@@ -89,7 +93,53 @@ describe('toFileUrl', () => {
   it('preserves Windows drive letters unencoded', () => {
     expect(toFileUrl('C:\\foo\\bar baz.pdf' as AbsoluteFilePath)).toBe('file:///C:/foo/bar%20baz.pdf')
     expect(toFileUrl('D:\\folder\\file.txt' as AbsoluteFilePath)).toBe('file:///D:/folder/file.txt')
+    expect(toFileUrl('C:/folder/file.txt' as AbsoluteFilePath)).toBe('file:///C:/folder/file.txt')
   })
+
+  // A `\` in a POSIX filename is not a directory separator. Folding it first
+  // makes the URL name `/workspace/clip/part.mp4` instead of `clip\part.mp4`.
+  it('percent-encodes a backslash that belongs to a POSIX filename', () => {
+    expect(toFileUrl('/workspace/clip\\part.mp4' as AbsoluteFilePath)).toBe('file:///workspace/clip%5Cpart.mp4')
+  })
+
+  it.skipIf(process.platform === 'win32')('reads the POSIX file named with a backslash, not the nested sibling', () => {
+    const root = mkdtempSync(join(tmpdir(), 'to-file-url-backslash-both-'))
+    const literal = join(root, 'clip\\part.mp4')
+    const sibling = join(root, 'clip', 'part.mp4')
+    try {
+      mkdirSync(join(root, 'clip'), { recursive: true })
+      writeFileSync(literal, 'literal-bytes')
+      writeFileSync(sibling, 'sibling-bytes')
+
+      const selected = fileURLToPath(toFileUrl(literal as AbsoluteFilePath))
+
+      expect(selected).toBe(literal)
+      expect(readFileSync(selected, 'utf8')).toBe('literal-bytes')
+      expect(readFileSync(sibling, 'utf8')).toBe('sibling-bytes')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'names the existing POSIX backslash file when the nested sibling is absent',
+    () => {
+      const root = mkdtempSync(join(tmpdir(), 'to-file-url-backslash-absent-'))
+      const literal = join(root, 'clip\\part.mp4')
+      const sibling = join(root, 'clip', 'part.mp4')
+      try {
+        writeFileSync(literal, 'literal-only')
+
+        const selected = fileURLToPath(toFileUrl(literal as AbsoluteFilePath))
+
+        expect(selected).toBe(literal)
+        expect(selected).not.toBe(sibling)
+        expect(readFileSync(selected, 'utf8')).toBe('literal-only')
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('normalizes backslashes to forward slashes', () => {
     expect(toFileUrl('C:\\a\\b\\c.txt' as AbsoluteFilePath)).toBe('file:///C:/a/b/c.txt')
@@ -151,7 +201,27 @@ describe('fileUrlToPath', () => {
   })
 
   it('throws on malformed percent-encoding', () => {
-    expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileUrlString)).toThrow(URIError)
+    expect(() => fileUrlToPath('file:///foo/%zz.pdf')).toThrow(URIError)
+  })
+
+  // Cross-module contract, not a restatement of the decode cases above: the
+  // decoded path is fed straight into `AbsoluteFilePathSchema` by `file://` drop
+  // handling (`useFileDragDrop`), so the two must agree on what "absolute" means.
+  // They did not: this function emits Windows drive paths with forward slashes
+  // (`C:/…`, required to stay the inverse of `toFileUrl`), while the schema once
+  // accepted only `C:\…`. Every drop of a `file:///C:/…` value was rejected at the
+  // IPC boundary and silently degraded into pasted text. Pin the agreement here —
+  // the decode assertions above all still pass under a backslash-only schema.
+  it('emits paths that satisfy AbsoluteFilePathSchema on every platform form', () => {
+    const urls = [
+      'file:///foo/bar%20baz.pdf', // POSIX
+      'file:///C:/foo/bar%20baz.pdf', // Windows drive — the regressed case
+      'file://server/share/report%20final.pdf' // Windows UNC
+    ] as const
+
+    for (const url of urls) {
+      expect(AbsoluteFilePathSchema.safeParse(fileUrlToPath(url)).success).toBe(true)
+    }
   })
 })
 
@@ -201,5 +271,20 @@ describe('toSafeFileUrl', () => {
     // `<img src>` can hand to OS file associations.
     expect(toSafeFileUrl('/payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///')
     expect(toSafeFileUrl('C:\\payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///C:/')
+  })
+})
+
+describe('tryFileUrlToPath', () => {
+  it('decodes percent-encoded segments the naive scheme strip would leave behind', () => {
+    expect(tryFileUrlToPath('file:///Users/a/Application%20Support/note.md')).toBe(
+      '/Users/a/Application Support/note.md'
+    )
+  })
+
+  it('returns undefined instead of throwing on inputs fileUrlToPath rejects', () => {
+    // `new URL()` accepts the dangling `%`; decodeURIComponent throws URIError on it.
+    expect(tryFileUrlToPath('file:///tmp/100%.png')).toBeUndefined()
+    expect(tryFileUrlToPath('https://example.com/a.png')).toBeUndefined()
+    expect(tryFileUrlToPath('not a url')).toBeUndefined()
   })
 })

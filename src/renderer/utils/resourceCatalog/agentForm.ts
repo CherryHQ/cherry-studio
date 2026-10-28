@@ -1,9 +1,12 @@
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
+import { normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
 import {
-  DEFAULT_HEARTBEAT_ENABLED,
-  DEFAULT_HEARTBEAT_INTERVAL,
-  normalizePermissionMode
-} from '@renderer/utils/agent/permissionMode'
+  clampHeartbeatIntervalMinutes,
+  isHeartbeatEnabled,
+  normalizeHeartbeatTimeoutMinutes
+} from '@shared/ai/agentHeartbeat'
+import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -42,14 +45,15 @@ export interface AgentFormState {
   envVarsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
+  heartbeatTimeoutMinutes: number
+  /** Tri-state driver for `configuration.language`: inherit (undefined), off (null), custom (string). */
+  languageMode: AgentLanguageMode
+  /** Draft label; only meaningful when `languageMode` is custom. */
+  languageCustom: string
 }
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : ''
-}
-
-function asNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 /**
@@ -104,13 +108,26 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
-    disabledTools: [...(agent?.disabledTools ?? [])],
+    disabledTools: (agent?.disabledTools ?? []).map((name) =>
+      agent?.type === 'pi' ? normalizePiDisabledToolId(name) : name
+    ),
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
-    heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
-    heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
+    heartbeatEnabled: isHeartbeatEnabled(cfg),
+    heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
+    heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
+    ...initialLanguageFields(cfg.language)
   }
+}
+
+function initialLanguageFields(language: unknown): Pick<AgentFormState, 'languageMode' | 'languageCustom'> {
+  if (language === null) return { languageMode: 'off', languageCustom: '' }
+  if (typeof language === 'string') {
+    const normalized = normalizeAgentLanguageInput(language)
+    return { languageMode: 'custom', languageCustom: normalized ?? language }
+  }
+  return { languageMode: 'inherit', languageCustom: '' }
 }
 
 export function applyAgentFormPatch(current: AgentFormState, patch: Partial<AgentFormState>): AgentFormState {
@@ -132,16 +149,10 @@ export interface AgentDiffResult {
  * Compute a minimal `UpdateAgentDto` by comparing `next` to `baseline`. Returns
  * `null` when no editable agent field changed.
  *
- * `configuration` is merged onto the existing `agent.configuration` so unrelated
- * keys that we don't surface in the form (plugin-specific settings, etc.) are
- * preserved. Only the configuration keys we actually edit participate in the
- * diff.
+ * `configuration` contains only the keys edited by this form. Main merges those
+ * keys into the latest persisted configuration inside the write transaction.
  */
-export function diffAgentUpdate(
-  baseline: AgentFormState,
-  next: AgentFormState,
-  agent: AgentDetail
-): AgentDiffResult | null {
+export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState): AgentDiffResult | null {
   const dto: UpdateAgentDto = {}
   let dirty = false
 
@@ -158,11 +169,13 @@ export function diffAgentUpdate(
     dirty = true
   }
   if (baseline.planModel !== next.planModel) {
-    dto.planModel = next.planModel || undefined
+    // null (not undefined) so the PATCH clears the column — undefined would be
+    // dropped as "field not provided" and the old override would survive.
+    dto.planModel = next.planModel || null
     dirty = true
   }
   if (baseline.smallModel !== next.smallModel) {
-    dto.smallModel = next.smallModel || undefined
+    dto.smallModel = next.smallModel || null
     dirty = true
   }
   if (baseline.instructions !== next.instructions) {
@@ -187,7 +200,7 @@ export function diffAgentUpdate(
     dirty = true
   }
 
-  const cfgPatch: Record<string, unknown> = {}
+  const cfgPatch: AgentConfiguration = {}
   let cfgDirty = false
 
   if (baseline.avatar !== next.avatar) {
@@ -195,7 +208,7 @@ export function diffAgentUpdate(
     cfgDirty = true
   }
   if (baseline.permissionMode !== next.permissionMode) {
-    cfgPatch.permission_mode = next.permissionMode || 'default'
+    cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
     cfgDirty = true
   }
   if (baseline.envVarsText !== next.envVarsText) {
@@ -213,9 +226,18 @@ export function diffAgentUpdate(
     cfgPatch.heartbeat_interval = next.heartbeatInterval
     cfgDirty = true
   }
+  if (baseline.heartbeatTimeoutMinutes !== next.heartbeatTimeoutMinutes) {
+    cfgPatch.heartbeat_timeout_minutes = normalizeHeartbeatTimeoutMinutes(next.heartbeatTimeoutMinutes)
+    cfgDirty = true
+  }
+  const languagePatch = diffLanguageUpdate(baseline, next)
+  if (languagePatch.dirty) {
+    cfgPatch.language = languagePatch.value
+    cfgDirty = true
+  }
 
   if (cfgDirty) {
-    dto.configuration = { ...configurationWithoutMaxTurns(agent.configuration), ...cfgPatch }
+    dto.configuration = cfgPatch
     dirty = true
   }
 
@@ -224,10 +246,22 @@ export function diffAgentUpdate(
   return { dto }
 }
 
-function configurationWithoutMaxTurns(configuration: AgentDetail['configuration']): Record<string, unknown> {
-  const rest: Record<string, unknown> = { ...configuration }
-  delete rest.max_turns
-  return rest
+function diffLanguageUpdate(
+  baseline: AgentFormState,
+  next: AgentFormState
+): { dirty: false } | { dirty: true; value: string | null | undefined } {
+  if (next.languageMode === 'inherit') {
+    return baseline.languageMode === 'inherit' ? { dirty: false } : { dirty: true, value: undefined }
+  }
+  if (next.languageMode === 'off') {
+    return baseline.languageMode === 'off' ? { dirty: false } : { dirty: true, value: null }
+  }
+  const normalized = normalizeAgentLanguageInput(next.languageCustom)
+  if (normalized === null) return { dirty: false }
+  if (baseline.languageMode === 'custom' && normalizeAgentLanguageInput(baseline.languageCustom) === normalized) {
+    return { dirty: false }
+  }
+  return { dirty: true, value: normalized }
 }
 
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
@@ -271,12 +305,8 @@ export type AgentSaveIntent = { kind: 'update'; payload: UpdateAgentDto }
  * Resolve the current form into a save intent. Returns `null` when
  * there's nothing to do.
  */
-export function diffAgentSaveIntent(
-  form: AgentFormState,
-  baseline: AgentFormState,
-  agent: AgentDetail
-): AgentSaveIntent | null {
-  const result = diffAgentUpdate(baseline, form, agent)
+export function diffAgentSaveIntent(form: AgentFormState, baseline: AgentFormState): AgentSaveIntent | null {
+  const result = diffAgentUpdate(baseline, form)
   if (!result) return null
   return {
     kind: 'update',

@@ -69,5 +69,5 @@ export function createZhipuProvider(settings: ZhipuProviderSettings = {}): Zhipu
       fetch: customFetch
     })
 
-  return provider as ZhipuProvider
+  return provider
 }

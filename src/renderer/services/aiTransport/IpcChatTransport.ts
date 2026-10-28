@@ -1,9 +1,10 @@
+import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { streamDispatchService } from './StreamDispatchService'
 
@@ -42,7 +43,10 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             trigger: 'regenerate-message',
             topicId,
             parentAnchorId: mergedBody.parentAnchorId ?? '',
-            mentionedModelIds: mergedBody.mentionedModels
+            mentionedModelIds: mergedBody.mentionedModels,
+            reasoningEffort: mergedBody.reasoningEffort,
+            serviceTier: mergedBody.serviceTier,
+            ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
         : {
             trigger: 'submit-message',
@@ -50,7 +54,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             parentAnchorId: mergedBody.parentAnchorId,
             userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
             mentionedModelIds: mergedBody.mentionedModels,
-            reasoningEffort: mergedBody.reasoningEffort
+            reasoningEffort: mergedBody.reasoningEffort,
+            serviceTier: mergedBody.serviceTier,
+            ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
 
     streamDispatchService.dispatch(topicId, ipcRequest)

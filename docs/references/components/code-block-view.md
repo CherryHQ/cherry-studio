@@ -1,180 +1,152 @@
-# CodeBlockView Component Structure
+---
+description: How CodeBlock classifies Markdown code and CodeBlockView renders the fenced-code workbench across streaming states
+sources:
+  - src/renderer/components/CodeBlockView
+  - src/renderer/components/chat/messages/markdown
+  - packages/ui/src/lib/code-block
+  - src/renderer/components/CodeViewer.tsx
+  - src/renderer/components/CodeStyleProvider.tsx
+  - src/renderer/components/LazyCodeEditor.tsx
+  - src/renderer/components/PromptEditorField.tsx
+  - src/renderer/components/RichEditor
+  - src/renderer/workers/codeHighlight.worker.ts
+  - src/renderer/components/markdown/useMarkdownCode.ts
+  - src/renderer/utils/markdown.ts
+---
+
+# Code Block Rendering
 
 ## Overview
 
-CodeBlockView is the core component in Cherry Studio for displaying and manipulating code blocks. It supports multiple view modes and visual previews for special languages, providing rich interactive tools.
+Code block rendering has two separate responsibilities:
+
+- `CodeBlock` classifies Markdown content and routes inline code, file paths, HTML artifacts, and ordinary fenced code.
+- `CodeBlockView` owns the workbench for ordinary fenced code and special-language previews.
+
+HTML artifacts keep their own preview, security, and consent pipeline. They are not modes of `CodeBlockView`.
 
 ## Component Structure
 
 ```mermaid
 graph TD
-    A[CodeBlockView] --> B[CodeToolbar]
-    A --> C[SourceView]
-    A --> D[SpecialView]
-    A --> E[StatusBar]
+    A[ChatMarkdown] --> B[Stable renderer map]
+    B --> C[CodeBlock classifier]
+    C --> D[Inline code or file path]
+    C --> E[HTML artifact pipeline]
+    C --> F[CodeBlockView workbench]
 
-    B --> F[CodeToolButton]
+    F --> G[Header]
+    F --> H[CodeToolbar]
+    F --> I[Content surface]
+    F --> J[Execution status]
 
-    C --> G[CodeEditor / CodeViewer]
+    H --> K[Tool hooks]
+    H --> L[CodeToolButton]
 
-    D --> H[MermaidPreview]
-    D --> I[PlantUmlPreview]
-    D --> J[SvgPreview]
-    D --> K[GraphvizPreview]
-
-    F --> L[useCopyTool]
-    F --> M[useDownloadTool]
-    F --> N[useViewSourceTool]
-    F --> O[useSplitViewTool]
-    F --> P[useRunTool]
-    F --> Q[useExpandTool]
-    F --> R[useWrapTool]
-    F --> S[useSaveTool]
+    I --> M[CodeViewer]
+    I --> N[CodeEditor]
+    I --> O[Special preview]
 ```
 
-## Core Concepts
+## Stable Markdown Renderers
 
-### View Types
+The chat Markdown component map is defined at module scope. Renderer functions read the current block ID, citation
+registry, inline HTML mode, and streaming state from one memoized render context.
 
-- **preview**: Preview view, where non-source code is displayed as special views
-- **edit**: Edit view
+Changing streaming state therefore updates renderer props without creating new React component types. Existing code,
+table, link, and image nodes keep their identity across stream updates.
 
-### View Modes
+## View State
 
-- **source**: Source code view mode
-- **special**: Special view mode (Mermaid, PlantUML, SVG)
-- **split**: Split view mode (source code and special view displayed side by side)
+`ViewMode` represents user-visible content selection:
 
-### Special View Languages
+- `source`: read-only source in `CodeViewer`
+- `edit`: editable source in `CodeEditor`
+- `special`: Mermaid, PlantUML, SVG, or Graphviz preview
+- `split`: special preview and source side by side
 
-- mermaid
-- plantuml
-- svg
-- dot
-- graphviz
+Initial behavior:
 
-## Component Details
+- Ordinary code starts in `source`; the edit action lazily opens CodeMirror when editing is enabled.
+- Ordinary code that starts streaming uses `source` and stays on the same Viewer when the stream settles.
+- Special languages start in `special`.
 
-### CodeBlockView Main Component
+Entering split mode remembers the previous mode. A split entered from edit keeps the Editor on the source side; other
+split paths use the Viewer.
 
-Main responsibilities:
+## Streaming Behavior
 
-1. Managing view mode state
-2. Coordinating the display of source code view and special view
-3. Managing toolbar tools
-4. Handling code execution state
+`isStreaming` controls only streaming-specific behavior:
 
-### Subcomponents
+| State | Viewer highlighting | Collapsed auto-scroll | Enter edit |
+|---|---|---|---|
+| streaming | incremental range jobs | enabled while pinned to the bottom | unavailable |
+| settled | incremental range jobs | disabled | available when editing is enabled |
 
-#### CodeToolbar
+Changing `isStreaming` must not select a different content component. A Viewer created for a stream receives the final
+content in place.
 
-- Toolbar displayed at the top-right corner of the code block
-- Contains core and quick tools
-- Dynamically displays relevant tools based on context
-
-#### CodeEditor/CodeViewer Source View
-
-- Editable code editor or read-only code viewer
-- Uses either component based on settings
-- Supports syntax highlighting for multiple programming languages
-
-#### Special View Components
-
-- **MermaidPreview**: Mermaid diagram preview
-- **PlantUmlPreview**: PlantUML diagram preview
-- **SvgPreview**: SVG image preview
-- **GraphvizPreview**: Graphviz diagram preview
-
-All special view components share a common architecture for consistent user experience and functionality. For detailed information about these components and their implementation, see [Image Preview Components Documentation](./image-preview.md).
-
-#### StatusBar
-
-- Displays Python code execution results
-- Can show both text and image results
+Special previews retain an enabled source/preview toggle while streaming. After settling, editable code can enter edit
+mode without requiring the preview component to change during the stream transition.
 
 ## Tool System
 
-CodeBlockView uses a hook-based tool system:
+The existing tool hooks register copy, download, edit/source, split, run, expand, wrap, and save actions with
+`CodeToolbar`. `CodeToolbar` owns only its overflow state, and `CodeToolButton` owns only its child-menu state.
 
-```mermaid
-graph TD
-    A[CodeBlockView] --> B[useCopyTool]
-    A --> C[useDownloadTool]
-    A --> D[useViewSourceTool]
-    A --> E[useSplitViewTool]
-    A --> F[useRunTool]
-    A --> G[useExpandTool]
-    A --> H[useWrapTool]
-    A --> I[useSaveTool]
+Copy, download, and run callbacks read the mounted editor or the latest displayed source from a ref. Their identities therefore remain stable
+as source chunks arrive, so the registration effects do not cycle for every chunk. Copy actions return an explicit
+success result so failed clipboard operations do not show success feedback.
 
-    B --> J[ToolManager]
-    C --> J
-    D --> J
-    E --> J
-    F --> J
-    G --> J
-    H --> J
-    I --> J
+## Content Surfaces
 
-    J --> K[CodeToolbar]
-```
+### CodeViewer
 
-Each tool hook is responsible for registering specific function tool buttons to the tool manager, which then passes these tools to the CodeToolbar component for rendering.
+`CodeViewer` is the default source surface, including active streams. It retains its caller ID, TanStack viewport,
+selection state and DOM while content grows. Existing worker sessions parse the shared code-block language with
+Lezer/StreamLanguage and return semantic classes for requested lines. Pending or failed syntax work leaves complete
+plain source readable. Tiptap decorations and snapshot/HTML/Markdown worker jobs use the same parser classification.
 
-### Tool Types
+### CodeEditor
 
-- **core**: Core tools, always displayed in the toolbar
-- **quick**: Quick tools, displayed in a dropdown menu when there are more than one
+The edit action loads `CodeEditor`, showing the same Viewer while loading. CodeBlockView retains local EditorState
+across reading/editing switches, including draft, selection, history and folds. A parent save echo accepts that state;
+a different external source begins a fresh document epoch. Newly attached editors install current callbacks.
 
-### Tool List
+The viewer and adopted editor share language loading, semantic HighlightStyle and palette variables from
+`chat.code.viewer.theme_*`. Theme changes update colors without resetting the document or parsing it again.
+`auto` resolves to the Cherry default theme, a transparent CSS-variable palette that follows the application
+appearance, so a light/dark switch only recolors ([Agent Note](../../../.agents/notes/implemented/feature/2026-10-28-cherry-default-code-theme.md)).
+The shared loader preserves directly supported grammars and caller-configured extensions, then resolves missing
+names and aliases through the existing compatibility catalog and installed grammar keys. This covers `jsonc`,
+`shellscript`, and canonical names such as `clojure` and `latex` in
+document highlighting and HTML/Markdown exports.
+Both modes use two-column tab stops and preserve a full line of height for empty lines. Switching modes preserves
+text and line-number alignment, wrapped line heights and the code surface background. In both modes line numbers
+scroll horizontally with the code instead of staying pinned.
+Integer vertical padding keeps CodeMirror's gutter baseline aligned with the viewer. The lazy editor waits for
+its language before mounting; returning to reading seeds visible syntax from the retained editor's parsed tree
+until Worker results arrive. Unparsed ranges retain the normal plain-source fallback.
+Generic Notes, prompt and configuration editors retain CodeMirror themes from `chat.code.editor.theme_*`, with a separate editor theme selector; `auto` uses the Cherry chrome theme with the same palette. The renderer entry applies shared syntax only when the adopted message or HTML-artifact host explicitly supplies it. Copy/save preserve source whitespace;
+CodeMirror uses `sliceDoc` and the source line separator rather than implicitly converting CRLF.
+Initial content and external replacements normalize incoming LF, CRLF and CR into document lines before computing
+positions. A shared transaction filter normalizes inserted text from editing commands, search replacements, paste,
+drop and extension transactions. Corrections compose into the original transaction, mapping selection and effects
+while preserving undo history. Syntax styling does not select the document's serialization separator.
+The Markdown adapter removes exactly the structural LF appended by mdast-to-HAST conversion; the code document
+uses the AST code value, preserving authored trailing spaces and blank lines. Saving matches that exact value,
+so rendering the save echo does not add a newline or reset the retained history.
+The standalone HTML fast path marks its input as raw source, so the adapter does not remove another LF.
 
-1. **Copy**: Copy code or image
-2. **Download**: Download code or image
-3. **View Source**: Switch between special view and source code view
-4. **Split View**: Toggle split view mode
-5. **Run**: Run Python code
-6. **Expand/Collapse**: Control code block expansion/collapse
-7. **Wrap**: Control automatic line wrapping
-8. **Save**: Save edited code
+The HTML artifact popup uses the same syntax/palette and retains its own local EditorState across code, preview
+and split layouts. The preview and capture use the accepted parent HTML; layout switches do not save the draft.
+Matching save echoes preserve selection/history, while an external replacement or closing/reopening begins a fresh
+session. Popup hosts key different artifacts separately. The source fallback can reuse the retained parsed range.
 
-## State Management
+File source sessions remain owned by FileEditor/FileEditSession and use Pierre; message code blocks do not acquire
+file persistence or permissions.
 
-CodeBlockView manages the following states through React hooks:
+### Special Previews
 
-1. **viewMode**: Current view mode ('source' | 'special' | 'split')
-2. **isRunning**: Python code execution status
-3. **executionResult**: Python code execution result
-4. **tools**: Toolbar tool list
-5. **expandOverride/unwrapOverride**: User override settings for expand/wrap
-6. **sourceScrollHeight**: Source code view scroll height
-
-## Interaction Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant CB as CodeBlockView
-    participant CT as CodeToolbar
-    participant SV as SpecialView
-    participant SE as SourceEditor
-
-    U->>CB: View code block
-    CB->>CB: Initialize state
-    CB->>CT: Register tools
-    CB->>SV: Render special view (if applicable)
-    CB->>SE: Render source view
-    U->>CT: Click tool button
-    CT->>CB: Trigger tool callback
-    CB->>CB: Update state
-    CB->>CT: Re-register tools (if needed)
-```
-
-## Special Handling
-
-### HTML Code Blocks
-
-HTML code blocks are specially handled using the HtmlArtifactsCard component.
-
-### Python Code Execution
-
-Supports executing Python code and displaying results using Pyodide to run Python code in the browser.
+The special-language map lazy-loads Mermaid, PlantUML, SVG, and Graphviz previews. Preview selection and split mode are
+user-driven and do not depend on streaming completion.

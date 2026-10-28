@@ -1,5 +1,6 @@
 import type * as NodePath from 'path'
 import path from 'path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Pin the Windows code path so we exercise mergeBinaryExecutionEnv's
@@ -27,7 +28,7 @@ vi.mock('@application', () => ({
 
 vi.mock('path')
 
-import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '../binaryEnv'
+import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv, mergePathSuffixes } from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
   beforeEach(async () => {
@@ -83,6 +84,35 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     })
 
     expect(Path.split(';')).toEqual([shims, 'C:/Windows'])
+  })
+
+  it('appends and deduplicates a fallback after all caller PATH casings', () => {
+    const merged = mergePathSuffixes({ Path: 'C:\\User\\Bin', PATH: 'C:\\Windows;C:\\DATA\\BIN' }, ['C:\\data\\bin'])
+
+    const pathKeys = Object.keys(merged).filter((key) => key.toLowerCase() === 'path')
+    expect(pathKeys).toHaveLength(1)
+    expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\User\\Bin', 'C:\\Windows', 'C:\\DATA\\BIN'])
+  })
+
+  it('folds trailing-separator spellings of the same directory', () => {
+    // win32.normalize keeps a trailing separator, so `C:\Tools\` and `C:\Tools`
+    // canonicalize differently although they name one directory. The first
+    // spelling wins verbatim (same contract as the slash-folding case above).
+    const shims = 'C:\\data\\binary-manager\\shims'
+    const { Path } = mergeBinaryExecutionEnv({
+      Path: 'C:\\Tools;C:\\Tools\\;c:\\tools;C:\\DATA\\BIN\\'
+    })
+
+    expect(Path.split(';')).toEqual([shims, 'C:\\Tools', 'C:\\DATA\\BIN\\'])
+  })
+
+  it('keeps a bare drive root distinct from a drive-relative entry', () => {
+    // Stripping the trailing separator must not turn the drive root `C:\` into
+    // the drive-relative `C:` — they are different directories.
+    const merged = mergePathSuffixes({ Path: 'C:\\Tools' }, ['C:\\', 'C:'])
+
+    const pathKeys = Object.keys(merged).filter((key) => key.toLowerCase() === 'path')
+    expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\Tools', 'C:\\', 'C:'])
   })
 
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {

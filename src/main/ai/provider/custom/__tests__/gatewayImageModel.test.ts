@@ -1,6 +1,10 @@
 import type { ImageModelV3CallOptions, LanguageModelV3 } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { splitParamValues } from '../../../utils/imageOptions'
+import { buildVendorProviderOptions } from '../wire/buildImageRequest'
+import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from '../wire/wireProfile'
+
 const baseImageModel = vi.fn()
 const languageModel = vi.fn()
 
@@ -16,22 +20,27 @@ vi.mock('@ai-sdk/gateway', () => ({
 import { createGatewayGeminiImageModel, isGatewayGeminiImageModel } from '../gateway/gatewayImageModel'
 import { createGatewayWithImageModel } from '../gateway/gatewayProvider'
 
-const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions =>
-  ({
-    prompt: 'a fox',
-    n: 1,
-    size: undefined,
-    aspectRatio: undefined,
-    seed: undefined,
-    files: undefined,
-    mask: undefined,
-    providerOptions: {},
-    ...overrides
-  }) as ImageModelV3CallOptions
+const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions => ({
+  prompt: 'a fox',
+  n: 1,
+  size: undefined,
+  aspectRatio: undefined,
+  seed: undefined,
+  files: undefined,
+  mask: undefined,
+  providerOptions: {},
+  ...overrides
+})
 
 /** Minimal LanguageModelV3 whose doGenerate returns a single image file part. */
-const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn>): LanguageModelV3 =>
+const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) => any>>): LanguageModelV3 =>
   ({ doGenerate }) as unknown as LanguageModelV3
+
+const gatewayProviderOptions = (paramValues: Record<string, unknown>) => {
+  const { vendorBag } = splitParamValues(paramValues)
+  const registration = WIRE_REGISTRY.gateway ?? DEFAULT_DIFFUSION_REGISTRATION
+  return buildVendorProviderOptions('gateway', paramValues, registration, vendorBag)
+}
 
 describe('isGatewayGeminiImageModel', () => {
   it('matches gemini chat-image ids (with or without google/ prefix)', () => {
@@ -76,6 +85,24 @@ describe('createGatewayGeminiImageModel', () => {
     await model.doGenerate(callOptions({ aspectRatio: '16:9' }))
 
     expect(doGenerate.mock.calls[0][0].providerOptions.google.imageConfig).toEqual({ aspectRatio: '16:9' })
+  })
+
+  it('moves the inherited Gateway resolution into google.imageConfig without dropping routing options', async () => {
+    const doGenerate = vi.fn().mockResolvedValue({
+      content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],
+      finishReason: 'stop',
+      usage: {},
+      response: { headers: {} }
+    })
+    const model = createGatewayGeminiImageModel(fakeLanguageModel(doGenerate), 'google/gemini-3.1-flash-image')
+    const providerOptions = gatewayProviderOptions({ imageResolution: '2K' })
+    providerOptions.gateway.only = ['google']
+
+    await model.doGenerate(callOptions({ providerOptions }))
+
+    const sent = doGenerate.mock.calls[0][0]
+    expect(sent.providerOptions.gateway).toEqual({ only: ['google'] })
+    expect(sent.providerOptions.google.imageConfig).toEqual({ imageSize: '2K' })
   })
 
   it('preserves other provider options and deep-merges existing imageConfig', async () => {
@@ -140,35 +167,67 @@ describe('createGatewayWithImageModel', () => {
     languageModel.mockReset()
   })
 
-  it('routes gemini image ids through the language→image adapter, not the gateway image route', () => {
-    languageModel.mockReturnValue(fakeLanguageModel(vi.fn()))
+  it.each([
+    'google/gemini-3-pro-image',
+    'gemini-2.5-flash-image',
+    'google/gemini-nano-banana-2.1',
+    'gemini-nano-banana-2.1',
+    'google/nano-banana-pro-preview',
+    'nano-banana-pro-preview'
+  ])('generates images from %s through both Gateway image entry points', async (modelId) => {
+    const doGenerate = vi.fn().mockResolvedValue({
+      content: [{ type: 'file', mediaType: 'image/png', data: 'AQID' }]
+    })
+    languageModel.mockReturnValue(fakeLanguageModel(doGenerate))
     const provider = createGatewayWithImageModel({})
 
-    const model = provider.imageModel('google/gemini-3-pro-image')
+    for (const entryPoint of ['imageModel', 'image'] as const) {
+      const model = provider[entryPoint](modelId)
+      const result = await model.doGenerate(
+        callOptions({
+          aspectRatio: '16:9',
+          providerOptions: gatewayProviderOptions({ imageResolution: '2K', quality: 'low', only: ['google'] })
+        })
+      )
 
-    expect(languageModel).toHaveBeenCalledWith('google/gemini-3-pro-image')
+      expect(model.modelId).toBe(modelId)
+      expect(result.images).toEqual(['AQID'])
+      expect(languageModel).toHaveBeenLastCalledWith(modelId)
+      expect(doGenerate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'a fox' }] }],
+          providerOptions: {
+            gateway: { quality: 'low', only: ['google'] },
+            google: { responseModalities: ['IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } }
+          }
+        })
+      )
+    }
     expect(baseImageModel).not.toHaveBeenCalled()
-    expect(model.modelId).toBe('google/gemini-3-pro-image')
   })
 
-  it('delegates non-gemini image ids to the native gateway image model', () => {
-    baseImageModel.mockReturnValue({ modelId: 'openai/gpt-image-1' })
-    const provider = createGatewayWithImageModel({})
+  it.each(['openai/gpt-image-1', 'google/imagen-4.0-generate-001'])(
+    'keeps %s generation on the native Gateway image route',
+    async (modelId) => {
+      const doGenerate = vi.fn().mockResolvedValue({ images: ['NATIVE_IMAGE'] })
+      baseImageModel.mockReturnValue({ modelId, doGenerate })
+      const provider = createGatewayWithImageModel({})
 
-    provider.imageModel('openai/gpt-image-1')
+      for (const entryPoint of ['imageModel', 'image'] as const) {
+        const providerOptions = { gateway: { quality: 'low', only: ['openai', 'google'] } }
+        const result = await provider[entryPoint](modelId).doGenerate(callOptions({ providerOptions }))
 
-    expect(baseImageModel).toHaveBeenCalledWith('openai/gpt-image-1')
-    expect(languageModel).not.toHaveBeenCalled()
-  })
-
-  it('also overrides the `image` alias so it does not hit the old route', () => {
-    languageModel.mockReturnValue(fakeLanguageModel(vi.fn()))
-    const provider = createGatewayWithImageModel({})
-
-    const model = provider.image('google/gemini-3-pro-image')
-
-    expect(languageModel).toHaveBeenCalledWith('google/gemini-3-pro-image')
-    expect(baseImageModel).not.toHaveBeenCalled()
-    expect(model.modelId).toBe('google/gemini-3-pro-image')
-  })
+        expect(result.images).toEqual(['NATIVE_IMAGE'])
+        expect(baseImageModel).toHaveBeenLastCalledWith(modelId)
+        expect(doGenerate).toHaveBeenLastCalledWith(
+          callOptions({
+            providerOptions: modelId.startsWith('openai/')
+              ? { gateway: { only: ['openai', 'google'] }, openai: { quality: 'low' } }
+              : providerOptions
+          })
+        )
+      }
+      expect(languageModel).not.toHaveBeenCalled()
+    }
+  )
 })

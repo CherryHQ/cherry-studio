@@ -65,16 +65,10 @@ export const ComposerHardBreak = Node.create({
           return chain().insertContent({ type: this.name }).scrollIntoView().run()
         }
     }
-  },
-
-  addKeyboardShortcuts() {
-    return {
-      Enter: () => this.editor.commands.setHardBreak(),
-      NumpadEnter: () => this.editor.commands.setHardBreak(),
-      'Mod-Enter': () => this.editor.commands.setHardBreak(),
-      'Shift-Enter': () => this.editor.commands.setHardBreak()
-    }
   }
+
+  // No keyboard shortcuts here: which Enter combination inserts a line break is a user
+  // preference, so ComposerSurfaceRuntime routes every Enter key itself.
 })
 
 export interface ComposerUndoRedoOptions {

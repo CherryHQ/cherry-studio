@@ -12,7 +12,7 @@ interface LoadedIconState {
 /**
  * Resolve an IconRef to its (async-loaded) CompoundIcon.
  *
- * Returns the icon synchronously when its catalog chunk is already loaded;
+ * Returns the icon synchronously when its implementation chunk is already loaded;
  * otherwise returns undefined while loading — callers keep their existing
  * miss fallback (initials / placeholder) for that brief window. A load
  * failure just leaves the fallback in place.
@@ -30,7 +30,7 @@ export function useIcon(iconRef: IconRef | undefined): CompoundIcon | undefined 
     const key = `${iconRef.kind}:${iconRef.key}`
     const cached = getLoadedIcon(iconRef)
     if (cached) {
-      // The catalog finished loading between render and this effect (another
+      // The icon finished loading between render and this effect (another
       // consumer's load resolving in a microtask). The render missed it, so
       // commit state — otherwise the fallback would stick until an unrelated
       // update. The render-hit case returns above without this extra render.

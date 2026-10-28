@@ -1,3 +1,6 @@
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for the read-only shared cache observer hook (issue #17050).
  *
@@ -8,8 +11,8 @@
  */
 import { cacheService } from '@data/CacheService'
 import { useSharedCache, useSharedCacheValue } from '@data/hooks/useCache'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { installCacheApiMock } from './testUtils'
 
 // Undo the global mocks from renderer.setup.ts — the contract only means
 // anything against the real store wiring.
@@ -29,16 +32,7 @@ beforeEach(() => {
   now = BASE
   vi.spyOn(Date, 'now').mockImplementation(() => now)
 
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      cache: {
-        broadcastSync,
-        onSync: vi.fn(),
-        getAllShared: vi.fn(async () => ({}))
-      }
-    }
-  })
+  installCacheApiMock(broadcastSync)
 
   // The singleton persists across tests — make sure the key starts absent.
   cacheService.deleteShared(STATE_KEY)

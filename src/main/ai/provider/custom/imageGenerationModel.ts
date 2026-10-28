@@ -1,4 +1,5 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
+
 import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createAbortError } from './transportUtils'
@@ -16,10 +17,17 @@ export interface ImageTransportDescriptor {
   mode?: ImageGenerationMode
 }
 
+/**
+ * Default bound for one submit attempt. Sync image models generate inside
+ * `submit`, so this is the whole generation for them; the previous 120s was
+ * shorter than common vendor latencies.
+ */
+export const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 10 * 60_000
+
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
   /**
-   * `modelDescriptor` is carried so a restart-resumed poll on a fresh transport
+   * `modelDescriptor` is carried so a poll on a fresh transport
    * instance can rebuild per-task state (e.g. DashScope's response family).
    */
   poll?(
@@ -45,12 +53,15 @@ export interface ImageGenerationSubmitInput {
   prompt: string | undefined
   n: number
   size: `${number}x${number}` | undefined
+  aspectRatio?: `${number}:${number}`
   seed: number | undefined
   files: ImageModelV3CallOptions['files']
   mask: ImageModelV3CallOptions['mask']
   /** Per-model routing, derived in main from the registry (not a user param). */
   modelDescriptor?: ImageTransportDescriptor
   providerParams: Record<string, unknown>
+  /** Per-attempt submit timeout (ms); omitted uses the transport default. */
+  requestTimeoutMs?: number
   /**
    * Abort signal forwarded from `options.abortSignal`. Async providers
    * (ppio) ignore it (they abort during `poll()`); single-shot
@@ -103,6 +114,7 @@ export function createImageGenerationModel(
         prompt: options.prompt,
         n: options.n,
         size: options.size,
+        aspectRatio: options.aspectRatio,
         seed: options.seed,
         files: options.files,
         mask: options.mask,

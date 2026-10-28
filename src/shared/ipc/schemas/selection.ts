@@ -1,6 +1,7 @@
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { TextSelectionData } from 'selection-hook'
 import * as z from 'zod'
+
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import { defineRoute } from '../define'
 
@@ -61,6 +62,7 @@ export const selectionRequestSchemas = {
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
 export type SelectionEventSchemas = {
+  'selection.action_dismissed': { sessionId: string }
   'selection.text_selected': TextSelectionData
   'selection.toolbar_visibility_change': boolean
 }

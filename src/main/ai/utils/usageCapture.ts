@@ -6,6 +6,9 @@ import type {
 } from '@data/services/AiUsageRecordService'
 import { type AiUsagePricingSnapshot, AiUsagePricingSnapshotSchema } from '@shared/data/types/aiUsageRecord'
 import type { Currency, RuntimeModelPricing } from '@shared/data/types/model'
+import type { ProviderBilling } from '@shared/data/types/providerBilling'
+import { resolveProviderBilling } from '@shared/utils/providerBilling'
+import { createAiUsagePricingSnapshot as buildPricingSnapshot } from '@shared/utils/usagePricing'
 
 export interface CreateAiUsageCaptureContextInput {
   providerId: string
@@ -20,6 +23,9 @@ export interface CreateAiUsageCaptureContextInput {
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
   capturedAt?: string
+  billing?: ProviderBilling
+  billingModelId?: string
+  invocationStartedAt?: Date | null
 }
 
 function deepFreeze<T>(value: T): Readonly<T> {
@@ -34,48 +40,11 @@ function cloneAndFreeze<T>(value: T): Readonly<T> {
   return deepFreeze(structuredClone(value))
 }
 
-function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['currency'] | undefined {
-  const currencies = [
-    pricing.input?.currency,
-    pricing.output?.currency,
-    pricing.cacheRead?.currency,
-    pricing.cacheWrite?.currency
-  ].filter((currency): currency is AiUsagePricingSnapshot['currency'] => currency !== undefined)
-
-  if (currencies.length === 0 || currencies.some((currency) => currency !== currencies[0])) return undefined
-  return currencies[0]
-}
-
 export function createAiUsagePricingSnapshot(
-  pricing: RuntimeModelPricing | null | undefined,
-  capturedAt = new Date().toISOString()
+  ...args: Parameters<typeof buildPricingSnapshot>
 ): AiUsagePricingSnapshot | null {
-  if (!pricing) return null
-  const currency = pricingCurrency(pricing)
-  if (!currency) return null
-
-  const snapshot = {
-    currency,
-    ...(pricing.input?.perMillionTokens != null ? { inputPerMillionTokens: pricing.input.perMillionTokens } : {}),
-    ...(pricing.output?.perMillionTokens != null ? { outputPerMillionTokens: pricing.output.perMillionTokens } : {}),
-    ...(pricing.cacheRead?.perMillionTokens != null
-      ? { cacheReadPerMillionTokens: pricing.cacheRead.perMillionTokens }
-      : {}),
-    ...(pricing.cacheWrite?.perMillionTokens != null
-      ? { cacheWritePerMillionTokens: pricing.cacheWrite.perMillionTokens }
-      : {}),
-    ...(pricing.perImage
-      ? {
-          perImage: {
-            price: pricing.perImage.price,
-            unit: pricing.perImage.unit ?? 'image'
-          }
-        }
-      : {}),
-    capturedAt
-  }
-  const parsed = AiUsagePricingSnapshotSchema.safeParse(snapshot)
-  return parsed.success ? cloneAndFreeze(parsed.data) : null
+  const snapshot = buildPricingSnapshot(...args)
+  return snapshot ? cloneAndFreeze(snapshot) : null
 }
 
 /**
@@ -84,6 +53,14 @@ export function createAiUsagePricingSnapshot(
  * provider, model, source, or rotation state.
  */
 export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextInput): AiUsageCaptureContext {
+  const resolved = resolveProviderBilling(
+    input.pricing,
+    input.billing,
+    input.billingModelId ?? input.modelId,
+    input.invocationStartedAt === undefined ? new Date(input.capturedAt ?? Date.now()) : input.invocationStartedAt
+  )
+  const pricing = buildPricingSnapshot(resolved.pricing, input.capturedAt)
+  if (pricing && resolved.billing) pricing.billing = resolved.billing
   return cloneAndFreeze({
     providerId: input.providerId,
     providerName: input.providerName ?? null,
@@ -91,7 +68,7 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
     modelName: input.modelName ?? null,
     pricingSnapshot:
       input.pricingSnapshot === undefined
-        ? createAiUsagePricingSnapshot(input.pricing, input.capturedAt)
+        ? pricing
         : input.pricingSnapshot === null
           ? null
           : (() => {

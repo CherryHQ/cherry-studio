@@ -16,9 +16,10 @@
  * closed.
  */
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../types'
 
@@ -186,7 +187,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     findPendingAssistantMessageIds.mockReturnValue([])
     mgr = createManager()
     // `startAgentSessionRun` resolves the manager via the container.
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       if (name === 'AiStreamManager') return mgr
       throw new Error(`AiStreamManager.pause.test: unexpected application.get('${name}')`)
     })

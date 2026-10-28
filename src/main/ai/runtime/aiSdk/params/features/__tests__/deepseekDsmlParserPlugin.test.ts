@@ -63,7 +63,7 @@ async function runStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-c
     params: {} as any,
 
     model: {} as any
-  } as any)
+  })
 
   const events: LanguageModelV3StreamPart[] = []
   const reader = wrapped.stream.getReader()
@@ -400,7 +400,7 @@ describe('deepseekDsmlParserPlugin', () => {
         params: {} as any,
 
         model: {} as any
-      } as any)
+      })
 
       return result as any
     }

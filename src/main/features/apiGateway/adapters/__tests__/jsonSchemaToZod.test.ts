@@ -1,6 +1,7 @@
+import { zodSchema } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { type JsonSchemaLike, jsonSchemaToZod } from '../converters/jsonSchemaToZod'
+import { jsonSchemaToZod } from '../converters/jsonSchemaToZod'
 
 describe('jsonSchemaToZod', () => {
   it('maps string with min/max constraints', () => {
@@ -43,7 +44,7 @@ describe('jsonSchemaToZod', () => {
   })
 
   it('maps a union type array (["string", "null"])', () => {
-    const schema = jsonSchemaToZod({ type: ['string', 'null'] } as JsonSchemaLike)
+    const schema = jsonSchemaToZod({ type: ['string', 'null'] })
     expect(schema.safeParse('x').success).toBe(true)
     expect(schema.safeParse(null).success).toBe(true)
     expect(schema.safeParse(42).success).toBe(false)
@@ -68,10 +69,58 @@ describe('jsonSchemaToZod', () => {
     expect(schema.safeParse({ age: 3 }).success).toBe(false) // name required
   })
 
+  it.each([undefined, true, {}])('preserves form schemas with additionalProperties=%j', (additionalProperties) => {
+    const schema = jsonSchemaToZod({
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        requestedSchema: { type: 'object', ...(additionalProperties === undefined ? {} : { additionalProperties }) }
+      },
+      required: ['message', 'requestedSchema']
+    })
+    const args = {
+      message: 'Enter your name and language preference',
+      requestedSchema: {
+        type: 'object',
+        properties: { name: { type: 'string' }, language: { type: 'string', enum: ['en', 'zh'] } },
+        required: ['name', 'language']
+      }
+    }
+
+    expect(schema.parse(args)).toEqual(args)
+    expect(schema.safeParse({ requestedSchema: args.requestedSchema }).success).toBe(false)
+    expect(zodSchema(schema).jsonSchema).toMatchObject({
+      properties: { requestedSchema: { type: 'object', properties: {}, additionalProperties: {} } }
+    })
+  })
+
+  it('rejects extra fields when additionalProperties is false', () => {
+    const schema = jsonSchemaToZod({
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      additionalProperties: false
+    })
+    expect(schema.parse({ name: 'Alice' })).toEqual({ name: 'Alice' })
+    expect(schema.safeParse({ name: 'Alice', extra: true }).success).toBe(false)
+    expect(zodSchema(schema).jsonSchema).toMatchObject({ additionalProperties: false })
+  })
+
+  it('validates additional fields against their schema while preserving declared fields', () => {
+    const schema = jsonSchemaToZod({
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      additionalProperties: { type: 'integer', minimum: 0 }
+    })
+    expect(schema.parse({ name: 'Alice', score: 3 })).toEqual({ name: 'Alice', score: 3 })
+    expect(schema.safeParse({ score: -1 }).success).toBe(false)
+    expect(schema.safeParse({ score: '3' }).success).toBe(false)
+    expect(zodSchema(schema).jsonSchema).toMatchObject({ additionalProperties: { type: 'integer', minimum: 0 } })
+  })
+
   it('maps a boolean `true` property schema to "accept anything"', () => {
     const schema = jsonSchemaToZod({
       type: 'object',
-      properties: { open: true } as unknown as JsonSchemaLike['properties'],
+      properties: { open: true },
       required: ['open']
     })
     expect(schema.safeParse({ open: 123 }).success).toBe(true)
@@ -81,7 +130,7 @@ describe('jsonSchemaToZod', () => {
   it('maps a boolean `false` property schema to "reject any provided value" (z.never)', () => {
     const schema = jsonSchemaToZod({
       type: 'object',
-      properties: { closed: false } as unknown as JsonSchemaLike['properties']
+      properties: { closed: false }
     })
     expect(schema.safeParse({ closed: 'x' }).success).toBe(false)
   })
@@ -89,7 +138,7 @@ describe('jsonSchemaToZod', () => {
   it('honors `required` for boolean property schemas (non-required → optional)', () => {
     const schema = jsonSchemaToZod({
       type: 'object',
-      properties: { maybe: true } as unknown as JsonSchemaLike['properties'],
+      properties: { maybe: true },
       required: []
     })
     // `maybe` accepts anything but is not required, so it may be omitted.
@@ -98,7 +147,7 @@ describe('jsonSchemaToZod', () => {
   })
 
   it('falls back to unknown for an unspecified type', () => {
-    const schema = jsonSchemaToZod({} as JsonSchemaLike)
+    const schema = jsonSchemaToZod({})
     expect(schema.safeParse({ anything: true }).success).toBe(true)
   })
 

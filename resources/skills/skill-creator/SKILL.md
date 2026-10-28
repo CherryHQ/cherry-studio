@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.
+description: 'Create, edit, evaluate, and optimize skills, including benchmarking and description tuning for better triggering.'
 version: 1.0.0
 ---
 
@@ -23,8 +23,9 @@ steps mentioned later in this file (they apply to Claude Code / Claude.ai, not h
    time and the changes are picked up on the next sync.
 
 Use a lowercase, hyphenated `<skill-folder-name>` (e.g. `my-cool-skill`). The `name:`
-field inside your `SKILL.md` frontmatter is the display name and may differ from the
-folder name (e.g. `name: My Cool Skill` with folder `my-cool-skill`).
+field inside your `SKILL.md` frontmatter must match the folder name and use only
+lowercase letters, numbers, and hyphens (e.g. `name: my-cool-skill` with folder
+`my-cool-skill`), per the Agent Skills spec — it is not a free-form display name.
 
 Eval / test workspaces (`<skill-name>-workspace/`, `iteration-*/`, etc.) from the
 evaluation loop described below must be created **outside** that skills directory —

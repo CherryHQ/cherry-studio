@@ -1,10 +1,15 @@
 import { useChat } from '@ai-sdk/react'
+import { isEmpty } from 'es-toolkit/compat'
+import type { FC } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -12,16 +17,13 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
+import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
-import { isEmpty } from 'es-toolkit/compat'
-import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ClipboardPreview from './components/ClipboardPreview'
 import type { FeatureMenusRef } from './components/FeatureMenus'
@@ -47,18 +49,24 @@ const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 
 type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
+const supportsVoicePlayback = (route: MiniRoute) => route === 'chat' || route === 'summary' || route === 'explanation'
+
 /**
- * Finalize a list of live assistant messages: turn any still-streaming
- * reasoning part into `state: 'done'`, deriving `thinkingMs` from
- * `startedAt` if the upstream hasn't set it yet. Called when the execution
- * transitions from active to inactive.
+ * Finalize a list of live assistant messages: turn any still-streaming text
+ * or reasoning part into `state: 'done'`, deriving `thinkingMs` for reasoning
+ * from `startedAt` if the upstream hasn't set it yet. Called when the
+ * execution transitions from active to inactive.
  */
-const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
+export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
   return messages.map((msg) => {
     if (!msg.parts) return msg
     let changed = false
     const newParts = msg.parts.map((part) => {
-      if (part.type !== 'reasoning' || part.state !== 'streaming') return part
+      if ((part.type !== 'text' && part.type !== 'reasoning') || part.state !== 'streaming') return part
+
+      changed = true
+      if (part.type === 'text') return { ...part, state: 'done' as const }
+
       const cherry = readCherryMeta(part)
       const startedAt = cherry?.startedAt
       const thinkingMs = cherry?.thinkingMs
@@ -68,7 +76,6 @@ const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] =>
         patch = { thinkingMs: Math.round(Math.max(0, Date.now() - startedAt)) }
       }
 
-      changed = true
       return withCherryMeta({ ...part, state: 'done' }, patch)
     })
     return changed ? { ...msg, parts: newParts } : msg
@@ -78,6 +85,7 @@ const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] =>
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -98,13 +106,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [])
 
   const lastClipboardTextRef = useRef<string | null>(null)
-  const inputBarRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { defaultModel: defaultApiModel } = useDefaultModel()
+  const { quickModel: quickApiModel } = useDefaultModel()
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
+  const isAssistantMode = Boolean(quickAssistantId)
   const currentAssistant = chosenAssistant
-  const currentModel = chosenApiModel ?? defaultApiModel
+  const currentModel = isAssistantMode ? chosenApiModel : quickApiModel
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
@@ -146,11 +155,84 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // streams in `completedAssistants` so the multi-turn conversation
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const [lastCompletedVoiceMessage, setLastCompletedVoiceMessage] = useState<CherryUIMessage | null>(null)
+  const voiceScopeGenerationRef = useRef(0)
+  const voiceScopeTopicRef = useRef(temporaryTopicId)
+  const voiceExecutionContextsRef = useRef(
+    new Map<string, { topicId: string; generation: number; eligible: boolean }>()
+  )
+
+  useEffect(() => {
+    if (voiceScopeTopicRef.current === temporaryTopicId) return
+    voiceScopeTopicRef.current = temporaryTopicId
+    voiceScopeGenerationRef.current += 1
+    voiceExecutionContextsRef.current.clear()
+    setLastCompletedVoiceMessage(null)
+  }, [temporaryTopicId])
+
+  useEffect(() => {
+    if (!temporaryTopicId || voiceScopeTopicRef.current !== temporaryTopicId) return
+    for (const execution of activeExecutions) {
+      const key = `${execution.executionId}:${execution.attemptId}`
+      if (voiceExecutionContextsRef.current.has(key)) continue
+      voiceExecutionContextsRef.current.set(key, {
+        topicId: temporaryTopicId,
+        generation: voiceScopeGenerationRef.current,
+        eligible: supportsVoicePlayback(route)
+      })
+    }
+  }, [activeExecutions, route, temporaryTopicId])
+
+  const handleExecutionFinish = useCallback(
+    (executionId: string, { attemptId, message, isAbort, isError }: ExecutionFinishEvent) => {
+      const key = `${executionId}:${attemptId}`
+      const context = voiceExecutionContextsRef.current.get(key)
+      if (!context) return
+      voiceExecutionContextsRef.current.delete(key)
+      if (context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current) {
+        return
+      }
+
+      void autoReadService.consume({
+        enabled: autoReadEnabled,
+        message,
+        attemptId,
+        isAbort,
+        isError,
+        eligible: context.eligible
+      })
+
+      if (
+        context.eligible &&
+        message.role === 'assistant' &&
+        !isAbort &&
+        !isError &&
+        getTextFromParts(message.parts ?? []).trim()
+      ) {
+        setLastCompletedVoiceMessage(message)
+      }
+    },
+    [autoReadEnabled, temporaryTopicId]
+  )
   const {
     liveAssistants,
     reset: resetExecutionMessages,
     clear: clearExecutionMessages
-  } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, EMPTY_UI_MESSAGES)
+  } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, EMPTY_UI_MESSAGES, {
+    onUpdate: (executionId, event) => {
+      const context = voiceExecutionContextsRef.current.get(`${executionId}:${event.attemptId}`)
+      if (!context || context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current)
+        return
+      autoReadService.update({
+        ...event,
+        enabled: autoReadEnabled,
+        eligible: context.eligible,
+        scope: temporaryTopicId ?? 'pending-temp'
+      })
+    },
+    onLeave: () => autoReadService.cancelScope(temporaryTopicId ?? 'pending-temp'),
+    onFinish: handleExecutionFinish
+  })
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
   const prevActiveCountRef = useRef(activeExecutions.length)
@@ -179,7 +261,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
     for (const message of [...chatMessages, ...allAssistants]) {
-      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
+      next[message.id] = message.parts ?? []
     }
     return next
   }, [allAssistants, chatMessages])
@@ -243,6 +325,32 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = messageItems.some((message) => message.role === 'assistant')
+  const dictationTargetId =
+    temporaryTopicId && (route === 'home' || route === 'chat') ? `quick-assistant-input:${temporaryTopicId}` : undefined
+
+  useEffect(() => {
+    if (!temporaryTopicId || !dictationTargetId) return
+
+    return voiceTargetManager.bind({
+      targetId: dictationTargetId,
+      owner: window,
+      sourceEntityId: temporaryTopicId,
+      captureReplaceRange: () => {
+        const input = inputRef.current
+        if (!input || input.selectionStart === null || input.selectionEnd === null) return null
+        return { from: input.selectionStart, to: input.selectionEnd }
+      },
+      replaceRange: ({ from, to }, text) => {
+        const input = inputRef.current
+        if (!input || from < 0 || to < from || to > input.value.length) return false
+        const next = `${input.value.slice(0, from)}${text}${input.value.slice(to)}`
+        const caret = from + text.length
+        setUserInputText(next)
+        queueMicrotask(() => inputRef.current?.setSelectionRange(caret, caret))
+        return true
+      }
+    })
+  }, [dictationTargetId, temporaryTopicId])
 
   useEffect(() => {
     if (route === 'home') {
@@ -253,9 +361,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [route, clear])
 
   const focusInput = useCallback(() => {
-    if (!inputBarRef.current) return
-    const input = inputBarRef.current.querySelector('input')
-    input?.focus()
+    inputRef.current?.focus()
   }, [])
 
   const readClipboard = useCallback(async () => {
@@ -301,15 +407,19 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
-        // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
-        void sendMessage({ text: [prompt, requestText].filter(Boolean).join('\n\n') })
+        const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
+        if (!isAssistantMode && currentModel) {
+          void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
+        } else {
+          void sendMessage(message)
+        }
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [sendMessage, temporaryTopicId, isTopicReady, requestText]
+    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
   )
 
   const handlePause = useCallback(() => {
@@ -318,6 +428,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const resetConversation = useCallback(() => {
     // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
+    voiceScopeGenerationRef.current += 1
+    voiceScopeTopicRef.current = null
+    voiceExecutionContextsRef.current.clear()
+    setLastCompletedVoiceMessage(null)
     resetTemporaryTopic()
     clear()
   }, [clear, resetTemporaryTopic])
@@ -345,6 +459,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     void navigator.clipboard.writeText(content)
     toast.success(t('message.copy.success'))
   }, [content, t])
+
+  const handleReadAloud = useCallback(() => {
+    if (isLoading || !lastCompletedVoiceMessage?.parts) return
+    void readMessageAloud({
+      messageId: lastCompletedVoiceMessage.id,
+      parts: lastCompletedVoiceMessage.parts,
+      focusOnClose: focusInput
+    })
+  }, [focusInput, isLoading, lastCompletedVoiceMessage])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.key === 'Process') {
@@ -394,6 +517,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }
 
   const backgroundColor = useMemo(() => {
+    if (!isMac) {
+      return 'var(--popover)'
+    }
     if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
@@ -425,7 +551,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'summary':
     case 'explanation':
       return (
-        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+        <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
           {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar
@@ -433,9 +559,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 model={currentModel}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
+                inputRef={inputRef}
+                dictationTargetId={dictationTargetId}
                 handleKeyDown={handleKeyDown}
                 handleChange={handleChange}
-                ref={inputBarRef}
               />
               <Separator className="my-2.5" />
             </>
@@ -455,19 +582,24 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             />
           </Suspense>
           {flowError && (
-            <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+            <div className="mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
               {flowError}
             </div>
           )}
 
           <Separator className="my-2.5" />
-          <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
+          <Footer
+            key="footer"
+            {...baseFooterProps}
+            onCopy={handleCopy}
+            onReadAloud={lastCompletedVoiceMessage ? handleReadAloud : undefined}
+          />
         </div>
       )
 
     case 'translate':
       return (
-        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+        <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
           <Suspense fallback={<LazyBranchFallback />}>
             <TranslateWindow text={requestText} />
           </Suspense>
@@ -478,16 +610,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
     default:
       return (
-        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+        <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
           {(currentAssistant || currentModel) && (
             <InputBar
               text={userInputText}
               model={currentModel}
               placeholder={inputPlaceholder}
               loading={isLoading}
+              inputRef={inputRef}
+              dictationTargetId={dictationTargetId}
               handleKeyDown={handleKeyDown}
               handleChange={handleChange}
-              ref={inputBarRef}
             />
           )}
           <Separator className="my-2.5" />

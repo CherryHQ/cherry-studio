@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type {
@@ -6,7 +8,6 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('usePreference')
 const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
@@ -26,10 +27,10 @@ const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
  * @example
  * ```typescript
  * // Basic usage - managing theme preference with optimistic updates (default)
- * const [theme, setTheme] = usePreference('app.theme.mode')
+ * const [theme, setTheme] = usePreference('ui.theme_mode')
  *
  * // Pessimistic updates for critical settings
- * const [apiKey, setApiKey] = usePreference('api.key', { optimistic: false })
+ * const [webdavPassword, setWebdavPassword] = usePreference('data.backup.webdav.pass', { optimistic: false })
  *
  * // Simple optimistic updates
  * const [fontSize, setFontSize] = usePreference('chat.message.font_size', {
@@ -47,9 +48,9 @@ const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
  *
  * return (
  *   <select value={theme} onChange={(e) => handleThemeChange(e.target.value)}>
- *     <option value="ThemeMode.light">Light</option>
- *     <option value="ThemeMode.dark">Dark</option>
- *     <option value="ThemeMode.system">System</option>
+ *     <option value="light">Light</option>
+ *     <option value="dark">Dark</option>
+ *     <option value="system">System</option>
  *   </select>
  * )
  * ```
@@ -135,26 +136,26 @@ export function usePreference<K extends UnifiedPreferenceKeyType>(
  * ```typescript
  * // Basic usage - managing related UI preferences with optimistic updates
  * const [uiSettings, setUISettings] = useMultiplePreferences({
- *   theme: 'app.theme.mode',
+ *   theme: 'ui.theme_mode',
  *   fontSize: 'chat.message.font_size',
  *   showLineNumbers: 'chat.code.show_line_numbers'
  * })
  *
  * // Pessimistic updates for critical settings
- * const [apiSettings, setApiSettings] = useMultiplePreferences({
- *   apiKey: 'api.key',
- *   endpoint: 'api.endpoint'
+ * const [webdavSettings, setWebdavSettings] = useMultiplePreferences({
+ *   password: 'data.backup.webdav.pass',
+ *   host: 'data.backup.webdav.host'
  * }, { optimistic: false })
  *
  * // Accessing individual values with type safety (defaults applied automatically)
- * const currentTheme = uiSettings.theme // string (never undefined)
+ * const currentTheme = uiSettings.theme // ThemeMode (never undefined)
  * const currentFontSize = uiSettings.fontSize // number (never undefined)
  * const showLines = uiSettings.showLineNumbers // boolean (never undefined)
  *
  * // Batch updating multiple preferences
  * const resetToDefaults = async () => {
  *   await setUISettings({
- *     theme: 'ThemeMode.light',
+ *     theme: 'light',
  *     fontSize: 14,
  *     showLineNumbers: true
  *   })
@@ -163,7 +164,7 @@ export function usePreference<K extends UnifiedPreferenceKeyType>(
  * // Partial updates (only specified keys will be updated)
  * const toggleTheme = async () => {
  *   await setUISettings({
- *     theme: currentTheme === 'ThemeMode.light' ? 'ThemeMode.dark' : 'ThemeMode.light'
+ *     theme: currentTheme === 'light' ? 'dark' : 'light'
  *   })
  * }
  * ```
@@ -251,8 +252,18 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
   { [P in keyof T]: UnifiedPreferenceType[T[P]] },
   (updates: Partial<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }>) => Promise<void>
 ] {
-  // Create stable key dependencies
-  const keyList = useMemo(() => Object.values(keys), [keys])
+  const keysDep = JSON.stringify(
+    Object.keys(keys)
+      .sort()
+      .map((localKey) => [localKey, keys[localKey]])
+  )
+  const stableKeys = useMemo<T>(
+    () => ({ ...keys }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the semantic identity of `keys`
+    [keysDep]
+  )
+  const keyEntries = useMemo(() => Object.entries(stableKeys), [stableKeys])
+  const keyList = useMemo(() => keyEntries.map(([, key]) => key), [keyEntries])
 
   // Cache the last snapshot to avoid infinite loops
   const lastSnapshotRef = useRef<Record<string, any>>({})
@@ -272,14 +283,17 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
 
     useCallback(() => {
       // Check if any values have actually changed
-      let hasChanged = Object.keys(lastSnapshotRef.current).length === 0 // First time
+      let hasChanged = Object.keys(lastSnapshotRef.current).length !== keyEntries.length
       const newSnapshot: Record<string, any> = {}
 
-      for (const [localKey, prefKey] of Object.entries(keys)) {
+      for (const [localKey, prefKey] of keyEntries) {
         const currentValue = preferenceService.getCachedValue(prefKey)
         newSnapshot[localKey] = currentValue
 
-        if (!hasChanged && lastSnapshotRef.current[localKey] !== currentValue) {
+        if (
+          !hasChanged &&
+          (!Object.hasOwn(lastSnapshotRef.current, localKey) || lastSnapshotRef.current[localKey] !== currentValue)
+        ) {
           hasChanged = true
         }
       }
@@ -290,38 +304,33 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
       }
 
       return lastSnapshotRef.current
-    }, [keys]),
+    }, [keyEntries]),
 
     () => ({}) // No SSR snapshot
   )
 
   // Load initial values asynchronously if not cached
   useEffect(() => {
-    // Find keys that need loading (either not cached or rawValue is undefined)
-    const uncachedKeys = keyList.filter((key) => {
-      // Find the local key for this preference key
-      const localKey = Object.keys(keys).find((k) => keys[k] === key)
-      const rawValue = localKey ? rawValues[localKey] : undefined
-
-      return rawValue === undefined && !preferenceService.isCached(key)
-    })
+    const uncachedKeys = keyEntries
+      .filter(([localKey, key]) => rawValues[localKey] === undefined && !preferenceService.isCached(key))
+      .map(([, key]) => key)
 
     if (uncachedKeys.length > 0) {
       preferenceService.getMultipleRaw(uncachedKeys).catch((error) => {
         logger.error('Failed to load initial preferences:', error as Error)
       })
     }
-  }, [keyList, rawValues, keys])
+  }, [keyEntries, rawValues])
 
   // Convert raw values (including undefined) to exposed values (with defaults)
   const exposedValues = useMemo(() => {
     const result: Record<string, any> = {}
-    for (const [localKey, prefKey] of Object.entries(keys)) {
+    for (const [localKey, prefKey] of keyEntries) {
       const rawValue = rawValues[localKey]
       result[localKey] = rawValue !== undefined ? rawValue : getDefaultValue(prefKey)
     }
     return result
-  }, [keys, rawValues])
+  }, [keyEntries, rawValues])
 
   // Memoized batch update function
   const updateValues = useCallback(
@@ -330,7 +339,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
         // Convert local keys back to preference keys
         const prefUpdates: Record<string, any> = {}
         for (const [localKey, value] of Object.entries(updates)) {
-          const prefKey = keys[localKey as keyof T]
+          const prefKey = stableKeys[localKey as keyof T]
           if (prefKey) {
             prefUpdates[prefKey] = value
           }
@@ -342,7 +351,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
         throw error
       }
     },
-    [keys, options]
+    [stableKeys, options]
   )
 
   // Type-cast the values to the expected shape

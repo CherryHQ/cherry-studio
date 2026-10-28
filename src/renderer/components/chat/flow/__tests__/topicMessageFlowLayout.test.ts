@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { type TreeNode, TREE_OFF_PATH_DEPTH_LIMIT } from '@shared/data/types/message'
+
+import { buildTopicMessageFlowGraph } from '../topicMessageFlowGraph'
 import { layoutTopicMessageFlowGraph, TOPIC_MESSAGE_FLOW_NODE_SIZE } from '../topicMessageFlowLayout'
 import type {
   TopicMessageFlowEdgeModel,
@@ -78,6 +81,34 @@ function getEdge(edges: TopicMessageFlowEdgeModel[], source: string, target: str
 }
 
 describe('topicMessageFlowLayout', () => {
+  it('lays out the deepest off-path branch the tree endpoint returns', () => {
+    const treeNode = (id: string, parentId: string, role: TreeNode['role']): TreeNode => ({
+      id,
+      parentId,
+      role,
+      preview: id,
+      status: 'success',
+      createdAt,
+      hasChildren: false
+    })
+    const offPath = Array.from({ length: TREE_OFF_PATH_DEPTH_LIMIT - 1 }, (_, i) =>
+      treeNode(`x${i}`, i === 0 ? 'u0' : `x${i - 1}`, i % 2 === 0 ? 'assistant' : 'user')
+    )
+    const graph = buildTopicMessageFlowGraph({
+      nodes: [treeNode('u0', 'vroot', 'user'), treeNode('a0', 'u0', 'assistant'), ...offPath],
+      siblingsGroups: [],
+      activeNodeId: 'a0',
+      rootId: 'vroot'
+    })
+
+    const layout = layoutTopicMessageFlowGraph(graph)
+
+    expect(layout.nodes).toHaveLength(TREE_OFF_PATH_DEPTH_LIMIT + 1)
+    expect(getNode(layout.nodes, 'x0').position.y).toBeLessThan(
+      getNode(layout.nodes, `x${TREE_OFF_PATH_DEPTH_LIMIT - 2}`).position.y
+    )
+  })
+
   it('returns an empty React Flow layout for an empty graph', () => {
     const graph = createGraph()
 
@@ -312,66 +343,5 @@ describe('topicMessageFlowLayout', () => {
     for (const node of activeScenesLayout.nodes) {
       expect(node.position).toEqual(positions.get(node.id))
     }
-  })
-
-  it('keeps existing node positions stable when appending an input draft node', () => {
-    const nodes = [
-      createNode('root', null, {
-        createdAt: '2026-05-22T14:16:00.000Z',
-        role: 'user',
-        isInactiveBranch: false
-      }),
-      createNode('assistant-root', 'root', {
-        createdAt: '2026-05-22T14:16:01.000Z',
-        isActive: true,
-        isInactiveBranch: false,
-        isOnActivePath: true
-      }),
-      createNode('user-existing', 'assistant-root', {
-        createdAt: '2026-05-22T14:17:00.000Z',
-        role: 'user',
-        isInactiveBranch: false
-      }),
-      createNode('assistant-existing', 'user-existing', {
-        createdAt: '2026-05-22T14:17:01.000Z',
-        isInactiveBranch: false
-      })
-    ]
-    const edges = [
-      createEdge('root', 'assistant-root', { isActivePath: true }),
-      createEdge('assistant-root', 'user-existing'),
-      createEdge('user-existing', 'assistant-existing')
-    ]
-    const baseLayout = layoutTopicMessageFlowGraph(
-      createGraph({
-        nodes,
-        edges,
-        activeNodeId: 'assistant-root'
-      })
-    )
-    const draftLayout = layoutTopicMessageFlowGraph(
-      createGraph({
-        nodes: [
-          ...nodes,
-          createNode('branch-draft:assistant-root', 'assistant-root', {
-            createdAt: '2026-05-22T14:18:00.000Z',
-            isInputDraft: true,
-            role: 'user',
-            status: 'paused'
-          })
-        ],
-        edges: [...edges, createEdge('assistant-root', 'branch-draft:assistant-root')],
-        activeNodeId: 'assistant-root'
-      })
-    )
-
-    const basePositions = new Map(baseLayout.nodes.map((node) => [node.id, node.position]))
-    for (const node of draftLayout.nodes.filter((node) => !node.data.isInputDraft)) {
-      expect(node.position).toEqual(basePositions.get(node.id))
-    }
-    expect(getNode(draftLayout.nodes, 'branch-draft:assistant-root').position.x).toBeGreaterThan(
-      getNode(draftLayout.nodes, 'user-existing').position.x
-    )
-    expect(getEdge(draftLayout.edges, 'assistant-root', 'branch-draft:assistant-root').data?.state).toBe('default')
   })
 })

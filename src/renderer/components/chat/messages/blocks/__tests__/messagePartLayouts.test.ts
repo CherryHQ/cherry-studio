@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
   findOpenTextTailIndex,
@@ -16,7 +17,125 @@ function indexes(items: readonly PartEntry[]): number[] {
   return items.map((entry) => entry.index)
 }
 
+const GENERATED_IMAGE_RESULTS: ReadonlyArray<[string, string, unknown]> = [
+  ['Home image output', 'generate_image', [{ id: 'file-1', name: 'sunset.png' }]],
+  [
+    'inline Agent image output',
+    'mcp__cherry-tools__generate_image',
+    {
+      content: [{ type: 'image', data: 'BASE64', mimeType: 'image/png' }],
+      metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+    }
+  ],
+  [
+    'deferred Agent image output',
+    'mcp__cherry-tools__generate_image',
+    {
+      $deferredToolResult: {
+        topicId: 'agent-session:session-1',
+        messageId: 'message-1',
+        toolCallId: 'generate-image'
+      }
+    }
+  ]
+]
+
+function generateImagePart(toolName: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    type: 'dynamic-tool',
+    toolCallId: 'generate-image',
+    toolName,
+    state: 'output-available',
+    ...overrides
+  }
+}
+
+function entriesWithSpecialParts(): PartEntry[] {
+  return entries([
+    { type: 'text', text: 'First update' },
+    { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+    { type: 'data-code', data: { content: 'answer()', language: 'ts' } },
+    { type: 'data-compact', data: { content: 'Summary' } },
+    { type: 'data-translation', data: { content: 'Translation' } },
+    { type: 'data-conversation-reset', data: {} },
+    { type: 'data-compaction-anchor', data: { phase: 'in-loop' } },
+    { type: 'reasoning', text: 'Checking', state: 'done' },
+    { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+    { type: 'dynamic-tool', toolCallId: 'ask', toolName: 'AskUserQuestion', state: 'output-available' },
+    generateImagePart('generate_image', { output: [{ id: 'file-1', name: 'sunset.png' }] }),
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'channel-auth',
+      toolName: 'mcp__cherry-tools__config',
+      state: 'output-available',
+      input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+      output: {
+        content: [
+          { type: 'text', text: 'Scan this QR code' },
+          { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+        ],
+        metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+      }
+    },
+    { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+    { type: 'data-video', data: { filePath: '/tmp/result.mp4' } },
+    { type: 'data-error', data: { message: 'Error' } },
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'report',
+      toolName: 'mcp__cherry__report_artifacts',
+      state: 'output-available'
+    },
+    { type: 'text', text: 'Final answer' }
+  ])
+}
+
+function nonTextIndexes(items: readonly PartEntry[]): number[] {
+  return items.filter((entry) => entry.part.type !== 'text').map((entry) => entry.index)
+}
+
 describe('projectLiveMessageParts', () => {
+  it('keeps special parts on their existing side of live process boundaries when enabled', () => {
+    const parts = entriesWithSpecialParts()
+    const before = projectLiveMessageParts(parts)
+    const after = projectLiveMessageParts(parts, { keepIntermediateAssistantText: true })
+    const processIndexes = (items: typeof after) =>
+      nonTextIndexes(items.flatMap((item) => (item.kind === 'process' ? item.entries : [])))
+    const directIndexes = (items: typeof after) =>
+      nonTextIndexes(items.flatMap((item) => (item.kind === 'part' ? [item.entry] : [])))
+
+    expect(processIndexes(after)).toEqual(processIndexes(before))
+    expect(directIndexes(after)).toEqual(directIndexes(before))
+    expect(directIndexes(after)).toContain(9)
+    expect(directIndexes(after)).toContain(10)
+    expect(directIndexes(after)).toContain(11)
+    expect(directIndexes(after)).toContain(15)
+    expect(
+      after.filter((item) => item.kind === 'part' && item.entry.part.type === 'text').map((item) => item.key)
+    ).toEqual([0, 16])
+  })
+
+  it('keeps prose between successive tools in the response lane when enabled', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: true }
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['part', 0],
+      ['process', 1],
+      ['part', 2],
+      ['part', 4]
+    ])
+    expect(layout[1].kind === 'process' ? indexes(layout[1].entries) : []).toEqual([1, 3])
+  })
+
   it('forms one process history through intermediate text and keys it by the first visible entry', () => {
     const layout = projectLiveMessageParts(
       entries([
@@ -197,6 +316,25 @@ describe('projectLiveMessageParts', () => {
     expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2])
   })
 
+  it('keeps the existing split with the switch off across two tool calls', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: false }
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['process', 0],
+      ['part', 4]
+    ])
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2, 3])
+  })
+
   it('keeps a channel authentication QR result outside the live process', () => {
     const layout = projectLiveMessageParts(
       entries([
@@ -222,6 +360,77 @@ describe('projectLiveMessageParts', () => {
       ['process', 0],
       ['part', 1]
     ])
+  })
+
+  it.each(GENERATED_IMAGE_RESULTS)('keeps %s outside the live process', (_label, toolName, output) => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        generateImagePart(toolName, { output })
+      ])
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['process', 0],
+      ['part', 1]
+    ])
+  })
+
+  it.each(['generate_image', 'mcp__cherry-tools__generate_image'])(
+    'keeps approval-requested %s calls inside the live process',
+    (toolName) => {
+      const layout = projectLiveMessageParts(
+        entries([
+          { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+          generateImagePart(toolName, {
+            state: 'approval-requested',
+            input: { prompt: 'A cherry tree at sunset' },
+            approval: { id: 'approval-generate-image' }
+          })
+        ])
+      )
+
+      expect(layout.map((item) => [item.kind, item.key])).toEqual([['process', 0]])
+      expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1])
+    }
+  )
+
+  it.each([
+    ['a Home error object', generateImagePart('generate_image', { output: { error: 'Image generation failed' } })],
+    ['an empty Home result', generateImagePart('generate_image', { output: [] })],
+    [
+      'a thrown Home error',
+      generateImagePart('generate_image', {
+        state: 'output-error',
+        errorText: 'Image generation failed'
+      })
+    ],
+    [
+      'a text-only Agent result',
+      generateImagePart('mcp__cherry-tools__generate_image', {
+        output: {
+          content: [{ type: 'text', text: 'Image generation returned no images.' }],
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      })
+    ],
+    [
+      'an errored Agent result',
+      generateImagePart('mcp__cherry-tools__generate_image', {
+        output: {
+          isError: true,
+          content: [{ type: 'text', text: 'Image generation failed' }],
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      })
+    ]
+  ])('keeps %s inside the live process', (_label, imagePart) => {
+    const layout = projectLiveMessageParts(
+      entries([{ type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' }, imagePart])
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([['process', 0]])
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1])
   })
 })
 
@@ -258,6 +467,76 @@ describe('findOpenTextTailIndex', () => {
 })
 
 describe('projectCompletedMessageParts', () => {
+  it('keeps special parts in their existing completed lanes when enabled', () => {
+    const parts = entriesWithSpecialParts()
+    const before = projectCompletedMessageParts(parts)
+    const after = projectCompletedMessageParts(parts, { keepIntermediateAssistantText: true })
+
+    expect(nonTextIndexes(after.historyEntries)).toEqual(nonTextIndexes(before.historyEntries))
+    expect(nonTextIndexes(after.resultEntries)).toEqual(nonTextIndexes(before.resultEntries))
+    expect(indexes(after.reportEntries)).toEqual(indexes(before.reportEntries))
+    expect(indexes(after.historyEntries)).toContain(6)
+    expect(indexes(after.resultEntries)).toContain(10)
+    expect(indexes(after.resultEntries)).toContain(11)
+    expect(indexes(after.reportEntries)).toEqual([15])
+    expect(after.resultEntries.filter((entry) => entry.part.type === 'text').map((entry) => entry.index)).toEqual([
+      0, 16
+    ])
+  })
+
+  it('keeps prose between successive tools in the response lane when enabled', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: true }
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([1, 3])
+    expect(indexes(layout.resultEntries)).toEqual([0, 2, 4])
+  })
+
+  it('keeps the existing split with the switch off across two tool calls', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'text', text: 'First update' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Second update' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ]),
+      { keepIntermediateAssistantText: false }
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0, 1, 2, 3])
+    expect(indexes(layout.resultEntries)).toEqual([4])
+  })
+
+  it.each([
+    [
+      [
+        { type: 'text', text: 'Answer' },
+        { type: 'reasoning', text: 'Trailing thought' }
+      ]
+    ],
+    [[{ type: 'file', url: 'https://example.com/result.png', mediaType: 'image/png' }]]
+  ])('keeps a fork link direct without changing the original result grouping: %j', (parts) => {
+    const original = entries(parts)
+    const marker = {
+      part: { type: 'data-agent-session-fork', data: { sourceSessionId: 'parent' } },
+      index: parts.length
+    } as PartEntry
+    const before = projectCompletedMessageParts(original)
+    expect(projectCompletedMessageParts([...original, marker])).toEqual({
+      ...before,
+      resultEntries: [...before.resultEntries, marker]
+    })
+  })
+
   it('keeps the last substantive answer and associated values outside history despite trailing tools', () => {
     const layout = projectCompletedMessageParts(
       entries([
@@ -383,7 +662,7 @@ describe('projectCompletedMessageParts', () => {
       ]
     ]
   ])('keeps pure %s messages entirely in history', (_label, parts) => {
-    const layout = projectCompletedMessageParts(entries(parts as Record<string, unknown>[]))
+    const layout = projectCompletedMessageParts(entries(parts))
 
     expect(indexes(layout.historyEntries)).toEqual([0, 1])
     expect(layout.resultEntries).toEqual([])
@@ -491,6 +770,101 @@ describe('projectCompletedMessageParts', () => {
             }
           }
         }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
+  it('keeps a created Agent action outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'create-agent',
+          toolName: 'mcp__assistant__create_agent',
+          state: 'output-available',
+          output: {
+            content: [
+              {
+                type: 'text',
+                text: '{"ok":true,"agentId":"agent-created","name":"Reviewer","model":"anthropic::claude-sonnet"}'
+              }
+            ]
+          }
+        },
+        { type: 'text', text: 'Created successfully.' }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1, 2])
+  })
+
+  it('keeps only actionable diagnostic report results outside completed history', () => {
+    const successful = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ])
+    )
+    const deferred = projectCompletedMessageParts(
+      entries([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:session-1',
+              messageId: 'message-1',
+              toolCallId: 'prepare-report'
+            }
+          }
+        }
+      ])
+    )
+    const failed = projectCompletedMessageParts(
+      entries([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: '{"ok":false,"description":"Unavailable draft"}' }],
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(successful.historyEntries)).toEqual([0])
+    expect(indexes(successful.resultEntries)).toEqual([1])
+    expect(indexes(deferred.historyEntries)).toEqual([])
+    expect(indexes(deferred.resultEntries)).toEqual([0])
+    expect(indexes(failed.historyEntries)).toEqual([0])
+    expect(indexes(failed.resultEntries)).toEqual([])
+  })
+
+  it.each(GENERATED_IMAGE_RESULTS)('keeps %s outside completed history', (_label, toolName, output) => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        generateImagePart(toolName, { output })
       ])
     )
 

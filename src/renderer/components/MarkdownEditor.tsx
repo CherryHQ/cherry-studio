@@ -1,10 +1,10 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 import '@renderer/assets/styles/vendor/katex.css'
-
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 import type { FC } from 'react'
-import React, { useEffect, useId, useState } from 'react'
+import { memo, useDeferredValue, useId } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { StaticMarkdown } from '@renderer/components/markdown'
 
 interface MarkdownEditorProps {
   value: string
@@ -13,6 +13,18 @@ interface MarkdownEditorProps {
   height?: string | number
   autoFocus?: boolean
 }
+
+interface MarkdownPreviewProps {
+  id: string
+  value: string
+  fallback: string
+}
+
+const MarkdownPreview = memo(({ id, value, fallback }: MarkdownPreviewProps) => (
+  <div className="markdown flex-1 overflow-auto bg-background p-3">
+    <StaticMarkdown id={id}>{value || fallback}</StaticMarkdown>
+  </div>
+))
 
 const MarkdownEditor: FC<MarkdownEditorProps> = ({
   value,
@@ -23,32 +35,22 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
 }) => {
   const { t } = useTranslation()
   const markdownId = useId()
-  const [inputValue, setInputValue] = useState(value || '')
-
-  useEffect(() => {
-    setInputValue(value || '')
-  }, [value])
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value
-    setInputValue(newValue)
-    onChange(newValue)
-  }
+  const deferredValue = useDeferredValue(value)
 
   return (
     <div className="flex w-full overflow-hidden rounded-lg border border-border" style={{ height }}>
       <textarea
-        className="flex-1 resize-none border-0 border-border border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-foreground-muted focus:outline-none"
-        value={inputValue}
-        onChange={handleChange}
+        className="flex-1 resize-none border-0 border-border border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-muted-foreground focus:outline-none"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         autoFocus={autoFocus}
       />
-      <div className="markdown flex-1 overflow-auto bg-background p-3">
-        <Markdown id={markdownId} plugins={{ cjk: defaultMarkdownPlugins.cjk, math: withMath() }}>
-          {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
-        </Markdown>
-      </div>
+      <MarkdownPreview
+        id={markdownId}
+        value={deferredValue}
+        fallback={t('settings.provider.notes.markdown_editor_default_value')}
+      />
     </div>
   )
 }

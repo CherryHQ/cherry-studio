@@ -1,10 +1,10 @@
 /**
  * Legacy Status Palette - Light & Dark Mode
  *
- * ⚠️ Frozen, shrink-only compatibility layer. Do NOT add new tokens here.
- * These `--cs-{intent}-{base,text,bg,...}` values back the frozen Tailwind
- * COMPATIBILITY_STATUS_COLOR_TOKENS utilities and provide values to the
- * canonical feedback contract in `providers.css` while consumers migrate off.
+ * ⚠️ Frozen, shrink-only provider layer. Do NOT add new tokens here.
+ * These `--cs-{intent}-{base,text,bg,...}` values provide internal values to
+ * the canonical feedback contract in `providers.css`; they are not exposed as
+ * Tailwind utilities.
  * New feedback work uses the `--success`/`--warning`/`--info`/`--error`
  * product roles, never these names.
  */

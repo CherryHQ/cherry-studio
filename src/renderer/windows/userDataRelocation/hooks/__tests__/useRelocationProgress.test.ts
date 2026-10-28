@@ -1,6 +1,7 @@
-import { type RelocationProgress, UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { type RelocationProgress, UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 
 import { useRelocationProgress } from '../useRelocationProgress'
 

@@ -4,8 +4,8 @@
  * they write to; stream-manager only owns the generic contract.
  *
  * The listener attaches error parts, terminalizes interrupted parts, and
- * composes `MessageStats` before calling the backend — backends never
- * synthesise UIMessages or repeat projection logic.
+ * extracts message-owned runtime stats before calling the backend — backends
+ * never synthesise UIMessages or repeat projection logic.
  */
 
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
@@ -24,6 +24,17 @@ function isToolPart(part: CherryMessagePart): boolean {
   return t.startsWith('tool-') || t === 'dynamic-tool'
 }
 
+/**
+ * Drop transient status parts that must never reach storage. `data-retry`
+ * (model retry/fallback status) is emitted live for the renderer but is not
+ * part of the assistant's answer, so it is stripped before persistence.
+ * Returns the same array reference when nothing was removed.
+ */
+export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const filtered = parts.filter((part) => part.type !== 'data-retry')
+  return filtered.length === parts.length ? parts : filtered
+}
+
 export function finalizeInterruptedParts(
   parts: CherryMessagePart[],
   status: 'success' | 'paused' | 'error'
@@ -33,6 +44,12 @@ export function finalizeInterruptedParts(
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
+    // A `text` part left `streaming` by a mid-response failure renders as a still-typing
+    // cursor instead of the truncated sentence the user actually received.
+    if (part.type === 'text') {
+      return part.state === 'streaming' ? { ...part, state: 'done' } : part
+    }
+
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
         const cherry = readCherryMeta(part)
@@ -109,6 +126,12 @@ export interface PersistAssistantInput {
   runtimeStats?: MessageRuntimeStatsInput
 }
 
+export interface PersistedAssistant {
+  messageId: string
+  messageRevision: string
+  historyRevision: string
+}
+
 export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
@@ -119,13 +142,16 @@ export interface PersistenceBackend {
    */
   readonly canPersistEmptyTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void | Promise<void>
+  /** True only when an empty successful response is itself a valid terminal result. */
+  readonly canPersistEmptySuccessTerminal?: boolean
+
+  persistAssistant(input: PersistAssistantInput): PersistedAssistant | void | Promise<PersistedAssistant | void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
    * placeholder row to a terminal `error` state so a reload shows a terminal
-   * bubble instead of a frozen `pending` one. Only backends that finalize a
-   * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
+   * bubble instead of a frozen `pending` one. Backends that finalize a
+   * pre-existing placeholder implement this.
    */
   markTerminalError?(): void
 

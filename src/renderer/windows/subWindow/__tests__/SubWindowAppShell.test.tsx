@@ -1,50 +1,80 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { SubWindowInitData } from '@shared/types/subWindow'
 
 type ShellTab = {
   id: string
   type: 'route'
   url: string
   title: string
-  metadata?: { instanceAppId: 'assistants' | 'agents'; instanceKey?: string }
 }
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
-const updateTab = vi.fn()
+const openTab = vi.fn()
+const closeTab = vi.fn()
+const commandHandlers = new Map<string, () => void>()
+const ipcListeners = new Map<string, (value: boolean) => void>()
+let ipcRequest: ReturnType<typeof vi.fn> = vi.fn()
+let resolveInitialFullscreen: ((value: boolean) => void) | undefined
 
 async function renderSubWindowAppShell({
-  isPageTitledRoute = () => false,
-  tabs = defaultTabs
+  init = null,
+  isMac = false
 }: {
-  isPageTitledRoute?: (url: string) => boolean
-  tabs?: ShellTab[]
+  init?: SubWindowInitData | null
+  isMac?: boolean
 } = {}) {
   vi.resetModules()
-  vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/utils/platform', () => ({ isMac, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/ipc', () => {
+    ipcRequest = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveInitialFullscreen = resolve
+        })
+    )
+    return {
+      ipcApi: { request: ipcRequest },
+      useIpcOn: (event: string, handler: (value: boolean) => void) => {
+        ipcListeners.set(event, handler)
+      }
+    }
+  })
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
-    useWindowInitData: () => null
+    useWindowInitData: () => init
   }))
-  vi.doMock('@renderer/hooks/tab', () => ({
-    useTabs: () => ({
-      tabs,
-      activeTabId: 'home',
-      setActiveTab: vi.fn(),
-      closeTab: vi.fn(),
-      updateTab,
-      addTab: vi.fn(),
-      reorderTabs: vi.fn(),
-      openTab: vi.fn(),
-      pinTab: vi.fn(),
-      unpinTab: vi.fn()
-    })
+  vi.doMock('@renderer/hooks/command', () => ({
+    useCommandHandler: (command: string, handler: () => void) => {
+      commandHandlers.set(command, handler)
+    }
   }))
+  vi.doMock('@renderer/hooks/tab', async () => {
+    const actual = (await vi.importActual('@renderer/hooks/tab')) as Record<string, unknown>
+    return {
+      ...(actual as object),
+      useTabs: () => ({
+        tabs: defaultTabs,
+        activeTabId: 'home',
+        setActiveTab: vi.fn(),
+        closeTab,
+        closeTabs: vi.fn(),
+        updateTab: vi.fn(),
+        addTab: vi.fn(),
+        reorderTabs: vi.fn(),
+        openTab,
+        attachTab: openTab,
+        pinTab: vi.fn(),
+        unpinTab: vi.fn()
+      })
+    }
+  })
   vi.doMock('@renderer/utils/routeTitle', () => ({
     getDefaultRouteTitle: (url: string) => url,
-    isPageTitledRoute
+    isConversationRoute: () => false
   }))
   vi.doMock('@renderer/components/chat/shell/WindowFrameContext', () => ({
     WindowFrameProvider: ({ children }: { children: ReactNode }) => <>{children}</>
@@ -56,11 +86,12 @@ async function renderSubWindowAppShell({
     SubWindowTitle: () => <div data-testid="sub-window-title" />
   }))
   vi.doMock('@renderer/components/WindowControls', () => ({
-    WindowControls: () => <div data-testid="window-controls" />,
-    useHasWindowControls: () => false
+    WINDOW_CONTROLS_OVERLAY_WIDTH: '0px'
   }))
   vi.doMock('../SubWindowTitleBar', () => ({
-    SubWindowTitleBar: () => <header data-testid="sub-window-title-bar" />
+    SubWindowTitleBar: ({ isFullscreen }: { isFullscreen: boolean }) => (
+      <header data-testid="sub-window-title-bar" data-fullscreen={String(isFullscreen)} />
+    )
   }))
   vi.doMock('@renderer/components/layout/TabRouter', () => ({
     TabRouter: () => <section data-testid="tab-router" />
@@ -82,6 +113,10 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.resetModules()
+  commandHandlers.clear()
+  ipcListeners.clear()
+  ipcRequest = vi.fn()
+  resolveInitialFullscreen = undefined
 })
 
 describe('SubWindowAppShell', () => {
@@ -96,23 +131,63 @@ describe('SubWindowAppShell', () => {
     expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
   })
 
-  it('syncs a detached conversation URL from the active tab metadata', async () => {
+  it('opens the detached tab from WindowManager init data', async () => {
     await renderSubWindowAppShell({
-      isPageTitledRoute: (url) => url.startsWith('/app/chat'),
-      tabs: [
-        {
-          id: 'home',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
-          title: 'Current topic',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'current-topic' }
-        }
-      ]
+      init: {
+        tabId: 'detached-tab',
+        url: '/app/chat?topicId=topic-1',
+        title: 'Detached topic',
+        icon: '🍒',
+        isPinned: true
+      }
     })
 
     await waitFor(() => {
-      expect(updateTab).toHaveBeenCalledWith('home', { url: '/app/chat?topicId=current-topic' })
+      expect(openTab).toHaveBeenCalledWith({
+        url: '/app/chat?topicId=topic-1',
+        id: 'detached-tab',
+        title: 'Detached topic',
+        icon: '🍒',
+        type: 'route',
+        isPinned: true,
+        metadata: undefined
+      })
     })
-    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
+    expect(openTab).toHaveBeenCalledOnce()
+  })
+
+  it('reflects native fullscreen in the title bar on macOS', async () => {
+    await renderSubWindowAppShell({ isMac: true })
+
+    const titleBar = screen.getByTestId('sub-window-title-bar')
+    expect(titleBar).toHaveAttribute('data-fullscreen', 'false')
+
+    act(() => {
+      ipcListeners.get('window.fullscreen_changed')?.(true)
+    })
+
+    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
+  })
+
+  it('queries the initial fullscreen state on mount (macOS)', async () => {
+    await renderSubWindowAppShell({ isMac: true })
+
+    expect(ipcRequest).toHaveBeenCalledWith('window.is_full_screen')
+
+    // Async act flushes the request's microtask so the mount-time update lands
+    // inside the act scope.
+    await act(async () => {
+      resolveInitialFullscreen?.(true)
+    })
+
+    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
+  })
+
+  it('closes the detached window from the tab-close shortcut', async () => {
+    await renderSubWindowAppShell()
+
+    commandHandlers.get('tab.close')?.()
+
+    expect(ipcRequest).toHaveBeenCalledWith('window.close')
   })
 })

@@ -1,3 +1,6 @@
+import type { UIMessagePart } from 'ai'
+import { isToolUIPart } from 'ai'
+
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   APPROVAL_REQUESTED,
@@ -6,8 +9,6 @@ import {
 } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UIMessagePart } from 'ai'
-import { isToolUIPart } from 'ai'
 
 export type PermissionRequestComposerRequest = {
   messageId: string
@@ -50,15 +51,17 @@ function getStringField(value: unknown, fields: string[]): string | undefined {
 }
 
 function getPermissionTitle(part: PermissionToolPart, fallback: string): string {
-  return getStringField(part.input, ['question', 'message', 'prompt', 'title', 'description']) ?? fallback
+  return getStringField(part.input, ['question', 'message', 'prompt', 'title', 'description', 'path']) ?? fallback
 }
 
-export function findLatestPendingPermissionRequest(
+/** Return the FIFO head from the newest reply that has pending tool permissions. */
+export function findNextPendingPermissionRequest(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): PermissionRequestComposerRequest | null {
-  let latest: PermissionRequestComposerRequest | null = null
+  const messages = Object.entries(partsByMessageId)
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
+    const [messageId, parts] = messages[messageIndex]
 
-  for (const [messageId, parts] of Object.entries(partsByMessageId)) {
     for (const part of parts) {
       if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
 
@@ -72,7 +75,7 @@ export function findLatestPendingPermissionRequest(
       const toolResponse = buildToolResponseFromPart(part)
       if (!toolResponse) continue
 
-      latest = {
+      return {
         messageId,
         toolCallId: toolPart.toolCallId,
         approvalId,
@@ -90,5 +93,5 @@ export function findLatestPendingPermissionRequest(
     }
   }
 
-  return latest
+  return null
 }

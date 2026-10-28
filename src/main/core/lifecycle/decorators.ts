@@ -1,5 +1,4 @@
 import 'reflect-metadata'
-
 import { type ErrorStrategy, Phase, type ServiceCondition, type ServiceConstructor } from './types'
 
 /** Metadata keys for decorator storage */

@@ -10,7 +10,6 @@ const {
   resourceCatalogControllerMock,
   resourceCreateWizardMock,
   resourceGridMock,
-  skillDetailDialogMock,
   systemSkillDialogMock
 } = vi.hoisted(() => ({
   dialogImplementationsLoadedMock: vi.fn(),
@@ -18,7 +17,6 @@ const {
   resourceCatalogControllerMock: vi.fn(),
   resourceCreateWizardMock: vi.fn(),
   resourceGridMock: vi.fn(),
-  skillDetailDialogMock: vi.fn(),
   systemSkillDialogMock: vi.fn()
 }))
 
@@ -63,18 +61,12 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/delete', () => ({
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/detail', () => {
   dialogImplementationsLoadedMock('detail')
-  return {
-    SkillDetailDialog: (props: { open: boolean; skill: { id: string } | null }) => {
-      skillDetailDialogMock(props)
-      return props.open ? <div data-skill-id={props.skill?.id} data-testid="skill-detail-dialog" /> : null
-    }
-  }
+  return {}
 })
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => {
   dialogImplementationsLoadedMock('edit')
   return {
-    AgentEditDialog: () => null,
-    AssistantEditDialog: () => null
+    ResourceEditDialogHost: () => null
   }
 })
 vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => {
@@ -92,10 +84,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => {
     }
   }
 })
-
-vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
-  isSelectableAssistantModel: () => true
-}))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => () => true
@@ -150,17 +138,13 @@ function createController(resourceError?: Error) {
       createDialogOpen: false,
       creatingResource: false,
       deleteConfirm: null,
-      editDialog: null,
-      editDialogOpen: false,
+      editDialogTarget: null,
       handleCreateDialogOpenChange: vi.fn(),
-      handleEditDialogOpenChange: vi.fn(),
-      handleEditSaved: vi.fn(),
       handleSubmitCreateResource: vi.fn(),
-      selectedSkill: null,
       setAssistantImportOpen: vi.fn(),
       setAssistantLibraryOpen: vi.fn(),
       setDeleteConfirm: vi.fn(),
-      setSelectedSkill: vi.fn(),
+      setEditDialogTarget: vi.fn(),
       setSkillImportOpen: vi.fn(),
       setSkillMarketplaceOpen: vi.fn(),
       setSystemSkillOpen: vi.fn(),
@@ -178,21 +162,8 @@ describe('ResourceCatalogView', () => {
     resourceCatalogControllerMock.mockReset()
     resourceCreateWizardMock.mockClear()
     resourceGridMock.mockClear()
-    skillDetailDialogMock.mockClear()
     systemSkillDialogMock.mockClear()
     resourceCatalogControllerMock.mockReturnValue(createController())
-  })
-
-  it('keeps the Skill settings surface transparent without changing other catalogs', () => {
-    const { container, rerender } = render(<ResourceCatalogView resourceType="skill" />)
-
-    expect(container.firstElementChild).toHaveClass('bg-transparent')
-    expect(container.firstElementChild).not.toHaveClass('bg-background')
-
-    rerender(<ResourceCatalogView resourceType="assistant" />)
-
-    expect(container.firstElementChild).toHaveClass('bg-background')
-    expect(container.firstElementChild).not.toHaveClass('bg-transparent')
   })
 
   it('loads dialog implementations only after activation and keeps the dialog host mounted', async () => {
@@ -214,7 +185,7 @@ describe('ResourceCatalogView', () => {
 
     expect(await screen.findByTestId('resource-create-wizard')).toHaveAttribute('data-kind', 'assistant')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('create')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('detail')
+    expect(dialogImplementationsLoadedMock).not.toHaveBeenCalledWith('detail')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('edit')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('import')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('skill')
@@ -225,18 +196,6 @@ describe('ResourceCatalogView', () => {
 
     expect(screen.queryByTestId('resource-create-wizard')).not.toBeInTheDocument()
     expect(resourceCreateWizardMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: false }))
-
-    resourceCatalogControllerMock.mockReturnValue({
-      ...inactiveController,
-      dialogs: {
-        ...inactiveController.dialogs,
-        selectedSkill: { id: 'skill-1' } as never
-      }
-    })
-    rerender(<ResourceCatalogView resourceType="assistant" />)
-
-    expect(await screen.findByTestId('skill-detail-dialog')).toHaveAttribute('data-skill-id', 'skill-1')
-    expect(skillDetailDialogMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: true }))
   })
 
   it('keeps toolbar leading in the resource grid success state', () => {

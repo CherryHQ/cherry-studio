@@ -1,30 +1,45 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { ipcApi } from '@renderer/ipc'
+import { restoreRecycleBinItems, showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type {
-  AgentDetail,
   GroupItem,
   ResourceCreateValues,
+  ResourceEditDialogTarget,
   ResourceItem,
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import type { Assistant } from '@shared/data/types/assistant'
 import type { Group } from '@shared/data/types/group'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { useAgentMutations } from './agentAdapter'
 import { useAssistantMutations } from './assistantAdapter'
 import { useResourceLibrary } from './useResourceLibrary'
 
-type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'agent'; resource: AgentDetail }
-
 type ResourceCreateWizardKind = 'assistant' | 'agent'
 type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
-const DIALOG_EXIT_ANIMATION_MS = 200
+const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
+const logger = loggerService.withContext('useResourceCatalogController')
+
+interface ResourceCatalogControllerOptions {
+  onOpenSkill?: (skill: InstalledSkill) => void
+  onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
+}
 
 /**
  * Build the top-bar chip list.
@@ -47,24 +62,29 @@ function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: Re
   })
 }
 
-export function useResourceCatalogController(resourceType: ResourceCatalogControllerType) {
+export function useResourceCatalogController(
+  resourceType: ResourceCatalogControllerType,
+  options: ResourceCatalogControllerOptions = {}
+) {
   const { t } = useTranslation()
+  const { onLaunchSkill, onOpenSkill } = options
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [creatingResource, setCreatingResource] = useState(false)
-  const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [assistantLibraryOpen, setAssistantLibraryOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
   const [skillMarketplaceOpen, setSkillMarketplaceOpen] = useState(false)
   const [systemSkillOpen, setSystemSkillOpen] = useState(false)
+  const deletingProtectedAgentRef = useRef<string | null>(null)
 
   const isAssistantLibrary = resourceType === 'assistant'
+  const invalidate = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
 
   const {
     resources,
@@ -97,28 +117,41 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   useEffect(() => {
     if (createDialogOpen || !createDialogKind) return
 
-    const timeoutId = window.setTimeout(() => setCreateDialogKind(null), DIALOG_EXIT_ANIMATION_MS)
+    const timeoutId = window.setTimeout(() => setCreateDialogKind(null), CREATE_DIALOG_EXIT_ANIMATION_MS)
     return () => window.clearTimeout(timeoutId)
   }, [createDialogKind, createDialogOpen])
 
-  useEffect(() => {
-    if (editDialogOpen || !editDialog) return
+  const handleOpenResource = useCallback(
+    (resource: ResourceItem) => {
+      if (resource.type === 'assistant') {
+        setEditDialogTarget({ kind: 'assistant', id: resource.id })
+      } else if (resource.type === 'agent') {
+        setEditDialogTarget({ kind: 'agent', id: resource.id })
+      } else if (resource.type === 'skill') {
+        onOpenSkill?.(resource.raw)
+      }
+    },
+    [onOpenSkill]
+  )
 
-    const timeoutId = window.setTimeout(() => setEditDialog(null), DIALOG_EXIT_ANIMATION_MS)
-    return () => window.clearTimeout(timeoutId)
-  }, [editDialog, editDialogOpen])
+  const handleLaunchSkill = useCallback(
+    (resource: ResourceItem) => {
+      if (resource.type === 'skill') void onLaunchSkill?.(resource.raw)
+    },
+    [onLaunchSkill]
+  )
 
-  const handleOpenResource = useCallback((resource: ResourceItem) => {
-    if (resource.type === 'assistant') {
-      setEditDialog({ kind: 'assistant', resource: resource.raw })
-      setEditDialogOpen(true)
-    } else if (resource.type === 'agent') {
-      setEditDialog({ kind: 'agent', resource: resource.raw })
-      setEditDialogOpen(true)
-    } else if (resource.type === 'skill') {
-      setSelectedSkill(resource.raw)
+  const handleCreateSkillWithAgent = useCallback(() => {
+    const creator = allResources.find(
+      (resource) =>
+        resource.type === 'skill' && resource.raw.source === 'builtin' && resource.raw.folderName === 'skill-creator'
+    )
+    if (!creator || creator.type !== 'skill') {
+      toast.error(t('settings.skills.creatorUnavailable'))
+      return
     }
-  }, [])
+    void onLaunchSkill?.(creator.raw)
+  }, [allResources, onLaunchSkill, t])
 
   const handleDuplicate = useCallback(
     async (resource: ResourceItem) => {
@@ -141,7 +174,12 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       const assistant = resource.raw
       try {
         const groupName = assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
-        const content = serializeAssistantForExport(assistant, groupName)
+        const bindingPath = resolveTemplate('/prompt-bindings/:targetType/:targetId', {
+          targetType: 'assistant',
+          targetId: assistant.id
+        }) as ConcreteApiPaths
+        const contextualPrompts = await dataApiService.get(bindingPath)
+        const content = serializeAssistantForExport(assistant, contextualPrompts, groupName)
 
         await window.api.file.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
@@ -195,13 +233,69 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
     [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
   )
 
-  const handleEditDialogOpenChange = useCallback((open: boolean) => {
-    setEditDialogOpen(open)
-  }, [])
+  const refreshProtectedAgentResources = useCallback(async () => {
+    const outcomes = await Promise.allSettled(['/agents', '/agents/*', '/agent-sessions'].map((key) => invalidate(key)))
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        logger.warn('Failed to refresh protected Agent resources after deleting Sessions', { err: outcome.reason })
+      }
+    }
+  }, [invalidate])
 
-  const handleEditSaved = useCallback(() => {
-    refetch()
-  }, [refetch])
+  const restoreSession = useCallback(
+    (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
+    []
+  )
+
+  const handleDeleteProtectedAgentSessions = useCallback(
+    async (resource: Extract<ResourceItem, { type: 'agent' }>) => {
+      if (deletingProtectedAgentRef.current) return
+      deletingProtectedAgentRef.current = resource.id
+
+      try {
+        const result = await ipcApi.request('ai.agent.sessions.delete', { agentId: resource.id })
+        const deletedSessionIds = [...result.deletedIds]
+        await refreshProtectedAgentResources()
+        if (deletedSessionIds.length === 0) {
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+
+        closeConversationTabs('agents', deletedSessionIds)
+        showRecycleBinBatchUndo({
+          itemCount: deletedSessionIds.length,
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedSessionIds,
+              restore: restoreSession,
+              getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+              isNotFound: isAgentSessionNotFoundError,
+              refresh: refreshProtectedAgentResources
+            })
+        })
+      } catch (error) {
+        logger.error('Failed to delete protected Agent Sessions from resource catalog', {
+          resourceId: resource.id,
+          error
+        })
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
+      } finally {
+        deletingProtectedAgentRef.current = null
+      }
+    },
+    [closeConversationTabs, refreshProtectedAgentResources, restoreSession, t]
+  )
+
+  const handleDelete = useCallback(
+    (resource: ResourceItem) => {
+      if (resource.type === 'agent' && isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)) {
+        void handleDeleteProtectedAgentSessions(resource)
+        return
+      }
+      setDeleteConfirm(resource)
+    },
+    [handleDeleteProtectedAgentSessions]
+  )
 
   return {
     resourceError,
@@ -214,7 +308,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       onSearchChange: setSearch,
       onEdit: handleOpenResource,
       onDuplicate: handleDuplicate,
-      onDelete: setDeleteConfirm,
+      onDelete: handleDelete,
       onExport: (resource: ResourceItem) => {
         void handleExport(resource)
       },
@@ -223,6 +317,8 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       onOpenAssistantLibrary: isAssistantLibrary ? () => setAssistantLibraryOpen(true) : undefined,
       onOpenSkillMarketplace: () => setSkillMarketplaceOpen(true),
       onOpenSystemSkills: () => setSystemSkillOpen(true),
+      onCreateSkillWithAgent: onLaunchSkill ? handleCreateSkillWithAgent : undefined,
+      onLaunchSkill: onLaunchSkill ? handleLaunchSkill : undefined,
       groups: scopedGroups,
       activeGroupId,
       onGroupFilter: setActiveGroupId,
@@ -238,22 +334,18 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       createDialogOpen,
       creatingResource,
       deleteConfirm,
-      editDialog,
-      editDialogOpen,
-      selectedSkill,
+      editDialogTarget,
       skillImportOpen,
       skillMarketplaceOpen,
       systemSkillOpen,
       setAssistantImportOpen,
       setAssistantLibraryOpen,
       setDeleteConfirm,
-      setSelectedSkill,
+      setEditDialogTarget,
       setSkillImportOpen,
       setSkillMarketplaceOpen,
       setSystemSkillOpen,
       handleCreateDialogOpenChange,
-      handleEditDialogOpenChange,
-      handleEditSaved,
       handleSubmitCreateResource
     }
   }

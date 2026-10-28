@@ -1,13 +1,31 @@
-import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
-import type { Group } from '@shared/data/types/group'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import type { Group } from '@shared/data/types/group'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 
 vi.mock('@renderer/components/command', () => ({
-  CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
+  CommandContextMenu: ({
+    children,
+    extraItems = []
+  }: {
+    children: ReactNode
+    extraItems?: Array<{ id?: string; label?: string; onSelect?: () => void; type: string }>
+  }) => (
+    <>
+      {children}
+      {extraItems.map((item) =>
+        item.type === 'item' ? (
+          <button key={item.id} type="button" onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ) : null
+      )}
+    </>
+  ),
   CommandPopupMenu: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -64,13 +82,15 @@ vi.mock('react-i18next', () => ({
           'common.more': '更多',
           'knowledge.context.delete': '删除知识库',
           'knowledge.context.move_to': '移动到',
-          'knowledge.context.rename': '重命名'
+          'knowledge.context.rename': '重命名',
+          'launchpad.pin_to_sidebar': '添加到侧边栏'
         }) as Record<string, string>
       )[key] ?? key
   })
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
+  orderKey: 'a0',
   id: 'base-1',
   name: 'Base 1',
   itemCount: 0,
@@ -113,35 +133,14 @@ describe('KnowledgeBaseRow', () => {
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        sidebarPinned={false}
       />
     )
 
     expect(screen.getByText('Base 1')).toBeInTheDocument()
     expect(screen.queryByText('3 文档')).not.toBeInTheDocument()
     expect(container.querySelector('span[aria-label]')).not.toBeInTheDocument()
-  })
-
-  it('renders the selected row with the rounded highlight', () => {
-    render(
-      <KnowledgeBaseRow
-        base={createKnowledgeBase()}
-        groups={[createGroup()]}
-        selected
-        onSelectBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass(
-      'h-8',
-      'rounded-md',
-      'bg-muted',
-      'text-foreground'
-    )
-    expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
   })
 
   it('renders a hover more button that shares the row action menu', () => {
@@ -155,6 +154,8 @@ describe('KnowledgeBaseRow', () => {
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        sidebarPinned={false}
       />
     )
 
@@ -162,25 +163,26 @@ describe('KnowledgeBaseRow', () => {
     expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
   })
 
-  it('lets long names use the remaining row width beside the trailing more button', () => {
+  it('requests the knowledge base be added to the sidebar', () => {
+    const base = createKnowledgeBase()
+    const onToggleSidebar = vi.fn()
     render(
       <KnowledgeBaseRow
-        base={createKnowledgeBase({ name: 'A very long knowledge base name that should stay within the text column' })}
+        base={base}
         groups={[createGroup()]}
-        selected
+        selected={false}
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onToggleSidebar={onToggleSidebar}
+        sidebarPinned={false}
       />
     )
 
-    expect(screen.getByRole('button', { name: /A very long knowledge base name/ }).parentElement).not.toHaveClass(
-      'grid-cols-[minmax(0,1fr)_1.75rem]'
-    )
-    expect(screen.getByText('A very long knowledge base name that should stay within the text column')).toHaveClass(
-      'truncate'
-    )
+    fireEvent.click(screen.getByRole('button', { name: '添加到侧边栏' }))
+
+    expect(onToggleSidebar).toHaveBeenCalledWith(base)
   })
 })

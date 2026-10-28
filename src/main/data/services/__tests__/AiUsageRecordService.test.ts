@@ -1,4 +1,9 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import type { LanguageModelMiddleware } from 'ai'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -14,10 +19,6 @@ import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
 import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
 import { createAiUsageCaptureContext, createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import type { LanguageModelMiddleware } from 'ai'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -80,12 +81,13 @@ async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddle
 describe('AiUsageRecordService', () => {
   const dbh = setupTestDatabase()
 
-  it('replaces projection fields while preserving legacy message timing', () => {
+  it('replaces projection fields while preserving message-owned stats', () => {
     expect(
       mergeMessageUsageProjection(
         {
           totalTokens: 999,
           requestCount: 9,
+          contextTokens: 11,
           timeCompletionMs: 750
         },
         {
@@ -96,6 +98,7 @@ describe('AiUsageRecordService', () => {
     ).toEqual({
       totalTokens: 12,
       requestCount: 1,
+      contextTokens: 11,
       timeCompletionMs: 750
     })
   })
@@ -194,6 +197,49 @@ describe('AiUsageRecordService', () => {
       timeThinkingMs: 200
     })
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          endpoint: '/topics/:topicId/messages',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: [messageId]
+        })
+      ])
+    )
+  })
+
+  it('persists flat provider tokens without the gateway normalize middleware', async () => {
+    const capture = createLanguageUsageMiddleware(context())
+    const flatFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 1_000_000,
+        outputTokens: 500_000,
+        totalTokens: 1_500_000,
+        cachedInputTokens: 0
+      }
+    } as unknown as LanguageModelV3StreamPart
+    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue(flatFinish)
+        controller.close()
+      }
+    })
+    const wrapped = await capture.wrapStream!({ doStream: async () => ({ stream }) } as never)
+
+    await wrapped.stream.pipeTo(new WritableStream())
+
+    expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      totalTokens: 1_500_000,
+      noCacheTokens: 1_000_000,
+      cacheReadTokens: 0,
+      cost: 2,
+      costCurrency: 'USD',
+      costSource: 'computed'
+    })
   })
 
   it('persists normalized gateway tokens and computed cost from a flat finish chunk', async () => {
@@ -306,6 +352,158 @@ describe('AiUsageRecordService', () => {
       costSource: 'computed',
       costBreakdown: { input: 0.6, cacheRead: 0.2 }
     })
+  })
+
+  it('selects an input-token tier below, at, and above its inclusive threshold', () => {
+    const pricingSnapshot = {
+      currency: 'USD' as const,
+      inputPerMillionTokens: 1,
+      outputPerMillionTokens: 2,
+      inputTokenTiers: [
+        {
+          minInputTokens: 1_000,
+          inputPerMillionTokens: 10,
+          outputPerMillionTokens: 20
+        },
+        {
+          minInputTokens: 2_000,
+          inputPerMillionTokens: 100,
+          outputPerMillionTokens: 200
+        }
+      ],
+      capturedAt: '2026-07-28T00:00:00.000Z'
+    }
+    aiUsageRecordService.recordInvocations([
+      invocation({
+        requestId: 'tier-below',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 999, outputTokens: 100 }
+      }),
+      invocation({
+        requestId: 'tier-equal',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 1_000, outputTokens: 100 }
+      }),
+      invocation({
+        requestId: 'tier-above',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 1_001, outputTokens: 100 }
+      }),
+      invocation({
+        requestId: 'highest-tier-equal',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 2_000, outputTokens: 100 }
+      }),
+      invocation({
+        requestId: 'highest-tier-above',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 2_001, outputTokens: 100 }
+      })
+    ])
+
+    const rows = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(rows.find((row) => row.requestId === 'tier-below')?.cost).toBeCloseTo(0.001199)
+    expect(rows.find((row) => row.requestId === 'tier-equal')?.cost).toBeCloseTo(0.012)
+    expect(rows.find((row) => row.requestId === 'tier-above')?.cost).toBeCloseTo(0.01201)
+    expect(rows.find((row) => row.requestId === 'highest-tier-equal')?.cost).toBeCloseTo(0.22)
+    expect(rows.find((row) => row.requestId === 'highest-tier-above')?.cost).toBeCloseTo(0.2201)
+  })
+
+  it('uses the selected tier cache rates and all-in input count without double charging', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'tier-cache-priced',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            inputTokenTiers: [
+              {
+                minInputTokens: 1_000,
+                inputPerMillionTokens: 10,
+                outputPerMillionTokens: 20,
+                cacheReadPerMillionTokens: 4,
+                cacheWritePerMillionTokens: 6
+              }
+            ],
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        usage: { inputTokens: 1_000, outputTokens: 100, cacheReadTokens: 300, cacheWriteTokens: 100 }
+      })
+    )
+
+    const row = dbh.db
+      .select()
+      .from(aiUsageRecordTable)
+      .where(eq(aiUsageRecordTable.requestId, 'tier-cache-priced'))
+      .get()
+    expect(row?.cost).toBeCloseTo(0.0098)
+    expect(row?.costBreakdown).toEqual({ input: 0.006, cacheRead: 0.0012, cacheWrite: 0.0006, output: 0.002 })
+  })
+
+  it('derives the tier selection input count from the complete input breakdown', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'tier-derived-input',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            inputTokenTiers: [
+              {
+                minInputTokens: 1_000,
+                inputPerMillionTokens: 10,
+                outputPerMillionTokens: 20,
+                cacheReadPerMillionTokens: 4,
+                cacheWritePerMillionTokens: 6
+              }
+            ],
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        usage: { outputTokens: 100, noCacheTokens: 600, cacheReadTokens: 300, cacheWriteTokens: 100 }
+      })
+    )
+
+    const row = dbh.db
+      .select()
+      .from(aiUsageRecordTable)
+      .where(eq(aiUsageRecordTable.requestId, 'tier-derived-input'))
+      .get()
+    expect(row).toMatchObject({ costCurrency: 'USD', costSource: 'computed' })
+    expect(row?.cost).toBeCloseTo(0.0098)
+    expect(row?.costBreakdown).toEqual({ input: 0.006, cacheRead: 0.0012, cacheWrite: 0.0006, output: 0.002 })
+  })
+
+  it('does not guess the base rate when tiers exist but the all-in input count is missing', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'tier-missing-input',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            inputTokenTiers: [
+              {
+                minInputTokens: 1_000,
+                inputPerMillionTokens: 10,
+                outputPerMillionTokens: 20
+              }
+            ],
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        usage: { outputTokens: 100 }
+      })
+    )
+
+    expect(
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'tier-missing-input')).get()
+    ).toMatchObject({ cost: null, costCurrency: null, costSource: null })
   })
 
   it('keeps incomplete token pricing, pixel pricing, and untrusted provider cost unpriced', () => {
@@ -426,6 +624,135 @@ describe('AiUsageRecordService', () => {
       perImage: { price: 0.02, unit: 'image' },
       capturedAt: '2026-07-28T00:00:00.000Z'
     })
+  })
+
+  it.each([
+    { imageCount: 1, price: 0.04, multiplier: 1, amount: 0.04 },
+    { imageCount: 3, price: 0.04, multiplier: 2, amount: 0.24 },
+    { imageCount: 3, price: 0, multiplier: 1, amount: 0 },
+    { imageCount: 0, price: 0.04, multiplier: 1, amount: 0 }
+  ])(
+    'prices $imageCount images at $price with multiplier $multiplier without token usage',
+    ({ imageCount, price, multiplier, amount }) => {
+      const pricing = {
+        input: { perMillionTokens: null, currency: 'CNY' as const },
+        output: { perMillionTokens: null, currency: 'CNY' as const },
+        perImage: { price, unit: 'image' as const }
+      }
+      const captured = context({
+        pricingSnapshot: undefined,
+        pricing,
+        billing: { defaultMultiplier: multiplier, scheduleEnabled: false, timeZone: 'UTC', periods: [] }
+      })
+      pricing.perImage.price = 99
+      aiUsageRecordService.recordInvocation(
+        invocation({ context: captured, modality: 'image', imageCount, usage: undefined })
+      )
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        imageCount,
+        totalTokens: null,
+        cost: amount,
+        costCurrency: 'CNY',
+        costSource: 'computed',
+        costBreakdown: { image: amount }
+      })
+    }
+  )
+
+  it('does not invent a currency for tiered pricing without an explicit currency', () => {
+    expect(
+      createAiUsagePricingSnapshot(
+        {
+          input: { perMillionTokens: 1 },
+          output: { perMillionTokens: 2 },
+          inputTokenTiers: [
+            {
+              minInputTokens: 1_000,
+              input: { perMillionTokens: 10 },
+              output: { perMillionTokens: 20 }
+            }
+          ]
+        },
+        '2026-07-28T00:00:00.000Z'
+      )
+    ).toBeNull()
+  })
+
+  it('inherits the sole explicit currency across partial tier rates', () => {
+    expect(
+      createAiUsagePricingSnapshot(
+        {
+          input: { perMillionTokens: 1, currency: 'CNY' },
+          output: { perMillionTokens: 2, currency: 'CNY' },
+          inputTokenTiers: [
+            {
+              minInputTokens: 1_000,
+              input: { perMillionTokens: 10 },
+              output: { perMillionTokens: 20 }
+            }
+          ]
+        },
+        '2026-07-28T00:00:00.000Z'
+      )
+    ).toEqual({
+      currency: 'CNY',
+      inputPerMillionTokens: 1,
+      outputPerMillionTokens: 2,
+      inputTokenTiers: [
+        {
+          minInputTokens: 1_000,
+          inputPerMillionTokens: 10,
+          outputPerMillionTokens: 20
+        }
+      ],
+      capturedAt: '2026-07-28T00:00:00.000Z'
+    })
+  })
+
+  it('captures immutable input-token tiers and rejects mixed tier currencies', () => {
+    const pricing = {
+      input: { perMillionTokens: 1, currency: 'USD' as const },
+      output: { perMillionTokens: 2, currency: 'USD' as const },
+      inputTokenTiers: [
+        {
+          minInputTokens: 1_000,
+          input: { perMillionTokens: 10, currency: 'USD' as const },
+          output: { perMillionTokens: 20, currency: 'USD' as const },
+          cacheRead: { perMillionTokens: 4, currency: 'USD' as const }
+        }
+      ]
+    }
+    const snapshot = createAiUsagePricingSnapshot(pricing, '2026-07-28T00:00:00.000Z')
+
+    expect(snapshot).toEqual({
+      currency: 'USD',
+      inputPerMillionTokens: 1,
+      outputPerMillionTokens: 2,
+      inputTokenTiers: [
+        {
+          minInputTokens: 1_000,
+          inputPerMillionTokens: 10,
+          outputPerMillionTokens: 20,
+          cacheReadPerMillionTokens: 4
+        }
+      ],
+      capturedAt: '2026-07-28T00:00:00.000Z'
+    })
+    expect(Object.isFrozen(snapshot?.inputTokenTiers)).toBe(true)
+    expect(
+      createAiUsagePricingSnapshot(
+        {
+          ...pricing,
+          inputTokenTiers: [
+            {
+              ...pricing.inputTokenTiers[0],
+              output: { perMillionTokens: 20, currency: 'CNY' }
+            }
+          ]
+        },
+        '2026-07-28T00:00:00.000Z'
+      )
+    ).toBeNull()
   })
 
   it('drops invalid non-integer or non-finite record metrics without disrupting message state', () => {
@@ -640,6 +967,7 @@ describe('AiUsageRecordService', () => {
         }
       },
       {
+        contextTokens: 321,
         runtimeTiming: {
           startedAt: 1_000,
           completedAt: 4_000,
@@ -659,6 +987,7 @@ describe('AiUsageRecordService', () => {
     expect(merged).toMatchObject({
       outputTokens: 20,
       providerPerformance: { measuredOutputTokens: 20, generationDurationMs: 500 },
+      contextTokens: 321,
       runtimeTiming: {
         startedAt: 1_000,
         completedAt: 4_000,

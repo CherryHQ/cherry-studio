@@ -15,7 +15,6 @@ export {
   diffAssistantUpdate,
   initialAssistantFormState
 } from './assistantForm'
-export { isSelectableAssistantModel } from './assistantModelFilter'
 export {
   type AssistantConfigMcpMode,
   MCP_MODE_OPTIONS,

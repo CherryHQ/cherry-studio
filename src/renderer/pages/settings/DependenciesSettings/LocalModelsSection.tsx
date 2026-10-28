@@ -1,29 +1,69 @@
-import { Badge, Button } from '@cherrystudio/ui'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { cn } from '@renderer/utils/style'
-import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
-import { Boxes, Download, ScanText, Trash2, X } from 'lucide-react'
+import { Boxes, Download, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-/** A transient message shown on the card; the value is also the i18n leaf key. */
-type CardNotice = 'downloadFailed' | 'removeFailed' | 'inUse'
+import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import { useLocalModel } from '@renderer/hooks/useLocalModel'
+import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+import { cn } from '@renderer/utils/style'
+import type { LocalModelBundleId, LocalModelCapability, LocalModelStatus } from '@shared/data/presets/localModel'
+
+const logger = loggerService.withContext('LocalModelsSection')
+
+const CARD_NOTICE_KEYS = {
+  downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
+  incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
+  removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
+  inUse: 'settings.dependencies.localModels.notice.inUse'
+} as const
+
+type CardNotice = keyof typeof CARD_NOTICE_KEYS
+
+/** Display metadata belongs to the installed model, not its capability. */
+const MODEL_CARDS = {
+  'qwen3-asr-1.7b-8bit': {
+    icon: <Mic className="size-5" />,
+    nameKey: 'settings.voice.model.qwen3_asr',
+    sources: ['Qwen/Qwen3-ASR-1.7B-hf']
+  },
+  'kokoro-multi-lang-v1.1': {
+    icon: <Volume2 className="size-5" />,
+    nameKey: 'settings.voice.model.kokoro_tts',
+    sources: ['csukuangfj/kokoro-multi-lang-v1_1']
+  },
+  'qwen3-tts-0.6b-customvoice-8bit': {
+    icon: <Volume2 className="size-5" />,
+    nameKey: 'settings.voice.model.qwen3_tts',
+    sources: ['Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice']
+  },
+  'funasr-nano-int8': {
+    icon: <Mic className="size-5" />,
+    nameKey: 'settings.voice.model.funasr',
+    sources: ['csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30']
+  },
+  'qwen3-embedding-0.6b': {
+    icon: <Boxes className="size-5" />,
+    nameKey: 'settings.dependencies.localModels.embedding.name',
+    sources: ['onnx-community/Qwen3-Embedding-0.6B-ONNX']
+  },
+  'pp-ocrv6-medium': {
+    icon: <ScanText className="size-5" />,
+    nameKey: 'settings.dependencies.localModels.ocr.name',
+    sources: ['PaddlePaddle/PP-OCRv6_medium_det_onnx', 'PaddlePaddle/PP-OCRv6_medium_rec_onnx']
+  }
+} as const satisfies Record<LocalModelBundleId, { icon: ReactNode; nameKey: string; sources: readonly string[] }>
 
 /**
- * Shared wiring for a downloadable local model: tracks status/percent, streams
- * progress, and exposes download/cancel/remove. One IPC route family
- * (`local_model.*`) serves both models; `model` selects which one and filters
- * the shared `download_progress` event.
+ * Settings-specific notice state layered over the shared local-model lifecycle.
  */
-function useLocalModelCard(model: LocalModelKind) {
-  const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
-  const [percent, setPercent] = useState(0)
+function useLocalModelCard(id: LocalModelBundleId) {
+  const localModel = useLocalModel(id)
   const [notice, setNotice] = useState<CardNotice | null>(null)
   const mountedRef = useRef(true)
-  // A user cancel rejects the in-flight download too; this flag keeps that path
-  // from being surfaced as a download failure.
-  const cancellingRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -32,102 +72,65 @@ function useLocalModelCard(model: LocalModelKind) {
     }
   }, [])
 
-  const refresh = useCallback(async () => {
-    try {
-      const res = await ipcApi.request('local_model.get_status', { model })
-      if (mountedRef.current) setStatus(res.status)
-    } catch {
-      // status probe is best-effort; leave the last known state
-    }
-  }, [model])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  useIpcOn('local_model.download_progress', (p) => {
-    if (!mountedRef.current || p.model !== model) return
-    setPercent(p.percent)
-    if (p.status === 'ready') setStatus('ready')
-    else if (p.status === 'error') setStatus('error')
-  })
-
   const download = async () => {
     setNotice(null)
-    setStatus('downloading')
-    setPercent(0)
-    cancellingRef.current = false
     try {
-      await ipcApi.request('local_model.download', { model })
-      if (mountedRef.current) setStatus('ready')
+      await localModel.download()
     } catch {
-      // A user-initiated cancel rejects too — don't render it as a failure.
-      if (cancellingRef.current || !mountedRef.current) return
-      // Surface the failure instead of silently reverting to the download button.
-      setNotice('downloadFailed')
-      await refresh()
-    }
-  }
-
-  const cancel = async () => {
-    cancellingRef.current = true
-    try {
-      await ipcApi.request('local_model.cancel', { model })
-    } finally {
-      if (mountedRef.current) {
-        setStatus('not_downloaded')
-        setPercent(0)
-      }
+      if (mountedRef.current) setNotice('downloadFailed')
     }
   }
 
   const remove = async () => {
     setNotice(null)
     try {
-      const { removed } = await ipcApi.request('local_model.remove', { model })
+      const { removed } = await localModel.remove()
       if (!mountedRef.current) return
-      // `removed: false` → kept because a knowledge base still uses it (weights intact).
-      if (removed) setStatus('not_downloaded')
-      else setNotice('inUse')
+      if (!removed) setNotice('inUse')
     } catch {
       if (mountedRef.current) setNotice('removeFailed')
     }
   }
 
-  return { status, percent, notice, download, cancel, remove }
+  return {
+    ...localModel,
+    notice:
+      notice ??
+      (localModel.status === 'error'
+        ? localModel.errorCode === 'incomplete_cache'
+          ? 'incompleteCache'
+          : 'downloadFailed'
+        : null),
+    download,
+    remove
+  }
 }
 
 interface ModelCardProps {
-  icon: ReactNode
-  name: string
-  subtitle: string
-  status: LocalModelStatus
-  percent: number
-  notice: CardNotice | null
-  onDownload: () => void
-  onCancel: () => void
-  onRemove: () => void
+  id: LocalModelBundleId
+  capability: LocalModelCapability
+  /** Lifted so the section can hide every card at once when the platform is unsupported. */
+  onStatusChange: (id: LocalModelBundleId, status: LocalModelStatus) => void
 }
 
-const ModelCard: FC<ModelCardProps> = ({
-  icon,
-  name,
-  subtitle,
-  status,
-  percent,
-  notice,
-  onDownload,
-  onCancel,
-  onRemove
-}) => {
+const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   const { t } = useTranslation()
+  const { status, percent, notice, download, cancel, remove } = useLocalModelCard(id)
+  const { icon, nameKey, sources } = MODEL_CARDS[id]
+
+  useEffect(() => {
+    onStatusChange(id, status)
+  }, [id, status, onStatusChange])
+  if (status === 'unsupported') return null
   const ready = status === 'ready'
   const downloading = status === 'downloading'
+  const retrying = status === 'error'
 
   return (
     <div
+      id={id === 'funasr-nano-int8' ? 'voice-resources' : id}
       role="listitem"
-      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start gap-3">
         <div
@@ -139,20 +142,44 @@ const ModelCard: FC<ModelCardProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-foreground text-sm">{name}</span>
+            <span className="truncate text-foreground text-sm">{t(nameKey)}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
                 {t('settings.dependencies.localModels.status.ready')}
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 truncate text-muted-foreground text-xs">{subtitle}</p>
+          <div className="mt-0.5 flex flex-col text-xs leading-5">
+            {sources.map((source) => (
+              <a
+                key={source}
+                href={`https://huggingface.co/${source}`}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-link hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+                title={source}>
+                {source}
+              </a>
+            ))}
+          </div>
         </div>
         {ready && (
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={onRemove}
+            onClick={async () => {
+              if (
+                capability === 'asr' &&
+                !(await popup.confirm({
+                  title: t('settings.voice.resources.remove_title'),
+                  content: t('settings.voice.resources.remove_description'),
+                  okText: t('settings.dependencies.localModels.remove'),
+                  cancelText: t('common.cancel')
+                }))
+              )
+                return
+              await remove()
+            }}
             aria-label={t('settings.dependencies.localModels.remove')}>
             <Trash2 className="size-3.5" />
           </Button>
@@ -161,7 +188,7 @@ const ModelCard: FC<ModelCardProps> = ({
 
       {notice && (
         <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
-          {t(`settings.dependencies.localModels.notice.${notice}`)}
+          {t(CARD_NOTICE_KEYS[notice])}
         </p>
       )}
 
@@ -178,37 +205,65 @@ const ModelCard: FC<ModelCardProps> = ({
       )}
 
       {!ready && (
-        <div className="mt-3 border-border border-t pt-3">
-          {downloading ? (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onCancel}>
-              <X className="size-3.5" />
-              {t('settings.dependencies.localModels.cancel')}
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onDownload}>
-              <Download className="size-3.5" />
-              {t('settings.dependencies.localModels.download')}
-            </Button>
-          )}
+        <div className="mt-auto pt-3">
+          <div className="border-border border-t pt-3">
+            {downloading ? (
+              <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void cancel()}>
+                <X className="size-3.5" />
+                {t('settings.dependencies.localModels.cancel')}
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void download()}>
+                {retrying ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
+                {t(retrying ? 'common.retry' : 'settings.dependencies.localModels.download')}
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
+type ListedModel = { id: LocalModelBundleId; capability: LocalModelCapability }
+
 /**
- * Local model download cards — embedding (transformers.js) and OCR
- * (PaddleOCR), each wired to its inference/download backend over IpcApi.
+ * Local model download cards, one per installable bundle as reported by the registry.
+ * Each is wired to its own download backend over IpcApi.
  */
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
+  const [hardwareAccelerationEnabled, setHardwareAccelerationEnabled] = usePreference(
+    'feature.local_model.hardware_acceleration.enabled'
+  )
+  const [accelerationSupported, setAccelerationSupported] = useState(false)
+  const [models, setModels] = useState<ListedModel[]>([])
+  const [statuses, setStatuses] = useState<Partial<Record<LocalModelBundleId, LocalModelStatus>>>({})
 
-  const embedding = useLocalModelCard('embedding')
-  const ocr = useLocalModelCard('ocr')
+  const handleStatusChange = useCallback((id: LocalModelBundleId, status: LocalModelStatus) => {
+    setStatuses((previous) => (previous[id] === status ? previous : { ...previous, [id]: status }))
+  }, [])
 
-  // Both models share the same inference runtime, so they're unsupported together
-  // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding).
-  const unsupported = embedding.status === 'unsupported' && ocr.status === 'unsupported'
+  useEffect(() => {
+    let mounted = true
+    void ipcApi
+      .request('local_model.get_acceleration_capability')
+      .then(({ supported }) => {
+        if (mounted) setAccelerationSupported(supported)
+      })
+      .catch((error) => logger.warn('Failed to detect local inference hardware acceleration', error as Error))
+    void ipcApi
+      .request('local_model.list')
+      .then((result) => {
+        if (mounted) setModels(result.models)
+      })
+      .catch((error) => logger.warn('Failed to list local models', error as Error))
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const unsupported = models.length > 0 && models.every((model) => statuses[model.id] === 'unsupported')
 
   return (
     <div className="min-w-0">
@@ -218,6 +273,17 @@ const LocalModelsSection: FC = () => {
       <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
         {t('settings.dependencies.localModels.description')}
       </p>
+      {accelerationSupported && !unsupported ? (
+        <div className="mb-3 border-border border-y py-1">
+          <DescriptionSwitch
+            size="sm"
+            label={t('settings.dependencies.localModels.acceleration.label')}
+            description={t('settings.dependencies.localModels.acceleration.description')}
+            checked={hardwareAccelerationEnabled}
+            onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
+          />
+        </div>
+      ) : null}
       {unsupported ? (
         <div
           role="status"
@@ -229,28 +295,9 @@ const LocalModelsSection: FC = () => {
         </div>
       ) : (
         <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ModelCard
-            icon={<Boxes className="size-5" />}
-            name={t('settings.dependencies.localModels.embedding.name')}
-            subtitle={t('settings.dependencies.localModels.embedding.subtitle')}
-            status={embedding.status}
-            percent={embedding.percent}
-            notice={embedding.notice}
-            onDownload={embedding.download}
-            onCancel={embedding.cancel}
-            onRemove={embedding.remove}
-          />
-          <ModelCard
-            icon={<ScanText className="size-5" />}
-            name={t('settings.dependencies.localModels.ocr.name')}
-            subtitle={t('settings.dependencies.localModels.ocr.subtitle')}
-            status={ocr.status}
-            percent={ocr.percent}
-            notice={ocr.notice}
-            onDownload={ocr.download}
-            onCancel={ocr.cancel}
-            onRemove={ocr.remove}
-          />
+          {models.map((model) => (
+            <ModelCard key={model.id} id={model.id} capability={model.capability} onStatusChange={handleStatusChange} />
+          ))}
         </div>
       )}
     </div>

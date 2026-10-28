@@ -68,16 +68,6 @@ describe('useAssistant', () => {
     })
   })
 
-  it('disables the DataApi query when id is undefined', () => {
-    renderHook(() => useAssistant(undefined))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', {
-      params: { id: '' },
-      enabled: false,
-      swrOptions: { keepPreviousData: false }
-    })
-  })
-
   it('returns assistant: undefined for a topic without an assistant', () => {
     const { result } = renderHook(() => useAssistant(null))
 

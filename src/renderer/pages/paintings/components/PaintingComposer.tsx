@@ -1,6 +1,11 @@
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { BookOpen, Settings2 } from 'lucide-react'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import ComposerSurface from '@renderer/components/composer/ComposerSurface'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
@@ -14,31 +19,35 @@ import {
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import {
+  COMPOSER_ICON_ONLY_LABEL_CLASS,
+  COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
   ComposerToolbarControls
 } from '@renderer/components/composer/variants/shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from '@renderer/components/composer/variants/shared/ComposerDictationButton'
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
-import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
-import { getFileTypeByExt, imageExts } from '@shared/utils/file'
+import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
-import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
+import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
-import { resolveOptions } from '../form/resolveOptions'
+import { resolveOptions, resolveOptionValue } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
-import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
+import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
+import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
+import { PaintingPromptPresetsDialog } from './PaintingPromptPresetsDialog'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
@@ -59,8 +68,17 @@ const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
   'styleToggle'
 ])
 
+type SummaryConfigItem = Extract<
+  BaseConfigItem,
+  { type: 'select' | 'sizeChips' | 'slider' | 'radio' | 'iconRadio' | 'styleToggle' }
+>
+
+function isSummaryConfigItem(item: BaseConfigItem): item is SummaryConfigItem {
+  return SUMMARY_TYPES.has(item.type)
+}
+
 function formatSummaryValue(
-  item: BaseConfigItem,
+  item: SummaryConfigItem,
   value: unknown,
   params: PaintingData['params'],
   translate: (key: string) => string
@@ -68,18 +86,19 @@ function formatSummaryValue(
   // Size-bearing fields render as chip-style dimensions, matching the size chips.
   if ((SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key ?? '')) {
     if (value === 'custom') {
-      const w = params?.customSize_width
-      const h = params?.customSize_height
-      return w && h ? `${String(w)}×${String(h)}` : undefined
+      const width = optionalFiniteNumber(params?.customSize_width)
+      const height = optionalFiniteNumber(params?.customSize_height)
+      return width !== null && height !== null && width > 0 && height > 0 ? `${width}×${height}` : undefined
     }
     // Localize the selected option (e.g. `auto` → `自动`) the same way the chips
     // and the artboard prompt bar do, instead of formatting the raw enum.
-    return sizeOptionLabel(item, String(value), params, translate)
+    return isOptionsConfigItem(item) ? sizeOptionLabel(item, controlValue(value), params, translate) : undefined
   }
-  if (item.type === 'slider') return String(value)
+  if (item.type === 'slider') return `${finiteParamNumberOr(item.key, value, item.initialValue)}`
   // Option-based: show the selected option's localized label.
-  const match = resolveOptions(item, params ?? {}, translate).find((opt) => String(opt.value) === String(value))
-  return match?.label ?? String(value)
+  const formattedValue = controlValue(value)
+  const match = resolveOptions(item, params ?? {}, translate).find((opt) => controlValue(opt.value) === formattedValue)
+  return match?.label ?? formattedValue
 }
 
 /**
@@ -95,9 +114,18 @@ function paramsSummary(
 ): string {
   const parts: string[] = []
   for (const item of items) {
-    if (!item.key || !SUMMARY_TYPES.has(item.type)) continue
+    if (!isSummaryConfigItem(item)) continue
     if (item.condition && !item.condition(params ?? {})) continue
-    const value = params?.[item.key] ?? item.initialValue
+    const storedValue = params?.[item.key]
+    // Preserve the custom-size sentinel even for older registry snapshots that
+    // did not yet append it to the option list. Its dimensions are validated in
+    // formatSummaryValue; every other option still goes through the typed
+    // catalog + declared-option boundary below.
+    const value = isOptionsConfigItem(item)
+      ? storedValue === 'custom' && (SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)
+        ? storedValue
+        : resolveOptionValue(item, storedValue, params ?? {}, translate)
+      : (params?.[item.key] ?? item.initialValue)
     if (value === undefined || value === null || value === '') continue
     const formatted = formatSummaryValue(item, value, params, translate)
     if (formatted) parts.push(formatted)
@@ -107,11 +135,17 @@ function paramsSummary(
 
 export interface PaintingComposerProps {
   painting: PaintingData
+  /** Data-derived: a generation is running for this painting (possibly resumed). */
   generating: boolean
-  submitting?: boolean
+  /** Action-scoped: a send started here is in flight. Owned by usePaintingGenerationSubmit. */
+  submitting: boolean
   onPromptChange: (value: string) => void
-  onInputFilesChange: (files: FileEntry[]) => void
-  onGenerate: () => void
+  /**
+   * Hands the request its input resolver. The composer holds the draft attachments
+   * but does not orchestrate the request — materialization is the request's first
+   * step, run by its owner only once the preconditions pass.
+   */
+  onGenerate: (materialize: MaterializeInputs) => void | Promise<void>
   onCancel: () => void
   onModelSelect: (selection: { providerId: string; modelId: string }) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
@@ -132,7 +166,9 @@ const PaintingParamsButton: FC<{
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
-  if (configItems.length === 0) return null
+  // A model without registry fields can still have the timeout control; hiding the entry
+  // point would make that setting unreachable.
+  if (configItems.length === 0 && !supportsImageRequestTimeout(painting.providerId)) return null
 
   return (
     <Popover>
@@ -151,7 +187,7 @@ const PaintingParamsButton: FC<{
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" side="top" className="w-[min(340px,calc(100vw-2rem))] rounded-[8px] p-3">
+      <PopoverContent align="start" side="top" className="w-[min(300px,calc(100vw-2rem))] rounded-[8px] p-3">
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <PaintingSettings
             painting={painting}
@@ -172,9 +208,8 @@ interface PaintingComposerInnerProps extends PaintingComposerProps {
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   painting,
   generating,
-  submitting = false,
+  submitting,
   onPromptChange,
-  onInputFilesChange,
   onGenerate,
   onCancel,
   onModelSelect,
@@ -185,6 +220,25 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 }) => {
   const { t } = useTranslation()
   const { files, isExpanded } = useComposerToolState()
+  const [presetsOpen, setPresetsOpen] = useState(false)
+  const presetInputAdapter = useRef<QuickPanelInputAdapter | undefined>(undefined)
+  const surfaceActions = useRef<ComposerSurfaceActions | null>(null)
+  const restorePresetFocus = useRef(false)
+  useEffect(() => {
+    if (presetsOpen || !restorePresetFocus.current) return
+    // Radix restores modal focus when the close animation finishes.
+    const timer = window.setTimeout(() => {
+      frame = window.requestAnimationFrame(() => {
+        surfaceActions.current?.focus()
+        restorePresetFocus.current = false
+      })
+    }, DIALOG_UNMOUNT_DELAY_MS)
+    let frame = 0
+    return () => {
+      window.clearTimeout(timer)
+      window.cancelAnimationFrame(frame)
+    }
+  }, [presetsOpen])
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
@@ -200,14 +254,15 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const support = useImageGenerationSupport(painting.providerId, painting.model)
   const imageRequired =
     couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
-  // Gate on the *transferred* input images (`painting.inputFiles`, image-type only) —
-  // the state generation actually consumes — not the transient composer `files`, so an
-  // attachment still being transferred can't slip through as a valid image. The pipeline
-  // (`canonicalGenerate`) enforces the same rule authoritatively as a backstop.
-  const inputImageCount = (painting.inputFiles ?? []).filter(
-    (entry) => getFileTypeByExt(entry.ext ?? '') === FILE_TYPE.IMAGE
-  ).length
-  const missingRequiredImage = imageRequired && inputImageCount === 0
+  // Gate on the composer's own `files` — the chips the user sees in the image tray.
+  // `painting.inputFiles` is NOT usable here: inputs are materialized at generate time
+  // (usePaintingComposerInputFiles), so during the draft it still holds the *previous*
+  // run's entries. Reading it would leave a freshly-attached image invisible to the gate
+  // (edit-only send stuck disabled forever) and would keep the gate open after the last
+  // chip is removed. `canonicalGenerate` re-checks `EDIT_IMAGE_REQUIRED` on the
+  // materialized entries, so this gate only has to match what the user can see.
+  const draftImageCount = files.filter((file) => file.type === FILE_TYPE.IMAGE).length
+  const missingRequiredImage = imageRequired && draftImageCount === 0
 
   const placeholder = !couldAddImageFile
     ? t('paintings.prompt_placeholder')
@@ -215,12 +270,18 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
       ? t('paintings.prompt_placeholder_upload_required')
       : t('paintings.prompt_placeholder_upload')
 
-  usePaintingComposerInputFiles({
+  // `unknown` while the model is still resolving from the async catalog; `accept`
+  // once it resolves to an edit-capable model, `reject` otherwise. Drives the
+  // draft-clear on a model switch (see usePaintingComposerInputFiles CLEAR).
+  const inputCapability: InputCapability = !model ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
+
+  const { materializeInputs } = usePaintingComposerInputFiles({
     paintingId: painting.id,
     inputFiles: painting.inputFiles ?? [],
     files,
     setFiles,
-    onInputFilesChange
+    inputCapability,
+    providerId: painting.providerId
   })
 
   // Edit-image models: images live in the top reference-image tray (reads `files` from
@@ -233,17 +294,20 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 
   const handleTextChange = useCallback((value: string) => onPromptChange(value), [onPromptChange])
 
-  // The prompt + input files are kept synced to page state per edit, so the
-  // serialized draft is unused here — sending just triggers generation.
-  const handleSendDraft = useCallback(() => {
-    if (generating || submitting) return
-    onGenerate()
-  }, [generating, onGenerate, submitting])
+  // The request is orchestrated by its owner (usePaintingGenerationSubmit), which
+  // holds the re-entrancy guard and runs materialization only after the preconditions
+  // pass. This composer reports intent and hands over the resolver; it deliberately
+  // keeps no send state of its own.
+  const handleSendDraft = useCallback(() => onGenerate(materializeInputs), [materializeInputs, onGenerate])
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
-      {model && <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />}
+      <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />
       <ComposerSurface
+        onActionsChange={(actions) => {
+          surfaceActions.current = actions
+        }}
+        voiceTarget={{ targetId: `composer:painting:${painting.id}`, sourceEntityId: painting.id }}
         text={text}
         onTextChange={handleTextChange}
         tokens={tokens}
@@ -253,7 +317,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         leadingContent={couldAddImageFile ? <PaintingImageAddButton /> : undefined}
         placeholder={placeholder}
         sendDisabled={
-          submitting || generating || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage
+          generating || submitting || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage
         }
         sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}
         isLoading={generating}
@@ -272,11 +336,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        sendAccessory={(inputAdapter) => <ComposerDictationButton inputAdapter={inputAdapter} />}
         renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}
             unifiedPanelControl={unifiedPanelControl}
-            renderContextControls={() => (
+            renderContextControls={({ iconOnly }) => (
               <>
                 <PaintingModelSelector
                   hideTitle
@@ -289,10 +354,49 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
                   onConfigChange={onConfigChange}
                   onGenerateRandomSeed={onGenerateRandomSeed}
                 />
+                <Tooltip content={t('settings.prompts.title')}>
+                  <Button
+                    ref={(element) => {
+                      if (element) presetInputAdapter.current = inputAdapter
+                    }}
+                    data-ui="paintings.prompt-presets.action.open"
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)}
+                    aria-label={t('settings.prompts.title')}
+                    aria-haspopup="dialog"
+                    aria-expanded={presetsOpen}
+                    onClick={() => {
+                      restorePresetFocus.current = false
+                      setPresetsOpen(true)
+                    }}>
+                    <BookOpen className="size-4" />
+                    <span
+                      data-ui="part:prompt-presets-label"
+                      className={cn(iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>
+                      {t('settings.prompts.title')}
+                    </span>
+                  </Button>
+                </Tooltip>
               </>
             )}
           />
         )}
+      />
+      <PaintingPromptPresetsDialog
+        open={presetsOpen}
+        onOpenChange={setPresetsOpen}
+        onApply={(content) => {
+          restorePresetFocus.current = true
+          const adapter = presetInputAdapter.current
+          if (adapter) {
+            adapter.insertText(content)
+            adapter.focus()
+          } else {
+            onPromptChange(`${painting.prompt ?? ''}${content}`)
+          }
+        }}
       />
     </ComposerToolDerivedStateProvider>
   )
@@ -316,14 +420,14 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
   const couldAddImageFile = model ? isEditImageModel(model) : false
 
   return (
-    // Key the provider (which owns `files`) by painting AND model so a switch remounts
-    // it and re-seeds from the current `inputFiles`. Keying on the model too is what
-    // reconciles an external `inputFiles` clear: switchModel drops input images for a
-    // generate-only model on the same painting id, and without the model in the key the
-    // once-per-id seed would never re-run, leaving a stale chip that the writeback could
-    // resurrect and send to a model that can't accept it.
+    // Key the provider (which owns `files`) by painting id only: a different painting
+    // is a different editing session and must reset + re-seed the draft. A model
+    // switch must NOT remount — that would wipe an in-progress draft — so the
+    // `switchModel` `inputFiles: []` clear is reconciled reactively instead (see
+    // usePaintingComposerInputFiles CLEAR). Keying on the model here used to work only
+    // because the removed writeback kept `painting.inputFiles === files`.
     <ComposerToolRuntimeProvider
-      key={`${painting.id}:${painting.model ?? ''}`}
+      key={painting.id}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}
       actions={{ addNewTopic: () => {}, onTextChange: () => {} }}>
       <PaintingComposerInner {...props} model={model} couldAddImageFile={couldAddImageFile} />

@@ -1,5 +1,23 @@
 import { isDeepStrictEqual } from 'node:util'
 
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  type SQL,
+  sql,
+  type SQLWrapper
+} from 'drizzle-orm'
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -42,23 +60,7 @@ import type {
   MessageStats
 } from '@shared/data/types/message'
 import type { Currency } from '@shared/data/types/model'
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gt,
-  gte,
-  isNotNull,
-  isNull,
-  lt,
-  lte,
-  or,
-  type SQL,
-  sql,
-  type SQLWrapper
-} from 'drizzle-orm'
-import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+import { computeLanguageCost } from '@shared/utils/usagePricing'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
@@ -88,6 +90,8 @@ export interface MessageRef {
   kind: AiUsageRecordMessageKind
   id: string
 }
+
+type MessageReadModelTarget = MessageRef & { containerId: string }
 
 export interface AiUsageCaptureContext {
   providerId: string
@@ -163,68 +167,6 @@ export type MessageUsageProjection = Pick<
   | 'costs'
   | 'providerPerformance'
 >
-
-const PER_MILLION = 1_000_000
-
-interface LanguageCostUsage {
-  inputTokens?: number
-  outputTokens?: number
-  inputTokenDetails?: {
-    noCacheTokens?: number
-    cacheReadTokens?: number
-    cacheWriteTokens?: number
-  }
-}
-
-interface LanguageCostResult {
-  cost: number
-  breakdown: AiUsageCostBreakdown
-}
-
-/**
- * Compute the usage-record domain's cache-aware language cost from the all-in
- * input count and any provider breakdown. Partial cache details are subtracted
- * from the total so no token can be priced as both regular input and cached
- * input. A cost is returned only when every non-zero usage bucket has a known
- * rate.
- */
-function computeLanguageCost(
-  usage: LanguageCostUsage,
-  pricing: AiUsagePricingSnapshot
-): LanguageCostResult | undefined {
-  const details = usage.inputTokenDetails
-  const cacheReadTokens = details?.cacheReadTokens
-  const cacheWriteTokens = details?.cacheWriteTokens
-  const hasCacheDetails = cacheReadTokens !== undefined || cacheWriteTokens !== undefined
-  const nonCacheInput =
-    details?.noCacheTokens ??
-    (usage.inputTokens !== undefined
-      ? hasCacheDetails
-        ? Math.max(0, usage.inputTokens - (cacheReadTokens ?? 0) - (cacheWriteTokens ?? 0))
-        : usage.inputTokens
-      : undefined)
-
-  const buckets = [
-    ['input', nonCacheInput, pricing.inputPerMillionTokens],
-    ['cacheRead', cacheReadTokens, pricing.cacheReadPerMillionTokens ?? pricing.inputPerMillionTokens],
-    ['cacheWrite', cacheWriteTokens, pricing.cacheWritePerMillionTokens ?? pricing.inputPerMillionTokens],
-    ['output', usage.outputTokens, pricing.outputPerMillionTokens]
-  ] as const
-
-  if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
-  if (buckets.some(([, tokens, rate]) => tokens !== undefined && tokens > 0 && rate === undefined)) return undefined
-
-  const breakdown: AiUsageCostBreakdown = {}
-  let cost = 0
-  for (const [key, tokens, rate] of buckets) {
-    if (tokens === undefined || rate === undefined) continue
-    const value = (tokens * rate) / PER_MILLION
-    breakdown[key] = value
-    cost += value
-  }
-
-  return Number.isFinite(cost) && cost >= 0 ? { cost, breakdown } : undefined
-}
 
 const cursorLogger = loggerService.withContext('DataApi:AiUsageRecordCursor')
 
@@ -652,7 +594,11 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
     .limit(limit + 1)
     .all()
   const count =
-    db.select({ count: sql<number>`count(*)` }).from(aiUsageRecordTable).where(filterWhere).get()?.count ?? 0
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(aiUsageRecordTable)
+      .where(filterWhere)
+      .get()?.count ?? 0
   const pageRows = rows.slice(0, limit)
   const tail = pageRows.at(-1)
 
@@ -940,7 +886,7 @@ function mergeRuntimeSpan(existing: MessageRuntimeSpan, incoming: MessageRuntime
     ...incoming,
     startedAt: Math.min(existing.startedAt, incoming.startedAt),
     ...(completedAt !== undefined ? { completedAt } : {})
-  } as MessageRuntimeSpan
+  }
 }
 
 function mergeMessageRuntimeTiming(
@@ -984,6 +930,9 @@ export function mergeMessageRuntimeStats(
     delete merged.timeCompletionMs
     delete merged.timeThinkingMs
   }
+  if (incoming?.contextTokens !== undefined) {
+    merged.contextTokens = incoming.contextTokens
+  }
 
   return Object.keys(merged).length > 0 ? merged : undefined
 }
@@ -999,7 +948,10 @@ export function mergeMessageUsageProjection(
   for (const key of LEGACY_RECORD_OWNED_KEYS) delete messageOwned[key]
 
   const normalizedMessageOwned: MessageOwnedStats = messageOwned.runtimeTiming
-    ? { runtimeTiming: messageOwned.runtimeTiming }
+    ? {
+        runtimeTiming: messageOwned.runtimeTiming,
+        ...(messageOwned.contextTokens !== undefined ? { contextTokens: messageOwned.contextTokens } : {})
+      }
     : messageOwned
   return { ...normalizedMessageOwned, ...projection }
 }
@@ -1119,26 +1071,36 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
   }
 }
 
-function rebuildMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): boolean {
+function rebuildMessageUsageProjectionTx(
+  db: DbOrTx,
+  ref: MessageRef
+): { changed: boolean; target: MessageReadModelTarget } | null {
   const projection = getMessageUsageProjectionTx(db, ref)
   if (ref.kind === 'chat') {
-    const row = db.select({ stats: messageTable.stats }).from(messageTable).where(eq(messageTable.id, ref.id)).get()
-    if (!row) return false
+    const row = db
+      .select({ stats: messageTable.stats, topicId: messageTable.topicId })
+      .from(messageTable)
+      .where(eq(messageTable.id, ref.id))
+      .get()
+    if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    if (isDeepStrictEqual(row.stats, nextStats)) return false
-    db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
+    const changed = !isDeepStrictEqual(row.stats, nextStats)
+    if (changed) db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
+    return { changed, target: { ...ref, containerId: row.topicId } }
   } else {
     const row = db
-      .select({ stats: agentSessionMessageTable.stats })
+      .select({ stats: agentSessionMessageTable.stats, sessionId: agentSessionMessageTable.sessionId })
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, ref.id))
       .get()
-    if (!row) return false
+    if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
-    if (isDeepStrictEqual(row.stats, nextStats)) return false
-    db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
+    const changed = !isDeepStrictEqual(row.stats, nextStats)
+    if (changed) {
+      db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
+    }
+    return { changed, target: { ...ref, containerId: row.sessionId } }
   }
-  return true
 }
 
 const logger = loggerService.withContext('DataApi:AiUsageRecordService')
@@ -1345,7 +1307,7 @@ function insertRowsTx(
   db: DbOrTx,
   rows: readonly InsertAiUsageRecordRow[],
   warnOnConflict: boolean
-): { inserted: number; affectedMessages: MessageRef[] } {
+): { inserted: number; affectedMessages: MessageReadModelTarget[] } {
   let inserted = 0
   const affectedMessages = new Map<string, MessageRef>()
   for (const row of rows) {
@@ -1370,25 +1332,46 @@ function insertRowsTx(
     inserted += 1
   }
 
-  for (const ref of affectedMessages.values()) rebuildMessageUsageProjectionTx(db, ref)
-  return { inserted, affectedMessages: [...affectedMessages.values()] }
+  const affectedReadModels = [...affectedMessages.values()].flatMap((ref) => {
+    const rebuilt = rebuildMessageUsageProjectionTx(db, ref)
+    return rebuilt ? [rebuilt.target] : []
+  })
+  return { inserted, affectedMessages: affectedReadModels }
 }
 
-function messageReadModelEffects(refs: readonly MessageRef[]): DataApiDataChangeEffect[] {
+function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataApiDataChangeEffect[] {
   const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
   const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
+  const chatIdsByTopic = new Map<string, string[]>()
+  const agentIdsBySession = new Map<string, string[]>()
+  for (const ref of refs) {
+    const idsByContainer = ref.kind === 'chat' ? chatIdsByTopic : agentIdsBySession
+    const ids = idsByContainer.get(ref.containerId) ?? []
+    ids.push(ref.id)
+    idsByContainer.set(ref.containerId, ids)
+  }
   return [
-    ...(chatIds.length > 0
-      ? [
-          { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: chatIds } as const,
-          { endpoint: '/messages/:id', entityIds: chatIds } as const
-        ]
-      : []),
+    ...[...chatIdsByTopic].map(
+      ([topicId, entityIds]) =>
+        ({
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId },
+          entityIds
+        }) as const
+    ),
+    ...(chatIds.length > 0 ? [{ endpoint: '/messages/:id', entityIds: chatIds } as const] : []),
+    ...[...agentIdsBySession].map(
+      ([sessionId, entityIds]) =>
+        ({
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds
+        }) as const
+    ),
     ...(agentIds.length > 0
-      ? [
-          { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', entityIds: agentIds } as const,
-          { endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const
-        ]
+      ? [{ endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const]
       : [])
   ]
 }
@@ -1420,8 +1403,8 @@ export class AiUsageRecordService {
 
   refreshMessageProjection(ref: MessageRef): void {
     try {
-      const changed = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (changed) notifyDataApiDataChange(messageReadModelEffects([ref]))
+      const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
+      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }

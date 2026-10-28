@@ -1,20 +1,22 @@
 import './jobTypes'
-
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
+import type { KeyedMutex } from '@shared/utils/async'
 
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
+import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
+import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
+import { reclaimKnowledgeIndexSpace } from '../pipeline/vectorstore/vectorCleanup'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
-import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../utils/cleanup/subtreePurge'
-import { reclaimKnowledgeIndexSpace } from '../utils/cleanup/vectorCleanup'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
+import { cancelActiveKnowledgeJobs } from './utils/cancel'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
 
 export function createDeleteSubtreeJobHandler(
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex,
+  fileProcessingWaits: FileProcessingWaitManager
 ): JobHandler<KnowledgeDeleteSubtreePayload> {
   return {
     recovery: 'retry',
@@ -43,10 +45,15 @@ export function createDeleteSubtreeJobHandler(
       }
 
       // Stop active work touching deleting rows before removing vectors and rows.
-      await cancelActiveKnowledgeSubtreeJobs(baseId, deletingSubtreeItemIds, 'knowledge-delete-subtree', ctx.jobId)
+      await cancelActiveKnowledgeJobs(baseId, 'knowledge-delete-subtree', {
+        rootItemIds: deletingSubtreeItemIds,
+        excludeJobId: ctx.jobId,
+        onCancelTimeout: 'throw',
+        fileProcessingWaits
+      })
 
       // Cleanup is locked so no indexer can write vectors for rows being removed.
-      await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+      await knowledgeLockManager.runExclusive(baseId, async () => {
         const base = knowledgeBaseService.getById(baseId)
         const subtreeItems = knowledgeItemService
           .getSubtreeItems(baseId, rootItemIds, { includeRoots: true })

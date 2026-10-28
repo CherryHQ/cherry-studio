@@ -1,5 +1,6 @@
-import type { KnowledgeRagConfigFormValues } from '@renderer/pages/knowledge/types'
 import { describe, expect, it } from 'vitest'
+
+import type { KnowledgeRagConfigFormValues } from '@renderer/pages/knowledge/types'
 
 import {
   getKnowledgeRagChunkValidationErrors,
@@ -18,6 +19,16 @@ const createFormValues = (overrides: Partial<KnowledgeRagConfigFormValues> = {})
   rerankModelId: null,
   documentCount: 6,
   threshold: 0,
+  ...overrides
+})
+
+type ChunkValues = Pick<KnowledgeRagConfigFormValues, 'chunkSize' | 'chunkOverlap' | 'chunkStrategy' | 'chunkSeparator'>
+
+const createChunkValues = (overrides: Partial<ChunkValues> = {}): ChunkValues => ({
+  chunkSize: '512',
+  chunkOverlap: '64',
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   ...overrides
 })
 
@@ -43,64 +54,31 @@ describe('parseRequiredInteger', () => {
 
 describe('getKnowledgeRagChunkValidationErrors', () => {
   it('returns no errors for valid chunk values', () => {
-    expect(
-      getKnowledgeRagChunkValidationErrors({
-        chunkSize: '512',
-        chunkOverlap: '64',
-        chunkStrategy: 'structured',
-        chunkSeparator: '\\n\\n'
-      })
-    ).toEqual({})
+    expect(getKnowledgeRagChunkValidationErrors(createChunkValues())).toEqual({})
   })
 
   it('returns size error for non-positive chunk size', () => {
-    expect(
-      getKnowledgeRagChunkValidationErrors({
-        chunkSize: '0',
-        chunkOverlap: '64',
-        chunkStrategy: 'structured',
-        chunkSeparator: '\\n\\n'
-      })
-    ).toEqual({
+    expect(getKnowledgeRagChunkValidationErrors(createChunkValues({ chunkSize: '0' }))).toEqual({
       chunkSize: 'chunkSizeInvalid'
     })
   })
 
   it('returns overlap error when overlap is not smaller than size', () => {
-    expect(
-      getKnowledgeRagChunkValidationErrors({
-        chunkSize: '256',
-        chunkOverlap: '256',
-        chunkStrategy: 'structured',
-        chunkSeparator: '\\n\\n'
-      })
-    ).toEqual({
+    expect(getKnowledgeRagChunkValidationErrors(createChunkValues({ chunkSize: '256', chunkOverlap: '256' }))).toEqual({
       chunkOverlap: 'chunkOverlapMustBeSmaller'
     })
   })
 
   it('requires a separator when smart chunking is off', () => {
     expect(
-      getKnowledgeRagChunkValidationErrors({
-        chunkSize: '512',
-        chunkOverlap: '64',
-        chunkStrategy: 'delimiter',
-        chunkSeparator: ''
-      })
+      getKnowledgeRagChunkValidationErrors(createChunkValues({ chunkStrategy: 'delimiter', chunkSeparator: '' }))
     ).toEqual({
       chunkSeparator: 'chunkSeparatorRequired'
     })
   })
 
   it('accepts a delimiter strategy when a separator is provided', () => {
-    expect(
-      getKnowledgeRagChunkValidationErrors({
-        chunkSize: '512',
-        chunkOverlap: '64',
-        chunkStrategy: 'delimiter',
-        chunkSeparator: '\\n\\n'
-      })
-    ).toEqual({})
+    expect(getKnowledgeRagChunkValidationErrors(createChunkValues({ chunkStrategy: 'delimiter' }))).toEqual({})
   })
 })
 

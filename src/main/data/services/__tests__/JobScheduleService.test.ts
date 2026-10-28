@@ -1,10 +1,11 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 describe('JobScheduleService', () => {
   const dbh = setupTestDatabase()
@@ -258,6 +259,54 @@ describe('JobScheduleService', () => {
     it('returns an empty array when no schedule matches the type', async () => {
       const names = jobScheduleService.listNamesForType('unknown.type')
       expect(names).toEqual([])
+    })
+  })
+
+  describe('nextRun invariants', () => {
+    it('clears a due time when the trigger is replaced', () => {
+      const schedule = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'replace-trigger',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      jobScheduleService.markFired(schedule.id, Date.now(), Date.now() + 60_000)
+
+      const updated = jobScheduleService.update(schedule.id, { trigger: { kind: 'interval', ms: 30_000 } })
+
+      expect(updated?.nextRun).toBeNull()
+    })
+
+    it('clears a due time when the schedule is disabled', () => {
+      const schedule = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'disable-schedule',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      jobScheduleService.markFired(schedule.id, Date.now(), Date.now() + 60_000)
+
+      jobScheduleService.setEnabled(schedule.id, false)
+
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).toBeNull()
+    })
+
+    it('projects legacy disabled rows with a stale due time as nextRun=null', () => {
+      const schedule = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'legacy-disabled',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      jobScheduleService.markFired(schedule.id, Date.now(), Date.now() + 60_000)
+      // Simulate a row written by a version whose disable path did not clear
+      // nextRun. The production setEnabled method now enforces the invariant.
+      dbh.db.update(jobScheduleTable).set({ enabled: false }).where(eq(jobScheduleTable.id, schedule.id)).run()
+
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).toBeNull()
     })
   })
 })

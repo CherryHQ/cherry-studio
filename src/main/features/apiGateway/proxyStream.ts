@@ -16,19 +16,27 @@
  * `Response`. The Elysia route handlers return this `Response` directly.
  */
 
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { SseListener, type StreamListener } from '@main/ai/streamManager'
-import type { CallOverrides } from '@main/ai/types'
-import type { Provider } from '@shared/data/types/provider'
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { SseListener, type StreamListener } from '@main/ai/streamManager'
+import type { CallOverrides } from '@main/ai/types'
+import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import type { Provider } from '@shared/data/types/provider'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
+import { appendInternalAgentContinuation } from './utils/agentContinuation'
+import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
+import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { resolveGatewayModelAddress } from './utils/models'
+import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -76,6 +84,8 @@ type InputParams = InputParamsMap[InputFormat]
 export interface MessageConfig {
   provider?: Provider
   modelId?: string
+  /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
+  fastMode?: boolean
   /**
    * The loosely-validated gateway request body. Routes validate only the fields
    * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
@@ -131,13 +141,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
-  let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
-  try {
-    resolvedAddress = resolveGatewayModelAddress(modelString)
-  } catch (error) {
-    throw asClientError(error)
-  }
+  const isInternalRequest = config.requestHeaders
+    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
+    : false
+  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
+  const agentSessionId = config.requestHeaders
+    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
+    : undefined
+  // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
+  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
   const usageContext = config.requestHeaders
@@ -145,11 +158,39 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     : undefined
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
-    providerId,
-    modelId,
+    ...logContext,
     inputFormat,
     outputFormat
   })
+
+  const provider: Provider = config.provider ?? resolvedProvider
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
+  let effectiveParams = params
+
+  if (isInternalAnthropicAgentRequest) {
+    const anthropicParams = params as MessageCreateParams
+    const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
+
+    if (normalization.status === 'conflict') {
+      logger.warn('Rejected conflicting tool history in internal Agent request', {
+        ...logContext,
+        toolUseId: normalization.toolUseId,
+        reason: normalization.reason,
+        firstLocation: normalization.firstLocation,
+        duplicateLocation: normalization.duplicateLocation
+      })
+      throw asClientError(new Error('Invalid Anthropic tool history: tool_use ids must be unique'))
+    }
+
+    if (normalization.status === 'repaired') {
+      effectiveParams = { ...anthropicParams, messages: normalization.messages }
+      logger.warn('Repaired duplicate tool history in internal Agent request', {
+        ...logContext,
+        duplicateToolUseCount: normalization.duplicateToolUseCount,
+        duplicateToolResultCount: normalization.duplicateToolResultCount
+      })
+    }
+  }
 
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
@@ -157,30 +198,52 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     openRouterReasoningCache
   })
 
-  const messages = converter.toUIMessages(params)
-  const tools = converter.toAiSdkTools?.(params)
-  const streamOptions = converter.extractStreamOptions(params)
+  const convertedMessages = converter.toUIMessages(effectiveParams)
+  // Leaving inline system messages in place is what keeps the prompt prefix cacheable
+  // across turns; targets that reject them get a downgrade 400 or a fold.
+  const positionedMessages = positionInlineSystemMessages(
+    convertedMessages,
+    resolveEffectiveEndpoint(provider, model).endpointType,
+    config.requestHeaders
+  )
+  const messages = isInternalAnthropicAgentRequest
+    ? appendInternalAgentContinuation(positionedMessages)
+    : positionedMessages
+  const tools = converter.toAiSdkTools?.(effectiveParams)
+  const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const provider: Provider = config.provider ?? resolvedProvider
-  const providerOptions = provider
-    ? converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens)
-    : undefined
+  const extractedProviderOptions =
+    converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
+  const fastModeProviderOptions = applyFastModeToProviderOptions(
+    provider,
+    model,
+    extractedProviderOptions,
+    config.fastMode === true
+  )
+
+  const providerOptions = agentSessionId
+    ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
+    : fastModeProviderOptions
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
     ...streamOptions,
     ...(tools ? { tools } : {}),
-    ...(providerOptions ? { providerOptions } : {})
+    ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
   }
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${providerId}:${modelId}`
+    model: `${providerId}:${modelId}`,
+    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
+  if (messages !== convertedMessages) {
+    logger.info('Appended assistant-tail continuation for internal agent request', { ...logContext, streamId })
+  }
   const aiStreamManager = application.get('AiStreamManager')
 
   if (isStreaming) {
@@ -233,7 +296,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         const complete = () => {
           commit()
           safeClose()
-          logger.info('Message completed', { providerId, modelId, streaming: true })
+          logger.info('Message completed', { ...logContext, streaming: true })
           onComplete?.()
         }
         const write = (data: string) => {
@@ -270,8 +333,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
               .join('') + formatter.formatDone(),
           formatPaused: () => {
             logger.warn('Gateway stream paused before completion; emitting truncation error frame', {
-              providerId,
-              modelId,
+              ...logContext,
               streamId
             })
             return buildStreamErrorFrame(outputFormat, streamInterruptedError())
@@ -294,6 +356,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             return sseListener.onPaused(result)
           },
           onError: (result) => {
+            logger.warn('Gateway stream failed', { ...logContext, streamId, error: result.error })
             if (startupState !== 'pending') return sseListener.onError(result)
 
             fail(result.error)
@@ -314,8 +377,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
+            contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+            // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
+            maxRetries: 0
           })
         } catch (error) {
           fail(error)
@@ -379,8 +446,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         return
       }
       logger.warn('Gateway non-streaming request paused before completion (idle timeout)', {
-        providerId,
-        modelId,
+        ...logContext,
         streamId
       })
       rejectDone(streamInterruptedError())
@@ -390,29 +456,34 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
 
   try {
-    aiStreamManager.streamPrompt({
-      streamId,
-      uniqueModelId,
-      messages,
-      listener,
-      callOverrides,
-      ...(usageContext ? { usageContext } : {}),
-      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
-    })
+    if (!aborted) {
+      aiStreamManager.streamPrompt({
+        streamId,
+        uniqueModelId,
+        messages,
+        listener,
+        callOverrides,
+        contextOwner: 'caller',
+        ...(usageContext ? { usageContext } : {}),
+        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+        maxRetries: 0
+      })
+    }
 
     await done
 
     // Flush the adapter's finalize step, then emit the accumulated response.
     adapter.finalizeEvents()
 
-    logger.info('Message completed', { providerId, modelId, streaming: false })
+    logger.info('Message completed', { ...logContext, streaming: false })
     onComplete?.()
 
     return new Response(JSON.stringify(adapter.buildNonStreamingResponse()), {
       headers: { 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    logger.error('Error in message processing', error as Error, { providerId, modelId })
+    logger.error('Error in message processing', error as Error, logContext)
     onError?.(error)
     throw error
   } finally {

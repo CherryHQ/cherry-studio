@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
-import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { classifySqliteError, defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '../sqliteErrors'
 

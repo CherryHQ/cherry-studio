@@ -1,32 +1,29 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { popup } from '@renderer/services/popup'
+import { speechPlaybackService } from '@renderer/services/voice'
 
 import TranslateOutputPane from '../TranslateOutputPane'
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    type: '3rdParty',
-    init: vi.fn()
-  },
-  useTranslation: () => ({ t: (key: string) => key })
+vi.mock('react-i18next', () => {
+  const t = (key: string) => key
+  return { initReactI18next: { type: '3rdParty', init: vi.fn() }, useTranslation: () => ({ t }) }
+})
+
+// The independently tested diagram preview is the heavy leaf; keep the real app pipeline.
+vi.mock('@renderer/components/Preview/MermaidPreview', () => ({
+  default: () => <div role="img" aria-label="Mermaid chart" />
 }))
 
-vi.mock('@renderer/utils/style', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
-}))
-
-vi.mock('@cherrystudio/ui', () => ({
-  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
-    <div ref={ref} data-testid="translate-output-scrollbar" {...props}>
-      {children}
-    </div>
-  ),
-  NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}))
+// The renderer-wide setup substitutes a text-echo StreamingMarkdown, which is
+// exactly the regression guarded here — opt back into the real @cherrystudio/ui.
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 const baseProps = () => ({
   translatedContent: '',
-  renderedMarkdown: '',
   enableMarkdown: false,
   translating: false,
   copied: false,
@@ -35,47 +32,185 @@ const baseProps = () => ({
   onScroll: vi.fn()
 })
 
+class ImmediateIntersectionObserver implements IntersectionObserver {
+  readonly root = null
+  readonly rootMargin = '0px'
+  readonly scrollMargin = '0px'
+  readonly thresholds = [0]
+
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+
+  disconnect() {}
+
+  observe(target: Element) {
+    this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this)
+  }
+
+  takeRecords(): IntersectionObserverEntry[] {
+    return []
+  }
+
+  unobserve() {}
+}
+
+beforeAll(() => {
+  vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver)
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('TranslateOutputPane', () => {
-  it('shows translated length and a copy button in the output pane footer', () => {
+  it('renders streamed output as formatted markdown, not the raw source', () => {
     const props = baseProps()
-    props.translatedContent = 'partial output'
+    props.enableMarkdown = true
+    props.translating = true
+    props.translatedContent = '## Streamed title\n\n**bold** pick:\n\n- one\n- two'
 
-    render(<TranslateOutputPane {...props} />)
+    const { container, rerender } = render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
 
-    expect(screen.getByText('14')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'Streamed title' })).toBeInTheDocument()
+    // Streamdown renders bold as a marked span (data-streamdown="strong"), not a <strong> tag.
+    expect(container.querySelector('[data-streamdown="strong"]')).toHaveTextContent('bold')
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+    // A plain-text fallback would echo the markers verbatim.
+    const output = container.querySelector('[data-ui="translate.output"]')
+    expect(output?.textContent).not.toContain('##')
+    expect(output?.textContent).not.toContain('**')
+
+    // Later stream frames keep the formatted rendering.
+    props.translatedContent += '\n- three'
+    rerender(<TranslateOutputPane {...props} />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
   })
 
-  it('renders translated content inside the shared Scrollbar', () => {
+  it('keeps the raw source as plain text when markdown is disabled', () => {
     const props = baseProps()
-    props.translatedContent = 'partial output'
+    props.translatedContent = '**bold** pick'
 
-    render(<TranslateOutputPane {...props} />)
+    const { container } = render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
 
-    expect(screen.getByTestId('translate-output-scrollbar')).toHaveTextContent('partial output')
+    expect(screen.getByText('**bold** pick')).toBeInTheDocument()
+    expect(container.querySelector('.markdown')).toBeNull()
+    expect(container.querySelector('[data-streamdown="strong"]')).toBeNull()
+  })
+
+  it('renders a fenced Mermaid translation as a diagram', async () => {
+    const props = baseProps()
+    props.enableMarkdown = true
+    props.translatedContent = '```mermaid theme={null}\ngraph TB\n  A["Translated label"]\n```'
+
+    render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
+
+    expect(await screen.findByRole('img', { name: 'Mermaid chart' })).toBeInTheDocument()
+    expect(screen.queryByText(/graph TB/)).not.toBeInTheDocument()
   })
 
   it('shows the processing indicator while waiting for output', () => {
     const props = baseProps()
     props.translating = true
 
-    render(<TranslateOutputPane {...props} />)
+    render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
 
     expect(screen.getByText('translate.processing')).toBeInTheDocument()
   })
 
-  it('shows an export-to-notes button in the bottom-right footer and calls it for translated content', () => {
+  it('shows translated content length and an enabled copy button', () => {
+    const props = baseProps()
+    props.translatedContent = 'partial output'
+
+    render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
+
+    expect(screen.getByText('partial output')).toBeInTheDocument()
+    expect(screen.getByText('14')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
+  })
+
+  it('calls onExportToNotes from the footer button', () => {
     const props = baseProps()
     props.translatedContent = 'translated output'
 
     render(<TranslateOutputPane {...props} />)
 
-    const buttons = screen.getAllByRole('button')
-    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['common.copy', 'notes.save'])
-    expect(screen.getByRole('button', { name: 'notes.save' })).toHaveClass('ml-auto')
-
     fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
 
     expect(props.onExportToNotes).toHaveBeenCalledTimes(1)
+  })
+
+  it('plays only a completed, nonempty result after a manual click', async () => {
+    const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({ status: 'started' })
+    const props = { ...baseProps(), translatedContent: 'translated output', translating: true }
+    const view = render(<TranslateOutputPane {...props} />)
+
+    const readButton = screen.getByRole('button', { name: 'chat.message.read_aloud.label' })
+    expect(readButton).toBeDisabled()
+    expect(start).not.toHaveBeenCalled()
+
+    view.rerender(<TranslateOutputPane {...props} translating={false} />)
+    fireEvent.click(readButton)
+    await waitFor(() =>
+      expect(start).toHaveBeenCalledWith({
+        text: 'translated output',
+        trigger: 'manual',
+        mode: 'document',
+        confirmed: false,
+        sourceLabel: 'document',
+        sourceEntityId: 'translate-page-result',
+        signal: expect.any(AbortSignal)
+      })
+    )
+    start.mockRestore()
+  })
+
+  it('keeps the read control disabled for whitespace output', () => {
+    render(<TranslateOutputPane {...baseProps()} translatedContent="   " />)
+    expect(screen.getByRole('button', { name: 'chat.message.read_aloud.label' })).toBeDisabled()
+  })
+
+  it('cancels its request when translation restarts, changes content, or unmounts', async () => {
+    const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({ status: 'started' })
+    const props = { ...baseProps(), translatedContent: 'first result' }
+    const view = render(<TranslateOutputPane {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    const first = start.mock.calls.at(-1)![0].signal!
+    expect(first.aborted).toBe(false)
+
+    view.rerender(<TranslateOutputPane {...props} translating />)
+    expect(first.aborted).toBe(true)
+    view.rerender(<TranslateOutputPane {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    const second = start.mock.calls.at(-1)![0].signal!
+    expect(second.aborted).toBe(false)
+
+    view.rerender(<TranslateOutputPane {...props} translatedContent="next result" />)
+    expect(second.aborted).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    const third = start.mock.calls.at(-1)![0].signal!
+    view.unmount()
+    expect(third.aborted).toBe(true)
+    start.mockRestore()
+  })
+
+  it('does not confirm playback of a result replaced while the long-text dialog is open', async () => {
+    const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({
+      status: 'confirmation_required',
+      normalizedLength: 5_001
+    })
+    let resolveConfirm: (confirmed: boolean) => void = () => undefined
+    vi.mocked(popup.confirm).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConfirm = resolve
+        })
+    )
+    const view = render(<TranslateOutputPane {...baseProps()} translatedContent="old result" />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalled())
+    view.rerender(<TranslateOutputPane {...baseProps()} translatedContent="new result" />)
+    await act(async () => resolveConfirm(true))
+    expect(start).toHaveBeenCalledTimes(1)
+    start.mockRestore()
   })
 })

@@ -1,6 +1,9 @@
-import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 
 import AddKnowledgeItemDialog from '../AddKnowledgeItemDialog'
 
@@ -38,6 +41,36 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: vi.fn(async (route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') {
+        return undefined
+      }
+      const path = handle?.path
+      if (!path || path.includes('missing')) {
+        return null
+      }
+      if (path.includes('directory')) {
+        return {
+          kind: 'directory',
+          size: 0,
+          createdAt: 0,
+          modifiedAt: 0
+        }
+      }
+      return {
+        kind: 'file',
+        type: 'document',
+        mime: 'application/pdf',
+        size: 1024,
+        createdAt: 0,
+        modifiedAt: 0
+      }
+    })
+  }
+}))
+
 // The note picker's real data layer (useNotesSettings → NotesService → @renderer/utils)
 // pulls in the i18n bootstrap at module load, which throws under the react-i18next mock.
 // Stub the three note modules so the dialog graph stays bootstrap-free and the note list
@@ -52,6 +85,30 @@ vi.mock('@renderer/hooks/useDirectoryTree', () => ({
 
 vi.mock('@renderer/services/NotesService', () => ({
   projectNotesTree: () => mockProjectNotesTree()
+}))
+
+// The real RichEditor boots Tiptap (and its extension graph) on mount, which is far more
+// than this dialog's contract needs. Stand in a textarea that speaks the same
+// `initialContent` / `onMarkdownChange` protocol.
+vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
+  default: ({
+    initialContent,
+    placeholder,
+    onMarkdownChange,
+    enableImageInsertion
+  }: {
+    initialContent?: string
+    placeholder?: string
+    onMarkdownChange?: (markdown: string) => void
+    enableImageInsertion?: boolean
+  }) => (
+    <textarea
+      defaultValue={initialContent}
+      placeholder={placeholder}
+      data-images-enabled={enableImageInsertion ?? true}
+      onChange={(event) => onMarkdownChange?.(event.target.value)}
+    />
+  )
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -78,6 +135,31 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+      <label {...props}>{children}</label>
+    ),
+    SegmentedControl: ({
+      options,
+      value,
+      onValueChange
+    }: {
+      options: { value: string; label: React.ReactNode }[]
+      value?: string
+      onValueChange?: (value: string) => void
+    }) => (
+      <div role="radiogroup">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={option.value === value}
+            onClick={() => onValueChange?.(option.value)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    ),
     Checkbox: ({
       checked,
       onCheckedChange,
@@ -173,6 +255,7 @@ vi.mock('react-i18next', () => {
       'common.cancel': '取消',
       'common.close': '关闭',
       'common.delete': '删除',
+      'common.select_all': '全选',
       'knowledge.data_source.add_dialog.conflict_dialog.title': '存在同名数据源',
       'knowledge.data_source.add_dialog.conflict_dialog.description': `有 ${options?.count ?? 0} 个数据源与知识库中已存在的项目同名，请选择处理方式。`,
       'knowledge.data_source.add_dialog.conflict_dialog.keep_all': '全部保留',
@@ -182,6 +265,11 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.note.empty_description': '请先在「笔记」功能中创建笔记，再回到这里选择。',
       'knowledge.data_source.add_dialog.note.empty_title': '未找到笔记',
       'knowledge.data_source.add_dialog.note.loading': '正在加载笔记…',
+      'knowledge.data_source.add_dialog.note.mode.import': '导入笔记',
+      'knowledge.data_source.add_dialog.note.mode.create': '新建笔记',
+      'knowledge.data_source.add_dialog.note.create.title_label': '标题',
+      'knowledge.data_source.add_dialog.note.create.title_placeholder': '为这篇笔记取个名字',
+      'knowledge.data_source.add_dialog.note.create.content_placeholder': '在此输入笔记内容…',
       'notes.tree_load_failed': '加载笔记目录失败',
       'knowledge.data_source.add_dialog.sources.directory': '目录',
       'knowledge.data_source.add_dialog.sources.file': '文件',
@@ -189,8 +277,8 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.sources.url': '链接',
       'knowledge.data_source.add_dialog.submit.error': '添加数据源失败',
       'knowledge.data_source.add_dialog.title': '添加数据源',
-      'knowledge.data_source.add_dialog.too_many_sources': `单次最多添加 ${options?.count ?? 0} 个数据源，请减少选择后重试`,
       'knowledge.data_source.add_dialog.unsupported_files_skipped': `已跳过 ${options?.count ?? 0} 个不支持的文件`,
+      'chat.save.knowledge.error.file_partial_failed': `${options?.count ?? 0} file(s) could not be saved`,
       'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
       'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
       'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com'
@@ -293,6 +381,42 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
+    it('submits remaining files when one picked file is missing', async () => {
+      mockFileSelect.mockResolvedValueOnce([
+        createSelectedFile('alpha.pdf', '/docs/alpha.pdf'),
+        createSelectedFile('gone.pdf', '/docs/missing.pdf')
+      ])
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/docs/alpha.pdf', path: '/docs/alpha.pdf' } }],
+          'detect'
+        )
+      })
+      expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+      expect(toast.error).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(onOpenChange).toHaveBeenCalledWith(false)
+      })
+    })
+
+    it('closes without submitting when every picked file is missing', async () => {
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('gone.pdf', '/docs/missing.pdf')])
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => {
+        expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+      })
+      await waitFor(() => {
+        expect(onOpenChange).toHaveBeenCalledWith(false)
+      })
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
     it('submits page-level pending files without opening the picker', async () => {
       setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
@@ -307,30 +431,34 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
-    it('warns and skips submit when the pick exceeds the per-batch limit', async () => {
-      const tooMany = Array.from({ length: 21 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
-      mockFileSelect.mockResolvedValueOnce(tooMany)
+    it('submits remaining pending files when one local file is missing', async () => {
+      setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('missing.pdf', 1024)])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/external/external.pdf', path: '/external/external.pdf' } }],
+          'detect'
+        )
+      })
+      expect(mockFileSelect).not.toHaveBeenCalled()
+      expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+    })
+
+    it('submits a large pick as one detect call so conflicts cover the whole selection', async () => {
+      const picked = Array.from({ length: 150 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
+      mockFileSelect.mockResolvedValueOnce(picked)
       const onOpenChange = vi.fn()
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(toast.warning).toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
-      })
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
-      await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
       })
-    })
-
-    it('submits a batch sitting exactly at the per-batch limit', async () => {
-      const atLimit = Array.from({ length: 20 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
-      mockFileSelect.mockResolvedValueOnce(atLimit)
-      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
-
-      await waitFor(() => {
-        expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
-      })
-      expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toHaveLength(20)
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+      const [items, strategy] = mockSubmitKnowledgeItems.mock.calls[0]
+      expect(strategy).toBe('detect')
+      expect(items).toHaveLength(150)
+      expect(items[149]).toEqual({ type: 'file', data: { source: '/picked/doc-149.pdf', path: '/picked/doc-149.pdf' } })
       expect(toast.warning).not.toHaveBeenCalled()
     })
 
@@ -381,6 +509,80 @@ describe('AddKnowledgeItemDialog', () => {
     })
   })
 
+  describe('dropped directories', () => {
+    it('folder-only drop opens a picker: submits typed directory roots without selecting files or folders', async () => {
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddDirectoryPaths: ['/host/FolderDropFixture', '/host/DocsPdf.pdf']
+      })
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([
+        [
+          [
+            { type: 'directory', data: { source: '/host/FolderDropFixture' } },
+            { type: 'directory', data: { source: '/host/DocsPdf.pdf' } }
+          ],
+          'detect'
+        ]
+      ])
+      expect(mockFileSelect).not.toHaveBeenCalled()
+      expect(mockSelectFolder).not.toHaveBeenCalled()
+      expect(mockGetPathForFile).not.toHaveBeenCalled()
+      expect(toast.warning).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { label: '全部保留', strategy: 'rename' },
+      { label: '替换', strategy: 'replace' }
+    ])(
+      'mixed drop splits conflicts or loses roots on retry: $strategy retains the complete batch',
+      async ({ label, strategy }) => {
+        const user = userEvent.setup()
+        const plain = createMockFile('plain.md', 10)
+        const unsupported = createMockFile('bad.exe', 10)
+        mockUseKnowledgePage.mockReturnValue({
+          selectedBaseId: 'base-1',
+          pendingAddSource: 'file',
+          pendingAddFiles: [plain, unsupported],
+          pendingAddDirectoryPaths: ['/host/FolderDropFixture', '/host/DocsPdf.pdf']
+        })
+        mockSubmitKnowledgeItems.mockResolvedValueOnce({
+          status: 'conflicts',
+          conflicts: [{ type: 'directory', title: 'FolderDropFixture' }]
+        })
+        const onOpenChange = vi.fn()
+        render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+        await user.click(await screen.findByRole('button', { name: label }))
+        await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+
+        const items = [
+          { type: 'file', data: { source: '/external/plain.md', path: '/external/plain.md' } },
+          { type: 'directory', data: { source: '/host/FolderDropFixture' } },
+          { type: 'directory', data: { source: '/host/DocsPdf.pdf' } }
+        ]
+        expect(mockSubmitKnowledgeItems.mock.calls).toEqual([
+          [items, 'detect'],
+          [items, strategy]
+        ])
+        expect(mockFileSelect).not.toHaveBeenCalled()
+        expect(mockSelectFolder).not.toHaveBeenCalled()
+        expect(mockGetPathForFile.mock.calls).toEqual([[plain]])
+        expect(vi.mocked(ipcApi.request).mock.calls).toEqual([
+          ['file.get_metadata', { kind: 'path', path: '/external/plain.md' }]
+        ])
+        expect(vi.mocked(toast.warning).mock.calls).toEqual([['已跳过 1 个不支持的文件']])
+        expect(toast.error).not.toHaveBeenCalled()
+        expect(toast.success).not.toHaveBeenCalled()
+      }
+    )
+  })
+
   describe('note source (panel)', () => {
     it('renders the note picker and reflects selection in the footer', () => {
       setPendingAddSource('note')
@@ -395,10 +597,33 @@ describe('AddKnowledgeItemDialog', () => {
       expect(screen.getByText('Ideas')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
 
-      fireEvent.click(screen.getAllByRole('checkbox')[0])
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
 
       expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+    })
+
+    it('selects and deselects every note from the list header', () => {
+      setPendingAddSource('note')
+      mockProjectNotesTree.mockReturnValue([
+        createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
+        createNoteNode('Ideas', '/notes/Ideas.md')
+      ])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      const selectAll = screen.getByRole('checkbox', { name: '全选' })
+      fireEvent.click(selectAll)
+
+      expect(screen.getByText('已选 2 个笔记')).toBeInTheDocument()
+      expect(screen.getByRole('checkbox', { name: /Meeting notes/ })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /Ideas/ })).toBeChecked()
+
+      fireEvent.click(selectAll)
+
+      expect(screen.queryByText('已选 2 个笔记')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+      expect(screen.getByRole('checkbox', { name: /Meeting notes/ })).not.toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /Ideas/ })).not.toBeChecked()
     })
 
     it('submits note source body through the generic hook', async () => {
@@ -407,7 +632,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockResolvedValueOnce('# Meeting\n\nbody')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox'))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       await waitFor(() => {
@@ -419,19 +644,23 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockReadExternal).toHaveBeenCalledWith('/notes/Meeting notes.md')
     })
 
-    it('shows an inline error and skips submit when more notes than the limit are selected', async () => {
+    it('submits every selected note in one call when more than 20 are selected', async () => {
       setPendingAddSource('note')
       mockReadExternal.mockResolvedValue('body')
-      const notes = Array.from({ length: 21 }, (_, index) => createNoteNode(`Note ${index}`, `/notes/Note ${index}.md`))
+      const notes = Array.from({ length: 25 }, (_, index) => createNoteNode(`Note ${index}`, `/notes/Note ${index}.md`))
       mockProjectNotesTree.mockReturnValue(notes)
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      screen.getAllByRole('checkbox').forEach((checkbox) => fireEvent.click(checkbox))
+      fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
-      const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent('单次最多添加 20 个数据源，请减少选择后重试')
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+      })
+      const [items, strategy] = mockSubmitKnowledgeItems.mock.calls[0]
+      expect(strategy).toBe('detect')
+      expect(items).toHaveLength(25)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     it('surfaces a note tree load error instead of the empty state', () => {
@@ -450,12 +679,145 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockRejectedValueOnce(new Error('ENOENT'))
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox'))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent('添加数据源失败: Meeting notes: ENOENT')
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('note source — create mode', () => {
+    const switchToCreateMode = () => fireEvent.click(screen.getByRole('radio', { name: '新建笔记' }))
+
+    it('starts on the import list and swaps to the draft form on demand', () => {
+      setPendingAddSource('note')
+      mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      expect(screen.getByRole('radio', { name: '导入笔记' })).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByText('Meeting notes')).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('为这篇笔记取个名字')).not.toBeInTheDocument()
+
+      switchToCreateMode()
+
+      expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveAttribute('data-images-enabled', 'false')
+      // The picker list is gone, so a stale pick cannot ride along with the draft.
+      expect(screen.queryByText('Meeting notes')).not.toBeInTheDocument()
+    })
+
+    it('requires both a title and a body before the draft can be added', () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      const addButton = screen.getByRole('button', { name: '添加' })
+      expect(addButton).toBeDisabled()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      expect(addButton).toBeDisabled()
+
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      expect(addButton).toBeEnabled()
+
+      // Whitespace-only input is not a body.
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '   ' } })
+      expect(addButton).toBeDisabled()
+    })
+
+    it('rejects a whitespace-only title even with a real body', () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      // The title becomes the item's `source`, which the schema requires to be non-empty
+      // *after* trimming — so spaces must not pass the gate.
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: '   ' } })
+
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+    })
+
+    it('submits the draft as a single note item with a trimmed title', async () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: '  Ideas  ' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '# Ideas\n\nbody' } })
+      fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith(
+          [{ type: 'note', data: { source: 'Ideas', content: '# Ideas\n\nbody' } }],
+          'detect'
+        )
+      })
+      // A drafted note never touches the notes directory.
+      expect(mockReadExternal).not.toHaveBeenCalled()
+    })
+
+    it('ignores notes picked before the switch and keeps the footer count quiet', async () => {
+      setPendingAddSource('note')
+      mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
+      expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
+
+      switchToCreateMode()
+
+      expect(screen.queryByText('已选 1 个笔记')).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith(
+          [{ type: 'note', data: { source: 'Ideas', content: 'body' } }],
+          'detect'
+        )
+      })
+    })
+
+    it('keeps the panel open and the draft intact when the submit fails', async () => {
+      setPendingAddSource('note')
+      mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error('create failed'))
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '# Ideas\n\nbody' } })
+      fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('添加数据源失败: create failed')
+      // The draft is the only copy of what the user just wrote, so a failure must not
+      // close the dialog or clear the form.
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toHaveValue('Ideas')
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveValue('# Ideas\n\nbody')
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('keeps the draft when switching modes back and forth', () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+
+      fireEvent.click(screen.getByRole('radio', { name: '导入笔记' }))
+      switchToCreateMode()
+
+      expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toHaveValue('Ideas')
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveValue('body')
     })
   })
 

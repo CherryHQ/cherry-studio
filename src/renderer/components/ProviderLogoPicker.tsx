@@ -1,3 +1,8 @@
+import { Search } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { loadProviderIconCatalog, PROVIDER_ICON_META_CATALOG, type ProviderIconKey } from '@cherrystudio/ui/icons'
@@ -5,10 +10,6 @@ import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { isSystemProviderId } from '@renderer/types/provider'
-import { Search } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ProviderLogoPicker')
 
@@ -74,7 +75,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
             <button
               type="button"
               aria-label={name}
-              className="flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/50 bg-muted/50 transition-all hover:scale-105 hover:border-primary hover:bg-muted"
+              className="flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-muted/50 transition-all hover:scale-105 hover:border-primary hover:bg-muted"
               onClick={(event) => handleProviderClick(event, id)}>
               <ProviderAvatarPrimitive
                 providerId={id}

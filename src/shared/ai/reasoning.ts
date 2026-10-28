@@ -12,7 +12,8 @@ const EFFORT_RATIO: Record<BudgetEffort, number> = {
   medium: 0.5,
   high: 0.8,
   xhigh: 0.9,
-  max: 1
+  max: 1,
+  ultra: 1
 }
 
 const BUDGET_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
@@ -54,6 +55,18 @@ export function nearestThinkingOption(
     }
   }
   return best ?? selectable[0]
+}
+
+/** Project a persisted selection onto a model's renderer/runtime vocabulary. */
+export function resolveReasoningEffortForModel(
+  model: Model,
+  currentEffort: ReasoningEffortOption | undefined
+): ReasoningEffortOption | undefined {
+  const supportedOptions = deriveThinkingOptions(model)
+  if (!supportedOptions?.some((option) => option !== 'default')) return undefined
+  if (currentEffort && supportedOptions.includes(currentEffort)) return currentEffort
+  if (currentEffort !== undefined) return nearestThinkingOption(currentEffort, supportedOptions) ?? supportedOptions[0]
+  return supportedOptions[0]
 }
 
 export function computeBudgetTokens(

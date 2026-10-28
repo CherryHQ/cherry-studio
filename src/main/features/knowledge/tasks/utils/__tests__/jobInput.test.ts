@@ -7,34 +7,13 @@ describe('narrowKnowledgeJobInput', () => {
     expect(
       narrowKnowledgeJobInput({
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
+        input: { baseId: 'kb-1', itemId: 'note-1' }
       })
     ).toEqual({
       type: 'knowledge.index-documents',
       input: {
         baseId: 'kb-1',
-        itemId: 'note-1',
-        parentJobId: null
-      }
-    })
-  })
-
-  it('preserves index-documents payload fields', () => {
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.index-documents',
-        input: {
-          baseId: 'kb-1',
-          itemId: 'file-1',
-          parentJobId: 'reindex-job'
-        }
-      })
-    ).toEqual({
-      type: 'knowledge.index-documents',
-      input: {
-        baseId: 'kb-1',
-        itemId: 'file-1',
-        parentJobId: 'reindex-job'
+        itemId: 'note-1'
       }
     })
   })
@@ -47,9 +26,7 @@ describe('narrowKnowledgeJobInput', () => {
           baseId: 'kb-1',
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
-          pollRound: 2,
-          firstScheduledAt: 1779811200000,
-          parentJobId: 'reindex-job'
+          processedRelativePath: 'source.md'
         }
       })
     ).toEqual({
@@ -58,9 +35,7 @@ describe('narrowKnowledgeJobInput', () => {
         baseId: 'kb-1',
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
-        pollRound: 2,
-        firstScheduledAt: 1779811200000,
-        parentJobId: 'reindex-job'
+        processedRelativePath: 'source.md'
       }
     })
   })
@@ -96,17 +71,23 @@ describe('narrowKnowledgeJobInput', () => {
     ).toBeNull()
   })
 
+  it('rejects copy-sources snapshots whose copies are malformed', () => {
+    expect(
+      narrowKnowledgeJobInput({ type: 'knowledge.copy-sources', input: { baseId: 'kb-1', itemId: 'file-1' } })
+    ).toBeNull()
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.copy-sources',
+        input: { baseId: 'kb-1', itemId: 'file-1', copies: [{ from: '/docs/a.pdf' }] }
+      })
+    ).toBeNull()
+  })
+
   it('rejects index-documents snapshots with invalid payload fields', () => {
     expect(
       narrowKnowledgeJobInput({
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'file-1' }
-      })
-    ).toBeNull()
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: 1 }
+        input: { baseId: 'kb-1' }
       })
     ).toBeNull()
   })

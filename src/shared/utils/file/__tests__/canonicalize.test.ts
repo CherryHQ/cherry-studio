@@ -17,8 +17,9 @@
 
 import path from 'node:path'
 
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
+
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { CanonicalFilePathSchema, canonicalizeFilePath, isCanonicalFilePath } from '../canonicalize'
 

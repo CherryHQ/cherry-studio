@@ -65,8 +65,12 @@ export const SHADCN_SURFACE_PAIRS = [
 export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   /* Shared product semantics */
   'background-subtle',
+  'foreground-tertiary',
+  'foreground-disabled',
   'border-subtle',
   'border-strong',
+  'border-selected',
+  'link',
 
   /* Feedback */
   'success',
@@ -90,16 +94,35 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'code-block',
   'inline-code',
   'inline-code-foreground',
+  'cherry-code-background',
+  'cherry-code-foreground',
+  'cherry-code-muted',
+  'cherry-code-selection',
+  'cherry-code-keyword',
+  'cherry-code-string',
+  'cherry-code-constant',
+  'cherry-code-type',
+  'cherry-code-function',
+  'cherry-code-tag',
+  'cherry-code-link',
+  'cherry-code-inserted',
+  'cherry-code-deleted',
   'reference',
   'reference-foreground',
   'reference-subtle',
   'highlight',
   'highlight-foreground',
   'highlight-accent',
+  'markdown-important',
   'chat-message-well',
   'chat-message-well-solid',
   'chat-user',
-  'composer-surface'
+  'composer-surface',
+  'resource-list-row-hover',
+  'resource-list-row-active',
+  'resource-list-row-active-foreground',
+  'resource-list-row-selected',
+  'resource-list-row-selected-foreground'
 ] as const
 
 export const CHERRY_PRODUCT_COLOR_TOKENS = [
@@ -107,8 +130,12 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'chat-message-well',
   'chat-message-well-solid',
   'composer-surface',
+  'foreground-tertiary',
+  'foreground-disabled',
   'border-subtle',
   'border-strong',
+  'border-selected',
+  'link',
   'success',
   'success-subtle',
   'success-subtle-foreground',
@@ -124,7 +151,12 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'error',
   'error-subtle',
   'error-subtle-foreground',
-  'error-border'
+  'error-border',
+  'resource-list-row-hover',
+  'resource-list-row-active',
+  'resource-list-row-active-foreground',
+  'resource-list-row-selected',
+  'resource-list-row-selected-foreground'
 ] as const
 
 /**
@@ -133,43 +165,13 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
  * new utility unless an existing compatibility consumer requires it.
  */
 export const COMPATIBILITY_SEMANTIC_COLOR_TOKENS = [
-  'primary-hover',
   'destructive-hover',
-  'foreground-secondary',
-  'foreground-muted',
-  'menu-item-hover',
-  'border-muted',
-  'border-hover',
-  'border-active',
   'secondary-hover',
   'secondary-active',
-  'ghost-hover',
   'ghost-active'
 ] as const
 
-export const COMPATIBILITY_STATUS_COLOR_TOKENS = [
-  'error-base',
-  'error-text',
-  'error-bg',
-  'error-text-hover',
-  'error-bg-hover',
-  'error-border-hover',
-  'error-active',
-  'success-base',
-  'success-text-hover',
-  'success-bg',
-  'success-bg-hover',
-  'warning-base',
-  'warning-text-hover',
-  'warning-bg',
-  'warning-bg-hover',
-  'warning-active',
-  'info-base',
-  'info-text-hover',
-  'info-bg',
-  'info-bg-hover',
-  'info-active'
-] as const
+export const COMPATIBILITY_STATUS_COLOR_TOKENS = [] as const
 
 export const COMPATIBILITY_COLOR_TOKENS = [
   ...COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
@@ -183,5 +185,7 @@ export const CHERRY_PRODUCT_SURFACE_PAIRS = [
   ['error-subtle', 'error-subtle-foreground'],
   ['inline-code', 'inline-code-foreground'],
   ['reference', 'reference-foreground'],
-  ['highlight', 'highlight-foreground']
+  ['highlight', 'highlight-foreground'],
+  ['resource-list-row-active', 'resource-list-row-active-foreground'],
+  ['resource-list-row-selected', 'resource-list-row-selected-foreground']
 ] as const

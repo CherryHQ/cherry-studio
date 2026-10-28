@@ -1,7 +1,10 @@
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { exportService } from '@renderer/services/ExportService'
 
 import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
@@ -19,18 +22,59 @@ const scrollToBottom = vi.fn()
 const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
 const scrollToElement = vi.fn()
-const captureLocalSendScrollEligibility = vi.fn()
+const scrollToRange = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
+  navigationBaseKey: null as string | null,
   renderItemLimit: undefined as number | undefined,
+  renderVersion: 0,
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
   scrollElement: null as HTMLDivElement | null
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
+const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
+const messageCaptureProbes = vi.hoisted(() => new Map<string, () => Promise<string | undefined>>())
+const messageOutlineModule = vi.hoisted(() => ({ loaded: false }))
+const messageListSearchMock = vi.hoisted(() => ({
+  props: null as {
+    messages: MessageListItem[]
+    excludedMessageIds: ReadonlySet<string>
+    isStreaming: boolean
+  } | null
+}))
+const chatLayoutModeMock = vi.hoisted(() => ({
+  railGutterPx: 0,
+  setForceWideLayout: () => {},
+  setRailGutterPx: vi.fn()
+}))
+const originalLanguage = i18n.language
+
+beforeAll(async () => {
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(originalLanguage)
+})
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
-  useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
+  useChatLayoutMode: () => chatLayoutModeMock
 }))
+
+vi.mock('@renderer/components/chat/HtmlArtifactView', async () => {
+  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+
+  return {
+    HtmlArtifactPopupOutlet: () => {
+      const { popupSession } = useHtmlArtifactPopupContext()
+      return popupSession ? (
+        <div role="dialog" aria-label={`${popupSession.title} popup`}>
+          {popupSession.html}
+        </div>
+      ) : null
+    }
+  }
+})
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
   default: () => <div data-testid="loading-icon" />
@@ -48,13 +92,15 @@ vi.mock('@renderer/components/SelectionContextMenu', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
+    clearTimeoutTimer: vi.fn(),
     setTimeoutTimer: (_key: string, callback: () => void) => callback()
   })
 }))
 
-vi.mock('@renderer/utils/image', () => ({
-  captureScrollable: vi.fn(),
-  captureScrollableAsDataUrl: vi.fn()
+vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsDataUrl: vi.fn()
+  }
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -98,10 +144,13 @@ vi.mock('../layout/NarrowLayout', () => ({
   }
 }))
 
-vi.mock('../frame/MessageOutline', () => ({
-  __esModule: true,
-  default: () => null
-}))
+vi.mock('../frame/MessageOutline', () => {
+  messageOutlineModule.loaded = true
+  return {
+    __esModule: true,
+    default: () => null
+  }
+})
 
 vi.mock('../layout/MessageListLoading', () => ({
   MessageListInitialLoading: () => <div data-testid="message-list-loading" />
@@ -112,7 +161,38 @@ vi.mock('../list/MessageAnchorLine', () => ({
   default: () => null
 }))
 
-vi.mock('../list/MessageGroup', () => {
+vi.mock('../list/MessageGroup', async () => {
+  const React = await import('react')
+  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+  const { useOptionalMessageCaptureLease } = await import('../list/MessageCaptureLeaseContext')
+  const { exportService } = await import('@renderer/services/ExportService')
+  const ArtifactLifecycleControl = () => {
+    const popupContext = useHtmlArtifactPopupContext()
+    const artifactId = 'artifact-1'
+    const html = '<script>interactive()</script>'
+    const isApproved = popupContext.approvedInteractiveHtmlById[artifactId] === html
+
+    return isApproved ? (
+      <button
+        type="button"
+        onClick={() =>
+          popupContext.openPopup({
+            artifactId,
+            html,
+            title: 'Interactive artifact',
+            editable: false,
+            kind: 'document',
+            zoom: 100
+          })
+        }>
+        Open artifact
+      </button>
+    ) : (
+      <button type="button" onClick={() => popupContext.approveInteractiveHtml(artifactId, html)}>
+        Approve artifact
+      </button>
+    )
+  }
   const MockMessageGroup = ({
     messages,
     registerMessageElement
@@ -122,6 +202,42 @@ vi.mock('../list/MessageGroup', () => {
   }) => {
     const groupId = messages.map((message) => message.id).join(',')
     messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
+    const mountGroupIdRef = React.useRef(groupId)
+    React.useEffect(() => {
+      const mountGroupId = mountGroupIdRef.current
+      messageGroupMountCounts.set(mountGroupId, (messageGroupMountCounts.get(mountGroupId) ?? 0) + 1)
+    }, [])
+
+    const MessageCaptureProbe = ({ messageId }: { messageId: string }) => {
+      const captureLease = useOptionalMessageCaptureLease()
+      const captureRef = React.useMemo(
+        () => ({
+          get current() {
+            return captureLease?.getRenderedMessageElement(messageId) ?? null
+          }
+        }),
+        [captureLease, messageId]
+      )
+      const runCapture = React.useCallback(async () => {
+        const release = captureLease?.acquireMessageCaptureLease(messageId)
+        try {
+          return await exportService.captureScrollableAsDataUrl(captureRef)
+        } finally {
+          release?.()
+        }
+      }, [captureLease, captureRef, messageId])
+
+      React.useEffect(() => {
+        messageCaptureProbes.set(messageId, runCapture)
+        return () => {
+          if (messageCaptureProbes.get(messageId) === runCapture) {
+            messageCaptureProbes.delete(messageId)
+          }
+        }
+      }, [messageId, runCapture])
+
+      return null
+    }
 
     return (
       <div data-testid="message-group">
@@ -132,13 +248,17 @@ vi.mock('../list/MessageGroup', () => {
           return (
             <div
               id={`message-${message.id}`}
-              key={message.id}
+              key={`${message.id}-${messageVirtualListMocks.renderVersion}`}
               ref={setRef}
               className="fold"
               data-testid={`message-node-${message.id}`}
             />
           )
         })}
+        {messages.map((message) => (
+          <MessageCaptureProbe key={`capture-${message.id}`} messageId={message.id} />
+        ))}
+        {messages.some((message) => message.id === 'artifact-source') && <ArtifactLifecycleControl />}
         {groupId}
       </div>
     )
@@ -150,9 +270,11 @@ vi.mock('../list/MessageGroup', () => {
   }
 })
 
-vi.mock('../list/MessageNavigation', () => ({
-  __esModule: true,
-  default: () => null
+vi.mock('../list/MessageListSearch', () => ({
+  MessageListSearch: (props: NonNullable<typeof messageListSearchMock.props>) => {
+    messageListSearchMock.props = props
+    return <div data-testid="message-list-search" />
+  }
 }))
 
 vi.mock('../list/SelectionBox', () => ({
@@ -169,13 +291,14 @@ vi.mock('../list/MessageVirtualList', async () => {
       handleRef,
       items,
       keepMountedKeys,
-      localSendGeneration,
+      getItemKey,
       onScrollContainerReady,
       renderItem,
       scrollToBottomButtonBottomOffset,
       showScrollToBottomButton,
       topPadding
     }: any) => {
+      const renderedScrollElementRef = React.useRef<HTMLDivElement | null>(null)
       React.useImperativeHandle(
         handleRef as Ref<MessageVirtualListHandle>,
         () => ({
@@ -183,8 +306,9 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToTop,
           scrollToKey,
           scrollToElement,
-          captureLocalSendScrollEligibility,
-          isAtBottom: () => false,
+          scrollToRange,
+          getNavigationBaseKey: () => messageVirtualListMocks.navigationBaseKey,
+          isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
         []
@@ -195,23 +319,28 @@ vi.mock('../list/MessageVirtualList', async () => {
           messageVirtualListMocks.readyCallbacks.push(onScrollContainerReady)
           return
         }
-        if (messageVirtualListMocks.scrollElement) {
-          onScrollContainerReady(messageVirtualListMocks.scrollElement)
+        const scrollElement = messageVirtualListMocks.scrollElement ?? renderedScrollElementRef.current
+        if (scrollElement) {
+          onScrollContainerReady(scrollElement)
         }
       }, [onScrollContainerReady])
 
-      const visibleItems = items.slice(0, messageVirtualListMocks.renderItemLimit ?? items.length)
+      const visibleItems = items.filter(
+        (item: unknown, index: number) =>
+          index < (messageVirtualListMocks.renderItemLimit ?? items.length) ||
+          (keepMountedKeys ?? []).includes(getItemKey(item, index))
+      )
 
       return (
         <div
+          ref={renderedScrollElementRef}
           data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
-          data-local-send-generation={localSendGeneration ?? ''}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
           data-testid="virtual-list"
           data-top-padding={topPadding}>
           {visibleItems.map((item: unknown, index: number) => (
-            <div key={index}>{renderItem(item, index)}</div>
+            <div key={`${index}-${messageVirtualListMocks.renderVersion}`}>{renderItem(item, index)}</div>
           ))}
         </div>
       )
@@ -260,26 +389,211 @@ const renderMessageList = (messages: MessageListItem[]) =>
     </MessageListProvider>
   )
 
+const deferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+// jsdom's Blob has no text().
+const readBlobText = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(blob)
+  })
+
 describe('MessageList', () => {
+  it('keeps transient content in the same scroller, including an empty conversation', () => {
+    const { rerender } = render(
+      <MessageListProvider value={createValue([], { afterMessages: <div role="status">Uploading report.pdf</div> })}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+    expect(within(screen.getByTestId('virtual-list')).getByRole('status')).toHaveTextContent('Uploading report.pdf')
+    expect(messageListSearchMock.props?.messages).toEqual([])
+    rerender(
+      <MessageListProvider value={createValue([createMessage('sent', 'user')])}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+    expect(screen.queryByText('Uploading report.pdf')).not.toBeInTheDocument()
+    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual(['sent'])
+  })
+
   beforeEach(() => {
     scrollToBottom.mockClear()
     scrollToTop.mockClear()
-    scrollToKey.mockClear()
+    scrollToKey.mockReset()
     scrollToElement.mockClear()
-    captureLocalSendScrollEligibility.mockClear()
-    vi.mocked(captureScrollable).mockReset()
-    vi.mocked(captureScrollableAsDataUrl).mockReset()
+    scrollToRange.mockClear()
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
+    messageVirtualListMocks.navigationBaseKey = null
     messageVirtualListMocks.renderItemLimit = undefined
+    messageVirtualListMocks.renderVersion = 0
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
     messageGroupRenderCounts.clear()
+    messageGroupMountCounts.clear()
+    messageCaptureProbes.clear()
+    messageListSearchMock.props = null
+    chatLayoutModeMock.railGutterPx = 0
+    chatLayoutModeMock.setRailGutterPx.mockReset()
+  })
+
+  it('does not load the message outline module while outline is disabled', () => {
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(messageOutlineModule.loaded).toBe(false)
   })
 
   it('exposes a stable message-list boundary', () => {
     const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
+  })
+
+  it('keeps rapid navigation moving through assistant and user group owners', async () => {
+    const user = userEvent.setup()
+    const userMessage1 = createMessage('user-1', 'user')
+    const assistantMessage1 = { ...createMessage('assistant-1', 'assistant'), parentId: userMessage1.id }
+    const userMessage2 = createMessage('user-2', 'user')
+    const assistantMessage2 = { ...createMessage('assistant-2', 'assistant'), parentId: userMessage2.id }
+    const userMessage3 = createMessage('user-3', 'user')
+    const assistantMessage3 = { ...createMessage('assistant-3', 'assistant'), parentId: userMessage3.id }
+    messageVirtualListMocks.navigationBaseKey = `assistant${userMessage3.id}`
+    messageVirtualListMocks.scrollElement = null
+    scrollToKey.mockImplementationOnce((key: string) => {
+      messageVirtualListMocks.navigationBaseKey = key
+    })
+
+    render(
+      <MessageListProvider
+        value={createValue(
+          [userMessage1, assistantMessage1, userMessage2, assistantMessage2, userMessage3, assistantMessage3],
+          { messageNavigation: 'buttons' }
+        )}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    const scrollElement = screen.getByTestId('virtual-list')
+    scrollElement.getBoundingClientRect = vi.fn(() => ({
+      bottom: 500,
+      height: 500,
+      left: 0,
+      right: 500,
+      top: 0,
+      width: 500,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    }))
+    fireEvent.mouseMove(scrollElement, { clientX: 470, clientY: 250 })
+
+    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
+    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
+
+    expect(scrollToKey.mock.calls).toEqual([
+      [`user${userMessage2.id}`, 'start'],
+      [`user${userMessage1.id}`, 'start']
+    ])
+  })
+
+  it('keeps artifact popup and approval state when the source virtual row unmounts', async () => {
+    const user = userEvent.setup()
+    const sourceMessage = createMessage('artifact-source', 'assistant')
+    const renderTree = () => (
+      <MessageListProvider value={createValue([sourceMessage])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    const view = render(renderTree())
+
+    await user.click(screen.getByRole('button', { name: 'Approve artifact' }))
+    await user.click(screen.getByRole('button', { name: 'Open artifact' }))
+    expect(await screen.findByRole('dialog', { name: 'Interactive artifact popup' })).toHaveTextContent(
+      '<script>interactive()</script>'
+    )
+
+    messageVirtualListMocks.renderItemLimit = 0
+    view.rerender(renderTree())
+
+    expect(screen.queryByRole('button', { name: 'Open artifact' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Interactive artifact popup' })).toBeInTheDocument()
+
+    messageVirtualListMocks.renderItemLimit = undefined
+    view.rerender(renderTree())
+
+    expect(screen.getByRole('button', { name: 'Open artifact' })).toBeInTheDocument()
+  })
+
+  it('keeps search disabled for embedded lists unless explicitly enabled', () => {
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(screen.queryByTestId('message-list-search')).not.toBeInTheDocument()
+  })
+
+  it('keeps search mounted while excluding pending and live message content', () => {
+    const completed = createMessage('assistant-completed', 'assistant')
+    const pending = createMessage('assistant-pending', 'assistant', 'pending')
+    const live = createMessage('assistant-live', 'assistant')
+
+    render(
+      <MessageListProvider
+        value={createValue([completed, pending, live], {
+          streamingLayers: {
+            historyPartsByMessageId: {},
+            liveMessageIds: [live.id]
+          }
+        })}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('message-list-search')).toBeInTheDocument()
+    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([
+      completed.id,
+      pending.id,
+      live.id
+    ])
+    expect(messageListSearchMock.props?.excludedMessageIds.has(live.id)).toBe(true)
+    expect(messageListSearchMock.props?.isStreaming).toBe(true)
+  })
+
+  it('pads the message column with the rail gutter from the chat layout context', () => {
+    chatLayoutModeMock.railGutterPx = 24
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    // Base side padding (24) + context gutter (24) on both sides.
+    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
+      paddingLeft: '48px',
+      paddingRight: '48px'
+    })
+  })
+
+  it('preserves the measured rail gutter when the message list unmounts', () => {
+    Object.defineProperty(messageVirtualListMocks.scrollElement!, 'clientWidth', { value: 820 })
+    const view = render(
+      <MessageListProvider
+        value={createValue([createMessage('assistant-1', 'assistant')], { messageNavigation: 'anchor' })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(chatLayoutModeMock.setRailGutterPx).toHaveBeenCalledWith(24)
+
+    chatLayoutModeMock.setRailGutterPx.mockClear()
+    view.unmount()
+
+    expect(chatLayoutModeMock.setRailGutterPx).not.toHaveBeenCalled()
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {
@@ -305,7 +619,7 @@ describe('MessageList', () => {
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text }]
-          } as MessageListProviderValue['state']['partsByMessageId']
+          }
         },
         actions
       )
@@ -329,25 +643,113 @@ describe('MessageList', () => {
     expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
   })
 
-  it('forwards the explicit local-send generation independently of message topology', () => {
-    const user = createMessage('user-1', 'user')
-    const assistant = createMessage('assistant-1', 'assistant')
-    const view = render(
-      <MessageListProvider value={createValue([user], { localSendGeneration: 1 })}>
-        <MessageList />
-      </MessageListProvider>
-    )
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-local-send-generation', '1')
+  it('keeps historical groups sealed when the history parts map is rebuilt with unchanged entries', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
+    const historyUser = createMessage('user-history', 'user')
+    const historyAssistant = createMessage('assistant-history', 'assistant')
+    const liveAssistant = createMessage('assistant-live', 'assistant', 'pending')
+    const userParts = [{ type: 'text', text: 'question' }]
+    const assistantParts = [{ type: 'text', text: 'sealed answer' }]
+    const actions: Partial<MessageListActions> = {}
+    const buildValue = () => {
+      const historyParts = {
+        'user-history': userParts,
+        'assistant-history': assistantParts
+      } as MessageListProviderValue['state']['partsByMessageId']
+      return createValue(
+        [historyUser, historyAssistant, liveAssistant],
+        {
+          topic,
+          streamingLayers: {
+            historyPartsByMessageId: historyParts,
+            liveMessageIds: ['assistant-live']
+          },
+          partsByMessageId: {
+            ...historyParts,
+            'assistant-live': [{ type: 'text', text: 'streaming' }]
+          }
+        },
+        actions
+      )
+    }
 
-    view.rerender(
-      <MessageListProvider
-        value={createValue([createMessage('older', 'assistant'), user, assistant, createMessage('user-2', 'user')], {
-          localSendGeneration: 2
-        })}>
+    const view = render(
+      <MessageListProvider value={buildValue()}>
         <MessageList />
       </MessageListProvider>
     )
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-local-send-generation', '2')
+    view.rerender(
+      <MessageListProvider value={buildValue()}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-live')).toBe(2)
+  })
+
+  it('does not rerender or remount history while a new live id is waiting to join the list', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
+    const historyUser = createMessage('user-history', 'user')
+    const historyAssistant = createMessage('assistant-history', 'assistant')
+    const historyParts = {
+      'user-history': [{ type: 'text', text: 'question' }],
+      'assistant-history': [{ type: 'text', text: 'answer with code' }]
+    } as MessageListProviderValue['state']['partsByMessageId']
+    const actions: Partial<MessageListActions> = {}
+    const buildValue = (liveMessageIds: string[]) =>
+      createValue(
+        [historyUser, historyAssistant],
+        {
+          topic,
+          streamingLayers: { historyPartsByMessageId: historyParts, liveMessageIds },
+          partsByMessageId: historyParts
+        },
+        actions
+      )
+
+    const view = render(
+      <MessageListProvider value={buildValue([])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    view.rerender(
+      <MessageListProvider value={buildValue(['assistant-future'])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
+    expect(messageGroupMountCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupMountCounts.get('user-history')).toBe(1)
+  })
+
+  it('does not remount a group when it crosses from the live tail into history', () => {
+    const historyUser = createMessage('user-history', 'user')
+    const assistantParts = {
+      'assistant-1': [{ type: 'text', text: 'answer' }]
+    } as MessageListProviderValue['state']['partsByMessageId']
+    const buildValue = (liveMessageIds: string[], status: MessageListItem['status']) =>
+      createValue([historyUser, createMessage('assistant-1', 'assistant', status)], {
+        streamingLayers: { historyPartsByMessageId: assistantParts, liveMessageIds },
+        partsByMessageId: assistantParts
+      })
+
+    const view = render(
+      <MessageListProvider value={buildValue(['assistant-1'], 'pending')}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    view.rerender(
+      <MessageListProvider value={buildValue([], 'success')}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(messageGroupMountCounts.get('assistant-1')).toBe(1)
+    expect(messageGroupMountCounts.get('user-history')).toBe(1)
   })
 
   it('keeps the latest pending assistant group mounted', () => {
@@ -355,6 +757,87 @@ describe('MessageList', () => {
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
+  })
+
+  it('keeps a queued message capture mounted and resolves a replacement element', async () => {
+    const messageA = createMessage('message-a', 'user')
+    const messageB = createMessage('message-b', 'user')
+    const captureRequests: Array<{
+      ref: { readonly current: HTMLElement | null }
+      resolve: (value: string | undefined) => void
+    }> = []
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockImplementation(
+      (ref) =>
+        new Promise<string | undefined>((resolve) => {
+          captureRequests.push({ ref, resolve })
+        })
+    )
+    const renderTree = () => (
+      <MessageListProvider value={createValue([messageA, messageB])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    const view = render(renderTree())
+    const captureA = messageCaptureProbes.get(messageA.id)
+    const captureB = messageCaptureProbes.get(messageB.id)
+
+    expect(captureA).toBeDefined()
+    expect(captureB).toBeDefined()
+
+    const firstCapture = captureA!()
+    await vi.waitFor(() => expect(captureRequests).toHaveLength(1))
+    const secondCapture = captureB!()
+    await vi.waitFor(() => expect(captureRequests).toHaveLength(2))
+
+    const originalB = screen.getByTestId(`message-node-${messageB.id}`)
+    messageVirtualListMocks.renderItemLimit = 1
+    view.rerender(renderTree())
+
+    expect(screen.getByTestId(`message-node-${messageB.id}`)).toBe(originalB)
+
+    messageVirtualListMocks.renderVersion = 1
+    view.rerender(renderTree())
+    const replacementB = screen.getByTestId(`message-node-${messageB.id}`)
+    expect(replacementB).not.toBe(originalB)
+
+    captureRequests[0].resolve('capture-a')
+    await expect(firstCapture).resolves.toBe('capture-a')
+    expect(captureRequests[1].ref.current).toBe(replacementB)
+
+    captureRequests[1].resolve('capture-b')
+    await expect(secondCapture).resolves.toBe('capture-b')
+    await vi.waitFor(() => expect(screen.queryByTestId(`message-node-${messageB.id}`)).not.toBeInTheDocument())
+  })
+
+  it('releases a queued message capture lease after capture failure', async () => {
+    const message = createMessage('message-failure', 'user')
+    const captureStarted = deferred<void>()
+    const captureFinished = deferred<void>()
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockImplementation(async () => {
+      captureStarted.resolve()
+      await captureFinished.promise
+      throw new Error('capture failed')
+    })
+
+    const view = renderMessageList([message])
+    const capture = messageCaptureProbes.get(message.id)
+    expect(capture).toBeDefined()
+    const capturePromise = capture!()
+    await captureStarted.promise
+
+    messageVirtualListMocks.renderItemLimit = 0
+    view.rerender(
+      <MessageListProvider value={createValue([message])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    expect(screen.getByTestId(`message-node-${message.id}`)).toBeInTheDocument()
+
+    captureFinished.resolve()
+    await expect(capturePromise).rejects.toThrow('capture failed')
+    await vi.waitFor(() => expect(screen.queryByTestId(`message-node-${message.id}`)).not.toBeInTheDocument())
   })
 
   it('keeps an active success-row assistant group mounted while approval owns the turn', () => {
@@ -365,7 +848,9 @@ describe('MessageList', () => {
           getMessageActivityState: (message) => ({
             isApprovalAnchor: message.id === assistant.id,
             isProcessing: message.id === assistant.id,
-            isStreamTarget: message.id === assistant.id
+            isStreamTarget: message.id === assistant.id,
+            isActiveTurnProcessing: message.id === assistant.id,
+            isStreamLive: false
           })
         })}>
         <MessageList />
@@ -469,10 +954,8 @@ describe('MessageList', () => {
     expect(bindRuntime).toHaveBeenCalledTimes(1)
 
     runtime?.locateMessage(nextMessage.id)
-    runtime?.captureLocalSendScrollEligibility()
 
     expect(scrollToKey).toHaveBeenCalledWith('assistantassistant-1', 'start')
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
   })
 
   it('does not register the message outline scroll listener while outline is disabled', () => {
@@ -483,49 +966,9 @@ describe('MessageList', () => {
     expect(addEventListenerSpy).not.toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
   })
 
-  it('limits message outline work to mounted message elements', () => {
-    messageVirtualListMocks.renderItemLimit = 1
-    const addEventListenerSpy = vi.spyOn(messageVirtualListMocks.scrollElement!, 'addEventListener')
-    messageVirtualListMocks.scrollElement!.getBoundingClientRect = vi.fn(
-      () =>
-        ({
-          bottom: 500,
-          height: 500,
-          left: 0,
-          right: 500,
-          top: 0,
-          width: 500,
-          x: 0,
-          y: 0,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
-    const getElementByIdSpy = vi.spyOn(document, 'getElementById')
-
-    render(
-      <MessageListProvider
-        value={createValue(
-          [
-            createMessage('assistant-visible', 'assistant'),
-            createMessage('assistant-unmounted-1', 'assistant'),
-            createMessage('assistant-unmounted-2', 'assistant')
-          ],
-          {
-            renderConfig: { ...defaultMessageRenderConfig, showMessageOutline: true }
-          }
-        )}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(addEventListenerSpy).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
-    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-1')
-    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-2')
-  })
-
   it('exports topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
@@ -573,9 +1016,8 @@ describe('MessageList', () => {
 
   it('copies topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableMock = vi.mocked(captureScrollable)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const copyImage = vi.fn().mockResolvedValue(undefined)
-    const imageBlob = new Blob(['topic'], { type: 'image/png' })
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
       bindRuntime: (nextRuntime) => {
@@ -587,14 +1029,12 @@ describe('MessageList', () => {
       copyImage
     }
 
-    captureScrollableMock.mockImplementation(async (ref) => {
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) => {
       const capturedText = ref.current?.textContent ?? ''
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
       expect(capturedText).toContain('user-2')
-      return {
-        toBlob: (callback: BlobCallback) => callback(imageBlob)
-      } as unknown as HTMLCanvasElement
+      return 'data:image/png;base64,dG9waWM='
     })
 
     render(
@@ -618,12 +1058,14 @@ describe('MessageList', () => {
     await act(async () => {
       await copyPromise
     })
-    expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    const copiedBlob = copyImage.mock.calls[0]?.[0] as Blob
+    expect(copiedBlob.type).toBe('image/png')
+    expect(await readBlobText(copiedBlob)).toBe('topic')
   })
 
   it('exports a pending topic image after the loading list scroll container is ready', async () => {
     messageVirtualListMocks.renderItemLimit = 0
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -686,7 +1128,7 @@ describe('MessageList', () => {
   })
 
   it('rejects a pending topic image export when the loading list unmounts before it is ready', async () => {
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     captureScrollableAsDataUrlMock.mockClear()
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
@@ -733,7 +1175,7 @@ describe('MessageList', () => {
   it('exports a pending topic image when the scroll container becomes ready after runtime binding', async () => {
     messageVirtualListMocks.deferScrollContainerReady = true
     messageVirtualListMocks.scrollElement = null
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -781,7 +1223,7 @@ describe('MessageList', () => {
   })
 
   it('rejects topic image export when capture does not produce image data', async () => {
-    vi.mocked(captureScrollableAsDataUrl).mockResolvedValue(undefined)
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockResolvedValue(undefined)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {

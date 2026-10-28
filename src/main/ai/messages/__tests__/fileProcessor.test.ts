@@ -2,8 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { FileUIPart } from '@shared/data/types/message'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type { FileUIPart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -21,8 +22,12 @@ vi.mock('@application', async () => {
 
 import { materializeNativeFilePart } from '../fileProcessor'
 
-const filePart = (p: Partial<FileUIPart>): FileUIPart =>
-  ({ type: 'file', url: '', mediaType: 'application/octet-stream', ...p }) as FileUIPart
+const filePart = (p: Partial<FileUIPart>): FileUIPart => ({
+  type: 'file',
+  url: '',
+  mediaType: 'application/octet-stream',
+  ...p
+})
 
 describe('materializeNativeFilePart — file:// inline', () => {
   let tmpDir: string
@@ -32,9 +37,8 @@ describe('materializeNativeFilePart — file:// inline', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-fp-'))
     imgPath = path.join(tmpDir, 'pixel.png')
     const png = Buffer.from(
-      '89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415478DA636400' +
-        '01000000050001A7DFAA680000000049454E44AE426082',
-      'hex'
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+      'base64'
     )
     await fs.writeFile(imgPath, png)
   })
@@ -63,14 +67,37 @@ describe('materializeNativeFilePart — file:// inline', () => {
     expect(out?.mediaType).toBe('image/png')
   })
 
-  it('leaves data: URLs untouched', async () => {
+  it('rejects undecodable image data: URLs', async () => {
     const out = await materializeNativeFilePart(filePart({ url: 'data:image/png;base64,AAA', mediaType: 'image/png' }))
-    expect(out?.url).toBe('data:image/png;base64,AAA')
+    expect(out).toBeNull()
   })
 
   it('leaves http(s) URLs untouched', async () => {
     const out = await materializeNativeFilePart(filePart({ url: 'https://example.com/a.png', mediaType: 'image/png' }))
     expect(out?.url).toBe('https://example.com/a.png')
+  })
+
+  it('sanitizes a bare-extension mediaType on a passthrough part (no disk read to overwrite)', async () => {
+    // The http(s)/data: passthrough path skips fsRead/FileManager, so a stale `.png`
+    // mediaType would survive and blow up the ai-sdk provider. The tail-end
+    // sanitize is the only guard covering it.
+    const out = await materializeNativeFilePart(
+      filePart({ url: 'https://example.com/a.png', mediaType: '.png', filename: 'a.png' })
+    )
+    expect(out?.mediaType).toBe('image/png')
+    expect(out?.url).toBe('https://example.com/a.png')
+  })
+
+  it('preserves the ai-sdk `image/*` placeholder on a passthrough part with no discoverable extension', async () => {
+    // OpenAiMessageConverter / OpenAiResponsesMessageConverter / gatewayImageModel
+    // emit `image/*` when the remote URL carries no mime hint. Sanitize must let
+    // it through; downgrading to application/octet-stream would make the provider
+    // stop treating the file as an image.
+    const out = await materializeNativeFilePart(
+      filePart({ url: 'https://example.com/generate?id=abc', mediaType: 'image/*' })
+    )
+    expect(out?.mediaType).toBe('image/*')
+    expect(out?.url).toBe('https://example.com/generate?id=abc')
   })
 
   it('drops a file:// part that cannot be read', async () => {
@@ -90,12 +117,17 @@ describe('materializeNativeFilePart — file:// inline', () => {
 describe('materializeNativeFilePart — fileEntryId inline', () => {
   it('reads via FileManager and applies its MIME (overriding a bad hint)', async () => {
     readMock.mockReset()
-    readMock.mockResolvedValueOnce({ content: 'QUJD', mime: 'image/png' })
+    readMock.mockResolvedValueOnce({
+      content: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+      mime: 'image/png'
+    })
     const out = await materializeNativeFilePart(
       filePart({ mediaType: '.png', providerMetadata: { cherry: { fileEntryId: 'entry-1' } } })
     )
     expect(out?.mediaType).toBe('image/png')
-    expect(out?.url).toBe('data:image/png;base64,QUJD')
+    expect(out?.url).toBe(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
+    )
     expect(readMock).toHaveBeenCalledWith('entry-1', { encoding: 'base64' })
   })
 

@@ -35,6 +35,7 @@ export default defineCreator({
   // and the Volcengine Ark API has no /models endpoint — so the current chat/vision line is hand-listed.
   // Metadata for the ids OpenRouter does carry is still enriched at generation time.
   models: [
+    { id: 'doubao-seed-1-8' },
     {
       id: 'doubao-seed-2-1-pro',
       name: 'Doubao Seed 2.1 Pro',
@@ -92,7 +93,7 @@ export default defineCreator({
       maxOutputTokens: 131072
     },
     {
-      id: 'doubao-seed-2-0-code',
+      id: 'doubao-seed-2-0-code-preview',
       name: 'Doubao Seed 2.0 Code',
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],

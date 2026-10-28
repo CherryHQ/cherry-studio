@@ -1,9 +1,10 @@
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { canonicalizeUserDataPath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { UserDataRelocationInspection } from '@shared/types/userDataRelocation'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { PendingRelocation } from './types'
 import { assertRelocationPaths, assertUserDataRelocationRequest, RelocationValidationError } from './validation'

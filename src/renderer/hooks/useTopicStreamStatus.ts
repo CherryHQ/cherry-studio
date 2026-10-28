@@ -2,10 +2,11 @@
 // `lastCompletedAt`); the "last completion this window has acknowledged"
 // marker is a separate cross-window shared cache key.
 
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicStreamStatus')
 
@@ -19,6 +20,7 @@ interface TopicStreamStatusView {
    */
   awaitingApprovalAnchors: ActiveExecution[]
   isPending: boolean
+  lastCompletedAt: number | null
   /**
    * `done` AND this window's `lastSeenCompletion` does not match the
    * authoritative `lastCompletedAt`. Read-receipt model: per-completion
@@ -53,7 +55,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, isPending, lastCompletedAt, isFulfilled, markSeen }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {

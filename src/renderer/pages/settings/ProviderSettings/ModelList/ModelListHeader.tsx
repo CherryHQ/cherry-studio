@@ -1,22 +1,25 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ChevronsDownUp, ChevronsUpDown, FileText, Filter, Search, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+
+import { ProviderBillingButton } from '../BillingSettings/ProviderBillingButton'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
+import type { ModelListCapabilityCounts, ModelListFilter } from './modelListDerivedState'
 import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 
 export interface ModelListHeaderProps {
-  isBusy: boolean
+  providerId: string
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
-  selectedTypeFilter: ModelListCapabilityFilter
-  setSelectedTypeFilter: (filter: ModelListCapabilityFilter) => void
+  selectedFilter: ModelListFilter
+  setSelectedFilter: (filter: ModelListFilter) => void
   typeCounts: ModelListCapabilityCounts
+  failedModelCount: number
   groupsExpanded: boolean
   onToggleGroupsExpanded: () => void
   docsWebsite?: string
@@ -25,13 +28,14 @@ export interface ModelListHeaderProps {
 }
 
 const ModelListHeader: React.FC<ModelListHeaderProps> = ({
-  isBusy,
+  providerId,
   hasNoModels,
   searchText,
   setSearchText,
-  selectedTypeFilter,
-  setSelectedTypeFilter,
+  selectedFilter,
+  setSelectedFilter,
   typeCounts,
+  failedModelCount,
   groupsExpanded,
   onToggleGroupsExpanded,
   docsWebsite,
@@ -44,7 +48,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   const [filterOpen, setFilterOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const isSearchExpanded = searchOpen || Boolean(searchText)
-  const isFilterActive = selectedTypeFilter !== 'all'
+  const isFilterActive = selectedFilter !== 'all'
   const GroupExpansionIcon = groupsExpanded ? ChevronsDownUp : ChevronsUpDown
 
   useEffect(() => {
@@ -57,7 +61,9 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
     <>
       <div className={modelListClasses.headerInlineRow}>
         <div className={modelListClasses.sectionTitleLine}>
-          <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+          <h2 id="setting-provider-model-list" className={modelListClasses.sectionTitle}>
+            {t('settings.models.list_title')}
+          </h2>
           {docsLink ? (
             <div className={modelListClasses.titleHelpRow}>
               <Tooltip content={t('settings.models.docs')}>
@@ -77,7 +83,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               type="button"
               className={modelListClasses.groupToggleIconButton}
               aria-label={t(groupsExpanded ? 'settings.models.collapse_all' : 'settings.models.expand_all')}
-              disabled={isBusy || hasNoModels}
+              disabled={hasNoModels}
               onClick={onToggleGroupsExpanded}>
               <GroupExpansionIcon className={modelListClasses.toolbarHeaderIcon} />
             </button>
@@ -90,7 +96,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 type="text"
                 value={searchText}
                 placeholder={t('models.search.placeholder')}
-                disabled={isBusy}
                 onChange={(event) => setSearchText(event.target.value)}
                 onFocus={() => setSearchOpen(true)}
                 onBlur={() => {
@@ -119,7 +124,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 type="button"
                 className={modelListClasses.searchIconButton}
                 aria-label={t('common.search')}
-                disabled={isBusy}
                 onClick={() => setSearchOpen(true)}>
                 <Search className={modelListClasses.toolbarHeaderIcon} />
               </button>
@@ -130,15 +134,16 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               type="button"
               className={cn(
                 modelListClasses.searchIconButton,
-                (filterOpen || isFilterActive) && 'bg-accent/40 text-foreground'
+                (filterOpen || isFilterActive) && 'bg-accent/40 text-accent-foreground'
               )}
               aria-label={t('settings.models.filter.label')}
               aria-pressed={filterOpen}
-              disabled={isBusy || hasNoModels}
+              disabled={hasNoModels}
               onClick={() => setFilterOpen((open) => !open)}>
               <Filter className={modelListClasses.toolbarHeaderIcon} />
             </button>
           </Tooltip>
+          <ProviderBillingButton providerId={providerId} disabled={hasNoModels} />
         </div>
         <div className={modelListClasses.headerInlineActions}>
           <div className={modelListClasses.titleActions}>{actions}</div>
@@ -146,9 +151,20 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
       </div>
       {filterOpen ? (
         <ModelTypeFilterTabs
-          value={selectedTypeFilter}
-          onValueChange={(next) => setSelectedTypeFilter(next as ModelListCapabilityFilter)}
+          value={selectedFilter}
+          onValueChange={(next) => setSelectedFilter(next as ModelListFilter)}
           counts={typeCounts}
+          extraTabs={
+            failedModelCount > 0
+              ? [
+                  {
+                    value: 'failed',
+                    label: t('settings.models.check.filter_failed'),
+                    count: failedModelCount
+                  }
+                ]
+              : []
+          }
         />
       ) : null}
     </>

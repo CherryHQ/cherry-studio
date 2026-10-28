@@ -1,130 +1,61 @@
 ---
 name: cherry-assistant-guide
-description: Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、MCP、OpenClaw、PDF、快捷短语等关键词的场景。
+description: 从当前安装包查询 Cherry Studio 产品信息并排查运行问题。当用户询问功能、路由、快捷键、Provider、语言、Agent、频道、定时任务、Code CLI、当前版本，或报告运行错误、连接失败、配置异常并需要诊断时触发。
 ---
 
-# Cherry Studio 使用指南
+# Cherry Studio 产品信息查询
 
-## 导航
+<!--
+This file is GENERATED from skill-zh-cn-template.md by
+scripts/generate-cherry-assistant-knowledge. Do not edit the output (SKILL.md)
+directly; edit the template instead, then run `pnpm build:builtin-knowledge`.
+-->
 
-用 `mcp__assistant__navigate` 导航，调用后必须告诉用户「请点击上方按钮跳转」。
+## 原则
 
+不要凭训练数据、记忆或本文件中的旧描述回答 Cherry Studio 产品问题。每个独立的产品问题都先读取当前安装包信息。
+
+## 当前安装包
+
+按问题直接读取一个 section：
+
+```text
+路由 / 页面入口：mcp__assistant__product_info({ source: "manifest", section: "routes" })
+快捷键：mcp__assistant__product_info({ source: "manifest", section: "commands" })
+Provider：mcp__assistant__product_info({ source: "manifest", section: "providers" })
+语言：mcp__assistant__product_info({ source: "manifest", section: "locales" })
+Agent / 频道 / 定时任务 / Code CLI：mcp__assistant__product_info({ source: "manifest", section: "agents" })
 ```
-navigate({ path: '/settings/provider' })
-navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
+
+不知道该查哪个 section 时，先调用紧凑索引：
+
+```text
+mcp__assistant__product_info({ source: "manifest" })
 ```
 
-### 路由表
+索引只返回当前版本和可用 section 名称；再读取相关 section。只有一个问题确实横跨多个 section 时才使用 `section: "all"`，不要为省一次调用把整份清单放进上下文。
 
-**顶级**: `/app/chat` 首页/聊天, `/app/paintings` 绘图, `/app/translate` 翻译, `/app/files` 文件, `/app/notes` 笔记, `/app/knowledge` 知识库, `/app/mini-app` 小程序, `/app/code` 代码工具/OpenClaw, `/app/launchpad` 启动台, `/app/agents` Agent
+返回值来自随当前构建生成并打包的 `product-manifest.json`，不是手写版本知识。
 
-**设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `system` 通用(语言/主题/代理), `appearance` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `api-gateway` API服务器, `file-processing` 文档处理, `shortcut` 快捷键, `quick-assistant` 快捷助手, `selection-assistant` 划词助手, `notifications` 通知, `scheduled-tasks` 定时任务, `channels` 频道, `dependencies` 依赖, `code-execution` 代码执行, `about` 关于/版本/日志
+回答时遵守以下规则：
 
-**MCP 子页** (`/settings/mcp/`): `servers` 服务列表, `builtin` 内置MCP, `marketplaces` MCP市场, `npx-search` NPX搜索, `mcp-install` 安装MCP, `settings/{serverId}` 配置详情
+1. 只把返回清单中存在的内容表述为当前版本事实。
+2. `routes.primary` 是主导航入口；`routes.all` 还可能包含内部页、参数路由或兼容跳转，不能无条件推荐。
+3. `providers` 表示随包支持的 Provider；用户实际配置或启用状态应另用 `mcp__assistant__diagnose` 的 Provider 诊断能力查询。
+4. 默认快捷键来自当前包定义，不代表用户没有自定义覆盖。
+5. 清单未暴露的能力必须明确说“当前包清单未提供该信息”，再按需查官方文档；不得补写旧版本经验。
 
-**其他子页**: `/app/mini-app/{appId}` 小程序, `/app/paintings/{provider}` 绘图Provider
+## 导航与诊断
 
-**Query 参数**: `/settings/provider?id={providerId}` 定位Provider, `/settings/provider?filter=agent` 筛选支持Agent的
+凡是回答“去哪里找、打开、配置或使用某个 Cherry Studio 页面或功能”，都视为需要跳转；“我去哪里配置”“找不到入口”等含蓄问法也包括在内。先从当前包清单选择有效路径，必须在同一轮调用 `mcp__assistant__navigate`，并把生成的可点击入口放在手动操作步骤之前，不能等用户再次提醒。
 
-## 模型配置建议
+只有导航工具成功后，才能告诉用户点击生成的入口。`navigate` 只生成等待用户点击的入口，不会自动打开页面；工具未调用或失败时，不得声称已经生成入口或已经打开页面。
 
-1. 已有 API Key → 直接引导配置对应 Provider
-2. 没有 Key 或不知道选哪家 → **优先推荐 Cherry In**（`open.cherryin.ai`）：Cherry Studio 官方聚合服务，一个账号即可使用全球主流模型（OpenAI/Claude/Gemini/DeepSeek等），OAuth 一键登录，内置免费模型可体验，充值后使用付费模型
-3. 其他选择：Ollama（本地免费，需显卡）、GitHub Copilot（有免费额度）、或去各厂商官网申请 Key
-4. 推荐时语气自然，作为产品内置功能介绍，不做竞品对比
+用户报告运行错误时使用 `mcp__assistant__diagnose`。先看错误摘要，再按问题选择日志、MCP 状态、Provider 连通性或配置；这些数据来自用户设备，调用前保留逐次授权。
 
-## 故障排查
+## 信息优先级
 
-### 诊断工具 `mcp__assistant__diagnose`
+1. 当前安装包清单：当前版本具备什么、入口在哪里、默认值是什么。
+2. Cherry Studio 官方文档：清单未覆盖的详细用法和版本变化。
 
-| action | 说明 |
-|--------|------|
-| `info` | 版本、路径、系统信息 |
-| `providers` | Provider 配置（隐藏 Key） |
-| `health` + `provider_id` | 测试连通性（缓存30s） |
-| `errors` + `lines` | ERROR/WARN 条目（推荐优先用） |
-| `logs` + `lines` | 全部日志 |
-| `mcp_status` | MCP Server 状态 |
-| `config` | 用户设置 |
-| `read_source` + `file_path` | 只读源码 |
-| `check_update` | 检查新版本 |
-
-### 排查流程
-
-1. 看 Current Environment 的 Network 段选策略（GitHub不可达→引导飞书表单反馈）
-2. `diagnose(info)` 了解环境
-3. `diagnose(providers)` 检查配置
-4. 连接问题 → `diagnose(health, provider_id)`
-5. 看报错 → 先 `diagnose(errors)` 再 `diagnose(logs)`
-6. MCP 问题 → `diagnose(mcp_status)`
-7. 深入分析 → `diagnose(read_source, file_path)`
-
-### 常见问题速查
-
-- **连接问题**: 检查代理(设置→通用→代理)；Ollama 确认 `ollama serve` 运行(端口11434)；自定义端点确认URL和网络
-- **PDF 问题**: 确认模型支持PDF(GPT-4o/Claude 3+/Gemini 1.5+)；聚合Provider降级文本提取；>10MB可能超时
-- **Agent 问题**: MCP不可用→检查连接+Agent设置已勾选；Plan模式不执行工具；DevTools(Ctrl+Shift+I)看报错
-- **API 错误码**: 401=Key无效, 403=权限不足, 429=限流, 500=服务端错误
-
-## 功能指南
-
-**Provider**: 设置→Provider→选服务商→填Key→点检查。自定义填OpenAI兼容端点。Copilot/CherryIN支持OAuth
-
-**模型**: Provider页→获取模型拉列表。手动+输入ID。能力标签: vision/reasoning/function_calling/web_search
-
-**知识库**: 知识库页→新建→选Embedding模型→导入文档(PDF/DOCX/TXT/MD/网页)→助手关联知识库
-
-**Agent**: Agent页→+创建→选tool_calling模型(Claude/GPT-4o+)→权限(Normal/Plan/Auto-edit/Bypass)→Tools勾选MCP
-
-**MCP**: 设置→MCP→添加Server。类型: stdio/SSE/Streamable HTTP。绿灯=连接，红灯=断开
-
-**主题**: 设置→显示→自定义CSS。主题画廊: cherrycss.com。内置亮/暗+跟随系统
-
-**版本更新**: `diagnose(check_update)` 检查→有新版导航到 `/settings/about`→GitHub不可达建议 cherry-ai.com
-
-**数据备份**: 设置→数据管理。方式: 本地ZIP/WebDAV(坚果云等)/S3(AWS/MinIO/R2)/局域网传输。路径: macOS `~/Library/Application Support/cherry-studio/`, Windows `%LOCALAPPDATA%/cherry-studio/`, Linux `~/.config/cherry-studio/`
-
-## 支持的 Provider（62+）
-
-国际: OpenAI, Anthropic, Google Gemini, Azure, Mistral, Bedrock, VertexAI, GitHub Models/Copilot | 聚合: Cherry In, OpenRouter, AiHubMix, ocoolAI, PPIO, 302.AI, New API, Vercel AI | 国内: DeepSeek, 智谱, Moonshot, 百川, 通义, StepFun, 豆包, MiniMax, 混元, 百度云, ModelScope, Yi, MiMo | 本地: Ollama, LM Studio, OpenVINO, GPUStack | 加速: Groq, Together, Fireworks, Cerebras, Hyperbolic, SiliconFlow | 其他: Perplexity, Grok, Jina, HuggingFace, VoyageAI, Poe, nvidia | 支持任何 OpenAI 兼容端点
-
-## 快捷键
-
-Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L 清空话题, +[ 助手列表, +] 话题列表, +Shift+M 选模型, +Shift+C 复制最后消息, +E 迷你窗口, +, 设置, +/-/0 缩放。自定义: 设置→快捷键
-
-## 多语言
-
-11种: 英/简中/繁中/日/法/德/西/葡/俄/罗马尼亚/希腊。切换: 设置→通用→语言
-
-## 新手 FAQ
-
-| 问 | 答 |
-|----|-----|
-| 第一次对话 | 首页选助手→选模型→发消息 |
-| 怎么选模型 | 先配Provider(API Key)→聊天顶部选 |
-| 免费模型 | Ollama本地免费; Copilot有免费额度 |
-| Token | AI计量单位, ≈0.7中文字/4英文字符 |
-| 对话历史 | 左侧话题列表, 自动保存本地 |
-| 导出对话 | 话题右键→导出(MD/图片) |
-| 数据安全 | 全部本地存储, Key本地加密 |
-| MCP是什么 | 让AI调用外部工具(搜索/数据库/API等) |
-
-## 反馈渠道
-
-**Bug/需求提交**(推荐): 飞书表单 https://mcnnox2fhjfq.feishu.cn/share/base/form/shrcnkR1s45VDuFnV3GbD6VhnIJ
-
-**GitHub**: Issues https://github.com/CherryHQ/cherry-studio/issues | Discussions https://github.com/CherryHQ/cherry-studio/discussions | 看板 https://github.com/orgs/CherryHQ/projects/7
-
-**社群**: Discord https://discord.gg/wez8HtpxqQ | Telegram https://t.me/CherryStudioAI | X https://twitter.com/CherryStudioHQ | QQ群 575014769 | 论坛 linux.do
-
-**官网**: cherry-ai.com | 中文文档 docs.cherry-ai.com | 主题 cherrycss.com | 邮箱 support@cherry-ai.com / bd@cherry-ai.com
-
-中文用户推荐QQ群/linux.do/飞书表单, 国际用户推荐Discord/Telegram/GitHub
-
-## GitHub CLI 引导
-
-提交Issue前检测 `gh auth status`。未登录→告知安装 https://cli.github.com/ 后 `gh auth login`。不想配→记录本地+引导飞书表单/社区论坛
-
-## 日志路径
-
-macOS正式: ~/Library/Application Support/CherryStudio/logs/ | 开发: CherryStudioDev/logs/ | Windows: %APPDATA%/CherryStudio/logs/
+发生冲突时，当前安装包清单优先于旧文档和模型记忆。清单不包含版本历史；无法从官方资料核实时，不得编造更新内容。

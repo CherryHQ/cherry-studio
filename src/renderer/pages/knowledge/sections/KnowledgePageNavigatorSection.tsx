@@ -1,5 +1,8 @@
-import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { type MouseEvent as ReactMouseEvent, useCallback, useRef, useState } from 'react'
+
+import { useReorder } from '@data/hooks/useReorder'
+import { useKnowledgeBaseReorder } from '@renderer/hooks/useKnowledgeBase'
+import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 
 import { BaseNavigator } from '../components/navigator'
 import { useKnowledgePage } from '../KnowledgePageProvider'
@@ -24,6 +27,11 @@ const KnowledgePageNavigatorSection = () => {
     deleteGroup,
     deleteBase
   } = useKnowledgePage()
+  const { move: reorderBase, isPending: isReorderingBase } = useKnowledgeBaseReorder()
+  const { move: reorderGroup, isPending: isReorderingGroup } = useReorder('/groups', {
+    query: { entityType: 'knowledge' }
+  })
+
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const contentLeftRef = useRef(0)
 
@@ -44,6 +52,9 @@ const KnowledgePageNavigatorSection = () => {
 
   return (
     <BaseNavigator
+      onReorderBase={reorderBase}
+      onReorderGroup={reorderGroup}
+      isReordering={isReorderingBase || isReorderingGroup}
       bases={bases}
       groups={groups}
       isLoading={isLoading}

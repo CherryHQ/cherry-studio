@@ -10,12 +10,13 @@
  * inlines the bytes as base64 `data:` URLs before they hit the provider.
  *
  * Large-file upload through provider File APIs (Gemini File / OpenAI
- * Files) is not yet wired — see
- * `v2-refactor-temp/docs/ai/large-file-upload-port.md`. Until that
- * lands, large PDFs / media fall back to inline base64 here.
+ * Files) is not yet wired (GitHub issue #19706). Large PDFs / media
+ * currently fall back to inline base64 here.
  */
 
 import { fileURLToPath } from 'node:url'
+
+import mime from 'mime'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -25,6 +26,30 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('ai:fileProcessor')
+
+// `type/subtype`, per RFC 6838; `*` in the subtype allows the `image/*`
+// placeholder the ai-sdk gateway converters emit for remote images with no
+// discoverable mime. Anything else (a bare extension like `.png`, a token
+// like `png`, `image`) gets replaced — providers throw
+// `file part media type <raw>` on the ai-sdk side otherwise.
+const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.*-]+$/i
+
+/**
+ * Last-line defense before provider dispatch: any FileUIPart heading out of the
+ * chat pipeline gets a `type/subtype` mediaType or a filename/URL-inferred
+ * fallback. Covers stale rows migrated with a bad mediaType and any future
+ * intake path that skips the disk-mime overwrite.
+ */
+function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
+  if (PROPER_MEDIA_TYPE_RE.test(part.mediaType ?? '')) return part
+  const fallback = mime.getType(part.filename ?? part.url ?? '') ?? 'application/octet-stream'
+  logger.warn('Replaced malformed mediaType before provider dispatch', {
+    raw: part.mediaType,
+    fallback,
+    filename: part.filename
+  })
+  return { ...part, mediaType: fallback }
+}
 
 /**
  * Resolve a FileEntryId via FileManager → base64 data URL + its on-disk MIME.
@@ -73,6 +98,39 @@ async function fileUrlToDataUrl(fileUrl: string) {
  * need to change.
  */
 export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
+  const materialized = await materializeInner(part)
+  if (materialized === null) return null
+  const normalized = sanitizeFilePartMediaType(materialized)
+  // Validate only locally available formats in this contract. Do not fetch
+  // remote URLs or reject other formats merely because this decoder lacks them.
+  if (!/^image\/(?:png|jpeg|webp|gif)$/i.test(normalized.mediaType) || !normalized.url.startsWith('data:'))
+    return normalized
+  try {
+    const comma = normalized.url.indexOf(',')
+    if (comma < 0) return null
+    const header = normalized.url.slice(0, comma)
+    const payload = normalized.url.slice(comma + 1)
+    const bytes = /;base64$/i.test(header)
+      ? Buffer.from(payload, 'base64')
+      : Buffer.from(
+          payload.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16))),
+          'binary'
+        )
+    const sharp = (await import('sharp')).default
+    // Metadata/magic alone accepts truncated pixel data. Strict decode also
+    // rejects malformed-but-displayable files; persisted attachments stay intact.
+    await sharp(bytes, { failOn: 'error', limitInputPixels: 100_000_000 }).stats()
+    return normalized
+  } catch {
+    logger.warn('Unreadable image attachment; using the existing file failure note', {
+      filename: normalized.filename,
+      mediaType: normalized.mediaType
+    })
+    return null
+  }
+}
+
+async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
   const fileEntryId = readCherryMeta(part)?.fileEntryId
   if (fileEntryId) {
     const inlined = await fileEntryIdToDataUrl(fileEntryId)

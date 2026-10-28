@@ -1,3 +1,8 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { type FC, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Accordion,
   AccordionContent,
@@ -13,13 +18,9 @@ import {
   Form,
   Scrollbar
 } from '@cherrystudio/ui'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from '@renderer/services/toast'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import { type FC, useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
+import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 
 import {
   buildMcpSchema,
@@ -43,7 +44,7 @@ interface Props {
 
 const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingServers, onCreate }) => {
   const { t } = useTranslation()
-  const [serverType, setServerType] = useState<McpServer['type']>('stdio')
+  const [serverType, setServerType] = useState<McpServerType>('stdio')
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 

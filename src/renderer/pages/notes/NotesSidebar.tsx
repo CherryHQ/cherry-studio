@@ -1,13 +1,14 @@
+import { FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'
-import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
-import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { NotesSortType, NotesTreeNode, RenameNote } from '@renderer/types/note'
 
 import { useFullTextSearch } from './hooks/useFullTextSearch'
 import { useNotesEditing } from './hooks/useNotesEditing'
@@ -19,7 +20,7 @@ interface NotesSidebarProps {
   onCreateNote: (name: string, targetFolderId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
   onDeleteNode: (nodeId: string) => void
-  onRenameNode: (nodeId: string, newName: string) => void
+  onRenameNode: RenameNote
   onToggleExpanded: (nodeId: string) => void
   onToggleStar: (nodeId: string) => void
   onMoveNode: (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => void
@@ -30,6 +31,8 @@ interface NotesSidebarProps {
   sortType: NotesSortType
   selectedFolderId?: string | null
 }
+
+const renderNoteFileIcon = () => <FileText size={16} className="shrink-0" />
 
 const collectExpandedIds = (nodes: NotesTreeNode[], result: Set<string>): Set<string> => {
   for (const node of nodes) {
@@ -323,6 +326,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   return (
     <div
+      data-ui="notes.navigation"
       className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
       onDragOver={(e) => {
         e.preventDefault()
@@ -381,6 +385,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 selectedId={selectedId}
                 onSelectedChange={handleFileTreeSelectedChange}
                 onMove={handleMove}
+                fileIcon={renderNoteFileIcon}
                 renameSlot={renameSlot}
                 animationSlot={animationSlot}
                 renderRowExtras={renderRowExtras}

@@ -1,56 +1,33 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
+
+import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
-import type { FileEntry, FileHandle } from '@shared/data/types/file'
+import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
+import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { S3Config, WebDavConfig } from '@shared/types/backup'
+import type { BackupResult, LocalBackupConfig, S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
   AbsoluteFilePath,
   CreateInternalEntryIpcParams,
+  DirectoryEntry,
+  DirectoryListOptions,
   EnsureExternalEntryIpcParams,
-  GetPhysicalPathIpcParams,
-  PhysicalFileMetadata
+  GetPhysicalPathIpcParams
 } from '@shared/types/file'
-import type {
-  LanClientEvent,
-  LanFileCompleteMessage,
-  LanHandshakeAckMessage,
-  LanTransferConnectPayload,
-  LanTransferState
-} from '@shared/types/lanTransfer'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
-import type { SkillFileNode, SkillResult } from '@shared/types/skill'
-import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
-import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
-
-type DirectoryListOptions = {
-  recursive?: boolean
-  maxDepth?: number
-  includeHidden?: boolean
-  includeFiles?: boolean
-  includeDirectories?: boolean
-  maxEntries?: number
-  searchPattern?: string
-}
-
-type DirectoryEntry = {
-  path: string
-  isDirectory: boolean
-}
 
 type ShortcutRegistrationConflictPayload = {
   key: ShortcutPreferenceKey
@@ -60,8 +37,6 @@ type ShortcutRegistrationConflictPayload = {
 
 // Custom APIs for renderer
 const api = {
-  setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
-  setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
@@ -73,8 +48,6 @@ const api = {
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
-  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
-  clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
     // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
@@ -87,7 +60,8 @@ const api = {
     // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
     backup: (fileName: string, destinationPath: string, skipBackupFile?: boolean) =>
       ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
-    backupToWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
+    backupToWebdav: (webdavConfig: WebDavConfig): Promise<BackupResult<boolean>> =>
+      ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
     listWebdavFiles: (webdavConfig: WebDavConfig) =>
@@ -98,7 +72,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
-    backupToLocalDir: (fileName: string, localConfig: { localBackupDir?: string; skipBackupFile?: boolean }) =>
+    backupToLocalDir: (fileName: string | undefined, localConfig: LocalBackupConfig): Promise<BackupResult<string>> =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, fileName, localConfig),
     restoreFromLocalBackup: (fileName: string, localBackupDir?: string) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromLocalBackup, fileName, localBackupDir),
@@ -108,15 +82,12 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
     checkWebdavConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
-    backupToS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, s3Config),
+    backupToS3: (s3Config: S3Config): Promise<BackupResult<unknown>> =>
+      ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, s3Config),
     restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
     listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
     deleteS3File: (fileName: string, s3Config: S3Config) =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
-    createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
-    deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config)
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
@@ -127,7 +98,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<AbsoluteFilePath> =>
       ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDelete: (handle: FileHandle): Promise<void> => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
     deleteExternalFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalFile, filePath),
     deleteExternalDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalDir, dirPath),
@@ -150,13 +120,7 @@ const api = {
     saveImage: (name: string, data: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
-    savePastedImage: (imageData: Uint8Array, extension?: string) =>
-      ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
-    isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
-    isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    getMetadata: (handle: FileHandle): Promise<PhysicalFileMetadata> =>
-      ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     listDirectoryEntries: (dirPath: string, options?: DirectoryListOptions): Promise<DirectoryEntry[]> =>
@@ -176,20 +140,6 @@ const api = {
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
-  },
-  tree: {
-    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
-    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
-    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
-    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
-        if (payload && typeof payload === 'object') callback(payload)
-      }
-      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
-      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
-    }
   },
   command: {
     showNativePopupMenu: (
@@ -228,11 +178,8 @@ const api = {
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
   // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
-  // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
+  // `ipcApi.request('oauth.*' | 'cherryin.*')`.
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
-  externalApps: {
-    detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled)
-  },
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
     decryptToken: (token: string) => ipcRenderer.invoke(IpcChannel.Nutstore_DecryptToken, token),
@@ -244,7 +191,8 @@ const api = {
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
-    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
+    getData: (topicId: string, traceId: string, cursor?: TraceDataCursor): Promise<TraceDataResult> =>
+      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, cursor),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   shortcut: {
@@ -273,19 +221,6 @@ const api = {
     getAllShared: (): Promise<Record<string, CacheEntry>> => ipcRenderer.invoke(IpcChannel.Cache_GetAllShared)
   },
 
-  // StorageMonitorService related APIs (main-process disk-space watcher)
-  storageMonitor: {
-    // Pull the current disk-space health to seed initial state on mount
-    getHealth: (): Promise<StorageHealth> => ipcRenderer.invoke(IpcChannel.StorageMonitor_GetHealth),
-
-    // Subscribe to health transitions (ok <-> low) pushed from Main
-    onHealthChange: (callback: (health: StorageHealth) => void) => {
-      const listener = (_: any, health: StorageHealth) => callback(health)
-      ipcRenderer.on(IpcChannel.StorageMonitor_HealthChanged, listener)
-      return () => ipcRenderer.off(IpcChannel.StorageMonitor_HealthChanged, listener)
-    }
-  },
-
   // PreferenceService related APIs
   // DO NOT MODIFY THIS SECTION
   preference: {
@@ -307,7 +242,7 @@ const api = {
   },
   // Data API related APIs
   dataApi: {
-    request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
+    request: (req: DataRequest): Promise<DataResponse<unknown>> => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
     // DataApi data change notifications: single fixed channel, main → all windows.
     onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
       const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)
@@ -316,42 +251,7 @@ const api = {
     }
   },
   // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc
-  ipcApi,
-  // All `ai.*` / `translate.*` capability IPC moved to IpcApi (`ipcApi.request(...)` /
-  // `ipcApi.on('ai.stream_*')`): model ops, streaming chat + translate, agent-session
-  // warm-up, tool approval, agent run-task, and the topic/agent-session auto-rename events.
-  skill: {
-    readSkillFile: (skillId: string, filename: string): Promise<SkillResult<string | null>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ReadFile, skillId, filename),
-    listFiles: (skillId: string): Promise<SkillResult<SkillFileNode[]>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId)
-  },
-  lanTransfer: {
-    startScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StartScan),
-    stopScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StopScan),
-    connect: (payload: LanTransferConnectPayload): Promise<LanHandshakeAckMessage> =>
-      ipcRenderer.invoke(IpcChannel.LanTransfer_Connect, payload),
-    disconnect: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_Disconnect),
-    onServicesUpdated: (callback: (state: LanTransferState) => void): (() => void) => {
-      const channel = IpcChannel.LanTransfer_ServicesUpdated
-      const listener = (_: Electron.IpcRendererEvent, state: LanTransferState) => callback(state)
-      ipcRenderer.on(channel, listener)
-      return () => {
-        ipcRenderer.removeListener(channel, listener)
-      }
-    },
-    onClientEvent: (callback: (event: LanClientEvent) => void): (() => void) => {
-      const channel = IpcChannel.LanTransfer_ClientEvent
-      const listener = (_: Electron.IpcRendererEvent, event: LanClientEvent) => callback(event)
-      ipcRenderer.on(channel, listener)
-      return () => {
-        ipcRenderer.removeListener(channel, listener)
-      }
-    },
-    sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
-      ipcRenderer.invoke(IpcChannel.LanTransfer_SendFile, { filePath }),
-    cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_CancelTransfer)
-  }
+  ipcApi
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -1,5 +1,16 @@
 import { defineProvider } from './types'
 
+const webFetchModels = [
+  'claude-haiku-5-5',
+  'claude-sonnet-5-5',
+  'claude-opus-4',
+  'claude-sonnet-4',
+  'claude-haiku-4',
+  'claude-3-5-haiku',
+  'claude-3-5-sonnet',
+  'claude-3-7-sonnet'
+]
+
 /**
  * Models that need an explicit 1M-context twin, paired with their catalog name.
  *
@@ -18,8 +29,9 @@ import { defineProvider } from './types'
  * | ---------------------- | ---------- | -------------------------------------- |
  * | Opus 4.6 / 4.7 / 4.8   | yes        | yes — Pro pays usage credits for it    |
  * | Opus 5                 | yes        | yes — same gating as the other Opuses  |
+ * | Opus 5.5               | yes        | no — 1M on every plan, incl. Pro       |
  * | Sonnet 4.6             | yes        | yes — credits on EVERY plan, incl. Max |
- * | Fable 5, Sonnet 5      | yes        | no — always 1M, nothing to select      |
+ * | Fable 5 / 5.1, Sonnet 5 | yes       | no — always 1M, nothing to select      |
  * | Opus 4.5 / 4.1, Sonnet 4.5, Haiku 4.5 | no | no — 200K models              |
  *
  * On a raw API key the twins are redundant (Opus 4.7+ always runs at 1M there),
@@ -45,12 +57,17 @@ const EXTENDED_CONTEXT_MODELS = [
 export default defineProvider({
   id: 'claude-code',
   name: 'Claude Code',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'anthropic-messages',
   modelListSource: 'registry',
   authMethods: ['external-cli'],
+  fastMode: { transport: 'claude-code' },
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
   },
+  // url-context only, no web-search: web_fetch is free while web_search bills
+  // per use, which the subscription OAuth credential cannot be charged for.
+  serverTools: [{ id: 'url-context', modelScope: 'model-dependent', modelIdPrefixes: webFetchModels }],
   metadata: {
     website: {
       official: 'https://www.anthropic.com/claude-code',
@@ -58,6 +75,10 @@ export default defineProvider({
     }
   },
   overrides: [
+    { modelId: 'claude-haiku-5-5' },
+    { modelId: 'claude-sonnet-5-5' },
+    { modelId: 'claude-fable-5-1' },
+    { modelId: 'claude-opus-5-5', supportsFastMode: true },
     { modelId: 'claude-fable-5' },
     { modelId: 'claude-sonnet-5' },
     { modelId: 'claude-opus-4-5' },
@@ -67,9 +88,14 @@ export default defineProvider({
     // Each extended-context model is served twice: the plain id, and its `[1m]`
     // twin. The plain row pins `apiModelId` to its own id so it always claims the
     // canonical `providerId::modelId` slot, whatever order the rows are indexed in.
-    ...EXTENDED_CONTEXT_MODELS.flatMap(([modelId, name]) => [
-      { modelId, apiModelId: modelId },
-      { modelId, apiModelId: `${modelId}[1m]`, name: `${name} (1M context)` }
-    ])
+    ...EXTENDED_CONTEXT_MODELS.flatMap(([modelId, name]) => {
+      const supportsFastMode = modelId === 'claude-opus-5' || modelId === 'claude-opus-4-8'
+      const fastModeOverride = supportsFastMode ? { supportsFastMode: true } : {}
+
+      return [
+        { modelId, apiModelId: modelId, ...fastModeOverride },
+        { modelId, apiModelId: `${modelId}[1m]`, name: `${name} (1M context)`, ...fastModeOverride }
+      ]
+    })
   ]
 })

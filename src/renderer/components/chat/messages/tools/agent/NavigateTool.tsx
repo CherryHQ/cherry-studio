@@ -1,3 +1,4 @@
+export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,16 +23,17 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/app/agents': { icon: '🤖', labelKey: 'agent.sidebar_title' },
 
   // Settings pages
+  '/settings/general': { icon: '⚙️', labelKey: 'settings.general.common.title' },
   '/settings/provider': { icon: '🔑', labelKey: 'settings.provider.title' },
   '/settings/model': { icon: '🤖', labelKey: 'settings.model' },
   '/settings/local-models': { icon: '📦', labelKey: 'settings.dependencies.localModels.title' },
   '/settings/appearance': { icon: '🎨', labelKey: 'settings.appearance.title' },
   '/settings/notifications': { icon: '🔔', labelKey: 'settings.notification.title' },
-  '/settings/system': { icon: '⚙️', labelKey: 'settings.system.title' },
   '/settings/data': { icon: '💾', labelKey: 'settings.data.title' },
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
   '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
+  '/settings/device-connections': { icon: '📱', labelKey: 'deviceConnections.title' },
   '/settings/file-processing': {
     icon: '📄',
     labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
@@ -41,6 +43,13 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/quick-assistant': { icon: '🪟', labelKey: 'settings.quickAssistant.title' },
   '/settings/selection-assistant': { icon: '✂️', labelKey: 'selection.name' },
   '/settings/about': { icon: 'ℹ️', labelKey: 'settings.about.label' },
+  '/settings/channels': { icon: '📡', labelKey: 'settings.channels.title' },
+  '/settings/code-execution': { icon: '⚙️', labelKey: 'chat.settings.code_execution.title' },
+  '/settings/dependencies': { icon: '🛠️', labelKey: 'settings.dependencies.title' },
+  '/settings/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
+  '/settings/skills': { icon: '🧰', labelKey: 'settings.skills.title' },
+  '/settings/usage': { icon: '📊', labelKey: 'settings.usage.title' },
+  '/settings/profile': { icon: '👤', labelKey: 'settings.profile.title' },
 
   // MCP sub-pages
   '/settings/mcp/servers': { icon: '📋', labelKey: 'settings.mcp.title' },
@@ -125,13 +134,13 @@ export function NavigateToolInline({
     <button
       onClick={handleClick}
       disabled={!basePath || !navigateToRoute}
-      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border border-solid bg-muted px-3 py-1.5 text-foreground text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-muted"
+      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-solid border-border bg-muted px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-muted"
       type="button">
       <Compass className="h-3.5 w-3.5 opacity-60" />
       <span>
         {routeInfo.icon} {routeInfo.labelKey ? t(routeInfo.labelKey) : routeInfo.label}
       </span>
-      {isSuccess && <span className="text-green-500">✓</span>}
+      {isSuccess && <span className="text-success">✓</span>}
     </button>
   )
 }

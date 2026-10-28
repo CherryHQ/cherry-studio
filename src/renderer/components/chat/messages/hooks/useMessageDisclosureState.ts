@@ -1,11 +1,12 @@
 import { type Dispatch, type SetStateAction, useCallback, useState, useSyncExternalStore } from 'react'
 
-import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 import {
   getCachedMessageUiState,
   subscribeCachedMessageUiState,
   updateCachedMessageUiState
-} from '../utils/messageUiStateCache'
+} from '@renderer/services/messageUiStateCache'
+
+import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 
 function readExpanded(
   messageId: string | undefined,
@@ -23,9 +24,11 @@ function readExpanded(
  */
 export function useMessageDisclosureState(
   disclosureId: string | undefined,
-  defaultExpanded = false
+  defaultExpanded = false,
+  ownerMessageId?: string
 ): readonly [boolean, Dispatch<SetStateAction<boolean>>] {
-  const messageId = useMessagePartsScopeId()
+  const scopedMessageId = useMessagePartsScopeId()
+  const messageId = ownerMessageId ?? scopedMessageId
   const [unscopedExpanded, setUnscopedExpanded] = useState(defaultExpanded)
 
   const subscribe = useCallback(

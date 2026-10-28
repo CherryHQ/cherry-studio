@@ -1,7 +1,8 @@
-import { Divider as SettingDivider } from '@cherrystudio/ui'
+import React from 'react'
+
+import { Divider as SettingDivider, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import React from 'react'
 
 export { SettingDivider }
 
@@ -19,21 +20,18 @@ export const SettingContainer = ({
 
 // Canonical settings page container — mirrors the model service (Provider Settings) detail column:
 // outer p-6 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
-// Pages with their own internal split layout (Data / Integration / MCP / WebSearch / FileProcessing / Channels)
-// keep SettingContainer instead. See DESIGN.md §4 "Settings Page Content Container".
+// Pages with their own internal split layout (Data / Integration / MCP / Channels)
+// keep SettingContainer instead.
 export const SettingsContentColumn = ({
   className,
   innerClassName,
   theme,
   children,
   ...rest
-}: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; innerClassName?: string }) => (
-  <div
-    data-theme-mode={theme}
-    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden', className)}
-    {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
-  </div>
+}: React.ComponentPropsWithoutRef<typeof Scrollbar> & { theme?: ThemeMode; innerClassName?: string }) => (
+  <Scrollbar data-theme-mode={theme} className={cn('flex min-h-0 min-w-0 flex-1 flex-col p-6', className)} {...rest}>
+    <div className={cn('mx-auto w-full max-w-3xl shrink-0 [scrollbar-color:auto]', innerClassName)}>{children}</div>
+  </Scrollbar>
 )
 
 // Body variant for pages that handle their own Scrollbar (e.g. ShortcutSettings).
@@ -51,7 +49,7 @@ export const SettingsContentBody = ({
 
 export const SettingTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex select-none items-center justify-between font-semibold text-[15px]', className)}
+    className={cn('flex items-center justify-between text-[15px] font-semibold select-none', className)}
     {...props}
   />
 )
@@ -61,11 +59,11 @@ export const SettingSubtitle = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div ref={ref} className={cn('select-none font-semibold text-foreground text-sm', className)} {...props} />
+  <div ref={ref} className={cn('text-sm font-semibold text-foreground select-none', className)} {...props} />
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2.5 text-foreground-muted text-xs', className)} {...props} />
+  <div className={cn('mt-2.5 text-xs text-muted-foreground', className)} {...props} />
 )
 
 export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -74,7 +72,7 @@ export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutR
 
 export const SettingRowTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex min-w-0 flex-wrap items-center text-foreground text-sm leading-4.5', className)}
+    className={cn('flex min-w-0 flex-wrap items-center text-sm leading-4.5 text-foreground', className)}
     {...props}
   />
 )
@@ -84,11 +82,11 @@ export const SettingHelpTextRow = ({ className, ...props }: React.ComponentProps
 )
 
 export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-[11px] text-foreground/40', className)} {...props} />
+  <div className={cn('text-[11px] text-muted-foreground', className)} {...props} />
 )
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-  <a className={cn('cursor-pointer text-[11px] text-primary hover:underline', className)} {...props} />
+  <a className={cn('cursor-pointer text-[11px] text-link hover:underline', className)} {...props} />
 )
 
 export const SettingTitleExternalLink = ({
@@ -100,7 +98,7 @@ export const SettingTitleExternalLink = ({
   <a
     target={target}
     rel={rel}
-    className={cn('inline-flex items-center text-primary hover:underline', className)}
+    className={cn('inline-flex items-center text-link hover:underline', className)}
     {...props}
   />
 )
@@ -121,7 +119,7 @@ export const SettingGroup = ({
     className={cn(
       variant === 'card'
         ? 'mt-4 rounded-xl border border-border bg-card p-4 first:mt-0'
-        : 'mt-2 border-border/60 border-t pt-3 first:mt-0 first:border-t-0 first:pt-0',
+        : 'mt-2 border-t border-border-subtle pt-3 first:mt-0 first:border-t-0 first:pt-0',
       className
     )}
     {...props}

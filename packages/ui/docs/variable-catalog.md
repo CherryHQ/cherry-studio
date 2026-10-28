@@ -61,7 +61,7 @@ Component, page, and Electron-shell custom properties are a separate ownership c
 The migration registry's historical `--app-*` entries are retired semantic bridges, not a namespace-wide ban on
 genuine host-local variables.
 
-The Renderer Sidebar's active-row and glow custom properties are scoped by
+The Renderer Sidebar's hover and active-row custom properties are scoped by
 `src/renderer/components/Sidebar/Sidebar.css`. They remain private implementation details even though the Sidebar
 appears throughout the main App Shell; visual reach through one owner does not make them cross-package semantics.
 
@@ -117,8 +117,12 @@ Stable product variables are allowed in new code when no official Shadcn role ex
 | Variable | Intended property and role |
 | --- | --- |
 | `--background-subtle` | Very quiet product-wide surface background |
+| `--foreground-tertiary` | Low-emphasis metadata, empty-state copy, and quiet icon `color` |
+| `--foreground-disabled` | Disabled or unavailable foreground `color` |
 | `--border-subtle` | Very quiet `border-color` |
 | `--border-strong` | Higher-emphasis structural `border-color` |
+| `--border-selected` | Selected-state `border-color`; focus remains `--ring` |
+| `--link` | Clickable text `color`; independent default blue, separate from `--primary` |
 
 ### Feedback families
 
@@ -139,11 +143,14 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | --- | --- | --- |
 | Code blocks | `--code-block` | Block code `background-color` |
 | Inline code | `--inline-code`, `--inline-code-foreground` | Inline code `background-color` / `color` |
+| Default code theme | `--cherry-code-background`, `--cherry-code-foreground`, `--cherry-code-muted`, `--cherry-code-selection`, `--cherry-code-keyword`, `--cherry-code-string`, `--cherry-code-constant`, `--cherry-code-type`, `--cherry-code-function`, `--cherry-code-tag`, `--cherry-code-link`, `--cherry-code-inserted`, `--cherry-code-deleted` | Palette of the `cherry` code theme: transparent surface, text, selection, syntax roles, and diff text `color` |
 | References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
+| Markdown alerts | `--markdown-important` | Important alert title and icon accent |
 | Conversation surfaces | `--chat-message-well`, `--chat-message-well-solid` | Recessed message-well surface (translucent, so it keeps the window's vibrancy), and the tone it resolves to over the rails — image exports have no window behind them and need the solid one |
 | User message | `--chat-user` | User-message surface |
 | Composer | `--composer-surface` | Composer surface floating above its page, in every domain that mounts one (chat, agent, painting) |
+| Resource-list rows | `--resource-list-row-hover`, `--resource-list-row-active`, `--resource-list-row-active-foreground`, `--resource-list-row-selected`, `--resource-list-row-selected-foreground` | Cross-surface resource navigation row states; hover preserves the row's existing foreground hierarchy, while active and selected use explicit surface pairs |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text use the matching unprefixed variable directly.
@@ -177,7 +184,7 @@ Preferred custom CSS usage:
 
 ```css
 .rich-text a {
-  color: var(--primary);
+  color: var(--link);
 }
 
 .reference {

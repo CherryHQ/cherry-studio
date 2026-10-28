@@ -1,6 +1,7 @@
+import { createFileRoute } from '@tanstack/react-router'
+
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import BuiltinMcpServerList from '@renderer/pages/settings/McpSettings/BuiltinMcpServerList'
-import { createFileRoute } from '@tanstack/react-router'
 
 const BuiltinWrapper = () => (
   <SettingsContentColumn className="pt-2">

@@ -1,8 +1,9 @@
-import type { ConfirmDialog } from '@cherrystudio/ui'
-import type { CodeCli } from '@shared/types/codeCli'
 import type { ComponentProps } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { ConfirmDialog } from '@cherrystudio/ui'
+import type { CodeCli } from '@shared/types/codeCli'
 
 interface RemoveCliToolDialogController {
   removeDialogProps: ComponentProps<typeof ConfirmDialog>
@@ -26,6 +27,8 @@ export function useRemoveCliToolDialog({
       onOpenChange: (open) => !open && setRemoveTarget(null),
       title: t('settings.dependencies.uninstallConfirmTitle'),
       description: t('settings.dependencies.uninstallConfirmMessage', { name: toolName }),
+      cancelText: t('common.cancel'),
+      confirmText: t('common.confirm'),
       destructive: true,
       confirmLoading: isRemoving,
       onConfirm: async () => {

@@ -1,5 +1,21 @@
-import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  Button,
+  RowFlex,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
@@ -14,29 +30,73 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
+import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
+import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
-import type React from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
+import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
+import {
+  beginLegacyV1Cleanup,
+  clearLegacyV1BrowserData,
+  finalizeLegacyV1Cleanup,
+  mergeLegacyV1CleanupResults
+} from './legacyV1BrowserData'
 import RestorePopup from './RestorePopup'
+import V1RemigrationPopup from './V1RemigrationPopup'
 
-const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
+const V1_INDEXED_DB_NAME = 'CherryStudio'
+const V1_REDUX_PERSIST_KEY = 'persist:cherry-studio'
+const logger = loggerService.withContext('BasicDataSettings')
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
-  const [cacheSize, setCacheSize] = useState<string>('')
+  const [cacheSize, setCacheSize] = useState<CacheCleanupSizeSnapshot | null>()
+  const [clearingCache, setClearingCache] = useState(false)
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+  const [logRetentionDays, setLogRetentionDays] = usePreference('app.logs.retention_days')
+  const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
+    () => localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
+  )
+
+  useEffect(() => {
+    if (hasV1MigrationSource) return
+
+    let cancelled = false
+    void indexedDB
+      .databases()
+      .then((databases) => {
+        if (!cancelled && databases.some((database) => database.name === V1_INDEXED_DB_NAME)) {
+          setHasV1MigrationSource(true)
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to inspect IndexedDB for retained v1 data', { error: String(error) })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [hasV1MigrationSource])
+
+  const refreshCacheSize = useCallback(async () => {
+    try {
+      const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
+      setCacheSize(response.results[0]?.size ?? null)
+    } catch (error) {
+      logger.warn('Failed to inspect normal cache size', error as Error)
+      setCacheSize(null)
+    }
+  }, [])
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
-    void window.api.getCacheSize().then(setCacheSize)
-  }, [])
+    void refreshCacheSize()
+  }, [refreshCacheSize])
 
   const handleSelectAppDataPath = async () => {
     if (!appInfo || !appInfo.appDataPath) {
@@ -155,7 +215,8 @@ const BasicDataSettings: React.FC = () => {
       window.setTimeout(() => {
         void ipcApi.request('app.relaunch')
       }, 500)
-    } catch {
+    } catch (error) {
+      logger.error('Failed to change application data path', error as Error)
       toast.error(t('settings.data.app_data.path_change_failed'))
     }
   }
@@ -170,26 +231,55 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const handleClearCache = async () => {
-    const confirmed = await popup.confirm({
-      title: t('settings.data.clear_cache.title'),
-      content: t('settings.data.clear_cache.confirm'),
-      okText: t('settings.data.clear_cache.button'),
-      centered: true,
-      okButtonProps: {
-        danger: true
+  const handleClearCache = () => {
+    if (clearingCache) return
+
+    void ClearCachePopup.show({
+      onClear: async (groups) => {
+        setClearingCache(true)
+        try {
+          const legacyRequested = groups.includes('legacy_v1')
+          const legacyMarkerReady = !legacyRequested || beginLegacyV1Cleanup()
+          const runnableGroups = legacyMarkerReady ? groups : groups.filter((group) => group !== 'legacy_v1')
+          const mainResult =
+            runnableGroups.length > 0
+              ? await ipcApi.request('app.cache_cleanup.run', { groups: runnableGroups })
+              : { results: [] }
+          const results = [...mainResult.results]
+
+          if (legacyRequested && legacyMarkerReady) {
+            const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
+            const mainLegacyResult = results[legacyIndex]
+            if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
+            results[legacyIndex] = finalizeLegacyV1Cleanup(
+              mergeLegacyV1CleanupResults(
+                mainLegacyResult,
+                await clearLegacyV1BrowserData(() =>
+                  toast.warning(t('settings.data.clear_cache.waiting_for_legacy_database'))
+                )
+              )
+            )
+          } else if (legacyRequested) {
+            results.push({ group: 'legacy_v1', status: 'failed' })
+          }
+
+          const hasFailures = results.some(({ status }) => ['partial', 'skipped', 'failed'].includes(status))
+          if (hasFailures) {
+            toast.warning(t('settings.data.clear_cache.partial_success'))
+          } else {
+            toast.success(t('settings.data.clear_cache.success'))
+          }
+          return !hasFailures
+        } catch (error) {
+          logger.error('Cache cleanup failed', error as Error)
+          toast.error(t('settings.data.clear_cache.error'))
+          return false
+        } finally {
+          setClearingCache(false)
+          void refreshCacheSize()
+        }
       }
     })
-    if (!confirmed) return
-
-    try {
-      await window.api.clearCache()
-      await window.api.trace.cleanLocalData()
-      await window.api.getCacheSize().then(setCacheSize)
-      toast.success(t('settings.data.clear_cache.success'))
-    } catch (error) {
-      toast.error(t('settings.data.clear_cache.error'))
-    }
   }
 
   const handleDataReset = async () => {
@@ -217,7 +307,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-backup-restore" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
             <Button onClick={() => BackupPopup.show()} variant="outline">
@@ -231,7 +321,7 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
         </SettingRow>
@@ -242,7 +332,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-app-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
             <PathText
@@ -261,7 +351,7 @@ const BasicDataSettings: React.FC = () => {
           </PathRow>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-app-logs" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
             <PathText
@@ -277,19 +367,65 @@ const BasicDataSettings: React.FC = () => {
           </PathRow>
         </SettingRow>
         <SettingDivider />
+        <SettingRow id="setting-data-data-log-retention" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.data.log_retention.label')}</SettingRowTitle>
+          <Select value={String(logRetentionDays)} onValueChange={(value) => void setLogRetentionDays(Number(value))}>
+            <SelectTrigger className="w-40" aria-label={t('settings.data.log_retention.label')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LOG_RETENTION_DAYS.map((days) => (
+                <SelectItem key={days} value={String(days)}>
+                  {t('settings.data.log_retention.days', { days })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SettingRow>
         <SettingRow>
+          <SettingHelpText>{t('settings.data.log_retention.help')}</SettingHelpText>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-data-data-clear-cache" className="scroll-mt-6">
           <SettingRowTitle>
             {t('settings.data.clear_cache.title')}
-            {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
+            {cacheSize !== undefined && (
+              <CacheText>
+                (
+                {cacheSize === null || cacheSize.bytes === null
+                  ? t('settings.data.clear_cache.unavailable')
+                  : cacheSize.completeness === 'partial'
+                    ? t('settings.data.clear_cache.total_partial', {
+                        size: formatCacheCleanupSize(cacheSize.bytes)
+                      })
+                    : t('settings.data.clear_cache.approximately', {
+                        size: formatCacheCleanupSize(cacheSize.bytes)
+                      })}
+                )
+              </CacheText>
+            )}
           </SettingRowTitle>
           <RowFlex className="gap-1.25">
-            <Button onClick={handleClearCache} variant="outline">
+            <Button onClick={handleClearCache} variant="outline" loading={clearingCache}>
               {t('settings.data.clear_cache.button')}
             </Button>
           </RowFlex>
         </SettingRow>
+        {hasV1MigrationSource && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.v1_remigration.title')}</SettingRowTitle>
+              <RowFlex className="gap-1.25">
+                <Button onClick={() => V1RemigrationPopup.show()} variant="outline">
+                  {t('settings.data.v1_remigration.button')}
+                </Button>
+              </RowFlex>
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-reset" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
             <Button onClick={handleDataReset} variant="destructive">
@@ -301,7 +437,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-privacy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
           <Switch
             checked={enableDataCollection}
@@ -317,7 +453,7 @@ const BasicDataSettings: React.FC = () => {
 
 const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-tertiary text-xs leading-4', className)}
     {...props}
   />
 )
@@ -352,7 +488,7 @@ const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithout
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-foreground-secondary text-sm',
+      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground text-sm',
       className
     )}
     {...props}

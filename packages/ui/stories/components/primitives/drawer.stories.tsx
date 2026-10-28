@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from '@storybook/react'
+
 import {
   Button,
   Drawer,
@@ -9,7 +11,6 @@ import {
   DrawerTitle,
   DrawerTrigger
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
 
 const meta: Meta<typeof Drawer> = {
   title: 'Components/Primitives/Drawer',
@@ -152,7 +153,7 @@ export const WithForm: Story = {
             <input
               id="drawer-name"
               defaultValue="John Doe"
-              className="h-9 w-full rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 w-full rounded-md border px-3 text-sm focus:border-primary focus:outline-none"
             />
           </div>
           <div className="space-y-2">
@@ -162,7 +163,7 @@ export const WithForm: Story = {
             <input
               id="drawer-email"
               defaultValue="john@example.com"
-              className="h-9 w-full rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 w-full rounded-md border px-3 text-sm focus:border-primary focus:outline-none"
             />
           </div>
         </div>

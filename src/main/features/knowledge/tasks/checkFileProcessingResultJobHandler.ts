@@ -1,33 +1,36 @@
 import './jobTypes'
-
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { JobContext, JobHandler } from '@main/core/job/types'
-import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
+import type { JobHandler } from '@main/core/job/types'
 import {
   type FileProcessingJobPayload,
   getFileProcessingFailureMessage,
   getFileProcessingMarkdownArtifactPath
 } from '@main/features/fileProcessing'
-import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { KeyedMutex } from '@shared/utils/async'
 
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
-import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
-import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
-import { toKnowledgeRelativePath } from '../utils/storage/pathStorage'
+import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
+import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
 import { cancelJobOrThrow } from './utils/cancel'
-import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
+import { resolveLiveKnowledgeItem } from './utils/liveItem'
+import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
-// Remote document processors can be slow, but a stale paid job should not poll forever.
-const FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000
 const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processing-item-unavailable'
+// Every job type `FileProcessingService.startJob` can enqueue. Keep in sync with
+// its routing — a missing type here fails every item that processor handles.
+const FILE_PROCESSING_JOB_TYPES: ReadonlySet<string> = new Set([
+  'file-processing.background',
+  'file-processing.background-local',
+  'file-processing.remote-poll'
+])
 
 export function createCheckFileProcessingResultJobHandler(
-  knowledgeLockManager: KnowledgeLockManager,
-  workflowService: KnowledgeWorkflowService
+  knowledgeLockManager: KeyedMutex,
+  ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgeCheckFileProcessingResultPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -45,12 +48,30 @@ export function createCheckFileProcessingResultJobHandler(
 
     async execute(ctx) {
       const { baseId, itemId, fileProcessingJobId } = ctx.input
-      const firstScheduledAt = ctx.input.firstScheduledAt
-      const workflowParentJobId = ctx.input.parentJobId ?? ctx.jobId
+      const workflowParentJobId = ctx.parentId ?? ctx.jobId
       ctx.signal.throwIfAborted()
 
       if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
         await cancelJobOrThrow(fileProcessingJobId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
+        return
+      }
+
+      // A job persisted before `processedRelativePath` became a required payload field
+      // (see jobInput.ts) can still be claimed inside the startup quiet window before
+      // recovery abandons it. Its indexed path is unrecoverable — deriving it from the
+      // completed file-processing artifact would give the processor's OUTPUT path, not
+      // the KB raw path this item is addressed by — so fail the item loudly instead of
+      // indexing at an `undefined` path. Cancel the linked file-processing job first
+      // (recovery: 'retry', so it is live again after restart and keeps polling/paying);
+      // this handler is its only consumer, and the cancel helpers can't reap it either
+      // (no in-memory wait tracks a job started before the restart).
+      if (typeof ctx.input.processedRelativePath !== 'string' || ctx.input.processedRelativePath.length === 0) {
+        await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-legacy-payload')
+        markItemFailed(
+          itemId,
+          `Knowledge file-processing check for '${itemId}' has no processedRelativePath (legacy job payload)`
+        )
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
@@ -59,36 +80,13 @@ export function createCheckFileProcessingResultJobHandler(
 
       if (!snapshot) {
         markItemFailed(itemId, `File processing job not found: ${fileProcessingJobId}`)
-        ctx.reportProgress(100, { stage: 'failed' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
       if (!isExpectedFileProcessingJob(snapshot, itemId)) {
         markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
-        ctx.reportProgress(100, { stage: 'failed' })
-        return
-      }
-
-      if (!isTerminalStatus(snapshot.status)) {
-        if (Date.now() - firstScheduledAt >= FILE_PROCESSING_MAX_WAIT_MS) {
-          await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-timeout')
-          markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
-          ctx.reportProgress(100, { stage: 'failed' })
-          return
-        }
-
-        const nextPollRound = ctx.input.pollRound + 1
-        await workflowService.scheduleFileProcessingCheck(
-          toKnowledgeBaseId(baseId),
-          toKnowledgeItemId(itemId),
-          fileProcessingJobId,
-          {
-            pollRound: nextPollRound,
-            firstScheduledAt,
-            parentJobId: workflowParentJobId
-          }
-        )
-        reportWaitingProgress(ctx, fileProcessingJobId, nextPollRound)
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
@@ -97,24 +95,24 @@ export function createCheckFileProcessingResultJobHandler(
           itemId,
           `File processing job ${fileProcessingJobId} ${snapshot.status}: ${getFileProcessingFailureMessage(snapshot)}`
         )
-        ctx.reportProgress(100, { stage: 'failed' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
-      const indexedRelativePath = parseMarkdownArtifactRelativePathOrNull(baseId, snapshot)
-      if (!indexedRelativePath) {
+      if (!isCompletedMarkdownArtifact(snapshot)) {
         markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
-        ctx.reportProgress(100, { stage: 'failed' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
+      const indexedRelativePath = ctx.input.processedRelativePath
 
-      const canContinue = await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+      const canContinue = await knowledgeLockManager.runExclusive(baseId, async () => {
         if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
           return false
         }
 
         knowledgeItemService.updateIndexedRelativePath(itemId, indexedRelativePath)
-        await workflowService.scheduleIndexing(
+        await ingestionService.scheduleIndexing(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
           workflowParentJobId
@@ -124,7 +122,7 @@ export function createCheckFileProcessingResultJobHandler(
       if (!canContinue) {
         return
       }
-      ctx.reportProgress(100, { stage: 'done' })
+      reportKnowledgeProgress(ctx, 100, { stage: 'done' })
     },
 
     async onSettled(event) {
@@ -137,27 +135,8 @@ export function createCheckFileProcessingResultJobHandler(
   }
 }
 
-function reportWaitingProgress(
-  ctx: JobContext<KnowledgeCheckFileProcessingResultPayload>,
-  fileProcessingJobId: string,
-  pollRound: number
-): void {
-  const childProgress = application.get('CacheService').getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
-  if (!childProgress) {
-    ctx.reportProgress(0, { stage: 'waiting', pollRound })
-    return
-  }
-
-  ctx.reportProgress(childProgress.progress, {
-    stage: 'waiting',
-    pollRound,
-    fileProcessingJobId,
-    fileProcessing: childProgress
-  })
-}
-
 function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boolean {
-  if (snapshot.type !== 'file-processing.background' && snapshot.type !== 'file-processing.remote-poll') {
+  if (!FILE_PROCESSING_JOB_TYPES.has(snapshot.type)) {
     return false
   }
   if (!snapshot.input || typeof snapshot.input !== 'object') {
@@ -168,50 +147,48 @@ function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boo
 }
 
 function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): boolean {
-  try {
-    const item = knowledgeItemService.getById(itemId)
-    if (item.baseId !== baseId) {
-      throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
-    }
-    if (item.status === 'deleting') {
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
       logger.info('Skipping file-processing check for deleting item', { baseId, itemId, jobId })
-      return true
-    }
-    return false
-  } catch (error) {
-    if (isDataApiNotFoundError(error)) {
+    } else {
       logger.info('Skipping file-processing check for missing item', { baseId, itemId, jobId })
-      return true
     }
-    throw error
+    return true
   }
+  if (result.item.baseId !== baseId) {
+    throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
+  }
+  return false
 }
 
 function markItemFailed(itemId: string, error: string): void {
-  try {
-    const item = knowledgeItemService.getById(itemId)
-    if (item.status === 'deleting') {
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
       logger.info('Skipping mark failed for deleting item', { itemId, error })
-      return
-    }
-    knowledgeItemService.updateStatus(itemId, 'failed', { error })
-  } catch (updateError) {
-    if (isDataApiNotFoundError(updateError)) {
+    } else {
       logger.info('Skipping mark failed for missing item', { itemId, error })
-      return
     }
-    throw updateError
+    return
   }
+  knowledgeItemService.updateStatus(itemId, 'failed', { error })
 }
 
-function parseMarkdownArtifactRelativePathOrNull(baseId: string, snapshot: JobSnapshot): string | null {
+/**
+ * Validates that a completed file-processing job actually produced a markdown-file
+ * artifact (not a degraded inline-text result) — the item's `indexedRelativePath`
+ * is the job's own `processedRelativePath` input, not derived from this artifact.
+ */
+function isCompletedMarkdownArtifact(snapshot: JobSnapshot): boolean {
   try {
-    return toKnowledgeRelativePath(baseId, getFileProcessingMarkdownArtifactPath(snapshot))
+    getFileProcessingMarkdownArtifactPath(snapshot)
+    return true
   } catch (error) {
     logger.warn('Invalid file-processing result for knowledge item', {
       jobId: snapshot.id,
       error: error instanceof Error ? error.message : String(error)
     })
-    return null
+    return false
   }
 }

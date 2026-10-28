@@ -1,13 +1,22 @@
+import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
-  Badge,
   Button,
-  CodeEditor,
   Combobox,
   type ComboboxOption,
-  EditableNumber,
   Flex,
   InfoTooltip,
+  InputNumber,
   SegmentedControl,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
@@ -15,7 +24,7 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
-import Selector from '@renderer/components/Selector'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import {
   SettingDescription,
   SettingDivider,
@@ -25,7 +34,6 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -37,15 +45,10 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ThemeColorPicker from './components/ThemeColorPicker'
 
@@ -117,7 +120,6 @@ const AppearanceSettings: FC = () => {
   const { theme, settedTheme, setTheme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
-  const { activeCmTheme } = useCodeStyle()
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -125,6 +127,8 @@ const AppearanceSettings: FC = () => {
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
+  const [topicListPosition, setTopicListPosition] = usePreference('topic.tab.position')
+  const [sessionListPosition, setSessionListPosition] = usePreference('agent.session.position')
   const [codeExecution, setCodeExecution] = useMultiplePreferences({
     enabled: 'chat.code.execution.enabled',
     timeoutMinutes: 'chat.code.execution.timeout_minutes'
@@ -181,7 +185,9 @@ const AppearanceSettings: FC = () => {
     }
   }, [])
 
-  const onSelectLanguage = (value: LanguageVarious) => {
+  const onSelectLanguage = (value: string) => {
+    if (!isAppLanguage(value)) return
+
     void i18n.changeLanguage(value)
     void setLanguage(value)
   }
@@ -197,6 +203,14 @@ const AppearanceSettings: FC = () => {
     () => [
       { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
       { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
+    ],
+    [t]
+  )
+
+  const listPositionOptions = useMemo(
+    () => [
+      { value: 'left' as const, label: t('settings.topic.position.left') },
+      { value: 'right' as const, label: t('settings.topic.position.right') }
     ],
     [t]
   )
@@ -321,9 +335,11 @@ const AppearanceSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.theme.title')}</SettingTitle>
         <SettingDivider />
-        <ThemePreviewSelector value={settedTheme} options={themeOptions} onChange={setTheme} />
+        <div id="setting-appearance-theme-mode" className="scroll-mt-6">
+          <ThemePreviewSelector value={settedTheme} options={themeOptions} onChange={setTheme} />
+        </div>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-appearance-theme-color-primary" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
           <WideControlRow>
             <ThemeColorPicker
@@ -340,26 +356,29 @@ const AppearanceSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-appearance-display-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <SelectorRow>
-            <Selector
-              size={14}
-              style={{ width: '100%' }}
-              value={displayLanguage}
-              onChange={onSelectLanguage}
-              options={appLanguageOptions.map((lang) => ({
-                label: (
-                  <Flex className="items-center gap-2">
-                    <span role="img" aria-label={lang.flag}>
-                      {lang.flag}
-                    </span>
-                    {lang.label}
-                  </Flex>
-                ),
-                value: lang.value
-              }))}
-            />
+            <Select value={displayLanguage} onValueChange={onSelectLanguage}>
+              <SelectTrigger
+                size="sm"
+                className="w-full text-sm"
+                aria-label={appLanguageOptions.find((lang) => lang.value === displayLanguage)?.label}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {appLanguageOptions.map((lang) => (
+                  <SelectItem className="text-sm" key={lang.value} value={lang.value}>
+                    <Flex className="items-center gap-2">
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SelectorRow>
         </SettingRow>
         {isLinux && (
@@ -372,32 +391,40 @@ const AppearanceSettings: FC = () => {
           </>
         )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-appearance-zoom" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
             {!isDefaultZoom && (
-              <Button onClick={() => handleZoomFactor(0, true)} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
+              <Tooltip content={t('preview.reset')} delay={800}>
+                <Button
+                  onClick={() => handleZoomFactor(0, true)}
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('preview.reset')}>
+                  <ResetIcon size="14" />
+                </Button>
+              </Tooltip>
             )}
-            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
-              <Minus size="14" />
-            </Button>
+            <Tooltip content={t('preview.zoom_out')} delay={800}>
+              <Button
+                onClick={() => handleZoomFactor(-0.1)}
+                variant="ghost"
+                size="icon"
+                aria-label={t('preview.zoom_out')}>
+                <Minus size="14" />
+              </Button>
+            </Tooltip>
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
-              <Plus size="14" />
-            </Button>
+            <Tooltip content={t('preview.zoom_in')} delay={800}>
+              <Button
+                onClick={() => handleZoomFactor(0.1)}
+                variant="ghost"
+                size="icon"
+                aria-label={t('preview.zoom_in')}>
+                <Plus size="14" />
+              </Button>
+            </Tooltip>
           </ZoomButtonGroup>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
-          <SegmentedControl<MenuPresentationMode>
-            value={menuPresentationMode}
-            onValueChange={handleMenuPresentationModeChange}
-            options={menuPresentationModeOptions}
-            size="sm"
-          />
         </SettingRow>
         {isMac && (
           <>
@@ -408,14 +435,44 @@ const AppearanceSettings: FC = () => {
             </SettingRow>
           </>
         )}
+        <SettingDivider />
+        <SettingRow id="setting-appearance-menu-presentation-mode" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
+          <SegmentedControl<MenuPresentationMode>
+            value={menuPresentationMode}
+            onValueChange={handleMenuPresentationModeChange}
+            options={menuPresentationModeOptions}
+            size="sm"
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-appearance-chat-list-position" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.display.list_position.chat')}</SettingRowTitle>
+          <SegmentedControl<TopicTabPosition>
+            value={topicListPosition}
+            onValueChange={setTopicListPosition}
+            options={listPositionOptions}
+            aria-label={t('settings.display.list_position.chat')}
+            size="sm"
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-appearance-work-list-position" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.display.list_position.work')}</SettingRowTitle>
+          <SegmentedControl<TopicTabPosition>
+            value={sessionListPosition}
+            onValueChange={setSessionListPosition}
+            options={listPositionOptions}
+            aria-label={t('settings.display.list_position.work')}
+            size="sm"
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
-          {t('settings.display.font.title')} <Badge className="border-primary/20 bg-primary/10 text-primary">New</Badge>
-        </SettingTitle>
+        <SettingTitle>{t('settings.display.font.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-appearance-font-global" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
           <SelectorRow className="gap-2">
             {userTheme.userFontFamily && (
@@ -440,7 +497,7 @@ const AppearanceSettings: FC = () => {
           </SelectorRow>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-appearance-font-code" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
           <SelectorRow className="gap-2">
             {userTheme.userCodeFontFamily && (
@@ -471,7 +528,7 @@ const AppearanceSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('chat.settings.code_execution.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-appearance-code-execution-enabled" className="scroll-mt-6">
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('chat.settings.code_execution.title')}</SettingRowTitle>
             <InfoTooltip content={t('chat.settings.code_execution.tip')} />
@@ -489,20 +546,21 @@ const AppearanceSettings: FC = () => {
                 <SettingRowTitle>{t('chat.settings.code_execution.timeout_minutes.label')}</SettingRowTitle>
                 <InfoTooltip content={t('chat.settings.code_execution.timeout_minutes.tip')} />
               </Flex>
-              <EditableNumber
+              <InputNumber
                 size="small"
+                aria-label={t('chat.settings.code_execution.timeout_minutes.label')}
                 className="w-20 text-sm"
                 min={1}
                 max={60}
                 step={1}
                 value={codeExecution.timeoutMinutes}
-                onChange={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
+                onBlur={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
               />
             </SettingRow>
           </>
         )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-appearance-code-image-tools" className="scroll-mt-6">
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('chat.settings.code_image_tools.label')}</SettingRowTitle>
             <InfoTooltip content={t('chat.settings.code_image_tools.tip')} />
@@ -516,9 +574,10 @@ const AppearanceSettings: FC = () => {
         {hasV1CustomCssMarker(customCss) && (
           <SettingDescription>{t('settings.display.custom.css.migration_notice')}</SettingDescription>
         )}
-        <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
-          <CodeEditor
-            theme={activeCmTheme}
+        <div
+          id="setting-appearance-custom-css"
+          className="mt-4 scroll-mt-6 overflow-hidden rounded-lg border border-border-subtle">
+          <LazyCodeEditor
             fontSize={fontSize - 1}
             value={customCss}
             language="css"
@@ -543,9 +602,9 @@ const AppearanceSettings: FC = () => {
 const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
   if (mode === ThemeMode.system) {
     return (
-      <div className="flex h-[85px] overflow-hidden rounded-md border border-neutral-400">
+      <div className="flex aspect-video w-full overflow-hidden rounded-md border border-neutral-400">
         <div className="flex w-1/2 bg-white">
-          <div className="w-1/3 border-neutral-200 border-r bg-neutral-100 p-1">
+          <div className="w-1/3 border-r border-neutral-200 bg-neutral-100 p-1">
             <div className="size-1.5 rounded-full bg-neutral-400" />
           </div>
           <div className="flex-1 p-1.5">
@@ -555,7 +614,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
           </div>
         </div>
         <div className="flex w-1/2 bg-neutral-950">
-          <div className="w-1/3 border-neutral-700 border-r bg-neutral-900 p-1">
+          <div className="w-1/3 border-r border-neutral-700 bg-neutral-900 p-1">
             <div className="size-1.5 rounded-full bg-neutral-500" />
           </div>
           <div className="flex-1 p-1.5">
@@ -573,7 +632,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
   return (
     <div
       className={cn(
-        'flex h-[85px] overflow-hidden rounded-md border',
+        'flex aspect-video w-full overflow-hidden rounded-md border',
         isDarkPreview ? 'border-neutral-700 bg-neutral-950' : 'border-neutral-300 bg-white'
       )}>
       <div
@@ -614,13 +673,17 @@ const ThemePreviewSelector = ({
           aria-label={option.label}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
-          className={cn(
-            'min-w-0 cursor-pointer rounded-lg border border-border bg-background-subtle p-1.5 text-foreground outline-none transition-colors',
-            'hover:border-border-strong hover:bg-accent',
-            'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-            'aria-pressed:border-primary aria-pressed:ring-2 aria-pressed:ring-primary/20'
-          )}>
-          <ThemePreview mode={option.value} />
+          className="group min-w-0 cursor-pointer rounded-lg pb-1.5 text-foreground outline-none">
+          <div
+            className={cn(
+              'rounded-lg border bg-background-subtle p-1.5 transition-colors',
+              'group-focus-visible:border-ring group-focus-visible:bg-accent',
+              value === option.value
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-border group-hover:border-border-strong group-hover:bg-accent'
+            )}>
+            <ThemePreview mode={option.value} />
+          </div>
           <span className="mt-2 flex items-center justify-center gap-1.5 text-sm">
             <Icon className="size-4" />
             <span className="truncate">{option.label}</span>
@@ -632,15 +695,15 @@ const ThemePreviewSelector = ({
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-52.5 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const SelectorRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-55 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-55 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-95 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-95 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

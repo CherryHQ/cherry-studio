@@ -1,10 +1,11 @@
+import { type Dispatch, type SetStateAction, useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
-import { type Dispatch, type SetStateAction, useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useBinaryActions')
 

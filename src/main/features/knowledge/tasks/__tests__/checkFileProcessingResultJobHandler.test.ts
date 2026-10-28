@@ -1,8 +1,7 @@
-import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
+import { describe, expect, it } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { describe, expect, it } from 'vitest'
 
 import type { KnowledgeCheckFileProcessingResultPayload } from '../jobTypes'
 import {
@@ -13,12 +12,12 @@ import {
   createJobSnapshot,
   FILE_ITEM_ID,
   getJobMock,
+  ingestionService,
   knowledgeItemGetByIdMock,
   knowledgeItemUpdateIndexedRelativePathMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
-  PROCESSED_RELATIVE_PATH,
-  workflowService
+  PROCESSED_RELATIVE_PATH
 } from './jobHandlerTestUtils'
 
 function createFileProcessingJobSnapshot(overrides: Partial<ReturnType<typeof createJobSnapshot>> = {}) {
@@ -46,16 +45,14 @@ function createCheckPayload(
     baseId: 'kb-1',
     itemId: FILE_ITEM_ID,
     fileProcessingJobId: 'fp-job-1',
-    pollRound: 0,
-    firstScheduledAt: Date.now(),
-    parentJobId: null,
+    processedRelativePath: PROCESSED_RELATIVE_PATH,
     ...overrides
   }
 }
 
 describe('check-file-processing-result job handler', () => {
   it('declares the knowledge check job contract', () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
 
     expect(handler.recovery).toBe('abandon')
     expect(handler.defaultQueue?.(createCheckPayload())).toBe('base.kb-1')
@@ -68,105 +65,29 @@ describe('check-file-processing-result job handler', () => {
     expect(handler.defaultTimeoutMs).toBe(2 * 60 * 1000)
   })
 
-  it('reschedules delayed polling while file processing is active', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+  it('fails the item for a legacy payload missing processedRelativePath instead of indexing at an undefined path', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
 
-    const firstScheduledAt = Date.now()
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 2,
-        firstScheduledAt
-      })
-    )
+    // A payload persisted before processedRelativePath was required — still claimable in
+    // the startup quiet window before recovery abandons it.
+    const legacyPayload = createCheckPayload()
+    delete (legacyPayload as { processedRelativePath?: string }).processedRelativePath
+    const ctx = createCtx(legacyPayload)
     await handler.execute(ctx)
 
-    expect(workflowService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
-      pollRound: 3,
-      firstScheduledAt,
-      parentJobId: 'job-1'
-    })
-    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
-    expect(ctx.reportProgress).toHaveBeenCalledWith(0, { stage: 'waiting', pollRound: 3 })
-  })
-
-  it('keeps polling follow-ups attached to the original workflow parent', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-
-    const firstScheduledAt = Date.now()
-    await handler.execute(
-      createCtx(
-        createCheckPayload({
-          pollRound: 2,
-          firstScheduledAt,
-          parentJobId: 'reindex-job'
-        }),
-        'check-job-2'
-      )
-    )
-
-    expect(workflowService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
-      pollRound: 3,
-      firstScheduledAt,
-      parentJobId: 'reindex-job'
-    })
-  })
-
-  it('mirrors file-processing progress while polling', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-    MockMainCacheServiceUtils.setSharedCacheValue(`${JOB_PROGRESS_KEY_PREFIX}fp-job-1`, {
-      progress: 42,
-      detail: { stage: 'polling' }
-    })
-
-    const firstScheduledAt = Date.now()
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 2,
-        firstScheduledAt
-      })
-    )
-    await handler.execute(ctx)
-
-    expect(ctx.reportProgress).toHaveBeenCalledWith(42, {
-      stage: 'waiting',
-      pollRound: 3,
-      fileProcessingJobId: 'fp-job-1',
-      fileProcessing: {
-        progress: 42,
-        detail: { stage: 'polling' }
-      }
-    })
-  })
-
-  it('marks the item failed when file processing exceeds the wait limit', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 360,
-        firstScheduledAt: Date.now() - 30 * 60 * 1000
-      })
-    )
-    await handler.execute(ctx)
-
+    // The orphaned, retry-recoverable file-processing job is reaped so it stops polling.
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-legacy-payload')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
-      error: 'File processing job fp-job-1 did not finish within 30 minutes'
+      error: expect.stringContaining('processedRelativePath')
     })
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-timeout')
-    expect(workflowService.scheduleFileProcessingCheck).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateIndexedRelativePathMock).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
 
   it('stores the processed artifact relative path and schedules indexing on completion', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
@@ -181,13 +102,12 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateIndexedRelativePathMock).toHaveBeenCalledWith(FILE_ITEM_ID, PROCESSED_RELATIVE_PATH)
-    expect(workflowService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
-    expect(workflowService.scheduleFileProcessingCheck).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
   })
 
-  it('schedules indexing under the original workflow parent after polling completion', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+  it('schedules indexing under the original workflow parent once file processing completes', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
@@ -198,19 +118,52 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
-    await handler.execute(
-      createCtx(
-        createCheckPayload({
-          parentJobId: 'reindex-job'
-        })
-      )
+    await handler.execute(createCtx(createCheckPayload(), 'job-1', 'reindex-job'))
+
+    expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'reindex-job')
+  })
+
+  it('recognises a local background file-processing job as its own child', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        type: 'file-processing.background-local',
+        status: 'completed',
+        input: {
+          feature: 'document_to_markdown',
+          file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
+          output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+          context: { dataId: FILE_ITEM_ID },
+          processorId: 'local-document'
+        },
+        output: {
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
+        }
+      })
     )
 
-    expect(workflowService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'reindex-job')
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(knowledgeItemUpdateIndexedRelativePathMock).toHaveBeenCalledWith(FILE_ITEM_ID, PROCESSED_RELATIVE_PATH)
+    expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
+  })
+
+  it('marks the item failed when the linked job has an unrelated job type', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ type: 'knowledge.index-item' }))
+
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
+      error: 'Invalid file processing job for knowledge item: fp-job-1'
+    })
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
   })
 
   it('marks the item failed when the linked job is not the expected file-processing job', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
@@ -230,12 +183,12 @@ describe('check-file-processing-result job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
       error: 'Invalid file processing job for knowledge item: fp-job-1'
     })
-    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
 
   it('skips attaching artifacts when the item becomes deleting before continuation side effects', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock
       .mockReturnValueOnce(createFileItem())
       .mockReturnValueOnce(createFileItem(FILE_ITEM_ID, 'deleting'))
@@ -252,17 +205,18 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateIndexedRelativePathMock).not.toHaveBeenCalled()
-    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).not.toHaveBeenCalledWith(100, { stage: 'done' })
   })
 
-  it('marks the item failed when file processing fails', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+  it('marks an over-limit PDF failed with manual split guidance and does not index it', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    const pageLimitError = '该 PDF 超过当前文档解析服务的 1000 页上限，请手动拆分 PDF 后重新添加。'
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
         status: 'failed',
-        error: { code: 'FAILED', message: 'processor failed', retryable: false }
+        error: { code: 'FAILED', message: pageLimitError, retryable: false }
       })
     )
 
@@ -270,14 +224,15 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
-      error: 'File processing job fp-job-1 failed: processor failed'
+      error: `File processing job fp-job-1 failed: ${pageLimitError}`
     })
-    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateIndexedRelativePathMock).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
 
   it('marks the item failed when the completed output has no markdown artifact', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
@@ -294,22 +249,22 @@ describe('check-file-processing-result job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
       error: 'Invalid file processing result for job fp-job-1'
     })
-    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
   })
 
   it('cancels linked file-processing work before skipping deleting items', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'deleting'))
 
     await handler.execute(createCtx(createCheckPayload()))
 
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
-    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
   })
 
   it('surfaces cancel failures before skipping deleting items', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'deleting'))
     cancelMock.mockRejectedValueOnce(new Error('cancel failed'))
 
@@ -320,7 +275,7 @@ describe('check-file-processing-result job handler', () => {
   })
 
   it('surfaces cancel timeouts before skipping deleting items', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'deleting'))
     cancelMock.mockResolvedValue({ outcome: 'timed-out' })
 
@@ -330,7 +285,7 @@ describe('check-file-processing-result job handler', () => {
   })
 
   it('cancels linked file-processing work before skipping missing items', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockImplementation(() => {
       throw DataApiErrorFactory.notFound('KnowledgeItem', FILE_ITEM_ID)
     })
@@ -339,34 +294,11 @@ describe('check-file-processing-result job handler', () => {
 
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
-    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
   })
 
   it('onSettled marks active items failed when the check job fails', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
-    getJobMock.mockResolvedValue({
-      id: 'job-1',
-      status: 'failed',
-      priority: 0,
-      queue: 'base.kb-1',
-      idempotencyKey: null,
-      scheduleId: null,
-      scheduledAt: '2026-04-08T00:00:00.000Z',
-      startedAt: '2026-04-08T00:00:00.000Z',
-      finishedAt: null,
-      attempt: 1,
-      maxAttempts: 3,
-      output: null,
-      error: null,
-      parentId: null,
-      cancelRequested: false,
-      metadata: {},
-      timeoutMs: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z',
-      type: 'knowledge.check-file-processing-result',
-      input: createCheckPayload()
-    })
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
 
     await handler.onSettled?.({
@@ -385,30 +317,7 @@ describe('check-file-processing-result job handler', () => {
   })
 
   it('onSettled falls back to the terminal status when a failed job has no error message', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
-    getJobMock.mockResolvedValue({
-      id: 'job-1',
-      status: 'failed',
-      priority: 0,
-      queue: 'base.kb-1',
-      idempotencyKey: null,
-      scheduleId: null,
-      scheduledAt: '2026-04-08T00:00:00.000Z',
-      startedAt: '2026-04-08T00:00:00.000Z',
-      finishedAt: null,
-      attempt: 1,
-      maxAttempts: 3,
-      output: null,
-      error: null,
-      parentId: null,
-      cancelRequested: false,
-      metadata: {},
-      timeoutMs: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z',
-      type: 'knowledge.check-file-processing-result',
-      input: createCheckPayload()
-    })
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
 
     await handler.onSettled?.({
@@ -427,30 +336,7 @@ describe('check-file-processing-result job handler', () => {
   })
 
   it('onSettled marks a cancelled (app-quit) item failed with the reindex-to-finish message', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
-    getJobMock.mockResolvedValue({
-      id: 'job-1',
-      status: 'cancelled',
-      priority: 0,
-      queue: 'base.kb-1',
-      idempotencyKey: null,
-      scheduleId: null,
-      scheduledAt: '2026-04-08T00:00:00.000Z',
-      startedAt: '2026-04-08T00:00:00.000Z',
-      finishedAt: null,
-      attempt: 1,
-      maxAttempts: 3,
-      output: null,
-      error: { code: 'CANCELLED', message: 'JobManager shutdown', retryable: false },
-      parentId: null,
-      cancelRequested: false,
-      metadata: {},
-      timeoutMs: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z',
-      type: 'knowledge.check-file-processing-result',
-      input: createCheckPayload()
-    })
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
 
     await handler.onSettled?.({

@@ -49,11 +49,12 @@ const siliconReasoningModels = [
 export default openaiCompatible({
   id: 'silicon',
   name: 'Silicon',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.siliconflow.cn/v1',
   reasoningFormat: { type: 'openai-chat' },
   anthropic: 'https://api.siliconflow.cn',
   website: {
-    apiKey: 'https://cloud.siliconflow.cn/',
+    apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
     docs: 'https://docs.siliconflow.cn/',
     models: 'https://cloud.siliconflow.cn/models',
     official: 'https://www.siliconflow.cn'

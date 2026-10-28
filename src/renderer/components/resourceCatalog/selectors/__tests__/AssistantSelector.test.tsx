@@ -1,28 +1,39 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
-import type * as UseModelModule from '@renderer/hooks/useModel'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
+import type * as UseModelModule from '@renderer/hooks/useModel'
+
 const {
+  assistantGroupReadMock,
+  assistantPinReadMock,
+  assistantReadMock,
   createAssistantMock,
   refetchAssistantsMock,
   refetchPinsMock,
   togglePinMock,
   updateAssistantMock,
   useMutationMock,
+  useGroupsMock,
   usePinsMock,
   useQueryMock
 } = vi.hoisted(() => ({
+  assistantGroupReadMock: vi.fn(),
+  assistantPinReadMock: vi.fn(),
+  assistantReadMock: vi.fn(),
   createAssistantMock: vi.fn(),
   refetchAssistantsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
   togglePinMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
+  useGroupsMock: vi.fn(),
   usePinsMock: vi.fn(),
   useQueryMock: vi.fn()
 }))
@@ -39,6 +50,18 @@ const MODEL = vi.hoisted(
       isHidden: false
     }) as const
 )
+
+// Selector tests exercise creation and refresh; editor sessions are covered separately.
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ value, onChange, placeholder, editable }: CherryStudioUi.CodeEditorProps) => (
+    <textarea
+      value={value}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+      placeholder={typeof placeholder === 'string' ? placeholder : undefined}
+      readOnly={editable === false}
+    />
+  )
+}))
 
 vi.mock('@renderer/components/ModelSelector', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelSelectorModule>()),
@@ -63,44 +86,38 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useMutation: useMutationMock,
-  useQuery: useQueryMock
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
+  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
 }))
+
+vi.mock('@renderer/data/hooks/useDataApi', async () => {
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+
+  return {
+    ...MockUseDataApi,
+    useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+    useInfiniteQuery: () => ({
+      pages: [{ items: [], total: 0 }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    }),
+    useMutation: useMutationMock,
+    useQuery: useQueryMock
+  }
+})
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
 vi.mock('@renderer/hooks/useGroups', () => ({
-  useGroups: () => ({
-    groups: [
-      {
-        id: '33333333-3333-4333-8333-333333333333',
-        entityType: 'assistant',
-        name: 'work',
-        orderKey: 'a0',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z'
-      },
-      {
-        id: '44444444-4444-4444-8444-444444444444',
-        entityType: 'assistant',
-        name: 'personal',
-        orderKey: 'a1',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z'
-      },
-      {
-        id: '55555555-5555-4555-8555-555555555555',
-        entityType: 'assistant',
-        name: 'empty',
-        orderKey: 'a2',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z'
-      }
-    ],
-    isLoading: false
+  useGroups: useGroupsMock,
+  useGroupMutations: () => ({
+    createGroup: vi.fn()
   })
 }))
 
@@ -113,8 +130,10 @@ vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({ openTab: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+vi.mock('@renderer/hooks/useCodeStyle', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeStyleModule>()),
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -146,7 +165,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.tag_empty': 'No tags',
           'library.config.basic.tag_placeholder': 'Select tag',
           'library.config.basic.tag_search': 'Search tags',
-          'library.config.prompt.label': 'Prompt',
+          'library.config.prompt.label': 'System Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'selector.assistant.create_new': 'Create assistant',
           'selector.assistant.empty_text': 'No assistants yet. Create one first.',
@@ -168,11 +187,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.basic': 'Basic info',
           'library.config.dialogs.create.step.capability': 'Capabilities',
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
-          'library.config.dialogs.create.step.persona': 'Persona',
           'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
           'library.config.dialogs.edit.assistant_title': 'Edit Assistant',
           'library.config.dialogs.edit.basic_tab': 'Basic',
-          'library.config.dialogs.edit.prompt_tab': 'Prompt',
+          'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
           'selector.edit_dialog.refresh_failed': 'Saved, but refresh failed'
@@ -181,7 +199,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
 import { toast } from '@renderer/services/toast'
 
 import { AssistantSelector } from '../AssistantSelector'
@@ -260,7 +277,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   if (!HTMLElement.prototype.hasPointerCapture) {
     HTMLElement.prototype.hasPointerCapture = () => false
   }
@@ -274,13 +291,18 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  useQueryMock.mockReturnValue({
-    data: ASSISTANTS_RESPONSE,
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    refetch: refetchAssistantsMock,
-    mutate: vi.fn()
+  useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
+    const enabled = path !== '/assistants' || options?.enabled !== false
+    if (path === '/assistants' && enabled) assistantReadMock()
+    const data = enabled ? (path === '/assistants/:id' ? ASSISTANTS_RESPONSE.items[0] : ASSISTANTS_RESPONSE) : undefined
+    return {
+      data,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchAssistantsMock,
+      mutate: vi.fn()
+    }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
@@ -307,14 +329,52 @@ beforeEach(() => {
     ...ASSISTANTS_RESPONSE.items[0],
     name: 'Renamed Assistant'
   })
-  usePinsMock.mockReturnValue({
-    isLoading: false,
-    isRefreshing: false,
-    isMutating: false,
-    error: undefined,
-    pinnedIds: [],
-    refetch: refetchPinsMock,
-    togglePin: togglePinMock
+  useGroupsMock.mockImplementation((_entityType: string, options?: { enabled?: boolean }) => {
+    const enabled = options?.enabled !== false
+    if (enabled) assistantGroupReadMock()
+    return {
+      groups: enabled
+        ? [
+            {
+              id: '33333333-3333-4333-8333-333333333333',
+              entityType: 'assistant',
+              name: 'work',
+              orderKey: 'a0',
+              createdAt: '2024-01-01T00:00:00.000Z',
+              updatedAt: '2024-01-01T00:00:00.000Z'
+            },
+            {
+              id: '44444444-4444-4444-8444-444444444444',
+              entityType: 'assistant',
+              name: 'personal',
+              orderKey: 'a1',
+              createdAt: '2024-01-01T00:00:00.000Z',
+              updatedAt: '2024-01-01T00:00:00.000Z'
+            },
+            {
+              id: '55555555-5555-4555-8555-555555555555',
+              entityType: 'assistant',
+              name: 'empty',
+              orderKey: 'a2',
+              createdAt: '2024-01-01T00:00:00.000Z',
+              updatedAt: '2024-01-01T00:00:00.000Z'
+            }
+          ]
+        : [],
+      isLoading: false
+    }
+  })
+  usePinsMock.mockImplementation((_entityType: string, options?: { enabled?: boolean }) => {
+    if (options?.enabled !== false) assistantPinReadMock()
+    return {
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
+      pinnedIds: [],
+      refetch: refetchPinsMock,
+      togglePin: togglePinMock
+    }
   })
 })
 
@@ -341,13 +401,19 @@ async function openCreateDialog() {
 }
 
 describe('AssistantSelector', () => {
-  it('sets the default popover target height', () => {
+  it('defers selector reads until the popover opens', () => {
     renderSelector()
+
+    expect(assistantReadMock).not.toHaveBeenCalled()
+    expect(assistantGroupReadMock).not.toHaveBeenCalled()
+    expect(assistantPinReadMock).not.toHaveBeenCalled()
+
     openPopover()
 
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
-      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-    })
+    expect(assistantReadMock).toHaveBeenCalled()
+    expect(assistantGroupReadMock).toHaveBeenCalled()
+    expect(assistantPinReadMock).toHaveBeenCalled()
+    expect(screen.getByRole('option', { name: /Alpha Assistant/ })).toBeInTheDocument()
   })
 
   it('renders rows in DataApi order and shows group filters without sort controls', () => {
@@ -427,6 +493,7 @@ describe('AssistantSelector', () => {
   })
 
   it('creates an assistant, refreshes, reopens the selector, and does not auto-select by default', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={onChange} />
@@ -438,9 +505,9 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
       target: { value: 'Created from selector' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
       expect(createAssistantMock).toHaveBeenCalledWith({
@@ -460,6 +527,7 @@ describe('AssistantSelector', () => {
   })
 
   it('auto-selects the created assistant when enabled', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <AssistantSelector
@@ -474,15 +542,15 @@ describe('AssistantSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(onChange).toHaveBeenCalledWith('created-assistant')
   })
 
-  it('keeps the selector closed after editing an assistant from a row action', async () => {
+  it('keeps the selector closed and the edit dialog open after auto-saving an assistant', async () => {
     renderSelector()
     openPopover()
 
@@ -493,8 +561,8 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByPlaceholderText('Search assistants')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
   })
 
   it('restores focus after the edit dialog close animation completes', async () => {
@@ -541,20 +609,20 @@ describe('AssistantSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1))
   })
 
   it('notifies when created assistant cannot be refreshed into the selector', async () => {
+    const user = userEvent.setup()
     refetchAssistantsMock.mockRejectedValueOnce(new Error('Refresh failed'))
     renderSelector()
     await openCreateDialog()
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 

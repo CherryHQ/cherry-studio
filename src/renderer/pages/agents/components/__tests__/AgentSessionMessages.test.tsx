@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentSessionMessages from '../AgentSessionMessages'
 
 const useAgentMessageListProviderValueMock = vi.hoisted(() => vi.fn(() => ({ state: {}, actions: {}, meta: {} })))
+const ipcRequestMock = vi.hoisted(() => vi.fn(() => Promise.resolve(undefined)))
 
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => <div data-testid="message-list" />
@@ -35,18 +36,18 @@ vi.mock('../../messages/agentMessageListAdapter', () => ({
 }))
 
 // The mount effect fires ipcApi.request('ai.agent.session.prewarm' / 'ai.agent.session.close_warm');
-// a static mock keeps it from crashing (this suite doesn't assert on the warm-up calls).
+// the lease test below asserts on those calls.
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn().mockResolvedValue(undefined), on: vi.fn(() => () => {}) }
+  ipcApi: { request: ipcRequestMock, on: vi.fn(() => () => {}) }
 }))
 
 describe('AgentSessionMessages', () => {
   beforeEach(() => {
     useAgentMessageListProviderValueMock.mockClear()
+    ipcRequestMock.mockClear()
   })
 
   it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {
-    const onBindRuntime = vi.fn()
     render(
       <AgentSessionMessages
         agentId="agent-1"
@@ -55,7 +56,6 @@ describe('AgentSessionMessages', () => {
         activeAgent={{ id: 'agent-1', name: 'Blank avatar agent', configuration: { avatar: '   ' } } as any}
         partsByMessageId={{}}
         isLoading={false}
-        onBindRuntime={onBindRuntime}
       />
     )
 
@@ -64,8 +64,58 @@ describe('AgentSessionMessages', () => {
         assistantProfile: {
           name: 'Blank avatar agent',
           avatar: '🤖'
-        },
-        onBindRuntime
+        }
+      })
+    )
+  })
+
+  it('acquires the session warm lease on mount and releases it only on unmount', () => {
+    const view = render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        messages={[]}
+        partsByMessageId={{}}
+        isLoading={false}
+      />
+    )
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.prewarm', { sessionId: 'session-1' })
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.session.close_warm', { sessionId: 'session-1' })
+
+    view.unmount()
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.close_warm', { sessionId: 'session-1' })
+  })
+
+  it('anchors background status to the latest assistant with content instead of an empty pending placeholder', () => {
+    const settledAssistant = {
+      id: 'assistant-settled',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Main answer' }]
+    }
+    const pendingAssistant = {
+      id: 'assistant-pending',
+      role: 'assistant',
+      parts: []
+    }
+
+    render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        messages={[settledAssistant, { id: 'user-follow-up', role: 'user', parts: [] }, pendingAssistant] as any}
+        partsByMessageId={{
+          'assistant-settled': [{ type: 'text', text: 'Main answer' }] as any
+        }}
+        isLoading={false}
+      />
+    )
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageTail: expect.objectContaining({
+          messageId: 'assistant-settled'
+        })
       })
     )
   })

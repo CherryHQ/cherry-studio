@@ -1,4 +1,9 @@
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import {
@@ -11,11 +16,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { CliIcon } from '../CliIcon'
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
 import { CliConfigEditor } from './CliConfigEditor'
 import { renderToolFields } from './toolFieldRenderer'
@@ -43,6 +44,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
 }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
   const initialConfig = useMemo(
     () => sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {}),
     [cliTool, providerConfig]
@@ -134,11 +136,14 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
       <DialogContent
         size="lg"
         aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          cancelButtonRef.current?.focus({ preventScroll: true })
+        }}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
-            <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border/30" />
+            <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border-subtle" />
             <span className="min-w-0 truncate">{t('code.own_login.title', { toolName })}</span>
           </DialogTitle>
         </DialogHeader>
@@ -158,7 +163,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
         </SettingContainer>
 
         <DialogFooter className="justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
+          <Button ref={cancelButtonRef} variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>
           <Button variant="default" size="sm" onClick={handleSubmit} disabled={!canSave} loading={submitting}>

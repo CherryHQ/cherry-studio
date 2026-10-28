@@ -1,13 +1,16 @@
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { makeProvider } from '../../__tests__/fixtures'
+import { appProviderIds } from '@main/ai/types'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+
+import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
   resolveEffectiveEndpoint,
   resolveProviderOptionsKey,
-  resolveProviderVariant
+  resolveProviderVariant,
+  resolveWireModelId
 } from '../endpoint'
 
 const ENDPOINT_TYPES_USED = [
@@ -17,6 +20,38 @@ const ENDPOINT_TYPES_USED = [
   ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   ENDPOINT_TYPE.OLLAMA_CHAT
 ] as const
+
+describe('resolveWireModelId', () => {
+  // `@ai-sdk/google` matches its feature allowlists (googleSearch, urlContext, …)
+  // against the exact id, so a `models/`-prefixed id — how Gemini's /models listing
+  // names them, still present on rows synced before ingestion stripped it — silently
+  // drops every provider-native tool from the request.
+  it('strips the Gemini listing prefix on the google endpoint', () => {
+    const model = makeModel({
+      id: 'gemini::models/gemini-flash-latest',
+      providerId: 'gemini',
+      apiModelId: 'models/gemini-flash-latest'
+    })
+    expect(resolveWireModelId(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('gemini-flash-latest')
+  })
+
+  it('leaves other endpoints and unprefixed ids untouched', () => {
+    const prefixed = makeModel({
+      id: 'custom::models/foo',
+      providerId: 'custom',
+      apiModelId: 'models/foo'
+    })
+    expect(resolveWireModelId(prefixed, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('models/foo')
+
+    const plain = makeModel({ id: 'gemini::gemini-3-pro', providerId: 'gemini', apiModelId: 'gemini-3-pro' })
+    expect(resolveWireModelId(plain, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('gemini-3-pro')
+  })
+
+  it('falls back to the unique-id suffix when apiModelId is absent', () => {
+    const model = makeModel({ id: 'gemini::gemini-flash-latest', providerId: 'gemini' })
+    expect(resolveWireModelId(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('gemini-flash-latest')
+  })
+})
 
 describe('resolveProviderOptionsKey', () => {
   it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'])(
@@ -137,6 +172,27 @@ describe('resolveAiSdkProviderId', () => {
         }
       })
       expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('openai-compatible')
+    })
+
+    it('uses the generic Responses adapter when a custom provider configures Responses without an adapterFamily', () => {
+      const provider = makeProvider({
+        id: 'custom-provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+          }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+
+      expect(resolvedEndpoint).toEqual({
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        baseUrl: 'https://express-ent-admin.cherryin.net/v1',
+        providerOptionsKey: undefined
+      })
+      expect(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType)).toBe('open-responses')
     })
   })
 
@@ -263,26 +319,26 @@ describe('resolveAiSdkProviderId', () => {
 
 describe('resolveProviderVariant', () => {
   it('appends -chat for openai-chat-completions on bases with a chat variant', () => {
-    expect(resolveProviderVariant('openai' as never, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('openai-chat')
+    expect(resolveProviderVariant('openai', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('openai-chat')
   })
 
   it('returns the base id for openai-responses on bases without a -responses variant', () => {
     // Azure has a real `responses` variant (suffix-based, key `azure-responses`).
     // OpenAI only has an `openai-response` ALIAS pointing back to `openai` —
     // no plural-suffix variant — so the resolver falls back to the base.
-    expect(resolveProviderVariant('openai' as never, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
+    expect(resolveProviderVariant('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
   })
 
   it('appends -responses for azure base (real variant)', () => {
-    expect(resolveProviderVariant('azure' as never, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('azure-responses')
+    expect(resolveProviderVariant('azure', ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('azure-responses')
   })
 
   it('returns the base id unchanged when no variant is registered', () => {
-    expect(resolveProviderVariant('deepseek' as never, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('deepseek')
+    expect(resolveProviderVariant('deepseek', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('deepseek')
   })
 
   it('returns the base id unchanged when endpointType is undefined', () => {
-    expect(resolveProviderVariant('openai' as never, undefined)).toBe('openai')
+    expect(resolveProviderVariant('openai', undefined)).toBe('openai')
   })
 })
 
@@ -321,6 +377,67 @@ describe('resolveEffectiveEndpoint', () => {
     const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
     expect(endpointType).toBeUndefined()
     expect(baseUrl).toBe('')
+  })
+
+  describe('preferredEndpointType', () => {
+    // DeepSeek V4 Flash: `openai-responses` leads because it routes in-app chat, but the model also
+    // serves Anthropic Messages — which is the only dialect the Claude Agent SDK can speak.
+    const deepseek = makeProvider({
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.deepseek.com/anthropic' }
+      }
+    })
+    const flash = {
+      id: 'deepseek-v4-flash',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ]
+    } as never
+
+    it('wins over model.endpointTypes[0] when the model declares it', () => {
+      expect(resolveEffectiveEndpoint(deepseek, flash, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        baseUrl: 'https://api.deepseek.com/anthropic'
+      })
+      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    })
+
+    it('is declined when the model does not declare it', () => {
+      const chatOnly = { id: 'deepseek-chat', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as never
+      expect(resolveEffectiveEndpoint(deepseek, chatOnly, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType).toBe(
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    })
+
+    it('is declined when the provider configures no base URL for it', () => {
+      // `getBaseUrl` cascades, so honouring the preference here would hand back the OpenAI host.
+      const relay = makeProvider({
+        id: 'relay',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' } }
+      })
+      const model = {
+        id: 'm',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      } as never
+      expect(resolveEffectiveEndpoint(relay, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        baseUrl: 'https://relay.example.com'
+      })
+    })
+
+    it('leaves the gateway route untouched for models that declare no endpoints', () => {
+      const model = { id: 'm' } as never
+      expect(resolveEffectiveEndpoint(deepseek, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType).toBe(
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    })
   })
 
   describe('multi-backend gateway per-model routing (AiHubMix)', () => {
@@ -464,10 +581,93 @@ describe('invariant: resolveAiSdkProviderId is deterministic for the registered 
     for (const endpointType of ENDPOINT_TYPES_USED) {
       it(`${id} / ${endpointType}: produces a non-empty AppProviderId`, () => {
         const provider = makeProvider({ id })
-        const result = resolveAiSdkProviderId(provider, endpointType as EndpointType)
+        const result = resolveAiSdkProviderId(provider, endpointType)
         expect(typeof result).toBe('string')
         expect(result.length).toBeGreaterThan(0)
       })
     }
   }
+})
+
+describe('Poe effective routes', () => {
+  const provider = makeProvider({
+    id: 'poe',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.poe.com/v1' },
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.poe.com/v1' },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.poe.com' }
+    }
+  })
+
+  it('documents the pre-repair Responses route for an endpoint-less reported bot', () => {
+    expect(
+      resolveEffectiveEndpoint(
+        provider,
+        makeModel({ apiModelId: 'perplexity-adv-deep-research', endpointTypes: undefined })
+      ).endpointType
+    ).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+  })
+
+  it.each([
+    ['perplexity-adv-deep-research', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS], ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+    [
+      'gpt-5.2',
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    ],
+    [
+      'claude-opus-4.8',
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    ]
+  ] satisfies [string, EndpointType[], EndpointType][])(
+    'routes mapped %s and declines an undeclared Responses preference',
+    (apiModelId, endpointTypes, expected) => {
+      const model = makeModel({ apiModelId, endpointTypes })
+      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(expected)
+      expect(resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.OPENAI_RESPONSES).endpointType).toBe(expected)
+    }
+  )
+  const runtimeProvider = makeProvider({
+    ...provider,
+    endpointConfigs: {
+      ...provider.endpointConfigs,
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+        ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+        adapterFamily: 'anthropic'
+      }
+    }
+  })
+
+  // Pins resolver → adapter selection; the adapter's URL construction is covered by its own suite.
+  it.each([
+    [
+      'perplexity-adv-deep-research',
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      appProviderIds['openai-compatible'],
+      'https://api.poe.com/v1'
+    ],
+    [
+      'gpt-5.2',
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      appProviderIds['open-responses'],
+      'https://api.poe.com/v1'
+    ],
+    [
+      'claude-opus-4.8',
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      appProviderIds.anthropic,
+      'https://api.poe.com'
+    ]
+  ] satisfies [string, EndpointType[], string, string][])(
+    'selects the runtime adapter and base URL for mapped %s',
+    (apiModelId, endpointTypes, expectedProviderId, expectedBaseUrl) => {
+      const model = makeModel({ apiModelId, endpointTypes })
+      const resolvedEndpoint = resolveEffectiveEndpoint(runtimeProvider, model)
+
+      expect(resolveAiSdkProviderId(runtimeProvider, resolvedEndpoint.endpointType)).toBe(expectedProviderId)
+      expect(resolvedEndpoint.baseUrl).toBe(expectedBaseUrl)
+    }
+  )
 })

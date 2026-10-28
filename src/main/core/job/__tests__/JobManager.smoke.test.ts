@@ -11,6 +11,11 @@
  * integration test, not here.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
@@ -18,10 +23,6 @@ import type { JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX, JOB_STATE_KEY_PREFIX } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { drainTrailingDispatch as drainHelper } from './_helpers'
 
@@ -32,27 +33,52 @@ vi.mock('@application', async () => {
 
 interface EchoInput {
   message: string
-  /** Optional sleep before resolving, used to give cancel() time to abort mid-flight. */
+  /** Optional sleep before resolving, used to keep a job in flight for a while. */
   sleepMs?: number
+  /** Park until aborted instead of sleeping — see `echoEntered` below. */
+  hold?: boolean
 }
 
 interface EchoOutput {
   echoed: string
 }
 
-interface StubbornInput {
-  /** Sleep duration; set longer than `cancelTimeoutMs` to force the timeout path. */
-  sleepMs: number
-}
-
 let scheduler: SchedulerService
 let jobManager: JobManager
 
-// PowerService stub: JobManager acquires a sleep-prevention hold per attempt and
+interface Deferred {
+  promise: Promise<void>
+  resolve: () => void
+}
+
+function deferred(): Deferred {
+  let resolve!: () => void
+  const promise = new Promise<void>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
+}
+
+/**
+ * Test-controlled gates for the cancel tests (#17703).
+ *
+ * Both tests need to observe a handler that is *definitely* still in flight and
+ * has *definitely* not settled yet. Deriving that from wall-clock sleeps made
+ * the outcome a bet on how promptly a loaded runner schedules `cancel()`; these
+ * promises make it a state the test owns instead.
+ *
+ * - `*Entered` resolves when the handler has actually entered `execute`.
+ * - `stubbornGate` releases the stubborn handler's (abort-ignoring) wait.
+ */
+const echoEntered = deferred()
+const stubbornEntered = deferred()
+const stubbornGate = deferred()
+
+// RuntimeActivityService stub: JobManager acquires an activity hold per attempt and
 // releases it in the finally. Shared spies let the end-to-end test assert acquire/release.
-const sleepHoldDispose = vi.fn()
-const mockPowerService = {
-  preventSleep: vi.fn(() => ({ dispose: sleepHoldDispose }))
+const activityDispose = vi.fn()
+const mockRuntimeActivityService = {
+  begin: vi.fn(() => ({ dispose: activityDispose }))
 }
 
 function makeEchoHandler(): JobHandler<EchoInput> {
@@ -62,21 +88,20 @@ function makeEchoHandler(): JobHandler<EchoInput> {
     defaultConcurrency: 2,
     async execute(ctx) {
       ctx.reportProgress(25, { stage: 'starting' })
-      const delay = ctx.input.sleepMs ?? 30
       await new Promise<void>((resolve, reject) => {
         if (ctx.signal.aborted) {
           reject(new Error('AbortError'))
           return
         }
-        const t = setTimeout(() => resolve(), delay)
-        ctx.signal.addEventListener(
-          'abort',
-          () => {
-            clearTimeout(t)
-            reject(new Error('AbortError'))
-          },
-          { once: true }
-        )
+        if (ctx.input.hold) {
+          // Park until aborted: the cancel test needs a handler that cannot
+          // settle on its own, so cancel() never races the sleep to finish.
+          echoEntered.resolve()
+        } else {
+          const t = setTimeout(() => resolve(), ctx.input.sleepMs ?? 30)
+          ctx.signal.addEventListener('abort', () => clearTimeout(t), { once: true })
+        }
+        ctx.signal.addEventListener('abort', () => reject(new Error('AbortError')), { once: true })
       })
       ctx.reportProgress(100, { stage: 'done' })
       return { echoed: `echo: ${ctx.input.message}` } satisfies EchoOutput
@@ -85,19 +110,21 @@ function makeEchoHandler(): JobHandler<EchoInput> {
 }
 
 /**
- * Handler that intentionally IGNORES `ctx.signal` until after the grace window,
- * forcing `cancel()` down its force-finalize-on-timeout branch. After the grace
- * window it honors the abort and throws, so the late settlement finalizes as
- * cancelled (matching a real handler that eventually reacts) rather than
+ * Handler that intentionally IGNORES `ctx.signal` until the test releases
+ * `stubbornGate`, forcing `cancel()` down its force-finalize-on-timeout branch:
+ * the grace window cannot expire early because the handler cannot settle early.
+ * Once released it honors the abort and throws, so the late settlement finalizes
+ * as cancelled (matching a real handler that eventually reacts) rather than
  * clobbering the row back to completed.
  */
-function makeStubbornHandler(): JobHandler<StubbornInput> {
+function makeStubbornHandler(): JobHandler<Record<string, never>> {
   return {
     recovery: 'abandon',
     cancelTimeoutMs: 200,
     defaultConcurrency: 2,
     async execute(ctx) {
-      await new Promise<void>((resolve) => setTimeout(resolve, ctx.input.sleepMs))
+      stubbornEntered.resolve()
+      await stubbornGate.promise
       if (ctx.signal.aborted) throw new Error('AbortError (late)')
       return { done: true }
     }
@@ -126,7 +153,7 @@ describe('JobManager smoke (dummy.echo)', () => {
     const dbSvc = MockMainDbServiceExport.dbService
     const cacheSvc = MockMainCacheServiceExport.cacheService
 
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       switch (name) {
         case 'DbService':
           return dbSvc
@@ -136,16 +163,16 @@ describe('JobManager smoke (dummy.echo)', () => {
           return scheduler
         case 'JobManager':
           return jobManager
-        case 'PowerService':
-          return mockPowerService
+        case 'RuntimeActivityService':
+          return mockRuntimeActivityService
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
 
     await scheduler._doInit()
     await jobManager._doInit()
-    jobManager.registerHandler('dummy.echo' as never, makeEchoHandler() as JobHandler)
-    jobManager.registerHandler('dummy.stubborn' as never, makeStubbornHandler() as JobHandler)
+    jobManager.registerHandler('dummy.echo' as never, makeEchoHandler())
+    jobManager.registerHandler('dummy.stubborn' as never, makeStubbornHandler())
 
     // `onAllReady` now schedules startup recovery via a setTimeout and returns
     // synchronously (the framework runs `_doAllReady` fire-and-forget). Skip
@@ -172,9 +199,9 @@ describe('JobManager smoke (dummy.echo)', () => {
   afterEach(async () => {
     await drainTrailingDispatch()
     MockMainCacheServiceUtils.resetMocks()
-    // Reset the sleep-prevention spies so each test asserts its own acquire/release counts.
-    mockPowerService.preventSleep.mockClear()
-    sleepHoldDispose.mockClear()
+    // Reset the activity spies so each test asserts its own acquire/release counts.
+    mockRuntimeActivityService.begin.mockClear()
+    activityDispose.mockClear()
   })
 
   it('runs a job end-to-end (pending → running → completed)', async () => {
@@ -193,11 +220,11 @@ describe('JobManager smoke (dummy.echo)', () => {
     // handle.finished — drain so that trailing continuation has executed before asserting.
     await drainTrailingDispatch()
 
-    // JobManager acquired exactly one sleep-prevention hold for the single attempt and
+    // JobManager acquired exactly one activity hold for the single attempt and
     // released it on completion. Reason is `job:<type>:<id>` — id is dynamic, match prefix.
-    expect(mockPowerService.preventSleep).toHaveBeenCalledTimes(1)
-    expect(mockPowerService.preventSleep).toHaveBeenCalledWith(expect.stringMatching(/^job:dummy\.echo:/))
-    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
+    expect(mockRuntimeActivityService.begin).toHaveBeenCalledTimes(1)
+    expect(mockRuntimeActivityService.begin).toHaveBeenCalledWith(expect.stringMatching(/^job:dummy\.echo:/))
+    expect(activityDispose).toHaveBeenCalledTimes(1)
   })
 
   it('publishes state + progress through CacheService', async () => {
@@ -220,11 +247,12 @@ describe('JobManager smoke (dummy.echo)', () => {
   })
 
   it('cancels an in-flight job (handler observes abort → outcome cancelled)', async () => {
-    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'long', sleepMs: 500 } as never)
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'long', hold: true } as never)
     // Wait for dispatch tx to fully commit before launching the next write.
     await drainTrailingDispatch()
-    // Give the handler time to actually enter its abortable await.
-    await new Promise((r) => setTimeout(r, 50))
+    // The handler is parked on its abortable await and cannot complete on its
+    // own, so cancel() is guaranteed to land while the job is in flight.
+    await echoEntered.promise
 
     const result = await jobManager.cancel(handle.id, 'user requested')
     expect(result).toEqual({ outcome: 'cancelled' })
@@ -240,14 +268,15 @@ describe('JobManager smoke (dummy.echo)', () => {
 
     await drainTrailingDispatch()
     // A cancelled (non-completed) job must still release its hold via the task finally.
-    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
+    expect(activityDispose).toHaveBeenCalledTimes(1)
   })
 
   it('reports timed-out when the handler ignores the abort past cancelTimeoutMs', async () => {
-    const handle = jobManager.enqueue('dummy.stubborn' as never, { sleepMs: 600 } as never)
+    const handle = jobManager.enqueue('dummy.stubborn' as never, {} as never)
     await drainTrailingDispatch()
-    // Give the handler time to enter its (un-abortable) sleep before cancelling.
-    await new Promise((r) => setTimeout(r, 50))
+    // The handler has entered its abort-ignoring wait and stays there until we
+    // release the gate, so the grace window is certain to expire.
+    await stubbornEntered.promise
     // Capture the executor settlement so we can await the late handler return and
     // not leak a trailing task into the next test.
     const executed = inFlightExecutedOf(handle.id)
@@ -258,20 +287,18 @@ describe('JobManager smoke (dummy.echo)', () => {
     const settled = await handle.finished
     expect(settled.status).toBe('cancelled')
 
+    // Let the stubborn handler return late; it observes the abort and throws.
+    stubbornGate.resolve()
     await executed
     await drainTrailingDispatch()
     // Even on the force-timeout terminal the hold is released once the late handler settles.
-    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
+    expect(activityDispose).toHaveBeenCalledTimes(1)
   }, 10_000)
 
   it('reports cancelled for a not-in-flight delayed job', async () => {
-    const handle = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'later' } as never,
-      {
-        scheduledAt: Date.now() + 60_000
-      } as never
-    )
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'later' } as never, {
+      scheduledAt: Date.now() + 60_000
+    })
     expect(handle.snapshot.status).toBe('delayed')
 
     const result = await jobManager.cancel(handle.id)
@@ -293,17 +320,13 @@ describe('JobManager smoke (dummy.echo)', () => {
 
   it('reuses an existing handle when idempotencyKey matches a non-terminal job', async () => {
     const key = `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const first = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'unique', sleepMs: 500 } as never,
-      { idempotencyKey: key } as never
-    )
+    const first = jobManager.enqueue('dummy.echo' as never, { message: 'unique', sleepMs: 500 } as never, {
+      idempotencyKey: key
+    })
     await drainTrailingDispatch()
-    const second = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'unique', sleepMs: 500 } as never,
-      { idempotencyKey: key } as never
-    )
+    const second = jobManager.enqueue('dummy.echo' as never, { message: 'unique', sleepMs: 500 } as never, {
+      idempotencyKey: key
+    })
 
     expect(second.id).toBe(first.id)
 
@@ -333,10 +356,8 @@ describe('JobManager smoke (dummy.echo)', () => {
   // cap, the gate blocked every claim and no further job was ever dispatched.
   it('drains a single queue when jobs exceed concurrency (regression: pending-count deadlock)', async () => {
     // makeEchoHandler caps concurrency at 2; 6 jobs share the default queue.
-    const handles = await Promise.all(
-      Array.from({ length: 6 }, (_, i) =>
-        jobManager.enqueue('dummy.echo' as never, { message: `m${i}`, sleepMs: 20 } as never)
-      )
+    const handles = Array.from({ length: 6 }, (_, i) =>
+      jobManager.enqueue('dummy.echo' as never, { message: `m${i}`, sleepMs: 20 } as never)
     )
     const settled = await Promise.all(handles.map((h) => h.finished))
     expect(settled.map((s) => s.status)).toEqual(Array(6).fill('completed'))
@@ -369,7 +390,7 @@ describe('JobManager smoke (dummy.echo)', () => {
         return { echoed: `echo: ${ctx.input.message}` } satisfies EchoOutput
       }
     }
-    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler as JobHandler)
+    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler)
 
     const handle = jobManager.enqueue('dummy.inflight.guard' as never, { message: 'once' } as never)
     await drainTrailingDispatch()

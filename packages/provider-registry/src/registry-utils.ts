@@ -3,11 +3,11 @@
  * Safe to import from browser/renderer contexts.
  */
 
+import { ModelIndex, ProviderModelIndex } from './registry-index'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
-import type { ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
+import type { EndpointDialect, ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
-import { normalizeModelId } from './utils/normalize'
 
 export interface ModelLookupResult {
   presetModel: ModelConfig | null
@@ -24,20 +24,8 @@ export function lookupRegistryModel(
   providerId: string,
   modelId: string
 ): ModelLookupResult {
-  // Exact match first, then normalized fallback
-  let presetModel = models.find((m) => m.id === modelId) ?? null
-  if (!presetModel) {
-    const normalizedId = normalizeModelId(modelId)
-    presetModel = models.find((m) => normalizeModelId(m.id) === normalizedId) ?? null
-  }
-
-  let registryOverride = providerModels.find((pm) => pm.providerId === providerId && pm.modelId === modelId) ?? null
-  if (!registryOverride) {
-    const normalizedId = normalizeModelId(modelId)
-    registryOverride =
-      providerModels.find((pm) => pm.providerId === providerId && normalizeModelId(pm.modelId) === normalizedId) ?? null
-  }
-
+  const registryOverride = new ProviderModelIndex(providerModels).findOverride(providerId, modelId)
+  const presetModel = new ModelIndex(models).findModel(registryOverride?.modelId ?? modelId)
   return { presetModel, registryOverride }
 }
 
@@ -52,6 +40,15 @@ export interface PersistedEndpointConfig {
   baseUrl?: string
   modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
+  dialect?: EndpointDialect
+}
+
+function wireCarriesReasoningSummary(config: RegistryEndpointConfig): boolean {
+  const wire = config.reasoningFormat?.wire
+  if (!wire || wire.disabled) return false
+  return [wire.default, wire.auto, wire.effort].some((mode) =>
+    mode?.operations.some((operation) => operation.value.source === 'assistant-summary')
+  )
 }
 
 /**
@@ -72,6 +69,13 @@ export function buildPersistedEndpointConfigs(
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
+    const dialect = { ...regConfig.dialect }
+    // Renderer-safe projection of the main-only wire, so a preset's effective
+    // switch state can be displayed and overridden without exposing the wire.
+    if (dialect.reasoningSummary === undefined && wireCarriesReasoningSummary(regConfig)) {
+      dialect.reasoningSummary = true
+    }
+    if (Object.keys(dialect).length > 0) config.dialect = dialect
 
     if (Object.keys(config).length > 0) configs[k] = config
   }

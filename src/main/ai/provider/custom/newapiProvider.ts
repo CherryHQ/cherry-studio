@@ -6,22 +6,25 @@
  * - gemini -> Google SDK
  * - openai-response -> OpenAI Responses SDK
  * - openai / image-generation -> OpenAI Chat SDK
+ * - embedding -> OpenAI Compatible Embedding SDK
+ * - jina-rerank -> OpenAI Compatible Reranking SDK
  * - fallback -> OpenAI Compatible SDK
  *
  * The endpointType is set per-request via provider settings, based on the model's endpoint_type field.
  */
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
-import { OpenAIResponsesLanguageModel } from '@ai-sdk/openai/internal'
 import {
   OpenAICompatibleChatLanguageModel,
   OpenAICompatibleEmbeddingModel,
   OpenAICompatibleImageModel
 } from '@ai-sdk/openai-compatible'
+import { OpenAIResponsesLanguageModel } from '@ai-sdk/openai/internal'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
+
+import { applyReasoningModelMaxTokensConversion, OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const
 
@@ -32,6 +35,7 @@ export type NewApiEndpointType =
   | 'gemini'
   | 'image-generation'
   | 'jina-rerank'
+  | 'embedding'
 
 export interface NewApiProviderSettings {
   apiKey?: string
@@ -109,7 +113,8 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       provider: `${NEWAPI_PROVIDER_NAME}.chat`,
       url,
       headers: authHeaders,
-      fetch: customFetch
+      fetch: customFetch,
+      transformRequestBody: applyReasoningModelMaxTokensConversion
     })
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
@@ -123,6 +128,10 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       case 'openai':
       case 'image-generation':
         return createCompatibleModel(modelId)
+      case 'embedding':
+        throw new Error('Use embeddingModel() for embedding endpoint type')
+      case 'jina-rerank':
+        throw new Error('Use rerankingModel() for jina-rerank endpoint type')
       default:
         return createCompatibleModel(modelId)
     }
@@ -157,5 +166,5 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       fetch: customFetch
     })
 
-  return provider as NewApiProvider
+  return provider
 }

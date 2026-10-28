@@ -1,6 +1,8 @@
-import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from '../ModelTagsWithLabel'
 
@@ -58,5 +60,29 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
 
     // vision + audio + video input tags → three icons.
     expect(container.querySelectorAll('svg')).toHaveLength(3)
+  })
+
+  it('renders web search for an untagged model on a provider-wide host', () => {
+    const { container } = render(
+      <ModelTagsWithLabel
+        model={
+          {
+            id: 'openrouter::meta-llama/llama-3',
+            providerId: 'openrouter',
+            name: 'Llama 3',
+            capabilities: [],
+            endpointTypes: []
+          } satisfies ModelTagsWithLabelModel
+        }
+        provider={
+          {
+            serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+          } as Provider
+        }
+        showTooltip={false}
+      />
+    )
+
+    expect(container.querySelectorAll('svg')).toHaveLength(1)
   })
 })

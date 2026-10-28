@@ -12,7 +12,11 @@
  */
 
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
-import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import {
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryAiDefaultModel,
+  isManagedCherryCloudModel
+} from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -40,9 +44,6 @@ export const isRerankModel = (model: { capabilities?: readonly unknown[] | null 
 /** Check if model supports function calling / tool use */
 export const isFunctionCallingModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL)
-
-/** Check if model supports web search */
-export const isWebSearchModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH)
 
 /** Check if model supports image generation */
 export const isGenerateImageModel = (model: Model): boolean =>
@@ -111,6 +112,10 @@ export const isGatewayRoutableModel = (model: Model): boolean => {
   return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
 }
 
+/** Models the public API gateway and Code Mate may expose. */
+export const isPublicGatewayRoutableModel = (model: Model): boolean =>
+  isGatewayRoutableModel(model) && !isManagedCherryCloudModel(model.providerId)
+
 // ---------------------------------------------------------------------------
 // Reasoning configuration
 // ---------------------------------------------------------------------------
@@ -141,10 +146,11 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 
 /** Check if model supports temperature parameter */
 export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+  !isGemini4Model(model) && model.parameterSupport?.temperature?.supported !== false
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean =>
+  !isGemini4Model(model) && model.parameterSupport?.topP?.supported !== false
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
@@ -167,6 +173,34 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
 // Model family checks (lightweight ID-based, safe for runtime)
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether the model accepts dynamically-loaded tool declarations (the mechanism behind
+ * Claude Code's ToolSearch: `tool_reference` blocks / `system` messages carrying a `tools`
+ * array injected mid-conversation).
+ *
+ * Claude Code forces ToolSearch on for every non-first-party host when Cherry sets
+ * `ENABLE_TOOL_SEARCH=auto` (see settingsBuilder). Most Anthropic-compatible providers
+ * simply ignore unknown content blocks, but Moonshot's Anthropic endpoint rejects them on
+ * every model except Kimi K3 with `400 Invalid request: tokenization failed`
+ * (https://platform.kimi.com/docs/guide/use-dynamic-tool-loading). Kimi K3 ids resolve to
+ * `k3`/`kimi-k3*`/... — everything else in the Kimi family is excluded.
+ *
+ * Input is a raw API model id (e.g. `kimi-for-coding`); namespace prefixes (`provider:id`)
+ * and Claude Code's `[1m]` suffix are stripped before matching.
+ */
+export const supportsDynamicallyLoadedTools = (apiModelId: string): boolean => {
+  // Strip the gateway namespace prefix (`providerId:apiModelId`) and Claude Code's `[1m]`
+  // context suffix before matching — both wrap the raw API model id this check targets.
+  const bareId =
+    apiModelId
+      .replace(/\[1m\]$/i, '')
+      .split(':')
+      .pop() ?? ''
+  const id = getLowerBaseModelName(bareId)
+  if (!VENDOR_PATTERNS.kimi.test(id)) return true
+  return /^(?:k3|kimi-k3)(?:[-_.]|$)/i.test(id)
+}
+
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —
 // add the vendor to the registry's pattern map instead of duplicating
@@ -180,11 +214,21 @@ export const isAnthropicModel = (model: Model): boolean =>
 export const isGeminiModel = (model: Model): boolean =>
   VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model)))
 
-/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
-export const isGemini3Model = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
+/**
+ * Check if a raw model id is Gemini 3 series. The `*-latest` aliases resolve to
+ * Gemini 3, so an id-substring check alone misses them.
+ */
+export const isGemini3ModelId = (modelId: string): boolean => {
+  const id = getLowerBaseModelName(modelId)
   return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
 }
+
+/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
+export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
+
+/** Gemini 4 uses level-based thinking and ignores sampling parameters. */
+export const isGemini4Model = (model: Model): boolean =>
+  /^gemini-4(?:[.-]|$)/.test(getLowerBaseModelName(getRawModelId(model)))
 
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>
@@ -283,6 +327,14 @@ export const isClaude47SeriesModel = (model: Model): boolean => {
   return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
+/** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
+export const isClaudeFixedSamplingModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model), '/')
+  return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+)?$/i.test(
+    id
+  )
+}
+
 /** Check if model is Claude 4.5 reasoning */
 export const isClaude45ReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
@@ -313,13 +365,6 @@ export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
     return false
   }
   return isSupportedThinkingTokenModel(model)
-}
-
-/** Check if model supports OpenRouter built-in web search */
-export const isOpenRouterBuiltInWebSearchModel = (model: Model): boolean => {
-  if (model.providerId !== 'openrouter') return false
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return isOpenAIWebSearchChatCompletionOnlyModel(model) || id.includes('sonar')
 }
 
 /** Check if model is a pure image generation model (no tool use) */
@@ -392,6 +437,23 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   return baseModelName
 }
 
+/**
+ * Derive the model-list group from an API model ID.
+ *
+ * Provider-prefixed IDs use the provider segment (`openai/gpt-4o` → `openai`);
+ * flat IDs use their family prefix (`deepseek-v4-pro` → `deepseek`).
+ */
+export function deriveModelGroupName(modelId: string): string | undefined {
+  const normalizedId = modelId.trim()
+  const pathParts = normalizedId.split('/')
+  if (pathParts.length > 1) {
+    return pathParts[0]?.trim() || undefined
+  }
+
+  const familyName = normalizedId.split('-')[0]?.trim()
+  return familyName && familyName !== normalizedId ? familyName : undefined
+}
+
 export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model, 'group'>>>(
   models: T[]
 ): Record<string, T[]> => {
@@ -411,11 +473,16 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
 export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 // ---------------------------------------------------------------------------
-// Internal helper: extract raw model ID from Model
+// Extract the raw (wire) model ID from a Model
 // ---------------------------------------------------------------------------
 
-function getRawModelId(model: Model): string {
-  return model.apiModelId ?? parseUniqueModelId(model.id).modelId
+/**
+ * The wire id every id-based predicate must key off. `apiModelId` is optional
+ * or empty on the runtime Model, so reading it alone silently misidentifies models whose
+ * unique id carries the wire name instead.
+ */
+export function getRawModelId(model: Model): string {
+  return model.apiModelId || parseUniqueModelId(model.id).modelId
 }
 
 // ---------------------------------------------------------------------------
@@ -428,18 +495,3 @@ function getRawModelId(model: Model): string {
  * check by `isGPT5SeriesModel` already, so no extra ID filter is needed.
  */
 export const isGPT5SeriesReasoningModel = (model: Model): boolean => isGPT5SeriesModel(model) && isReasoningModel(model)
-
-// ---------------------------------------------------------------------------
-// Web search variants
-// ---------------------------------------------------------------------------
-
-/**
- * OpenAI model with native web-search capability.
- *
- * Composition: `isOpenAIModel(model) && isWebSearchModel(model)`. The
- * vendor gate keeps the check from matching Gemini / Claude searches;
- * `isWebSearchModel` reads the `WEB_SEARCH` capability the registry /
- * bridge populates (which encodes the specific SKU exclusions such as
- * `gpt-4o-image`, `gpt-4.1-nano`, `gpt-5-chat`).
- */
-export const isOpenAIWebSearchModel = (model: Model): boolean => isOpenAIModel(model) && isWebSearchModel(model)

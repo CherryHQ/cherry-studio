@@ -30,7 +30,7 @@ function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOption
     files: undefined,
     mask: undefined,
     ...partial
-  } as ImageModelV3CallOptions
+  }
 }
 
 const baseURL = 'https://ark.cn-beijing.volces.com/api/v3'
@@ -132,7 +132,7 @@ describe('Doubao (Ark) image boundary', () => {
     const result = await runWithResponse({ data: [{ b64_json: 'AQID' }] }, (fetch) =>
       imageModel('doubao-seedream-4-0', fetch).doGenerate(
         // `seed` was removed from Ark's image API; aspectRatio/mask were never in it.
-        opts({ seed: 7, aspectRatio: '1:1', mask: file(9) as unknown as ImageModelV3CallOptions['mask'] })
+        opts({ seed: 7, aspectRatio: '1:1', mask: file(9) })
       )
     )
     expect(result.images).toEqual(['AQID'])

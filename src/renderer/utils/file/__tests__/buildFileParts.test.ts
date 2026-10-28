@@ -1,9 +1,16 @@
-import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { Blob as NodeBlob } from 'node:buffer'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+
 import { buildFilePartsForAttachments } from '../buildFileParts'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 const attachment = (overrides: Partial<ComposerAttachment> = {}): ComposerAttachment => ({
   fileTokenSourceId: 'source-1',
@@ -23,37 +30,58 @@ describe('buildFilePartsForAttachments', () => {
       value: {
         file: {
           createInternalEntry: vi.fn(async () => ({ id: 'fe-1', ext: 'png' })),
-          getPhysicalPath: vi.fn(async () => '/p/fe-1.png'),
-          getMetadata: vi.fn(async () => ({ kind: 'file', mime: 'image/png', size: 1, mtime: 0 }))
+          getPhysicalPath: vi.fn(async () => '/p/fe-1.png')
         }
       }
     })
+    mocks.request.mockReset()
+    mocks.request.mockResolvedValue({ kind: 'file', mime: 'image/png', size: 1, mtime: 0 })
   })
 
   it('creates the FileEntry at send time and emits a file:// url + file identities + the disk MIME', async () => {
     const [part] = await buildFilePartsForAttachments([attachment()])
 
-    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/image.png' })
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/image.png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: 'fe-1' })
-    expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/p/fe-1.png' })
+    expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: '/p/fe-1.png' })
     expect(part).toEqual({
       type: 'file',
       url: 'file:///p/fe-1.png',
       mediaType: 'image/png',
       filename: 'image.png',
-      providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
+      providerMetadata: {
+        cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1', originalPath: '/tmp/image.png' }
+      }
     })
+  })
+
+  it('persists a received image from its owned Blob without a temporary path', async () => {
+    const bytes = new Uint8Array([137, 80, 78, 71])
+    const blob = new NodeBlob([bytes], { type: 'image/png' }) as Blob
+    const [part] = await buildFilePartsForAttachments([attachment({ path: undefined, blob })])
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'bytes',
+      data: bytes,
+      name: 'image.png',
+      ext: 'png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    expect(() =>
+      createInternalEntryInputSchema.parse(vi.mocked(window.api.file.createInternalEntry).mock.calls[0][0])
+    ).not.toThrow()
+    expect(part.url).toBe('file:///p/fe-1.png')
+    expect(part.providerMetadata?.cherry?.fileTokenSourceId).toBe('source-1')
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(bytes)
   })
 
   it('uses the real MIME from getMetadata for documents (not octet-stream)', async () => {
     vi.mocked(window.api.file.createInternalEntry).mockResolvedValueOnce({ id: 'fe-3', ext: 'pdf' } as never)
     vi.mocked(window.api.file.getPhysicalPath).mockResolvedValueOnce('/p/fe-3.pdf' as never)
-    vi.mocked(window.api.file.getMetadata).mockResolvedValueOnce({
-      kind: 'file',
-      mime: 'application/pdf',
-      size: 1,
-      mtime: 0
-    } as never)
+    mocks.request.mockResolvedValueOnce({ kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 })
 
     const [part] = await buildFilePartsForAttachments([
       attachment({
@@ -67,6 +95,18 @@ describe('buildFilePartsForAttachments', () => {
 
     expect(part.mediaType).toBe('application/pdf')
     expect(part.url).toBe('file:///p/fe-3.pdf')
+  })
+
+  it('formats Windows physical paths as valid file URLs', async () => {
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValueOnce('C:\\Users\\Test User\\fe-1.png' as never)
+
+    const [part] = await buildFilePartsForAttachments([attachment()])
+
+    expect(part.url).toBe('file:///C:/Users/Test%20User/fe-1.png')
+  })
+  it('throws when metadata is unreadable (null) for the freshly created file', async () => {
+    mocks.request.mockResolvedValueOnce(null)
+    await expect(buildFilePartsForAttachments([attachment()])).rejects.toThrow(/Failed to read metadata/)
   })
 
   it('rejects a batch containing a path-less attachment BEFORE creating any entry', async () => {
@@ -98,6 +138,7 @@ describe('buildFilePartsForAttachments', () => {
     expect(part.providerMetadata?.cherry).toEqual({
       fileEntryId: 'fe-1',
       fileTokenSourceId: 'source-1',
+      originalPath: '/tmp/pasted_text.txt',
       composerFileKind: 'pasted-text'
     })
   })

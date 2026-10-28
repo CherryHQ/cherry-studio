@@ -38,6 +38,8 @@ export interface FileProcessingExecutionContext {
 export type FileProcessingRemoteContext = object
 
 export interface FileProcessingPrepareContext {
+  /** Provider-owned recovery data, validated by the capability before use. */
+  remoteState?: unknown
   /**
    * Provider-specific task identifier (e.g. MinerU's `data_id`), supplied by the
    * caller. Optional at this generic boundary because most processors do not use
@@ -139,13 +141,8 @@ export interface FileProcessingCapabilityHandler<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > {
-  /**
-   * Execution model declared statically on the handler. Mirrors the `mode`
-   * field on PreparedJob but is available without awaiting prepare(), so the
-   * orchestrator can route to the correct JobHandler synchronously at enqueue
-   * time. Runtime assertion: prepared.mode must equal this value.
-   */
-  readonly mode: 'background' | 'remote-poll'
+  /** Auto handlers select their execution model during preparation. */
+  readonly mode: 'background' | 'remote-poll' | 'auto'
   prepare(
     file: FileInfo,
     config: FileProcessorMerged,
@@ -158,9 +155,35 @@ export type FileProcessingProcessorCapabilities = {
   [feature in FileProcessorFeature]?: FileProcessingCapabilityHandler<feature>
 }
 
+/**
+ * Where a processor's work actually happens.
+ *
+ * `local` means this machine does the work — an inference worker, a native
+ * binding, a child process. Such processors are throttled to one job at a time
+ * (see `backgroundJobHandler`), because the runtimes behind them are already
+ * serialized and a second concurrent job would only queue up inside them.
+ * `remote` means the work happens over a socket and our process merely waits,
+ * so concurrent jobs are a genuine throughput win — this includes a self-hosted
+ * endpoint like open-mineru's `127.0.0.1:8000`, which is another process.
+ *
+ * Processor-level rather than per-capability: no processor mixes the two.
+ */
+export type FileProcessorRuntime = 'local' | 'remote'
+
 export type FileProcessingProcessorRegistry = {
   [processorId in FileProcessorId]: {
     capabilities: FileProcessingProcessorCapabilities
-    isAvailable: () => boolean
+    /**
+     * Whether this machine could ever run the processor. `false` is permanent —
+     * a missing platform API or unsupported hardware — so the UI hides the
+     * processor outright rather than offering the user something to fix.
+     *
+     * Deliberately *not* about downloadable prerequisites: those live in
+     * `FILE_PROCESSOR_LOCAL_MODEL` and stay visible with a download entry point.
+     * Folding the two back together is what made `local-paddleocr` vanish from
+     * the OCR settings page with no way to bring it back.
+     */
+    isSupported: () => boolean
+    runtime: FileProcessorRuntime
   }
 }

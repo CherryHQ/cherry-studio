@@ -1,10 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { SkillSearchResult } from '@shared/types/skill'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
+import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { SkillSearchResult } from '@shared/types/skill'
 
 import { SkillMarketplaceDialog } from '../SkillMarketplaceDialog'
 
@@ -12,7 +13,11 @@ const searchMock = vi.fn()
 const clearMock = vi.fn()
 const installMock = vi.fn()
 const isInstallingMock = vi.fn()
-const { toastSuccess, toastError } = vi.hoisted(() => ({ toastSuccess: vi.fn(), toastError: vi.fn() }))
+const { toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  virtualRowKeysMock: vi.fn()
+}))
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { success: toastSuccess, error: toastError }
@@ -116,29 +121,36 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
-  SegmentedControl: ({
-    options,
+  // Radix Select stubbed as a native select: same combobox role and value semantics, no portal.
+  Select: ({
+    children,
     value,
     onValueChange
   }: {
-    options: { value: string; label: ReactNode; disabled?: boolean }[]
+    children?: ReactNode
     value?: string
     onValueChange?: (value: string) => void
   }) => (
-    <div role="radiogroup">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === value}
-          disabled={option.disabled}
-          onClick={() => onValueChange?.(option.value)}>
-          {option.label}
-        </button>
-      ))}
-    </div>
+    <select
+      aria-label="library.skill_marketplace.source_label"
+      value={value}
+      onChange={(event) => onValueChange?.(event.target.value)}>
+      {children}
+    </select>
   ),
+  SelectContent: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  SelectItem: ({ children, value }: { children?: ReactNode; value: string }) => {
+    // <option> only accepts text, so flatten the styled count span the real SelectItem renders.
+    const flatten = (node: ReactNode): string => {
+      if (typeof node === 'string' || typeof node === 'number') return String(node)
+      if (Array.isArray(node)) return node.map(flatten).join('')
+      if (isValidElement<{ children?: ReactNode }>(node)) return flatten(node.props.children)
+      return ''
+    }
+    return <option value={value}>{flatten(children)}</option>
+  },
+  SelectTrigger: () => null,
+  SelectValue: () => null,
   Spinner: ({ text }: { text: ReactNode }) => <div>{text}</div>,
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>
 }))
@@ -148,19 +160,25 @@ vi.mock('@renderer/components/VirtualList', () => ({
     children,
     className,
     role,
-    list
+    list,
+    getItemKey
   }: {
     children: (item: SkillSearchResult, index: number) => ReactNode
     className?: string
     list: SkillSearchResult[]
     role?: string
-  }) => (
-    <div className={className} data-testid="skill-results-virtual-list" role={role}>
-      {list.map((item, index) => (
-        <div key={item.installSource}>{children(item, index)}</div>
-      ))}
-    </div>
-  )
+    getItemKey: (index: number) => string | number
+  }) => {
+    const keys = list.map((_, index) => getItemKey(index))
+    virtualRowKeysMock(keys)
+    return (
+      <div className={className} data-testid="skill-results-virtual-list" role={role}>
+        {list.map((item, index) => (
+          <div key={keys[index]}>{children(item, index)}</div>
+        ))}
+      </div>
+    )
+  }
 }))
 
 beforeEach(() => {
@@ -198,8 +216,36 @@ function typeSearchQuery(query: string) {
   expect(screen.queryByText('common.loading')).not.toBeInTheDocument()
 }
 
+function sourceSelect() {
+  return screen.getByRole('combobox', { name: 'library.skill_marketplace.source_label' })
+}
+
 describe('SkillMarketplaceDialog', () => {
-  it('renders source tabs and filters results by selected source', async () => {
+  it('gives same-slug ClawHub publishers independent virtual rows', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = ['first-publisher', 'second-publisher'].map<SkillSearchResult>((author) => ({
+      slug: 'shared-skill',
+      name: 'Shared Skill',
+      description: null,
+      author,
+      stars: 0,
+      downloads: 0,
+      sourceRegistry: 'clawhub.ai',
+      sourceUrl: `https://clawhub.ai/${author}/skills/shared-skill`,
+      installSource: `clawhub:${author}/shared-skill`
+    }))
+    renderDialog()
+
+    typeSearchQuery('shared')
+    await user.selectOptions(sourceSelect(), 'clawhub.ai')
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    const keys = virtualRowKeysMock.mock.lastCall?.[0]
+    expect(keys).toHaveLength(2)
+    expect(new Set(keys).size).toBe(2)
+  })
+
+  it('renders every source option and filters results by the selected one', async () => {
     const user = userEvent.setup()
     skillSearchState.results = [
       ...resultsFixture,
@@ -213,13 +259,14 @@ describe('SkillMarketplaceDialog', () => {
     renderDialog()
 
     typeSearchQuery('react')
-    const sourceTabs = screen.getAllByRole('radio')
-    expect(sourceTabs.map((tab) => tab.textContent)).toEqual(['skills.sh1', 'claude-plugins.dev2', 'clawhub.ai'])
-    expect(sourceTabs[0]).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('px-6', 'pt-1', 'pb-1')
-    expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('[&::-webkit-scrollbar]:!w-0.75')
-    expect(screen.getAllByRole('listitem')[0]).toHaveClass('min-h-[56px]')
-    expect(screen.getAllByRole('listitem')[0].className).not.toContain('hover:bg-accent')
+    const sourceOptions = within(sourceSelect()).getAllByRole('option')
+    expect(sourceOptions.map((option) => option.textContent)).toEqual([
+      'skills.sh1',
+      'claude-plugins.dev2',
+      'clawhub.ai',
+      'GitHub'
+    ])
+    expect(sourceSelect()).toHaveValue('skills.sh')
     expect(screen.getByText('React Skill')).toBeInTheDocument()
     const firstResult = screen.getAllByRole('listitem')[0]
     expect(within(firstResult).queryByText('vercel')).not.toBeInTheDocument()
@@ -229,11 +276,10 @@ describe('SkillMarketplaceDialog', () => {
     expect(screen.queryByText('Code Review')).not.toBeInTheDocument()
     expect(within(firstResult).queryByText('skills.sh')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
+    await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
 
     expect(screen.getByText('Code Review')).toBeInTheDocument()
     const claudeResult = screen.getAllByRole('listitem')[0]
-    expect(claudeResult).toHaveClass('min-h-[56px]', 'border-b')
     expect(within(claudeResult).queryByText('Review code changes')).not.toBeInTheDocument()
     expect(within(claudeResult).queryByText('anthropic')).not.toBeInTheDocument()
     expect(within(claudeResult).getByText('42')).toBeInTheDocument()
@@ -276,19 +322,89 @@ describe('SkillMarketplaceDialog', () => {
     skillSearchState.results = [resultsFixture[1]]
     renderDialog()
 
-    await user.click(screen.getByRole('radio', { name: /clawhub.ai/ }))
+    await user.selectOptions(sourceSelect(), 'clawhub.ai')
     typeSearchQuery('react')
 
-    const clawhubTab = screen.getByRole('radio', { name: /clawhub.ai/ })
-    expect(clawhubTab).toHaveAttribute('aria-checked', 'true')
-    expect(clawhubTab).not.toBeDisabled()
+    expect(sourceSelect()).toHaveValue('clawhub.ai')
     expect(screen.getByText('library.skill_marketplace.no_results_title')).toBeInTheDocument()
     expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
 
-    const skillsShTab = screen.getByRole('radio', { name: 'skills.sh 1' })
-    await user.click(skillsShTab)
+    await user.selectOptions(sourceSelect(), 'skills.sh')
 
+    // Switching between registries refilters the one shared search instead of discarding it.
     expect(screen.getByText('React Skill')).toBeInTheDocument()
+    expect(searchMock).toHaveBeenCalledTimes(1)
+  })
+
+  describe('github source', () => {
+    async function selectGithubAndType(url: string) {
+      const user = userEvent.setup()
+      await user.selectOptions(sourceSelect(), 'github')
+      vi.useFakeTimers()
+      try {
+        fireEvent.change(screen.getByPlaceholderText('library.skill_marketplace.github_url_placeholder'), {
+          target: { value: url }
+        })
+        act(() => {
+          vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS)
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it.each([
+      [
+        'repository-root blob link',
+        'https://github.com/owner/repo/blob/main/SKILL.md',
+        'github:https://github.com/owner/repo/blob/main/SKILL.md'
+      ],
+      [
+        'official raw link',
+        'https://github.com/owner/repo/raw/refs/heads/main/SKILL.md',
+        'github:https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      ]
+    ])('installs a %s without querying the registries', async (_case, url, installSource) => {
+      const user = userEvent.setup()
+      renderDialog()
+
+      await selectGithubAndType(url)
+
+      expect(searchMock).not.toHaveBeenCalled()
+      expect(screen.getByText('repo')).toBeInTheDocument()
+      // The dropdown counts what each source currently offers, and GitHub's one row is not in
+      // `results` — reading only the registry list would leave it blank.
+      expect(within(sourceSelect()).getByRole('option', { name: 'GitHub1' })).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
+      await waitFor(() => {
+        expect(installMock).toHaveBeenCalledWith(installSource)
+      })
+    })
+
+    it('reports an unsupported GitHub URL format instead of offering an install', async () => {
+      renderDialog()
+
+      await selectGithubAndType('https://github.com/owner/repo')
+
+      const input = screen.getByPlaceholderText('library.skill_marketplace.github_url_placeholder')
+      const message = screen.getByRole('alert')
+      expect(message).toHaveTextContent('library.skill_marketplace.github_url_invalid')
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(input).toHaveAccessibleDescription('library.skill_marketplace.github_url_invalid')
+      expect(screen.queryByRole('button', { name: /settings.skills.install/ })).not.toBeInTheDocument()
+      expect(searchMock).not.toHaveBeenCalled()
+    })
+
+    it('drops the typed value when the source switches between keywords and URLs', async () => {
+      const user = userEvent.setup()
+      renderDialog()
+
+      typeSearchQuery('react')
+      await user.selectOptions(sourceSelect(), 'github')
+
+      expect(screen.getByPlaceholderText('library.skill_marketplace.github_url_placeholder')).toHaveValue('')
+      expect(screen.getByText('library.skill_marketplace.github_empty_title')).toBeInTheDocument()
+    })
   })
 
   it('shows a localized marketplace error message when search fails', async () => {
@@ -335,7 +451,7 @@ describe('SkillMarketplaceDialog', () => {
     )
     renderDialog()
 
-    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
+    await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
     typeSearchQuery('code')
 
     expect(screen.getByRole('dialog')).toHaveAttribute('data-close-on-overlay-click', 'true')
@@ -358,7 +474,7 @@ describe('SkillMarketplaceDialog', () => {
     isInstallingMock.mockImplementation((key?: string) => (key ? false : true))
     renderDialog()
 
-    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
+    await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
     typeSearchQuery('code')
     const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
     await user.click(installButtons[0])

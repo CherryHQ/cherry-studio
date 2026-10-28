@@ -1,7 +1,7 @@
-import Scrollbar from '@renderer/components/Scrollbar'
+import type { ReactNode } from 'react'
+
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { ReactNode } from 'react'
 
 import { providerSettingsTypography } from './classNames'
 
@@ -29,25 +29,20 @@ export function ProviderSettingsContainer({
   className?: string
   children: ReactNode
 }) {
-  return (
-    <Scrollbar
-      className={cn('flex min-w-0 flex-1 flex-col [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}>
-      {children}
-    </Scrollbar>
-  )
+  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', className)}>{children}</div>
 }
 
 export function ProviderSettingsSubtitle({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={cn('mt-4 select-none font-semibold text-foreground', providerSettingsTypography.subtitle, className)}>
+      className={cn('mt-4 font-semibold text-foreground select-none', providerSettingsTypography.subtitle, className)}>
       {children}
     </div>
   )
 }
 
 export function ProviderHelpText({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('text-foreground opacity-40', providerSettingsTypography.label, className)}>{children}</div>
+  return <div className={cn('text-muted-foreground', providerSettingsTypography.label, className)}>{children}</div>
 }
 
 export function ProviderHelpTextRow({ children, className }: { children: ReactNode; className?: string }) {
@@ -56,7 +51,7 @@ export function ProviderHelpTextRow({ children, className }: { children: ReactNo
 
 export function ProviderHelpLink({ children, className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   return (
-    <a className={cn('mx-[5px] cursor-pointer text-primary', providerSettingsTypography.label, className)} {...props}>
+    <a className={cn('mx-[5px] cursor-pointer text-link', providerSettingsTypography.label, className)} {...props}>
       {children}
     </a>
   )

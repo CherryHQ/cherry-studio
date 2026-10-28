@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => ({
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined

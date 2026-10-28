@@ -1,5 +1,4 @@
 import '../types.js'
-
 import { mergeAttributes, Node } from '@tiptap/core'
 
 export interface TableRowOptions {

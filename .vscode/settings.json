@@ -1,30 +1,32 @@
 {
   "[css]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[javascript]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[json]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[jsonc]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[markdown]": {
     "files.trimTrailingWhitespace": false
   },
   "[scss]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[typescript]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[typescriptreact]": {
-    "editor.defaultFormatter": "biomejs.biome"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "editor.codeActionsOnSave": {
-    "source.fixAll.biome": "explicit",
     "source.fixAll.eslint": "explicit",
     "source.fixAll.oxc": "explicit",
     "source.organizeImports": "never"
@@ -39,22 +41,17 @@
   "i18n-ally.enabledFrameworks": ["react-i18next", "i18next"],
   "i18n-ally.enabledParsers": ["ts", "js", "json"], // 解析语言
   "i18n-ally.fullReloadOnChanged": true,
-  "i18n-ally.keystyle": "nested", // 翻译路径格式
-  "i18n-ally.localesPaths": ["src/renderer/src/i18n/locales"],
+  "i18n-ally.keystyle": "flat", // 翻译路径格式
+  "i18n-ally.localesPaths": ["src/renderer/i18n/locales"],
   // "i18n-ally.namespace": true, // 开启命名空间
   "i18n-ally.sortKeys": true, // 排序
-  "i18n-ally.sourceLanguage": "zh-cn", // 翻译源语言
+  "i18n-ally.sourceLanguage": "en-us", // 翻译源语言
   "i18n-ally.usage.derivedKeyRules": ["{key}_one", "{key}_other"], // 标记单复数形式的键为已翻译
   "search.exclude": {
     "**/dist/**": true,
     ".yarn/releases/**": true
   },
-  "tailwindCSS.classAttributes": [
-    "className",
-    "classNames"
-  ],
-  "tailwindCSS.experimental.classRegex": [
-    ["cva\\(([^;]*)[\\);]", "[`'\"`]([^'\"`;]*)[`'\"`]"]
-  ],
+  "tailwindCSS.classAttributes": ["className", "classNames"],
+  "tailwindCSS.experimental.classRegex": [["cva\\(([^;]*)[\\);]", "[`'\"`]([^'\"`;]*)[`'\"`]"]],
   "typescript.tsdk": "node_modules/typescript/lib"
 }

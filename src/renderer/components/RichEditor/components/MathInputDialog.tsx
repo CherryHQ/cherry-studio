@@ -1,7 +1,8 @@
-import { Button, Flex, Textarea } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/hooks/useTheme'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Flex, Textarea } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 interface MathInputDialogProps {
   /** Whether the dialog is visible */
@@ -124,7 +125,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
   const styles: React.CSSProperties = {
     ...getPositionStyles(),
     background: 'var(--popover)',
-    border: `1px solid ${isDark ? 'var(--border, #ffffff19)' : '#d9d9d9'}`,
+    border: '1px solid var(--border)',
     borderRadius: 8,
     boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.15)',
     padding: 16,

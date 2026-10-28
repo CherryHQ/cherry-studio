@@ -3,12 +3,13 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { fileEntryTable } from '@data/db/schemas/file'
-import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
-import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { MiniAppMigrator } from '../MiniAppMigrator'
@@ -771,7 +772,7 @@ describe('MiniAppMigrator', () => {
       const tmpUserData = await fs.mkdtemp(path.join(os.tmpdir(), 'miniapp-mig-'))
       const filesDir = path.join(tmpUserData, 'Data', 'Files')
       await fs.mkdir(filesDir, { recursive: true })
-      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
       await fs.writeFile(
         path.join(filesDir, 'custom-minapps.json'),
         JSON.stringify([
@@ -810,6 +811,11 @@ describe('MiniAppMigrator', () => {
         const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
         expect(entry?.origin).toBe('internal')
         expect(entry?.ext).toBe('webp')
+        // Must match what the live `bindLogoImage` path assigns: the logo is held
+        // only by the ref row above, so once the mini-app (or the slot) goes away
+        // it has to become a cleanup candidate. Falling through to the DB default
+        // `'manual'` would strand the row and its WebP forever.
+        expect(entry?.cleanupPolicy).toBe('delete_when_unreferenced')
 
         const webps = (await fs.readdir(filesDir)).filter((name) => name.endsWith('.webp'))
         expect(webps).toContain(`${logoFileId}.webp`)
@@ -823,7 +829,7 @@ describe('MiniAppMigrator', () => {
       const filesDir = path.join(tmpUserData, 'Data', 'Files')
       await fs.mkdir(filesDir, { recursive: true })
       // A real 1×1 PNG data URL → transcodes to a WebP written into filesDataDir.
-      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
       await fs.writeFile(
         path.join(filesDir, 'custom-minapps.json'),
         JSON.stringify([

@@ -5,14 +5,15 @@ export interface NodeProxyLogger {
   warn?: (message: string, ...data: any[]) => void
 }
 
+export interface ProxyBypassMatcher {
+  isByPass(url: string, logger?: NodeProxyLogger): boolean
+}
+
+export type ProxyBypassMatcherFactory = typeof createProxyBypassMatcher
+
 type HostnameMatchType = 'exact' | 'wildcardSubdomain' | 'generalWildcard'
 
-const enum ProxyBypassRuleType {
-  Local = 'local',
-  Cidr = 'cidr',
-  Ip = 'ip',
-  Domain = 'domain'
-}
+type ProxyBypassRuleType = 'local' | 'cidr' | 'ip' | 'domain' | 'loopbackScope' | 'matchAll'
 
 interface ParsedProxyBypassRule {
   type: ProxyBypassRuleType
@@ -26,269 +27,392 @@ interface ParsedProxyBypassRule {
   ip?: string
 }
 
-const getDefaultPortForProtocol = (protocol: string): string | null => {
-  switch (protocol.toLowerCase()) {
-    case 'http:':
-      return '80'
-    case 'https:':
-      return '443'
-    default:
-      return null
+/**
+ * Shares Electron-style bypass matching across Node proxy backends.
+ * ProxyService owns the policy; this matcher only applies the supplied rules.
+ */
+export function createProxyBypassMatcher(
+  ipaddrModule: typeof ipaddr,
+  rules: string[],
+  logger?: NodeProxyLogger
+): ProxyBypassMatcher {
+  const getDefaultPortForProtocol = (protocol: string): string | null => {
+    switch (protocol.toLowerCase()) {
+      case 'http:':
+        return '80'
+      case 'https:':
+        return '443'
+      default:
+        return null
+    }
   }
-}
 
-const buildWildcardRegex = (pattern: string): RegExp => {
-  const escapedSegments = pattern.split('*').map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  return new RegExp(`^${escapedSegments.join('.*')}$`, 'i')
-}
+  const buildWildcardRegex = (pattern: string): RegExp => {
+    const escapedSegments = pattern.split('*').map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    return new RegExp(`^${escapedSegments.join('.*')}$`, 'i')
+  }
 
-const isWildcardIp = (value: string): boolean => {
-  if (!value.includes('*')) {
+  const isWildcardIp = (value: string): boolean => {
+    if (!value.includes('*')) {
+      return false
+    }
+
+    const replaced = value.replace(/\*/g, '0')
+    return ipaddrModule.isValid(replaced)
+  }
+
+  const matchHostnameRule = (hostname: string, rule: ParsedProxyBypassRule): boolean => {
+    const normalizedHostname = hostname.toLowerCase()
+
+    switch (rule.matchType) {
+      case 'exact':
+        return normalizedHostname === rule.domain
+      case 'wildcardSubdomain': {
+        const domain = rule.domain
+        if (!domain) {
+          return false
+        }
+        return normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
+      }
+      case 'generalWildcard':
+        return rule.regex ? rule.regex.test(normalizedHostname) : false
+      default:
+        return false
+    }
+  }
+
+  const parseProxyBypassRule = (rule: string): ParsedProxyBypassRule | null => {
+    const trimmedRule = rule.trim()
+    if (!trimmedRule) {
+      return null
+    }
+
+    if (trimmedRule === '<local>') {
+      return {
+        type: 'local',
+        matchType: 'exact',
+        rule: '<local>'
+      }
+    }
+
+    // Match-all including IP literals: with the in-process agent unconditionally proxying, this
+    // rule owns the bypass-everything behavior `NO_PROXY=*` used to provide.
+    if (trimmedRule === '*') {
+      return {
+        type: 'matchAll',
+        matchType: 'exact',
+        rule: trimmedRule
+      }
+    }
+
+    if (trimmedRule.toLowerCase() === '<-loopback>') {
+      // Chromium's subtractive directive for the implicit loopback scope (see
+      // isImplicitLoopbackScope), spelled as an exclude entry, matched case-insensitively like
+      // Chromium parses it. Its position in the list matters: the matcher lets later rules
+      // override earlier ones, so `<-loopback>,localhost` keeps localhost bypassed while
+      // `localhost,<-loopback>` sends it through the proxy.
+      return {
+        type: 'loopbackScope',
+        matchType: 'exact',
+        rule: trimmedRule
+      }
+    }
+
+    let workingRule = trimmedRule
+    let scheme: string | undefined
+    const schemeMatch = workingRule.match(/^([a-zA-Z][a-zA-Z\d+\-.]*):\/\//)
+    if (schemeMatch) {
+      scheme = schemeMatch[1].toLowerCase()
+      workingRule = workingRule.slice(schemeMatch[0].length)
+    }
+
+    if (workingRule.includes('/')) {
+      // For a bracketed IPv6 subnet like `[::ffff:127.0.0.0]/104` the `]` sits before the prefix,
+      // not at the end — strip the pair wherever it wraps the literal.
+      const cleanedCidr = workingRule.replace(/^\[/, '').replace(/\]/, '')
+      if (ipaddrModule.isValidCIDR(cleanedCidr)) {
+        return {
+          type: 'cidr',
+          matchType: 'exact',
+          rule: workingRule,
+          scheme,
+          cidr: ipaddrModule.parseCIDR(cleanedCidr)
+        }
+      }
+    }
+
+    let port: string | undefined
+    const portMatch = workingRule.match(/^(.+?):(\d+)$/)
+    if (portMatch) {
+      const potentialHost = portMatch[1]
+      // `::1` is one IPv6 address, not host `:` on port `1`: an unbracketed literal has to survive the
+      // split untouched, or every IPv6 rule whose last group is decimal silently stops matching.
+      // `isValid` rejects bracketed hosts, so `[::1]:8080` still splits into host + port.
+      const isUnbracketedIpv6 = ipaddrModule.isValid(workingRule) && ipaddrModule.parse(workingRule).kind() === 'ipv6'
+      if (!isUnbracketedIpv6 && (!potentialHost.startsWith('[') || potentialHost.includes(']'))) {
+        workingRule = potentialHost
+        port = portMatch[2]
+      }
+    }
+
+    // Same trailing-dot normalization as the URL host side — with hosts canonicalized, a
+    // user-typed `localhost.` rule would otherwise go dead.
+    const cleanedHost = workingRule.replace(/^\[|\]$/g, '').replace(/\.$/, '')
+    const normalizedHost = cleanedHost.toLowerCase()
+
+    if (!cleanedHost) {
+      return null
+    }
+
+    if (ipaddrModule.isValid(cleanedHost)) {
+      return {
+        type: 'ip',
+        matchType: 'exact',
+        rule: cleanedHost,
+        scheme,
+        port,
+        ip: cleanedHost
+      }
+    }
+
+    if (isWildcardIp(cleanedHost)) {
+      // `*` may span several octets: Windows exceptions like `192.168.*` must still match `192.168.1.10`.
+      const regexPattern = cleanedHost.replace(/\./g, '\\.').replace(/\*/g, '[\\d.]+')
+      return {
+        type: 'ip',
+        matchType: 'generalWildcard',
+        rule: cleanedHost,
+        scheme,
+        port,
+        regex: new RegExp(`^${regexPattern}$`)
+      }
+    }
+
+    if (workingRule.startsWith('*.')) {
+      const domain = normalizedHost.slice(2)
+      return {
+        type: 'domain',
+        matchType: 'wildcardSubdomain',
+        rule: workingRule,
+        scheme,
+        port,
+        domain
+      }
+    }
+
+    if (workingRule.startsWith('.')) {
+      const domain = normalizedHost.slice(1)
+      return {
+        type: 'domain',
+        matchType: 'wildcardSubdomain',
+        rule: workingRule,
+        scheme,
+        port,
+        domain
+      }
+    }
+
+    if (workingRule.includes('*')) {
+      return {
+        type: 'domain',
+        matchType: 'generalWildcard',
+        rule: workingRule,
+        scheme,
+        port,
+        regex: buildWildcardRegex(normalizedHost)
+      }
+    }
+
+    return {
+      type: 'domain',
+      matchType: 'exact',
+      rule: workingRule,
+      scheme,
+      port,
+      domain: normalizedHost
+    }
+  }
+
+  const isLocalHostname = (hostname: string): boolean => {
+    const normalized = hostname.toLowerCase()
+    if (normalized === 'localhost') {
+      return true
+    }
+
+    const cleaned = hostname.replace(/^\[|\]$/g, '')
+    if (ipaddrModule.isValid(cleaned)) {
+      const parsed = ipaddrModule.parse(cleaned)
+      return parsed.range() === 'loopback'
+    }
+
     return false
   }
 
-  const replaced = value.replace(/\*/g, '0')
-  return ipaddr.isValid(replaced)
-}
+  // The implicit scope that `<-loopback>` negates, mirroring Chromium's implicit rules: loopback
+  // hostnames (including the Windows-only `loopback` form), the whole .localhost TLD, the
+  // loopback and unspecified IPv4 ranges, link-local addresses, and IPv4-mapped loopback
+  // (net::IsIPv4MappedLoopback). The `localhost6` aliases are deliberately absent — they live
+  // in the defensive defaults but are not Chromium implicit scope, so the negation must not
+  // remove them either.
+  const isImplicitLoopbackScope = (hostname: string): boolean => {
+    if (isLocalHostname(hostname)) {
+      return true
+    }
 
-const matchHostnameRule = (hostname: string, rule: ParsedProxyBypassRule): boolean => {
-  const normalizedHostname = hostname.toLowerCase()
-
-  switch (rule.matchType) {
-    case 'exact':
-      return normalizedHostname === rule.domain
-    case 'wildcardSubdomain': {
-      const domain = rule.domain
-      if (!domain) {
-        return false
+    const cleaned = hostname.replace(/^\[|\]$/g, '')
+    if (ipaddrModule.isValid(cleaned)) {
+      const parsed = ipaddrModule.parse(cleaned)
+      const range = parsed.range()
+      if (range === 'linkLocal' || range === 'unspecified') {
+        return true
       }
-      return normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
-    }
-    case 'generalWildcard':
-      return rule.regex ? rule.regex.test(normalizedHostname) : false
-    default:
-      return false
-  }
-}
-
-const parseProxyBypassRule = (rule: string): ParsedProxyBypassRule | null => {
-  const trimmedRule = rule.trim()
-  if (!trimmedRule) {
-    return null
-  }
-
-  if (trimmedRule === '<local>') {
-    return {
-      type: ProxyBypassRuleType.Local,
-      matchType: 'exact',
-      rule: '<local>'
-    }
-  }
-
-  let workingRule = trimmedRule
-  let scheme: string | undefined
-  const schemeMatch = workingRule.match(/^([a-zA-Z][a-zA-Z\d+\-.]*):\/\//)
-  if (schemeMatch) {
-    scheme = schemeMatch[1].toLowerCase()
-    workingRule = workingRule.slice(schemeMatch[0].length)
-  }
-
-  if (workingRule.includes('/')) {
-    const cleanedCidr = workingRule.replace(/^\[|\]$/g, '')
-    if (ipaddr.isValidCIDR(cleanedCidr)) {
-      return {
-        type: ProxyBypassRuleType.Cidr,
-        matchType: 'exact',
-        rule: workingRule,
-        scheme,
-        cidr: ipaddr.parseCIDR(cleanedCidr)
+      // [::ffff:127.0.0.1]/104 — the one loopback family net::IsLocalhost() misses, which is
+      // why Chromium carries a dedicated check beside it.
+      if (
+        range === 'ipv4Mapped' &&
+        parsed instanceof ipaddrModule.IPv6 &&
+        parsed.toIPv4Address().range() === 'loopback'
+      ) {
+        return true
       }
     }
-  }
 
-  let port: string | undefined
-  const portMatch = workingRule.match(/^(.+?):(\d+)$/)
-  if (portMatch) {
-    const potentialHost = portMatch[1]
-    if (!potentialHost.startsWith('[') || potentialHost.includes(']')) {
-      workingRule = potentialHost
-      port = portMatch[2]
+    // net::IsNormalizedLocalhostTLD: the whole .localhost TLD is implicit loopback scope, so the
+    // negation covers subdomains even when a `*.localhost` rule precedes it.
+    if (cleaned.toLowerCase().endsWith('.localhost')) {
+      return true
     }
+
+    return cleaned.toLowerCase() === 'loopback'
   }
 
-  const cleanedHost = workingRule.replace(/^\[|\]$/g, '')
-  const normalizedHost = cleanedHost.toLowerCase()
-
-  if (!cleanedHost) {
-    return null
-  }
-
-  if (ipaddr.isValid(cleanedHost)) {
-    return {
-      type: ProxyBypassRuleType.Ip,
-      matchType: 'exact',
-      rule: cleanedHost,
-      scheme,
-      port,
-      ip: cleanedHost
+  /**
+   * Whether two host strings denote the same address. The URL host is WHATWG-normalized
+   * (`[::1]`, lowercased), while a bypass rule keeps the text the user typed (`0:0:0:0:0:0:0:1`,
+   * `::FFFF:127.0.0.1`), so text equality alone rejects equivalent IPv6 literals.
+   */
+  const isSameAddress = (left: string, right: string): boolean => {
+    if (left === right) {
+      return true
     }
+
+    const parsedLeft = ipaddrModule.parse(left)
+    const parsedRight = ipaddrModule.parse(right)
+    return (
+      parsedLeft.kind() === parsedRight.kind() && parsedLeft.toNormalizedString() === parsedRight.toNormalizedString()
+    )
   }
 
-  if (isWildcardIp(cleanedHost)) {
-    const regexPattern = cleanedHost.replace(/\./g, '\\.').replace(/\*/g, '\\d+')
-    return {
-      type: ProxyBypassRuleType.Ip,
-      matchType: 'generalWildcard',
-      rule: cleanedHost,
-      scheme,
-      port,
-      regex: new RegExp(`^${regexPattern}$`)
-    }
-  }
-
-  if (workingRule.startsWith('*.')) {
-    const domain = normalizedHost.slice(2)
-    return {
-      type: ProxyBypassRuleType.Domain,
-      matchType: 'wildcardSubdomain',
-      rule: workingRule,
-      scheme,
-      port,
-      domain
-    }
-  }
-
-  if (workingRule.startsWith('.')) {
-    const domain = normalizedHost.slice(1)
-    return {
-      type: ProxyBypassRuleType.Domain,
-      matchType: 'wildcardSubdomain',
-      rule: workingRule,
-      scheme,
-      port,
-      domain
-    }
-  }
-
-  if (workingRule.includes('*')) {
-    return {
-      type: ProxyBypassRuleType.Domain,
-      matchType: 'generalWildcard',
-      rule: workingRule,
-      scheme,
-      port,
-      regex: buildWildcardRegex(normalizedHost)
+  const parsedByPassRules: ParsedProxyBypassRule[] = []
+  for (const rule of rules) {
+    const parsedRule = parseProxyBypassRule(rule)
+    if (parsedRule) {
+      parsedByPassRules.push(parsedRule)
+    } else {
+      logger?.warn?.(`Skipping invalid proxy bypass rule: ${rule}`)
     }
   }
 
   return {
-    type: ProxyBypassRuleType.Domain,
-    matchType: 'exact',
-    rule: workingRule,
-    scheme,
-    port,
-    domain: normalizedHost
-  }
-}
+    isByPass(url: string, perCallLogger?: NodeProxyLogger): boolean {
+      const log = perCallLogger ?? logger
+      if (parsedByPassRules.length === 0) {
+        return false
+      }
 
-const isLocalHostname = (hostname: string): boolean => {
-  const normalized = hostname.toLowerCase()
-  if (normalized === 'localhost') {
-    return true
-  }
+      try {
+        const parsedUrl = new URL(url)
+        // WHATWG keeps a trailing dot in the host (`localhost.`); net::IsLocalHostname strips it
+        // before comparing, and without the same strip every loopback entry misses the dotted form.
+        const hostname = parsedUrl.hostname.replace(/\.$/, '')
+        const cleanedHostname = hostname.replace(/^\[|\]$/g, '')
+        const protocol = parsedUrl.protocol
+        const protocolName = protocol.replace(':', '').toLowerCase()
+        const defaultPort = getDefaultPortForProtocol(protocol)
+        const port = parsedUrl.port || defaultPort || ''
+        const hostnameIsIp = ipaddrModule.isValid(cleanedHostname)
 
-  const cleaned = hostname.replace(/^\[|\]$/g, '')
-  if (ipaddr.isValid(cleaned)) {
-    const parsed = ipaddr.parse(cleaned)
-    return parsed.range() === 'loopback'
-  }
+        // Chromium's SchemeHostPortMatcher resolves positive/negative conflicts by letting later
+        // rules override earlier ones — Evaluate() iterates the rule list in reverse and
+        // short-circuits on the first match (net/base/scheme_host_port_matcher.cc). Iterating our
+        // flat list in reverse reproduces that last-match-wins semantics exactly; first-match
+        // iteration was measured against a real Chromium session and picks the wrong winner for
+        // both `localhost,<-loopback>` and `<-loopback>,localhost`.
+        for (let i = parsedByPassRules.length - 1; i >= 0; i--) {
+          const rule = parsedByPassRules[i]
+          if (rule.scheme && rule.scheme !== protocolName) {
+            continue
+          }
 
-  return false
+          if (rule.port && rule.port !== port) {
+            continue
+          }
+
+          switch (rule.type) {
+            case 'matchAll':
+              return true
+            case 'local':
+              if (isLocalHostname(hostname)) {
+                return true
+              }
+              break
+            case 'loopbackScope':
+              // Reverse iteration short-circuits on the first match, so reaching this case means
+              // no later rule matched; a loopback-scope URL is therefore NOT bypassed.
+              if (isImplicitLoopbackScope(hostname)) {
+                return false
+              }
+              break
+            case 'ip':
+              if (!hostnameIsIp) {
+                break
+              }
+
+              if (rule.ip && isSameAddress(cleanedHostname, rule.ip)) {
+                return true
+              }
+
+              if (rule.regex && rule.regex.test(cleanedHostname)) {
+                return true
+              }
+              break
+            case 'cidr':
+              if (hostnameIsIp && rule.cidr) {
+                const parsedHost = ipaddrModule.parse(cleanedHostname)
+                const [cidrAddress, prefixLength] = rule.cidr
+                if (parsedHost.kind() === cidrAddress.kind() && parsedHost.match([cidrAddress, prefixLength])) {
+                  return true
+                }
+              }
+              break
+            case 'domain':
+              if (!hostnameIsIp && matchHostnameRule(hostname, rule)) {
+                return true
+              }
+              break
+            default:
+              log?.error?.(`Unknown proxy bypass rule type: ${rule.type}`)
+              break
+          }
+        }
+      } catch (error) {
+        log?.error?.('Failed to check bypass:', error)
+        return false
+      }
+
+      return false
+    }
+  }
 }
 
 export class ProxyBypassRuleMatcher {
-  private parsedByPassRules: ParsedProxyBypassRule[] = []
+  private matcher: ProxyBypassMatcher = createProxyBypassMatcher(ipaddr, [])
 
   updateByPassRules(rules: string[], logger?: NodeProxyLogger): void {
-    this.parsedByPassRules = []
-
-    for (const rule of rules) {
-      const parsedRule = parseProxyBypassRule(rule)
-      if (parsedRule) {
-        this.parsedByPassRules.push(parsedRule)
-      } else {
-        logger?.warn?.(`Skipping invalid proxy bypass rule: ${rule}`)
-      }
-    }
+    this.matcher = createProxyBypassMatcher(ipaddr, rules, logger)
   }
 
   isByPass(url: string, logger?: NodeProxyLogger) {
-    if (this.parsedByPassRules.length === 0) {
-      return false
-    }
-
-    try {
-      const parsedUrl = new URL(url)
-      const hostname = parsedUrl.hostname
-      const cleanedHostname = hostname.replace(/^\[|\]$/g, '')
-      const protocol = parsedUrl.protocol
-      const protocolName = protocol.replace(':', '').toLowerCase()
-      const defaultPort = getDefaultPortForProtocol(protocol)
-      const port = parsedUrl.port || defaultPort || ''
-      const hostnameIsIp = ipaddr.isValid(cleanedHostname)
-
-      for (const rule of this.parsedByPassRules) {
-        if (rule.scheme && rule.scheme !== protocolName) {
-          continue
-        }
-
-        if (rule.port && rule.port !== port) {
-          continue
-        }
-
-        switch (rule.type) {
-          case ProxyBypassRuleType.Local:
-            if (isLocalHostname(hostname)) {
-              return true
-            }
-            break
-          case ProxyBypassRuleType.Ip:
-            if (!hostnameIsIp) {
-              break
-            }
-
-            if (rule.ip && cleanedHostname === rule.ip) {
-              return true
-            }
-
-            if (rule.regex && rule.regex.test(cleanedHostname)) {
-              return true
-            }
-            break
-          case ProxyBypassRuleType.Cidr:
-            if (hostnameIsIp && rule.cidr) {
-              const parsedHost = ipaddr.parse(cleanedHostname)
-              const [cidrAddress, prefixLength] = rule.cidr
-              if (parsedHost.kind() === cidrAddress.kind() && parsedHost.match([cidrAddress, prefixLength])) {
-                return true
-              }
-            }
-            break
-          case ProxyBypassRuleType.Domain:
-            if (!hostnameIsIp && matchHostnameRule(hostname, rule)) {
-              return true
-            }
-            break
-          default:
-            logger?.error?.(`Unknown proxy bypass rule type: ${rule.type}`)
-            break
-        }
-      }
-    } catch (error) {
-      logger?.error?.('Failed to check bypass:', error as Error)
-      return false
-    }
-
-    return false
+    return this.matcher.isByPass(url, logger)
   }
 }

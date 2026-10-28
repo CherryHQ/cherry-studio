@@ -1,12 +1,12 @@
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
-import { useCallback } from 'react'
 
 const logger = loggerService.withContext('AgentCreateDialog')
 
@@ -17,7 +17,6 @@ type AgentCreateDialogProps = {
 }
 
 export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreateDialogProps) {
-  const modelFilter = useAgentModelFilter('claude-code')
   const { createAgent, isCreatingAgent } = useAgentMutations()
 
   const handleSubmitCreate = useCallback(
@@ -41,7 +40,6 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
       isSubmitting={isCreatingAgent}
       onOpenChange={onOpenChange}
       onSubmit={handleSubmitCreate}
-      modelFilter={modelFilter}
     />
   )
 }

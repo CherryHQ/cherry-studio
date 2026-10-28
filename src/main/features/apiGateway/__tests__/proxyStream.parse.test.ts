@@ -1,17 +1,21 @@
-import type { StreamListener } from '@main/ai/streamManager/types'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { StreamListener } from '@main/ai/streamManager/types'
+import { BaseService } from '@main/core/lifecycle'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 /**
  * Pins the gateway model-id contract: `model` is `providerId:apiModelId`, split on
- * the FIRST `:` (v1 used `::`). See the breaking-changes entry
- * `2026-06-06-api-gateway-model-id-separator.md`.
+ * the FIRST `:` (v1 used `::`).
  */
 
 const {
   mockStreamPrompt,
   mockGetProvider,
   mockListModels,
+  mockIsInternalRequest,
+  mockGetAgentSessionId,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
   captured
@@ -19,16 +23,30 @@ const {
   mockStreamPrompt: vi.fn(),
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
+  mockIsInternalRequest: vi.fn<(headers: Headers) => boolean>(),
+  mockGetAgentSessionId: vi.fn<(headers: Headers) => string | undefined>(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
-  captured: { opts: undefined as { uniqueModelId?: string; listener?: StreamListener } | undefined }
+  captured: {
+    opts: undefined as
+      | { uniqueModelId?: string; listener?: StreamListener; contextOwner?: 'cherry' | 'caller' }
+      | undefined
+  }
 }))
 
 vi.mock('@application', () => ({
   application: {
-    get: vi.fn((name: string) =>
-      name === 'AiStreamManager' ? { streamPrompt: mockStreamPrompt, abort: vi.fn() } : undefined
-    )
+    get: vi.fn((name: string) => {
+      if (name === 'AiStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
+      if (name === 'ApiGatewayService') {
+        return {
+          getAgentSessionId: mockGetAgentSessionId,
+          resolveAgentSessionUsage: vi.fn(),
+          isInternalRequest: mockIsInternalRequest
+        }
+      }
+      return undefined
+    })
   }
 }))
 vi.mock('@data/services/ProviderService', () => ({
@@ -62,12 +80,15 @@ vi.mock('../adapters', () => ({
 import { processMessage } from '../proxyStream'
 
 beforeEach(() => {
+  BaseService.resetInstances()
   vi.clearAllMocks()
   captured.opts = undefined
   mockGetProvider.mockImplementation(() => {
     throw new Error('Provider not found')
   })
   mockListModels.mockReturnValue([])
+  mockIsInternalRequest.mockReturnValue(false)
+  mockGetAgentSessionId.mockReturnValue(undefined)
   mockExtractStreamOptions.mockReturnValue({})
   mockExtractProviderOptions.mockReturnValue(undefined)
   mockStreamPrompt.mockImplementation((opts) => {
@@ -75,22 +96,22 @@ beforeEach(() => {
   })
 })
 
-function mockAvailableModel(providerId: string, internalModelId: string, apiModelId = internalModelId) {
+function mockAvailableModel(providerId: string, internalModelId: string, apiModelId = internalModelId, group?: string) {
   mockGetProvider.mockReturnValue({ id: providerId, name: providerId, isEnabled: true })
-  mockListModels.mockReturnValue([
-    {
-      id: createUniqueModelId(providerId, internalModelId),
-      providerId,
-      apiModelId,
-      capabilities: []
-    }
-  ])
+  const model = {
+    id: createUniqueModelId(providerId, internalModelId),
+    providerId,
+    apiModelId,
+    group,
+    capabilities: []
+  }
+  mockListModels.mockReturnValue([model])
 }
 
 /** Resolve a valid (non-streaming) request after capturing the streamPrompt args. */
 async function resolveValid(model: string): Promise<string | undefined> {
   const promise = processMessage({
-    params: { model, messages: [] } as any,
+    params: { model, messages: [] },
     inputFormat: 'openai',
     outputFormat: 'openai'
   })
@@ -173,6 +194,12 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('openai:gpt-4')).toBe(createUniqueModelId('openai', 'gpt-4'))
   })
 
+  it('marks non-streaming requests as caller-owned', async () => {
+    mockAvailableModel('openai', 'gpt-4')
+    await resolveValid('openai:gpt-4')
+    expect(captured.opts?.contextOwner).toBe('caller')
+  })
+
   it('passes the normalized max output tokens to provider option extraction', async () => {
     mockAvailableModel('openai', 'gpt-4')
     mockExtractStreamOptions.mockReturnValue({ maxOutputTokens: 1024 })
@@ -198,7 +225,7 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('deepseek', 'agent/deepseek-v4-flash')
     const promise = processMessage({
       // Gemini bodies have no `model`; the route passes it in from the URL path.
-      params: { contents: [] } as any,
+      params: { contents: [] },
       modelString: 'deepseek:agent/deepseek-v4-flash',
       inputFormat: 'gemini',
       outputFormat: 'gemini'
@@ -215,6 +242,42 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
   })
 
+  it('rejects a Cherry Cloud model from external requests', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+
+    await expect(
+      processMessage({
+        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic'
+      })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+  })
+
+  it('routes Cherry Cloud messages for an internal request and attributes Agent session usage', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    mockIsInternalRequest.mockReturnValue(true)
+    mockGetAgentSessionId.mockReturnValue('session-1')
+    const responsePromise = processMessage({
+      params: {
+        model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
+        max_tokens: 64,
+        messages: [{ role: 'user', content: 'hello' }]
+      },
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      requestHeaders: new Headers()
+    })
+
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
+    expect(captured.opts).toMatchObject({ tokenUsageSource: 'agent' })
+    void captured.opts!.listener!.onDone({} as any)
+
+    await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
+  })
+
   it('rejects an address that does not match an enabled gateway model', async () => {
     mockStreamPrompt.mockImplementationOnce((opts) => {
       captured.opts = opts
@@ -229,5 +292,26 @@ describe('processMessage model-id parsing', () => {
       })
     ).rejects.toThrow(/not available through the API gateway/)
     expect(mockStreamPrompt).not.toHaveBeenCalled()
+  })
+})
+
+describe('internal requests without an Agent session', () => {
+  it('serves a Cherry Cloud model without Agent usage attribution', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translation-model', 'translation-model', CHERRY_CLOUD_MODEL_GROUP)
+    mockIsInternalRequest.mockReturnValue(true)
+    const responsePromise = processMessage({
+      params: {
+        model: `${CHERRY_CLOUD_PROVIDER_ID}:translation-model`,
+        messages: [{ role: 'user', content: 'translate' }]
+      },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers()
+    })
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translation-model'))
+    expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
+    void captured.opts!.listener!.onDone({} as any)
+    await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
 })

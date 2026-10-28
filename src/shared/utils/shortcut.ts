@@ -43,13 +43,26 @@ export const SHORTCUT_FUNCTION_KEYS = [
   'F9',
   'F10',
   'F11',
-  'F12'
+  'F12',
+  'F13',
+  'F14',
+  'F15',
+  'F16',
+  'F17',
+  'F18',
+  'F19',
+  'F20',
+  'F21',
+  'F22',
+  'F23',
+  'F24'
 ] as const
 
 export const SHORTCUT_SYMBOLS = ['=', '-', '[', ']', ',', '.', '/', '\\', ';', "'", '`'] as const
 
 export const SHORTCUT_NAMED_KEYS = [
   'Escape',
+  'CapsLock',
   'Enter',
   'Tab',
   'Space',
@@ -65,7 +78,8 @@ export const SHORTCUT_NAMED_KEYS = [
   'Left',
   'Right',
   'numadd',
-  'numsub'
+  'numsub',
+  'numenter'
 ] as const
 
 export type ShortcutModifier = (typeof SHORTCUT_MODIFIERS)[number]
@@ -84,6 +98,15 @@ export type ShortcutToken =
   | ShortcutNamedKey
 
 export type ShortcutBinding = readonly ShortcutToken[]
+
+export interface KeyboardEventLike {
+  key: string
+  code?: string
+  ctrlKey?: boolean
+  metaKey?: boolean
+  altKey?: boolean
+  shiftKey?: boolean
+}
 
 const shortcutTokens = [
   ...SHORTCUT_MODIFIERS,
@@ -139,7 +162,9 @@ const keyAliases: Record<string, ShortcutToken> = {
 }
 
 const domCodeToToken: Record<string, ShortcutToken> = {
-  NumpadEnter: 'Enter',
+  // Keypad Enter keeps its own token so it can display as "Enter" (its printed label)
+  // while main Return displays as "Return" on macOS; matching treats the two as one key.
+  NumpadEnter: 'numenter',
   NumpadAdd: 'numadd',
   NumpadSubtract: 'numsub'
 }
@@ -189,8 +214,8 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
     return upper
   }
 
-  if (/^F(?:[1-9]|1[0-2])$/.test(upper) && isShortcutToken(upper)) {
-    return upper as ShortcutFunctionKey
+  if (/^F(?:[1-9]|1\d|2[0-4])$/.test(upper) && isShortcutToken(upper)) {
+    return upper
   }
 
   const lower = trimmed.toLowerCase()
@@ -259,6 +284,37 @@ const acceleratorKeyMap: Record<string, ShortcutToken> = {
 export const convertKeyToAccelerator = (key: string): ShortcutToken | undefined =>
   acceleratorKeyMap[key] ?? normalizeShortcutToken(key)
 
+const getEventKeyToken = (event: KeyboardEventLike) => {
+  const fromCode = event.code ? convertKeyToAccelerator(event.code) : undefined
+  const fromKey = convertKeyToAccelerator(event.key)
+  const token = fromCode ?? fromKey
+
+  return token && !isShortcutModifier(token) ? token : undefined
+}
+
+export const getShortcutBindingFromKeyboardEvent = (
+  event: KeyboardEventLike,
+  platform?: 'darwin' | 'win32' | 'linux'
+): ShortcutBinding => {
+  const binding: ShortcutToken[] = []
+
+  if (platform === 'darwin') {
+    if (event.metaKey) binding.push('CommandOrControl')
+    if (event.ctrlKey) binding.push('Ctrl')
+  } else {
+    if (event.ctrlKey) binding.push('CommandOrControl')
+    if (event.metaKey) binding.push(platform ? 'Meta' : 'CommandOrControl')
+  }
+
+  if (event.altKey) binding.push('Alt')
+  if (event.shiftKey) binding.push('Shift')
+
+  const keyToken = getEventKeyToken(event)
+  if (keyToken) binding.push(keyToken)
+
+  return normalizeShortcutBinding(binding)
+}
+
 export const convertAcceleratorToHotkey = (accelerator: ShortcutBinding): string => {
   return accelerator
     .map((key) => {
@@ -284,6 +340,13 @@ export const convertAcceleratorToHotkey = (accelerator: ShortcutBinding): string
     .join('+')
 }
 
+/**
+ * Keypad Enter and main Return are one trigger: matching and accelerator
+ * generation canonicalize `numenter` to `Enter`, while display keeps the
+ * keypad's own label (its printed key says "Enter" on every platform).
+ */
+export const canonicalTriggerToken = (token: ShortcutToken): ShortcutToken => (token === 'numenter' ? 'Enter' : token)
+
 export const formatKeyDisplay = (key: ShortcutToken, isMac: boolean): string => {
   switch (key.toLowerCase()) {
     case 'ctrl':
@@ -302,6 +365,12 @@ export const formatKeyDisplay = (key: ShortcutToken, isMac: boolean): string => 
       return isMac ? '⇧' : 'Shift'
     case 'meta':
       return isMac ? '⌘' : 'Win'
+    case 'enter':
+      // macOS keyboards label the key "return" (Apple HIG); other platforms label it "Enter".
+      return isMac ? 'Return' : 'Enter'
+    case 'numenter':
+      // The keypad key is printed "Enter" on every platform.
+      return 'Enter'
     default:
       return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
   }
@@ -322,7 +391,8 @@ export const isValidShortcut = (binding: ShortcutBinding): boolean => {
 
   const hasModifier = binding.some(isShortcutModifier)
   const hasNonModifier = binding.some((key) => !isShortcutModifier(key))
-  const isSpecialKey = binding.length === 1 && (binding[0] === 'Escape' || isShortcutFunctionKey(binding[0]))
+  const isSpecialKey =
+    binding.length === 1 && (binding[0] === 'Escape' || binding[0] === 'CapsLock' || isShortcutFunctionKey(binding[0]))
 
   return (hasModifier && hasNonModifier) || isSpecialKey
 }

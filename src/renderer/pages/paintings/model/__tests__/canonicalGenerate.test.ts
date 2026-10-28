@@ -1,7 +1,12 @@
-import type { FileMetadata } from '@renderer/types/file'
-import type { FileEntry } from '@shared/data/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ModelListSchema } from '@cherrystudio/provider-registry'
+import type { FileMetadata } from '@renderer/types/file'
+import type { FileEntry } from '@shared/data/types/file'
+
+import modelCatalog from '../../../../../../packages/provider-registry/data/models.json'
+import { isOptionsConfigItem } from '../../form/baseConfigItem'
+import { imageGenerationToFields } from '../../form/imageGenerationToFields'
 import { canonicalGenerate } from '../canonicalGenerate'
 import type { GenerateInput } from '../types/generateInput'
 import type { PaintingData } from '../types/paintingData'
@@ -47,7 +52,7 @@ function makeInput(params: Record<string, unknown>, overrides: Partial<PaintingD
       apiHost: 'https://example.com',
       isEnabled: true,
       getApiKey: async () => 'api-key'
-    } as never,
+    },
     tab: 'default',
     abortController: new AbortController()
   }
@@ -57,6 +62,27 @@ describe('canonicalGenerate', () => {
   beforeEach(() => {
     generatePaintingMock.mockClear()
   })
+
+  it.each(['1536x864', '864x1536', '1536x960', '3840x2160', '2160x3840'])(
+    'offers and submits the GPT-Image-2 size %s without replacing it',
+    async (size) => {
+      const support = ModelListSchema.parse(modelCatalog).models.find(
+        (model) => model.id === 'gpt-image-2'
+      )?.imageGeneration
+      const field = imageGenerationToFields(support, { mode: 'generate' }).find((item) => item.key === 'size')
+      expect(field?.type).toBe('sizeChips')
+      if (!field || !isOptionsConfigItem(field) || !Array.isArray(field.options)) {
+        throw new Error('Expected static size choices')
+      }
+      expect(field.options).toContainEqual(expect.objectContaining({ value: size }))
+
+      await canonicalGenerate(makeInput({ size }, { providerId: 'openai', model: 'gpt-image-2' }), {
+        support,
+        mode: 'generate'
+      })
+      expect(lastGenerateCall().paramValues.size).toBe(size)
+    }
+  )
 
   it('ships the validated params as one canonical paramValues bag (no partition / rename)', async () => {
     await canonicalGenerate(
@@ -73,6 +99,34 @@ describe('canonicalGenerate', () => {
       outputFormat: 'png'
     })
     expect(call.inputImages).toBeUndefined()
+  })
+
+  it('submits the same effective slider value rendered from a numeric string', async () => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+
+    await canonicalGenerate(makeInput({ strength: '4.5' }), { support, mode: 'generate' })
+
+    expect(lastGenerateCall().paramValues.strength).toBe(4.5)
+  })
+
+  it.each([true, false, [], ['4.5']])('drops invalid numeric input %# instead of coercing it', async (value) => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+
+    await canonicalGenerate(makeInput({ strength: value }), { support, mode: 'generate' })
+
+    expect(lastGenerateCall().paramValues.strength).toBeUndefined()
   })
 
   it('composes the customSize widget trio into size and drops the companions', async () => {

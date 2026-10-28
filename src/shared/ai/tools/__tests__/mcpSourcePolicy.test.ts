@@ -17,13 +17,14 @@ const server = {
 } as McpServer
 
 const tool = {
-  id: 'mcp__docs__searchDocs',
+  id: 'mcp__docs__searchDocs_0123456789abcdefabcd',
   name: 'search_docs'
 }
 
 describe('mcpSourcePolicy', () => {
-  it('matches raw tool name, generated wire id, and server wildcard', () => {
+  it('matches raw name, current id, legacy id, and server wildcard', () => {
     expect(matchesMcpSourceToolRule('search_docs', server, tool)).toBe(true)
+    expect(matchesMcpSourceToolRule(tool.id, server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule('mcp__docs__searchDocs', server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule('mcp__docs__*', server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule('mcp__other__searchDocs', server, tool)).toBe(false)
@@ -42,9 +43,7 @@ describe('mcpSourcePolicy', () => {
   })
 
   it('resolves source force-prompt for auto-approval opt-out', () => {
-    expect(
-      resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] } as McpServer, tool)
-    ).toEqual({
+    expect(resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] }, tool)).toEqual({
       enabled: true,
       approval: 'prompt'
     })

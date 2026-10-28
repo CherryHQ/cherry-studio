@@ -9,18 +9,30 @@ import ModelListSections from './ModelListSections'
 import { useProviderModelList } from './useProviderModelList'
 
 interface ProviderModelListProps {
+  scrollElement?: HTMLDivElement | null
   providerId: string
   disabled: boolean
+  onContinueApiSetup?: () => void
   actions?: (state: { disabled: boolean; hasVisibleModels: boolean }) => React.ReactNode
 }
 
-const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disabled, actions }) => {
+const ProviderModelList: React.FC<ProviderModelListProps> = ({
+  scrollElement,
+  providerId,
+  disabled,
+  onContinueApiSetup,
+  actions
+}) => {
   const [groupExpansionCommand, setGroupExpansionCommand] = useState({ expanded: true, version: 0 })
   const modelList = useProviderModelList({
     providerId,
     disabled
   })
   const providerMeta = useProviderMeta(providerId)
+  const showContinueApiSetup =
+    providerMeta.isApiKeyFieldVisible &&
+    providerMeta.provider?.authOptional !== true &&
+    providerMeta.provider?.apiKeys.some((entry) => entry.isEnabled) === true
   const toolbarDisabled = disabled
   const toggleGroupsExpanded = useCallback(() => {
     setGroupExpansionCommand((current) => ({
@@ -50,13 +62,14 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
     <>
       <div className={modelListClasses.headerBlock}>
         <ModelListHeader
-          isBusy={toolbarDisabled}
+          providerId={providerId}
           hasNoModels={modelList.header.hasNoModels}
           searchText={modelList.header.searchText}
           setSearchText={modelList.header.setSearchText}
-          selectedTypeFilter={modelList.header.selectedTypeFilter}
-          setSelectedTypeFilter={modelList.header.setSelectedTypeFilter}
+          selectedFilter={modelList.header.selectedFilter}
+          setSelectedFilter={modelList.header.setSelectedFilter}
           typeCounts={modelList.header.typeCounts}
+          failedModelCount={modelList.header.failedModelCount}
           groupsExpanded={groupExpansionCommand.expanded}
           onToggleGroupsExpanded={toggleGroupsExpanded}
           docsWebsite={providerMeta.docsWebsite}
@@ -67,6 +80,8 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           })}
         />
         <ModelListSections
+          scrollElement={scrollElement}
+          provider={providerMeta.provider}
           isLoading={modelList.sections.isLoading}
           hasNoModels={modelList.sections.hasNoModels}
           hasVisibleModels={modelList.sections.hasVisibleModels}
@@ -79,6 +94,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           onDeleteModels={modelList.sections.onDeleteModels}
           bulkActionDisabled={toolbarDisabled}
           expansionCommand={groupExpansionCommand}
+          onContinueApiSetup={showContinueApiSetup ? onContinueApiSetup : undefined}
         />
       </div>
       <EditModelDrawer

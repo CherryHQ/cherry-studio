@@ -12,8 +12,10 @@ export const PluginMetadataSchema = z.object({
 
   // Content
   description: z.string().optional(),
-  allowed_tools: z.array(z.string()).optional(), // from frontmatter (for commands)
+  allowed_tools: z.array(z.string()).optional(), // from frontmatter (for commands and skills)
   tools: z.array(z.string()).optional(), // from frontmatter (for agents and skills)
+  context: z.string().optional(), // skill execution context (for example, "fork")
+  agent: z.string().optional(), // subagent selected by a forked skill
 
   // Organization
   category: z.string(), // derived from parent folder name

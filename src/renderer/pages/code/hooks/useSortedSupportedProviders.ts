@@ -1,7 +1,8 @@
+import { useCallback, useMemo, useState } from 'react'
+
 import type { CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import type { CodeCli } from '@shared/types/codeCli'
-import { useCallback, useMemo, useState } from 'react'
 
 interface UseSortedSupportedProvidersOptions {
   providers: Provider[]

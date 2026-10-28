@@ -12,6 +12,7 @@ import {
   type DiagnosisResult,
   getKnowledgeBaseIdsFromParts,
   hasClearContextPart,
+  isBlankUserTurn,
   KnowledgeScopePartDataSchema,
   readCherryMeta,
   withCherryMeta,
@@ -75,11 +76,12 @@ describe('CherryToolMetaSchema', () => {
 })
 
 describe('CherryFileMetaSchema', () => {
-  it('accepts fileEntryId, fileTokenSourceId, and the safe composer file kind', () => {
+  it('accepts fileEntryId, fileTokenSourceId, originalPath, and the safe composer file kind', () => {
     const ok = CherryFileMetaSchema.safeParse({
       fileEntryId: 'entry-1',
       fileTokenSourceId: 'source-1',
-      composerFileKind: 'pasted-text'
+      composerFileKind: 'pasted-text',
+      originalPath: '/Users/alice/report.md'
     })
 
     expect(ok.success).toBe(true)
@@ -95,6 +97,10 @@ describe('CherryFileMetaSchema', () => {
     const bad = CherryFileMetaSchema.safeParse({ composerFileKind: 'local-path' })
 
     expect(bad.success).toBe(false)
+  })
+
+  it('rejects a relative originalPath', () => {
+    expect(CherryFileMetaSchema.safeParse({ originalPath: 'documents/report.md' }).success).toBe(false)
   })
 })
 
@@ -161,6 +167,15 @@ describe('clear context parts', () => {
     expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
     expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
     expect(hasClearContextPart(undefined)).toBe(false)
+  })
+})
+
+describe('blank user turns', () => {
+  it('requires a successful user role with no parts', () => {
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [] })).toBe(true)
+    expect(isBlankUserTurn({ role: 'assistant', status: 'success', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'pending', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [{ type: 'text' }] })).toBe(false)
   })
 })
 

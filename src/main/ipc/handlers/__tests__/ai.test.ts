@@ -1,17 +1,52 @@
-import { aiErrorCodes } from '@shared/ipc/errors/ai'
-import { IpcError } from '@shared/ipc/errors/IpcError'
+import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, agentSessionMessageService, messageService, createAgent } = vi.hoisted(() => ({
+import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
+import { AiStreamAdmissionError } from '@main/ai/streamManager'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
+const {
+  appGetMock,
+  agentSessionMessageService,
+  agentSessionService,
+  fileEntryService,
+  messageService,
+  createAgent,
+  createBuiltinSkillSession,
+  createBuiltinSupportSession,
+  openRequestPath
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
+  agentSessionService: { getById: vi.fn() },
+  fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
-  createAgent: vi.fn()
+  createAgent: vi.fn(),
+  createBuiltinSkillSession: vi.fn(),
+  createBuiltinSupportSession: vi.fn(),
+  openRequestPath: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
+vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService }))
+vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
+vi.mock('@main/services/file', () => ({ openRequestPath }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/createBuiltinSkillSession', () => ({ createBuiltinSkillSession }))
+vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
+vi.mock('@main/ai/agents/AgentLifecycleService', () => ({
+  AgentSessionArchiveBusyError: class AgentSessionArchiveBusyError extends Error {
+    constructor(readonly sessionIds: string[]) {
+      super('Agent Sessions are busy')
+    }
+  }
+}))
 
 import { aiHandlers } from '../ai'
 
@@ -19,8 +54,9 @@ const aiService = {
   generateText: vi.fn(),
   checkModel: vi.fn(),
   embedMany: vi.fn(),
+  runTextRequest: vi.fn(),
   runImageRequest: vi.fn(),
-  abortImage: vi.fn(),
+  abortRequest: vi.fn(),
   listModels: vi.fn(),
   respondToolApproval: vi.fn()
 }
@@ -30,6 +66,7 @@ const aiStreamManager = {
   attach: vi.fn(),
   detach: vi.fn(),
   abort: vi.fn(),
+  abortAndDrain: vi.fn(),
   getDeferredToolOutput: vi.fn()
 }
 
@@ -43,8 +80,18 @@ const toolPart = (toolCallId: string, output: unknown) => ({
   output
 })
 
+const fileManager = { read: vi.fn() }
+
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
+const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn(), forkSession: vi.fn() }
+const agentLifecycleService = {
+  archiveSessions: vi.fn(),
+  restoreSession: vi.fn(),
+  reuseOrCreateSession: vi.fn(),
+  archiveAgent: vi.fn(),
+  archiveAgentSessions: vi.fn(),
+  deleteWorkspace: vi.fn()
+}
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
@@ -62,6 +109,14 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  createBuiltinSkillSession.mockReturnValue({ id: 'skill-session', agentId: 'cherry-assistant' })
+  createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
+  // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
+  fileEntryService.findById.mockReturnValue({
+    origin: 'internal',
+    cleanupPolicy: 'delete_when_unreferenced',
+    ext: 'txt'
+  })
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
@@ -73,12 +128,16 @@ beforeEach(() => {
         return claudeCodeWarmQueryManager
       case 'AgentSessionRuntimeService':
         return agentSessionRuntimeService
+      case 'AgentLifecycleService':
+        return agentLifecycleService
       case 'ClaudeCodeTraceBridgeService':
         return claudeCodeTraceBridgeService
       case 'AgentJobsService':
         return agentJobsService
       case 'WindowManager':
         return windowManager
+      case 'FileManager':
+        return fileManager
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -90,6 +149,127 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('forwards a native fork request with only the source session and checkpoint message', async () => {
+    agentSessionRuntimeService.forkSession.mockResolvedValue('child')
+    await expect(
+      aiHandlers['ai.agent.session.fork'](
+        {
+          sourceSessionId: 'source',
+          messageId: 'selected'
+        },
+        ctx
+      )
+    ).resolves.toEqual({ sessionId: 'child' })
+    expect(agentSessionRuntimeService.forkSession).toHaveBeenCalledWith('source', 'selected')
+  })
+
+  it.each([
+    [new AgentSessionForkError('history_changed'), 'history_changed'],
+    [new AgentSessionForkError('cancelled'), 'cancelled'],
+    [new AgentSessionForkSourceError('source_missing'), 'source_missing'],
+    [new AgentSessionForkSourceError('source_changed'), 'source_changed'],
+    [new AgentSessionForkError('unrecognized SDK failure'), 'operation_failed'],
+    [new Error('history_missing'), 'operation_failed']
+  ])('serializes fork failures by domain type, not their message: %s', async (error, reason) => {
+    agentSessionRuntimeService.forkSession.mockRejectedValue(error)
+    const result = aiHandlers['ai.agent.session.fork'](
+      {
+        sourceSessionId: 'source',
+        messageId: 'selected'
+      },
+      ctx
+    )
+    await expect(result).rejects.toBeInstanceOf(IpcError)
+    await expect(result).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
+      data: { reason }
+    })
+  })
+
+  it('delegates mixed-effect Session deletion to the delivery owner', async () => {
+    agentLifecycleService.archiveSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentLifecycleService.archiveSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('delegates Session restoration to the delivery owner', async () => {
+    const restored = { id: 'session-1' }
+    agentLifecycleService.restoreSession.mockResolvedValue(restored)
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).resolves.toBe(restored)
+    expect(agentLifecycleService.restoreSession).toHaveBeenCalledWith('session-1')
+  })
+
+  it('preserves a branchable error when Session restoration loses the lifecycle race', async () => {
+    agentLifecycleService.restoreSession.mockRejectedValue(DataApiErrorFactory.notFound('Session', 'session-1'))
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND
+    })
+  })
+
+  it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
+    const response = {
+      session: { id: 'session-retained' },
+      created: false,
+      deletedDuplicateSessionIds: ['session-duplicate']
+    }
+    agentLifecycleService.reuseOrCreateSession.mockResolvedValue(response)
+
+    await expect(
+      aiHandlers['ai.agent.session.reuse_or_create']({ agentId: 'agent-1', workspace: { type: 'system' } }, ctx)
+    ).resolves.toBe(response)
+    expect(agentLifecycleService.reuseOrCreateSession).toHaveBeenCalledWith({
+      agentId: 'agent-1',
+      workspace: { type: 'system' }
+    })
+  })
+
+  it('delegates mixed-effect Agent deletion to the delivery owner', async () => {
+    agentLifecycleService.archiveAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.delete']({ agentId: 'agent-1', deleteSessions: true }, ctx)).resolves.toEqual({
+      deleted: true,
+      deletedSessionIds: ['session-1']
+    })
+    expect(agentLifecycleService.archiveAgent).toHaveBeenCalledWith('agent-1', { archiveSessions: true })
+  })
+
+  it('delegates mixed-effect Agent Session deletion to the delivery owner', async () => {
+    agentLifecycleService.archiveAgentSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.sessions.delete']({ agentId: 'agent-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentLifecycleService.archiveAgentSessions).toHaveBeenCalledWith('agent-1')
+  })
+
+  it('delegates mixed-effect workspace deletion to the delivery owner', async () => {
+    agentLifecycleService.deleteWorkspace.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.workspace.delete']({ workspaceId: 'workspace-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentLifecycleService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('delegates Support-session creation and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
+
+    expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ sessionId: 'feedback-session' })
+  })
+
+  it('delegates Skill-session creation with the selected Skill and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.skill_session.create']({ skillId: 'skill-1' }, ctx)
+
+    expect(createBuiltinSkillSession).toHaveBeenCalledExactlyOnceWith('skill-1')
+    expect(result).toEqual({ sessionId: 'skill-session' })
+  })
+
   it('generate_text forwards the request and returns the AiService result', async () => {
     const request = { uniqueModelId: 'openai::gpt-4o', system: 'sys', prompt: 'hi' } as const
     const out = { text: 'hello', usage: { inputTokens: 1, outputTokens: 2 } }
@@ -97,7 +277,28 @@ describe('aiHandlers', () => {
 
     const result = await aiHandlers['ai.text.generate'](request, ctx)
 
-    expect(aiService.generateText).toHaveBeenCalledWith(request)
+    expect(aiService.generateText).toHaveBeenCalledWith({
+      ...request,
+      conversation: { id: expect.stringMatching(/^one-shot:/) }
+    })
+    expect(result).toBe(out)
+  })
+
+  it('generate_text routes a requestId through runTextRequest without leaking it into the request', async () => {
+    const out = { text: 'hello' }
+    aiService.runTextRequest.mockResolvedValue(out)
+
+    const result = await aiHandlers['ai.text.generate'](
+      { requestId: 'r1', uniqueModelId: 'openai::gpt-4o', prompt: 'hi' },
+      ctx
+    )
+
+    expect(aiService.runTextRequest).toHaveBeenCalledWith('r1', {
+      uniqueModelId: 'openai::gpt-4o',
+      prompt: 'hi',
+      conversation: { id: expect.stringMatching(/^one-shot:/) }
+    })
+    expect(aiService.generateText).not.toHaveBeenCalled()
     expect(result).toBe(out)
   })
 
@@ -118,7 +319,12 @@ describe('aiHandlers', () => {
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
-    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox', paramValues: {} }
+    const payload = {
+      uniqueModelId: 'openai::img' as const,
+      prompt: 'a fox',
+      paramValues: {},
+      cleanupPolicy: 'delete_when_unreferenced' as const
+    }
     const out = { files: [] }
     aiService.runImageRequest.mockResolvedValue(out)
 
@@ -128,9 +334,15 @@ describe('aiHandlers', () => {
     expect(result).toBe(out)
   })
 
-  it('abort_image delegates to AiService.abortImage and resolves void', async () => {
+  it('abort_image delegates to AiService.abortRequest and resolves void', async () => {
     const result = await aiHandlers['ai.image.abort']({ requestId: 'r1' }, ctx)
-    expect(aiService.abortImage).toHaveBeenCalledWith('r1')
+    expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
+    expect(result).toBeUndefined()
+  })
+
+  it('abort_text delegates to AiService.abortRequest and resolves void', async () => {
+    const result = await aiHandlers['ai.text.abort']({ requestId: 'r1' }, ctx)
+    expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
     expect(result).toBeUndefined()
   })
 
@@ -160,6 +372,43 @@ describe('aiHandlers', () => {
     expect(error.data).toMatchObject({ message: '401 Unauthorized', statusCode: 401, responseBody: 'bad key' })
   })
 
+  it('exposes only safe details from a direct APICallError', async () => {
+    const providerError = new APICallError({
+      message: 'Forbidden',
+      url: 'https://api.example.com/chat?token=url-secret',
+      requestBodyValues: { prompt: 'private user prompt' },
+      statusCode: 403,
+      responseHeaders: { 'set-cookie': 'session=header-secret' },
+      responseBody: JSON.stringify({ error: { message: 'provider access denied' }, trace: 'response-secret' }),
+      data: { apiKey: 'data-secret' },
+      cause: new Error('Authorization: Bearer cause-secret'),
+      isRetryable: false
+    })
+    aiService.checkModel.mockRejectedValue(providerError)
+
+    const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.message).toBe('provider access denied')
+    expect(error.data).toEqual({
+      name: 'AI_APICallError',
+      message: 'provider access denied',
+      providerErrorCategory: 'permission',
+      stack: null,
+      cause: null,
+      url: '',
+      requestBodyValues: null,
+      statusCode: 403,
+      responseHeaders: null,
+      responseBody: null,
+      isRetryable: false,
+      data: null
+    })
+    expect(JSON.stringify(error)).not.toMatch(
+      /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+    )
+  })
+
   it('normalizes a non-Error throw into an AI_REQUEST_FAILED IpcError', async () => {
     aiService.checkModel.mockRejectedValue('boom')
 
@@ -169,19 +418,61 @@ describe('aiHandlers', () => {
     expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
     expect(error.message).toBe('boom')
   })
+
+  it('does not expose a RetryError wrapper payload through the AI IPC error', async () => {
+    const terminalError = new Error('Rate limit reached')
+    const privatePayload = '{"prompt":"private user prompt","trace":"internal trace"'
+    const retryError = new RetryError({
+      message: `Failed after 3 attempts. Last error: Provider failed: ${privatePayload}`,
+      reason: 'maxRetriesExceeded',
+      errors: [terminalError]
+    })
+    aiService.checkModel.mockRejectedValue(retryError)
+
+    const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.message).toBe('')
+    expect(error.stack).not.toMatch(/private user prompt|internal trace/)
+    expect(error.data).toMatchObject({
+      message: '',
+      stack: null,
+      lastError: { message: 'Rate limit reached', stack: null }
+    })
+  })
 })
 
 describe('aiHandlers — streaming', () => {
+  it('reports an unsupported edit checkpoint as an edit failure while preserving other fork failures', async () => {
+    const input = {
+      sessionId: 'session-1',
+      target: { messageId: 'user-1', version: 'version-1' },
+      userMessageParts: [{ type: 'text', text: 'Replacement' }]
+    } as never
+
+    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('unsupported_checkpoint'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED,
+      data: { reason: 'checkpoint_unsupported' }
+    })
+
+    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('workspace_changed'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
+      data: { reason: 'workspace_changed' }
+    })
+  })
+
   it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
-    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
+    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] }
     aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
 
-    const result = await aiHandlers['ai.stream.open'](req, { senderId: 'w1' })
+    const result = await aiHandlers['ai.stream.open'](req as never, { senderId: 'w1' })
 
     expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
     expect(aiStreamManager.dispatch).toHaveBeenCalledTimes(1)
     // Second arg is the parsed request; first is the freshly built WebContentsListener.
-    expect(aiStreamManager.dispatch.mock.calls[0][1]).toBe(req)
+    expect(aiStreamManager.dispatch.mock.calls[0][1]).toEqual({ ...req, interactionWindowId: 'w1' })
     expect(result).toEqual({ mode: 'started' })
   })
 
@@ -191,6 +482,23 @@ describe('aiHandlers — streaming', () => {
       'requires a managed window'
     )
     expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
+  })
+
+  it('stream_open exposes a branchable admission reason without leaking a hardcoded message', async () => {
+    aiStreamManager.dispatch.mockRejectedValue(
+      new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
+    )
+
+    const error = await aiHandlers['ai.stream.open'](
+      { trigger: 'regenerate-message', topicId: 't', parentAnchorId: 'u1' } as never,
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_STREAM_ADMISSION_REJECTED,
+      data: { reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP }
+    })
   })
 
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
@@ -221,10 +529,27 @@ describe('aiHandlers — streaming', () => {
     expect(aiStreamManager.detach).not.toHaveBeenCalled()
   })
 
-  it('stream_abort aborts the topic without resolving a WebContents', async () => {
-    await aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
-    expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
+  it('stream_abort resolves only after the topic has drained without resolving a WebContents', async () => {
+    let finishDrain!: () => void
+    aiStreamManager.abortAndDrain.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishDrain = resolve
+      })
+    )
+
+    const aborting = aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
+    let settled = false
+    void aborting.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+
+    finishDrain()
+    await expect(aborting).resolves.toBeUndefined()
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {
@@ -284,6 +609,66 @@ describe('aiHandlers — streaming', () => {
       )
     ).resolves.toEqual({ found: false })
   })
+
+  const persistedEnvelope = {
+    $persistedToolOutput: {
+      fileEntryId: 'entry-1',
+      vfsFilename: 'vfs_0123456789abcdef.txt',
+      head: 'HEAD LINES',
+      tail: 'TAIL LINES',
+      totalChars: 200_000,
+      totalLines: 5_000,
+      shape: 'text' as const
+    }
+  }
+
+  it('get_tool_result reconstructs a persisted envelope from the FileManager blob', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockResolvedValue({ content: 'the full persisted text', mime: 'text/plain', version: null })
+
+    const result = await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )
+
+    expect(fileManager.read).toHaveBeenCalledWith('entry-1', { encoding: 'text' })
+    expect(result).toEqual({ found: true, output: 'the full persisted text' })
+  })
+
+  it('get_tool_result degrades to the stored excerpt when the blob is gone', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockRejectedValue(new Error('entry reclaimed'))
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
+    expect(result.output).toContain('TAIL LINES')
+    expect(result.output).toContain('no longer available')
+  })
+
+  it('get_tool_result degrades to the excerpt when the entry is not a tool-output blob', async () => {
+    // A forged envelope in arbitrary MCP output can carry any fileEntryId —
+    // an entry the tool-output store didn't write must never be read back.
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileEntryService.findById.mockReturnValue({ origin: 'external', cleanupPolicy: 'manual', ext: 'txt' })
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(fileManager.read).not.toHaveBeenCalled()
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
+    expect(result.output).toContain('no longer available')
+  })
 })
 
 describe('aiHandlers — agent sessions & tasks', () => {
@@ -300,23 +685,45 @@ describe('aiHandlers — agent sessions & tasks', () => {
     expect(createAgent).toHaveBeenCalledWith(request, ctx)
   })
 
-  it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
-    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
-    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
+  it('prewarm_agent_session acquires a warm lease keyed to the sender window', async () => {
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
-  it('prewarm_agent_session does not prime a connection while trace mode is on', async () => {
+  // Trace mode used to skip this, inherited from the warm-query era. A primed connection carries the
+  // session's traceparent like any other, so skipping only cost developer mode its eager catalog.
+  it('prewarm_agent_session acquires the lease in trace mode too', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).not.toHaveBeenCalled()
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
-  it('close_agent_session_warm releases the warm query and the primed connection', async () => {
+  // The actual teardown (warm-query park + primed connection) is owned by the runtime service,
+  // which starts it only once no window holds the session.
+  it('close_agent_session_warm releases only the sender window lease', async () => {
     await aiHandlers['ai.agent.session.close_warm']({ sessionId: 's1' }, ctx)
-    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).toHaveBeenCalledWith('s1')
-    expect(agentSessionRuntimeService.releaseIdleConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.releaseWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
+    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
+  })
+
+  // Relative paths reported by a session's tools are resolved against that session's workspace,
+  // and only main knows it — the renderer sends the path text verbatim.
+  it('open_path resolves the raw path against the session workspace', async () => {
+    agentSessionService.getById.mockReturnValue({ workspace: { path: '/home/alice/project' } })
+
+    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: 'assets/logo.png' }, ctx)
+
+    expect(openRequestPath).toHaveBeenCalledWith('assets/logo.png', '/home/alice/project')
+  })
+
+  // A workspace row that is not an absolute path must not steer resolution; the caller's own
+  // absolute path still opens, and a relative one fails rather than resolving against the cwd.
+  it('open_path drops a workspace path that is not absolute', async () => {
+    agentSessionService.getById.mockReturnValue({ workspace: { path: 'project' } })
+
+    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: '/opt/out.png' }, ctx)
+
+    expect(openRequestPath).toHaveBeenCalledWith('/opt/out.png', undefined)
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {
@@ -337,6 +744,27 @@ describe('aiHandlers — agent sessions & tasks', () => {
 
     expect(aiService.respondToolApproval).toHaveBeenCalledWith(payload, undefined)
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+})
+
+describe('aiHandlers — Agent Session archive commands', () => {
+  it.each([
+    ['ai.agent.session.delete', { sessionIds: ['session-a'] }, 'archiveSessions'],
+    ['ai.agent.sessions.delete', { agentId: 'agent-1' }, 'archiveAgentSessions'],
+    ['ai.agent.delete', { agentId: 'agent-1', deleteSessions: true }, 'archiveAgent']
+  ] as const)('maps busy errors from %s to a branchable IPC error', async (route, input, serviceMethod) => {
+    agentLifecycleService[serviceMethod].mockRejectedValueOnce(new AgentSessionArchiveBusyError(['session-a']))
+
+    const error = await (aiHandlers[route] as (input: never, context: typeof ctx) => Promise<unknown>)(
+      input as never,
+      ctx
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY,
+      data: { sessionIds: ['session-a'] }
+    })
   })
 })
 

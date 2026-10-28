@@ -1,7 +1,23 @@
+import type { EditorState } from '@uiw/react-codemirror'
+import {
+  Camera,
+  Check,
+  Code,
+  Eye,
+  Maximize2,
+  Minimize2,
+  SaveIcon,
+  ShieldAlert,
+  SquareSplitHorizontal,
+  X
+} from 'lucide-react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
-  CodeEditor,
   type CodeEditorHandles,
+  type CodeEditorProps,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -16,30 +32,30 @@ import {
   SegmentedControl,
   Tooltip
 } from '@cherrystudio/ui'
+import { codeBlockHighlightStyle } from '@cherrystudio/ui/code-block'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { FilePngIcon } from '@renderer/components/icons/FileIcons'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
-import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import HtmlPreviewFrame from './HtmlPreviewFrame'
+import HtmlArtifactPreviewSurface, { htmlArtifactPreviewRequiresInteractive } from './HtmlArtifactPreviewSurface'
 
 const logger = loggerService.withContext('HtmlArtifactsPopup')
 
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
+  stateRef: NonNullable<CodeEditorProps['stateRef']>
   html: string
-  theme: React.ComponentProps<typeof CodeEditor>['theme']
+  theme: CodeEditorProps['theme']
   fontSize: number
   onSave?: (html: string) => void
   editable: boolean
@@ -49,22 +65,35 @@ interface CodePanelProps {
 }
 
 const CodePanel = memo<CodePanelProps>(
-  ({ codeEditorRef, html, theme, fontSize, onSave, editable, saved, onClickSave, saveLabel }) => {
+  ({ codeEditorRef, stateRef, html, theme, fontSize, onSave, editable, saved, onClickSave, saveLabel }) => {
+    const viewer = (
+      <CodeViewer
+        value={html}
+        editorState={stateRef.current}
+        language="html"
+        fontSize={fontSize}
+        height="100%"
+        expanded={false}
+        wrapped
+        options={{ lineNumbers: true }}
+      />
+    )
     if (!editable) {
-      return (
-        <div className="grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
-          <CodeViewer value={html} language="html" fontSize={fontSize} height="100%" expanded={false} wrapped />
-        </div>
-      )
+      return <div className="grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">{viewer}</div>
     }
 
     return (
-      <div className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
-        <CodeEditor
+      <div
+        className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden"
+        style={{ backgroundColor: 'var(--code-background)', color: 'var(--code-foreground)' }}>
+        <LazyCodeEditor
           ref={codeEditorRef}
+          stateRef={stateRef}
           value={html}
           language="html"
           theme={theme}
+          syntaxHighlightStyle={codeBlockHighlightStyle}
+          fallback={viewer}
           fontSize={fontSize}
           editable={true}
           onSave={onSave}
@@ -73,7 +102,6 @@ const CodePanel = memo<CodePanelProps>(
           wrapped
           style={{ minHeight: 0 }}
           options={{
-            stream: true, // FIXME: 避免多余空行
             lineNumbers: true,
             keymap: true
           }}
@@ -84,6 +112,7 @@ const CodePanel = memo<CodePanelProps>(
               variant="secondary"
               size="icon"
               className="border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent hover:text-accent-foreground"
+              aria-label={saveLabel}
               onClick={onClickSave}>
               {saved ? <Check size={16} className="text-success" /> : <SaveIcon size={16} />}
             </Button>
@@ -100,6 +129,8 @@ interface HtmlArtifactsPopupProps {
   html: string
   onSave?: (html: string) => void
   editable?: boolean
+  canCapturePreview?: boolean
+  renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
   onClose: () => void
 }
 
@@ -111,16 +142,34 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   html,
   onSave,
   editable = true,
+  canCapturePreview = true,
+  renderPreview,
   onClose
 }) => {
   const { t } = useTranslation()
-  const { activeCmTheme } = useCodeStyle()
   const [fontSize] = usePreference('chat.message.font_size')
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
+  const { codeBlockStyle, isCodeThemeDark } = useCodeStyle()
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const [splitSizes, setSplitSizes] = useState<[number, number]>([50, 50])
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [session, setSession] = useState(() => ({
+    accepted: html,
+    open,
+    stateRef: { current: null as EditorState | null },
+    epoch: 0
+  }))
+  if (session.accepted !== html || session.open !== open) {
+    const echoed = session.open === open && session.stateRef.current?.sliceDoc() === html
+    setSession({
+      accepted: html,
+      open,
+      stateRef: echoed ? session.stateRef : { current: null },
+      epoch: session.epoch + Number(!echoed)
+    })
+  }
+  const source = session.stateRef.current?.sliceDoc() ?? html
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const previewFrameRef = useRef<HTMLIFrameElement>(null)
 
@@ -136,13 +185,20 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     }
   }, [isFullscreen, open])
 
-  const handleSave = useCallback(() => {
-    codeEditorRef.current?.save?.()
-    setSaved(true)
-  }, [setSaved])
+  const handleSave = useCallback(
+    (source: string) => {
+      onSave?.(source)
+      setSaved(true)
+    },
+    [onSave, setSaved]
+  )
+
+  const handleClickSave = useCallback(() => codeEditorRef.current?.save?.(), [])
 
   const handleCapture = useCallback(
     async (to: 'file' | 'clipboard') => {
+      setCaptureOpen(false)
+
       try {
         const title = extractHtmlTitle(html)
         const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
@@ -164,8 +220,6 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         }
       } catch (error) {
         logger.error('Failed to capture HTML artifact preview', error as Error)
-      } finally {
-        setCaptureOpen(false)
       }
     },
     [html, t]
@@ -173,26 +227,71 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
   const renderCodePanel = () => (
     <CodePanel
+      key={session.epoch}
       codeEditorRef={codeEditorRef}
-      html={html}
-      theme={activeCmTheme}
+      stateRef={session.stateRef}
+      html={source}
+      theme={isCodeThemeDark ? 'dark' : 'light'}
       fontSize={fontSize - 1}
-      onSave={onSave}
+      onSave={handleSave}
       editable={editable}
       saved={saved}
-      onClickSave={handleSave}
+      onClickSave={handleClickSave}
       saveLabel={t('code_block.edit.save.label')}
     />
   )
 
-  const renderPreviewPanel = () => (
-    <HtmlPreviewFrame
-      iframeRef={previewFrameRef}
-      html={html}
-      title={t('common.html_preview')}
-      emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
-    />
-  )
+  // Security default: static tier on open; only the explicit run action authorizes
+  // the webview (mirrors the inline consent card — "open" is not authorization).
+  const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
+  // Authorization is scoped to the exact content: the stored html must match in the
+  // same render, so new bytes never inherit a previous run action — no effect-timing window.
+  const interactiveDisclosureId = useId()
+  const [interactiveAuth, setInteractiveAuth] = useState<{ html: string; authorized: boolean }>({
+    html: '',
+    authorized: false
+  })
+  const interactiveAuthorized = interactiveAuth.html === html && interactiveAuth.authorized
+  // The webview tier has no capture iframe; an explicit canCapturePreview={false} wins.
+  const effectiveCanCapturePreview = renderPreview
+    ? canCapturePreview
+    : canCapturePreview && !(requiresInteractivePreview && interactiveAuthorized)
+
+  const renderPreviewPanel = () =>
+    renderPreview ? (
+      renderPreview(previewFrameRef)
+    ) : (
+      <div className="relative h-full w-full">
+        <HtmlArtifactPreviewSurface
+          iframeRef={previewFrameRef}
+          html={html}
+          title={t('common.html_preview')}
+          authorized={interactiveAuthorized}
+          emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
+          forwardBoundaryWheel={false}
+        />
+        {requiresInteractivePreview && !interactiveAuthorized && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-3">
+            <Tooltip content={t('html_artifacts.interactive_preview.description')} delay={200}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="pointer-events-auto border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
+                aria-label={t('html_artifacts.interactive_preview.action')}
+                aria-describedby={interactiveDisclosureId}
+                onClick={() => setInteractiveAuth({ html, authorized: true })}>
+                <ShieldAlert className="size-3.5 text-warning" />
+                {t('html_artifacts.interactive_preview.action')}
+                <span id={interactiveDisclosureId} className="sr-only">
+                  {t('html_artifacts.interactive_preview.description')}
+                </span>
+              </Button>
+            </Tooltip>
+          </div>
+        )}
+      </div>
+    )
 
   const renderContent = () => {
     if (viewMode === 'code') {
@@ -251,15 +350,15 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
           <header
             className={cn(
-              'relative flex items-center justify-between gap-4 border-border border-b bg-background px-2.5',
+              'relative flex items-center justify-between gap-4 border-b border-border bg-background px-2.5',
               isFullscreen && '[-webkit-app-region:drag]'
             )}
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
             <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-20' : 'pl-3')}>
-              <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
+              <DialogTitle className="max-w-[45vw] truncate text-sm font-bold text-foreground">{title}</DialogTitle>
             </div>
 
-            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 [-webkit-app-region:no-drag]">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 [-webkit-app-region:no-drag]">
               <SegmentedControl<ViewMode>
                 size="sm"
                 value={viewMode}
@@ -300,29 +399,35 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             <div
               className="flex flex-1 items-center justify-end gap-2 pr-1"
               onDoubleClick={(event) => event.stopPropagation()}>
-              <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
-                <Tooltip content={t('html_artifacts.capture.label')}>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
-                      <Camera className="size-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                </Tooltip>
-                <PopoverContent align="end" className="w-56 p-1.5">
-                  <MenuList>
-                    <MenuItem
-                      label={t('html_artifacts.capture.to_file')}
-                      icon={<FilePngIcon size={14} className="lucide-custom" />}
-                      onClick={() => void handleCapture('file')}
-                    />
-                    <MenuItem
-                      label={t('html_artifacts.capture.to_clipboard')}
-                      icon={<CopyIcon size={14} className="lucide-custom" />}
-                      onClick={() => void handleCapture('clipboard')}
-                    />
-                  </MenuList>
-                </PopoverContent>
-              </Popover>
+              {effectiveCanCapturePreview && (
+                <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
+                  <Tooltip content={t('html_artifacts.capture.label')}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t('html_artifacts.capture.label')}
+                        className="[-webkit-app-region:no-drag]">
+                        <Camera className="size-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                  </Tooltip>
+                  <PopoverContent align="end" className="w-56 p-1.5">
+                    <MenuList>
+                      <MenuItem
+                        label={t('html_artifacts.capture.to_file')}
+                        icon={<FilePngIcon size={14} className="lucide-custom" />}
+                        onClick={() => void handleCapture('file')}
+                      />
+                      <MenuItem
+                        label={t('html_artifacts.capture.to_clipboard')}
+                        icon={<CopyIcon size={14} className="lucide-custom" />}
+                        onClick={() => void handleCapture('clipboard')}
+                      />
+                    </MenuList>
+                  </PopoverContent>
+                </Popover>
+              )}
               <Button
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 variant="ghost"
@@ -336,7 +441,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             </div>
           </header>
 
-          <div className="min-h-0 overflow-hidden bg-background">{renderContent()}</div>
+          <div className="min-h-0 overflow-hidden bg-background" style={codeBlockStyle}>
+            {renderContent()}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

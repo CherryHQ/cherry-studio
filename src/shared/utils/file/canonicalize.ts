@@ -69,8 +69,9 @@
  * invalidation).
  */
 
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type * as z from 'zod'
+
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 function canonicalizeAbsolutePath(raw: string): string {
   if (raw.includes('\0')) {

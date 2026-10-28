@@ -1,19 +1,26 @@
-import { InfoTooltip } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { InfoTooltip, InputNumber } from '@cherrystudio/ui'
+
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unknown>) {
+  if (!isOptionsConfigItem(item)) return []
   return typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
 }
+
+/** Seconds; the upper bound matches the image-generation job's 30-minute budget. */
+const REQUEST_TIMEOUT_MIN_SECONDS = 10
+const REQUEST_TIMEOUT_MAX_SECONDS = 30 * 60
 
 function shouldRenderConfigItem(item: BaseConfigItem, painting: Record<string, unknown>) {
   if (item.condition && !item.condition(painting)) {
@@ -37,6 +44,9 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
   // that `canonicalGenerate` partitions into AI SDK args vs provider bag at
   // request time. Top-level PaintingData fields are not visible to the wire.
   const paintingParams = painting.params ?? {}
+  const requestTimeoutSeconds = painting.requestTimeoutMs ? Math.round(painting.requestTimeoutMs / 1000) : null
+  // The override only reaches transports that apply it; hide it where the value would be inert.
+  const requestTimeoutSupported = supportsImageRequestTimeout(painting.providerId)
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
     () =>
@@ -56,19 +66,38 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
               <PaintingSectionTitle>
                 {t(item.title)}
                 {/* range fields (e.g. numImages) interpolate their actual {{min}}-{{max}} */}
-                {item.tooltip && <InfoTooltip content={t(item.tooltip, { min: item.min, max: item.max })} />}
+                {item.tooltip && (
+                  <InfoTooltip
+                    content={t(item.tooltip, item.type === 'slider' ? { min: item.min, max: item.max } : undefined)}
+                  />
+                )}
               </PaintingSectionTitle>
             )}
             <PaintingFieldRenderer
               item={item}
               painting={paintingParams}
-              onChange={(updates) =>
-                onConfigChange({ params: { ...paintingParams, ...updates } } as Partial<PaintingData>)
-              }
+              onChange={(updates) => onConfigChange({ params: { ...paintingParams, ...updates } })}
               onGenerateRandomSeed={onGenerateRandomSeed}
             />
           </div>
         ))}
+      {requestTimeoutSupported && (
+        <div>
+          <PaintingSectionTitle>
+            {t('paintings.request_timeout')}
+            <InfoTooltip content={t('paintings.request_timeout_tip')} />
+          </PaintingSectionTitle>
+          <InputNumber
+            aria-label={t('paintings.request_timeout')}
+            className="w-28"
+            min={REQUEST_TIMEOUT_MIN_SECONDS}
+            max={REQUEST_TIMEOUT_MAX_SECONDS}
+            step={10}
+            value={requestTimeoutSeconds}
+            onBlur={(value) => onConfigChange({ requestTimeoutMs: value === null ? undefined : value * 1000 })}
+          />
+        </div>
+      )}
     </>
   )
 }

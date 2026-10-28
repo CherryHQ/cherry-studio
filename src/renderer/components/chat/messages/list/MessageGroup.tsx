@@ -1,14 +1,16 @@
-import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import type { ComponentProps, ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { Popover, PopoverContent, PopoverTrigger, PortalContainerProvider, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import {
@@ -21,19 +23,34 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState }
 import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
+import {
+  findVerticalWheelConsumer,
+  useScrollRuntimeBoundary,
+  useScrollRuntimeNavigation
+} from './ScrollOwnershipContext'
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+const WHEEL_LINE_HEIGHT_PX = 16
+
+function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_HEIGHT_PX
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize
+  return delta
+}
 
 interface Props {
   messages: MessageListItem[]
   partsByMessageId?: Record<string, CherryMessagePart[]> | null
-  topic: Topic
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
   directAssistantModelsByUserId?: ReadonlyMap<string, Model[]>
   onMultiModelMessageStyleChange?: (style: MultiModelMessageStyle) => void
+  messageTail?: {
+    messageId: string
+    content: ReactNode
+  }
 }
 
 function pickPreferredSelectedMessage(
@@ -50,12 +67,12 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   partsByMessageId,
-  topic,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
   directAssistantModelsByUserId,
-  onMultiModelMessageStyleChange
+  onMultiModelMessageStyleChange,
+  messageTail
 }: Props) => {
   const messageLength = messages.length
 
@@ -65,9 +82,11 @@ const MessageGroup = ({
   const selection = useMessageListSelection()
   const messageUi = useMessageListUiSelectors()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
-  const gridColumns = renderConfig.multiModelGridColumns
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
+  const currentTabId = useCurrentTabId()
+  const navigateWithScrollRuntime = useScrollRuntimeNavigation()
+  const { getScrollContainer, scrollByWheel } = useScrollRuntimeBoundary()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -87,8 +106,22 @@ const MessageGroup = ({
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(() =>
     getEffectiveMultiModelMessageStyle(messages, getMessageUiState, multiModelMessageStyleSetting)
   )
-  const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
   const previousMessageIdsRef = useRef(messages.map((message) => message.id))
+  const activeBranchSelectionQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const horizontalGroupRef = useRef<HTMLDivElement>(null)
+  const messageElementsRef = useRef<Map<string, HTMLElement>>(new Map())
+
+  const registerRenderedMessageElement = useCallback(
+    (messageId: string, element: HTMLElement | null) => {
+      if (element) {
+        messageElementsRef.current.set(messageId, element)
+      } else {
+        messageElementsRef.current.delete(messageId)
+      }
+      registerMessageElement?.(messageId, element)
+    },
+    [registerMessageElement]
+  )
 
   const multiModelMessageStyle = useMemo(
     () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
@@ -97,20 +130,17 @@ const MessageGroup = ({
 
   const isGrid = multiModelMessageStyle === 'grid'
 
-  // Track selected and useful message IDs in React state
+  // Track the selected message ID in React state. The active branch remains
+  // the single source of truth for which grouped reply is used as context.
   const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
     return pickPreferredSelectedMessage(messages, getMessageUiState)?.id ?? messages.at(-1)?.id ?? messages[0]?.id
   })
+  const previousActiveBranchMessageIdRef = useRef(messages.find((message) => message.isActiveBranch)?.id)
 
-  const [usefulMessageId, setUsefulMessageIdState] = useState<string | null>(() => {
-    const useful = messages.find((m) => getMessageUiState(m.id).useful)
-    return useful?.id ?? null
-  })
-
-  // Re-sync selected/useful ids when the active branch or group membership
-  // changes. Without this, fold mode can keep showing an old model column even
-  // after branch navigation moves the active path to another multi-model node.
+  // Re-sync the selected ID when the active branch or group membership changes.
+  // Without this, fold mode can keep showing an old model column even after
+  // branch navigation moves the active path to another multi-model node.
   useEffect(() => {
     if (captureMode) return
 
@@ -121,9 +151,11 @@ const MessageGroup = ({
 
     const hasSelected = messages.some((m) => m.id === selectedMessageId)
     const activeBranchMessage = messages.find((message) => message.isActiveBranch)
+    const activeBranchChanged = activeBranchMessage?.id !== previousActiveBranchMessageIdRef.current
+    previousActiveBranchMessageIdRef.current = activeBranchMessage?.id
     let nextSelectedMessage: MessageListItem | undefined
 
-    if (activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
+    if (activeBranchChanged && activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
       nextSelectedMessage = activeBranchMessage
     } else if (!hasSelected) {
       nextSelectedMessage = pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0]
@@ -137,13 +169,8 @@ const MessageGroup = ({
       }
       updateMessageUiState(nextSelectedMessage.id, { foldSelected: true })
       setSelectedMessageIdState(nextSelectedMessage.id)
-      setSelectedIndex(messages.findIndex((message) => message.id === nextSelectedMessage.id))
     }
-
-    if (usefulMessageId && !messages.some((m) => m.id === usefulMessageId)) {
-      setUsefulMessageIdState(null)
-    }
-  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState, usefulMessageId])
+  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState])
 
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
@@ -165,49 +192,18 @@ const MessageGroup = ({
       setTimeoutTimer(
         'setSelectedMessage',
         () => {
-          const messageElement = document.getElementById(`message-${message.id}`)
+          const messageElement = messageElementsRef.current.get(message.id)
           if (messageElement) {
-            scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            if (!navigateWithScrollRuntime(messageElement)) {
+              scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            }
           }
         },
         200
       )
     },
-    [actions, selectedMessageId, setTimeoutTimer, updateMessageUiState]
+    [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
-  // 添加对流程图节点点击事件的监听
-  useEffect(() => {
-    // 只在组件挂载和消息数组变化时添加监听器
-    if (captureMode || !isGrouped || messageLength <= 1) return
-
-    const handleFlowNavigate = (event: CustomEvent) => {
-      const { messageId } = event.detail
-
-      // 查找对应的消息在当前消息组中的索引
-      const targetIndex = messages.findIndex((msg) => msg.id === messageId)
-
-      // 如果找到消息且不是当前选中的索引，则切换标签
-      if (targetIndex !== -1 && targetIndex !== selectedIndex) {
-        setSelectedIndex(targetIndex)
-
-        // 使用setSelectedMessage函数来切换标签，这是处理foldSelected的关键
-        const targetMessage = messages[targetIndex]
-        if (targetMessage) {
-          setSelectedMessage(targetMessage)
-        }
-      }
-    }
-
-    // 添加事件监听器
-    document.addEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
-
-    // 清理函数
-    return () => {
-      document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, selectedIndex, isGrouped, messageLength, captureMode])
-
   useEffect(() => {
     if (captureMode) return
 
@@ -218,7 +214,7 @@ const MessageGroup = ({
           const message = messages.find((item) => item.id === messageId)
           if (!message) return
 
-          const element = document.getElementById(`message-${message.id}`)
+          const element = messageElementsRef.current.get(message.id)
           if (!element) return
 
           const display = window.getComputedStyle(element).display
@@ -227,81 +223,101 @@ const MessageGroup = ({
             return
           }
 
-          scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          if (!navigateWithScrollRuntime(element)) {
+            scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          }
         }
       }
     )
-  }, [actions, captureMode, messages, setSelectedMessage])
+  }, [actions, captureMode, messages, navigateWithScrollRuntime, setSelectedMessage])
 
-  useEffect(() => {
-    if (captureMode) return
-
-    messages.forEach((message) => {
-      const element = document.getElementById(`message-${message.id}`)
-      element && registerMessageElement?.(message.id, element)
-    })
-    return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
-  }, [captureMode, messages, registerMessageElement])
-
-  const onUpdateUseful = useCallback(
+  const onSelectContext = useCallback(
     (msgId: string) => {
       const message = messages.find((msg) => msg.id === msgId)
       if (!message) {
         logger.error("the message to update doesn't exist in this group")
         return
       }
-      if (usefulMessageId === msgId) {
-        updateMessageUiState(msgId, { useful: undefined })
-        setUsefulMessageIdState(null)
-      } else {
-        // Reset previous useful message
-        if (usefulMessageId) {
-          updateMessageUiState(usefulMessageId, { useful: undefined })
-        }
-        updateMessageUiState(msgId, { useful: true })
-        setUsefulMessageIdState(msgId)
-      }
+      const setActiveBranch = actions.setActiveBranch
+      if (!setActiveBranch) return
+
+      activeBranchSelectionQueueRef.current = activeBranchSelectionQueueRef.current
+        .then(() => setActiveBranch(message.id))
+        .catch((error) => {
+          logger.error('Failed to set active branch from context selection', error as Error, { messageId: message.id })
+          actions.notifyError?.(error instanceof Error ? error.message : String(error))
+        })
     },
-    [messages, updateMessageUiState, usefulMessageId]
+    [actions, messages]
   )
 
   const groupContextMessageId = useMemo(() => {
-    if (usefulMessageId && messages.some((msg) => msg.id === usefulMessageId)) {
-      return usefulMessageId
-    } else if (messages.length > 0) {
-      return messages[0].id
-    } else {
-      logger.warn('Empty message group')
-      return ''
-    }
-  }, [messages, usefulMessageId])
+    const activeBranchMessage = messages.find((message) => message.isActiveBranch)
+    if (activeBranchMessage) return activeBranchMessage.id
+    if (messages.length > 0) return messages[0].id
 
-  const handleHorizontalGroupWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement | null
-    if (target?.closest('.message-content-container')) {
-      return
-    }
+    logger.warn('Empty message group')
+    return ''
+  }, [messages])
 
-    const groupContainer = event.currentTarget
-    const contentContainers = Array.from(groupContainer.querySelectorAll<HTMLElement>('.message-content-container'))
-    const hasInnerVerticalScroll = contentContainers.some(
-      (contentContainer) => contentContainer.scrollHeight > contentContainer.clientHeight + 1
-    )
-    const hasHorizontalScroll = groupContainer.scrollWidth > groupContainer.clientWidth + 1
-    const horizontalDelta = Math.abs(event.deltaX) > 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0
+  const handleHorizontalGroupWheel = useCallback(
+    (event: WheelEvent) => {
+      const target = event.target as HTMLElement | null
+      const groupContainer = event.currentTarget as HTMLDivElement
+      const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
+      const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
+      const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
+      const horizontalDelta = event.shiftKey
+        ? horizontalWheelDelta || normalizeWheelDelta(event.deltaY, event.deltaMode, groupContainer.clientWidth)
+        : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
+          ? horizontalWheelDelta
+          : 0
+      const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
-    if (horizontalDelta !== 0 && hasHorizontalScroll) {
+      // Column owns vertical while it can scroll. At its boundary the group's
+      // overflow-y:hidden blocks chaining, so forward vertical-dominant wheels
+      // to the list runtime — but keep dominant-horizontal pans on the row.
+      if (inMessageColumn) {
+        if (verticalWheelDelta !== 0 && findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)) {
+          return
+        }
+        if (horizontalDelta === 0) {
+          if (verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+          return
+        }
+      } else if (horizontalDelta === 0) {
+        if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        return
+      }
+
+      const maxScrollLeft = groupContainer.scrollWidth - groupContainer.clientWidth
+      const canScrollHorizontally =
+        horizontalDelta < 0 ? groupContainer.scrollLeft > 0 : groupContainer.scrollLeft < maxScrollLeft
+
+      if (!canScrollHorizontally && !event.shiftKey) return
+
       event.preventDefault()
       event.stopPropagation()
-      groupContainer.scrollLeft += horizontalDelta
-      return
-    }
+      if (canScrollHorizontally) {
+        groupContainer.scrollLeft += horizontalDelta
+      }
+    },
+    [getScrollContainer, scrollByWheel]
+  )
 
-    if (hasInnerVerticalScroll) {
-      event.preventDefault()
-      event.stopPropagation()
-    }
-  }, [])
+  useEffect(() => {
+    const groupContainer = horizontalGroupRef.current
+    if (!groupContainer || multiModelMessageStyle !== 'horizontal') return
+
+    groupContainer.addEventListener('wheel', handleHorizontalGroupWheel, { capture: true, passive: false })
+    return () => groupContainer.removeEventListener('wheel', handleHorizontalGroupWheel, true)
+  }, [handleHorizontalGroupWheel, multiModelMessageStyle])
 
   const renderMessage = useCallback(
     (message: MessageListItem, index: number) => {
@@ -310,18 +326,21 @@ const MessageGroup = ({
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
-        showModelIdentity: isMultiModelGroup && multiModelMessageStyle !== 'fold',
+        showModelIdentity: !isMultiModelGroup || multiModelMessageStyle !== 'fold',
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
+        messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
         messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
-        topic,
         index
       } satisfies ComponentProps<typeof MessageItem>
 
       const messageContent = (
         <MessageWrapper
-          id={`message-${message.id}`}
+          id={`message-${currentTabId ? `${currentTabId}-` : ''}${captureMode ? 'capture-' : ''}${message.id}`}
           key={message.id}
+          data-message-id={message.id}
+          messageId={message.id}
+          onElementChange={registerRenderedMessageElement}
           className={classNames([
             {
               [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
@@ -329,7 +348,7 @@ const MessageGroup = ({
             }
           ])}>
           <MessageItem
-            onUpdateUseful={onUpdateUseful}
+            onSelectContext={onSelectContext}
             isGroupContextMessage={isGrouped && message.id === groupContextMessageId}
             {...messageProps}
           />
@@ -342,16 +361,19 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <MessageWrapper
-                className={classNames([
-                  'in-popover',
-                  {
-                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
-                    selected: message.id === selectedMessageId
-                  }
-                ])}>
-                <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
-              </MessageWrapper>
+              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+                <MessageWrapper
+                  tabIndex={0}
+                  className={classNames([
+                    'in-popover',
+                    {
+                      [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
+                      selected: message.id === selectedMessageId
+                    }
+                  ])}>
+                  <MessageItem onSelectContext={onSelectContext} {...messageProps} />
+                </MessageWrapper>
+              </SelectionContextMenu>
             }
             triggerContent={messageContent}
           />
@@ -361,19 +383,23 @@ const MessageGroup = ({
       return messageContent
     },
     [
+      actions.openBrowserUrl,
       isGrid,
       isGrouped,
       isMultiModelGroup,
-      topic,
       isLatestAssistantGroup,
       multiModelMessageStyle,
       messages,
       directAssistantModelsByUserId,
       selectedMessageId,
-      onUpdateUseful,
+      onSelectContext,
       groupContextMessageId,
       gridPopoverTrigger,
-      partsByMessageId
+      partsByMessageId,
+      messageTail,
+      captureMode,
+      currentTabId,
+      registerRenderedMessageElement
     ]
   )
 
@@ -382,10 +408,9 @@ const MessageGroup = ({
       id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
       className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <GridContainer
+        ref={horizontalGroupRef}
         $count={messageLength}
-        $gridColumns={gridColumns}
-        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
-        onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
+        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
         {messages.map(renderMessage)}
       </GridContainer>
       {isGrouped && (
@@ -421,17 +446,16 @@ const GroupContainer = ({ className, ...props }: ComponentProps<'div'>) => (
 const GridContainer = ({
   className,
   $count,
-  $gridColumns,
   style,
   ...props
-}: ComponentProps<typeof Scrollbar> & { $count: number; $gridColumns: number }) => {
+}: ComponentProps<typeof Scrollbar> & { $count: number }) => {
   const isHorizontal = className?.includes('horizontal')
   const isGrid = className?.includes('grid')
   const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
   const gridTemplateColumns = isHorizontal
     ? `repeat(${$count}, minmax(420px, 1fr))`
     : isGrid
-      ? `repeat(${$count > 1 ? $gridColumns || 2 : 1}, minmax(0, 1fr))`
+      ? 'repeat(2, minmax(0, 1fr))'
       : isFoldOrVertical
         ? 'repeat(1, minmax(0, 1fr))'
         : undefined
@@ -440,6 +464,7 @@ const GridContainer = ({
 
   return (
     <Scrollbar
+      showOnHover={isHorizontal}
       className={classNames(
         '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
         className
@@ -452,14 +477,29 @@ const GridContainer = ({
 
 interface MessageWrapperProps {
   $isInPopover?: boolean
+  messageId?: string
+  onElementChange?: (messageId: string, element: HTMLElement | null) => void
 }
 
-const MessageWrapper = ({ className, $isInPopover, ...props }: ComponentProps<'div'> & MessageWrapperProps) => {
+const MessageWrapper = ({
+  className,
+  $isInPopover,
+  messageId,
+  onElementChange,
+  ...props
+}: Omit<ComponentProps<'div'>, 'ref'> & MessageWrapperProps) => {
   void $isInPopover
   const isHorizontal = className?.includes('horizontal')
   const isGridCard = className?.includes('grid') && !className?.includes('in-popover')
+  const setElementRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (messageId) onElementChange?.(messageId, element)
+    },
+    [messageId, onElementChange]
+  )
   return (
     <div
+      ref={messageId ? setElementRef : undefined}
       data-ui="chat.message"
       className={classNames([
         '[&.horizontal_.message-content-container]:overflow-y-auto! [&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
@@ -482,6 +522,7 @@ const GridMessagePopover = ({
   trigger: 'hover' | 'click'
 }) => {
   const [open, setOpen] = useState(false)
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null)
   const isHover = trigger === 'hover'
 
   return (
@@ -494,12 +535,13 @@ const GridMessagePopover = ({
         </div>
       </PopoverTrigger>
       <PopoverContent
+        ref={setContentElement}
         onMouseEnter={isHover ? () => setOpen(true) : undefined}
         onMouseLeave={isHover ? () => setOpen(false) : undefined}
         className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-4"
         side="top"
         align="center">
-        {content}
+        <PortalContainerProvider container={contentElement}>{content}</PortalContainerProvider>
       </PopoverContent>
     </Popover>
   )
@@ -523,7 +565,7 @@ function messagePartsShallowEqual(
   return messages.every((message) => previous?.[message.id] === next?.[message.id])
 }
 
-// Custom comparator: bail out only when topic / latest flag / derived model map /
+// Custom comparator: bail out only when latest flag / derived model map /
 // per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
 // registerMessageElement) are intentionally ignored — they close over
 // per-key state in the parent and behave identically across renders for the
@@ -535,10 +577,10 @@ function messagePartsShallowEqual(
 // arrive as new objects.
 export default memo(MessageGroup, (prev, next) => {
   return (
-    prev.topic === next.topic &&
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
+    prev.messageTail === next.messageTail &&
     messageArrayShallowEqual(prev.messages, next.messages) &&
     messagePartsShallowEqual(prev.partsByMessageId, next.partsByMessageId, prev.messages)
   )

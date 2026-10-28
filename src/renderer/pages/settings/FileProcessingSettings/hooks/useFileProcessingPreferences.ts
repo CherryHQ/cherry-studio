@@ -1,3 +1,5 @@
+import { useCallback, useMemo } from 'react'
+
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import type {
   FileProcessorFeature,
@@ -5,7 +7,6 @@ import type {
   FileProcessorOverride
 } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
-import { useCallback, useMemo } from 'react'
 
 const FILE_PROCESSING_KEYS = {
   defaultDocumentProcessor: 'feature.file_processing.default_document_to_markdown',

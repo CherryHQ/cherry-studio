@@ -1,21 +1,28 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
-import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import {
+  type KnowledgeFileItemData,
+  resolveFileEntryDataFromFile,
+  resolveKnowledgeFileBatch,
+  resolveKnowledgeFileMetadataEntryData,
+  selectKnowledgeFileBatchOutcome
+} from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
 import AddKnowledgeItemDialogHeader from './addKnowledgeItemDialog/AddKnowledgeItemDialogHeader'
 import AddKnowledgeItemDialogSourceTabs from './addKnowledgeItemDialog/AddKnowledgeItemDialogSourceTabs'
-import { DEFAULT_SOURCE_TYPE, KNOWLEDGE_ADD_ITEMS_MAX } from './addKnowledgeItemDialog/constants'
+import { DEFAULT_SOURCE_TYPE } from './addKnowledgeItemDialog/constants'
 import KnowledgeAddConflictDialog from './addKnowledgeItemDialog/KnowledgeAddConflictDialog'
-import type { NoteItem } from './addKnowledgeItemDialog/types'
+import type { NoteDraft, NoteItem, NoteSourceMode } from './addKnowledgeItemDialog/types'
 
 type ConflictResolution = 'rename' | 'replace'
 
@@ -40,25 +47,19 @@ const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ex
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
-const resolveFileEntryDataFromFile = (file: File) => {
-  const filePath = window.api.file.getPathForFile(file)
-
-  if (!filePath) {
-    return Promise.reject(new Error(`Failed to resolve a local path for "${file.name}"`))
-  }
-
-  return resolveKnowledgeFileData(filePath, file.name)
-}
+const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
-  const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
+  const { selectedBaseId, pendingAddSource, pendingAddFiles, pendingAddDirectoryPaths } = useKnowledgePage()
   // The dialog mounts fresh per open (the section conditionally renders it), so the requested
   // source is fixed for this lifetime — derive it instead of mirroring it into state.
   const activeSource = pendingAddSource ?? DEFAULT_SOURCE_TYPE
   const directPick = isDirectPickSource(activeSource)
 
+  const [noteMode, setNoteMode] = useState<NoteSourceMode>('import')
   const [selectedNotes, setSelectedNotes] = useState<NoteItem[]>([])
+  const [noteDraft, setNoteDraft] = useState<NoteDraft>({ title: '', content: '' })
   const [urlValue, setUrlValue] = useState('')
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
@@ -82,6 +83,28 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     )
   }, [])
 
+  const handleNoteSelectionChange = useCallback((notes: NoteItem[]) => {
+    setSubmitErrorMessage('')
+    setSelectedNotes(notes)
+  }, [])
+
+  const handleNoteModeChange = useCallback((mode: NoteSourceMode) => {
+    setSubmitErrorMessage('')
+    setNoteMode(mode)
+  }, [])
+
+  // Title and content update independently so neither handler closes over the draft;
+  // see the note on NoteCreateContent's props.
+  const handleNoteDraftTitleChange = useCallback((title: string) => {
+    setSubmitErrorMessage('')
+    setNoteDraft((current) => ({ ...current, title }))
+  }, [])
+
+  const handleNoteDraftContentChange = useCallback((content: string) => {
+    setSubmitErrorMessage('')
+    setNoteDraft((current) => ({ ...current, content }))
+  }, [])
+
   const canSubmit = useMemo(() => {
     if (!selectedBaseId) {
       return false
@@ -91,11 +114,15 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       case 'url':
         return urlValue.trim().length > 0
       case 'note':
-        return selectedNotes.length > 0
+        // A drafted note needs both halves: the title becomes the item's `source`
+        // (schema-required, non-empty) and empty content indexes to nothing.
+        return noteMode === 'create'
+          ? noteDraft.title.trim().length > 0 && noteDraft.content.trim().length > 0
+          : selectedNotes.length > 0
       default:
         return false
     }
-  }, [activeSource, selectedBaseId, selectedNotes.length, urlValue])
+  }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedBaseId, selectedNotes.length, urlValue])
 
   const buildPanelSubmitItems = useCallback(async (): Promise<KnowledgeAddItemInput[]> => {
     if (activeSource === 'url') {
@@ -104,6 +131,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
 
     if (activeSource === 'note') {
+      if (noteMode === 'create') {
+        return [{ type: 'note' as const, data: { source: noteDraft.title.trim(), content: noteDraft.content } }]
+      }
+
       return Promise.all(
         selectedNotes.map(async (note) => {
           // Name the note in the failure so a read error (e.g. it was moved or
@@ -117,27 +148,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
 
     return []
-  }, [activeSource, selectedNotes, urlValue])
-
-  // An interactive batch can be huge (the OS picker has no cap), but add_items rejects
-  // oversized batches at the IPC boundary with a generic "Invalid input". Stop them here
-  // with a friendly, source-appropriate hint — a toast for direct-pick (no panel), inline
-  // otherwise. Returns true when the batch is within the limit and may be submitted.
-  const ensureWithinAddLimit = useCallback(
-    (items: KnowledgeAddItemInput[]): boolean => {
-      if (items.length <= KNOWLEDGE_ADD_ITEMS_MAX) {
-        return true
-      }
-      const message = t('knowledge.data_source.add_dialog.too_many_sources', { count: KNOWLEDGE_ADD_ITEMS_MAX })
-      if (directPick) {
-        toast.warning(message)
-      } else {
-        setSubmitErrorMessage(message)
-      }
-      return false
-    },
-    [directPick, t]
-  )
+  }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedNotes, urlValue])
 
   // 'detect' (first pass) surfaces the conflict dialog when same-name collisions
   // exist; 'rename'/'replace' apply the user's choice. Closes the whole dialog
@@ -163,19 +174,33 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setIsResolvingSubmit(true)
 
     void buildPanelSubmitItems()
-      .then((items) => {
-        if (!ensureWithinAddLimit(items)) {
-          return
-        }
-        return submitWithStrategy(items, 'detect')
-      })
+      .then((items) => submitWithStrategy(items, 'detect'))
       .catch((error) => {
         setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
       })
       .finally(() => {
         setIsResolvingSubmit(false)
       })
-  }, [buildPanelSubmitItems, canSubmit, ensureWithinAddLimit, isResolvingSubmit, submitWithStrategy, t])
+  }, [buildPanelSubmitItems, canSubmit, isResolvingSubmit, submitWithStrategy, t])
+
+  const collectResolvedFileInputs = useCallback(
+    async <T,>(
+      files: T[],
+      resolveItem: (item: T) => Promise<KnowledgeFileItemData>,
+      describeItem: (item: T) => string | undefined
+    ): Promise<KnowledgeAddItemInput[]> => {
+      const fileBatch = await resolveKnowledgeFileBatch(files, resolveItem, describeItem)
+      const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
+      if (fileOutcome.fatal !== undefined) {
+        throw fileOutcome.fatal
+      }
+      if (fileOutcome.skipped.length > 0) {
+        toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
+      }
+      return fileOutcome.resolved.map((data) => ({ type: 'file' as const, data }))
+    },
+    [t]
+  )
 
   // Collect file inputs from the OS picker (or page-level pending files, if any) and submit.
   // Returns null when the user cancels the picker so the caller can close the flow.
@@ -186,8 +211,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       if (skippedCount > 0) {
         toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
       }
-      const fileData = await Promise.all(supportedFiles.map(resolveFileEntryDataFromFile))
-      return fileData.map((data) => ({ type: 'file' as const, data }))
+      return collectResolvedFileInputs(supportedFiles, resolveFileEntryDataFromFile, (file) => file.name)
     }
 
     const selected = await window.api.file.select({
@@ -204,9 +228,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
     }
-    const fileData = await Promise.all(supportedFiles.map(resolveKnowledgeFileMetadataEntryData))
-    return fileData.map((data) => ({ type: 'file' as const, data }))
-  }, [pendingAddFiles, t])
+    return collectResolvedFileInputs(supportedFiles, resolveKnowledgeFileMetadataEntryData, describeFileMetadata)
+  }, [collectResolvedFileInputs, pendingAddFiles, t])
 
   const collectDirectoryInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
     const directoryPath = await window.api.file.selectFolder()
@@ -230,14 +253,18 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     const run = async () => {
       setIsResolvingSubmit(true)
       try {
-        const items = activeSource === 'file' ? await collectFileInputs() : await collectDirectoryInputs()
+        let items: KnowledgeAddItemInput[] | null
+        if (pendingAddDirectoryPaths?.length) {
+          const fileInputs = pendingAddFiles?.length ? await collectFileInputs() : []
+          items = [
+            ...(fileInputs ?? []),
+            ...pendingAddDirectoryPaths.map((source) => ({ type: 'directory' as const, data: { source } }))
+          ]
+        } else {
+          items = activeSource === 'file' ? await collectFileInputs() : await collectDirectoryInputs()
+        }
         // Picker cancelled or nothing selectable — close the (panel-less) flow.
         if (!items || items.length === 0) {
-          handleOpenChange(false)
-          return
-        }
-        // Over the per-batch limit: the hint is a toast (no panel), so close afterwards.
-        if (!ensureWithinAddLimit(items)) {
           handleOpenChange(false)
           return
         }
@@ -256,9 +283,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     collectDirectoryInputs,
     collectFileInputs,
     directPick,
-    ensureWithinAddLimit,
     handleOpenChange,
     open,
+    pendingAddDirectoryPaths,
+    pendingAddFiles,
     submitWithStrategy,
     t
   ])
@@ -311,9 +339,15 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-1">
               <AddKnowledgeItemDialogSourceTabs
                 activeSource={activeSource}
+                noteMode={noteMode}
                 selectedNotes={selectedNotes}
+                noteDraft={noteDraft}
                 urlValue={urlValue}
+                onNoteModeChange={handleNoteModeChange}
                 onNoteToggle={handleNoteToggle}
+                onNoteSelectionChange={handleNoteSelectionChange}
+                onNoteDraftTitleChange={handleNoteDraftTitleChange}
+                onNoteDraftContentChange={handleNoteDraftContentChange}
                 onUrlValueChange={(value) => {
                   setSubmitErrorMessage('')
                   setUrlValue(value)
@@ -325,7 +359,9 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
               canSubmit={canSubmit}
               errorMessage={submitErrorMessage}
               isSubmitting={isSubmitting}
-              selectedNoteCount={selectedNotes.length}
+              // A draft submits exactly one note, and picks made before switching modes
+              // are not part of it — report nothing so the footer stays quiet.
+              selectedNoteCount={noteMode === 'create' ? 0 : selectedNotes.length}
               onSubmit={handleSubmit}
             />
           </DialogContent>

@@ -1,7 +1,27 @@
 import type { JobType } from '@main/core/job/jobRegistry'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-export type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
+export type KnowledgeBaseDiscoveryScope =
+  | { kind: 'unrestricted' }
+  | { kind: 'restricted'; baseIds: readonly [string, ...string[]] }
+
+export interface KnowledgeBaseDiscoveryOptions {
+  limit: number
+  cursor?: string
+  query?: string
+  groupId?: string
+  scope: KnowledgeBaseDiscoveryScope
+}
+
+export interface KnowledgeBaseDiscoveryPage {
+  items: KnowledgeBase[]
+  total: number
+  nextCursor?: string
+}
+
+type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [
+  'knowledge.copy-sources',
   'knowledge.prepare-root',
   'knowledge.index-documents',
   'knowledge.check-file-processing-result',
@@ -22,6 +42,9 @@ export type KnowledgeProgressDetail =
       totalFiles: number
     }
   | {
+      stage: 'copying'
+    }
+  | {
       stage: 'scanning'
     }
   | {
@@ -36,16 +59,9 @@ export type KnowledgeProgressDetail =
       skippedMissingSource?: number
     }
   | {
-      stage: 'waiting'
-      pollRound: number
-      fileProcessingJobId?: string
-      fileProcessing?: unknown
-    }
-  | {
       stage: 'failed'
     }
 
-export const KNOWLEDGE_ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const
 export const KNOWLEDGE_ACTIVE_JOB_LIMIT = 5000
 
 export function toKnowledgeBaseId(baseId: string): KnowledgeBaseId {
@@ -82,6 +98,10 @@ export function knowledgeReindexSubtreeIdempotencyKey(baseId: KnowledgeBaseId, r
   return `knowledge:${baseId}:${rootKey}:reindex`
 }
 
+export function knowledgeCopySourcesIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
+  return `knowledge:${baseId}:${itemId}:copy`
+}
+
 export function knowledgePrepareIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
   return `knowledge:${baseId}:${itemId}:prepare`
 }
@@ -98,8 +118,7 @@ export function knowledgeIndexIdempotencyKey(
 export function knowledgeFileProcessingCheckIdempotencyKey(
   baseId: KnowledgeBaseId,
   itemId: KnowledgeItemId,
-  fileProcessingJobId: string,
-  pollRound: number
+  fileProcessingJobId: string
 ): string {
-  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}:${pollRound}`
+  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}`
 }

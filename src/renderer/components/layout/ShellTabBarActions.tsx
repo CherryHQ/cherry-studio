@@ -1,93 +1,149 @@
-import { Button } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { CommandTooltip } from '@renderer/components/command'
-import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
-import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
-import { isLinux, isWin } from '@renderer/utils/platform'
-import { Search, Settings } from 'lucide-react'
+import { CircleArrowUp, Search, Settings } from 'lucide-react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
+import { loggerService } from '@logger'
+import { CommandTooltip } from '@renderer/components/command'
+import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
+import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+
 import { WindowControls } from '../WindowControls'
+import { HelpMenu } from './HelpMenu'
 
-export function useShellTabBarLayout() {
-  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
-  const hasWindowControls = isWin || (isLinux && !useSystemTitleBar)
+const logger = loggerService.withContext('ShellTabBarActions')
+const FeedbackDialog = lazy(() => import('@renderer/components/feedback/FeedbackDialog'))
 
-  // Extra ~16px over the action cluster's own width leaves a draggable gap between the
-  // last tab / "+" button and the right-side buttons, so the window stays easy to grab-move (Chrome-style).
-  const rightPaddingClass = hasWindowControls ? 'pr-[200px]' : 'pr-[72px]'
+export function SidebarSettingsButton({ layout }: { layout: SidebarVisibleLayout }) {
+  const { t } = useTranslation()
 
-  return {
-    hasWindowControls,
-    rightPaddingClass
+  if (layout === 'full') {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={t('settings.title')}
+        onClick={() => openSettingsTab()}
+        className="sidebar-action flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
+        <Settings size={16} strokeWidth={1.6} />
+        <span className="min-w-0 truncate">{t('settings.title')}</span>
+      </Button>
+    )
   }
+
+  return (
+    <Tooltip content={t('settings.title')} placement="right" delay={400}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={t('settings.title')}
+        onClick={() => openSettingsTab()}
+        className="sidebar-action size-9 rounded-full transition-colors duration-150">
+        <Settings className="size-4.5" strokeWidth={1.6} />
+      </Button>
+    </Tooltip>
+  )
+}
+
+export function AppUpdateButton({ placement = 'bottom' }: { placement?: 'top' | 'right' | 'bottom' | 'left' }) {
+  const { t } = useTranslation()
+  const { appUpdateState } = useAppUpdateState()
+  const hasUpdateAction = Boolean(appUpdateState.available && appUpdateState.downloaded && appUpdateState.info)
+
+  if (!hasUpdateAction) return null
+
+  const handleUpdateClick = () => {
+    const releaseInfo = appUpdateState.info
+    if (!releaseInfo) return
+
+    void import('@renderer/components/UpdateDialogPopup')
+      .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
+      .catch((error) => logger.error('Failed to open update dialog', error as Error))
+  }
+
+  const updateLabel = appUpdateState.info
+    ? t('settings.about.updateAvailable', { version: appUpdateState.info.version })
+    : t('button.update_available')
+
+  return (
+    <Tooltip content={updateLabel} placement={placement} delay={800}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={updateLabel}
+        onClick={handleUpdateClick}
+        className="flex size-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent">
+        <CircleArrowUp className="lucide-custom size-[18px] text-success" strokeWidth={1.8} />
+      </Button>
+    </Tooltip>
+  )
 }
 
 export function ShellTabBarActions() {
   const { t } = useTranslation()
-  const { hasWindowControls } = useShellTabBarLayout()
+  const [sidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const sidebarLayout = getSidebarLayout(sidebarWidth)
+  const isSidebarHidden = sidebarLayout === 'hidden'
 
   const handleSearchClick = () => {
     void GlobalSearchPopup.show()
   }
 
-  return (
-    <div className="absolute top-0 right-0 flex h-full items-stretch">
-      <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
-        <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
-          <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={t('globalSearch.open')}
-              onClick={handleSearchClick}
-              className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-              <Search size={16} strokeWidth={1.8} />
-            </Button>
-          </CommandTooltip>
-        </div>
-      </div>
+  const handleSettingsClick = () => {
+    openSettingsTab()
+  }
 
-      {hasWindowControls && <WindowControls />}
-    </div>
-  )
-}
-
-export function SidebarShellActions({
-  layout,
-  onSettingsClick
-}: {
-  layout: SidebarVisibleLayout
-  onSettingsClick: () => void
-}) {
-  const { t } = useTranslation()
-
-  if (layout === 'icon') {
-    return (
-      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t('settings.title')}
-          onClick={onSettingsClick}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground">
-          <Settings size={18} strokeWidth={1.6} />
-        </Button>
-      </CommandTooltip>
-    )
+  const handleOpenFeedback = () => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
   }
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-label={t('settings.title')}
-      onClick={onSettingsClick}
-      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60 dark:text-foreground">
-      <Settings size={16} strokeWidth={1.6} />
-      <span>{t('settings.title')}</span>
-    </Button>
+    <div className="flex h-full shrink-0 items-stretch">
+      <div className="flex items-center gap-1 pr-2 [-webkit-app-region:no-drag]">
+        {sidebarLayout !== 'full' ? <AppUpdateButton /> : null}
+        {isSidebarHidden ? (
+          <>
+            <HelpMenu layout="icon" placement="bottom" onFeedbackClick={handleOpenFeedback} />
+            <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t('settings.title')}
+                onClick={handleSettingsClick}
+                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+                <Settings size={16} strokeWidth={1.8} />
+              </Button>
+            </CommandTooltip>
+          </>
+        ) : null}
+        <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t('globalSearch.open')}
+            onClick={handleSearchClick}
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+            <Search size={16} strokeWidth={1.8} />
+          </Button>
+        </CommandTooltip>
+      </div>
+
+      <WindowControls />
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
+    </div>
   )
 }

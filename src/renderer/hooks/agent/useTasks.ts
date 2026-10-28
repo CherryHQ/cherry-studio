@@ -1,4 +1,9 @@
-import { useInvalidateCache, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
+import type { TFunction } from 'i18next'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import { useDataChange, useInvalidateCache, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -6,9 +11,8 @@ import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
-import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useTasks')
 
 /**
  * Task reads stay on DataApi (`useQuery` below); task commands go through the
@@ -17,12 +21,9 @@ import { useTranslation } from 'react-i18next'
  * command the DataApi read keys are invalidated explicitly since IpcApi has no
  * auto-refresh tie-in.
  */
-const taskReadKeys = (agentId: string) => [
-  '/agent-tasks',
-  '/agent-tasks/*',
-  `/agents/${agentId}/tasks`,
-  `/agents/${agentId}/tasks/*`
-]
+const taskListReadKeys = (agentId: string) => ['/agent-tasks', `/agents/${agentId}/tasks`]
+
+const taskReadKeys = (agentId: string) => taskListReadKeys(agentId).flatMap((key) => [key, `${key}/*`])
 
 export const TASKS_PAGE_LIMIT = 50
 
@@ -35,12 +36,13 @@ const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: s
 }
 
 export const useTasks = (agentId: string | null) => {
-  const { data, error, isLoading } = useQuery('/agents/:agentId/tasks', {
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks', {
     params: { agentId: agentId! },
     query: { limit: 200 },
     enabled: !!agentId,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange('/agents/:agentId/tasks', () => refetch())
   return {
     tasks: data?.items ?? [],
     total: data?.total ?? 0,
@@ -58,6 +60,7 @@ export const useAllTasks = () => {
       swrOptions: { keepPreviousData: false }
     }
   )
+  useDataChange('/agent-tasks', () => refresh())
   return {
     tasks: items,
     total,
@@ -74,15 +77,21 @@ export const useAllTasks = () => {
 }
 
 export const useTask = (taskId: string | null) => {
-  const { data, error, isLoading } = useQuery('/agent-tasks/:taskId', {
+  const { data, error, isLoading, refetch } = useQuery('/agent-tasks/:taskId', {
     params: { taskId: taskId! },
     enabled: !!taskId,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange('/agent-tasks/:taskId', (effects) => {
+    if (effects.some((effect) => !effect.entityIds || (taskId !== null && effect.entityIds.includes(taskId)))) {
+      void refetch()
+    }
+  })
   return {
     task: data,
     error,
-    isLoading
+    isLoading,
+    refetch
   }
 }
 
@@ -175,16 +184,29 @@ export const useDeleteTask = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const deleteTask = useCallback(
-    async (agentId: string, taskId: string): Promise<boolean> => {
+    async (agentId: string, taskId: string, options?: { onDeleted?: () => void | Promise<void> }): Promise<boolean> => {
       try {
         await ipcApi.request('ai.agent.task.delete', { agentId, taskId })
-        toast.success({ key: 'delete-task', title: t('common.delete_success') })
-        await invalidate(taskReadKeys(agentId))
-        return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.deleteFailed', 'Failed to delete task')))
         return false
       }
+
+      toast.success({ key: 'delete-task', title: t('common.delete_success') })
+      let shouldInvalidateTaskDetails = true
+      try {
+        await options?.onDeleted?.()
+      } catch (error) {
+        shouldInvalidateTaskDetails = false
+        logger.warn('Post-delete navigation failed', error as Error)
+      }
+
+      try {
+        await invalidate(shouldInvalidateTaskDetails ? taskReadKeys(agentId) : taskListReadKeys(agentId))
+      } catch (error) {
+        logger.warn('Failed to refresh task data after deletion', error as Error)
+      }
+      return true
     },
     [invalidate, t]
   )
@@ -192,11 +214,14 @@ export const useDeleteTask = () => {
 }
 
 export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
-  const { data, error, isLoading } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
     params: { agentId: agentId!, taskId: taskId! },
     query: { limit: 50 },
     enabled: !!(agentId && taskId),
     swrOptions: { keepPreviousData: false }
+  })
+  useDataChange('/agents/:agentId/tasks/:taskId/logs', () => refetch(), {
+    routeParams: taskId ? { taskId } : undefined
   })
   return {
     logs: data?.items ?? [],

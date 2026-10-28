@@ -1,5 +1,6 @@
-import { Table } from '@cherrystudio/extension-table-plus'
 import type { JSONContent, MarkdownToken } from '@tiptap/core'
+
+import { Table } from '@cherrystudio/extension-table-plus'
 
 /**
  * Native markdown round-trip for GFM tables.

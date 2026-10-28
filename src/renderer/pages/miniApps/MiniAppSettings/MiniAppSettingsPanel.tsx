@@ -1,6 +1,7 @@
-import { PageSidePanel } from '@cherrystudio/ui'
 import type { FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { PageSidePanel } from '@cherrystudio/ui'
 
 interface Props {
   open: boolean

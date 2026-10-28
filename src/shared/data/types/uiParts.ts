@@ -20,11 +20,13 @@
  * - data-knowledge-scope (knowledge bases available to this user turn)
  * - data-clear (context boundary marker)
  * - data-code (code blocks)
+ * - data-retry (transient model-retry/fallback status; shown live, never persisted)
  */
 
-import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
-import { type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
+
+import type { CompactionAnchorData } from '@shared/ai/compaction'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
 import type { CherryMessagePart } from './message'
@@ -62,14 +64,14 @@ export interface CompactPartData {
 }
 
 /** Compaction anchor data — marks where a runtime context compaction completed. */
-export type CompactionAnchorPartData = AgentSessionCompactionAnchorData
+export type CompactionAnchorPartData = CompactionAnchorData
 
 /** Claude Agent SDK task lifecycle event data. Hidden inline state consumed by agent status panels. */
 export interface AgentTaskEventPartData {
   event: 'started' | 'progress' | 'updated' | 'notification'
   taskId: string
   toolUseId?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'error'
+  status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title?: string
   activeText?: string
   description?: string
@@ -81,6 +83,8 @@ export interface AgentTaskEventPartData {
   lastToolName?: string
   outputFile?: string
   error?: string
+  /** Per-task edge authority for whether this task has detached from its spawning turn. */
+  isBackgrounded?: boolean
   skipTranscript?: boolean
   usage?: {
     totalTokens?: number
@@ -97,11 +101,33 @@ export interface KnowledgeScopePartData {
 /** Context boundary marker. Hidden from both the transcript and the model. */
 export type ClearPartData = Record<string, never>
 
+/** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
+export type ConversationResetPartData = Record<string, never>
+
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
   content: string
   language: string
 }
+
+/**
+ * Model retry/fallback status. Transient: emitted live while a chat model call
+ * is being retried or failed over to a fallback model, and stripped before the
+ * assistant message is persisted (see PersistenceListener). Never written to DB.
+ */
+export type RetryPartData =
+  | {
+      state: 'retrying'
+      /** Model id that will handle the upcoming attempt. */
+      modelId: string
+      /** 1-based number of the upcoming attempt, including the original call. */
+      attempt: number
+      /** Short human reason, e.g. "http 429: rate limit exceeded". */
+      reason: string
+    }
+  | {
+      state: 'settled'
+    }
 
 // ============================================================================
 // Cherry DataUIPart type map (for useChat dataPartSchemas)
@@ -117,10 +143,13 @@ export type CherryDataPartTypes = {
   video: VideoPartData
   compact: CompactPartData
   'compaction-anchor': CompactionAnchorPartData
+  'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
+  'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   code: CodePartData
+  retry: RetryPartData
 }
 
 // ============================================================================
@@ -149,6 +178,8 @@ export interface CherryToolMeta {
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
   toolName?: string
+  /** Runtime-neutral subagent linkage: the spawning tool call this part nests under. */
+  parentToolCallId?: string
   /** MCP / builtin tool identity. Matches `ToolType` consumed by `toolResponse.ts`. */
   tool?: {
     serverId?: string
@@ -185,10 +216,15 @@ export interface CherryFileMeta {
    * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
+  /** Previously persisted workspace copy; retained only for existing message references. */
+  workingFileEntryId?: string
+  /** Upload-time integrity metadata for the managed attachment. */
+  remoteAttachment?: { sha256: string; byteLength: number }
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string
   /** Safe composer-only source marker used to restore sent-message token previews. */
   composerFileKind?: 'pasted-text'
+  originalPath?: AbsoluteFilePath
 }
 
 /**
@@ -227,9 +263,21 @@ const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenP
   size: z.number().optional()
 })
 
+const ComposerMessageTokenKindSchema = z.enum([
+  'skill',
+  'link',
+  'file',
+  'folder',
+  'command',
+  'knowledge',
+  'reference',
+  'quote',
+  'webviewAnnotation'
+])
+
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   id: z.string(),
-  kind: z.enum(['skill', 'file', 'folder', 'command', 'knowledge', 'reference', 'quote']),
+  kind: ComposerMessageTokenKindSchema,
   label: z.string(),
   icon: z.string().optional(),
   description: z.string().optional(),
@@ -267,9 +315,14 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 })
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
+  workingFileEntryId: z.string().optional(),
   fileEntryId: z.string().optional(),
+  remoteAttachment: z
+    .object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), byteLength: z.number().int().nonnegative() })
+    .optional(),
   fileTokenSourceId: z.string().optional(),
-  composerFileKind: z.literal('pasted-text').optional()
+  composerFileKind: z.literal('pasted-text').optional(),
+  originalPath: AbsoluteFilePathSchema.optional()
 })
 
 const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({
@@ -325,6 +378,15 @@ export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefi
   return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false
 }
 
+/** Whether persisted message values describe a blank user turn, without making any tree-level claim. */
+export function isBlankUserTurn(input: {
+  role: string
+  status: string | undefined
+  parts: readonly unknown[] | undefined
+}): boolean {
+  return input.role === 'user' && input.status === 'success' && (input.parts?.length ?? 0) === 0
+}
+
 /** Replace the aggregate knowledge scope part while preserving every content part. */
 export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: readonly string[]): CherryMessagePart[] {
   const contentParts = parts.filter((part) => part.type !== KNOWLEDGE_SCOPE_PART_TYPE)
@@ -336,7 +398,7 @@ export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: read
     {
       type: KNOWLEDGE_SCOPE_PART_TYPE,
       data: { baseIds: uniqueBaseIds }
-    } as CherryMessagePart
+    }
   ]
 }
 
@@ -356,7 +418,7 @@ export function getKnowledgeBaseIdsFromParts(parts: readonly CherryMessagePart[]
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
 
-export type ComposerMessageTokenKind = 'skill' | 'file' | 'folder' | 'command' | 'knowledge' | 'reference' | 'quote'
+export type ComposerMessageTokenKind = z.infer<typeof ComposerMessageTokenKindSchema>
 
 export interface ComposerMessageFileTokenPayload {
   type?: FileType
@@ -420,5 +482,5 @@ export function withCherryMeta<P extends CherryMessagePart>(
       ...existingMeta,
       cherry: { ...existingCherry, ...(patch as Record<string, unknown>) }
     }
-  } as P
+  }
 }

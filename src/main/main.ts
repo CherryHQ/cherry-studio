@@ -12,30 +12,41 @@
 // BootConfig must load before any other import (configures userData path)
 
 import '@main/data/bootConfig'
-
 import { application } from '@application'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
-import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
+import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
 import { runDataReset } from '@main/services/dataReset'
+import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
+import { configureRemoteDebugging } from '@main/services/remoteDebugging'
+import { initSentry } from '@main/services/sentry'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
+import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
 configureChromiumFlags()
+configureRemoteDebugging()
 initCrashTelemetry()
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
+const isolatedRestoreSession = prepareBackupRestoreSession()
+initSentry()
+// Privileged schemes must be declared before the app is ready, and only ONCE per
+// process — startApp() itself awaits app.whenReady(), so this cannot move in there.
+protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
 
 import { electronApp } from '@electron-toolkit/utils'
+import { app, protocol } from 'electron'
+
 import { loggerService } from '@logger'
-import { app } from 'electron'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
@@ -53,9 +64,10 @@ const startApp = async () => {
   if (relocationResult === 'handled') return
 
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
-  // migration gate reads the DB. Never throws; on any failure the old DB
-  // stays live and the app starts normally.
-  await runBackupRestoreGate()
+  // migration gate reads the DB. An isolated restore launch must relaunch
+  // before services can use the path registry's original session snapshot.
+  const restoreResult = await runBackupRestoreGate(isolatedRestoreSession)
+  if (restoreResult === 'handled') return
 
   // 'handled' = migration window took over OR fatal error already quit the app.
   const migrationResult = await runV2MigrationGate()
@@ -65,7 +77,7 @@ const startApp = async () => {
   // app's notifications, taskbar icon grouping, and Jump Lists (no-op on macOS/Linux).
   // Must run before any window is created or notification fires, hence after the
   // migration gate returns and before lifecycle bootstrap.
-  electronApp.setAppUserModelId('com.kangfenmao.CherryStudio')
+  electronApp.setAppUserModelId(getApplicationId())
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)

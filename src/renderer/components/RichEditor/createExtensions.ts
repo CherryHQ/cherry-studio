@@ -1,4 +1,3 @@
-import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
 import type { Extensions } from '@tiptap/core'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Mention from '@tiptap/extension-mention'
@@ -11,17 +10,16 @@ import Typography from '@tiptap/extension-typography'
 import { Markdown } from '@tiptap/markdown'
 import { StarterKit } from '@tiptap/starter-kit'
 
-import { commandSuggestion } from './command'
-import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
+import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
+
+import { createCommandSuggestion } from './command'
+import { CodeBlockHighlight } from './extensions/codeBlockHighlight/codeBlockHighlight'
 import { EnhancedImage } from './extensions/enhancedImage'
 import { EnhancedLink, type EnhancedLinkOptions } from './extensions/enhancedLink'
-import { EnhancedMath } from './extensions/enhancedMath'
+import { EnhancedMath, type EnhancedMathOptions } from './extensions/enhancedMath'
 import { MarkdownTable } from './extensions/markdownTable'
 import { Placeholder } from './extensions/placeholder'
 import { YamlFrontMatter } from './extensions/yamlFrontMatter'
-
-/** Click handler shape forwarded to EnhancedMath block/inline node options. */
-type MathClickOptions = { onClick?: (node: { attrs: { latex?: string } }, pos: number) => boolean | void }
 
 /** Table row/column action handler shape (mirrors `@cherrystudio/extension-table-plus`). */
 type TableActionHandler<T extends 'rowIndex' | 'colIndex'> = (
@@ -33,8 +31,8 @@ export interface CreateRichEditorExtensionsOptions {
   editable?: boolean
   /** Placeholder text shown in the empty editor. */
   placeholder?: string
-  /** Shiki theme for the code block extension. */
-  shikiTheme?: string
+  /** Code theme for the code block extension. */
+  codeTheme?: string
   /** Link hover callback. */
   onLinkHover?: EnhancedLinkOptions['onLinkHover']
   /** Link hover-end callback. */
@@ -44,13 +42,17 @@ export interface CreateRichEditorExtensionsOptions {
   /** Table-of-contents update callback. */
   onTocUpdate?: (content: TableOfContentDataItem[]) => void
   /** Block math node click handler. */
-  mathBlockOptions?: MathClickOptions
+  mathBlockOptions?: EnhancedMathOptions['blockOptions']
   /** Inline math node click handler. */
-  mathInlineOptions?: MathClickOptions
+  mathInlineOptions?: EnhancedMathOptions['inlineOptions']
   /** Table row action-menu trigger. */
   onRowActionClick?: TableActionHandler<'rowIndex'>
   /** Table column action-menu trigger. */
   onColumnActionClick?: TableActionHandler<'colIndex'>
+  /** Whether image input rules and insertion commands are enabled. */
+  enableImageInsertion?: boolean
+  /** Slash-menu commands hidden for this editor instance. */
+  disabledCommands?: readonly string[]
 }
 
 /**
@@ -66,7 +68,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
   const {
     editable = true,
     placeholder = '',
-    shikiTheme = 'one-light',
+    codeTheme = 'one-light',
     onLinkHover,
     onLinkHoverEnd,
     tocScrollParent,
@@ -74,7 +76,9 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
     mathBlockOptions,
     mathInlineOptions,
     onRowActionClick,
-    onColumnActionClick
+    onColumnActionClick,
+    enableImageInsertion = true,
+    disabledCommands
   } = options
 
   return [
@@ -102,15 +106,15 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       onUpdate: onTocUpdate ?? (() => {}),
       scrollParent: (tocScrollParent as any) ?? window
     }),
-    CodeBlockShiki.configure({
-      theme: shikiTheme,
+    CodeBlockHighlight.configure({
+      theme: codeTheme,
       defaultLanguage: 'text'
     }),
     EnhancedMath.configure({
       blockOptions: mathBlockOptions,
       inlineOptions: mathInlineOptions
     }),
-    EnhancedImage,
+    EnhancedImage.configure({ enableInputRules: enableImageInsertion }),
     Placeholder.configure({
       placeholder,
       showOnlyWhenEditable: true,
@@ -122,7 +126,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       HTMLAttributes: {
         class: 'mention'
       },
-      suggestion: commandSuggestion
+      suggestion: createCommandSuggestion({ enableImageInsertion, disabledCommands })
     }),
     Typography,
     MarkdownTable.configure({

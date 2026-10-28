@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const openPathSpy = vi.fn(async () => '')
 const showItemInFolderSpy = vi.fn(() => undefined)

@@ -1,33 +1,49 @@
 import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
-import { apiGatewayRequestSchemas } from './apiGateway'
+import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
+import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
+import { type BrowserEventSchemas, browserRequestSchemas } from './browser'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
+import { type CherryCloudEventSchemas, cherryCloudRequestSchemas } from './cherryCloud'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
+import { computerUseRequestSchemas } from './computerUse'
+import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
+import { diagnosticsRequestSchemas } from './diagnostics'
+import { doctorRequestSchemas } from './doctor'
+import { doctorAgentRequestSchemas } from './doctorAgent'
 import { exportRequestSchemas } from './export'
-import { fileRequestSchemas } from './file'
+import { externalAppRequestSchemas } from './externalApp'
+import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
+import { hermesDashboardRequestSchemas } from './hermesDashboard'
 import { knowledgeRequestSchemas } from './knowledge'
-import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
+import { localModelRequestSchemas } from './localModel'
 import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
-import { miniAppRequestSchemas } from './miniApp'
+import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
-import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
+import { oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
 import { ovmsRequestSchemas } from './ovms'
+import { pdfjsRequestSchemas } from './pdfjs'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
 import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from './quickAssistant'
+import { type ScreenshotEventSchemas, screenshotRequestSchemas } from './screenshot'
+import { screenshotChatRequestSchemas, type ScreenshotChatEventSchemas } from './screenshotChat'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { skillRequestSchemas } from './skill'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
-import { translateRequestSchemas } from './translate'
+import { toolResultRequestSchemas } from './toolResult'
+import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
+import { trashRequestSchemas } from './trash'
+import { type VoiceEventSchemas, voiceRequestSchemas } from './voice'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WebviewEventSchemas, webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -41,14 +57,25 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  */
 export const ipcRequestSchemas = {
   ...aiRequestSchemas,
+  ...voiceRequestSchemas,
   ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
+  ...backupRequestSchemas,
   ...binaryRequestSchemas,
+  ...browserRequestSchemas,
   ...channelRequestSchemas,
   ...cherryinRequestSchemas,
+  ...cherryCloudRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...computerUseRequestSchemas,
+  ...deepSeekHarnessRequestSchemas,
+  ...diagnosticsRequestSchemas,
+  ...doctorRequestSchemas,
+  ...doctorAgentRequestSchemas,
   ...exportRequestSchemas,
+  ...externalAppRequestSchemas,
+  ...hermesDashboardRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
@@ -60,22 +87,27 @@ export const ipcRequestSchemas = {
   ...oauthRequestSchemas,
   ...openclawRequestSchemas,
   ...ovmsRequestSchemas,
+  ...pdfjsRequestSchemas,
   ...printRequestSchemas,
   ...profileRequestSchemas,
   ...providerRequestSchemas,
   ...quickAssistantRequestSchemas,
+  ...screenshotRequestSchemas,
+  ...screenshotChatRequestSchemas,
   ...selectionRequestSchemas,
   ...skillRequestSchemas,
   ...systemRequestSchemas,
   ...tabRequestSchemas,
   ...translateRequestSchemas,
+  ...toolResultRequestSchemas,
+  ...trashRequestSchemas,
   ...webSearchRequestSchemas,
   ...webviewRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>
 
 export type IpcRequestSchemas = typeof ipcRequestSchemas
-/** Union of all declared request routes (`never` until a domain is migrated). */
+/** Union of all declared request routes. */
 export type IpcRoute = keyof IpcRequestSchemas
 
 /**
@@ -84,19 +116,27 @@ export type IpcRoute = keyof IpcRequestSchemas
  * its own `*EventSchemas` type here.
  */
 export type IpcEventSchemas = AiEventSchemas &
+  ApiGatewayEventSchemas &
   AppEventSchemas &
+  BackupEventSchemas &
   BinaryEventSchemas &
+  BrowserEventSchemas &
   ChannelEventSchemas &
-  LocalModelEventSchemas &
+  CherryCloudEventSchemas &
+  FileEventSchemas &
   McpEventSchemas &
+  MiniAppEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
-  OAuthEventSchemas &
   QuickAssistantEventSchemas &
+  ScreenshotEventSchemas &
+  ScreenshotChatEventSchemas &
   SelectionEventSchemas &
   SystemEventSchemas &
   TabEventSchemas &
+  TranslateEventSchemas &
+  VoiceEventSchemas &
   WebviewEventSchemas &
   WindowEventSchemas
-/** Union of all declared event names (`never` until a domain is migrated). */
+/** Union of all declared event names. */
 export type IpcEventName = keyof IpcEventSchemas
