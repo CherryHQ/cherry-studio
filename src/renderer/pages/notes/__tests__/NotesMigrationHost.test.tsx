@@ -322,6 +322,107 @@ describe('NotesMigrationHost migration ordering', () => {
     lease.release()
   })
 
+  it('honors migration_finished arriving while a stale seal is being released for a new batch', async () => {
+    renderHost()
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.acceptEdit('gap draft')).toBe(true)
+
+    let releaseWrite!: () => void
+    holdWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    act(() => fire('app.notes_relocation.migration_started', { batchId: 'b1' }))
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b1' }))
+    await flushMicrotasks()
+    // Rotate to b2 while b1's write is still held, then end the migration inside the gap.
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b2' }))
+    await flushMicrotasks()
+    act(() => fire('app.notes_relocation.migration_finished', undefined))
+
+    await act(async () => {
+      holdWrite = undefined
+      releaseWrite()
+    })
+    // b1's seal is finished by the rotation, b2's prepare settles into the deferred
+    // finish: no seal survives and the lock resets.
+    await waitFor(() => expect(notesMigrationLock.isLocked()).toBe(false))
+    await waitFor(() => expect(lease.getSnapshot().sealed).toBe(false))
+
+    // The manager is not bricked: a fresh batch prepares and flushes normally.
+    act(() => fire('app.notes_relocation.migration_started', { batchId: 'b3' }))
+    expect(lease.acceptEdit('after gap')).toBe(true)
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b3' }))
+    await waitFor(() =>
+      expect(relocationRequests).toContainEqual({
+        route: 'app.notes_relocation.flush_ack',
+        input: { batchId: 'b3', ok: true }
+      })
+    )
+    expect(
+      relocationRequests.filter((r) => r.route === 'app.notes_relocation.flush_ack' && r.input.ok === false)
+    ).toEqual([])
+    lease.release()
+  })
+
+  it('coalesces a duplicate flush arriving while a stale seal is being released for that batch', async () => {
+    renderHost()
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.acceptEdit('gap dup')).toBe(true)
+
+    let releaseWrite!: () => void
+    holdWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b1' }))
+    await flushMicrotasks()
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b2' }))
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b2' }))
+
+    await act(async () => {
+      holdWrite = undefined
+      releaseWrite()
+    })
+    await waitFor(() =>
+      expect(relocationRequests).toContainEqual({
+        route: 'app.notes_relocation.flush_ack',
+        input: { batchId: 'b2', ok: true }
+      })
+    )
+    // One write total (b1's flush); b2's prepare ran once over clean sessions.
+    expect(writes).toEqual(['gap dup'])
+    expect(
+      relocationRequests.filter((r) => r.route === 'app.notes_relocation.flush_ack' && r.input.ok === false)
+    ).toEqual([])
+    await waitFor(() => expect(lease.getSnapshot().sealed).toBe(true))
+    lease.release()
+  })
+
+  it('REVIEW: migration_finished between stale-batch reset and new prepare must not leave sessions sealed', async () => {
+    renderHost()
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.acceptEdit('draft')).toBe(true)
+    let releaseWrite!: () => void
+    holdWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    act(() => fire('app.notes_relocation.migration_started', { batchId: 'b1' }))
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b1' }))
+    await flushMicrotasks()
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b2' }))
+    act(() => fire('app.notes_relocation.migration_finished', undefined))
+    await act(async () => {
+      holdWrite = undefined
+      releaseWrite()
+    })
+    await act(async () => {
+      for (let i = 0; i < 20; i++) await Promise.resolve()
+      await new Promise((r) => setTimeout(r, 50))
+    })
+    expect(lease.getSnapshot().sealed).toBe(false)
+    expect(notesMigrationLock.isLocked()).toBe(false)
+    lease.release()
+  })
+
   it('sync_state engages the lock when a migration is already in flight on mount', async () => {
     vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
       if (route === 'app.notes_relocation.sync_state') {
