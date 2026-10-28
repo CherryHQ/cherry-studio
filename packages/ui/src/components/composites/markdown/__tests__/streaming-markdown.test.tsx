@@ -147,3 +147,32 @@ describe('StreamingMarkdown', () => {
     expect(rendered).toEqual(['Third paragraph'])
   })
 })
+
+it('commits a zero-text recovered image block before animating appended prose', () => {
+  const view = render(
+    <StreamingMarkdown id="image" resumeAnimation>
+      {'![alt](https://example.com/a.png)'}
+    </StreamingMarkdown>
+  )
+  view.rerender(
+    <StreamingMarkdown id="image" resumeAnimation>
+      {'![alt](https://example.com/a.png) Word'}
+    </StreamingMarkdown>
+  )
+  const word = screen.getByText('Word')
+  expect(word.style.getPropertyValue('--sd-duration')).toBe('250ms')
+})
+
+it('does not seed a block added after an empty recovery snapshot', () => {
+  const view = render(
+    <StreamingMarkdown id="empty" resumeAnimation>
+      {''}
+    </StreamingMarkdown>
+  )
+  view.rerender(
+    <StreamingMarkdown id="empty" resumeAnimation>
+      Next
+    </StreamingMarkdown>
+  )
+  expect(screen.getByText('Next').style.getPropertyValue('--sd-duration')).toBe('250ms')
+})

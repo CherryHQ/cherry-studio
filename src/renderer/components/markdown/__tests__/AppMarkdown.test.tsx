@@ -119,3 +119,23 @@ After`}</AppMarkdown>
     expect(openFilePath).toHaveBeenCalledWith('./guide.md')
   })
 })
+
+it('standalone previews with the same id animate afresh on remount', () => {
+  const first = render(
+    <AppMarkdown id="preview" isStreaming>
+      Alpha
+    </AppMarkdown>
+  )
+  expect(first.container.querySelector<HTMLElement>('[data-sd-animate]')?.style.getPropertyValue('--sd-duration')).toBe(
+    '250ms'
+  )
+  first.unmount()
+  const second = render(
+    <AppMarkdown id="preview" isStreaming>
+      Alpha
+    </AppMarkdown>
+  )
+  expect(
+    second.container.querySelector<HTMLElement>('[data-sd-animate]')?.style.getPropertyValue('--sd-duration')
+  ).toBe('250ms')
+})

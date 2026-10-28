@@ -208,6 +208,9 @@ export type UseCacheSchema = {
     foldSelected?: boolean
     multiModelMessageStyle?: string
     useful?: boolean
+    markdownEpoch?: number
+    markdownSources?: Record<string, { source: string }>
+    thinkingScroll?: Record<string, number | null>
     disclosures?: Record<string, boolean>
   }
 }

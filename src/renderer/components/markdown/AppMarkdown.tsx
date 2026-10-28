@@ -26,6 +26,7 @@ export interface AppMarkdownProps {
   children: string
   /** Content identity. Changing it resets renderer state and the block parser. */
   id?: string
+  resumeAnimation?: boolean
   isStreaming?: boolean
   singleDollarMath?: boolean
   className?: string
@@ -49,6 +50,7 @@ export function AppMarkdown(props: AppMarkdownProps) {
 function MarkdownContent({
   children,
   id,
+  resumeAnimation,
   isStreaming = false,
   singleDollarMath = true,
   className,
@@ -97,6 +99,7 @@ function MarkdownContent({
       {hasStreamed || isStreaming ? (
         <StreamingMarkdown
           {...commonProps}
+          resumeAnimation={resumeAnimation}
           animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
           parseIncompleteMarkdown={isStreaming}
           parseMarkdownIntoBlocksFn={parseMarkdownBlocks}>

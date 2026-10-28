@@ -1,12 +1,20 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Scrollbar } from '@cherrystudio/ui'
+import {
+  getCachedMessageUiState,
+  invalidateCachedMessageUiStates,
+  updateCachedMessageUiState
+} from '@renderer/services/messageUiStateCache'
 
+import { MessagePartsScopeProvider } from '../MessagePartsContext'
 import ThinkingBlock from '../ThinkingBlock'
 
 // Exercise the real nested scrollbars; the renderer-wide mock only renders a div.
 vi.unmock('@cherrystudio/ui')
+vi.unmock('@data/CacheService')
 
 // Mock dependencies
 const mockUseTranslation = vi.fn()
@@ -52,6 +60,8 @@ vi.mock('../ThinkingEffect', () => ({
 
 describe('ThinkingBlock', () => {
   beforeEach(async () => {
+    cleanup()
+    invalidateCachedMessageUiStates(['thinking-owner'])
     vi.useFakeTimers()
 
     mockRenderConfig.messageFont = 'sans-serif'
@@ -68,6 +78,8 @@ describe('ThinkingBlock', () => {
   })
 
   afterEach(() => {
+    cleanup()
+    invalidateCachedMessageUiStates(['thinking-owner'])
     vi.restoreAllMocks()
     vi.clearAllMocks()
     vi.clearAllTimers()
@@ -89,7 +101,14 @@ describe('ThinkingBlock', () => {
         content={block.content}
         isStreaming={block.status === 'streaming'}
         showTitlePreview={props.showTitlePreview}
-      />
+      />,
+      {
+        wrapper: ({ children }) => (
+          <MessagePartsScopeProvider parts={[]} messageId="thinking-owner">
+            {children}
+          </MessagePartsScopeProvider>
+        )
+      }
     )
   }
 
@@ -394,6 +413,291 @@ describe('ThinkingBlock', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+
+  describe('reading position recovery', () => {
+    let resizeCallbacks: Array<() => void>
+    let panelHeight: number
+    let viewportHeight: number
+
+    beforeEach(() => {
+      resizeCallbacks = []
+      panelHeight = 200
+      viewportHeight = 100
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => viewportHeight)
+      vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(() => panelHeight)
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(callback: ResizeObserverCallback) {
+            resizeCallbacks.push(() => callback([], this as unknown as ResizeObserver))
+          }
+          observe() {}
+          disconnect() {}
+        }
+      )
+    })
+
+    afterEach(() => vi.unstubAllGlobals())
+    const resize = () => act(() => resizeCallbacks.forEach((callback) => callback()))
+
+    it.each([
+      ['absent', undefined, 0],
+      ['following', null, 300],
+      ['reading', 75, 75],
+      ['negative reading', -25, 0]
+    ] as const)('opens completed reasoning at its %s position', (_mode, saved, expected) => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      panelHeight = 400
+      const id = 'completed-initial-position'
+      if (saved !== undefined) {
+        updateCachedMessageUiState('thinking-owner', { thinkingScroll: { [id]: saved } })
+      }
+      renderThinkingBlock(createThinkingBlock({ id, status: 'success' }))
+      expect(getContentContainer()!.scrollTop).toBe(expected)
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(expected)
+      if (saved === undefined) {
+        expect(getCachedMessageUiState('thinking-owner').thinkingScroll?.[id]).toBeUndefined()
+      }
+    })
+
+    it('restores reading position and expansion before observer and delayed scroll events', () => {
+      const block = createThinkingBlock({ id: 'scroll-reading', status: 'streaming' })
+      const first = renderThinkingBlock(block)
+      fireEvent.click(getToggleButton())
+      const panel = getContentContainer()!
+      panel.scrollTop = 25
+      fireEvent.scroll(panel)
+      first.unmount()
+      resizeCallbacks = []
+      renderThinkingBlock(block)
+      const restored = getContentContainer()!
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(restored.scrollTop).toBe(25)
+      fireEvent.scroll(restored)
+      resize()
+      expect(restored.scrollTop).toBe(25)
+      panelHeight = 400
+      resize()
+      expect(restored.scrollTop).toBe(25)
+    })
+
+    it('restores following mode to the new real bottom after content grows while away', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock({ id: 'scroll-following', status: 'streaming' })
+      const first = renderThinkingBlock(block)
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(100)
+      first.unmount()
+      resizeCallbacks = []
+      panelHeight = 400
+      renderThinkingBlock({ ...block, content: 'More thoughts arrived' })
+      expect(getContentContainer()!.scrollTop).toBe(300)
+      fireEvent.scroll(getContentContainer()!)
+      panelHeight = 500
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(400)
+    })
+
+    it('preserves a pending reading target while hidden or unmeasurable', () => {
+      const id = 'scroll-hidden'
+      updateCachedMessageUiState('thinking-owner', {
+        thinkingScroll: { [id]: 25 },
+        disclosures: { [`thinking:${id}`]: false }
+      })
+      const block = createThinkingBlock({ id, status: 'streaming' })
+      const first = renderThinkingBlock(block)
+      fireEvent.scroll(getContentContainer()!)
+
+      viewportHeight = 0
+      fireEvent.click(getToggleButton())
+      fireEvent.scroll(getContentContainer()!)
+      resize()
+
+      viewportHeight = 100
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(25)
+      viewportHeight = 0
+      first.unmount()
+      viewportHeight = 100
+      renderThinkingBlock(block)
+      expect(getContentContainer()!.scrollTop).toBe(25)
+    })
+
+    it('saves user scrolling after the stream ends and clamps restoration to current geometry', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock({ id: 'scroll-completed', status: 'streaming' })
+      const first = renderThinkingBlock(block)
+      resize()
+      first.rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+      getContentContainer()!.scrollTop = 25
+      fireEvent.scroll(getContentContainer()!)
+      first.unmount()
+      const second = renderThinkingBlock({ ...block, status: 'success' })
+      expect(getContentContainer()!.scrollTop).toBe(25)
+      second.unmount()
+      panelHeight = 110
+      renderThinkingBlock({ ...block, status: 'success' })
+      expect(getContentContainer()!.scrollTop).toBe(10)
+    })
+
+    it('retry resets mounted expansion and following and rejects a late observer', () => {
+      const id = 'scroll-invalidated'
+      const view = renderThinkingBlock(createThinkingBlock({ id, status: 'streaming' }))
+      fireEvent.click(getToggleButton())
+      getContentContainer()!.scrollTop = 25
+      fireEvent.scroll(getContentContainer()!)
+      const oldCallbacks = [...resizeCallbacks]
+      act(() =>
+        updateCachedMessageUiState('thinking-owner', (current) => ({
+          ...current,
+          markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
+          thinkingScroll: undefined,
+          disclosures: undefined
+        }))
+      )
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      act(() => oldCallbacks.forEach((callback) => callback()))
+      fireEvent.click(getToggleButton())
+      panelHeight = 400
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(300)
+      view.unmount()
+      renderThinkingBlock(createThinkingBlock({ id, status: 'streaming' }))
+      expect(getContentContainer()!.scrollTop).toBe(300)
+    })
+
+    it('follows the bottom after a retry that lands while the panel is hidden', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const id = 'scroll-hidden-retry'
+      updateCachedMessageUiState('thinking-owner', {
+        thinkingScroll: { [id]: 25 },
+        disclosures: { [`thinking:${id}`]: true }
+      })
+      const block = createThinkingBlock({ id, status: 'streaming' })
+      const Harness = ({ mode }: { mode: 'visible' | 'hidden' }) => (
+        <Activity mode={mode}>
+          <MessagePartsScopeProvider parts={[]} messageId="thinking-owner">
+            <ThinkingBlock id={id} content={block.content} isStreaming />
+          </MessagePartsScopeProvider>
+        </Activity>
+      )
+      const view = render(<Harness mode="visible" />)
+      const panel = getContentContainer()!
+      panel.scrollTop = 25
+      fireEvent.scroll(panel)
+      view.rerender(<Harness mode="hidden" />)
+
+      act(() =>
+        updateCachedMessageUiState('thinking-owner', (current) => ({
+          ...current,
+          markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
+          thinkingScroll: undefined,
+          disclosures: undefined
+        }))
+      )
+      act(() => updateCachedMessageUiState('thinking-owner', { thinkingScroll: { [id]: null } }))
+
+      view.rerender(<Harness mode="visible" />)
+      panelHeight = 400
+      resize()
+      expect(panel.scrollTop).toBe(300) // Real bottom: scrollHeight (400) - clientHeight (100).
+      expect(getCachedMessageUiState('thinking-owner').thinkingScroll?.[id]).not.toBe(25)
+    })
+
+    it('keeps zero reading positions and clamped reading mode across growth', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const id = 'zero-reading'
+      updateCachedMessageUiState('thinking-owner', { thinkingScroll: { [id]: 0 } })
+      const first = renderThinkingBlock(createThinkingBlock({ id, status: 'streaming' }))
+      expect(getContentContainer()!.scrollTop).toBe(0)
+      panelHeight = 400
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(0)
+      first.unmount()
+      updateCachedMessageUiState('thinking-owner', { thinkingScroll: { [id]: 500 } })
+      renderThinkingBlock(createThinkingBlock({ id, status: 'streaming' }))
+      expect(getContentContainer()!.scrollTop).toBe(300)
+      fireEvent.scroll(getContentContainer()!)
+      panelHeight = 500
+      resize()
+      expect(getContentContainer()!.scrollTop).toBe(300)
+    })
+
+    it('retry discards a reading target that is still pending in a collapsed panel', () => {
+      const id = 'pending-retry'
+      updateCachedMessageUiState('thinking-owner', { thinkingScroll: { [id]: 25 } })
+      renderThinkingBlock(createThinkingBlock({ id, status: 'streaming' }))
+      act(() =>
+        updateCachedMessageUiState('thinking-owner', (current) => ({
+          ...current,
+          markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
+          thinkingScroll: undefined,
+          disclosures: undefined
+        }))
+      )
+      fireEvent.click(getToggleButton())
+      expect(getContentContainer()!.scrollTop).toBe(100)
+    })
+
+    it('retry leaves another message reading at its own position', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const pair = () => (
+        <>
+          {['thinking-owner', 'other-thinking'].map((owner) => (
+            <div key={owner} data-testid={owner}>
+              <MessagePartsScopeProvider messageId={owner} parts={[]}>
+                <ThinkingBlock id="shared-part" content="Thought" isStreaming />
+              </MessagePartsScopeProvider>
+            </div>
+          ))}
+        </>
+      )
+      const view = render(pair())
+      const panel = (owner: string) =>
+        screen.getByTestId(owner).querySelector<HTMLElement>('[id][class*="overflow-auto"]')!
+      panel('thinking-owner').scrollTop = 25
+      fireEvent.scroll(panel('thinking-owner'))
+      panel('other-thinking').scrollTop = 40
+      fireEvent.scroll(panel('other-thinking'))
+      act(() =>
+        updateCachedMessageUiState('thinking-owner', (current) => ({
+          ...current,
+          markdownSources: undefined,
+          markdownEpoch: (current.markdownEpoch ?? 0) + 1,
+          thinkingScroll: undefined,
+          disclosures: undefined
+        }))
+      )
+      panelHeight = 400
+      resize()
+      expect(panel('thinking-owner').scrollTop).toBe(300)
+      expect(panel('other-thinking').scrollTop).toBe(40)
+      view.unmount()
+      const second = render(pair())
+      expect(panel('other-thinking').scrollTop).toBe(40)
+      second.unmount()
+      invalidateCachedMessageUiStates(['other-thinking'])
+    })
+
+    it('preserves explicit disclosure choices when the default preference changes', () => {
+      const id = 'scroll-preference'
+      updateCachedMessageUiState('thinking-owner', {
+        thinkingScroll: { [id]: 25 },
+        disclosures: { [`thinking:${id}`]: true }
+      })
+      const view = renderThinkingBlock(createThinkingBlock({ id }))
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      mockRenderConfig.thoughtAutoCollapse = false
+      view.rerender(<ThinkingBlock id={id} content="Changed content" isStreaming={false} />)
+      mockRenderConfig.thoughtAutoCollapse = true
+      view.rerender(<ThinkingBlock id={id} content="Changed content again" isStreaming={false} />)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+    })
   })
 
   describe('integration and edge cases', () => {

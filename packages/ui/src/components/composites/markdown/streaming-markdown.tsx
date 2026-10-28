@@ -5,6 +5,7 @@ import type { Pluggable } from 'unified'
 import { MarkdownCore } from './internal'
 
 export interface StreamingMarkdownProps {
+  resumeAnimation?: boolean
   /** Stable identity used as heading-ID prefix. */
   id: string
   /** Markdown source (the streaming tail). */
@@ -45,6 +46,7 @@ export function StreamingMarkdown({
   className,
   footnoteLabel,
   animated,
+  resumeAnimation,
   parseIncompleteMarkdown = true,
   parseMarkdownIntoBlocksFn,
   preserveFileLinkHrefs,
@@ -68,6 +70,7 @@ export function StreamingMarkdown({
       extraRehypePlugins={rehypePlugins}
       extraRemarkPlugins={remarkPlugins}
       animated={resolvedAnimated}
+      resumeAnimation={resumeAnimation}
       disallowedElements={disallowedElements}
       className={[
         className,

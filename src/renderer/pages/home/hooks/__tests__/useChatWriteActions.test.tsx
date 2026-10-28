@@ -1,5 +1,7 @@
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as MessageUiStateCache from '@renderer/services/messageUiStateCache'
 
 const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
   invalidateMessages: vi.fn(),
@@ -17,14 +19,29 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
-vi.mock('@renderer/services/messageUiStateCache', () => ({
+vi.mock('@renderer/services/messageUiStateCache', async (importOriginal) => ({
+  ...(await importOriginal<typeof MessageUiStateCache>()),
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
+import {
+  getCachedMessageUiState,
+  updateCachedMessageUiState,
+  invalidateCachedMessageUiStates
+} from '@renderer/services/messageUiStateCache'
 import type { Topic } from '@renderer/types/topic'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useChatWriteActions } from '../useChatWriteActions'
+
+beforeEach(() => {
+  cleanup()
+  invalidateCachedMessageUiStates(['a1', 'a2'])
+})
+afterEach(() => {
+  cleanup()
+  invalidateCachedMessageUiStates(['a1', 'a2'])
+})
 
 function makeCache() {
   return {
@@ -497,7 +514,25 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
+  it.each(['blocked', 'rejected'])('preserves continuity when retry is %s', async (mode) => {
+    const failed = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failed.metadata.modelId = 'provider::model-a'
+    failed.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const state = {
+      markdownEpoch: 4,
+      markdownSources: { part: { source: 'Alpha' } },
+      thinkingScroll: { part: 0 },
+      disclosures: { 'thinking:part': true }
+    }
+    updateCachedMessageUiState('a1', state)
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), failed])
+    if (mode === 'blocked') streamOpen.mockResolvedValueOnce({ mode: 'blocked', reason: 'busy' })
+    else streamOpen.mockRejectedValueOnce(new Error('offline'))
+    await expect(actions.regenerate('a1')).rejects.toThrow()
+    expect(getCachedMessageUiState('a1')).toEqual(state)
+  })
+
+  it.each([undefined, 4])('retries a failed assistant in place and advances epoch %s', async (epoch) => {
     const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
     failedAssistant.metadata.modelId = 'provider::model-a'
     failedAssistant.metadata.turnOptions = { serviceTier: 'fast' }
@@ -519,7 +554,27 @@ describe('useChatWriteActions — regenerate', () => {
     })
     const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
 
+    updateCachedMessageUiState('a1', {
+      markdownEpoch: epoch,
+      markdownSources: { part: { source: 'Alpha' } },
+      thinkingScroll: { part: 25 },
+      disclosures: { 'thinking:part': true },
+      foldSelected: true,
+      useful: true,
+      multiModelMessageStyle: 'grid'
+    })
+    updateCachedMessageUiState('a2', { thinkingScroll: { part: 30 } })
     await actions.regenerate('a1')
+    expect(getCachedMessageUiState('a1')).toEqual({
+      markdownEpoch: (epoch ?? 0) + 1,
+      markdownSources: undefined,
+      thinkingScroll: undefined,
+      disclosures: undefined,
+      foldSelected: true,
+      useful: true,
+      multiModelMessageStyle: 'grid'
+    })
+    expect(getCachedMessageUiState('a2').thinkingScroll).toEqual({ part: 30 })
 
     expect(regenerate).not.toHaveBeenCalled()
     expect(streamOpen).toHaveBeenCalledWith({

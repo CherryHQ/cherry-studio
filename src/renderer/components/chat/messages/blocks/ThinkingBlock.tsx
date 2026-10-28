@@ -1,13 +1,30 @@
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import { type MarkdownSource, Scrollbar } from '@cherrystudio/ui'
+import {
+  getCachedMessageUiState,
+  subscribeCachedMessageUiState,
+  updateCachedMessageUiState
+} from '@renderer/services/messageUiStateCache'
 
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import { getDistanceToBottom, getRealBottom } from '../list/scrollGeometry'
 import { VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX } from '../list/ScrollOwnershipContext'
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
+import { useMessagePartsScopeId } from './MessagePartsContext'
 import ThinkingEffect from './ThinkingEffect'
 import { normalizeThinkingPreview, scanThinkingPreview, type ThinkingPreviewScanState } from './thinkingPreview'
 import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
@@ -73,22 +90,98 @@ ThinkingBlockContent.displayName = 'ThinkingBlockContent'
 
 const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
   const { thoughtAutoCollapse } = useMessageRenderConfig()
-  const [isExpanded, setIsExpanded] = useState(!thoughtAutoCollapse)
+  const messageId = useMessagePartsScopeId()
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState(`thinking:${id}`, !thoughtAutoCollapse)
   const contentId = useId()
   const contentRef = useRef<HTMLDivElement>(null)
-  const followingRef = useRef(true)
+  const [scroll, setScroll] = useState(() => {
+    const state = messageId ? getCachedMessageUiState(messageId) : undefined
+    const saved = state?.thinkingScroll?.[id]
+    return {
+      position: saved === null || (typeof saved === 'number' && Number.isFinite(saved)) ? saved : undefined,
+      pending: true,
+      programmed: undefined as number | undefined,
+      active: true,
+      owned: !!messageId && saved !== undefined,
+      epoch: state?.markdownEpoch ?? 0
+    }
+  })
   const hasContent = !!content
-
+  const invalidateScroll = useCallback(() => {
+    const epoch = messageId ? (getCachedMessageUiState(messageId).markdownEpoch ?? 0) : 0
+    scroll.active = false
+    scroll.pending = true
+    scroll.position = undefined
+    scroll.owned = false
+    scroll.epoch = epoch
+    setScroll({ position: undefined, pending: true, programmed: undefined, active: true, owned: false, epoch })
+  }, [messageId, scroll])
+  useLayoutEffect(() => {
+    if (!messageId) return
+    const checkScroll = () => {
+      if (!scroll.active || !scroll.owned) return
+      if ((getCachedMessageUiState(messageId).markdownEpoch ?? 0) === scroll.epoch) return
+      invalidateScroll()
+    }
+    checkScroll()
+    return subscribeCachedMessageUiState(messageId, checkScroll)
+  }, [messageId, id, scroll, invalidateScroll])
+  const savePanel = useCallback(
+    (panel: HTMLDivElement) => {
+      if (!messageId || !scroll.active || scroll.pending || panel.hidden || panel.clientHeight <= 0) return
+      if ((getCachedMessageUiState(messageId).markdownEpoch ?? 0) !== scroll.epoch) {
+        invalidateScroll()
+        return
+      }
+      const position = scroll.position
+      if (position === undefined) return
+      scroll.owned = true
+      updateCachedMessageUiState(messageId, (current) => ({
+        ...current,
+        thinkingScroll: { ...current.thinkingScroll, [id]: position }
+      }))
+    },
+    [messageId, id, scroll, invalidateScroll]
+  )
+  const restorePanel = useCallback(
+    (panel: HTMLDivElement) => {
+      if (!scroll.active || panel.hidden || panel.clientHeight <= 0) return false
+      if (messageId && (getCachedMessageUiState(messageId).markdownEpoch ?? 0) !== scroll.epoch) {
+        invalidateScroll()
+        return false
+      }
+      if (scroll.position === undefined) {
+        if (!isStreaming) {
+          scroll.pending = false
+          return false
+        }
+        scroll.position = null
+      }
+      if (scroll.pending || (isStreaming && scroll.position === null)) {
+        const target =
+          scroll.position === null ? getRealBottom(panel) : Math.max(0, Math.min(scroll.position, getRealBottom(panel)))
+        panel.scrollTop = target
+        scroll.programmed = target
+        scroll.pending = false
+      }
+      return true
+    },
+    [messageId, scroll, isStreaming, invalidateScroll]
+  )
+  useLayoutEffect(() => {
+    const panel = contentRef.current
+    if (panel && restorePanel(panel)) savePanel(panel)
+  })
   useEffect(() => {
     const panel = contentRef.current
-    if (!panel || !isExpanded || !isStreaming) return
+    if (!panel || !isExpanded) return
     const observer = new ResizeObserver(() => {
-      if (followingRef.current) panel.scrollTop = getRealBottom(panel)
+      if (restorePanel(panel)) savePanel(panel)
     })
     observer.observe(panel)
     if (panel.firstElementChild) observer.observe(panel.firstElementChild)
     return () => observer.disconnect()
-  }, [hasContent, isExpanded, isStreaming])
+  }, [hasContent, isExpanded, restorePanel, savePanel])
   const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
@@ -112,10 +205,6 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   useEffect(() => {
     thinkingPreviewScanStateRef.current = thinkingPreviewScanResult?.state
   }, [thinkingPreviewScanResult])
-
-  useEffect(() => {
-    setIsExpanded(!thoughtAutoCollapse)
-  }, [thoughtAutoCollapse])
 
   if (!content) {
     return null
@@ -179,8 +268,13 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         className={THINKING_CONTENT_PANEL_CLASSNAME}
         onScroll={() => {
           const panel = contentRef.current
-          if (!panel || !isExpanded || !isStreaming) return
-          followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
+          if (!panel || !isExpanded || panel.hidden || panel.clientHeight <= 0 || scroll.pending || !scroll.active)
+            return
+          if (panel.scrollTop === scroll.programmed) return
+          scroll.programmed = undefined
+          if (!Number.isFinite(panel.scrollTop) || panel.scrollTop < 0) return
+          scroll.position = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX ? null : panel.scrollTop
+          savePanel(panel)
         }}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </Scrollbar>
