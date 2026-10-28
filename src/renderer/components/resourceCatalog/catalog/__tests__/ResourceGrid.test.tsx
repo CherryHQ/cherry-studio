@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -13,11 +13,18 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
+const {
+  deleteGroupMock,
+  updateGroupMock,
+  updateAssistantMock,
+  updateSkillGlobalEnabledMock,
+  updateSkillMirrorEnabledMock
+} = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
   updateGroupMock: vi.fn(),
   updateAssistantMock: vi.fn(),
-  updateSkillGlobalEnabledMock: vi.fn()
+  updateSkillGlobalEnabledMock: vi.fn(),
+  updateSkillMirrorEnabledMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -51,6 +58,8 @@ vi.mock('react-i18next', () => ({
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
           'settings.skills.globalToggle': '全局启用技能',
+          'settings.skills.mirrorToggle': '同步技能到外部目录',
+          'settings.skills.mirrorToggleFailed': '同步技能失败',
           'settings.skills.source.local': '本地',
           'settings.skills.tryNow': '立即试用',
           'settings.skills.toggleFailed': '更新技能全局状态失败'
@@ -359,6 +368,7 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   }),
   useSkillMutationsById: () => ({
     updateGlobalEnabled: updateSkillGlobalEnabledMock,
+    setMirrorEnabled: updateSkillMirrorEnabledMock,
     isUpdating: false
   })
 }))
@@ -832,6 +842,28 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it.each(['success', 'failure'] as const)('disables the mirror switch until its %s settles', async (outcome) => {
+    const user = userEvent.setup()
+    const mutation = createDeferred<void>()
+    updateSkillMirrorEnabledMock.mockReturnValueOnce(mutation.promise)
+    const onEdit = vi.fn()
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps({ onEdit })} />)
+
+    const toggle = screen.getByRole('switch', { name: '同步技能到外部目录' })
+    await user.click(toggle)
+    expect(toggle).toBeDisabled()
+    await user.click(toggle)
+    expect(updateSkillMirrorEnabledMock).toHaveBeenCalledTimes(1)
+    expect(onEdit).not.toHaveBeenCalled()
+
+    await act(async () => {
+      if (outcome === 'success') mutation.resolve()
+      else mutation.reject(new Error('export denied'))
+    })
+    expect(toggle).not.toBeDisabled()
+    if (outcome === 'failure') expect(toast.error).toHaveBeenCalledWith('同步技能失败')
+  })
+
   it('does not expose a sidebar shortcut action on Skill settings cards', () => {
     render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
 
