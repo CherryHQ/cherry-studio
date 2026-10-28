@@ -130,7 +130,7 @@
    * Over the rails in a normal window this lands on `--chat-message-well-solid`. */
   --chat-message-well: oklch(0.1727 0 0 / 0.55);
   --chat-message-well-solid: oklch(0.191 0 0);
-  --composer-surface: oklch(0.269 0 0);
+  --composer-surface: #2f2f2f;
 
   /* Stable product domain: user-message surface.
    * Sits between the well and the composer so a sent message never reads as
