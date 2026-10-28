@@ -92,9 +92,9 @@ belongs to the source tab, so observe the new tab explicitly. An `execute` inter
 
 For borrowed input, `submit: true` now delivers the Enter key event to the bound
 guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
-Page `keydown` handlers receive it and textareas insert a line break. Native implicit
-form submission from a single-line input does not fire; submission depends on the
-page's own key handling.
+Page `keydown` handlers receive it and textareas insert a line break. Forms that
+accept implicit submission (a submit button, or at most one field that blocks
+implicit submission) submit; the page's own `keydown` handling decides the rest.
 
 Inspection tools use the same result envelope and untrusted-data notice. `find` adds `matches`;
 console/network tools add `messages` / `requests`. Each includes `truncated` for the result limit.
