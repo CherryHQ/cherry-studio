@@ -26,6 +26,32 @@ const provider = (modelScope: 'all-chat-models' | 'model-dependent', id = 'anthr
   ({ id, serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope }] }) as Provider
 
 describe('server-tool model eligibility', () => {
+  it.each([
+    ['dashscope', 'qwen3-max-preview'],
+    ['openai', 'gpt-5.2-chat-latest'],
+    ['moonshot', 'kimi-k2-instruct'],
+    ['qwencloud', 'qwen3.8-omni-flash']
+  ])('retains native search without an external backend for %s/%s', (providerId, modelId) => {
+    const host = provider('model-dependent', providerId)
+    expect(
+      resolveWebToolRoutes(model(modelId), host, {
+        webSearchEnabled: true,
+        modelToolsPreferred: true,
+        clientSearchAvailable: false,
+        clientFetchAvailable: false
+      })
+    ).toMatchObject({ webSearch: 'server' })
+  })
+
+  it('retains DashScope page fetching for qwen3-max-preview', () => {
+    expect(
+      isBuiltinWebFetchAvailable(model('qwen3-max-preview'), {
+        id: 'dashscope',
+        serverTools: [{ id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }]
+      })
+    ).toBe(true)
+  })
+
   it.each(['gemini', 'vertexai', 'cherryin', 'aihubmix'])(
     'keeps Gemini 4 search and URL context alongside function tools on %s',
     (providerId) => {
@@ -64,6 +90,21 @@ describe('server-tool model eligibility', () => {
 
     expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(false)
     expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
+  })
+
+  it('does not bypass endpoint restrictions for all-chat tools', () => {
+    const host = {
+      id: 'custom',
+      serverTools: [
+        {
+          id: SERVER_TOOL.WEB_SEARCH,
+          modelScope: 'all-chat-models',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      ]
+    } as Provider
+    expect(isBuiltinWebSearchAvailable(model('custom-model'), host, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(model('custom-model'), host, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(true)
   })
 
   it.each(['deepseek-v3', 'deepseek-v3.2', 'deepseek-v4-flash', 'deepseek-v4-pro'])(

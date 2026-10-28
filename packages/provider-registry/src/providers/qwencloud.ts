@@ -118,8 +118,8 @@ const listedModels = [
 ]
 
 /**
- * Chat `enable_search` eligibility per the QwenCloud web-search supported-models table; omni
- * lines ride the multimodal API. Prefixes hit canonical ids, so dated snapshots and `-preview` fold in.
+ * Chat `enable_search` eligibility per the QwenCloud web-search supported-models table.
+ * Prefixes hit canonical ids, so dated snapshots and `-preview` fold in.
  */
 const webSearchModelPrefixes = [
   'qwen3-8-max',
@@ -284,6 +284,7 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
+      modelIds: ['qwen3-8-omni-flash'],
       endpointTypes: ['openai-chat-completions']
     },
     {
@@ -349,8 +350,7 @@ export default defineProvider({
       }
     },
     {
-      // Current omni generation (docs web-search table); standalone — no models.dev base row yet.
-      // Search on omni rides the multimodal API, so it stays out of the Chat eligibility prefixes.
+      // The standalone Omni preset serves Chat search with the agent strategy.
       apiModelId: 'qwen3.8-omni-flash',
       modelId: 'qwen3-8-omni-flash',
       name: 'Qwen3.8 Omni Flash',

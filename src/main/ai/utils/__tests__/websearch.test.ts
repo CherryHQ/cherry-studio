@@ -186,6 +186,8 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   // qwen3.7-max-preview is on the docs table but absent from the catalog (the 38-model list only
   // carries qwen3.8-max-preview), so no preset row serves it and it stays ineligible.
   it.each([
+    'qwen3.8-omni-flash',
+    'qwen3-8-omni-flash',
     'qwen3.7-max',
     'qwen3.7-plus',
     'qwen3.7-flash',

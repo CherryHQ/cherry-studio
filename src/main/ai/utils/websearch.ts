@@ -8,7 +8,7 @@ import {
   isBuiltinWebFetchAvailable,
   isBuiltinWebSearchAvailable,
   matchesPreset
-} from '@shared/utils/provider' 
+} from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
 import type { AppProviderId } from '../types'
@@ -68,10 +68,8 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
   }
 
   if (provider && matchesPreset(provider, 'qwencloud')) {
-    // Chat `enable_search` follows the QwenCloud web-search supported-models table
-    // (docs.qwencloud.com/developer-guides/tool-calling/web-search). The Qwen3.8 series does NOT
-    // support the `agent` value of `search_strategy` on Chat — those lines enable search without a
-    // strategy, and agent-style retrieval happens through the Responses `web_search` tool instead.
+    // Qwen3.8 text models reject agent search on Chat; Omni Flash requires it.
+    // https://docs.qwencloud.com/developer-guides/tool-calling/web-search
     const apiModelId = getRawModelId(model)
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only ("Responses API only"
     // in the table) — Chat's enable_search is not served for them, so inject nothing on this path.
@@ -84,7 +82,9 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
       return {}
     }
     const searchStrategy =
-      /qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(apiModelId)
+      /qwen3[.-]8-omni-flash|qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(
+        apiModelId
+      )
         ? 'agent'
         : undefined
     return {

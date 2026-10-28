@@ -1111,8 +1111,9 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'qwen3-8-flash-next',
           'qwen3-8-max',
           'qwen3-8-max-preview',
-          'qwen3-8-max-prime',
-          'qwen3-max'
+          'qwen3-8-omni-flash',
+          'qwen3-max',
+          'qwen3-max-preview'
         ],
         endpointTypes: ['openai-chat-completions']
       },

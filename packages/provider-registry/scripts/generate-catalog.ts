@@ -134,6 +134,18 @@ function collectProviderServerToolModels(
 ): Record<string, Partial<Record<ServerTool, Array<{ ids: string[]; endpointTypes?: string[] }>>>> {
   const result: Record<string, Partial<Record<ServerTool, Array<{ ids: string[]; endpointTypes?: string[] }>>>> = {}
   for (const provider of PROVIDERS) {
+    const providerModels = new Map(models)
+    for (const override of provider.overrides ?? []) {
+      if (!override.modelId || !override.name) continue
+      const id = canonOf(override.modelId)
+      if (!providerModels.has(id)) {
+        providerModels.set(id, {
+          ...override,
+          id,
+          capabilities: override.capabilities?.force ?? override.capabilities?.add
+        })
+      }
+    }
     const tools: Partial<Record<ServerTool, Array<{ ids: string[]; endpointTypes?: string[] }>>> = {}
     for (const config of provider.serverTools ?? []) {
       if (config.modelScope !== 'model-dependent') continue
@@ -144,7 +156,7 @@ function collectProviderServerToolModels(
       const exactModelIds = new Set(config.modelIds ?? [])
       const explicitImageIds = new Set(config.imageModelIds ?? [])
       const ids: string[] = []
-      for (const model of models.values()) {
+      for (const model of providerModels.values()) {
         if (
           !exactModelIds.has(model.id) &&
           !(config.modelIdPrefixes ?? []).some((prefix) => prefixHit(model.id, prefix))
@@ -198,7 +210,7 @@ function buildServerToolModelsGen(models: Map<string, any>): string {
     'export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<',
     '  Record<string, Partial<Record<ServerTool, readonly ServerToolModelDeclaration[]>>>',
     '> =',
-    `  ${JSON.stringify(modelIds, null, 2)}`,
+    `  ${JSON.stringify(Object.fromEntries(Object.entries(modelIds).sort(([a], [b]) => a.localeCompare(b))), null, 2)}`,
     ''
   ].join('\n')
 }
@@ -678,7 +690,14 @@ function buildProviderModels(
 
 void (async () => {
   if (args['providers-only']) {
-    if (WRITE) fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers: buildProviders() }))
+    if (WRITE) {
+      const { models } = JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8'))
+      fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers: buildProviders() }))
+      fs.writeFileSync(
+        SERVER_TOOL_MODELS_GEN_PATH,
+        buildServerToolModelsGen(new Map(models.map((model: { id: string }) => [model.id, model])))
+      )
+    }
     return
   }
   const md = await load('MODELSDEV_CACHE', 'https://models.dev/api.json', ModelsDevApiSchema)
