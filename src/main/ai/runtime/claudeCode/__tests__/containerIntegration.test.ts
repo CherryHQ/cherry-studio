@@ -1,8 +1,8 @@
 import { expect, it, vi } from 'vitest'
 
-import disputedCases from '../../../../../../../packages/aiCore/src/core/context/__tests__/containerEvents/disputed-cases.json'
-import agreedCases from '../../../../../../../packages/aiCore/src/core/context/__tests__/containerEvents/dual-oracle-cases.json'
-import transitionCases from '../../../../../../../packages/aiCore/src/core/context/__tests__/containerEvents/transition84.json'
+import disputedCases from '../../../../../../packages/aiCore/src/core/context/__tests__/containerEvents/disputed-cases.json'
+import agreedCases from '../../../../../../packages/aiCore/src/core/context/__tests__/containerEvents/dual-oracle-cases.json'
+import transitionCases from '../../../../../../packages/aiCore/src/core/context/__tests__/containerEvents/transition84.json'
 import quoteCases from '../../../../../../packages/aiCore/src/core/context/__tests__/r24QuoteOwnership.json'
 
 vi.mock('@logger', () => ({
@@ -163,7 +163,15 @@ import { writeFileSync } from 'node:fs'
 
 import residuals from './containerResidual.json'
 it('frozen malformed compatibility evidence', () => {
-  const rows = []
+  const rows: Array<{
+    raw: string
+    size: number
+    whole: string
+    stop: string
+    snapshot: string
+    retract: boolean
+    prefixViolation: boolean
+  }> = []
   for (const raw of residuals) {
     for (const size of [1, 2, 3, 5, 7, raw.length]) {
       const s = setup()
@@ -195,7 +203,16 @@ it('frozen malformed compatibility evidence', () => {
   writeFileSync('/tmp/container-residual-evidence.json', JSON.stringify(rows))
 })
 it('shape-specific scaling evidence', () => {
-  const rows = []
+  const rows: Array<{
+    shape: string
+    count: number
+    chars: number
+    scan: number
+    carry: number
+    whole: number
+    ms: number
+    exact: boolean
+  }> = []
   for (const count of [1000, 2000])
     for (const [shape, raw] of Object.entries({
       crlf: '```xml\r\n' + '<item>content</item>\r\n'.repeat(count) + '```',

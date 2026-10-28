@@ -72,7 +72,7 @@ export function containerLine(
   const rawAt: number[] = []
   for (let i = 0; i < raw.length; i++) {
     const part = raw[i] === '\t' ? ' '.repeat(4 - (expanded.length % 4)) : raw[i]
-    for (const _ of part) rawAt.push(i)
+    for (let column = 0; column < part.length; column++) rawAt.push(i)
     expanded += part
   }
   rawAt.push(raw.length)
