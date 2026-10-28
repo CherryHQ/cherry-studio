@@ -12451,6 +12451,66 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-open-816b-a42b",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Muse Spark Open 816B A42B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "meta",
+      "reasoning": {
+        "controls": [
+          {
+            "default": "xhigh",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "defaultEffort": "xhigh",
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-open-816b-a42b-nvfp4",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Muse Spark Open 816B A42B NVFP4",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "meta",
+      "reasoning": {
+        "controls": [
+          {
+            "default": "xhigh",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "defaultEffort": "xhigh",
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+      }
+    },
+    {
       "capabilities": ["image-recognition", "image-generation"],
       "id": "mai-image-2-5",
       "inputModalities": ["text", "image"],
@@ -13035,6 +13095,22 @@
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": true
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -13061,12 +13137,45 @@
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition"],
       "contextWindow": 1000000,
-      "id": "minimax-m3-1-flash-preview",
+      "family": "minimax",
+      "id": "minimax-m3-1-flash",
       "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 524288,
       "metadata": {},
-      "name": "MiniMax-M3.1-Flash-Preview",
+      "name": "MiniMax-M3.1-Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": true
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.015
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
       "reasoning": {
         "controls": [
           {
@@ -14660,6 +14769,120 @@
           }
         ],
         "supportedEfforts": ["low", "high", "max", "none"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "kimi-k3.1",
+      "id": "kimi-k3-1-pro",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Kimi K3.1 Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "kimi-k3.1",
+      "id": "kimi-k3-1-pro-highspeed",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Kimi K3.1 Pro Highspeed",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "high", "max"]
       }
     },
     {
@@ -17473,6 +17696,86 @@
       "contextWindow": 1050000,
       "endpointTypes": ["openai-responses"],
       "family": "gpt",
+      "id": "gpt-6-1-terra",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT-6.1 Terra",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": false,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.1
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 2.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 2
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 7.5
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
+      "contextWindow": 1050000,
+      "endpointTypes": ["openai-responses"],
+      "family": "gpt",
       "id": "gpt-6-astra",
       "inputModalities": ["text", "image"],
       "maxInputTokens": 922000,
@@ -18015,6 +18318,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-flare",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Flare",
@@ -18039,6 +18370,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-sunburst",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Sunburst",
@@ -22908,5 +23267,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "85d8425638038265"
+  "version": "38986c5ef01254eb"
 }

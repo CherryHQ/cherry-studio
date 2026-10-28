@@ -14,6 +14,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { computeLanguageCost, createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -228,6 +229,32 @@ function setupMoonshotRegistryData() {
 function clearServiceCache() {
   providerRegistryService.clearCache()
 }
+
+it('keeps cached tokens free for the generated Gateway Flash offer', () => {
+  const models = JSON.parse(
+    readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+  ) as ReturnType<typeof readModelRegistry>
+  const offers = JSON.parse(
+    readFileSync(
+      new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+      'utf8'
+    )
+  ) as ReturnType<typeof readProviderModelRegistry>
+  const preset = models.models.find((model) => model.id === 'minimax-m3-1-flash')
+  const offer = offers.overrides.find(
+    (row) => row.providerId === 'gateway' && row.apiModelId === 'minimax/minimax-m3.1-flash'
+  )
+  if (!preset || !offer) throw new Error('Missing generated Gateway Flash offer')
+  const model = mergePresetModel(preset, offer, 'gateway')
+  const pricing = createAiUsagePricingSnapshot(model.pricing)
+  if (!pricing) throw new Error('Missing Gateway Flash pricing')
+  expect(
+    computeLanguageCost(
+      { inputTokens: 100_000, outputTokens: 0, inputTokenDetails: { cacheReadTokens: 100_000 } },
+      pricing
+    )?.cost
+  ).toBe(0)
+})
 
 describe('ProviderRegistryService', () => {
   const dbh = setupTestDatabase()

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { setImmediate as nextImmediate } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
 import { createMockApplication } from '@test-mocks/main/application'
@@ -14,6 +15,7 @@ const {
   platformState,
   prefValues,
   prefChangeListeners,
+  trayServiceMock,
   applicationMock,
   windowManagerMock,
   loggerMock,
@@ -87,6 +89,7 @@ const {
     setSpellCheckerLanguages: vi.fn()
   }
   const prefChangeListeners: Array<() => void> = []
+  const trayServiceMock = { state: 'created', isActivated: false }
   const applicationMock = {
     isQuitting: false,
     quit: vi.fn(),
@@ -101,6 +104,9 @@ const {
           }
         }
       }
+      if (name === 'TrayService') {
+        return trayServiceMock
+      }
       if (name === 'WindowManager') {
         return windowManagerMock
       }
@@ -112,6 +118,7 @@ const {
     platformState,
     prefValues,
     prefChangeListeners,
+    trayServiceMock,
     applicationMock,
     windowManagerMock,
     loggerMock,
@@ -304,6 +311,8 @@ describe('MainWindowService', () => {
     prefValues['app.tray.on_close'] = false
     prefValues['app.spell_check.enabled'] = false
     prefValues['app.spell_check.languages'] = []
+    trayServiceMock.state = 'created'
+    trayServiceMock.isActivated = false
     prefChangeListeners.length = 0
     defaultSessionMock.setSpellCheckerEnabled.mockReset()
     defaultSessionMock.setSpellCheckerLanguages.mockReset()
@@ -914,36 +923,56 @@ describe('MainWindowService', () => {
       expect(applicationMock.quit).not.toHaveBeenCalled()
     })
 
-    it('calls application.quit() on Win when tray is disabled', () => {
-      platformState.isWin = true
-      prefValues['app.tray.enabled'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
+    describe.each([
+      ['isWin', false],
+      ['isWin', true],
+      ['isLinux', false],
+      ['isLinux', true]
+    ] as const)('direct exit on %s with tray enabled=%s', (platform, trayEnabled) => {
+      beforeEach(() => {
+        platformState[platform] = true
+        prefValues['app.tray.enabled'] = trayEnabled
+        prefValues['app.tray.on_close'] = false
+        attachCloseListener(svc, win)
+      })
 
-      win.emit('close', event)
+      it('preserves the window on repeated closes while quit is blocked', async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const event = new Event('close', { cancelable: true })
+          win.emit('close', event)
+          expect(event.defaultPrevented).toBe(true)
+          await nextImmediate()
+        }
 
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(event.preventDefault).not.toHaveBeenCalled()
-      expect(win.hide).not.toHaveBeenCalled()
-    })
+        expect(applicationMock.quit).toHaveBeenCalledTimes(2)
+        expect(win.hide).not.toHaveBeenCalled()
+        expect(win.minimize).not.toHaveBeenCalled()
+      })
 
-    it('calls application.quit() on Linux when tray is enabled but on_close is false', () => {
-      platformState.isLinux = true
-      prefValues['app.tray.enabled'] = true
-      prefValues['app.tray.on_close'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
+      it('finishes cancelling the original close before allowing an accepted quit to close the window', async () => {
+        const quitClose = new Event('close', { cancelable: true })
+        applicationMock.quit.mockImplementation(() => {
+          applicationMock.isQuitting = true
+          win.emit('close', quitClose)
+        })
+        const originalClose = new Event('close', { cancelable: true })
 
-      win.emit('close', event)
+        win.emit('close', originalClose)
 
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(win.hide).not.toHaveBeenCalled()
+        expect(originalClose.defaultPrevented).toBe(true)
+        expect(applicationMock.quit).not.toHaveBeenCalled()
+        await nextImmediate()
+        expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+        expect(quitClose.defaultPrevented).toBe(false)
+      })
     })
 
     it('preventDefaults and minimizes on Win when tray + on_close are both enabled', () => {
       platformState.isWin = true
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
       attachCloseListener(svc, win)
       const event = makeCloseEvent()
 
@@ -956,6 +985,78 @@ describe('MainWindowService', () => {
       expect(win.setOpacity).toHaveBeenCalledWith(0)
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['Windows', 'ready'],
+      ['Windows', 'stopped'],
+      ['Windows', 'created'],
+      ['Windows', 'initializing'],
+      ['Windows', 'destroyed'],
+      ['Linux', 'ready'],
+      ['Linux', 'stopped'],
+      ['Linux', 'created'],
+      ['Linux', 'initializing'],
+      ['Linux', 'destroyed']
+    ])('quits on %s with an inactive tray in state %s', async (platform, state) => {
+      platformState.isWin = platform === 'Windows'
+      platformState.isLinux = platform === 'Linux'
+      prefValues['app.tray.enabled'] = true
+      prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = state
+      trayServiceMock.isActivated = false
+      attachCloseListener(svc, win)
+      const event = makeCloseEvent()
+
+      win.emit('close', event)
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
+      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('rechecks tray activation on each close', async () => {
+      platformState.isWin = true
+      prefValues['app.tray.enabled'] = true
+      prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
+      attachCloseListener(svc, win)
+      const firstEvent = makeCloseEvent()
+
+      win.emit('close', firstEvent)
+
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      expect(firstEvent.preventDefault).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
+      expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
+
+      ;(svc as any).mainWindow = win
+      svc.showMainWindow()
+      win.setOpacity.mockClear()
+      win.setSkipTaskbar.mockClear()
+      win.minimize.mockClear()
+      trayServiceMock.state = 'stopped'
+      trayServiceMock.isActivated = false
+      const secondEvent = makeCloseEvent()
+
+      win.emit('close', secondEvent)
+
+      expect(secondEvent.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
+      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
       expect(win.hide).not.toHaveBeenCalled()
     })
 
@@ -1009,15 +1110,23 @@ describe('MainWindowService', () => {
       expect(win.hide).toHaveBeenCalledTimes(1)
     })
 
-    it('does not touch Dock override on Win/Linux tray close (Dock is macOS-only)', () => {
-      platformState.isWin = true
+    it.each(['Windows', 'Linux'])('does not touch Dock override on %s tray close (Dock is macOS-only)', (platform) => {
+      platformState.isWin = platform === 'Windows'
+      platformState.isLinux = platform === 'Linux'
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
       attachCloseListener(svc, win)
       const event = makeCloseEvent()
 
       win.emit('close', event)
 
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      if (platform === 'Linux') {
+        expect(win.hide).toHaveBeenCalledTimes(1)
+      }
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
   })

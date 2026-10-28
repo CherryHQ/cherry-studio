@@ -740,27 +740,27 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId, rootId }
     }
 
-    const fullPath = this.getPathRowsToNodeTx(db, nodeId, { topicId })
+    const pathIds = this.getPathIdsToNodeTx(db, nodeId, { topicId })
 
-    // Apply pagination
+    // Apply pagination on ids; only the returned page loads full rows.
     let startIndex = 0
-    let endIndex = fullPath.length
+    let endIndex = pathIds.length
 
     if (cursor) {
-      const cursorIndex = fullPath.findIndex((m) => m.id === cursor)
+      const cursorIndex = pathIds.indexOf(cursor)
       if (cursorIndex === -1) {
         throw DataApiErrorFactory.notFound('Message (cursor)', cursor)
       }
       startIndex = Math.max(0, cursorIndex - limit)
       endIndex = cursorIndex
     } else {
-      startIndex = Math.max(0, fullPath.length - limit)
+      startIndex = Math.max(0, pathIds.length - limit)
     }
 
-    const paginatedPath = fullPath.slice(startIndex, endIndex)
+    const paginatedPath = this.getRowsInOrderTx(db, pathIds.slice(startIndex, endIndex))
 
     // Calculate nextCursor: if there are more historical messages
-    const nextCursor = startIndex > 0 ? fullPath[startIndex].id : undefined
+    const nextCursor = startIndex > 0 ? pathIds[startIndex] : undefined
 
     // Build result with optional siblings
     const result: BranchMessage[] = []
@@ -1952,7 +1952,7 @@ export class MessageService {
           message.role === 'assistant' &&
           message.siblingsGroupId !== 0 &&
           topic.activeNodeId !== null &&
-          this.getPathRowsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).some((row) => row.id === id)
+          this.getPathIdsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).includes(id)
         const group = isContextReply
           ? tx
               .select({ id: messageTable.id })
@@ -2235,10 +2235,15 @@ export class MessageService {
    * the same-topic message-tree invariant.
    */
   getPathRowsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): MessageRow[] {
-    // Recursive CTE collects ancestor IDs (single-column, casing-safe);
-    // full rows fetched via ORM for camelCase mapping.
-    const ancestorIdRows = options.topicId
-      ? tx.all<{ id: string }>(sql`
+    return this.getRowsInOrderTx(tx, this.getPathIdsToNodeTx(tx, nodeId, options))
+  }
+
+  /** Root -> node path ids, without loading message rows. Same scoping as `getPathRowsToNodeTx`. */
+  private getPathIdsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): string[] {
+    // Raw CTE rows keep snake_case `parent_id`; they only feed this id walk, never rowToMessage.
+    // Rows come back in node → root order.
+    const ancestorRows = options.topicId
+      ? tx.all<{ id: string; parent_id: string | null }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message
             WHERE id = ${nodeId} AND topic_id = ${options.topicId} AND deleted_at IS NULL
@@ -2247,9 +2252,9 @@ export class MessageService {
             INNER JOIN ancestors a ON m.id = a.parent_id
             WHERE m.topic_id = ${options.topicId} AND m.deleted_at IS NULL
           )
-          SELECT id FROM ancestors
+          SELECT id, parent_id FROM ancestors
         `)
-      : tx.all<{ id: string }>(sql`
+      : tx.all<{ id: string; parent_id: string | null }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
             UNION ALL
@@ -2257,28 +2262,38 @@ export class MessageService {
             INNER JOIN ancestors a ON m.id = a.parent_id
             WHERE m.deleted_at IS NULL
           )
-          SELECT id FROM ancestors
+          SELECT id, parent_id FROM ancestors
         `)
 
-    if (ancestorIdRows.length === 0) {
+    if (ancestorRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
-
-    const ancestorIds = ancestorIdRows.map((r) => r.id)
-    const whereClause = options.topicId
-      ? and(inArray(messageTable.id, ancestorIds), eq(messageTable.topicId, options.topicId))
-      : inArray(messageTable.id, ancestorIds)
-    const ancestorRows = tx.select().from(messageTable).where(whereClause).all()
-
-    // Preserve CTE order (nodeId → root) before reversing to root → nodeId.
-    const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
-    const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
     // root → node order, with the structural virtual root (the only parentId-null
     // row) dropped: content paths start at the first-turn message, not the
     // content-less root.
-    const chain = ordered.reverse()
-    return chain[0]?.parentId === null ? chain.slice(1) : chain
+    const ids: string[] = []
+    for (let i = ancestorRows.length - 1; i >= 0; i--) {
+      if (ancestorRows[i].parent_id !== null) ids.push(ancestorRows[i].id)
+    }
+    return ids
+  }
+
+  /** Full rows for `ids`, returned in `ids` order. */
+  private getRowsInOrderTx(tx: DbOrTx, ids: string[]): MessageRow[] {
+    const rowsById = new Map<string, MessageRow>()
+    for (let offset = 0; offset < ids.length; offset += SQLITE_INARRAY_CHUNK) {
+      const chunk = ids.slice(offset, offset + SQLITE_INARRAY_CHUNK)
+      // No topic_id predicate: callers pass ids that are already topic-scoped, and adding one
+      // makes SQLite scan the topic index once per chunk instead of looking ids up by key.
+      for (const row of tx.select().from(messageTable).where(inArray(messageTable.id, chunk)).all()) {
+        rowsById.set(row.id, row)
+      }
+    }
+    return ids.flatMap((id) => {
+      const row = rowsById.get(id)
+      return row ? [row] : []
+    })
   }
 
   /**

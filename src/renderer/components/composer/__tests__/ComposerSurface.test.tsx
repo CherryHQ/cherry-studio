@@ -1396,6 +1396,37 @@ describe('ComposerSurface', () => {
     expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
   })
 
+  it('keeps a text drop inside the reasoning textarea', () => {
+    const onChange = vi.fn()
+    const onComposerDrop = vi.fn()
+
+    render(
+      <div onDrop={onComposerDrop}>
+        <ComposerSurface
+          {...baseProps}
+          editingState={{
+            messageId: 'message-1',
+            onCancel: vi.fn(),
+            reasoning: {
+              value: 'old thinking',
+              label: 'thinking',
+              actionLabel: 'edit thinking',
+              title: 'edit thinking',
+              placeholder: 'thinking',
+              hint: 'hint',
+              onChange
+            }
+          }}
+        />
+      </div>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'thinking' }))
+    fireEvent.drop(screen.getByLabelText('thinking'), { dataTransfer: { getData: () => 'dropped' } })
+
+    expect(onComposerDrop).not.toHaveBeenCalled()
+  })
+
   it('focuses the editor when an editing session starts', async () => {
     const { rerender } = render(<ComposerSurface {...baseProps} editingState={undefined} />)
 
@@ -3243,7 +3274,52 @@ describe('ComposerSurface', () => {
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
   })
 
-  it('renders image file tokens as chips with icon-sized thumbnails inside the editable composer', async () => {
+  it('activates the original mounted file token with the current preview action', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md',
+      payload: {
+        id: 'file-1',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/tmp/notes.md'
+      }
+    }
+    const outcomes: string[] = []
+    const selectFile = vi.fn(() => {
+      outcomes.push('select')
+    })
+    const confirmLeave = vi.fn((input: { displayName: string; previewPath: string }) => {
+      outcomes.push(`confirm:${input.displayName}:${input.previewPath}`)
+    })
+    const nodeViewProps = { selected: false, nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } } }
+    const view = render(
+      <ComposerSurface {...baseProps} previewInputFile={selectFile} tokens={[fileToken]} managedTokenKinds={['file']} />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    const retainedRenderToken = mocks.editorPresetOptions.renderToken
+    render(<>{retainedRenderToken(fileToken, nodeViewProps)}</>)
+    const chip = screen.getByRole('button', { name: 'notes.md' })
+
+    view.rerender(
+      <ComposerSurface
+        {...baseProps}
+        previewInputFile={confirmLeave}
+        tokens={[fileToken]}
+        managedTokenKinds={['file']}
+      />
+    )
+    expect(chip.isConnected).toBe(true)
+
+    fireEvent.click(chip)
+
+    expect(outcomes).toEqual(['confirm:notes.md:/tmp/notes.md'])
+    expect(selectFile).not.toHaveBeenCalled()
+  })
+
+  it('renders image file tokens with type icons inside the editable composer', async () => {
     const imageToken = {
       id: 'file:image-1',
       kind: 'file' as const,
@@ -3276,7 +3352,8 @@ describe('ComposerSurface', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveTextContent('preview.png')
-    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeInTheDocument()
+    expect(token?.querySelector('img')).toBeNull()
+    expect(token?.querySelector('[data-file-token-icon="image"]')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
   })
 

@@ -190,6 +190,13 @@ export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSki
   return null
 }
 
+export function isModelCompletelyFailed(result: ModelWithStatus): boolean {
+  return (
+    result.status === HealthStatus.FAILED &&
+    !result.keyResults.some((keyResult) => keyResult.status === HealthStatus.SUCCESS)
+  )
+}
+
 export function summarizeHealthResults(results: ModelWithStatus[], providerName?: string): string {
   const t = i18n.t
 
@@ -204,11 +211,10 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
     } else if (result.status === HealthStatus.SUCCESS) {
       successCount++
     } else if (result.status === HealthStatus.FAILED) {
-      const hasSuccessKey = result.keyResults.some((keyResult) => keyResult.status === HealthStatus.SUCCESS)
-      if (hasSuccessKey) {
-        partialCount++
-      } else {
+      if (isModelCompletelyFailed(result)) {
         failedCount++
+      } else {
+        partialCount++
       }
     }
   }

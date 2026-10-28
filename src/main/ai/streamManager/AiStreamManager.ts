@@ -9,9 +9,9 @@ import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
   BaseService,
+  DependsOn,
   type Disposable,
   Emitter,
   type Event,
@@ -39,6 +39,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -323,6 +324,7 @@ const nullStreamListener: StreamListener = {
  */
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['RuntimeActivityService'])
 export class AiStreamManager extends BaseService {
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
   public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
@@ -1982,10 +1984,13 @@ export class AiStreamManager extends BaseService {
           )
       : () => this.runExecutionLoop(topicId, modelId, request, exec)
 
-    exec.loopPromise = launchLoop().catch((err) => {
-      // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-      return this.onExecutionError(topicId, modelId, serializeError(err), exec)
-    })
+    const activity = application.get('RuntimeActivityService').begin(`ai:stream:${topicId}:${modelId}`)
+    exec.loopPromise = launchLoop()
+      .catch((err) => {
+        // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
+        return this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      })
+      .finally(() => activity.dispose())
 
     return exec
   }

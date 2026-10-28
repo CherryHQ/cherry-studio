@@ -207,9 +207,10 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
   // meta
+  { pattern: '^muse-spark-open(?:-|$)', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^muse-spark' },
   // minimax
-  { pattern: '^minimax-m3[.-]1-flash-preview$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
+  { pattern: '^minimax-m3[.-]1-flash$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
@@ -217,6 +218,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mistral-small-2603' },
   { pattern: '^mistral-(?:small|medium)(?!.*instruct)' },
   // moonshot
+  { pattern: '^kimi-k3[.-]1-pro(?:-highspeed)?$', effort: ['low', 'high', 'max'], toggle: false },
   { pattern: '^kimi-k2[.-]7-code', toggle: false },
   { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
   { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
