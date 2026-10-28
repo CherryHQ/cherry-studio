@@ -6,22 +6,27 @@ Status: implemented
 
 ## 问题
 
-Code Mate 通过内置 mise 2026.7.14 注册表安装 Claude。其 HTTP 配方只为 Windows x64 覆盖了 URL 和二进制文件名。Windows ARM64 回落到 `windows-arm64/claude`，该地址返回 404；官方清单发布的文件为 `win32-arm64/claude.exe`。
+Code Mate 内置的 mise 2026.7.14 注册表缺少 Windows ARM64 覆盖配置，请求 windows-arm64/claude 而非 win32-arm64/claude.exe。修正 URL 可以解决 404，但仍依赖 GCS。官方 CLI 也发布了 ARM64 npm 平台压缩包。通过 mise 内置安装器安装其父 npm 包时，生成的 Windows shim 会使用 Node 执行 claude.exe，并报 ERR_UNKNOWN_FILE_EXTENSION。
 
 ## 决策
 
-在 Windows ARM64 上安装规范 `claude` 配方时，BinaryManager 使用 mise 原生的 `url` 和 `bin` 工具选项指定 `win32-arm64/claude.exe`。版本仍使用由 mise 解析的模板。注册表中的官方清单校验和验证保持启用。目录身份、版本发现、安装清单、卸载及所有其他平台保留现有配方。
+Windows ARM64 安装时解析官方 @anthropic-ai/claude-code-win32-arm64 包元数据，将压缩包 URL 和 SHA-512 摘要交给 mise 现有 HTTP 后端。mise 直接校验并解包 claude.exe，不需要 npm 生命周期脚本或 Node 运行时。元数据必须与请求的包及精确版本匹配，并提供有效的 SHA-512 摘要。
+
+安装和最新版本查询遵循 npm registry 设置，包括现有的中国地区默认源。官方 registry 与 npmmirror 互相回退；显式配置的自定义源保持独占。规范配方仍为 claude，保留托管安装身份、可用性、更新和卸载。其他平台和独立固定版本的 Agent SDK 二进制文件保留现有获取路径。
 
 ## 考虑过的替代方案
 
-- 升级所有内置 mise 二进制文件会改变每种工具和平台的安装器；本次修复仅补齐固定版本中缺失的平台映射。
-- 将 Code Mate 安装替换为 Agent SDK 二进制文件会耦合两条分别归属不同模块的运行时路径，并改变其版本管理。
-- 改写 E2E 断言或预装二进制文件会保留用户安装路径中的故障。
+- 保留修正后的 GCS URL，仍无法解决中国大陆下载可靠性问题。
+- 通过内置 npm 后端安装父包会生成无法运行的 Node 启动器。改写生成的启动器会掩盖上游安装器缺陷。
+- 共用 ClaudeCodeBinaryService 的 SDK 可执行文件，会将 Code Mate 的独立更新和卸载耦合到应用固定的 SDK 版本。
+- 升级所有内置 mise 二进制文件会改变无关工具和平台的安装方式。
+- 改写 E2E 断言或手工放置二进制文件，会保留用户安装路径中的故障。
 
 ## 影响
 
-覆盖选项重复了上游下载前缀；固定版本的 mise 注册表支持 Windows ARM64 后，需要重新审视该选项。原生下载和校验和处理仍由 mise 负责。
+Code Mate 继续动态解析安装版本。与 Agent SDK 在构建时从锁文件获取摘要不同，其完整性信息来自所选 registry 的包元数据，因此该 registry 仍是信任边界。带作用域的包 URL 在 TOML 工具选项中转义 @，因为固定版本的 mise 先解析 @，再解码选项。可用的旧安装会继续使用，直到显式更新或重装。中国大陆直连下载可靠性仍需在该网络中验证。
 
 ## 验证
 
-- 回归 — `src/main/services/binaryManager/__tests__/claudeArm64Install.test.ts`：原配方无法满足已发布产物契约；latest 和显式版本均选择 ARM64 可执行文件，其他平台配方保持不变。
+- 回归 — claudeArm64Install.test.ts 和 claudeNpm.test.ts 覆盖平台压缩包选择、latest 和精确版本、完整性验证、镜像失败回退、自定义源独占，以及其他平台配方不变。
+- 本地 Windows ARM64 — 隔离的真实 mise 安装下载 npm 平台压缩包，生成的 shim 输出 2.1.312 (Claude Code)。故意构造的摘要不匹配压缩包被拒绝，原有全局版本选择保持不变。

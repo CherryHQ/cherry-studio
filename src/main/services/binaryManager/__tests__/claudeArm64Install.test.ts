@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto'
 import type * as NodeUtil from 'node:util'
 
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -19,12 +21,32 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 
+type Installer = {
+  miseBin: string
+  isolatedEnv: { env: Record<string, string>; usesDefaultChinaPipIndex: boolean }
+  installWithMise: (definition: { name: string; tool: string }, version: string, definitions: []) => Promise<string>
+}
+
 describe('Claude native installation on Windows ARM64', () => {
+  let installer: Installer
   const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
 
   beforeEach(() => {
     BaseService.resetInstances()
     platform.isWin = true
+    installer = new BinaryManager() as unknown as Installer
+    installer.miseBin = '/fixture/mise'
+    installer.isolatedEnv = {
+      env: { NPM_CONFIG_REGISTRY: 'https://registry.npmmirror.com' },
+      usesDefaultChinaPipIndex: false
+    }
+    vi.mocked(net.fetch).mockImplementation(async () =>
+      Response.json({
+        name: '@anthropic-ai/claude-code-win32-arm64',
+        version: '2.1.312',
+        dist: { integrity: 'sha512-' + createHash('sha512').update('native-arm64-package').digest('base64') }
+      })
+    )
   })
 
   afterEach(() => {
@@ -32,34 +54,67 @@ describe('Claude native installation on Windows ARM64', () => {
     vi.clearAllMocks()
   })
 
-  it.each(['latest', '2.1.239'])('downloads the published ARM64 executable for %s', async (requested) => {
+  it.each(['latest', '2.1.312'])('installs the verified npm platform archive for %s', async (requested) => {
     Object.defineProperty(process, 'arch', { value: 'arm64' })
-    const service = new BinaryManager()
-    const installer = service as unknown as {
-      miseBin: string
-      isolatedEnv: { env: Record<string, string>; usesDefaultChinaPipIndex: boolean }
-      installWithMise: (definition: { name: string; tool: string }, version: string, definitions: []) => Promise<string>
-    }
-    installer.miseBin = '/fixture/mise'
-    installer.isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
     let installed = false
     execFileAsync.mockImplementation(async (_file, args: string[]) => {
       if (args[0] === 'use') {
         const spec = args.at(-1)!
-        const url = /url="([^"]+)"/.exec(spec)?.[1]?.replace('{{ version }}', '2.1.239')
+        const encodedUrl = /url=("[^"]+")/.exec(spec)?.[1]
+        const url = encodedUrl ? JSON.parse(encodedUrl) : undefined
+        const checksum = /checksum="([^"]+)"/.exec(spec)?.[1]
         const publishedUrl =
-          'https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/2.1.239/win32-arm64/claude.exe'
-        if (url !== publishedUrl || !spec.includes('bin="claude.exe"') || !spec.endsWith(`@${requested}`)) {
-          throw new Error('404: no published Windows ARM64 artifact at the selected address')
+          'https://registry.npmmirror.com/@anthropic-ai/claude-code-win32-arm64/-/claude-code-win32-arm64-{{ version }}.tgz'
+        if (
+          url !== publishedUrl ||
+          !spec.includes('bin="claude.exe"') ||
+          checksum !== 'sha512:' + createHash('sha512').update('native-arm64-package').digest('hex') ||
+          !spec.endsWith('@2.1.312')
+        ) {
+          throw new Error('The ARM64 platform archive or integrity was not selected')
         }
         installed = true
       }
-      const stdout =
-        args[0] === 'ls' && installed ? JSON.stringify({ claude: [{ version: '2.1.239', active: true }] }) : ''
-      return { stdout, stderr: '' }
+      return {
+        stdout: args[0] === 'ls' && installed ? JSON.stringify({ claude: [{ version: '2.1.312', active: true }] }) : '',
+        stderr: ''
+      }
     })
+    await expect(installer.installWithMise({ name: 'claude', tool: 'claude' }, requested, [])).resolves.toBe('2.1.312')
+  })
 
-    await expect(installer.installWithMise({ name: 'claude', tool: 'claude' }, requested, [])).resolves.toBe('2.1.239')
+  it.each(['metadata', 'archive'])('falls back to the official source after a mirror %s failure', async (failure) => {
+    Object.defineProperty(process, 'arch', { value: 'arm64' })
+    if (failure === 'metadata') vi.mocked(net.fetch).mockResolvedValueOnce(new Response(null, { status: 404 }))
+    let officialInstalled = false
+    execFileAsync.mockImplementation(async (_file, args: string[]) => {
+      if (args[0] === 'use') {
+        if (args.at(-1)!.includes('registry.npmmirror.com')) throw new Error('archive integrity mismatch')
+        if (!args.at(-1)!.includes('registry.npmjs.org')) throw new Error('Unexpected download source')
+        officialInstalled = true
+      }
+      return {
+        stdout:
+          args[0] === 'ls' && officialInstalled
+            ? JSON.stringify({ claude: [{ version: '2.1.312', active: true }] })
+            : '',
+        stderr: ''
+      }
+    })
+    await expect(installer.installWithMise({ name: 'claude', tool: 'claude' }, 'latest', [])).resolves.toBe('2.1.312')
+  })
+
+  it('does not silently replace a custom registry when it is unavailable', async () => {
+    Object.defineProperty(process, 'arch', { value: 'arm64' })
+    installer.isolatedEnv.env.NPM_CONFIG_REGISTRY = 'https://packages.example.test'
+    vi.mocked(net.fetch).mockImplementation(async (url) =>
+      String(url).startsWith('https://packages.example.test/')
+        ? new Response(null, { status: 404 })
+        : Response.json({ name: '@anthropic-ai/claude-code-win32-arm64', version: '2.1.312' })
+    )
+    await expect(installer.installWithMise({ name: 'claude', tool: 'claude' }, 'latest', [])).rejects.toThrow(
+      'HTTP 404'
+    )
   })
 
   it.each([
@@ -69,14 +124,6 @@ describe('Claude native installation on Windows ARM64', () => {
   ])('keeps the registry recipe on isWin=%s arch=%s', async (isWin, arch) => {
     platform.isWin = isWin
     Object.defineProperty(process, 'arch', { value: arch })
-    const service = new BinaryManager()
-    const installer = service as unknown as {
-      miseBin: string
-      isolatedEnv: { env: Record<string, string>; usesDefaultChinaPipIndex: boolean }
-      installWithMise: (definition: { name: string; tool: string }, version: string, definitions: []) => Promise<string>
-    }
-    installer.miseBin = '/fixture/mise'
-    installer.isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
     execFileAsync.mockImplementation(async (_file, args: string[]) => {
       if (args[0] === 'use' && args.at(-1) !== 'claude@2.1.239') {
         throw new Error('An ARM64 Windows artifact cannot be installed on this platform')
