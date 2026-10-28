@@ -3,9 +3,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUI from '@cherrystudio/ui'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherrystudioUI>()),
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button type="button" {...props}>
       {children}

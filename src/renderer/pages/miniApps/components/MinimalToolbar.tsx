@@ -4,11 +4,12 @@ import {
   ArrowRight,
   Code,
   Columns2,
+  Ellipsis,
   ExternalLink,
   Info,
   LayoutGrid,
   Link,
-  RotateCcw,
+  Power,
   RotateCw,
   X
 } from 'lucide-react'
@@ -16,7 +17,15 @@ import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Input,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -246,18 +255,6 @@ const MinimalToolbar: FC<Props> = ({
               <RotateCw size={14} />
             </Button>
           </Tooltip>
-
-          <Tooltip content={t('miniApp.popup.restart')} placement="bottom">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onRestart}
-              className={toolbarButtonClassName()}
-              aria-label={t('miniApp.popup.restart')}>
-              <RotateCcw size={14} />
-            </Button>
-          </Tooltip>
         </div>
       </div>
 
@@ -384,6 +381,27 @@ const MinimalToolbar: FC<Props> = ({
               </Button>
             </Tooltip>
           )}
+
+          <DropdownMenu>
+            <Tooltip content={t('common.more')} placement="bottom">
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={toolbarButtonClassName()}
+                  aria-label={t('common.more')}>
+                  <Ellipsis size={14} />
+                </Button>
+              </DropdownMenuTrigger>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onRestart}>
+                <Power />
+                {t('miniApp.popup.restart')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {detailOpen && <MiniAppDetailPanel appId={app.appId} onClose={() => setDetailOpen(false)} />}

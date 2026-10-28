@@ -99,14 +99,17 @@ afterEach(() => {
 })
 
 describe('MiniAppPane navigation', () => {
-  it('recovers when no ready WebView is attached', async () => {
+  it('recovers through the More menu when no ready WebView is attached', async () => {
     const user = userEvent.setup()
     const replacement = createGuest()
     replacement.canGoBack.mockReturnValue(true)
     const original = webviewRuntimeService.get(resourceKey)!
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'Restart MiniApp' }))
+    expect(screen.queryByRole('button', { name: 'Restart MiniApp' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Restart MiniApp' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Restart MiniApp' }))
     expect(webviewRuntimeService.get(resourceKey)!.instance).not.toBe(original.instance)
     expect(webviewRuntimeService.get(resourceKey)!.loaded).toBe(false)
     expect(screen.getByRole('button', { name: 'Go Back' })).toHaveAttribute('aria-disabled', 'true')
@@ -137,7 +140,8 @@ describe('MiniAppPane navigation', () => {
     const forward = screen.getByRole('button', { name: 'Go Forward' })
     await waitFor(() => expect(back).toHaveAttribute('aria-disabled', 'false'))
 
-    await user.click(screen.getByRole('button', { name: 'Restart MiniApp' }))
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Restart MiniApp' }))
     act(() => {
       original.guest.replaceWith(replacement.guest)
       bindGuest(replacement.guest)

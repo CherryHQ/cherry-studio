@@ -6,6 +6,7 @@ import type { WebviewTag } from 'electron'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUI from '@cherrystudio/ui'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar from '../MinimalToolbar'
@@ -16,7 +17,8 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherrystudioUI>()),
   Button: ({ children, type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type={type} {...props}>
       {children}
