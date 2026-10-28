@@ -164,12 +164,18 @@ export interface CherryPartLinkage {
   launchToolCallId?: string
   /** The SendMessage call id whose resume this part continues, when the runtime tagged it. */
   resumedViaCallId?: string
+  /** The SendMessage call id whose queued delivery this part may answer; delivery is unconfirmed. */
+  queuedViaCallId?: string
+  /** True on a receipt whose message was only queued for delivery, not yet consumed. */
+  receiptQueued?: boolean
 }
 
 const CherryPartLinkageSchema = z.object({
   parentToolCallId: z.string().optional(),
   launchToolCallId: z.string().optional(),
-  resumedViaCallId: z.string().optional()
+  resumedViaCallId: z.string().optional(),
+  queuedViaCallId: z.string().optional(),
+  receiptQueued: z.boolean().optional()
 })
 
 export interface CherryTextMeta extends CherryPartLinkage {

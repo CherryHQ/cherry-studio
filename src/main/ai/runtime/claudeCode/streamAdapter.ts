@@ -107,6 +107,12 @@ type SdkTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessag
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
 type ClaudeToolResultBlock = Extract<BetaContentBlock | BetaContentBlockParam, { tool_use_id: string }>
 
+/** The SendMessage a launch root's later content may answer, and whether delivery was confirmed. */
+type ResumeMarker = {
+  callId: string
+  delivery: 'delivered' | 'queued'
+}
+
 type ToolStreamState = {
   name: string
   lastSerializedInput?: string
@@ -115,7 +121,7 @@ type ToolStreamState = {
   callEmitted: boolean
   parentToolCallId?: string | null
   /** Frozen at input start, so a result arriving after a later send keeps its originating round. */
-  resumedViaCallId?: string | null
+  resumeMarker?: ResumeMarker | null
   sdkBlockType?: string
   serverName?: string
   serverId?: string
@@ -520,10 +526,10 @@ export class ClaudeCodeStreamAdapter {
   /** launch root tool-call id → the SendMessage call id that last resumed it. Instance-scoped
    *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
    *  turn's result, so clearing would strip markers from the bulk of a continued round. */
-  private readonly resumeMarkers = new Map<string, string>()
+  private readonly resumeMarkers = new Map<string, ResumeMarker>()
 
   /** The resume marker each observed response started under, keyed by its message id. */
-  private readonly responseResumeMarkers = new Map<string, string | null>()
+  private readonly responseResumeMarkers = new Map<string, ResumeMarker | null>()
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
    *  main agent's counters. Their sink is detached from the turn when that turn completes. */
   private readonly flowContexts: FlowContext[] = []
@@ -1266,16 +1272,18 @@ export class ClaudeCodeStreamAdapter {
         (typeof normalizedResult === 'string' ? parseLaunchReceiptText(normalizedResult) : undefined)
       if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id, true)
     }
-    // A SendMessage receipt links its launch root and re-tags that agent's later content for
-    // round splitting (only-overwrite); only this tool produces the receipt's keys.
+    // A SendMessage receipt links its launch root and tags later content for round splitting
+    // (only-overwrite); a queued pin is tagged as unconfirmed, not as a consumed continuation.
     if (!isError && toolName === 'SendMessage' && isRecord(normalizedResult)) {
-      // A still-running target's receipt has no resumedAgentId — its queued form only carries `pin.id`.
+      // A still-running target's receipt has no resumedAgentId — its queued form only carries
+      // `pin.id`; only a woken target confirms that the message was actually consumed.
+      const deliveredId =
+        typeof normalizedResult.resumedAgentId === 'string' ? normalizedResult.resumedAgentId : undefined
       const resumedAgentId =
-        typeof normalizedResult.resumedAgentId === 'string'
-          ? normalizedResult.resumedAgentId
-          : isRecord(normalizedResult.pin) && typeof normalizedResult.pin.id === 'string'
-            ? normalizedResult.pin.id
-            : undefined
+        deliveredId ??
+        (isRecord(normalizedResult.pin) && typeof normalizedResult.pin.id === 'string'
+          ? normalizedResult.pin.id
+          : undefined)
       if (resumedAgentId) {
         let launchToolCallId: string | undefined = this.backgroundTaskToolCallIds.get(resumedAgentId)
         // The receipt is the last event some resumes ever produce (fresh adapter, queued pin);
@@ -1296,9 +1304,13 @@ export class ClaudeCodeStreamAdapter {
           }
         }
         if (launchToolCallId) {
-          this.resumeMarkers.set(launchToolCallId, result.tool_use_id)
+          this.resumeMarkers.set(launchToolCallId, {
+            callId: result.tool_use_id,
+            delivery: deliveredId ? 'delivered' : 'queued'
+          })
           const cherry = providerMetadata.cherry as Record<string, unknown>
           cherry.launchToolCallId = launchToolCallId
+          if (!deliveredId) cherry.receiptQueued = true
         }
       }
     }
@@ -1918,16 +1930,22 @@ export class ClaudeCodeStreamAdapter {
     messageId?: string
   ): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
-    const resumedViaCallId = this.resolveResponseResumeMarker(messageId, sdkParentToolUseId)
+    const marker = this.resolveResponseResumeMarker(messageId, sdkParentToolUseId)
     return {
       'claude-code': {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
         transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
-        ...(resumedViaCallId ? { resumedViaCallId } : {})
+        ...this.getResumeMetadata(marker)
       }
     }
+  }
+
+  /** A delivered receipt continues its round; a queued pin only says the message may be answered. */
+  private getResumeMetadata(marker: ResumeMarker | null | undefined): Record<string, string> {
+    if (!marker) return {}
+    return marker.delivery === 'delivered' ? { resumedViaCallId: marker.callId } : { queuedViaCallId: marker.callId }
   }
 
   /**
@@ -1944,7 +1962,7 @@ export class ClaudeCodeStreamAdapter {
   private resolveResponseResumeMarker(
     messageId: string | undefined,
     parentToolCallId: string | null | undefined
-  ): string | undefined {
+  ): ResumeMarker | undefined {
     if (!messageId) return parentToolCallId ? this.resumeMarkers.get(parentToolCallId) : undefined
     this.observeResponse(messageId, parentToolCallId)
     return this.responseResumeMarkers.get(messageId) ?? undefined
@@ -1952,12 +1970,12 @@ export class ClaudeCodeStreamAdapter {
 
   /** Freeze the marker a tool starts under; its result must keep the round the tool began in. */
   private captureToolResumeMarker(state: ToolStreamState, messageId?: string): void {
-    if (state.resumedViaCallId !== undefined) return
-    state.resumedViaCallId = this.resolveResponseResumeMarker(messageId, state.parentToolCallId) ?? null
+    if (state.resumeMarker !== undefined) return
+    state.resumeMarker = this.resolveResponseResumeMarker(messageId, state.parentToolCallId) ?? null
   }
 
   private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
-    const resumedViaCallId = state.resumedViaCallId ?? undefined
+    const marker = state.resumeMarker ?? undefined
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
@@ -1969,7 +1987,7 @@ export class ClaudeCodeStreamAdapter {
       'claude-code': claudeCode,
       cherry: {
         transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
-        ...(resumedViaCallId ? { resumedViaCallId } : {}),
+        ...this.getResumeMetadata(marker),
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),
