@@ -8,6 +8,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { createChannelContextPart } from '@shared/data/types/uiParts'
 
 import { runtimeDriverRegistry } from '../../../runtime/registry'
@@ -118,16 +119,13 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       }
     })
 
-    let storedUserParts: Awaited<ReturnType<typeof capture>> | undefined
-    function capture(parts: { type: string }[]) {
-      return parts
-    }
+    let storedUserParts: CherryMessagePart[] | undefined
     await forks.edit(
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
       (_tx, _native, parts) => {
-        storedUserParts = capture(parts)
+        storedUserParts = parts
       }
     )
 
