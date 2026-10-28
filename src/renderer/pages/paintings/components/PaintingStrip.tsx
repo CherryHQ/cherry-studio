@@ -5,11 +5,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { normalizeExt } from '@shared/utils/file'
 
 import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
+import { usePaintingImageUrl } from '../hooks/usePaintingImageUrl'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
-import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 import PaintingSkeletonSurface from './PaintingSkeletonSurface'
 
 interface PaintingStripProps {
@@ -35,7 +36,8 @@ const PaintingStripItem: FC<{
   deleteLabel: string
 }> = ({ painting, selected, loading, onDelete, onSelect, selectLabel, deleteLabel }) => {
   const previewFile = painting.files?.[0]
-  const previewUrl = previewFile ? getPaintingFileUrl(previewFile) : undefined
+  const { url: previewUrl, isLoading: isImageUrlLoading } = usePaintingImageUrl(previewFile)
+  const isSvg = previewFile ? normalizeExt(previewFile.ext) === 'svg' : false
 
   return (
     <div className={cn(paintingClasses.historyItem, selected && paintingClasses.historyItemActive)}>
@@ -46,8 +48,8 @@ const PaintingStripItem: FC<{
         onClick={() => onSelect(painting)}>
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[12px]">
           {previewUrl ? (
-            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
-          ) : loading ? (
+            <img src={previewUrl} alt="" draggable={isSvg ? false : undefined} className="h-full w-full object-cover" />
+          ) : loading && (!isSvg || isImageUrlLoading) ? (
             <div className="size-full bg-background">
               <PaintingSkeletonSurface />
             </div>

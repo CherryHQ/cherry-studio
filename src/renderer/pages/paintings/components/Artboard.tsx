@@ -17,7 +17,9 @@ import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherr
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import ImageViewer from '@renderer/components/ImageViewer'
+import { normalizeExt } from '@shared/utils/file'
 
+import { usePaintingImageUrl } from '../hooks/usePaintingImageUrl'
 import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
@@ -29,7 +31,6 @@ import {
   nextImageScaleFromWheel
 } from '../utils/artboardImageScale'
 import { computeImageNaturalSize } from '../utils/computeImageNaturalSize'
-import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 import PaintingImageSkeleton from './PaintingImageSkeleton'
 
 const logger = loggerService.withContext('paintings/Artboard')
@@ -243,7 +244,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   const { sizeLabel } = usePaintingSizeInfo(painting)
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
   // custom-protocol handler is registered and paintings consume `FileEntry` directly.
-  const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : undefined
+  const { url: currentImageUrl, isLoading: isImageUrlLoading } = usePaintingImageUrl(currentFile)
 
   const onPrevImage = useCallback(() => {
     setCurrentImageIndex((index) => (index > 0 ? index - 1 : Math.max(0, painting.files.length - 1)))
@@ -458,10 +459,13 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     }
 
     if (!currentFile || !currentImageUrl) {
-      // A canceled or failed generation never produces a file — without this,
-      // stopping here would leave `revealState` stuck at `{ status: 'awaiting' }`
-      // forever, since none of this effect's deps change again to escape it.
-      if (painting.generationStatus === 'canceled' || painting.generationStatus === 'failed') {
+      // A terminal generation or failed SVG read cannot complete the reveal.
+      // An absent file can still arrive after generation stops.
+      if (
+        painting.generationStatus === 'canceled' ||
+        painting.generationStatus === 'failed' ||
+        (currentFile && normalizeExt(currentFile.ext) === 'svg' && !isImageUrlLoading)
+      ) {
         awaitingRevealRef.current = false
         setRevealState(null)
         return
@@ -504,7 +508,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     return () => {
       active = false
     }
-  }, [painting.id, currentFile, currentImageUrl, isLoading, painting.generationStatus])
+  }, [painting.id, currentFile, currentImageUrl, isImageUrlLoading, isLoading, painting.generationStatus])
 
   const activeReveal = (() => {
     if (isLoading || !revealState) {
