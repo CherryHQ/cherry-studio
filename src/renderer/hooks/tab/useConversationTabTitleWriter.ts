@@ -42,7 +42,11 @@ export function useConversationTabTitleWriter() {
   // An unmounted writer's snapshot never advances again, so its delayed writes
   // would stamp stale bindings over whatever the tab now shows.
   const mountedRef = useRef(true)
-  useEffect(() => () => (mountedRef.current = false), [])
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   return useCallback(
     (kind: ConversationTabKind, conversationId: string, name: string | null | undefined) => {
