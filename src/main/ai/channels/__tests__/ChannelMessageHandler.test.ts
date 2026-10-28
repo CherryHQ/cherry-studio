@@ -994,7 +994,7 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.discardResponse.mock.calls).toEqual([['chat-1', { replyToMessageId: 'first-id' }]])
   })
 
-  it('prepends source chat context when the channel exposes a chat type', async () => {
+  it('appends source chat context after the user text when the channel exposes a chat type', async () => {
     const adapter = createMockAdapter({ channelType: 'feishu' })
     simulateStream([{ type: 'text-delta', delta: 'reply' }])
 
@@ -1007,11 +1007,99 @@ describe('ChannelMessageHandler', () => {
     })
 
     const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
-    expect(parts[0]).toEqual({
+    expect(parts[0]).toEqual({ type: 'text', text: 'Hi' })
+    expect(parts[1]).toEqual({
       type: 'text',
       text: '[channel-context] channel=feishu chat_id=oc_123 chat_type=group'
     })
-    expect(parts[1]).toEqual({ type: 'text', text: 'Hi' })
+  })
+
+  it('omits source chat context for command-like text so pi command parsing stays intact', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'oc_123',
+      chatType: 'group',
+      userId: 'user-1',
+      userName: 'User',
+      text: '/skill:review please look at this PR'
+    })
+
+    const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+    expect(parts).toEqual([{ type: 'text', text: '/skill:review please look at this PR' }])
+  })
+
+  it('carries no context for a bare /skill command so its name parses exactly', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'oc_123',
+      chatType: 'group',
+      userId: 'user-1',
+      userName: 'User',
+      text: '/skill:review'
+    })
+
+    const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+    // A trailing context part would still break pi here: its command parse reads
+    // `slice(7, indexOf(" "))`, swallowing the context line into the skill name.
+    expect(parts).toEqual([{ type: 'text', text: '/skill:review' }])
+  })
+
+  it.each(['/compact', ' /compact', '\n/compact'])(
+    'carries no context for the compact command %j so its instructions stay clean',
+    async (commandText) => {
+      const adapter = createMockAdapter({ channelType: 'feishu' })
+      simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'oc_123',
+        chatType: 'group',
+        userId: 'user-1',
+        userName: 'User',
+        text: commandText
+      })
+
+      const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+      // PiRuntimeConnection.parseManualCompactCommand trims before matching, so
+      // whitespace-leading compact text is still a command; a context part would land
+      // in its instructions.
+      expect(parts).toEqual([{ type: 'text', text: commandText }])
+    }
+  )
+
+  it('keeps channel context between user text and attachments', async () => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-context-attachments-'))
+    try {
+      const adapter = createMockAdapter({ channelType: 'feishu' })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        agentId: 'agent-1',
+        workspace: { path: workDir }
+      } as any)
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'oc_123',
+        chatType: 'group',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'What is in this image?',
+        images: [{ media_type: 'image/png', data: Buffer.from('image bytes').toString('base64') }]
+      })
+
+      const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+      expect(parts[0]).toEqual({ type: 'text', text: 'What is in this image?' })
+      expect(parts[1]).toEqual({
+        type: 'text',
+        text: '[channel-context] channel=feishu chat_id=oc_123 chat_type=group'
+      })
+      expect(parts[2]).toMatchObject({ type: 'file', mediaType: 'image/png' })
+      expect(parts).toHaveLength(3)
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
   })
 
   it('omits source chat context when the channel exposes no chat type', async () => {
@@ -1053,11 +1141,11 @@ describe('ChannelMessageHandler', () => {
     await Promise.all([first, second])
     expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
     const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
-    expect(parts[0]).toEqual({
+    expect(parts[0]).toEqual({ type: 'text', text: 'first\nsecond' })
+    expect(parts[1]).toEqual({
       type: 'text',
       text: '[channel-context] channel=feishu chat_id=oc_123 chat_type=group'
     })
-    expect(parts[1]).toEqual({ type: 'text', text: 'first\nsecond' })
   })
 
   it('flushes a sustained message burst at the original sixteen-second deadline', async () => {

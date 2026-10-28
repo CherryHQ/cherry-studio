@@ -413,18 +413,28 @@ export class ChannelMessageHandler {
       }
 
       const userParts: CherryMessagePart[] = []
-      // Surface the source chat identity as leading session context so the agent can pick a
-      // reply style per chat kind (Feishu p2p vs group) from metadata alone, without guessing
-      // from message text or chat-id prefixes. Channels that do not expose a chat kind keep
-      // their payload unchanged.
-      if (message.chatType) {
+      if (message.text) {
+        userParts.push({ type: 'text', text: message.text })
+      }
+      // Surface the source chat identity as session context AFTER the user text so the agent can
+      // pick a reply style per chat kind (Feishu p2p vs group) from metadata alone, without
+      // guessing from message text or chat-id prefixes. It must trail the user text because
+      // downstream joins text parts in order and position-sensitive consumers gate on the joined
+      // text's leading position (pi expands `/skill:` commands only when the joined text starts
+      // with the command). Command-like text (leading `/`) carries no context at all: even
+      // trailing, pi's command parse would read the context line into the command name/args.
+      // The check trims leading whitespace first: adapters do not all normalize text, and
+      // cherry's own `/compact` parse trims before matching, so ` /compact` must be treated as
+      // command-like too.
+      // Trade-off: a literal message that merely starts with `/` (e.g. a pasted absolute path)
+      // also loses its context line; that is the price of keeping command input byte-identical
+      // to pre-context behavior.
+      // Channels that do not expose a chat kind keep their payload unchanged.
+      if (message.chatType && !message.text?.trimStart().startsWith('/')) {
         userParts.push({
           type: 'text',
           text: `[channel-context] channel=${adapter.channelType} chat_id=${message.chatId} chat_type=${message.chatType}`
         })
-      }
-      if (message.text) {
-        userParts.push({ type: 'text', text: message.text })
       }
       if (message.images?.length && workDir) {
         userParts.push(...(await this.persistImages(message.images)))
