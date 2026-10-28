@@ -73,7 +73,9 @@ const MessageImageBlock: React.FC<Props> = ({ sources, isSingle, thumbnail, clas
     [sources, urls]
   )
   const states = useHeifRenditions(inputs)
-  const images = states.flatMap((state) => (state.url ? [state.url] : []))
+  const gallery = states.flatMap((state, index) =>
+    state.url ? [{ id: `message-image-${index}`, src: state.url }] : []
+  )
   return (
     <>
       {states.map((state, index) =>
@@ -87,7 +89,7 @@ const MessageImageBlock: React.FC<Props> = ({ sources, isSingle, thumbnail, clas
           </div>
         ) : null
       )}
-      <ImageBlock images={images} isSingle={isSingle} thumbnail={thumbnail} className={className} />
+      <ImageBlock images={gallery} isSingle={isSingle} thumbnail={thumbnail} className={className} />
     </>
   )
 }
