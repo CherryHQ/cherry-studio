@@ -1,6 +1,7 @@
 import type { IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
+import { agentHandlers } from './agent'
 import { aiHandlers } from './ai'
 import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
@@ -61,6 +62,7 @@ import { windowHandlers } from './window'
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...aiHandlers,
+  ...agentHandlers,
   ...voiceHandlers,
   ...apiGatewayHandlers,
   ...appHandlers,

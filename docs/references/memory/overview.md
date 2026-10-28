@@ -28,6 +28,18 @@ If you relied on Global Memory in v1:
 - For Agents, use **Agent File Memory** — it serves the same remember-about-the-user role via `USER.md`, scoped per agent.
 - For Assistants, put durable facts into the assistant's prompt, or curate them in a **Knowledge Base** until a successor feature lands.
 
+## Viewing and editing memory in the app
+
+Agent conversations expose a **Memory** button in the toolbar. It opens a dialog
+with the four files that belong to the current agent:
+
+- `SOUL.md`, `USER.md`, and `memory/FACT.md` are rendered as Markdown; `memory/JOURNAL.jsonl` is shown as raw JSONL.
+- Each file can be edited in place. Saves are validated against the agent data root, written atomically, and limited to 1 MB of text.
+- **Open folder** reveals the agent data directory for external tools.
+
+This is a read/write view over the same files the runtime loads — there is still no
+app-wide Global Memory setting.
+
 ## Details
 
 ### Agent File Memory (Agent only)
