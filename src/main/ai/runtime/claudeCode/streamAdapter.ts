@@ -1443,6 +1443,15 @@ export class ClaudeCodeStreamAdapter {
       }
       const probe = ctx.scratchpadStreamHtmlCarry + chunk
       if (!/<(textarea|title|script|style)[\s>]|<!--|<!\[CDATA\[/i.test(probe)) {
+        // An already completed fence cannot become overlap: starting the next
+        // probe inside it would reinterpret its closer as a new opener.
+        const completedFences = maskCodeFences(chunk).fences
+        const lastFence = completedFences.at(-1)
+        const fenceFloor = lastFence ? chunk.lastIndexOf(lastFence) + lastFence.length : 0
+        ctx.scratchpadStreamHtmlCarryScanned = Math.max(
+          ctx.scratchpadStreamHtmlCarryScanned,
+          ctx.accumulatedText.length - chunk.length + fenceFloor
+        )
         // No opener in the scanned text: only a bounded tail can still become
         // a pattern start once more text arrives (the longest pattern prefix
         // is '<![CDATA['), so keep that overlap window and mark the rest

@@ -135,7 +135,8 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
     }
     const tag = isBackslashEscaped(text, start) ? null : parseOpeningTagAt(text, start)
     if (tag) {
-      pos = htmlTextElementEnd(text, tag, start) ?? start + tag.opener.length
+      const bodyEnd = htmlTextElementEnd(text, tag, start)
+      pos = bodyEnd ?? start + tag.opener.length
       ranges.push({ start, end: pos })
     } else pos = start + 1
   }
@@ -2024,6 +2025,7 @@ export function maskCodeFences(
   const mayHaveOpaqueMarkup = text.includes('<')
   let opaqueScanPos = 0
   let opaqueUntil = -1
+  let inlineCursor = 0
   const isInsideOpaqueMarkup = (index: number): boolean => {
     if (!mayHaveOpaqueMarkup) return false
     for (;;) {
@@ -2036,6 +2038,12 @@ export function maskCodeFences(
       if (lt > index) {
         opaqueScanPos = lt
         return false
+      }
+      while (inlineCursor < inlineRanges.length && inlineRanges[inlineCursor].end <= lt) inlineCursor++
+      const literalSpan = inlineRanges[inlineCursor]
+      if (literalSpan && lt >= literalSpan.start) {
+        opaqueScanPos = literalSpan.end
+        continue
       }
       if (text.startsWith('<!--', lt) || text.startsWith('<![CDATA[', lt)) {
         const end = opaqueMarkupEnd(text, lt)!
@@ -2353,7 +2361,15 @@ export function stableScratchpadStreamPrefix(
   const tick = active.indexOf('`')
   if (tick !== -1) {
     const match = /<(?:thinking|analysis|assessment)(?:[\s/>]|$)/i.exec(masked.slice(currentStart + tick))
-    const markup = match ? currentStart + tick + match.index : -1
+    let markup = match ? currentStart + tick + match.index : -1
+    // A partial wrapper name is already ambiguous; do not emit it and then
+    // retract when the next delta completes the name inside revocable HTML.
+    const lastLt = masked.lastIndexOf('<')
+    if (lastLt >= currentStart + tick) {
+      const tail = masked.slice(lastLt + 1).toLowerCase()
+      if (MODEL_SCRATCHPAD_TAG_NAMES.some((name) => name.startsWith(tail)))
+        markup = markup === -1 ? lastLt : Math.min(markup, lastLt)
+    }
     if (markup !== -1) {
       let rawOffset = markup
       const tokens = new RegExp(`${fenced.placeholderBase}CODE_FENCE_(\\d+)\uE001`, 'g')

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+
+import freshCorpus from './r16-corpus.json'
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: vi.fn(() => ({ silly: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
@@ -173,6 +175,87 @@ describe('append-only scratchpad answer streaming', () => {
       } as any)
       expect(s.text()).toBe(raw)
     }
+  })
+  it('preserves latest review literal ownership cases through every delivery', () => {
+    const cases = [
+      ['Use `<textarea>`\n\n~~~xml\n<thinking>LITERAL</thinking>\n~~~', [1000]],
+      [
+        '~~~xml\n<thinking>LITERAL</thinking>\n~~~\n<textarea><thinking>LITERAL</thinking></textarea>',
+        [5, 1, 2, 3, 1000]
+      ],
+      ['`open <textarea><thinking>LITERAL</thinking></textarea>\n\nDone', [3, 1, 2, 5, 1000]]
+    ] as const
+    for (const [raw, sizes] of cases)
+      for (const size of sizes) {
+        const s = setup()
+        for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+        s.stop()
+        expect(s.text(), JSON.stringify({ raw, size })).toBe(raw)
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text()).toBe(raw)
+        expect(s.a.scratchpadPrefixViolation).toBe(false)
+      }
+  })
+  it.each([
+    ['code-literal-fence', 'Use `<textarea>`\n\n~~~xml\n<thinking>LITERAL</thinking>\n~~~', 1000],
+    [
+      'five-char-HTML-overlap',
+      '~~~xml\n<thinking>LITERAL</thinking>\n~~~\n<textarea><thinking>LITERAL</thinking></textarea>',
+      5
+    ],
+    ['three-char-literal-prefix', '`open <textarea><thinking>LITERAL</thinking></textarea>\n\nDone', 3]
+  ])('pins original sensitivity %s', (_name, raw, size) => {
+    const s = setup()
+    for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+    s.stop()
+    expect(s.text()).toBe(raw)
+    s.a.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 's',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+    } as any)
+    expect(s.text()).toBe(raw)
+  })
+  it('does not commit revocable text-body ownership across later inline ticks', () => {
+    const raw = '`<style>``<thinking>`SECRET<thinking>-->```\n'
+    const s = setup()
+    for (let i = 0; i < raw.length; i += 2) s.push(raw.slice(i, i + 2))
+    s.stop()
+    expect(s.text()).toBe(raw)
+    s.a.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 's',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+    } as any)
+    expect(s.text()).toBe(raw)
+  })
+  it('preserves independent R16 regression corpus across delivery partitions', () => {
+    for (const raw of freshCorpus)
+      for (const size of [2, 3, 5]) {
+        const expected = stripKnownModelScratchpadBlocksPreservingCodeFences(raw)
+        const s = setup()
+        for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+        s.stop()
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text(), JSON.stringify({ raw, size })).toBe(expected)
+        expect(s.a.scratchpadPrefixViolation).toBe(false)
+      }
   })
   it('keeps quoted greater-than attributes opaque through fragments and snapshot', () => {
     const exact = ['`x`\n\n', '<div title="> <analysis>literal</analysis>"', '>PUBLIC</div>']

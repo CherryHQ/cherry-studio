@@ -201,3 +201,10 @@ describe('summary envelope normalization order', () => {
     expect(ContextPrompts.formatCompactSummary('<summary><summary>Public</summary></summary>')).toBe('Public')
   })
 })
+
+describe('code-literal HTML before tilde fence', () => {
+  it('formatCompactSummary preserves the real fenced example', () => {
+    const raw = 'Use `<textarea>`\n\n~~~xml\n<thinking>LITERAL</thinking>\n~~~'
+    expect(ContextPrompts.formatCompactSummary(raw)).toBe(raw)
+  })
+})
