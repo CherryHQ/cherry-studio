@@ -206,7 +206,7 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   // The Qwen3.8 series does not support the `agent` value of search_strategy on Chat
   // (docs.qwencloud.com/developer-guides/tool-calling/web-search): search is enabled without a
   // strategy; agent-style retrieval is served by the Responses `web_search` tool instead.
-  it.each(['qwen3.8-max', 'qwen3.8-2.4t-a95b', 'qwen3.8-27b', 'qwen3.8-flash'])(
+  it.each(['qwen3.8-max', 'qwen3.8-max-0902', 'qwen3.8-2.4t-a95b', 'qwen3.8-27b', 'qwen3.8-flash'])(
     'enables search without a strategy for %s',
     (apiModelId) => {
       expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({
@@ -231,6 +231,20 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   // legacy aliases stay off the chat path too.
   it('injects nothing on chat for legacy aliases outside the table', () => {
     expect(getWebSearchParams(qwencloud('qwen-plus'), qwencloudPreset)).toEqual({})
+  })
+
+  it('falls back to client search for undocumented Qwen3.8 Max Preview', () => {
+    const m = { ...qwencloud('qwen3.8-max-preview'), capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+    expect(
+      resolveWebToolRoutes(m, qwencloudPreset, {
+        webSearchEnabled: true,
+        modelToolsPreferred: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      }).webSearch
+    ).toBe('client')
+    expect(getWebSearchParams(m, qwencloudPreset)).toEqual({})
   })
 
   // The supported-models table marks DeepSeek-V4 / GLM-5.2 "Responses API only" — Chat's

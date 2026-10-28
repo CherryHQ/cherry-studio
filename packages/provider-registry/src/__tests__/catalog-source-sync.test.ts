@@ -12,6 +12,7 @@
  * (pricing on md-derived rows, inferred metadata) remain out of scope. Runs in the network-free
  * `provider-registry` test project (CI: test:provider-registry).
  */
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -76,6 +77,23 @@ const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?:
   `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
 
 describe('catalog ↔ source sync (regenerate guard)', () => {
+  it.each(['models.json', 'providers.json', 'provider-models.json'])(
+    '%s version identifies its current content',
+    (file) => {
+      const { version, ...body } = read(file)
+      const canonical = JSON.stringify(body, (_key, value) =>
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? Object.fromEntries(
+              Object.keys(value)
+                .sort()
+                .map((key) => [key, value[key]])
+            )
+          : value
+      )
+      expect(version).toBe(createHash('sha256').update(canonical).digest('hex').slice(0, 16))
+    }
+  )
+
   it('keeps AMD GPU Cloud in the twentieth slot used to seed new profiles', () => {
     expect(PROVIDERS[19]?.id).toBe('radeon-cloud')
     expect(providers[19]?.id).toBe('radeon-cloud')

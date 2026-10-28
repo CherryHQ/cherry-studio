@@ -119,10 +119,9 @@ const listedModels = [
 
 /**
  * Chat `enable_search` eligibility per the QwenCloud web-search supported-models table.
- * Prefixes hit canonical ids, so dated snapshots and `-preview` fold in.
+ * Max uses an exact canonical id to exclude the undocumented Qwen3.8 Max Preview variant.
  */
 const webSearchModelPrefixes = [
-  'qwen3-8-max',
   'qwen3-8-flash',
   'qwen3-8-2-4t-a95b',
   'qwen3-8-27b',
@@ -284,7 +283,7 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
-      modelIds: ['qwen3-8-omni-flash'],
+      modelIds: ['qwen3-8-max', 'qwen3-8-omni-flash'],
       endpointTypes: ['openai-chat-completions']
     },
     {
