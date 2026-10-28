@@ -366,6 +366,36 @@ describe('ModelSelector', () => {
       expect(onSelect).not.toHaveBeenCalled()
     })
 
+    it('starts Subscribe for every locked plan model', async () => {
+      const onSelect = vi.fn()
+      const firstLocked = { ...makeModelItem('openai::plan-model-1'), locked: true }
+      const secondLocked = { ...makeModelItem('openai::plan-model-2'), locked: true }
+      const listItems: FlatListItem[] = [
+        { key: 'provider-cherryai', type: 'group', title: 'CherryAI', groupKind: 'provider', isCherryAiGroup: true },
+        firstLocked,
+        secondLocked
+      ]
+      mocks.useModelSelectorData.mockReturnValue(
+        makeData({ listItems, modelItems: [firstLocked, secondLocked], subscribedPlanName: undefined })
+      )
+      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
+
+      await userEvent.click(screen.getByTestId('model-selector-item-openai::plan-model-1'))
+      await userEvent.click(screen.getByTestId('model-selector-item-openai::plan-model-2'))
+
+      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledTimes(2)
+      expect(onSelect).not.toHaveBeenCalled()
+    })
+
+    it('draws the subscription lock in the tag color', () => {
+      renderCherryAiGroup()
+
+      const subscriptionTag = screen.getByText('models.type.subscription').closest('div')
+      // The lock inherits the tag's text color, so the icon and the label can never diverge.
+      expect(subscriptionTag).toHaveStyle({ color: '#d48806' })
+      expect(subscriptionTag?.querySelector('svg')).toHaveAttribute('stroke', 'currentColor')
+    })
+
     it('shows the backend plan name instead of the link once subscribed', () => {
       renderCherryAiGroup('Plus')
 
