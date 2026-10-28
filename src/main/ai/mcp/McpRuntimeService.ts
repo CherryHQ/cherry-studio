@@ -42,7 +42,7 @@ import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import type { BuiltinMcpServerName } from '@shared/utils/mcp'
-import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
+import { isSensitiveKey, REDACTED, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { createExternalMcpConnection } from './connections/ExternalMcpConnection'
@@ -799,8 +799,11 @@ export class McpRuntimeService extends BaseService {
             ? 'timeout'
             : 'error'
         errorSummary = {
-          name: error instanceof Error ? error.name : 'Error',
-          message: redactSecretText(error instanceof Error ? error.message : String(error)).slice(0, 500),
+          name: redactSecretTokens(redactSecretText(error instanceof Error ? error.name : 'Error')),
+          message: redactSecretTokens(redactSecretText(error instanceof Error ? error.message : String(error))).slice(
+            0,
+            500
+          ),
           ...(error instanceof SdkError ? { code: error.code } : {})
         }
         throw error

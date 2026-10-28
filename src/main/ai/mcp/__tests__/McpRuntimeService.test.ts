@@ -854,6 +854,7 @@ describe('MCP call lifecycle logs', () => {
     getByIdMock.mockReturnValue(server)
     interactionMocks.broadcastToType.mockClear()
     mockMainLoggerService.info.mockClear()
+    mockMainLoggerService.error.mockClear()
   })
 
   it.each(['success', 'tool-error', 'exception', 'timeout', 'cancelled'] as const)(
@@ -861,9 +862,14 @@ describe('MCP call lifecycle logs', () => {
     async (outcome) => {
       const service = new McpRuntimeService()
       const controller = new AbortController()
+      const credential = 'sk-ant-abcdefghijklmnopqrstuvwx'
       vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue({
         callTool: async () => {
-          if (outcome === 'exception') throw new Error('Transport failed')
+          if (outcome === 'exception') {
+            const error = new Error(`Upstream rejected ${credential}. ${'x'.repeat(430)} ${credential}`)
+            error.name = `UpstreamError ${credential}`
+            throw error
+          }
           if (outcome === 'timeout')
             throw new SdkError(SdkErrorCode.RequestTimeout, 'Request timed out', { timeout: 10 })
           if (outcome === 'cancelled') {
@@ -898,13 +904,22 @@ describe('MCP call lifecycle logs', () => {
       })
       expect(new Set(logs.map((entry) => entry.eventId)).size).toBe(2)
       expect(mockMainLoggerService.info).toHaveBeenCalledWith('Tool call started', logs[0].data)
+      if (outcome === 'exception') {
+        expect(mockMainLoggerService.error).toHaveBeenCalledWith('Tool call finished', logs[1].data)
+        expect(logs[1].data).toMatchObject({
+          error: {
+            name: 'UpstreamError <redacted>',
+            message: expect.stringContaining('Upstream rejected <redacted>')
+          }
+        })
+      }
       expect(
         interactionMocks.broadcastToType.mock.calls
           .filter(([, event]) => event === 'mcp.server.log')
           .map(([, , data]) => data)
       ).toEqual(logs.map((entry) => ({ ...entry, serverId: server.id })))
       const serialized = JSON.stringify(logs)
-      for (const secret of ['private-key', 'private.example', 'private-result'])
+      for (const secret of ['private-key', 'private.example', 'private-result', 'sk-ant-'])
         expect(serialized).not.toContain(secret)
     }
   )
