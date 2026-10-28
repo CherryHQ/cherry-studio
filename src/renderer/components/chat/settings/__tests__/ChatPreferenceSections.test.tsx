@@ -9,6 +9,7 @@ import ChatPreferenceSections from '../ChatPreferenceSections'
 
 const mocks = vi.hoisted(() => ({
   loadThemeNames: vi.fn(async () => ['auto', 'github']),
+  loadCmThemeNames: vi.fn(async () => ['auto', 'githubDark']),
   setPreference: vi.fn(),
   preferenceValues: {
     'chat.message.style': 'plain',
@@ -66,7 +67,12 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyleThemeCatalog: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
+  useCodeStyleThemeCatalog: () => ({
+    loadThemeNames: mocks.loadThemeNames,
+    themeNames: ['auto', 'github'],
+    loadCmThemeNames: mocks.loadCmThemeNames,
+    cmThemeNames: ['auto', 'githubDark']
+  })
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({

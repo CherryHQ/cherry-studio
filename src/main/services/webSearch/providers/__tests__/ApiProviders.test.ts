@@ -67,7 +67,7 @@ const fetchRemoteTextMock = mocks.fetchRemoteText
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,
-  excludeDomains: ['example.com'],
+  excludeDomains: ['*://*.example.com/*'],
   compression: {
     method: 'none',
     cutoffLimit: 2000
@@ -239,6 +239,27 @@ describe('main web search API providers', () => {
       Site: 'exclude:qq.com|sohu.com'
     })
     expect(config).toEqual(original)
+  })
+
+  it('maps blacklist rules to bare domains for Bocha and Querit site exclusion', async () => {
+    const excludeDomains = ['*://*.qq.com/*', '*://exact.example/*', '/regex\\.example/']
+    const config = { ...runtimeConfig, excludeDomains }
+
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('bocha-response.json')))
+    await createProviderDriver(
+      BochaProvider,
+      createProvider({ id: 'bocha', apiKeys: ['bocha-key'], apiHost: 'https://api.bochaai.com' })
+    ).searchKeywords('hello', config)
+    expect(serializeRequestBody(fetchMock.mock.calls[0][1].body)).toMatchObject({ exclude: 'qq.com' })
+
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('querit-response.json')))
+    await createProviderDriver(
+      QueritProvider,
+      createProvider({ id: 'querit', apiKeys: ['querit-key'], apiHost: 'https://api.querit.ai' })
+    ).searchKeywords('hello', config)
+    expect(serializeRequestBody(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      filters: { sites: { exclude: ['qq.com'] } }
+    })
   })
 
   it.each(['Cnt is not supported in lite version', '极速版不支持参数Cnt'])(
@@ -1923,6 +1944,32 @@ describe('main web search API providers', () => {
       expect(fetchMock.mock.lastCall?.[0]).toBe('https://api.querit.ai/v1/contents')
     }
   )
+
+  it.each([
+    ['failed page with empty content', [{ id: '1', url: 'https://example.com', content: '' }]],
+    ['failed crawl omitted from results', []]
+  ])('preserves the Querit page failure through the real adapter: %s', async (_reason, results) => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({ error_code: 200, error_msg: '', results, statuses: [{ id: '1', status: 'failed' }] })
+    )
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }]
+      })
+    )
+
+    await expect(provider.fetchUrls('https://example.com', runtimeConfig)).rejects.toMatchObject({
+      kind: 'provider',
+      code: 'page_fetch_failed',
+      message: 'Querit could not fetch page content for https://example.com',
+      providerId: 'querit',
+      capability: 'fetchUrls'
+    })
+  })
 
   it('accepts Querit responses whose error_code is a numeric string', async () => {
     fetchMock.mockResolvedValue(

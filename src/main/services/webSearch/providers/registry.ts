@@ -12,6 +12,7 @@ import { FirecrawlProvider } from './api/FirecrawlProvider'
 import { JinaProvider } from './api/JinaProvider'
 import { ParallelProvider } from './api/ParallelProvider'
 import { QueritProvider } from './api/QueritProvider'
+import { SearchApiProvider } from './api/SearchApiProvider'
 import { SearxngProvider } from './api/SearxngProvider'
 import { SerplyProvider } from './api/SerplyProvider'
 import { TavilyProvider } from './api/TavilyProvider'
@@ -42,5 +43,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   yuanbao: YuanbaoProvider,
   deepseek: DeepSeekProvider,
   desearch: DesearchProvider,
+  searchapi: SearchApiProvider,
   duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

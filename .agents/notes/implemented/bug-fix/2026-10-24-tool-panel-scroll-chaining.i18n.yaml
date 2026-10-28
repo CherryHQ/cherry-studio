@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-24-tool-panel-scroll-chaining.md
+2026-10-24-tool-panel-scroll-chaining.md: edab79d77daeb6127fe57552649b12691e7a43ab
+2026-10-24-tool-panel-scroll-chaining.zh.md: 8ad919e6957a90eaa154962c553bc5b3a754d38c

@@ -547,6 +547,36 @@ describe('QuickPanelView', () => {
     expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
   })
 
+  it('keeps pinyin matches for every row when descriptions repeat across items', async () => {
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => '',
+      getCursorOffset: () => 0,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'pdf', label: 'PDF skill', description: '知识库中的技术资料', icon: 'file' },
+            { id: 'research', label: 'Research skill', description: '知识库', icon: 'search' }
+          ]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          initialSearchText="zsk"
+        />
+      </QuickPanelProvider>
+    )
+
+    expect(await screen.findByText('PDF skill')).toBeInTheDocument()
+    expect(screen.getByText('Research skill')).toBeInTheDocument()
+  })
+
   it('closes with Escape even when the key event does not come from the input adapter', async () => {
     const captureDispatch = vi.fn()
     const onClose = vi.fn()

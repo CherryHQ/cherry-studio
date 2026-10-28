@@ -1,6 +1,8 @@
-import type { DocumentChange, HighlightResult, SnapshotRequest, TokensResult } from '@cherrystudio/ui/code-highlight'
+import type { CodeBlockHighlightResult as HighlightResult } from '@cherrystudio/ui/code-block'
+import type { DocumentChange, SnapshotRequest, TokensResult } from '@cherrystudio/ui/code-highlight'
 
-export type { HighlightRange, HighlightResult } from '@cherrystudio/ui/code-highlight'
+export type { HighlightRange } from '@cherrystudio/ui/code-highlight'
+export type { CodeBlockHighlightResult as HighlightResult } from '@cherrystudio/ui/code-block'
 type Session = { sessionId: string }
 type Revision = { revision: number; configurationRevision: number }
 export type HighlightRequest =
