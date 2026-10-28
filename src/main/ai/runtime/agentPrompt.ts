@@ -37,6 +37,8 @@ export interface BuildAgentRuntimePromptOptions {
   agentDataPath: string
   agent: AgentEntity
   citationsGuidance?: string
+  /** Formatted source-chat identity for channel-originated sessions (from the hidden data part). */
+  channelContext?: string
   /** Context required only when a custom system.md replaces the runtime's native base. */
   customBaseContext?: string
   /** Materialized effective language; when omitted the preference is read live. */
@@ -52,6 +54,7 @@ export async function buildAgentRuntimePrompt({
   agentDataPath,
   agent,
   citationsGuidance,
+  channelContext,
   customBaseContext,
   effectiveLanguage,
   mcpInstructions
@@ -87,6 +90,7 @@ export async function buildAgentRuntimePrompt({
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
+    channelContext ? buildChannelContextSection(channelContext) : undefined,
     citationsGuidance,
     mcpInstructions,
     getLanguageInstruction(agent, effectiveLanguage)
@@ -95,6 +99,18 @@ export async function buildAgentRuntimePrompt({
     .join('\n\n')
 
   return { base: parts.base, append }
+}
+
+/**
+ * Source-chat identity for channel-originated sessions. Lives in the system prompt (never the
+ * user-turn text) so command parses keep seeing byte-identical input while the agent can still
+ * pick a reply style per chat kind.
+ */
+function buildChannelContextSection(channelContext: string): string {
+  return `## Source chat
+
+This session's messages arrive from a linked chat channel. Pick a reply style that fits the chat kind (direct p2p vs group).
+${channelContext}`
 }
 
 function buildAgentInstructionsSection(instructions: string): string {

@@ -1310,6 +1310,39 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    it('queues a channel steer whose chat identity differs from the live turn, folds an equal one', async () => {
+      const withContext = (id: string, chatId?: string) => {
+        const message = userMessage(id)
+        if (chatId) {
+          message.data.parts.push({
+            type: 'data-channel-context',
+            data: { channel: 'feishu', chatId, chatType: 'group' }
+          })
+        }
+        return message
+      }
+
+      // Live turn serving chat oc_123 on a connection baked with that identity.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: withContext('user-1', 'oc_123') })
+      const entry = getEntry(service)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+      entry.connection = connection
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      // A steer from a DIFFERENT chat must not fold: the running connection cannot represent it.
+      service.enqueueUserMessage('session-1', withContext('user-2', 'oc_other'), {})
+      expect(connection.redirect).not.toHaveBeenCalled()
+      expect(entry.pendingTurns).toHaveLength(1)
+
+      // A steer from the SAME chat folds: its hidden context part is redundant for injection.
+      service.enqueueUserMessage('session-1', withContext('user-3', 'oc_123'), {})
+      expect(connection.redirect).toHaveBeenCalledTimes(1)
+      expect(entry.pendingTurns).toHaveLength(1)
+      void service.closeSession('session-1')
+    })
+
     it('refreshes the trace context before starting a steer continuation stream', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

@@ -21,7 +21,7 @@ import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionS
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
-import { withCherryMeta } from '@shared/data/types/uiParts'
+import { createChannelContextPart, withCherryMeta } from '@shared/data/types/uiParts'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -416,25 +416,22 @@ export class ChannelMessageHandler {
       if (message.text) {
         userParts.push({ type: 'text', text: message.text })
       }
-      // Surface the source chat identity as session context AFTER the user text so the agent can
-      // pick a reply style per chat kind (Feishu p2p vs group) from metadata alone, without
-      // guessing from message text or chat-id prefixes. It must trail the user text because
-      // downstream joins text parts in order and position-sensitive consumers gate on the joined
-      // text's leading position (pi expands `/skill:` commands only when the joined text starts
-      // with the command). Command-like text (leading `/`) carries no context at all: even
-      // trailing, pi's command parse would read the context line into the command name/args.
-      // The check trims leading whitespace first: adapters do not all normalize text, and
-      // cherry's own `/compact` parse trims before matching, so ` /compact` must be treated as
-      // command-like too.
-      // Trade-off: a literal message that merely starts with `/` (e.g. a pasted absolute path)
-      // also loses its context line; that is the price of keeping command input byte-identical
-      // to pre-context behavior.
-      // Channels that do not expose a chat kind keep their payload unchanged.
-      if (message.chatType && !message.text?.trimStart().startsWith('/')) {
-        userParts.push({
-          type: 'text',
-          text: `[channel-context] channel=${adapter.channelType} chat_id=${message.chatId} chat_type=${message.chatType}`
-        })
+      // Attach the source chat identity as a HIDDEN data part so the agent can pick a reply style
+      // per chat kind (Feishu p2p vs group) from metadata alone, without guessing from message
+      // text or chat-id prefixes. It must stay out of the text parts: downstream joins them in
+      // order and position-sensitive consumers gate on the joined text's exact content (pinned pi
+      // 1.0.0 expands `/skill:` only when the joined text starts with the command and parses the
+      // name as slice(7, first space), so a context line anywhere in the text breaks bare
+      // commands). The runtime reads the part host-side and surfaces the identity via the system
+      // prompt instead. Channels that do not expose a chat kind keep their payload unchanged.
+      if (message.chatType) {
+        userParts.push(
+          createChannelContextPart({
+            channel: adapter.channelType,
+            chatId: message.chatId,
+            chatType: message.chatType
+          })
+        )
       }
       if (message.images?.length && workDir) {
         userParts.push(...(await this.persistImages(message.images)))

@@ -234,6 +234,7 @@ describe('projectLiveMessageParts', () => {
         { type: 'source-document' },
         { type: 'data-agent-task-event', data: {} },
         { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } },
+        { type: 'data-channel-context', data: { channel: 'feishu', chatId: 'oc_123', chatType: 'group' } },
         { type: 'data-clear', data: {} }
       ])
     )
