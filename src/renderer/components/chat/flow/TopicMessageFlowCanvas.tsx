@@ -27,6 +27,7 @@ interface TopicMessageFlowCanvasProps {
   onNodeContextMenu?: (messageId: string) => void
   className?: string
   focusKey?: string | number
+  focusReady?: boolean
   layoutReady?: boolean
 }
 
@@ -103,6 +104,7 @@ const TopicMessageFlowCanvas = ({
   onNodeContextMenu,
   onNodeSelect,
   focusKey,
+  focusReady = true,
   layoutReady = true
 }: TopicMessageFlowCanvasProps) => {
   const { t } = useTranslation()
@@ -170,13 +172,13 @@ const TopicMessageFlowCanvas = ({
   const rootFocusPositionY = rootFocusTarget?.positionY
   const rootFocusCenterY = rootFocusTarget?.centerY
   const focusActive = rootFocusTarget?.isActive
-  const focusSignature = rootFocusKey ? String(focusKey ?? 'initial') : null
-  const [initialViewport, setInitialViewport] = useState<{ signature: string; viewport: Viewport } | null>(null)
+  const focusSignature = focusReady === true && rootFocusKey ? String(focusKey ?? 'initial') : null
+  const [readyViewport, setReadyViewport] = useState<Viewport | null>(null)
   const initialViewportSignatureRef = useRef<string | null>(null)
-  const readyViewport = initialViewport?.signature === focusSignature ? initialViewport.viewport : null
 
   useEffect(() => {
     if (
+      focusReady !== true ||
       !layoutReady ||
       !focusSignature ||
       rootFocusCenterX === undefined ||
@@ -199,16 +201,15 @@ const TopicMessageFlowCanvas = ({
       }
 
       initialViewportSignatureRef.current = focusSignature
-      setInitialViewport({
-        signature: focusSignature,
-        viewport: focusActive
+      setReadyViewport(
+        focusActive
           ? {
               x: containerWidth / 2 - rootFocusCenterX * rootFocusViewport.zoom,
               y: containerHeight / 2 - rootFocusCenterY * rootFocusViewport.zoom,
               zoom: rootFocusViewport.zoom
             }
           : getRootFocusViewport(containerWidth, rootFocusCenterX, rootFocusPositionY)
-      })
+      )
     }
 
     frame = window.requestAnimationFrame(measure)
@@ -217,7 +218,7 @@ const TopicMessageFlowCanvas = ({
       cancelled = true
       window.cancelAnimationFrame(frame)
     }
-  }, [focusSignature, layoutReady, rootFocusCenterX, rootFocusCenterY, rootFocusPositionY, focusActive])
+  }, [focusSignature, focusReady, layoutReady, rootFocusCenterX, rootFocusCenterY, rootFocusPositionY, focusActive])
 
   useEffect(() => {
     if (!reactFlowInstance || !readyViewport) return
@@ -247,7 +248,6 @@ const TopicMessageFlowCanvas = ({
       )}>
       {layoutReady && readyViewport && (
         <ReactFlow<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>
-          key={focusSignature}
           colorMode="system"
           defaultViewport={readyViewport}
           deleteKeyCode={null}

@@ -1,6 +1,6 @@
 import { CopyPlus, GitBranch } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
@@ -65,6 +65,50 @@ const TopicBranchPanel: FC<Props> = ({
     enabled: open,
     params: { topicId }
   })
+  const refreshCycleRef = useRef<{ id: number; topicId: string; focusKey: Props['focusKey'] } | null>(null)
+  const [cycleRefresh, setCycleRefresh] = useState<{
+    cycle: NonNullable<typeof refreshCycleRef.current>
+    data?: unknown
+    ready: boolean
+  } | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    if (refreshCycleRef.current?.topicId === topicId && refreshCycleRef.current.focusKey === focusKey) return
+    const cycle = { id: (refreshCycleRef.current?.id ?? 0) + 1, topicId, focusKey }
+    refreshCycleRef.current = cycle
+
+    const refresh = async () => {
+      try {
+        const refreshedData = await refetch()
+        if (refreshCycleRef.current === cycle) {
+          setCycleRefresh({ cycle, data: refreshedData, ready: false })
+        }
+      } catch {
+        if (refreshCycleRef.current === cycle) setCycleRefresh({ cycle, ready: true })
+      }
+    }
+    void refresh()
+  }, [open, topicId, focusKey, refetch])
+
+  useEffect(() => {
+    // SWR mutate returns the committed cache reference; wait until that reference is rendered.
+    if (
+      cycleRefresh &&
+      !cycleRefresh.ready &&
+      (data === cycleRefresh.data || (cycleRefresh.data === undefined && error))
+    ) {
+      setCycleRefresh({ ...cycleRefresh, ready: true })
+    }
+  }, [cycleRefresh, data, error])
+
+  const focusReady =
+    open &&
+    cycleRefresh?.cycle.topicId === topicId &&
+    cycleRefresh.cycle.focusKey === focusKey &&
+    cycleRefresh.cycle === refreshCycleRef.current &&
+    cycleRefresh.ready
+
   useDataChange(
     '/topics/:topicId/tree',
     () => {
@@ -274,11 +318,11 @@ const TopicBranchPanel: FC<Props> = ({
         </span>
       </div>
       <div className="min-h-0 flex-1">
-        {error ? (
+        {error && !data ? (
           <div className="flex h-full min-h-80 items-center justify-center text-destructive text-sm" role="alert">
             {t('common.error')}
           </div>
-        ) : isLoading ? (
+        ) : isLoading && !data ? (
           <div className="flex h-full min-h-80 items-center justify-center text-foreground-tertiary text-sm">
             {t('common.loading')}
           </div>
@@ -290,7 +334,8 @@ const TopicBranchPanel: FC<Props> = ({
             <div className="h-full min-h-0">
               <TopicMessageFlowCanvas
                 className="h-full min-h-0 rounded-none border-0"
-                focusKey={focusKey}
+                focusKey={cycleRefresh?.cycle.id}
+                focusReady={focusReady}
                 graph={graph}
                 layoutReady={layoutReady}
                 onNodeContextMenu={handleNodeContextMenu}
