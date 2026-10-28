@@ -54,6 +54,7 @@ function snapshot(text: string): FileEditRead {
 let disk: FileEditRead
 let writes: string[]
 let failWrite: boolean
+let holdWrite: Promise<void> | undefined
 let manager: FileEditSessionManager
 let relocationRequests: Array<{ route: string; input: any }>
 let eventLog: string[]
@@ -75,6 +76,7 @@ beforeEach(() => {
   disk = snapshot('saved')
   writes = []
   failWrite = false
+  holdWrite = undefined
   relocationRequests = []
   eventLog = []
   manager = new FileEditSessionManager()
@@ -94,6 +96,7 @@ beforeEach(() => {
     if (route === 'file.edit.read') return disk
     if (route === 'file.edit.close') return undefined
     if (route === 'file.edit.write' && input && typeof input === 'object' && 'expected' in input && 'data' in input) {
+      await holdWrite
       const content = new TextDecoder().decode(input.data)
       if (failWrite) throw new IpcError(fileErrorCodes.EDIT_NO_SPACE, 'File save failed')
       if (input.expected.contentHash !== disk.baseline.contentHash) {
@@ -211,6 +214,111 @@ describe('NotesMigrationHost migration ordering', () => {
     )
     // prepareMutation unseals on failure: the editor is usable again after the abort.
     expect(lease.acceptEdit('after abort')).toBe(true)
+    lease.release()
+  })
+
+  it('releases the seal when migration_finished arrives while the flush is still in flight', async () => {
+    renderHost()
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.acceptEdit('held draft')).toBe(true)
+
+    let releaseWrite!: () => void
+    holdWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    act(() => fire('app.notes_relocation.migration_started', { batchId: 'b1' }))
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b1' }))
+    await flushMicrotasks()
+    // The write is still held: prepareMutation has not resolved.
+    expect(relocationRequests.find((r) => r.route === 'app.notes_relocation.flush_ack')).toBeUndefined()
+
+    // Main aborts on its own timeout and broadcasts migration_finished mid-prepare.
+    act(() => fire('app.notes_relocation.migration_finished', undefined))
+    await flushMicrotasks()
+    expect(notesMigrationLock.isLocked()).toBe(true) // still locked until the seal is released
+
+    await act(async () => {
+      holdWrite = undefined
+      releaseWrite()
+    })
+    // finish() ran on the late resolution: unsealed, invalidated, lock reset.
+    await waitFor(() => expect(notesMigrationLock.isLocked()).toBe(false))
+    await waitFor(() => expect(lease.getSnapshot().sealed).toBe(false))
+
+    // No stale prepared survives: a fresh migration batch completes normally.
+    act(() => fire('app.notes_relocation.migration_started', { batchId: 'b2' }))
+    expect(lease.acceptEdit('second batch edit')).toBe(true)
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b2' }))
+    await waitFor(() =>
+      expect(relocationRequests).toContainEqual({
+        route: 'app.notes_relocation.flush_ack',
+        input: { batchId: 'b2', ok: true }
+      })
+    )
+    expect(writes).toContain('second batch edit')
+    lease.release()
+  })
+
+  it('coalesces a duplicate flush_requested for the same in-flight batch into one prepareMutation', async () => {
+    renderHost()
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.acceptEdit('dup draft')).toBe(true)
+
+    let releaseWrite!: () => void
+    holdWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b1' }))
+    await flushMicrotasks()
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b1' }))
+
+    await act(async () => {
+      holdWrite = undefined
+      releaseWrite()
+    })
+    await waitFor(() =>
+      expect(
+        relocationRequests.filter((r) => r.route === 'app.notes_relocation.flush_ack' && r.input.ok === true).length
+      ).toBeGreaterThan(0)
+    )
+    // Exactly one flush write: the manager never saw a concurrent second prepareMutation.
+    expect(writes).toEqual(['dup draft'])
+    // And no spurious not-ok acknowledgement (a thrown second prepare would abort the migration).
+    expect(
+      relocationRequests.filter((r) => r.route === 'app.notes_relocation.flush_ack' && r.input.ok === false)
+    ).toEqual([])
+    lease.release()
+  })
+
+  it('releases a stale seal and starts fresh when a different batch id arrives mid-prepare', async () => {
+    renderHost()
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.acceptEdit('stale draft')).toBe(true)
+
+    let releaseWrite!: () => void
+    holdWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b1' }))
+    await flushMicrotasks()
+    act(() => fire('app.notes_relocation.flush_requested', { batchId: 'b2' }))
+
+    await act(async () => {
+      holdWrite = undefined
+      releaseWrite()
+    })
+    // b1's prepared result is finished (unsealed), then b2 prepares fresh and acks ok.
+    await waitFor(() =>
+      expect(relocationRequests).toContainEqual({
+        route: 'app.notes_relocation.flush_ack',
+        input: { batchId: 'b2', ok: true }
+      })
+    )
+    await waitFor(() => expect(lease.getSnapshot().sealed).toBe(true)) // sealed again under b2
+    expect(lease.acceptEdit('during b2 seal')).toBe(false)
+
+    act(() => fire('app.notes_relocation.migration_finished', undefined))
+    await waitFor(() => expect(notesMigrationLock.isLocked()).toBe(false))
     lease.release()
   })
 
