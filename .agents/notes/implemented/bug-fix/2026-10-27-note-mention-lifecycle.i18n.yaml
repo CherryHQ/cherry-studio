@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-27-note-mention-lifecycle.md
-2026-10-27-note-mention-lifecycle.md: ef8f3b4e40dccf6f34978467541a7c96b9d0bc75
-2026-10-27-note-mention-lifecycle.zh.md: 0a5d1da50917f3846db4d2c4464c1d5491cb8ff0
+2026-10-27-note-mention-lifecycle.md: 77f0b98466be333f1bc79efe374f26c13b2c5246
+2026-10-27-note-mention-lifecycle.zh.md: b44cfc6aec796fedc298c9c1c7a04cdce1cb3a13

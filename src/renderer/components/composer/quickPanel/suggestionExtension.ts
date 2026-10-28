@@ -1,7 +1,7 @@
 import type { Editor, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
-import { Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
+import { exitSuggestion, Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
 import { t } from 'i18next'
 import type { ReactNode } from 'react'
 
@@ -49,6 +49,7 @@ export interface ComposerSuggestionActiveChangeOptions {
   query: string
   text: string
   items: ComposerSuggestionItem[]
+  exit: () => void
 }
 
 interface ComposerSuggestionPluginState {
@@ -59,14 +60,20 @@ interface ComposerSuggestionPluginState {
 }
 
 function createActiveChangeOptions(
-  props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>
+  props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>,
+  pluginKey: PluginKey<ComposerSuggestionPluginState>
 ): ComposerSuggestionActiveChangeOptions {
   return {
     editor: props.editor,
     range: props.range,
     query: props.query,
     text: props.text,
-    items: props.items
+    items: props.items,
+    exit: () => {
+      if (!props.editor.isDestroyed && isCurrentActiveSuggestion(props, pluginKey)) {
+        exitSuggestion(props.editor.view, pluginKey)
+      }
+    }
   }
 }
 
@@ -98,7 +105,7 @@ function createSuggestionRender(
     if (itemsGeneration !== getLatestItemsGeneration() || itemsGeneration === lastNotifiedItemsGeneration) return
     if (!isCurrentActiveSuggestion(props, pluginKey)) return
     lastNotifiedItemsGeneration = itemsGeneration
-    source.onActiveChange?.(createActiveChangeOptions(props))
+    source.onActiveChange?.(createActiveChangeOptions(props, pluginKey))
   }
 
   return {
@@ -107,7 +114,7 @@ function createSuggestionRender(
     onExit: (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
       const current = pluginKey.getState(props.editor.state)
       if (current?.active && !isCurrentActiveSuggestion(props, pluginKey)) return
-      source.onExit?.(createActiveChangeOptions(props))
+      source.onExit?.(createActiveChangeOptions(props, pluginKey))
     },
     onKeyDown: (props: SuggestionKeyDownProps) => source.onKeyDown?.(props) ?? false
   }
