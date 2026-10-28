@@ -237,49 +237,63 @@ it.each([true, false])(
   }
 )
 
-it('recovers the requested isolated profile after an owned pre-main launch has exited', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
-  const paths = getRunPaths(directory)
-  ensureRunDirectories(paths)
-  writeFileSync(
-    paths.appRecord,
-    JSON.stringify({
-      schemaVersion: 1,
-      ownership: 'regression-driver',
-      policy: 'ephemeral',
-      mode: 'branch',
-      platform: 'macos',
-      profile: 'authenticated',
-      runKey: 'promotion',
-      targetRoot: directory,
-      runnerPid: 42000,
-      cdpPort: 9222,
-      logPath: join(paths.logs, 'electron.log'),
-      restartCount: 1
+it.each([
+  ['macos', false],
+  ['windows', false],
+  ['macos', true],
+  ['windows', true]
+] as const)(
+  'recovers the requested %s profile after its owned launch exits (main was ready: %s)',
+  async (platform, wasReady) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    writeFileSync(
+      paths.appRecord,
+      JSON.stringify({
+        schemaVersion: 1,
+        ownership: 'regression-driver',
+        policy: 'ephemeral',
+        mode: 'branch',
+        platform,
+        profile: 'authenticated',
+        runKey: 'promotion',
+        targetRoot: directory,
+        runnerPid: 42000,
+        cdpPort: 9222,
+        logPath: join(paths.logs, 'electron.log'),
+        restartCount: 1,
+        ...(wasReady ? { electronPid: 42002, targetUrl: 'http://localhost:5173/windows/main/index.html' } : {})
+      })
+    )
+    let launched = false
+    execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+    spawn.mockImplementation(() => {
+      launched = true
+      return { pid: 42001, unref() {} }
     })
-  )
-  let launched = false
-  execFileSync.mockImplementation(() => (launched ? '42001' : ''))
-  spawn.mockImplementation(() => {
-    launched = true
-    return { pid: 42001, unref() {} }
-  })
-  vi.spyOn(process, 'kill').mockImplementation((pid) => {
-    if (pid === 42001) return true
-    throw new Error('Process not found')
-  })
-  vi.stubGlobal('fetch', async () => ({
-    ok: true,
-    json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
-  }))
-  try {
-    expect(() => readAppRecord(paths)).toThrow('has not finished launching')
-    const ready = await ensureProfile(paths, 'authenticated')
-    expect(ready).toMatchObject({ electronPid: 42001, profile: 'authenticated', runKey: 'promotion', restartCount: 2 })
-    expect(spawn.mock.calls[0][2].env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
-  } finally {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-    rmSync(directory, { recursive: true, force: true })
+    vi.spyOn(process, 'kill').mockImplementation((pid) => {
+      if (pid === 42001) return true
+      throw new Error('Process not found')
+    })
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+    }))
+    try {
+      if (!wasReady) expect(() => readAppRecord(paths)).toThrow('has not finished launching')
+      const ready = await ensureProfile(paths, 'authenticated')
+      expect(ready).toMatchObject({
+        electronPid: 42001,
+        profile: 'authenticated',
+        runKey: 'promotion',
+        restartCount: 2
+      })
+      expect(spawn.mock.calls[0][2].env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+      rmSync(directory, { recursive: true, force: true })
+    }
   }
-})
+)

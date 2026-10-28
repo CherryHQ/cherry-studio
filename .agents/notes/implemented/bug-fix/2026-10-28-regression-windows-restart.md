@@ -12,6 +12,8 @@ The Windows regression controller restarted Electron by calling `taskkill /T /F`
 
 Before a Windows restart, verify the owned Electron process and main-process inspector, request `app.quit()`, and wait up to 30 seconds for that Electron process to exit. Schedule the quit after acknowledging the inspector request so the controller can disconnect. Only then clean up the owned launcher and start the replacement with the same profile. A shutdown timeout fails the restart without forcing Electron to exit or launching a replacement.
 
+Request normal shutdown only when the recorded Electron PID is still alive. If the owned launch has already exited, including before its main-window record was complete, perform the existing ownership-checked cleanup and launch the requested profile. A recycled live PID still has to pass ownership checks. This recovery does not establish why the previous process exited.
+
 ## Alternatives considered
 
 - Flushing individual storage APIs in the test would bypass the normal product shutdown path.
@@ -24,4 +26,4 @@ Windows persistence scenarios now request normal application shutdown. Final cle
 ## Verification
 
 - Regression — `scripts/e2e/regression/__tests__/gracefulRestart.test.ts`: normal shutdown saves pending state, a foreign inspector is rejected, and a blocked quit retains the running application and pending state.
-- Regression — the explicit `debugBridge.test.ts`, `lifecycle.test.ts`, `launch.test.ts`, and `process.test.ts` consumers pass together with the new tests (39 tests).
+- Regression — `launch.test.ts` covers recovery after an exited launch, both before and after the main-window record is complete, on both platforms. Windows process fixtures in `lifecycle.test.ts` use Windows paths even when the tests run on macOS.

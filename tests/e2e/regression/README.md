@@ -21,6 +21,7 @@ The separate [Playwright config](../../../playwright.regression.config.ts) uses 
 
 The application process and configured service providers are shared within a run. Provider configuration comes from the same run environment and is not changed between scenarios.
 Custom assistants and knowledge bases are named with their case ID. Agent work directories are case-scoped; file tasks remove their own previous output before asserting newly produced content.
+M-02 sends its provider-verification message from a case-owned assistant with no custom prompt and removes that assistant after the persistence check.
 Each non-startup scenario begins on Chat with quick/selection assistants disabled. Persistence assertions restart the application inside the same scenario without repeating setup, so initialization cannot hide lost persisted state.
 The built-in assistant's tests start new tasks and clear skill tokens where required. A scenario that mutates a shared resource must restore its intended state explicitly before relying on it.
 
@@ -139,4 +140,5 @@ A passing implemented flow does not cover capabilities absent from the current p
 | MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |
 | MP-107 | Shortcut configuration, paste-as-file, delete confirmation and settings persistence | Live token counting in the draft composer |
 | MP-115 | Backup archive creation and backup-manager visibility | Native notification delivery |
+| MP-144 | Queue, steer, edited queue targets and exclusion of conflicting shortcuts | A warning after attempting to select a conflicting shortcut; those choices are absent |
 | MP-150 | Files RTF formatting, encoding, validation, preview switching, links and restart; Chat attachment transport | Ordinary Chat RTF side panel, a 360px side panel, and Shift-JIS/Big5 fixtures |

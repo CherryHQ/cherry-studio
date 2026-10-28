@@ -166,14 +166,12 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
     const steerSelect = page.locator('#setting-appearance-steer-shortcuts [role="combobox"]')
     await steerSelect.click()
     const conflict = page.getByRole('option', { name: labels[0], exact: true })
-    if (await conflict.isVisible()) await conflict.click()
-    await screenshot('MP-144 conflicting shortcut attempt')
-    await expect
-      .soft(
-        page.getByText(/This shortcut is already|Already used by|此快捷键已被占用|已被「.+」使用/).first(),
-        'Conflicting steer binding must display an occupied shortcut explanation'
-      )
-      .toBeVisible({ timeout: 1_000 })
+    await expect(conflict, 'The send binding must be excluded from steer choices').toHaveCount(0)
+    testInfo.annotations.push({
+      type: 'uncovered',
+      description: 'Composer shortcuts exclude conflicting bindings; no rejected-selection warning path is available.'
+    })
+    await screenshot('MP-144 conflicting shortcut excluded')
     await page.keyboard.press('Escape')
     await expect(steerSelect).toHaveText(labels[2])
     await expect(page.locator('#setting-appearance-send-shortcuts [role="combobox"]')).toHaveText(labels[0])

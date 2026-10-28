@@ -14,7 +14,7 @@ import { findListeningPid, MAIN_INSPECTOR_PORT } from '../../../../scripts/e2e/r
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
-import { selectSidebarApp } from '../helpers/navigation'
+import { dismissTransientDialogs, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -26,6 +26,7 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
   const providerName = app.resourceName('Recovery mock')
   const assistantName = app.resourceName('Recovery assistant')
   const authError = 'Incorrect API key provided. MP17_AUTH_DETAIL.'
+  const privateResponseDetail = 'MP17_PRIVATE_RESPONSE_PAYLOAD'
   const contextError = 'maximum context length exceeded: MP17_CONTEXT_DETAIL'
   const upstream = await startMockChatServer()
   let fault: 'none' | 'quota' | 'model' | 'rate' = 'none'
@@ -56,7 +57,12 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
                   : undefined
       if (failure) {
         res.writeHead(failure.status, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: { message: failure.message, type: failure.code, code: failure.code } }))
+        res.end(
+          JSON.stringify({
+            error: { message: failure.message, type: failure.code, code: failure.code },
+            debug: privateResponseDetail
+          })
+        )
         return
       }
       const response = await fetch(`${upstream.baseUrl}${req.url?.replace(/^\/v1/, '')}`, {
@@ -167,7 +173,7 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     await selectSidebarApp(page, 'Chat')
     const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await row.hover()
-    await row.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await row.getByRole('button', { name: 'New Chat', exact: true }).press('Enter')
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(upstream.modelId)
     await Promise.all([
       sendChatMarker(page, 'Verify the configured model.', 'MP17_BASELINE_OK'),
@@ -191,10 +197,16 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     await expect(details).toContainText(authError)
     await details.getByRole('button', { name: 'Copy', exact: true }).click()
     const copied = await page.evaluate(() => navigator.clipboard.readText())
-    await screenshot('MP-17 expanded original error details')
-    await testInfo.attach('MP-17 original response and copied error', {
+    await screenshot('MP-17 expanded safe error details')
+    await testInfo.attach('MP-17 fixture response and copied safe error', {
       body: JSON.stringify(
-        { response: { error: { message: authError, type: 'invalid_api_key', code: 'invalid_api_key' } }, copied },
+        {
+          response: {
+            error: { message: authError, type: 'invalid_api_key', code: 'invalid_api_key' },
+            debug: privateResponseDetail
+          },
+          copied
+        },
         null,
         2
       ),
@@ -202,15 +214,19 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     })
     expect(copied).toContain(authError)
     expect(copied).toContain('401')
-    expect(copied).toContain('invalid_api_key')
-    await page.keyboard.press('Escape')
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Open provider settings', exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`/settings/provider.*${providerId}`))
-    await expect(page.getByText(providerName, { exact: true }).first()).toBeVisible()
+    expect(copied).toContain('AI_APICallError')
+    expect(copied).not.toContain(privateResponseDetail)
+    expect(copied).not.toContain(validKey)
+    expect(copied).not.toContain(invalidKey)
+    await page.mouse.move(0, 0)
+    await expect(page.getByRole('status').filter({ hasText: 'Copied!' })).toHaveCount(0)
+    await dismissTransientDialogs(page)
+    await message().getByRole('button', { name: 'Go to Settings', exact: true }).click()
+    await expect(page.getByRole('heading', { name: providerName, exact: true, level: 1 })).toBeVisible()
     await setKey(validKey)
     await closeSettings(page)
-    await page.getByRole('button', { name: 'Retry', exact: true }).click()
+    await message().hover()
+    await message().getByRole('button', { name: 'Regenerate', exact: true }).click()
     const retry = await upstream.nextRequest()
     expect(requests.at(-1)?.authorization).toBe(`Bearer ${validKey}`)
     expect(JSON.stringify(retry.body.messages)).toContain('Reply after the credential is repaired.')
@@ -314,8 +330,9 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     await expect(page.getByRole('button', { name: 'View MCP server', exact: true })).toBeVisible({ timeout: 60_000 })
     await screenshot('MP-17 offline MCP recovery action')
     await page.getByRole('button', { name: 'View MCP server', exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`/settings/mcp/settings/${mcpId}`))
-    await expect(page.getByText('MP17 offline MCP', { exact: true }).first()).toBeVisible()
+    await expect(page.locator('#mcp-settings-form').getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(
+      'MP17 offline MCP'
+    )
     await screenshot('MP-17 MCP recovery destination')
   } finally {
     await page.evaluate(

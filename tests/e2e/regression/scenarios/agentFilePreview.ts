@@ -96,8 +96,13 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   await expect.poll(() => readFile(target, 'utf8'), { timeout: 30_000 }).toBe(expected)
   await edited.getByTestId('completed-process-trigger').click()
   for (let round = 0; round < 3; round += 1) {
-    for (const disclosure of await edited.locator('[aria-expanded="false"][aria-controls]').all()) {
-      if ((await disclosure.innerText()).trim()) await disclosure.click()
+    const controls = await edited
+      .locator('[aria-expanded="false"][aria-controls]')
+      .filter({ hasText: /\S/ })
+      .evaluateAll((elements) => elements.map((element) => element.getAttribute('aria-controls')!))
+    for (const control of controls) {
+      const disclosure = edited.locator(`[aria-controls=${JSON.stringify(control)}]`)
+      if ((await disclosure.getAttribute('aria-expanded')) === 'false') await disclosure.click()
     }
   }
   const editToggle = edited.getByRole('button', { name: /^(Edit|Modify)(?:\s|$)/i }).first()

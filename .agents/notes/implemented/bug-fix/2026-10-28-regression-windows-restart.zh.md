@@ -12,6 +12,8 @@ Windows 回归控制器对启动器执行 `taskkill /T /F` 来重启 Electron。
 
 Windows 重启前，验证受控 Electron 进程及主进程检查器的归属，请求 `app.quit()`，并等待该 Electron 进程退出，最长 30 秒。在检查器请求得到响应后调度退出，让控制器能够断开连接。随后才清理受控启动器，并使用同一配置目录启动替代实例。退出超时会使重启失败，不会强制结束 Electron 或启动替代实例。
 
+仅在记录的 Electron PID 仍存活时请求正常退出。受控启动已结束时，包括主窗口记录尚未完成的情况，执行现有的归属校验清理并启动请求的配置目录。被复用且存活的 PID 仍需通过归属检查。这一恢复流程不能证明前一个进程为何退出。
+
 ## 考虑过的替代方案
 
 - 在测试中逐一刷新存储 API 会绕过产品的正常退出路径。
@@ -24,4 +26,4 @@ Windows 持久化场景现在请求应用正常退出。最终清理保留原有
 ## 验证
 
 - 回归 — `scripts/e2e/regression/__tests__/gracefulRestart.test.ts`：正常退出保存待写入状态，拒绝其他进程的检查器，退出受阻时保留运行中的应用及待写入状态。
-- 回归 — 显式指定的 `debugBridge.test.ts`、`lifecycle.test.ts`、`launch.test.ts` 和 `process.test.ts` 相关调用方与新增测试一起通过（共 39 项测试）。
+- 回归 — `launch.test.ts` 覆盖两个平台上受控启动退出后的恢复，包括主窗口记录完成之前和之后。`lifecycle.test.ts` 中的 Windows 进程夹具即使在 macOS 上运行测试，也使用 Windows 路径。

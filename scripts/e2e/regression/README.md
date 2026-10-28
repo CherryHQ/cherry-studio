@@ -48,14 +48,17 @@ application dependencies. The controller then launches the development server di
 including on profile switches and persistence-test restarts. Local controller runs must
 perform the same preparation in the target checkout before `launch`; release installers
 do not need it. Restarting preserves the owned application's profile. On Windows,
-restart requests `app.quit()` through its verified main-process inspector and waits
+restart of a live instance requests `app.quit()` through its verified main-process inspector and waits
 for normal shutdown so persistence tests do not simulate a forced crash. A shutdown
 timeout fails the restart; it does not force termination and launch a replacement.
+An already-exited launch is cleaned up with the same ownership checks before its replacement starts.
 Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
 so package-manager subprocesses cannot escape the owned process group. Each profile sets
 `CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
 state, user data, and logs from developer instances. Launches disable occluded-window
 backgrounding so Playwright actionability checks keep receiving animation frames.
+Profile-root startup also explicitly sets Electron's temporary directory before freezing
+the path registry, because setting `TMPDIR` alone does not isolate that API on macOS.
 Both branch and installer launches give the child a profile-owned home, Claude config
 directory, Codex home, and temporary directory. Windows AppData directories are created there too. Code Mate
 configuration writes therefore use the isolated profile's credentials
