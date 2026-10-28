@@ -1,0 +1,99 @@
+import { createContext, type ReactElement, type ReactNode, use, useMemo } from 'react'
+
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
+import type { CherryUIMessage } from '@shared/data/types/message'
+
+import { type AgentLaunchIndex, type AgentTaskLiveness, resolveResumeReceiptState } from '../shared/agentToolTypes'
+import { getPartLaunchToolCallId } from '../toolParentMetadata'
+import type { ToolResponseLike } from '../toolResponse'
+import { buildResumeToolHeader } from './agentResumeHeader'
+
+const AgentLaunchIndexContext = createContext<AgentLaunchIndex | null>(null)
+
+const AgentTaskLivenessContext = createContext<AgentTaskLiveness | undefined>(undefined)
+
+/**
+ * Provide the list-level launch-identity index so resume resolution is O(1) instead of
+ * re-scanning the transcript per consumer during streaming. Unlike PartsContext, nested
+ * boundaries never null this out — completed tool groups reset PartsContext to skip approval
+ * checks, which would also hide any consumer that must see other messages' launch parts.
+ */
+/**
+ * The Agent-owned resume presentation a host hands to shared components: which receipt heads its
+ * group, and with which header. The policy lives here, next to the index it resolves against.
+ */
+export interface AgentResumePresentation {
+  /** The header a resume receipt heads its group with, or undefined when it is not one. */
+  renderResumeHeader: (toolResponse: ToolResponseLike, canNavigate: boolean) => ReactElement | undefined
+}
+
+const AgentResumePresentationContext = createContext<AgentResumePresentation | null>(null)
+
+export function AgentLaunchIndexProvider({
+  value,
+  liveness,
+  children
+}: {
+  value: AgentLaunchIndex | null
+  /** The runtime liveness task statuses are reconciled against (omitted by hosts without a run). */
+  liveness?: AgentTaskLiveness
+  children: ReactNode
+}) {
+  const presentation = useMemo<AgentResumePresentation>(
+    () => ({
+      renderResumeHeader: (toolResponse, canNavigate) => {
+        // A failed or cancelled delivery resumed nothing, so its group keeps the diagnostic row.
+        if (toolResponse.status === 'error' || toolResponse.status === 'cancelled') return undefined
+        const state = resolveResumeReceiptState(
+          toolResponse.response,
+          getPartLaunchToolCallId(toolResponse),
+          value,
+          canNavigate
+        )
+        return state.kind === 'none' ? undefined : buildResumeToolHeader(state, toolResponse)?.header
+      }
+    }),
+    [value]
+  )
+  return (
+    <AgentLaunchIndexContext value={value}>
+      <AgentTaskLivenessContext value={liveness}>
+        <AgentResumePresentationContext value={presentation}>{children}</AgentResumePresentationContext>
+      </AgentTaskLivenessContext>
+    </AgentLaunchIndexContext>
+  )
+}
+
+/** Read the list-level launch index (null when no provider is mounted). */
+export function useAgentLaunchIndex() {
+  return use(AgentLaunchIndexContext)
+}
+
+/** Read the runtime liveness a row reconciles nonterminal task edges against (undefined without one). */
+export function useAgentTaskLiveness(): AgentTaskLiveness | undefined {
+  return use(AgentTaskLivenessContext)
+}
+
+/**
+ * The liveness a host provides: the assistant rows whose own turn is still pending, plus the
+ * runtime's current background-task membership. Mirrors what the status pane reconciles against.
+ */
+export function useAgentTaskLivenessValue(messages: CherryUIMessage[], sessionId?: string): AgentTaskLiveness {
+  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  return useMemo(
+    () => ({
+      activeMessageIds: new Set(
+        messages
+          .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
+          .map((message) => message.id)
+      ),
+      liveBackgroundTaskIds: new Set(backgroundTasks.map((task) => task.id))
+    }),
+    [backgroundTasks, messages]
+  )
+}
+
+/** Read the host's resume presentation (null when the host mounts no Agent launch index). */
+export function useAgentResumePresentation(): AgentResumePresentation | null {
+  return use(AgentResumePresentationContext)
+}

@@ -2,32 +2,30 @@ import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
 
 import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
-import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
+import { AgentToolsType, isAskUserQuestionToolName, resolveResumeReceiptState } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
+import { getPartLaunchToolCallId } from '../toolParentMetadata'
 import { isToolPartAwaitingApproval } from '../toolResponse'
-import { AgentToolCallCard } from './AgentToolCallCard'
+import { useAgentLaunchIndex, useAgentTaskLiveness } from './AgentLaunchIndexContext'
+import { buildResumeToolHeader } from './agentResumeHeader'
+import { AgentToolCallCard, getAgentToolFlowTitle } from './AgentToolCallCard'
+import { ownsItsFlowCall, resolveAgentToolFlowTarget } from './agentToolFlowTarget'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
-import { getSubagentTaskStatus } from './subagentStatus'
+import { getSubagentTaskStatus, getSubagentTaskStatusFromIndex } from './subagentStatus'
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
   const partsMap = usePartsMap()
+  const launchIndex = useAgentLaunchIndex()
+  const liveness = useAgentTaskLiveness()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
-
-  const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
-  const taskStatus = useMemo(
-    () =>
-      isSubagentTool
-        ? getSubagentTaskStatus(Object.values(partsMap ?? {}).flat(), toolResponse.toolCallId, status)
-        : undefined,
-    [isSubagentTool, partsMap, status, toolResponse.toolCallId]
-  )
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
   const parsedPartialArgs = useMemo(() => {
@@ -38,6 +36,52 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       return undefined
     }
   }, [deferredPartialArguments])
+
+  // Hooks stay above every early return below: a tool flipping out of its approval wait must not
+  // change this component's hook count (React #310).
+  const listActions = useOptionalMessageListActions()
+  // A failed delivery resumed nothing, so its row keeps the diagnostic disclosure instead of a
+  // resume entry: the reason lives in errorText, which the flow's part.output projection cannot see.
+  const deliveryResolved = status !== 'error' && status !== 'cancelled'
+  const resumeState = useMemo(
+    () =>
+      deliveryResolved && tool?.name === AgentToolsType.SendMessage
+        ? resolveResumeReceiptState(
+            response,
+            getPartLaunchToolCallId(toolResponse),
+            launchIndex,
+            Boolean(listActions?.openAgentToolFlow)
+          )
+        : undefined,
+    [deliveryResolved, tool?.name, response, toolResponse, launchIndex, listActions]
+  )
+  // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
+  // redirecting to the launch root would drop everything the resume produced. The index is read
+  // rather than the parts map, which a settled tool group deliberately empties, and the target
+  // comes from the shared resolver so the row, the disclosure and the pane agree on it.
+  const flowTarget = deliveryResolved
+    ? resolveAgentToolFlowTarget(toolResponse, launchIndex, Boolean(listActions?.openAgentToolFlow))
+    : undefined
+  const receiptRootsItsFlow = flowTarget !== undefined && flowTarget === toolResponse.toolCallId
+
+  const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
+  // The row answers through its resolved flow root — a launch keeps its own call, a continuation
+  // the root it opens — so a resumed child's status is read from the index, not from this group's
+  // parts, which a settled group empties.
+  const statusRoot = isSubagentTool
+    ? toolResponse.toolCallId
+    : tool?.name === AgentToolsType.SendMessage
+      ? flowTarget
+      : undefined
+  const taskStatus = useMemo(
+    () =>
+      statusRoot
+        ? launchIndex
+          ? getSubagentTaskStatusFromIndex(launchIndex, statusRoot, status, liveness)
+          : getSubagentTaskStatus(Object.values(partsMap ?? {}).flat(), statusRoot, status)
+        : undefined,
+    [launchIndex, liveness, partsMap, status, statusRoot]
+  )
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
@@ -62,6 +106,18 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   }
 
   const isLoading = effectiveStatus === 'streaming' || effectiveStatus === 'invoking'
+  const resumeHeader =
+    resumeState && resumeState.kind !== 'none' ? buildResumeToolHeader(resumeState, toolResponse) : undefined
+  const resumeTarget = resumeState?.kind === 'navigable' ? resumeState : undefined
+  // A receipt that owns its flow is an entry too, but it opens on its own call id: no target is
+  // passed, so the card defaults to the call it renders. Its proven local root counts even when
+  // the historical launch is outside the loaded window, so the click is not lost.
+  const resumeEntry =
+    resumeTarget !== undefined ||
+    resumeState?.kind === 'self' ||
+    (resumeState?.kind === 'none' &&
+      toolResponse.toolCallId !== undefined &&
+      ownsItsFlowCall(launchIndex, toolResponse.toolCallId))
   return (
     <>
       <AgentToolCallCard
@@ -73,7 +129,12 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         status={effectiveStatus}
         hasError={effectiveStatus === 'error'}
         isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
-        openFlowOnClick={isSubagentTool}
+        openFlowOnClick={isSubagentTool || resumeEntry}
+        flowTargetToolCallId={receiptRootsItsFlow ? undefined : flowTarget}
+        // The flow is the agent's whole timeline — keep its title the launch identity, not the
+        // resume request's summary.
+        flowTitle={resumeTarget?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
+        labelOverride={resumeEntry ? undefined : resumeHeader?.header}
         showInlineDetails={!isSubagentTool}
       />
       <ToolApprovalOutcome approval={toolResponse.approval} />
