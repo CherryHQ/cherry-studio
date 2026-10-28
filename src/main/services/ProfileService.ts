@@ -1,9 +1,8 @@
-import { Mutex } from 'async-mutex'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { FileEntryIdSchema, type FileEntryId, STORED_FILE_REF_PREFIX, tagStoredFileRef } from '@shared/data/types/file'
 import type { InputFor } from '@shared/ipc/types'
+import { Mutex } from '@shared/utils/async'
 
 import { withCreatedImageEntry } from './entityImageBinding'
 
@@ -17,12 +16,10 @@ function avatarFileId(value: string): FileEntryId | undefined {
 
 class ProfileService {
   private readonly avatarMutex = new Mutex()
-  private readonly retiredAvatars = new Set<FileEntryId>()
 
   /**
    * The avatar lives only in Preference, without a file_ref row. Serialize updates,
-   * compensate failed binds, and retire replaced files after the new value commits.
-   * Failed retirement is retried on a later update in this process.
+   * compensate failed binds, and retire the replaced file after the new value commits.
    */
   setAvatar(input: InputFor<'profile.set_avatar'>): Promise<void> {
     return this.avatarMutex.runExclusive(async () => {
@@ -42,16 +39,12 @@ class ProfileService {
   }
 
   private async retireAvatar(previousId: FileEntryId | undefined): Promise<void> {
-    const currentId = avatarFileId(application.get('PreferenceService').get('app.user.avatar'))
-    if (previousId && previousId !== currentId) this.retiredAvatars.add(previousId)
-    if (currentId) this.retiredAvatars.delete(currentId)
-    for (const id of this.retiredAvatars) {
-      try {
-        await application.get('FileManager').deleteUnreferencedInternalEntry(id)
-        this.retiredAvatars.delete(id)
-      } catch (error) {
-        logger.error(`Failed to retire avatar file_entry ${id}; will retry on the next avatar update`, error as Error)
-      }
+    if (!previousId || previousId === avatarFileId(application.get('PreferenceService').get('app.user.avatar'))) return
+    try {
+      await application.get('FileManager').deleteUnreferencedInternalEntry(previousId)
+    } catch (error) {
+      // No retry: a leftover manual entry surfaces in the manual-orphan report.
+      logger.error(`Failed to retire avatar file_entry ${previousId}`, error as Error)
     }
   }
 }

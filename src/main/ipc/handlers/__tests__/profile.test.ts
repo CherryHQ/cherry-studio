@@ -1,5 +1,4 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -44,7 +43,6 @@ beforeEach(() => {
   fileManager.deleteUnreferencedInternalEntry.mockReset().mockImplementation(async (id) => files.delete(id))
   fileManager.permanentDelete.mockClear()
   transcodeMock.mockReset().mockResolvedValue(WEBP)
-  mockMainLoggerService.error.mockClear()
 })
 
 function seedAvatar() {
@@ -147,18 +145,15 @@ describe('profile.set_avatar ownership', () => {
     expect(files).toEqual(new Set([OLD_ID]))
   })
 
-  it('logs failed retirement and retries it on a later avatar update', async () => {
+  it('still saves the new avatar when retiring the old image fails', async () => {
     seedAvatar()
     fileManager.deleteUnreferencedInternalEntry.mockRejectedValueOnce(new Error('database busy'))
 
-    await profileHandlers['profile.set_avatar']({ kind: 'emoji', emoji: '😀' }, context)
+    await expect(
+      profileHandlers['profile.set_avatar']({ kind: 'emoji', emoji: '😀' }, context)
+    ).resolves.toBeUndefined()
 
     expect(avatar()).toBe('😀')
     expect(files).toEqual(new Set([OLD_ID]))
-    expect(mockMainLoggerService.error).toHaveBeenCalled()
-
-    await profileHandlers['profile.set_avatar']({ kind: 'default' }, context)
-
-    expect(files.size).toBe(0)
   })
 })
