@@ -4,6 +4,16 @@ These helpers serve Node-based unit/integration tests and Playwright E2E scenari
 without importing Electron, application services, or a test runner.
 [`server.ts`](server.ts) provides generic HTTP/HTTPS servers and unused ports.
 
+## Mock development update feed
+
+[`mockUpdateServer.ts`](mockUpdateServer.ts) serves the running package version
+as generic-provider YAML metadata on the configured `127.0.0.1` HTTP feed.
+It supplies the development dependency for `MP-114`; the real application
+updater fetches and compares the metadata. It provides no installer and cannot
+validate downloading, installing, or the published release feed. An occupied
+port fails setup without adopting or stopping the existing listener. Always
+close the fixture after the check. Installer runs use their packaged feed.
+
 ## Mock chat server
 
 [`mockChatServer.ts`](mockChatServer.ts) starts a real HTTP server on an ephemeral

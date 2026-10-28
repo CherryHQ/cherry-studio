@@ -26,6 +26,12 @@ The built-in assistant's tests start new tasks and clear skill tokens where requ
 
 A failed scenario must not supply the expected result for another scenario. Assert a new assistant response, a newly written file, or a real native event; do not inject success markers through IPC.
 
+Development update checks in `MP-114` start the [loopback update feed](../../helpers/http/README.md#mock-development-update-feed)
+from `dev-app-update.yml`, serving the running version without an installer.
+The real updater performs the HTTP request and version comparison; installer
+runs keep their packaged feed. Diagnostic export uses Help → System diagnostics → More.
+The separate assertion about the feedback dialog's Report a problem entrance remains in place.
+
 The `knowledge-smoke` task is one end-to-end case (`K-01`): create and index a knowledge
 base, verify recall, restart the application, then query the persisted base and
 verify the answer and citations. It imports the fixtures only once. The `knowledge`

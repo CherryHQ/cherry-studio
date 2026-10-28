@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import type { Request } from '@playwright/test'
 import AdmZip from 'adm-zip'
+import { parse } from 'yaml'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -18,6 +19,7 @@ import { isAlive } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
+import { startMockUpdateServer } from '../../../helpers/http/mockUpdateServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
@@ -1446,26 +1448,64 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
     await screenshot('MP-114 about version')
   })
   await test.step('Checking updates returns a current or available version', async () => {
-    await content.getByRole('button', { name: 'Check Update', exact: true }).click()
-    const updateError = page.getByRole('dialog', { name: 'Update error', exact: true })
-    const updateResult = page
-      .getByText('You are using the latest version', { exact: true })
-      .or(page.getByText(/^Found new version \d+\./))
-      .or(updateError)
-    await expect(updateResult).toBeVisible({ timeout: 60_000 })
-    await expect
-      .soft(updateResult, 'A real update check must report the latest status or an available version')
-      .toContainText(/You are using the latest version|Found new version \d+\./, { timeout: 1_000 })
-    await screenshot('MP-114 update result')
-    if (await updateError.isVisible()) await updateError.getByRole('button', { name: 'Confirm', exact: true }).click()
+    let feed: Awaited<ReturnType<typeof startMockUpdateServer>> | undefined
+    if (app.record.mode === 'branch') {
+      const config = parse(await readFile(join(app.record.targetRoot, 'dev-app-update.yml'), 'utf8')) as {
+        provider: string
+        url: string
+      }
+      expect(config.provider).toBe('generic')
+      const result = (await page.evaluate(() => window.api.ipcApi.request('app.get_info'))) as IpcResult<{
+        version: string
+      }>
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('Cannot read the running version for the development update feed')
+      feed = await startMockUpdateServer(config.url, result.data.version)
+      testInfo.annotations.push({ type: 'update-feed', description: 'Loopback fixture serving the running version.' })
+    }
+    try {
+      await content.getByRole('button', { name: 'Check Update', exact: true }).click()
+      const updateError = page.getByRole('dialog', { name: 'Update error', exact: true })
+      const updateResult = page
+        .getByText('You are using the latest version', { exact: true })
+        .or(page.getByText(/^Found new version \d+\./))
+        .or(updateError)
+      await expect(updateResult).toBeVisible({ timeout: 60_000 })
+      await expect
+        .soft(updateResult, 'A real update check must report the latest status or an available version')
+        .toContainText(/You are using the latest version|Found new version \d+\./, { timeout: 1_000 })
+      await screenshot('MP-114 update result')
+      if (await updateError.isVisible()) await updateError.getByRole('button', { name: 'Confirm', exact: true }).click()
+      if (feed) {
+        expect(
+          feed.requests.some((path) => path.endsWith('.yml')),
+          'The real updater must fetch feed metadata'
+        ).toBe(true)
+        await testInfo.attach('MP-114 development update feed requests', {
+          body: JSON.stringify(feed.requests),
+          contentType: 'application/json'
+        })
+      }
+    } finally {
+      await feed?.close()
+    }
   })
-  await test.step('Feedback offers Report a problem and exports the last 24 hours', async () => {
+  await test.step('Feedback offers Report a problem', async () => {
     await content.getByRole('button', { name: 'Feedback', exact: true }).click()
     const feedback = page.getByRole('dialog', { name: 'Choose a feedback channel', exact: true })
     await expect(feedback).toBeVisible()
     await screenshot('MP-114 feedback channels')
-    await expect(feedback.getByRole('button', { name: /Report a problem/ })).toBeVisible()
-    await feedback.getByRole('button', { name: /Report a problem/ }).click()
+    await expect.soft(feedback.getByRole('button', { name: /Report a problem/ })).toBeVisible({ timeout: 2_000 })
+    await page.keyboard.press('Escape')
+    await expect(feedback).toBeHidden()
+  })
+  await test.step('System diagnostics exports the last 24 hours', async () => {
+    await closeSettings(page)
+    await page.getByRole('button', { name: 'Help', exact: true }).click()
+    await page.getByText('System diagnostics', { exact: true }).click()
+    const doctor = page.getByRole('dialog', { name: 'System diagnostics', exact: true })
+    await doctor.getByRole('button', { name: 'More', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Export diagnostic bundle', exact: true }).click()
     const range = page.getByRole('button', { name: 'Last 24 hours', exact: true })
     await range.click()
     await expect(range).toHaveAttribute('aria-pressed', 'true')
