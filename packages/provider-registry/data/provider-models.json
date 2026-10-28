@@ -13827,6 +13827,29 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "openai/gpt-6.1-terra",
+      "modelId": "gpt-6-1-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "openai/gpt-6-astra",
       "modelId": "gpt-6-astra",
       "pricing": {
@@ -21990,6 +22013,31 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6.1-terra",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxInputTokens": 372000
+      },
+      "modelId": "gpt-6-1-terra",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "gpt-6-astra",
       "endpointTypes": ["openai-responses"],
       "limits": {
@@ -28643,6 +28691,48 @@
             ],
             "defaultEffort": "high",
             "supportedEfforts": ["high"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6.1-terra",
+      "modelId": "gpt-6-1-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -41814,5 +41904,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "db6d5b322de42c49"
+  "version": "e2fb4a4b563d0f27"
 }

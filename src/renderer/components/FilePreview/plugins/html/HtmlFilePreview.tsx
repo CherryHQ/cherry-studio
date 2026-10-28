@@ -23,7 +23,7 @@ import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePrev
 
 const logger = loggerService.withContext('HtmlFilePreview')
 const HTML_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
-const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 type HtmlFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
@@ -34,7 +34,7 @@ function HtmlPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -100,10 +100,12 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
     return (
       <div className="flex min-h-full w-full">
         <Suspense fallback={<HtmlPreviewLoading />}>
-          <LazyCodeViewer
+          <FileEditor
             value={loadState.content}
-            language="html"
-            wrapped
+            fileName={fileName}
+            wrapLines
+            readOnly
+            expanded
             className="min-w-0 flex-1 overflow-hidden"
           />
         </Suspense>

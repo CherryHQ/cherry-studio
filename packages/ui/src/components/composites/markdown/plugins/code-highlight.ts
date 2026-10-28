@@ -1,14 +1,9 @@
 import type { BundledLanguage, CodeHighlighterPlugin } from 'streamdown'
 
-import {
-  CODE_LANGUAGES,
-  createSnapshotExecutor,
-  plainTokens,
-  supportsCodeLanguage,
-  type SnapshotExecutor
-} from '../../../../code-highlight'
+import { createCodeBlockSnapshotExecutor } from '../../../../code-block'
+import { CODE_LANGUAGES, plainTokens, supportsCodeLanguage, type SnapshotExecutor } from '../../../../code-highlight'
 
-const executeLocal = createSnapshotExecutor()
+const executeLocal = createCodeBlockSnapshotExecutor()
 const STREAMDOWN_LANGUAGES = Object.keys(CODE_LANGUAGES).filter(
   (name): name is BundledLanguage => !['text', 'c3', 'cuda', 'tsrx'].includes(name)
 )
