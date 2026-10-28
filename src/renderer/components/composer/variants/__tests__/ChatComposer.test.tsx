@@ -1,8 +1,9 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ComponentType, type ReactNode, useEffect } from 'react'
+import { Activity, type ComponentType, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +19,7 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { installFakeFollowupQueueBackend } from '../../__tests__/fakeFollowupQueueBackend'
 import type * as ComposerSurfaceModule from '../../ComposerSurface'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
@@ -288,6 +290,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
+    subscribeFilesDispatch: vi.fn(() => () => {}),
     setMentionedModels: mocks.setMentionedModels,
     setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: mocks.setIsExpanded,
@@ -683,6 +686,7 @@ describe('ChatComposer', () => {
     })) as unknown as typeof fetch
     mocks.registeredFooterActions.clear()
     MockCacheUtils.resetMocks()
+    installFakeFollowupQueueBackend()
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
@@ -710,6 +714,7 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.set).mockReset()
+    vi.mocked(cacheService.has).mockReset()
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.setCasual).mockReset()
     mocks.createTopic.mockReset()
@@ -2201,26 +2206,346 @@ describe('ChatComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('queues a follow-up while the topic is streaming (does not send directly)', async () => {
+  it('queues a follow-up while the topic is streaming (does not send directly)', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
 
-    render(<ChatComposer topic={topic} onSend={onSend} />)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('restores queued knowledge selection from the user-message parts', async () => {
+  it('queues the follow-up only once when Send is activated again while the first enqueue persists', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      const first = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      // Second activation lands while the first enqueue write is still in flight.
+      const second = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await Promise.all([first, second])
+    })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(onSend).not.toHaveBeenCalled()
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
+  it('queues the follow-up only once when the composer remounts while the first enqueue persists', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open so the first request stays unsettled across
+    // the remount below; count POSTs to catch a second minted UUID.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const firstView = render(<ChatComposer topic={topic} onSend={onSend} />)
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Navigate away while the enqueue write is still in flight, reopen, and
+    // Send the restored draft before the first request settles: the reopened
+    // instance's fresh local guard must not mint a second queued row
+    // (cherry-pr-review inv_785c705f28b6e100).
+    firstView.unmount()
+    const secondView = render(<ChatComposer topic={topic} onSend={onSend} />)
+    let replayedSend: void | Promise<void> | undefined
+    await act(async () => {
+      replayedSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    await act(async () => {
+      releaseEnqueue?.()
+      // onSendDraft may return void; normalize before settling (cherry-pr-review inv_4359c31231f90009).
+      await Promise.allSettled([Promise.resolve(firstSend), Promise.resolve(replayedSend)])
+    })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    secondView.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(onSend).not.toHaveBeenCalled()
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
+  it('queues the follow-up only once when a tab hide/show reconnects effects while the enqueue persists', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open across the tab hide/show below; count POSTs to
+    // catch a duplicate minted UUID (cherry-pr-review inv_9f8c2dcd0a5dd26d#f1).
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const view = render(
+      <Activity mode="visible">
+        <ChatComposer topic={topic} onSend={onSend} />
+      </Activity>
+    )
+    // Type the draft first: the retained editor state after settlement is the
+    // defect, and typing exercises the real text-edit revision path.
+    act(() => mocks.surfaceProps?.onTextChange('hello'))
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // TabRouter hides/shows the tab through Activity BEFORE the enqueue
+    // settles: effects re-run without any edit, which must not advance the
+    // draft edit revision - a spurious bump makes settlement skip the draft
+    // clear and leaves the queued message submittable a second time.
+    await act(async () => {
+      view.rerender(
+        <Activity mode="hidden">
+          <ChatComposer topic={topic} onSend={onSend} />
+        </Activity>
+      )
+    })
+    await act(async () => {
+      view.rerender(
+        <Activity mode="visible">
+          <ChatComposer topic={topic} onSend={onSend} />
+        </Activity>
+      )
+    })
+
+    await act(async () => {
+      releaseEnqueue?.()
+      // onSendDraft may return void; normalize before settling (cherry-pr-review inv_4359c31231f90009).
+      await Promise.allSettled([Promise.resolve(firstSend)])
+    })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    view.rerender(
+      <Activity mode="visible">
+        <ChatComposer topic={topic} onSend={onSend} />
+      </Activity>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+    expect(enqueuePosts).toBe(1)
+    expect(onSend).not.toHaveBeenCalled()
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
+  it('does not resurrect the queued document when editing is cancelled after the enqueue succeeds (saved-draft-after-enqueue)', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open so message editing starts before the enqueue
+    // settles; count POSTs to catch a duplicate minted UUID.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const message = {
+      id: 'edit-target',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={[{ type: 'text', text: 'Old message' }] as any[]} />
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    // Submit the composer's current document (A) while streaming: the
+    // enqueue write stays in flight.
+    let firstSend: void | Promise<void> | undefined
+    await act(async () => {
+      firstSend = mocks.surfaceProps?.onSendDraft({ text: 'original draft', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    // Enter message editing before settlement: the pre-edit draft A is saved
+    // aside and the edit revision advances.
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('edit-target'))
+
+    // The enqueue succeeds while the edit session is open.
+    await act(async () => {
+      releaseEnqueue?.()
+      await Promise.allSettled([Promise.resolve(firstSend)])
+    })
+
+    // Cancel editing: the already-queued document must not return to the
+    // input (cherry-pr-review saved-draft-after-enqueue).
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('')
+
+    // Another Send therefore cannot queue a duplicate of A.
+    await act(async () => {
+      void mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
+  it('clears the submitted document when the assistant switches in the same topic before the enqueue settles', async () => {
+    // The draft editor is keyed by topic: switching assistants inside one
+    // topic does not remount it, so settlement must still clear the submitted
+    // document even though the live queue scope (topic+assistant) has moved
+    // on (cherry-pr-review duplicate-submission-on-assistant-switch).
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    // Hold the queue POST open so the assistant switch lands before settlement.
+    const fakeMutation = mockUseMutation.getMockImplementation()
+    let releaseEnqueue: (() => void) | undefined
+    const enqueueGate = new Promise<void>((resolve) => {
+      releaseEnqueue = resolve
+    })
+    let enqueuePosts = 0
+    mockUseMutation.mockImplementation(((method: string, path: string, options?: unknown) => {
+      const inner = (fakeMutation as (...args: unknown[]) => any)?.(method, path, options)
+      if (method === 'POST' && path === '/followup-queues') {
+        return {
+          ...inner,
+          trigger: vi.fn(async (args: unknown) => {
+            enqueuePosts++
+            await enqueueGate
+            return inner.trigger(args)
+          })
+        }
+      }
+      return inner
+    }) as never)
+
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+    let send: void | Promise<void> | undefined
+    await act(async () => {
+      mocks.surfaceProps?.onTextChange('follow-up A')
+      send = mocks.surfaceProps?.onSendDraft({ text: 'follow-up A', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+
+    // Switch assistants inside the SAME topic while the enqueue is in flight:
+    // the topic-keyed editor still shows the submitted document.
+    mocks.assistant = { ...mocks.assistant, id: 'assistant-2' }
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+    expect(mocks.surfaceProps?.text).toBe('follow-up A')
+
+    await act(async () => {
+      releaseEnqueue?.()
+      await Promise.allSettled([Promise.resolve(send)])
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+
+    // Switching back and pressing Send therefore cannot queue a duplicate.
+    mocks.assistant = { ...mocks.assistant, id: 'assistant-1' }
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      void mocks.surfaceProps?.onSendDraft({ text: mocks.surfaceProps?.text ?? '', tokens: [] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(enqueuePosts).toBe(1)
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
+  it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      mocks.surfaceProps?.onTextChange('draft A')
+    })
+
+    await act(async () => {
+      const submitted = mocks.surfaceProps?.onSendDraft({ text: 'draft A', tokens: [] })
+      // The editor stays editable while the enqueue write is in flight.
+      mocks.surfaceProps?.onTextChange('draft A plus newer edits')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await submitted
+    })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('draft A plus newer edits')
+  })
+
+  it('restores queued knowledge selection from the user-message parts', async () => {
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -2242,6 +2567,7 @@ describe('ChatComposer', () => {
         tokens: [serializeComposerToken(knowledgeToken)]
       })
     })
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     mocks.selectedKnowledgeBases = []
     const queueContent = mocks.surfaceProps?.queueContent as any
@@ -2252,9 +2578,7 @@ describe('ChatComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('restores queued model, reasoning, and Fast controls when editing the item', async () => {
+  it('restores queued model, reasoning, and Fast controls when editing the item', async () => {
     mocks.topicPending = true
     mocks.model = {
       ...model,
@@ -2298,9 +2622,7 @@ describe('ChatComposer', () => {
     ])
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('atomically restores a same-text queued draft with unmanaged tokens from a history preview', async () => {
+  it('atomically restores a same-text queued draft with unmanaged tokens from a history preview', async () => {
     seedInputHistory(['queued draft'])
     mocks.topicPending = true
     const queuedFile = { fileTokenSourceId: 'queued-source', name: 'queued.pdf', path: '/tmp/queued.pdf' } as any
@@ -2438,17 +2760,16 @@ describe('ChatComposer', () => {
     expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
+  it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
 
-    render(<ChatComposer topic={topic} onSend={onSend} />)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'queued', tokens: [] })
     })
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
     const queueContent = mocks.surfaceProps?.queueContent as any
     expect(queueContent).toBeTruthy()
     const itemId = queueContent.props.items[0].id
@@ -2464,9 +2785,7 @@ describe('ChatComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
-  // TODO(#22387): main's composer suite targets the cache-based hook; the
-  // adapted API-backed version of this scenario lands with the composer wiring.
-  it.skip('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {
+  it('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
     const reservedTarget = { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const
@@ -2475,6 +2794,7 @@ describe('ChatComposer', () => {
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'reserved follow-up', tokens: [] })
     })
+    view.rerender(<ChatComposer topic={topic} chatTarget={reservedTarget} onSend={onSend} />)
 
     let queueContent = mocks.surfaceProps?.queueContent as any
     const queuedItem = queueContent.props.items[0]
@@ -2562,17 +2882,16 @@ describe('ChatComposer', () => {
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('does NOT save input history for queued steer follow-ups during streaming', async () => {
+    it('does NOT save input history for queued steer follow-ups during streaming', async () => {
       mocks.topicPending = true
       const onSend = vi.fn().mockResolvedValue(undefined)
 
-      render(<ChatComposer topic={topic} onSend={onSend} />)
+      const view = render(<ChatComposer topic={topic} onSend={onSend} />)
 
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'queued steer', tokens: [] })
       })
+      view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
       // The follow-up is queued (not actually sent), so history must stay clean.
       // onSend should also NOT have been called directly — it goes through the dock.
@@ -3222,7 +3541,18 @@ describe('ChatComposer', () => {
       key === 'chat.composer_draft.topic-1'
         ? {
             text: 'hello',
-            tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }],
+            tokens: [
+              {
+                id: 'knowledge:base-1',
+                kind: 'knowledge',
+                label: 'Base 1',
+                promptText:
+                  'The user attached knowledge base "Base 1" (id: base-1). Include "base-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.',
+                payload: { id: 'base-1', name: 'Base 1' },
+                index: 0,
+                textOffset: 0
+              }
+            ],
             files: [],
             knowledgeBaseIds: ['base-1']
           }
@@ -3246,7 +3576,18 @@ describe('ChatComposer', () => {
     mocks.knowledgeBasesLoading = true
     vi.mocked(cacheService.get).mockReturnValue({
       text: 'hello',
-      tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }],
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText:
+            'The user attached knowledge base "Base 1" (id: base-1). Include "base-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.',
+          payload: { id: 'base-1', name: 'Base 1' },
+          index: 0,
+          textOffset: 0
+        }
+      ],
       files: [],
       knowledgeBaseIds: ['base-1']
     })
@@ -3267,6 +3608,134 @@ describe('ChatComposer', () => {
       expect.objectContaining({ knowledgeBaseIds: [] }),
       expect.any(Number)
     )
+  })
+
+  it('clears the reopened editor when the queued enqueue settles with only the knowledge selection preserved', async () => {
+    // Settlement clears the submitted document but preserves the conversation
+    // knowledge selection. The surviving selection must not count as a
+    // remaining document, or the reconciliation returns early and the
+    // reopened editor keeps the queued message submittable a second time
+    // (cherry-pr-review inv_3aa62313c2ac8252).
+    const base = { id: 'base-1', name: 'Base 1' } as KnowledgeBase
+    mocks.knowledgeBases = [base]
+    let cached: unknown = {
+      text: 'queued while streaming',
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText:
+            'The user attached knowledge base "Base 1" (id: base-1). Include "base-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.',
+          payload: { id: 'base-1', name: 'Base 1' },
+          index: 0,
+          textOffset: 0
+        }
+      ],
+      files: [],
+      knowledgeBaseIds: ['base-1']
+    }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1' ? cached : ''
+    )
+    // Settlement rewrites the entry empty rather than deleting it: it stays present.
+    vi.mocked(cacheService.has).mockImplementation((key: string) => key === 'chat.composer_draft.topic-1')
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([base]))
+    expect(mocks.surfaceProps?.text).toBe('queued while streaming')
+
+    // Settlement: the document fields are gone; the knowledge selection survives.
+    cached = { text: '', tokens: [], files: [], knowledgeBaseIds: ['base-1'] }
+    const listeners = vi
+      .mocked(cacheService.subscribe)
+      .mock.calls.filter(([key]) => key === 'chat.composer_draft.topic-1')
+      .map(([, listener]) => listener)
+    expect(listeners.length).toBeGreaterThan(0)
+    await act(async () => {
+      for (const listener of listeners) listener()
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+    // The conversation knowledge selection is preserved through the reconcile.
+    expect(mocks.selectedKnowledgeBases).toEqual([base])
+  })
+
+  it('keeps the reopened draft when its cache entry expires instead of settling (inv_994d0262e39459d3)', async () => {
+    // The 24-hour TTL eviction deletes the entry outright rather than
+    // rewriting it empty: the missing entry is ordinary cache eviction, not a
+    // settled enqueue, so the visible unsent draft must survive.
+    let cached: unknown = {
+      text: 'queued while streaming',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: []
+    }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1' ? cached : ''
+    )
+    vi.mocked(cacheService.has).mockImplementation((key: string) => key === 'chat.composer_draft.topic-1')
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued while streaming'))
+
+    // TTL expiry: the entry is deleted outright (get misses, has reports gone).
+    cached = ''
+    vi.mocked(cacheService.has).mockReturnValue(false)
+    const listeners = vi
+      .mocked(cacheService.subscribe)
+      .mock.calls.filter(([key]) => key === 'chat.composer_draft.topic-1')
+      .map(([, listener]) => listener)
+    expect(listeners.length).toBeGreaterThan(0)
+    await act(async () => {
+      for (const listener of listeners) listener()
+    })
+
+    // The reconcile runs synchronously inside act; the draft must survive.
+    expect(mocks.surfaceProps?.text).toBe('queued while streaming')
+  })
+
+  it('clears the reopened editor when settlement lands before its subscription installs (inv_69ddf60f8d01a98a)', async () => {
+    // The render-phase cache read captures draft A; settlement then empties
+    // the entry before this instance's reconciliation effect subscribes
+    // (a render that yielded). The install-time reconcile must still clear
+    // the editor, or the queued message stays submittable a second time
+    // (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    let cached: unknown = { text: 'queued while streaming', tokens: [], files: [], knowledgeBaseIds: [] }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1' ? cached : ''
+    )
+    vi.mocked(cacheService.has).mockImplementation((key: string) => key === 'chat.composer_draft.topic-1')
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+    }))
+    // A sibling whose effect runs first settles the cache: the composer
+    // render already captured the draft, its subscription is not yet
+    // installed.
+    const Settler = () => {
+      useEffect(() => {
+        cached = { text: '', tokens: [], files: [], knowledgeBaseIds: [] }
+      }, [])
+      return null
+    }
+
+    render(
+      <>
+        <Settler />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
   })
 
   it('persists the latest chat draft when the topic changes before tools finish loading', async () => {
@@ -5489,6 +5958,22 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
   describe('queued edit switching', () => {
+    // Our API-backed restore creates a fresh row under a FRESH id: the original
+    // id names a closed receipt and cannot represent the restored row. Assert
+    // content + ordering here; capture each restored row's new id from the dock
+    // for any subsequent Edit/Steer/reorder action.
+    const expectQueue = (dock: () => any, expected: any[], message: string) => {
+      const items = dock()?.items ?? []
+      expect(items, message).toHaveLength(expected.length)
+      expected.forEach((entry, index) => {
+        expect(items[index], message).toMatchObject({ draft: entry.draft, payload: entry.payload })
+      })
+    }
+    const liveItem = (dock: () => any, draftText: string, message: string) => {
+      const entry = (dock()?.items ?? []).find((item: any) => item.draft?.text === draftText)
+      expect(entry, message).toBeTruthy()
+      return entry
+    }
     async function setup(texts = ['A', 'B']) {
       mocks.topicPending = true
       mocks.getDraft.mockImplementation((props) => ({ text: props.text, tokens: [] }))
@@ -5504,49 +5989,55 @@ describe('ChatComposer', () => {
           await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
         })
       }
+      view.rerender(component())
       const originals = [...dock().items]
       const edit = async (id: string) => {
         await act(async () => {
-          dock().onEdit(id)
+          await dock().onEdit(id)
         })
+        view.rerender(component())
       }
       return { dock, originals, edit, view, component, send }
     }
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('rebuilds live controls without reviving removed Fast mode', async () => {
+    it('rebuilds live controls without reviving removed Fast mode', async () => {
       mocks.model = { ...model, supportsFastMode: true }
       mocks.mentionedModels = [mocks.model]
       mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
       const {
         dock,
         originals: [a, b],
-        edit
+        edit,
+        view,
+        component
       } = await setup()
-      act(() => {
+      await act(async () => {
         dock().onRemove(a.id)
+      })
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(a.id)
       })
       act(() => mocks.speedControlProps?.onFastModeChange(true))
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'fast A', tokens: [] })
       })
+      view.rerender(component())
       const fastA = dock().items[1]
       expect(fastA.payload.fastMode, 'the queued snapshot must start with Fast enabled').toBe(true)
       await edit(fastA.id)
       act(() => mocks.speedControlProps?.onFastModeChange(false))
       await edit(b.id)
       expect(dock()?.items, 'the outgoing item must be returned after live controls change').toHaveLength(1)
-      expect(dock().items[0].id, 'rebuilding controls must preserve the original queued identity').toBe(fastA.id)
+      expect(dock().items[0].id, 'the restored row gets a fresh id; the old id is a closed receipt').not.toBe(fastA.id)
+      expect(dock().items[0].draft, 'rebuilding controls must return the outgoing draft').toEqual(fastA.draft)
       expect(
         dock().items[0].payload,
         'capturing must rebuild instead of spreading obsolete optional fields'
       ).not.toHaveProperty('fastMode')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('returns unchanged A under its original identity and supports switching back', async () => {
+    it('returns unchanged A under a fresh identity and supports switching back', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5554,33 +6045,37 @@ describe('ChatComposer', () => {
       } = await setup()
       await edit(a.id)
       await edit(b.id)
-      expect(dock()?.items, 'switching to B must preserve the entire queued A').toEqual([a])
+      expectQueue(dock, [a], 'switching to B must preserve the entire queued A')
       expect(mocks.surfaceProps?.text, 'B must own the editor after the switch').toBe('B')
-      await edit(a.id)
-      expect(dock()?.items, 'switching back must preserve B under its original id').toEqual([b])
+      const restoredA = liveItem(dock, 'A', 'restored A must be present in the queue')
+      expect(restoredA.id, 'restored A gets a fresh id; its original id is a closed receipt').not.toBe(a.id)
+      await edit(restoredA.id)
+      expectQueue(dock, [b], 'switching back must preserve B under its own fresh id')
       expect(mocks.surfaceProps?.text, 'A must reopen').toBe('A')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('rebuilds edited A from the live document before restoring B', async () => {
+    it('rebuilds edited A from the live document before restoring B', async () => {
       const {
         dock,
         originals: [a, b],
         edit,
+        view,
+        component,
         send
       } = await setup()
       await edit(a.id)
       act(() => mocks.surfaceProps?.onTextChange('A-prime'))
       await edit(b.id)
-      expect(dock()?.items?.[0], 'A edits must survive under the existing id').toMatchObject({
-        id: a.id,
+      expect(dock()?.items?.[0], 'A edits must survive under a fresh id').toMatchObject({
         draft: { text: 'A-prime', tokens: [] },
         payload: { text: 'A-prime', userMessageParts: [{ type: 'text', text: 'A-prime' }] }
       })
+      const restoredAId = dock().items[0].id
+      expect(restoredAId, 'the original id is a closed receipt and cannot be restored').not.toBe(a.id)
       await act(async () => {
-        await dock().onSteer(a.id)
+        await dock().onSteer(restoredAId)
       })
+      view.rerender(component())
       expect(JSON.stringify(send.mock.calls), 'the actual queued dispatch must carry the edited content').toContain(
         'A-prime'
       )
@@ -5588,9 +6083,7 @@ describe('ChatComposer', () => {
       expect(dock(), 'accepted A must leave the visible queue').toBeFalsy()
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('returns the original draft and payload together when A is empty', async () => {
+    it('returns the original draft and payload together when A is empty', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5599,13 +6092,11 @@ describe('ChatComposer', () => {
       await edit(a.id)
       act(() => mocks.surfaceProps?.onTextChange('   '))
       await edit(b.id)
-      expect(dock()?.items, 'blank editing must not discard or mismatch A draft and payload').toEqual([a])
+      expectQueue(dock, [a], 'blank editing must not discard or mismatch A draft and payload')
       expect(mocks.surfaceProps?.text, 'the valid switch must open B').toBe('B')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('refuses a switch with unsynchronised files without touching queue cache or editor', async () => {
+    it('refuses a switch with unsynchronised files without touching queue cache or editor', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5616,43 +6107,43 @@ describe('ChatComposer', () => {
       await edit(a.id)
       mocks.files = [{ fileTokenSourceId: 'pending', name: 'pending.pdf', path: '/tmp/pending.pdf' } as any]
       view.rerender(component())
-      const writes = vi
-        .mocked(cacheService.setCasual)
-        .mock.calls.filter(([key]) => key.startsWith('followup-queue.')).length
       const restores = mocks.replaceDraft.mock.calls.length
       await edit(b.id)
-      expect(dock()?.items, 'pending files must leave B queued').toEqual([b])
+      expectQueue(dock, [b], 'pending files must leave B queued')
       expect(mocks.surfaceProps?.text, 'pending files must leave A in the editor').toBe('A')
       expect(mocks.replaceDraft.mock.calls.length, 'refusal must not restore B').toBe(restores)
-      expect(
-        vi.mocked(cacheService.setCasual).mock.calls.filter(([key]) => key.startsWith('followup-queue.')).length,
-        'refusal must not persist a changed queue'
-      ).toBe(writes)
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('adjusts the insertion slot after removing an earlier row', async () => {
+    it('adjusts the insertion slot after removing an earlier row', async () => {
       const {
         dock,
         originals: [x, a, b, c],
-        edit
+        edit,
+        view,
+        component
       } = await setup(['X', 'A', 'B', 'C'])
       await edit(a.id)
-      act(() => {
+      await act(async () => {
         dock().onRemove(x.id)
       })
-      await edit(b.id)
-      expect(dock()?.items, 'removing X must restore A before C').toEqual([a, c])
-      act(() => {
-        dock().onReorder([c, a])
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(x.id)
       })
-      expect(dock()?.items, 'returned items must remain reorderable').toEqual([c, a])
+      await edit(b.id)
+      expectQueue(dock, [a, c], 'removing X must restore A before C')
+      const restoredA = liveItem(dock, 'A', 'restored A must be present in the queue')
+      await act(async () => {
+        dock().onReorder([c, restoredA])
+      })
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).toEqual([c.id, restoredA.id])
+      })
+      expectQueue(dock, [c, a], 'returned items must remain reorderable')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip.each(['enqueue', 'direct send'])('does not resurrect a consumed edit after successful %s', async (mode) => {
+    it.each(['enqueue', 'direct send'])('does not resurrect a consumed edit after successful %s', async (mode) => {
       const {
         dock,
         originals: [a, b],
@@ -5665,6 +6156,7 @@ describe('ChatComposer', () => {
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'A-consumed', tokens: [] })
       })
+      view.rerender(component())
       await edit(b.id)
       expect(
         dock()?.items?.map((entry: any) => entry.id) ?? [],
@@ -5679,9 +6171,7 @@ describe('ChatComposer', () => {
       }
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('refuses editing and duplicate steering until manual steer acceptance resolves', async () => {
+    it('refuses editing and duplicate steering until manual steer acceptance resolves', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5703,27 +6193,23 @@ describe('ChatComposer', () => {
         await Promise.resolve()
       })
       const editor = mocks.surfaceProps?.text
-      const writes = vi.mocked(cacheService.setCasual).mock.calls.length
       await edit(a.id)
       await act(async () => {
         await dock().onSteer(a.id)
       })
-      expect(dock()?.items, 'admitted A must remain queued and unavailable to Edit').toEqual([a, b])
+      expectQueue(dock, [a, b], 'admitted A must remain queued and unavailable to Edit')
       expect(mocks.surfaceProps?.text, 'admission refusal must not replace the editor').toBe(editor)
-      expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'admission refusal must not write cache').toBe(writes)
       expect(send.mock.calls.length, 'one admitted id must produce only one dispatch').toBe(1)
       await act(async () => {
         resolve(false)
         await pending
       })
       await edit(a.id)
-      expect(dock()?.items, 'failed acceptance must release A for editing').toEqual([b])
+      expectQueue(dock, [b], 'failed acceptance must release A for editing')
       expect(mocks.surfaceProps?.text, 'A must open after admission release').toBe('A')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip('refuses switching while a direct send awaits acceptance', async () => {
+    it('refuses switching while a direct send awaits acceptance', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5749,7 +6235,7 @@ describe('ChatComposer', () => {
         await Promise.resolve()
       })
       await edit(b.id)
-      expect(dock()?.items, 'pending direct send must leave B queued').toEqual([b])
+      expectQueue(dock, [b], 'pending direct send must leave B queued')
       expect(mocks.surfaceProps?.text, 'pending direct send must retain A document').toBe('A')
       await act(async () => {
         resolve(true)
@@ -5760,9 +6246,7 @@ describe('ChatComposer', () => {
       expect(mocks.surfaceProps?.text, 'B must open after acceptance').toBe('B')
     })
 
-    // TODO(#22387): main's composer suite targets the cache-based hook; the
-    // adapted API-backed version of this scenario lands with the composer wiring.
-    it.skip.each([undefined, { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const])(
+    it.each([undefined, { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const])(
       'preserves the captured target %j when the current target changes',
       async (target) => {
         mocks.topicPending = true
@@ -5775,10 +6259,12 @@ describe('ChatComposer', () => {
             await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
           })
         }
+        view.rerender(<ChatComposer topic={topic} chatTarget={target} onSend={send} />)
         const [a, b] = dock().items
-        act(() => {
-          dock().onEdit(a.id)
+        await act(async () => {
+          await dock().onEdit(a.id)
         })
+        view.rerender(<ChatComposer topic={topic} chatTarget={target} onSend={send} />)
         mocks.topicPending = false
         view.rerender(
           <ChatComposer
@@ -5787,15 +6273,24 @@ describe('ChatComposer', () => {
             onSend={send}
           />
         )
-        act(() => {
-          dock().onEdit(b.id)
+        await act(async () => {
+          await dock().onEdit(b.id)
         })
+        view.rerender(
+          <ChatComposer
+            topic={topic}
+            chatTarget={{ parentAnchorId: 'new-target', mode: 'active-path' }}
+            onSend={send}
+          />
+        )
         expect(dock()?.items, 'switching must retain A with its captured target').toHaveLength(1)
         expect(dock().items[0].payload.chatTarget, 'returned A must retain even a captured undefined target').toEqual(
           target
         )
+        const restoredAId = dock().items[0].id
+        expect(restoredAId, 'restored A gets a fresh id; its original id is a closed receipt').not.toBe(a.id)
         await act(async () => {
-          await dock().onSteer(a.id)
+          await dock().onSteer(restoredAId)
         })
         expect(send.mock.calls[0], 'actual dispatch must use the captured target').toEqual([
           'A',

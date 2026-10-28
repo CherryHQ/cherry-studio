@@ -65,6 +65,7 @@ import {
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -84,7 +85,15 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
-import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
+import {
+  clearChatDraftCacheIfMatches,
+  type ChatComposerDraftCache,
+  hasChatDraftCacheEntry,
+  hasChatDraftDocument,
+  readChatDraftCache,
+  subscribeChatDraftCache,
+  writeChatDraftCache
+} from './chat/chatDraftCache'
 import {
   createEditableMessageDraft,
   getEditableKnowledgeBases,
@@ -112,6 +121,11 @@ import {
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
+import {
+  acquirePendingSubmission,
+  isSubmissionPending,
+  releasePendingSubmission
+} from './shared/pendingSubmissionGuard'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
@@ -519,8 +533,14 @@ const ChatComposerInner = ({
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded, toolsRegistry } =
-    useComposerToolDispatch()
+  const {
+    setFiles,
+    subscribeFilesDispatch,
+    setMentionedModels,
+    setSelectedKnowledgeBases,
+    setIsExpanded,
+    toolsRegistry
+  } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const loadedContext = useAssistant(externalContextControls ? null : assistantId, {
@@ -582,6 +602,12 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  // Pending queued-edit take: the claim and DELETE await across the network
+  // and restoreFollowupDraft then replaces the whole document, so the input
+  // is blocked for the duration to keep intervening edits from being
+  // silently overwritten (cherry-pr-review).
+  const followupTakePendingRef = useRef(false)
+  const [followupTakePending, setFollowupTakePending] = useState(false)
   const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
@@ -674,8 +700,12 @@ const ChatComposerInner = ({
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
   )
+  // Bumped synchronously on every user draft edit (text, tokens, attachments). An awaited enqueue only clears
+  // the composer when nothing changed meanwhile, so newer unsent input is never wiped by an older submission.
+  const draftEditRevisionRef = useRef(0)
   const handleTextChange = useCallback(
     (nextText: string) => {
+      draftEditRevisionRef.current += 1
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
@@ -1036,7 +1066,14 @@ const ChatComposerInner = ({
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
-  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
+  const selectedKnowledgeBasesScopeKey = buildTopicFollowupScopeKey(scopeKey, selectedAssistantId)
+  // Live topic scope for the async enqueue below: clearing the editor after
+  // the POST must not wipe the newly selected conversation's draft. The draft
+  // editor is keyed by topic, not by assistant: an assistant switch inside one
+  // topic keeps the submitted document visible, so submitted-document
+  // ownership tracks the topic alone (cherry-pr-review).
+  const queueTopicRef = useRef(scopeKey)
+  queueTopicRef.current = scopeKey
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
@@ -1263,6 +1300,7 @@ const ChatComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
   const handleTokensChange = useCallback(
     (nextDraftTokens: readonly ComposerSerializedToken[]) => {
+      draftEditRevisionRef.current += 1
       reconcileTokens(nextDraftTokens)
       setDraftTokenRevision((revision) => revision + 1)
     },
@@ -1559,36 +1597,122 @@ const ChatComposerInner = ({
     [onSend, saveHistory, t]
   )
 
-  const clearCurrentDraft = useCallback(() => {
-    // Send/enqueue consumed the draft: mark the edit-session retirement so a
-    // suspended edit-switch closes its captured recovery copy instead of
-    // releasing a duplicate (cherry-pr-review retired-edit-recovery).
-    releaseFollowupEditRef.current('submitted')
-    setText('')
-    setDraftTokens(undefined)
-    setFiles([])
-    // Knowledge base selection belongs to the conversation scope, not the individual draft.
-    // Clearing the composer must also drop the input-history nav state: a
-    // recalled draft that gets sent/queued without further edits would otherwise
-    // leave useInputHistory pointing at that history entry, so the next
-    // ArrowDown would restore the already-sent draft and ArrowUp would resume
-    // from a stale index.
-    resetHistoryIndex()
-    inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setText])
+  // Attachment edits arrive through tool state rather than the editor callbacks.
+  // Advance the revision for actual attachment mutations only: TabRouter's
+  // Activity tears down and re-runs effects on tab hide/show without any edit,
+  // and a spurious bump here makes a settling enqueue skip the draft clear,
+  // leaving the queued text submittable a second time (cherry-pr-review
+  // inv_9f8c2dcd0a5dd26d#f1).
+  const filesForRevisionRef = useRef(files)
+  useEffect(() => {
+    if (filesForRevisionRef.current === files) return
+    filesForRevisionRef.current = files
+    draftEditRevisionRef.current += 1
+  }, [files])
+  // The effect above runs after React commits — too late when an enqueue
+  // resolves in the same window. Tool dispatches (the attachment picker,
+  // runtime tools) bypass the revision wrapper below, so track attachment
+  // mutations synchronously at the dispatch boundary itself (cherry-pr-review).
+  useEffect(
+    () =>
+      subscribeFilesDispatch(() => {
+        draftEditRevisionRef.current += 1
+      }),
+    [subscribeFilesDispatch]
+  )
+  // The effect above runs only after React commits, which is too late when an
+  // enqueue resolves in the same window: an attachment update dispatched while
+  // the enqueue is pending would not have bumped the revision yet, so the
+  // settlement cleanup would erase the new attachment. Bump at the update
+  // boundary too (cherry-pr-review).
+  const setFilesWithRevision = useCallback<typeof setFiles>(
+    (next) => {
+      draftEditRevisionRef.current += 1
+      setFiles(next)
+    },
+    [setFiles]
+  )
+  const clearCurrentDraft = useCallback(
+    (options?: { submitted?: boolean }) => {
+      // A send/enqueue that consumed the draft marks the edit-session
+      // retirement 'submitted': a suspended edit-switch closes its captured
+      // recovery copy instead of releasing a duplicate (cherry-pr-review
+      // retired-edit-recovery). Cache-driven clears are not submissions.
+      releaseFollowupEditRef.current(options?.submitted === true ? 'submitted' : 'released')
+      setText('')
+      setDraftTokens(undefined)
+      setFiles([])
+      // Knowledge base selection belongs to the conversation scope, not the individual draft.
+      // Clearing the composer must also drop the input-history nav state: a
+      // recalled draft that gets sent/queued without further edits would otherwise
+      // leave useInputHistory pointing at that history entry, so the next
+      // ArrowDown would restore the already-sent draft and ArrowUp would resume
+      // from a stale index.
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+    },
+    [resetHistoryIndex, setFiles, setText]
+  )
+
+  // Reconcile the active draft owner when an enqueue submitted while this
+  // topic's previous composer instance was mounted settles: settlement removes
+  // the submitted document from the topic cache, but a composer that reopened
+  // the topic before settlement already loaded that draft into the editor, and
+  // clearing only the cache would leave the queued message submittable a
+  // second time. When the cached document disappears while this editor still
+  // holds exactly the draft it loaded at mount, clear the editor too; any edit
+  // since mount diverges from the snapshot and is preserved (cherry-pr-review).
+  // Conversation-scope selections (knowledge bases, mentioned models) are
+  // excluded from both emptiness checks: they survive settlement clears by
+  // design (see clearChatDraftCacheIfMatches), so they must not count as a
+  // remaining document (cherry-pr-review inv_3aa62313c2ac8252).
+  useEffect(() => {
+    if (!hasChatDraftDocument(initialDraft)) return
+    const mountRevision = draftEditRevisionRef.current
+    const reconcile = () => {
+      // TTL expiry removes the cache entry outright; settlement rewrites it
+      // with an empty document. A missing entry is ordinary cache eviction -
+      // the visible draft was never submitted, so keep it in the editor
+      // (cherry-pr-review inv_994d0262e39459d3).
+      if (!hasChatDraftCacheEntry(draftCacheScopeKey)) return
+      const cached = readChatDraftCache(draftCacheScopeKey)
+      if (hasChatDraftDocument(cached)) return
+      // A tool dispatch between mount and now (an attachment picked while an
+      // enqueue is in flight) bumps the edit revision synchronously, before
+      // React commits the new snapshot: revision drift means pending
+      // mutations the snapshot comparison cannot see yet, so preserve the
+      // editor state (cherry-pr-review inv_677b55ab0fc0d69d).
+      if (draftEditRevisionRef.current !== mountRevision) return
+      const visibleDraft = actionsRef.current.getDraft()
+      if (
+        visibleDraft.text === initialDraft.text &&
+        JSON.stringify(visibleDraft.tokens ?? []) === JSON.stringify(initialDraft.tokens) &&
+        JSON.stringify(filesRef.current) === JSON.stringify(initialDraft.files) &&
+        JSON.stringify(knowledgeBaseIdsRef.current) === JSON.stringify(initialDraft.knowledgeBaseIds)
+      ) {
+        clearCurrentDraft()
+      }
+    }
+    // Settlement may have landed between the mount-time draft load and this
+    // subscription (a render that yielded): reconcile the CURRENT cache state
+    // immediately, or the reopened editor keeps the queued message
+    // submittable a second time (cherry-pr-review inv_69ddf60f8d01a98a#f1).
+    reconcile()
+    return subscribeChatDraftCache(draftCacheScopeKey, reconcile)
+  }, [actionsRef, clearCurrentDraft, draftCacheScopeKey, filesRef, initialDraft])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
-    steer: steerFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
     takeForEdit: takeFollowupForEdit,
     releaseEdit,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    steer: steerFollowup
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
@@ -1801,7 +1925,11 @@ const ChatComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
-      if (directSendInFlightRef.current) return
+      // Cross-instance too: a reopened composer's fresh ref must not re-Send
+      // while this scope's first submission is still in flight
+      // (cherry-pr-review inv_785c705f28b6e100).
+      const submissionScope = `chat:${draftCacheScopeKey}`
+      if (directSendInFlightRef.current || isSubmissionPending(submissionScope)) return
 
       if (staleEditingMessage) {
         restoreSavedDraft()
@@ -1840,12 +1968,60 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        void enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        const enqueueTopic = scopeKey
+        const enqueueDraftTopic = draftCacheScopeKey
+        const enqueueRevision = draftEditRevisionRef.current
+        const enqueueFiles = filesRef.current
+        // Hold the submission guard across the enqueue too: the direct-send guard below is
+        // acquired only under this branch, so a second Send activation while this enqueue is
+        // in flight would mint a second UUID and queue a duplicate. The editor stays editable
+        // (newer edits win via the revision check) and a failed enqueue keeps the draft.
+        directSendInFlightRef.current = true
+        acquirePendingSubmission(submissionScope)
+        try {
+          const queued = await enqueueFollowup(draft, payload)
+          if (queued) {
+            // An unmount between submit and settlement persists the submitted
+            // draft to the topic cache; clearing only this component's state
+            // leaves the queued message to reappear in the input on reopen.
+            // Clear the cache entry too — but only while it still matches what
+            // was enqueued, so newer edits survive (cherry-pr-review).
+            clearChatDraftCacheIfMatches(enqueueDraftTopic, {
+              text: draft.text,
+              tokens: draft.tokens,
+              files: enqueueFiles
+            })
+            // Entering message editing between submit and settlement saves the
+            // submitted document into savedDraftBeforeEditingRef and advances
+            // the revision, so the guard below correctly skips
+            // clearCurrentDraft - but cancelling the edit would then restore
+            // the already-queued document and a second Send would queue a
+            // duplicate (cherry-pr-review saved-draft-after-enqueue). Consume
+            // the matching submitted document fields from the backup while
+            // preserving its selections and any newer content; failed
+            // enqueues never reach here and keep the backup intact.
+            const savedBackup = savedDraftBeforeEditingRef.current
+            if (
+              savedBackup &&
+              savedBackup.text === draft.text &&
+              JSON.stringify(savedBackup.draftTokens) === JSON.stringify(draft.tokens) &&
+              JSON.stringify(savedBackup.files) === JSON.stringify(enqueueFiles)
+            ) {
+              savedDraftBeforeEditingRef.current = { ...savedBackup, text: '', draftTokens: [], files: [] }
+            }
+            if (queueTopicRef.current === enqueueTopic && draftEditRevisionRef.current === enqueueRevision) {
+              clearCurrentDraft({ submitted: true })
+            }
+          }
+        } finally {
+          directSendInFlightRef.current = false
+          releasePendingSubmission(submissionScope)
+        }
         return
       }
 
       directSendInFlightRef.current = true
+      acquirePendingSubmission(submissionScope)
       setIsDirectSending(true)
       try {
         if (selectedModelForMissingAssistantDefault) {
@@ -1853,9 +2029,10 @@ const ChatComposerInner = ({
         }
 
         const sent = await sendQueuedPayload(payload)
-        if (sent) clearCurrentDraft()
+        if (sent) clearCurrentDraft({ submitted: true })
       } finally {
         directSendInFlightRef.current = false
+        releasePendingSubmission(submissionScope)
         setIsDirectSending(false)
       }
     },
@@ -1863,15 +2040,18 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       canSteer,
       clearCurrentDraft,
+      draftCacheScopeKey,
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,
+      filesRef,
       handleModelSelect,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      selectedKnowledgeBasesScopeKey,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
@@ -2046,22 +2226,30 @@ const ChatComposerInner = ({
                 }}
                 onEdit={async (id) => {
                   if (directSendInFlightRef.current) return
-                  if (editingMessageForCurrentTopic) {
-                    // A message-edit session owns the composer: taking a queued
-                    // item must not try to capture it as an outgoing followup.
-                    releaseEdit()
-                    const item = await takeFollowupForEdit(id, () => null)
-                    if (!item) return
-                    restoreFollowupDraft(item)
-                    return
+                  if (followupTakePendingRef.current) return
+                  followupTakePendingRef.current = true
+                  setFollowupTakePending(true)
+                  try {
+                    if (editingMessageForCurrentTopic) {
+                      // A message-edit session owns the composer: taking a queued
+                      // item must not try to capture it as an outgoing followup.
+                      releaseEdit()
+                      const item = await takeFollowupForEdit(id, () => null)
+                      if (!item) return
+                      restoreFollowupDraft(item)
+                      return
+                    }
+                    // Atomic take: undefined when the item is owned by an
+                    // in-flight drain, so an edit can never race its send.
+                    // Switching the edit target returns the outgoing draft to
+                    // its queue slot, rebuilt from the live editor, first.
+                    const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
+                    if (!incoming) return
+                    restoreFollowupDraft(incoming)
+                  } finally {
+                    followupTakePendingRef.current = false
+                    setFollowupTakePending(false)
                   }
-                  // Atomic take: undefined when the item is owned by an
-                  // in-flight drain, so an edit can never race its send.
-                  // Switching the edit target returns the outgoing draft to
-                  // its queue slot, rebuilt from the live editor, first.
-                  const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
-                  if (!incoming) return
-                  restoreFollowupDraft(incoming)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
@@ -2070,15 +2258,15 @@ const ChatComposerInner = ({
             ) : undefined
           }
           supportedExts={supportedExts}
-          setFiles={setFiles}
+          setFiles={setFilesWithRevision}
           previewInputFile={previewInputFile}
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
           quickPanelEnabled={config.enableQuickPanel ?? true}
-          enableDragDrop={config.enableDragDrop ?? true}
+          enableDragDrop={(config.enableDragDrop ?? true) && !followupTakePending}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching && !isDirectSending && !isSavingEdit}
+          editable={!searching && !isDirectSending && !isSavingEdit && !followupTakePending}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
