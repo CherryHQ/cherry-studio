@@ -2,6 +2,7 @@ import * as z from 'zod'
 
 import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
 import type { RemoteProviderId, WebSearchCapability as SharedWebSearchCapability } from '@cherrystudio/web-search'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -69,7 +70,12 @@ export type SelectionActionItem = {
   icon?: string
   prompt?: string
   assistantId?: string
+  /** Agent that runs the action. `ask-agent` without one uses the built-in assistant agent. */
+  agentId?: string
+  agentWorkspace?: AgentSessionWorkspaceSource
   selectedText?: string
+  /** Source application of the selection; carried at runtime like `selectedText`, never stored. */
+  programName?: string
   searchEngine?: string
 }
 
