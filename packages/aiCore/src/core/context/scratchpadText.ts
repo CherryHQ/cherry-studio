@@ -1989,13 +1989,13 @@ export function maskCodeFences(
   let out = ''
   const inheritedPrefix = inheritedFencePrefixLookup(text, options?.initialContainerPrefix)
   let pos = 0
-  // HTML comments and CDATA sections are opaque character data: a fence
-  // marker inside one is literal text, never a Markdown fence
+  // HTML comments, CDATA, attributes and text-element bodies are opaque:
+  // a fence marker inside one is literal text, never a Markdown fence
   // (cherry-pr-review round-13 comment-fence-retains-analysis). The cursor
   // advances monotonically with `pos`, keeping the scan linear; tag
   // attributes and closing tags are skipped like in
   // unclosedOpaqueMarkupOpener (round-12 false-comment-carry).
-  const mayHaveOpaqueMarkup = text.includes('<!--') || text.includes('<![CDATA[')
+  const mayHaveOpaqueMarkup = text.includes('<')
   let opaqueScanPos = 0
   let opaqueUntil = -1
   const isInsideOpaqueMarkup = (index: number): boolean => {
@@ -2022,7 +2022,12 @@ export function maskCodeFences(
       }
       const parsed = isBackslashEscaped(text, lt) ? null : parseOpeningTagAt(text, lt)
       if (parsed) {
-        opaqueScanPos = lt + parsed.opener.length
+        const end = htmlTextElementEnd(text, parsed, lt) ?? lt + parsed.opener.length
+        opaqueScanPos = end
+        if (index < end) {
+          opaqueUntil = end
+          return true
+        }
         continue
       }
       const closeTag = /^<\/[a-zA-Z][a-zA-Z0-9-]*\s*>/.exec(text.slice(lt))
@@ -2136,6 +2141,8 @@ export function maskCodeFences(
       fences.push(text.slice(fenceStart, fenceEnd))
       out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
       pos = fenceEnd
+      opaqueScanPos = Math.max(opaqueScanPos, fenceEnd)
+      opaqueUntil = -1
       continue
     }
 
@@ -2146,6 +2153,10 @@ export function maskCodeFences(
     fences.push(text.slice(fenceStart, fenceEnd))
     out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
     pos = fenceEnd
+    // Markup inside an already accepted Markdown fence must not acquire ownership
+    // of later fence candidates outside it.
+    opaqueScanPos = Math.max(opaqueScanPos, fenceEnd)
+    opaqueUntil = -1
   }
 
   return { text: out, fences, placeholderBase }
@@ -2254,7 +2265,7 @@ export function isPlausiblePartialTag(text: string, start: number): boolean {
   return true
 }
 
-function textHasIncompleteMarkup(text: string): boolean {
+export function incompleteMarkupStart(text: string): number {
   for (let start = 0; start < text.length; start++) {
     if (text[start] !== '<' || isBackslashEscaped(text, start) || !/^<(?:[a-z/!?]|$)/i.test(text.slice(start))) continue
     if (!isPlausiblePartialTag(text, start)) continue
@@ -2267,10 +2278,14 @@ function textHasIncompleteMarkup(text: string): boolean {
       } else if (char === '"' || char === "'") quote = char
       else if (char === '>') break
     }
-    if (end === text.length) return true
+    if (end === text.length) return start
     start = end
   }
-  return false
+  return -1
+}
+
+function textHasIncompleteMarkup(text: string): boolean {
+  return incompleteMarkupStart(text) !== -1
 }
 
 function textHasUnclosedScratchpad(
@@ -2350,7 +2365,7 @@ export function stableScratchpadStreamPrefix(
     }
     const parsed = parseOpeningTagAt(cm.text, lt)
     if (!parsed) {
-      if (isPlausiblePartialTag(cm.text, lt) && !cm.text.slice(lt).includes('>')) {
+      if (isPlausiblePartialTag(cm.text, lt) && textHasIncompleteMarkup(cm.text.slice(lt))) {
         unresolved = lt
         break
       }

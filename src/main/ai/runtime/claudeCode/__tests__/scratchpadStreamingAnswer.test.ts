@@ -82,6 +82,57 @@ describe('append-only scratchpad answer streaming', () => {
     s.stop()
     expect(s.a.scratchpadPrefixViolation).toBe(false)
   })
+  it('keeps quoted greater-than attributes opaque through fragments and snapshot', () => {
+    const exact = ['`x`\n\n', '<div title="> <analysis>literal</analysis>"', '>PUBLIC</div>']
+    const raw = exact.join('')
+    for (const prefix of ['<b>x</b> ', '</b> ', '<br/> ']) {
+      const prefixed = ['`x`\n\n', `${prefix}<div title="> `, '<analysis>literal</analysis>"', '>PUBLIC</div>']
+      const full = prefixed.join('')
+      for (const pieces of [
+        prefixed,
+        ...[1, 2, 3].map((size) =>
+          Array.from({ length: Math.ceil(full.length / size) }, (_, i) => full.slice(i * size, (i + 1) * size))
+        )
+      ]) {
+        const ps = setup()
+        for (const piece of pieces) ps.push(piece)
+        ps.stop()
+        expect(ps.text()).toBe(full)
+        ps.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: full }] }
+        } as any)
+        expect(ps.text()).toBe(full)
+        expect(ps.a.scratchpadPrefixViolation).toBe(false)
+      }
+    }
+    for (const pieces of [
+      exact,
+      ['`x`\n\n', '<div title="> ', '<analysis>literal</analysis>"', '>PUBLIC</div>'],
+      ['`x`\n\n', '<div title="', '> ', '<analysis>literal</analysis>"', '>PUBLIC</div>'],
+      ['`x`\n\n', '<div title=">', ' <analysis>literal</analysis>"', '>PUBLIC</div>'],
+      ...[1, 2, 3, raw.length].map((size) =>
+        Array.from({ length: Math.ceil(raw.length / size) }, (_, i) => raw.slice(i * size, (i + 1) * size))
+      )
+    ]) {
+      const s = setup()
+      for (const piece of pieces) s.push(piece)
+      s.stop()
+      expect(s.text(), JSON.stringify(pieces)).toBe(raw)
+      s.a.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 's',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+      } as any)
+      expect(s.text()).toBe(raw)
+      expect(s.a.scratchpadPrefixViolation).toBe(false)
+    }
+  })
   it('preserves unfinished nested marker fence partitions and matching snapshots', () => {
     const pieces = ['- item\n\n- 1.', ' ~~~\n     <thinking>x</thinking>\n     ~~~\n']
     const raw = pieces.join('')

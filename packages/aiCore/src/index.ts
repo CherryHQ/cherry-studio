@@ -96,6 +96,7 @@ export {
   stableScratchpadStreamPrefix,
   deferralIsInlineCodeOnly,
   isPlausiblePartialTag,
+  incompleteMarkupStart,
   shouldDeferScratchpadStripping,
   textEndsWithPartialFenceMarker,
   textHasUnclosedCodeFence,

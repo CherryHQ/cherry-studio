@@ -45,6 +45,7 @@ import {
   initialIndentedMaskState,
   inlineCodeCarryStart,
   isPlausiblePartialTag,
+  incompleteMarkupStart,
   maskCodeFences,
   openLineParagraphContinuation,
   shouldDeferScratchpadStripping,
@@ -1819,9 +1820,12 @@ export class ClaudeCodeStreamAdapter {
     // for the first private-wrapper event. At most one tag-name prefix is held across deltas.
     if (!state.pending) {
       const probe = state.probe + text
+      const incomplete = probe.includes('<') && probe.includes('>') ? incompleteMarkupStart(probe) : -1
       if (
         !/<(?:analysis|assessment|thinking)(?:[\s/>]|$)/i.test(probe) &&
-        !(state.probe.includes('<') && text.includes('<'))
+        !(state.probe.includes('<') && text.includes('<')) &&
+        // Inspect all tags and quoted attributes without rescanning raw history for complete markup.
+        !(incomplete !== -1 && probe.indexOf('>', incomplete) !== -1)
       ) {
         const lastLt = probe.indexOf('>') === -1 ? probe.indexOf('<') : probe.lastIndexOf('<')
         const tail = lastLt < 0 ? '' : probe.slice(lastLt)

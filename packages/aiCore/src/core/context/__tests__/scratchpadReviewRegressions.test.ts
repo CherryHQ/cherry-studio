@@ -140,3 +140,18 @@ describe('scratchpad strip review regressions', () => {
     expect(out).toBe(`${all}${lit}\n- A\n${lit}\n\n\`\`\`\n<thinking>x</thinking>\n\`\`\`\n tail`)
   })
 })
+
+describe('HTML text body fence ownership', () => {
+  it('does not let literal HTML in a real fence own later Markdown code', () => {
+    const raw = '```\n<textarea>\n```\n\n```\n<analysis>literal</analysis>\n```\n<analysis>SECRET</analysis>'
+    expect(ContextPrompts.formatCompactSummary(raw)).toBe(
+      '```\n<textarea>\n```\n\n```\n<analysis>literal</analysis>\n```'
+    )
+  })
+  it('formatCompactSummary removes analysis following literal text-element ticks', () => {
+    for (const tag of ['textarea', 'script', 'style', 'title']) {
+      const raw = `<${tag}>\n\`\`\`\n</${tag}>\n<analysis>SECRET</analysis>\n<summary>Public</summary>`
+      expect(ContextPrompts.formatCompactSummary(raw)).toBe(`<${tag}>\n\`\`\`\n</${tag}>\n\n<summary>Public</summary>`)
+    }
+  })
+})
