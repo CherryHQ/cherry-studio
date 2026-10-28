@@ -25,6 +25,7 @@ import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
+  quotaExhaustion: null as { isFreeModel: boolean; isSubscribed: boolean; recoversAt?: string } | null,
   createTopic: vi.fn(),
   updateTopic: vi.fn(),
   setModel: vi.fn(),
@@ -567,7 +568,12 @@ vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
   }
 })
 
+vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
+  useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
+  useCommandRuntime: () => ({ execute: vi.fn() }),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
     mocks.commandHandlers.set(command, handler)
     mocks.commandOptions.set(command, options ?? {})
@@ -677,6 +683,7 @@ const originalFetch = globalThis.fetch
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    mocks.quotaExhaustion = null
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
       blob: async () => new Blob([new Uint8Array(42)], { type: 'image/png' })
@@ -849,6 +856,16 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
+  it('blocks sending and shows the quota notice while the current model is out of quota', () => {
+    mocks.quotaExhaustion = { isFreeModel: true, isSubscribed: false }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('models.detail.free_quota_exhausted')
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()
     const metadata = {
