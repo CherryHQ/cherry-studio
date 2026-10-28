@@ -19,7 +19,8 @@ import { cn } from '@renderer/utils/style'
 import {
   ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
   ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
-  ANTHROPIC_CACHE_DEFAULT_TTL
+  ANTHROPIC_CACHE_DEFAULT_TTL,
+  usesGatewayAutoCaching
 } from '@shared/ai/anthropicCache'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import {
@@ -28,7 +29,7 @@ import {
   type EndpointDialect,
   type Provider
 } from '@shared/data/types/provider'
-import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
+import { resolveEndpointDialect } from '@shared/utils/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -236,7 +237,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
   }
 
-  const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider)
+  const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider) || usesGatewayAutoCaching(provider)
   const showCacheDetailOptions = effectiveCacheTokenThreshold > 0
   const cacheSystemMessage = cacheControl?.cacheSystemMessage ?? true
 

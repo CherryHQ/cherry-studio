@@ -18,7 +18,7 @@ import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
-import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
+import { gatewayAnthropicCacheFeature, gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
@@ -51,6 +51,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // the context middleware's IR round-trip — pinned by contextBuild.test.ts).
   contextBuildFeature,
   anthropicCacheFeature,
+  // Vercel AI Gateway drops the `anthropic` markers above and caches on its own option instead.
+  gatewayAnthropicCacheFeature,
   anthropicHeadersFeature,
   // Provider compatibility: strip unsupported schema keywords, then apply Gemini-specific tool filtering.
   toolSchemaCompatibilityFeature,

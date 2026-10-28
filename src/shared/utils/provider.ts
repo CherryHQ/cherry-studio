@@ -492,6 +492,7 @@ export function isSupportAnthropicPromptCacheProvider(provider: Provider): boole
   return (
     isAnthropicProvider(provider) ||
     isNewApiProvider(provider) ||
+    isAIGatewayProvider(provider) ||
     provider.id === 'aihubmix' ||
     provider.id === 'openrouter' ||
     isAzureOpenAIProvider(provider)
