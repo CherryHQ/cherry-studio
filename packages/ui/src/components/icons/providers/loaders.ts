@@ -162,7 +162,7 @@ export const PROVIDER_ICON_LOADERS = {
   vidu: () => import('./vidu').then(({ ViduIcon }) => ViduIcon),
   volcengine: () => import('./volcengine').then(({ VolcengineIcon }) => VolcengineIcon),
   voyage: () => import('./voyage').then(({ VoyageIcon }) => VoyageIcon),
-  'watt-cloud': () => import('./watt-cloud').then(({ WattCloudIcon }) => WattCloudIcon),
+  'watt-cloud': () => import('./watt-cloud/watt-cloud').then(({ WattCloudIcon }) => WattCloudIcon),
   wenxin: () => import('./wenxin').then(({ WenxinIcon }) => WenxinIcon),
   'workers-ai': () => import('./workers-ai').then(({ WorkersAiIcon }) => WorkersAiIcon),
   xiaoyi: () => import('./xiaoyi').then(({ XiaoyiIcon }) => XiaoyiIcon),
