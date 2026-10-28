@@ -1,7 +1,11 @@
+import type * as FsModule from 'node:fs'
+import * as os from 'node:os'
 import * as path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FileOperationsModule from '@main/utils/fileOperations'
+import type * as MarkdownParserModule from '@main/utils/markdownParser'
 import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
 
 const mockPathExists = vi.fn()
@@ -22,14 +26,19 @@ vi.mock('@main/utils/fileOperations', () => ({
   deleteDirectoryRecursive: (...args: unknown[]) => mockDeleteDirectoryRecursive(...args)
 }))
 
-vi.mock('fs', () => ({
-  promises: {
-    rename: (...args: unknown[]) => mockFsRename(...args),
-    lstat: (...args: unknown[]) => mockFsLstat(...args),
-    readdir: (...args: unknown[]) => mockFsReaddir(...args),
-    readFile: (...args: unknown[]) => mockFsReadFile(...args)
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsModule>()
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      rename: (...args: unknown[]) => mockFsRename(...args),
+      lstat: (...args: unknown[]) => mockFsLstat(...args),
+      readdir: (...args: unknown[]) => mockFsReaddir(...args),
+      readFile: (...args: unknown[]) => mockFsReadFile(...args)
+    }
   }
-}))
+})
 
 vi.mock('@main/utils/markdownParser', () => ({
   findSkillMdPath: (...args: unknown[]) => mockFindSkillMdPath(...args)
@@ -239,5 +248,39 @@ describe('SkillInstaller', () => {
 
     expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/.first.cleanup')
     expect(mockFsRename).not.toHaveBeenCalled()
+  })
+})
+
+describe('real directory hash contract', () => {
+  it('ignores the outer root and skipped symlinks but includes files outside SKILL.md', async () => {
+    const fs = await vi.importActual<typeof FsModule>('node:fs')
+    const files = await vi.importActual<typeof FileOperationsModule>('@main/utils/fileOperations')
+    const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+    mockFsReaddir.mockImplementation(fs.promises.readdir)
+    mockFsLstat.mockImplementation(fs.promises.lstat)
+    mockFsReadFile.mockImplementation(fs.promises.readFile)
+    mockFindSkillMdPath.mockImplementation(parser.findSkillMdPath)
+    mockCopyDirectoryRecursive.mockImplementation(files.copyDirectoryRecursive)
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-hash-contract-'))
+    try {
+      const source = path.join(root, 'outer-one')
+      const renamed = path.join(root, 'outer-two')
+      await fs.promises.mkdir(path.join(source, 'scripts'), { recursive: true })
+      await fs.promises.writeFile(path.join(source, 'SKILL.md'), '# same descriptor')
+      await fs.promises.writeFile(path.join(source, 'scripts', 'run.sh'), 'echo original')
+      await fs.promises.writeFile(path.join(root, 'external.txt'), 'not copied')
+      await fs.promises.symlink(path.join(root, 'external.txt'), path.join(source, 'linked.txt'))
+      await files.copyDirectoryRecursive(source, renamed)
+      const installer = new SkillInstaller()
+      const hash = await installer.computeDirectoryHash(source)
+      expect(await installer.computeDirectoryHash(renamed)).toBe(hash)
+      expect(fs.existsSync(path.join(renamed, 'linked.txt'))).toBe(false)
+      await fs.promises.writeFile(path.join(root, 'external.txt'), 'changed external target')
+      expect(await installer.computeDirectoryHash(source)).toBe(hash)
+      await fs.promises.writeFile(path.join(renamed, 'scripts', 'run.sh'), 'echo changed')
+      expect(await installer.computeDirectoryHash(renamed)).not.toBe(hash)
+    } finally {
+      await fs.promises.rm(root, { recursive: true, force: true })
+    }
   })
 })

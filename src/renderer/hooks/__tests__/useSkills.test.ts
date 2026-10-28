@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type * as SWR from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
@@ -11,6 +12,12 @@ const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
 const discoverSystemSkillsMock = vi.hoisted(() => vi.fn())
 const importSystemSkillMock = vi.hoisted(() => vi.fn())
+const catalogMutateMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('swr', async (importOriginal) => ({
+  ...(await importOriginal<typeof SWR>()),
+  useSWRConfig: () => ({ mutate: catalogMutateMock })
+}))
+
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -46,7 +53,8 @@ function stubSkillRoutes() {
 }
 
 import { toast } from '@renderer/services/toast'
-import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { InstalledSkill, SkillImportOutcome, SystemSkillCandidate } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
 import {
@@ -477,5 +485,62 @@ describe('useSkillSearch', () => {
     expect(result.current.results).toEqual([])
     expect(result.current.searching).toBe(false)
     expect(result.current.error).toBe(SKILL_SEARCH_FAILED_ERROR)
+  })
+})
+
+// These contracts catch accidental preview writes, stale UI after writes, and swallowed native IPC errors.
+describe('useSkillInstall batch import', () => {
+  const items = [{ id: 'input-1', kind: 'zip' as const, path: AbsoluteFilePathSchema.parse('/tmp/skill.zip') }]
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invalidateMock.mockResolvedValue(undefined)
+  })
+
+  it('previews the exact batch without invalidating either cache', async () => {
+    const preview = { revision: 'revision-1', items: [] }
+    skillMocks.request.mockResolvedValueOnce(preview)
+    const { result } = renderHook(() => useSkillInstall())
+    await expect(result.current.previewImport(items, 'skip')).resolves.toEqual(preview)
+    expect(skillMocks.request.mock.calls).toEqual([['skill.import.preview', { items, policy: 'skip' }]])
+    expect(invalidateMock).not.toHaveBeenCalled()
+    expect(catalogMutateMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['installed', 'updated'] as const)('refreshes both caches after %s outcomes', async (status) => {
+    const outcomes = [{ id: 'input-1', status, skillId: 'skill-1', folderName: 'skill' }]
+    skillMocks.request.mockResolvedValueOnce(outcomes)
+    const { result } = renderHook(() => useSkillInstall())
+    await expect(result.current.applyImport(items, 'update', 'revision-1')).resolves.toEqual(outcomes)
+    expect(skillMocks.request.mock.calls).toEqual([
+      ['skill.import.apply', { items, policy: 'update', revision: 'revision-1' }]
+    ])
+    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+    const matchesCatalog = catalogMutateMock.mock.calls[0][0]
+    expect(matchesCatalog(['skill.list_catalog', {}])).toBe(true)
+    expect(matchesCatalog(['other', {}])).toBe(false)
+  })
+
+  it.each<SkillImportOutcome[]>([
+    [{ id: 'input-1', status: 'skipped' }],
+    [{ id: 'input-1', status: 'blocked', code: 'builtin_target', retryable: false }]
+  ])('resolves without refreshing when no item was written (%j)', async (outcome) => {
+    skillMocks.request.mockResolvedValueOnce([outcome])
+    const { result } = renderHook(() => useSkillInstall())
+    await expect(result.current.applyImport(items, 'skip', 'revision-1')).resolves.toEqual([outcome])
+    expect(invalidateMock).not.toHaveBeenCalled()
+    expect(catalogMutateMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['previewImport', 'applyImport'] as const)('propagates the underlying error from %s', async (method) => {
+    const error = new Error('native IPC error')
+    skillMocks.request.mockRejectedValueOnce(error)
+    const { result } = renderHook(() => useSkillInstall())
+    await expect(
+      method === 'previewImport'
+        ? result.current.previewImport(items, 'skip')
+        : result.current.applyImport(items, 'skip', 'revision-1')
+    ).rejects.toBe(error)
+    expect(invalidateMock).not.toHaveBeenCalled()
+    expect(catalogMutateMock).not.toHaveBeenCalled()
   })
 })

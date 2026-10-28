@@ -1,15 +1,24 @@
-import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useEffect, useState } from 'react'
+import { Import, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  Dropzone,
+  DropzoneEmptyState,
+  RadioGroup,
+  RadioGroupItem,
+  Scrollbar
+} from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { InstalledSkill } from '@shared/types/skill'
+import type { SkillImportInput, SkillImportOutcome, SkillImportPolicy, SkillImportPreview } from '@shared/types/skill'
 import { createFilePathHandle } from '@shared/utils/file'
 
 interface Props {
@@ -17,371 +26,348 @@ interface Props {
   onOpenChange: (open: boolean) => void
 }
 
-type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string }
-type InstallingKey = null | 'zip' | 'directory'
-type ImportKind = 'zip' | 'directory'
-type ImportItemStatus = 'pending' | 'installing' | 'success' | 'error'
-type ImportItem = {
-  id: string
-  kind: ImportKind
-  name: string
-  path: string
-  status: ImportItemStatus
-  skillName?: string
-  error?: string
-}
+type ImportItem = SkillImportInput & { name: string }
+const policies = ['skip', 'update', 'keep_both'] as const
+const policyLabels = {
+  skip: 'library.import_skill_dialog.skip',
+  update: 'library.import_skill_dialog.update',
+  keep_both: 'library.import_skill_dialog.keep_both'
+} as const
+const reasonLabels = {
+  folder_name: 'library.import_skill_dialog.folder_name',
+  identical_content: 'library.import_skill_dialog.identical_content'
+} as const
+const labels = {
+  new: 'library.import_skill_dialog.status_new',
+  conflict: 'library.import_skill_dialog.status_conflict',
+  invalid: 'library.import_skill_dialog.status_invalid',
+  blocked: 'library.import_skill_dialog.status_blocked',
+  installed: 'library.system_skill.imported',
+  updated: 'library.import_skill_dialog.updated',
+  skipped: 'library.import_skill_dialog.skipped',
+  error: 'agent.tasks.logs.failed'
+} as const
 
-/**
- * Skill import dialog — local install only (ZIP file or directory
- * containing `SKILL.md`). Online registry search stays in the sibling
- * `SkillMarketplaceDialog`, keeping local and remote install flows separate.
- *
- * Drop-zone + explicit picker buttons share the same pipeline through
- * `useSkillInstall.installFromZip` / `installFromDirectory`. Cache
- * invalidation for `/skills` is handled inside the hook, so the library
- * grid refreshes automatically after each successful install.
- */
 export function ImportSkillDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation()
-  const { installFromZip, installFromDirectory } = useSkillInstall()
-
-  const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
-  const [installing, setInstalling] = useState<InstallingKey>(null)
+  const { previewImport, applyImport } = useSkillInstall()
+  const [stage, setStage] = useState<'idle' | 'review' | 'done'>('idle')
+  const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const [items, setItems] = useState<ImportItem[]>([])
+  const [policy, setPolicy] = useState<SkillImportPolicy>('skip')
+  const [preview, setPreview] = useState<SkillImportPreview | null>(null)
+  const [outcomes, setOutcomes] = useState<SkillImportOutcome[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  // Reset transient state on open / close.
   useEffect(() => {
     if (!open) {
-      setStatus({ kind: 'idle' })
-      setInstalling(null)
+      setStage('idle')
       setItems([])
+      setPreview(null)
+      setOutcomes([])
+      setError(null)
+      setPolicy('skip')
     }
   }, [open])
 
+  const setWorking = (value: boolean) => {
+    busyRef.current = value
+    setBusy(value)
+  }
   const close = () => {
-    if (installing) return
-    onOpenChange(false)
+    if (!busyRef.current) onOpenChange(false)
   }
+  const inputPayload = (selected: ImportItem[]) => selected.map(({ id, kind, path }) => ({ id, kind, path }))
+  const failure = (cause: unknown, name = t('library.type.skill')) =>
+    formatErrorMessageWithPrefix(cause, t('settings.skills.installFailed', { name }))
 
-  const getInstallErrorMessage = useCallback(
-    (e: unknown, fallbackName?: string) => {
-      const prefix = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
-      return e instanceof Error && e.message ? formatErrorMessageWithPrefix(e, prefix) : prefix
-    },
-    [t]
-  )
-
-  const updateItem = useCallback((id: string, patch: Partial<ImportItem>) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)))
-  }, [])
-
-  const runImportQueue = useCallback(
-    async (nextItems: ImportItem[], installingKey: Exclude<InstallingKey, null>) => {
-      if (installing) return
-      setInstalling(installingKey)
-      setStatus({ kind: 'idle' })
-      setItems(nextItems)
-
-      let successCount = 0
-      const preErrorCount = nextItems.filter((item) => item.status === 'error').length
-      let failedCount = preErrorCount
-      let lastSkill: InstalledSkill | null = null
-
-      try {
-        for (const item of nextItems) {
-          if (item.status === 'error') continue
-          updateItem(item.id, { status: 'installing', error: undefined })
-
-          try {
-            const skill = item.kind === 'zip' ? await installFromZip(item.path) : await installFromDirectory(item.path)
-            if (!skill) {
-              failedCount += 1
-              updateItem(item.id, { status: 'error', error: getInstallErrorMessage(undefined, item.name) })
-              continue
-            }
-
-            lastSkill = skill
-            successCount += 1
-            updateItem(item.id, { status: 'success', skillName: skill.name })
-          } catch (error) {
-            failedCount += 1
-            updateItem(item.id, { status: 'error', error: getInstallErrorMessage(error, item.name) })
-          }
-        }
-
-        if (preErrorCount === nextItems.length) return
-
-        if (failedCount > 0) {
-          if (nextItems.length > 1) {
-            setStatus({
-              kind: 'error',
-              message: t('settings.skills.batchInstallPartialFailed', {
-                failed: failedCount,
-                success: successCount,
-                total: nextItems.length
-              })
-            })
-          }
-          return
-        }
-
-        const message =
-          nextItems.length === 1 && lastSkill
-            ? t('settings.skills.installSuccess', { name: lastSkill.name })
-            : t('settings.skills.batchInstallComplete', { count: successCount })
-        toast.success(message)
-        onOpenChange(false)
-      } finally {
-        setInstalling(null)
-      }
-    },
-    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, onOpenChange, t, updateItem]
-  )
-
-  const createImportItem = useCallback(
-    (
-      kind: ImportKind,
-      filePath: string,
-      name: string,
-      index: number,
-      itemStatus: ImportItemStatus = 'pending'
-    ): ImportItem => ({
-      id: `${Date.now()}-${index}-${filePath}`,
-      kind,
-      name,
-      path: filePath,
-      status: itemStatus
-    }),
-    []
-  )
-
-  const getNameFromPath = (filePath: string) => {
-    const name = filePath.split(/[/\\]/).pop()
-    return name || filePath
-  }
-
-  const handleZipPick = async () => {
-    if (installing) return
+  const scan = async (selected: ImportItem[], nextPolicy: SkillImportPolicy) => {
+    setStage('review')
+    setItems(selected)
+    setPolicy(nextPolicy)
+    setPreview(null)
+    setError(null)
+    setWorking(true)
     try {
-      const selected = await window.api.file.select({
-        filters: [{ name: 'ZIP', extensions: ['zip'] }],
-        properties: ['openFile', 'multiSelections']
-      })
-      if (!selected || selected.length === 0) return
-      const zipItems = selected.map((file, index) =>
-        createImportItem('zip', file.path, file.name ?? getNameFromPath(file.path), index)
-      )
-      await runImportQueue(zipItems, 'zip')
-    } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
+      setPreview(await previewImport(inputPayload(selected), nextPolicy))
+    } catch (cause) {
+      setError(failure(cause))
+    } finally {
+      setWorking(false)
     }
   }
 
-  const handleDirPick = async () => {
-    if (installing) return
+  const createItem = (kind: SkillImportInput['kind'], path: string, name?: string): ImportItem => ({
+    id: crypto.randomUUID(),
+    kind,
+    path: AbsoluteFilePathSchema.parse(path),
+    name: name || path.split(/[/\\]/).pop() || path
+  })
+  const pick = async (kind: SkillImportInput['kind']) => {
+    if (busyRef.current) return
+    setWorking(true)
     try {
-      const selected = await window.api.file.select({
-        properties: ['openDirectory', 'multiSelections']
-      })
-      if (!selected || selected.length === 0) return
-      const directoryItems = selected.map((directory, index) =>
-        createImportItem('directory', directory.path, directory.name ?? getNameFromPath(directory.path), index)
+      const selected = await window.api.file.select(
+        kind === 'zip'
+          ? { filters: [{ name: 'ZIP', extensions: ['zip'] }], properties: ['openFile', 'multiSelections'] }
+          : { properties: ['openDirectory', 'multiSelections'] }
       )
-      await runImportQueue(directoryItems, 'directory')
-    } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
-    }
-  }
-
-  /**
-   * Drag-and-drop accepts ZIP files and directories. Settings
-   * page uses the same probe (`file.get_metadata`'s `kind`) since dropped
-   * directories show up as `File` entries on Electron.
-   */
-  const handleDroppedEntries = async (files: File[]) => {
-    if (installing) return
-    if (files.length === 0) return
-
-    try {
-      const droppedItems: ImportItem[] = []
-
-      for (const [index, file] of files.entries()) {
-        const filePath = window.api.file.getPathForFile(file)
-        if (!filePath) continue
-
-        const meta = await ipcApi.request(
-          'file.get_metadata',
-          createFilePathHandle(AbsoluteFilePathSchema.parse(filePath))
+      if (selected?.length)
+        await scan(
+          selected.map((file) => createItem(kind, file.path, file.name)),
+          'skip'
         )
-        // A `null` metadata (path unreadable / vanished — near-nil since dropped
-        // paths resolve) folds into "not a directory": it falls through to the
-        // filename-based zip/invalid classification below, and a genuine read
-        // failure still surfaces downstream when the item is actually imported.
-        if (meta?.kind === 'directory') {
-          droppedItems.push(createImportItem('directory', filePath, file.name || getNameFromPath(filePath), index))
-          continue
-        }
-
-        if (file.name.toLowerCase().endsWith('.zip')) {
-          droppedItems.push(createImportItem('zip', filePath, file.name || getNameFromPath(filePath), index))
-          continue
-        }
-
-        droppedItems.push({
-          ...createImportItem('zip', filePath, file.name || getNameFromPath(filePath), index, 'error'),
-          error: t('settings.skills.invalidFormat')
-        })
-      }
-
-      if (droppedItems.length === 0) return
-
-      const installingKey = droppedItems.some((item) => item.kind === 'zip') ? 'zip' : 'directory'
-      await runImportQueue(droppedItems, installingKey)
-    } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
+    } catch (cause) {
+      setError(failure(cause))
+    } finally {
+      setWorking(false)
     }
   }
+  const handleZipPick = () => pick('zip')
+  const handleDirPick = () => pick('directory')
+  const handleDroppedEntries = async (files: File[]) => {
+    if (busyRef.current || !files.length) return
+    setWorking(true)
+    try {
+      const selected: ImportItem[] = []
+      for (const file of files) {
+        const path = window.api.file.getPathForFile(file)
+        if (!path) continue
+        const metadata = await ipcApi.request(
+          'file.get_metadata',
+          createFilePathHandle(AbsoluteFilePathSchema.parse(path))
+        )
+        selected.push(createItem(metadata?.kind === 'directory' ? 'directory' : 'zip', path, file.name))
+      }
+      if (selected.length) await scan(selected, 'skip')
+    } catch (cause) {
+      setError(failure(cause))
+    } finally {
+      setWorking(false)
+    }
+  }
+  const apply = async () => {
+    if (busyRef.current || !preview) return
+    setWorking(true)
+    setError(null)
+    try {
+      const result = await applyImport(inputPayload(items), policy, preview.revision)
+      setOutcomes(result)
+      setStage('done')
+      toast.success(
+        t('library.import_skill_dialog.summary', {
+          written: result.filter((item) => item.status === 'installed' || item.status === 'updated').length,
+          skipped: result.filter((item) => item.status === 'skipped').length,
+          failed: result.filter((item) => item.status === 'blocked' || item.status === 'error').length
+        })
+      )
+    } catch (cause) {
+      setError(failure(cause))
+    } finally {
+      setWorking(false)
+    }
+  }
+  const writes =
+    preview?.items.filter((item) => item.status === 'new' || (item.status === 'conflict' && policy !== 'skip'))
+      .length ?? 0
+  const plansById = new Map(preview?.items.map((item) => [item.id, item]))
+  const outcomesById = new Map(outcomes.map((item) => [item.id, item]))
+  const stale = outcomes.some(
+    (item) => (item.status === 'error' || item.status === 'blocked') && item.code === 'stale_plan' && item.retryable
+  )
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(v) => {
-        if (!v && !installing) close()
+      onOpenChange={(value) => {
+        if (!value) close()
       }}>
-      <DialogContent className="overflow-hidden" onPointerDownOutside={(event) => installing && event.preventDefault()}>
-        {/* Header */}
+      <DialogContent
+        className="overflow-hidden"
+        closeLabel={t('common.close')}
+        showCloseButton={stage === 'idle' && !busy}
+        closeOnOverlayClick={!busy}
+        onPointerDownOutside={(event) => busy && event.preventDefault()}>
         <div>
-          <div>
-            <h3 className="text-lg leading-none font-semibold text-foreground">
-              {t('library.import_skill_dialog.title')}
-            </h3>
-            <p className="mt-2 text-sm text-muted-foreground">{t('library.import_skill_dialog.subtitle')}</p>
-          </div>
+          <h3 className="text-lg leading-none font-semibold text-foreground">
+            {t('library.import_skill_dialog.title')}
+          </h3>
+          <p className="mt-2 text-sm text-muted-foreground">{t('library.import_skill_dialog.subtitle')}</p>
         </div>
-
-        {/* Body */}
         <div className="min-w-0">
-          <Dropzone
-            disabled={Boolean(installing)}
-            getFilesFromEvent={async (event) => {
-              if ('dataTransfer' in event && event.dataTransfer) {
-                return Array.from(event.dataTransfer.files)
-              }
+          {stage === 'idle' && (
+            <>
+              <Dropzone
+                disabled={busy}
+                getFilesFromEvent={async (event) => {
+                  if ('dataTransfer' in event && event.dataTransfer) {
+                    return Array.from(event.dataTransfer.files)
+                  }
 
-              if ('target' in event && event.target && 'files' in event.target) {
-                const target = event.target
-                return target.files ? Array.from(target.files) : []
-              }
+                  if ('target' in event && event.target && 'files' in event.target) {
+                    const target = event.target
+                    return target.files ? Array.from(target.files) : []
+                  }
 
-              return []
-            }}
-            maxFiles={0}
-            multiple
-            onDrop={(files, _rejections, event) => {
-              const droppedFiles =
-                'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : files
-              void handleDroppedEntries(droppedFiles)
-            }}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
-            <DropzoneEmptyState>
-              <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
-              <p className="mb-1 text-xs text-muted-foreground">{t('library.import_skill_dialog.local.drop_hint')}</p>
-              <p className="text-xs text-muted-foreground">{t('library.import_skill_dialog.local.formats')}</p>
-            </DropzoneEmptyState>
-          </Dropzone>
+                  return []
+                }}
+                maxFiles={0}
+                multiple
+                onDrop={(files, _rejections, event) => {
+                  const droppedFiles =
+                    'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : files
+                  void handleDroppedEntries(droppedFiles)
+                }}
+                className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
+                <DropzoneEmptyState>
+                  <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t('library.import_skill_dialog.local.drop_hint')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t('library.import_skill_dialog.local.formats')}</p>
+                </DropzoneEmptyState>
+              </Dropzone>
 
-          <div className="mt-4 flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleZipPick()}
-              disabled={Boolean(installing)}
-              className="shrink-0">
-              {installing === 'zip' ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
-              <span>{t('settings.skills.installFromZip')}</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleDirPick()}
-              disabled={Boolean(installing)}
-              className="shrink-0">
-              {installing === 'directory' ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
-              <span>{t('settings.skills.installFromDirectory')}</span>
-            </Button>
-          </div>
-
-          <ImportResultList items={items} />
-          <StatusBanner status={status} />
+              <div className="mt-4 flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleZipPick()}
+                  disabled={busy}
+                  className="shrink-0">
+                  {busy ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
+                  <span>{t('settings.skills.installFromZip')}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleDirPick()}
+                  disabled={busy}
+                  className="shrink-0">
+                  {busy ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
+                  <span>{t('settings.skills.installFromDirectory')}</span>
+                </Button>
+              </div>
+            </>
+          )}
+          {stage !== 'idle' && (
+            <>
+              {stage === 'review' && (
+                <RadioGroup
+                  aria-label={t('library.import_skill_dialog.policy')}
+                  value={policy}
+                  disabled={busy}
+                  onValueChange={(value) => {
+                    if (!busyRef.current && policies.includes(value as SkillImportPolicy))
+                      void scan(items, value as SkillImportPolicy)
+                  }}>
+                  <p className="text-sm">{t('library.import_skill_dialog.policy')}</p>
+                  {policies.map((value) => (
+                    <label key={value} className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value={value} />
+                      {t(policyLabels[value])}
+                    </label>
+                  ))}
+                </RadioGroup>
+              )}
+              {busy && (
+                <p role="status" className="mt-4 text-sm">
+                  {t(
+                    stage === 'review' && !preview
+                      ? 'library.import_skill_dialog.scanning'
+                      : 'library.import_skill_dialog.applying'
+                  )}
+                </p>
+              )}
+              <Scrollbar
+                data-testid="skill-import-results"
+                className="mt-4 max-h-64 w-full max-w-full min-w-0 overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
+                <div className="min-w-0 divide-y divide-border-subtle">
+                  {items.map((item) => {
+                    const plan = plansById.get(item.id)
+                    const outcome = stage === 'done' ? outcomesById.get(item.id) : undefined
+                    const status = outcome?.status ?? plan?.status
+                    const message =
+                      outcome && (outcome.status === 'error' || outcome.status === 'blocked')
+                        ? outcome.message
+                        : plan?.message
+                    const fullMessage = message ? failure(new Error(message), item.name) : null
+                    const details = [
+                      outcome?.status === 'blocked'
+                        ? t('library.import_skill_dialog.blocked')
+                        : status
+                          ? t(labels[status])
+                          : '',
+                      ...(stage === 'review' ? (plan?.reasons.map((reason) => t(reasonLabels[reason])) ?? []) : []),
+                      ...(stage === 'review' && plan?.target
+                        ? [
+                            t('library.import_skill_dialog.target', {
+                              name: plan.target.folderName,
+                              source: plan.target.source
+                            })
+                          ]
+                        : []),
+                      ...(stage === 'review' && plan?.destinationFolder
+                        ? [t('library.import_skill_dialog.destination', { name: plan.destinationFolder })]
+                        : []),
+                      ...(stage === 'review' && plan?.provenanceChange
+                        ? [t('library.import_skill_dialog.detach', plan.provenanceChange)]
+                        : []),
+                      fullMessage ?? ''
+                    ].filter(Boolean)
+                    return (
+                      <div
+                        key={item.id}
+                        className="min-w-0 px-3 py-2 text-xs"
+                        title={
+                          plan?.status === 'invalid' && fullMessage ? fullMessage : [item.name, ...details].join(': ')
+                        }>
+                        <div className="truncate text-foreground" title={item.name}>
+                          {item.name}
+                        </div>
+                        {details.map((detail, index) => (
+                          <div
+                            key={index}
+                            className="mt-0.5 min-w-0 [overflow-wrap:anywhere] break-words whitespace-normal text-foreground-tertiary">
+                            {detail}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              </Scrollbar>
+              <div className="mt-4 flex justify-end gap-2">
+                {stage === 'review' ? (
+                  <>
+                    <Button variant="outline" disabled={busy} onClick={close}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button disabled={busy || !preview} onClick={() => void apply()}>
+                      {t('library.import_skill_dialog.apply', { count: writes })}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {stale && (
+                      <Button variant="outline" disabled={busy} onClick={() => void scan(items, policy)}>
+                        {t('library.import_skill_dialog.retry')}
+                      </Button>
+                    )}
+                    <Button disabled={busy} onClick={close}>
+                      {t('common.close')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+          {error && (
+            <Alert type="error" showIcon message={error} className="mt-4 rounded-md px-3 py-2 text-xs shadow-none" />
+          )}
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function ImportResultList({ items }: { items: ImportItem[] }) {
-  const { t } = useTranslation()
-
-  if (items.length === 0) return null
-
-  return (
-    <Scrollbar
-      data-testid="skill-import-results"
-      className="mt-4 max-h-44 w-full max-w-full min-w-0 overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
-      <div className="min-w-0 divide-y divide-border-subtle">
-        {items.map((item) => {
-          const displayName = item.status === 'success' ? (item.skillName ?? item.name) : item.name
-
-          return (
-            <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
-              <ImportItemStatusIcon status={item.status} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-foreground" title={displayName}>
-                  {displayName}
-                </div>
-                {item.status !== 'success' ? (
-                  <div
-                    className="mt-0.5 min-w-0 [overflow-wrap:anywhere] break-words whitespace-normal text-foreground-tertiary"
-                    title={item.status === 'error' ? item.error : undefined}>
-                    {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
-                    {item.status === 'installing' ? t('common.loading') : null}
-                    {item.status === 'error' ? item.error : null}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </Scrollbar>
-  )
-}
-
-function ImportItemStatusIcon({ status }: { status: ImportItemStatus }) {
-  if (status === 'installing') {
-    return <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-foreground-tertiary" />
-  }
-  if (status === 'success') {
-    return <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" />
-  }
-  if (status === 'error') {
-    return <CircleAlert size={14} className="mt-0.5 shrink-0 text-error" />
-  }
-  return <span className="mt-1.5 size-2 shrink-0 rounded-full border border-border-strong bg-muted" />
-}
-
-function StatusBanner({ status }: { status: ImportStatus }) {
-  return (
-    <AnimatePresence>
-      {status.kind === 'error' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          className="mt-4">
-          <Alert type="error" showIcon message={status.message} className="rounded-md px-3 py-2 text-xs shadow-none" />
-        </motion.div>
-      )}
-    </AnimatePresence>
   )
 }

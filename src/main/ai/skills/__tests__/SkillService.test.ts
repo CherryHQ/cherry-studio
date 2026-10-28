@@ -29,6 +29,8 @@ import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { SkillImportInput, SkillImportPolicy } from '@shared/types/skill'
 
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
@@ -198,6 +200,558 @@ describe('SkillService', () => {
       vi.mocked(findAllSkillDirectories).mockReset().mockResolvedValue([])
       vi.mocked(parseSkillMetadata).mockReset()
       vi.mocked(application.getPath).mockRestore()
+    })
+
+    describe('batch import', () => {
+      afterEach(() => vi.restoreAllMocks())
+      async function directory(relative: string, body = 'original') {
+        const folder = path.join(root, relative)
+        await fs.promises.mkdir(folder, { recursive: true })
+        await fs.promises.writeFile(
+          path.join(folder, 'SKILL.md'),
+          `---\nname: fixture\ndescription: ${body}\n---\n${body}`
+        )
+        await fs.promises.writeFile(path.join(folder, 'extra.txt'), body)
+        return folder
+      }
+      function input(id: string, directoryPath: string, kind: 'directory' | 'zip' = 'directory'): SkillImportInput {
+        return { id, kind, path: AbsoluteFilePathSchema.parse(directoryPath) }
+      }
+      async function run(items: SkillImportInput[], policy: SkillImportPolicy) {
+        const preview = await service.previewImport({ items, policy })
+        const outcomes = await service.applyImport({ items, policy, revision: preview.revision })
+        return { preview, outcomes }
+      }
+      const rows = () => dbh.db.select().from(agentGlobalSkillTable).all()
+
+      describe('symlinked staging directory', () => {
+        beforeEach(async () => {
+          const real = path.join(root, 'tmp-real')
+          const alias = path.join(root, 'tmp-alias')
+          await fs.promises.mkdir(real)
+          await fs.promises.symlink(real, alias, 'dir')
+          vi.mocked(skillPaths.createTempDir).mockImplementation(() =>
+            fs.promises.mkdtemp(path.join(alias, 'zip-install-'))
+          )
+        })
+
+        it('keeps root ZIP revisions and archive-derived folders stable through preview and confirmation', async () => {
+          const selected = path.join(root, 'Alias Skill.zip')
+          const zip = new AdmZip()
+          zip.addFile('SKILL.md', Buffer.from('---\nname: fixture\ndescription: symlink staging\n---\nbody'))
+          zip.writeZip(selected)
+          const items = [input('zip', selected, 'zip')]
+
+          const first = await service.previewImport({ items, policy: 'keep_both' })
+          const second = await service.previewImport({ items, policy: 'keep_both' })
+          expect(second.revision).toBe(first.revision)
+          expect(first.items[0].destinationFolder).not.toBe('extracted')
+          expect(first.items[0].destinationFolder).toBe('Alias_Skill')
+          expect(second.items[0].destinationFolder).toBe('Alias_Skill')
+
+          const outcomes = await service.applyImport({ items, policy: 'keep_both', revision: first.revision })
+          expect(outcomes).not.toEqual(expect.arrayContaining([expect.objectContaining({ code: 'stale_plan' })]))
+          expect(outcomes).toEqual([
+            expect.objectContaining({ id: 'zip', status: 'installed', folderName: 'Alias_Skill' })
+          ])
+          expect(rows()).toEqual([expect.objectContaining({ folderName: 'Alias_Skill' })])
+        })
+      })
+
+      it.each(['skip', 'update', 'keep_both'] as const)(
+        'applies %s to both conflicts after a new first item',
+        async (policy) => {
+          const first = await service.installFromDirectory({ directoryPath: await directory('old/one', 'old one') })
+          const second = await service.installFromDirectory({ directoryPath: await directory('old/two', 'old two') })
+          const items = [
+            input('new', await directory('new/three', 'three')),
+            input('one', await directory('new/one', 'new one')),
+            input('two', await directory('new/two', 'new two'))
+          ]
+          const { preview, outcomes } = await run(items, policy)
+          expect(preview.items.map((item) => item.status)).toEqual(['new', 'conflict', 'conflict'])
+          expect(outcomes.map((item) => item.status)).toEqual([
+            'installed',
+            policy === 'skip' ? 'skipped' : policy === 'update' ? 'updated' : 'installed',
+            policy === 'skip' ? 'skipped' : policy === 'update' ? 'updated' : 'installed'
+          ])
+          expect(rows()).toHaveLength(policy === 'keep_both' ? 5 : 3)
+          for (const skill of [first, second]) {
+            expect(
+              await fs.promises.readFile(path.join(service.getInstalledSkillDirectory(skill), 'extra.txt'), 'utf8')
+            ).toBe(`${policy === 'update' ? 'new' : 'old'} ${skill.folderName}`)
+          }
+          if (policy === 'keep_both') {
+            expect(rows().map((row) => row.folderName)).toEqual(expect.arrayContaining(['one-2', 'two-2', 'three']))
+            expect(await fs.promises.readFile(path.join(root, 'mirror', 'two-2', 'extra.txt'), 'utf8')).toBe('new two')
+          }
+        }
+      )
+
+      it.each([
+        ['directory', 'stale'],
+        ['directory', 'descriptor'],
+        ['zip', 'stale'],
+        ['zip', 'descriptor']
+      ] as const)(
+        'detects renamed identical %s against live content with a %s baseline without backfilling',
+        async (kind, baseline) => {
+          const installed = await service.installFromDirectory({ directoryPath: await directory('old/original') })
+          const baselineHash =
+            baseline === 'descriptor'
+              ? createHash('sha256')
+                  .update(
+                    await fs.promises.readFile(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))
+                  )
+                  .digest('hex')
+              : `dir-sha256-v1:${'0'.repeat(64)}`
+          agentGlobalSkillService.update(installed.id, { contentHash: baselineHash, isEnabled: false })
+          const renamed = await directory('incoming/renamed')
+          let selected = renamed
+          if (kind === 'zip') {
+            selected = path.join(root, 'renamed.zip')
+            const zip = new AdmZip()
+            zip.addLocalFolder(renamed, 'renamed')
+            zip.writeZip(selected)
+          }
+          const before = rows()
+          const { preview, outcomes } = await run([input('renamed', selected, kind)], 'skip')
+          expect(preview.items[0]).toMatchObject({
+            status: 'conflict',
+            reasons: ['identical_content'],
+            target: { kind: 'installed', id: installed.id }
+          })
+          expect(outcomes).toEqual([
+            { id: 'renamed', status: 'skipped', skillId: installed.id, folderName: 'original' }
+          ])
+          expect(rows()).toEqual(before)
+        }
+      )
+
+      it('updates across local origins while preserving the legacy refusal', async () => {
+        const installed = await service.installFromDirectory({ directoryPath: await directory('old/same', 'old') })
+        const incoming = await directory('new/same', 'new')
+        await expect(service.installFromDirectory({ directoryPath: incoming })).rejects.toThrow('refusing to overwrite')
+        const { outcomes } = await run([input('same', incoming)], 'update')
+        expect(outcomes).toEqual([{ id: 'same', status: 'updated', skillId: installed.id, folderName: 'same' }])
+        expect(rows()[0]).toMatchObject({
+          source: 'local',
+          sourceUrl: pathToFileURL(await fs.promises.realpath(incoming)).href,
+          description: 'new'
+        })
+      })
+
+      it.each(['marketplace', 'system'])(
+        'detaches %s provenance and preserves row identity, global enablement and disabled joins',
+        async (source) => {
+          const installed = await service.installFromDirectory({
+            directoryPath: await directory('old/StoredCase', 'old')
+          })
+          await seedAgent()
+          agentGlobalSkillService.upsertJoin(AGENT_ID, installed.id, false)
+          agentGlobalSkillService.update(installed.id, {
+            source,
+            namespace: 'trusted-origin',
+            sourceUrl: 'https://github.com/owner/repo/blob/main/SKILL.md',
+            isEnabled: true
+          })
+          const before = rows()[0]
+          const incoming = await directory('incoming/storedcase', 'new')
+          const items = [input('replacement', incoming)]
+          const preview = await service.previewImport({ items, policy: 'update' })
+          expect(preview.items[0]).toMatchObject({
+            destinationFolder: 'StoredCase',
+            provenanceChange: { from: source, to: 'local' }
+          })
+          // A global toggle after Preview must survive Apply without making the content plan stale.
+          agentGlobalSkillService.update(installed.id, { isEnabled: false })
+          expect((await service.applyImport({ items, policy: 'update', revision: preview.revision }))[0].status).toBe(
+            'updated'
+          )
+          expect(rows()[0]).toMatchObject({
+            id: installed.id,
+            folderName: 'StoredCase',
+            createdAt: before.createdAt,
+            isEnabled: false,
+            source: 'local',
+            sourceUrl: pathToFileURL(await fs.promises.realpath(incoming)).href,
+            namespace: null,
+            description: 'new'
+          })
+          expect(agentGlobalSkillService.listJoinBySkill(installed.id)).toEqual([
+            { agentId: AGENT_ID, isEnabled: false }
+          ])
+          expect(await service.checkRemoteUpdate(installed.id)).toEqual({ state: 'unsupported', reason: 'not_remote' })
+        }
+      )
+
+      it('keeps prospective relationships after an earlier update changes original content', async () => {
+        const items = [
+          input('a', await directory('a/same', 'a')),
+          input('b', await directory('b/same', 'b')),
+          input('c', await directory('c/renamed', 'a'))
+        ]
+        const { preview, outcomes } = await run(items, 'update')
+        expect(preview.items[1].target).toMatchObject({ kind: 'input', id: 'a' })
+        expect(preview.items[2].target).toMatchObject({ kind: 'input', id: 'a' })
+        expect(outcomes.map((item) => item.status)).toEqual(['installed', 'updated', 'updated'])
+        expect(rows()).toHaveLength(1)
+        expect(rows()[0]).toMatchObject({ folderName: 'same', description: 'a' })
+      })
+
+      it('reports dependency errors after a predecessor publication fails', async () => {
+        const items = [
+          input('a', await directory('a/same')),
+          input('b', await directory('b/same')),
+          input('c', await directory('c/renamed'))
+        ]
+        const preview = await service.previewImport({ items, policy: 'update' })
+        vi.spyOn(SkillInstaller.prototype, 'prepareInstall').mockRejectedValueOnce(new Error('publication failure'))
+        expect(await service.applyImport({ items, policy: 'update', revision: preview.revision })).toEqual([
+          { id: 'a', status: 'error', code: 'publish_failed', retryable: true },
+          { id: 'b', status: 'error', code: 'dependency_failed', retryable: true },
+          { id: 'c', status: 'error', code: 'dependency_failed', retryable: true }
+        ])
+        expect(rows()).toEqual([])
+        expect(fs.existsSync(path.join(root, 'library', 'renamed'))).toBe(false)
+      })
+
+      it('updates folder target A only when different target B has identical content', async () => {
+        const a = await service.installFromDirectory({ directoryPath: await directory('old/a', 'old') })
+        const b = await service.installFromDirectory({ directoryPath: await directory('old/b', 'new') })
+        const beforeB = rows().find((row) => row.id === b.id)
+        const { preview, outcomes } = await run([input('incoming', await directory('new/a', 'new'))], 'update')
+        expect(preview.items[0]).toMatchObject({
+          reasons: ['folder_name', 'identical_content'],
+          target: { id: a.id },
+          otherMatches: [expect.objectContaining({ id: b.id })]
+        })
+        expect(outcomes[0]).toMatchObject({ status: 'updated', skillId: a.id })
+        expect(rows().find((row) => row.id === b.id)).toEqual(beforeB)
+      })
+
+      it('chooses identical rows by createdAt then ordinal id and leaves other rows untouched', async () => {
+        const ids = [SKILL_ID_2, SKILL_ID_BUILTIN, SKILL_ID_1]
+        for (const [index, id] of ids.entries()) {
+          await directory(`library/copy${index}`)
+          dbh.db
+            .insert(agentGlobalSkillTable)
+            .values({
+              id,
+              name: 'same',
+              folderName: `copy${index}`,
+              source: 'local',
+              contentHash: 'stale',
+              createdAt: Date.parse(index === 1 ? '2026-01-02' : '2026-01-01')
+            })
+            .run()
+        }
+        const untouched = rows().filter((row) => row.id !== SKILL_ID_1)
+        const { preview } = await run([input('incoming', await directory('incoming/renamed'))], 'update')
+        expect(preview.items[0].target).toMatchObject({ id: SKILL_ID_1 })
+        expect(rows().filter((row) => row.id !== SKILL_ID_1)).toEqual(untouched)
+      })
+
+      it('allocates one reservation set across case, sanitization and 80-character suffix collisions', async () => {
+        const long = 'x'.repeat(80)
+        const items = [
+          input('a', await directory(`a/${long}A`, '1')),
+          input('b', await directory(`b/${long}B`, '2')),
+          input('c', await directory('c/Foo!', '3')),
+          input('d', await directory('d/foo?', '4')),
+          input('e', await directory(`e/${long.slice(0, 78)}-2`, '5'))
+        ]
+        const { preview, outcomes } = await run(items, 'keep_both')
+        const folders = preview.items.map((item) => item.destinationFolder!)
+        expect(folders).toEqual([long, `${'x'.repeat(78)}-2`, 'Foo_', 'foo_-2', `${'x'.repeat(78)}-3`])
+        expect(new Set(folders.map((folder) => folder.toLowerCase())).size).toBe(5)
+        expect(folders.every((folder) => folder.length <= 80)).toBe(true)
+        expect(outcomes.map((item) => item.status)).toEqual(Array(5).fill('installed'))
+      })
+
+      it('shortens the base before double-digit suffixes without truncating the suffix', async () => {
+        const items: SkillImportInput[] = []
+        for (let index = 0; index < 11; index++)
+          items.push(input(`${index}`, await directory(`${index}/${'x'.repeat(80)}`, `${index}`)))
+        const { preview } = await run(items, 'keep_both')
+        expect(preview.items[9].destinationFolder).toBe(`${'x'.repeat(77)}-10`)
+        expect(preview.items[10].destinationFolder).toBe(`${'x'.repeat(77)}-11`)
+      })
+
+      it('gives root ZIPs a stable archive-derived folder and unnamed display fallback', async () => {
+        const selected = path.join(root, 'Stable Name.ZIP')
+        const zip = new AdmZip()
+        zip.addFile('SKILL.md', Buffer.from('---\ndescription: unnamed\n---\nbody'))
+        zip.writeZip(selected)
+        const items = [input('zip', selected, 'zip')]
+        const first = await service.previewImport({ items, policy: 'keep_both' })
+        expect(await service.previewImport({ items, policy: 'keep_both' })).toEqual(first)
+        expect(first.items[0].destinationFolder).toBe('Stable_Name')
+        expect((await service.applyImport({ items, policy: 'keep_both', revision: first.revision }))[0]).toMatchObject({
+          status: 'installed',
+          folderName: 'Stable_Name'
+        })
+        expect(rows()[0]).toMatchObject({
+          name: 'Stable_Name',
+          source: 'zip',
+          sourceUrl: pathToFileURL(await fs.promises.realpath(selected)).href
+        })
+        await service.reconcileSkills()
+        expect(rows()[0].name).toBe('Stable_Name')
+      })
+
+      it.each(['builtin', 'disk', 'ambiguous', 'physical', 'file', 'symlink'] as const)(
+        'blocks update of %s targets and permits skip without publishing',
+        async (kind) => {
+          const incoming = await directory('incoming/taken', 'incoming')
+          if (kind === 'disk' || kind === 'physical') await directory('library/taken', 'old')
+          else if (kind === 'file') {
+            await fs.promises.mkdir(path.join(root, 'library'))
+            await fs.promises.writeFile(path.join(root, 'library', 'taken'), 'occupied')
+          } else if (kind === 'symlink') {
+            await fs.promises.mkdir(path.join(root, 'library'))
+            await fs.promises.symlink(incoming, path.join(root, 'library', 'taken'), 'dir')
+          } else {
+            const installed = await service.installFromDirectory({ directoryPath: await directory('old/taken', 'old') })
+            if (kind === 'builtin') agentGlobalSkillService.update(installed.id, { source: 'builtin' })
+            else
+              dbh.db
+                .insert(agentGlobalSkillTable)
+                .values({ name: 'other', folderName: 'TAKEN', source: 'local', contentHash: 'stale' })
+                .run()
+          }
+          if (kind === 'physical') {
+            const originalRead = fs.promises.readdir
+            vi.spyOn(fs.promises, 'readdir').mockImplementation((async (...args: Parameters<typeof originalRead>) => {
+              const result = await originalRead(...args)
+              if (args[0] === path.join(root, 'library'))
+                return [...result, { name: 'TAKEN', isDirectory: () => true, isSymbolicLink: () => false }]
+              return result
+            }) as typeof originalRead)
+          }
+          const before = rows()
+          const { preview, outcomes } = await run([input('x', incoming)], 'update')
+          expect(preview.items[0].status).toBe('blocked')
+          expect(outcomes[0].status).toBe('blocked')
+          expect((await run([input('x', incoming)], 'skip')).outcomes[0].status).toBe('skipped')
+          expect(rows()).toEqual(before)
+        }
+      )
+
+      it.each(['disk', 'ambiguous'] as const)(
+        'never falls through %s folder occupancy to an unrelated hash match',
+        async (kind) => {
+          const identical = await service.installFromDirectory({
+            directoryPath: await directory('old/identical', 'new')
+          })
+          await directory('library/taken', 'old')
+          if (kind === 'ambiguous') {
+            for (const folderName of ['taken', 'TAKEN'])
+              dbh.db
+                .insert(agentGlobalSkillTable)
+                .values({ name: folderName, folderName, source: 'local', contentHash: 'old' })
+                .run()
+          }
+          const before = rows()
+          const { preview, outcomes } = await run(
+            [input('incoming', await directory('incoming/taken', 'new'))],
+            'update'
+          )
+          expect(preview.items[0]).toMatchObject({
+            status: 'blocked',
+            target: null,
+            otherMatches: expect.arrayContaining([expect.objectContaining({ id: identical.id })])
+          })
+          expect(outcomes[0].status).toBe('blocked')
+          expect(rows()).toEqual(before)
+          expect(await fs.promises.readFile(path.join(root, 'library', 'taken', 'extra.txt'), 'utf8')).toBe('old')
+        }
+      )
+
+      it.each(['input', 'target'] as const)(
+        'rejects the whole stale plan after %s edits with zero publications',
+        async (edited) => {
+          const installed = await service.installFromDirectory({ directoryPath: await directory('old/same', 'old') })
+          const changed = await directory('incoming/same', 'new')
+          const items = [input('first', await directory('new/first', 'first')), input('second', changed)]
+          const preview = await service.previewImport({ items, policy: 'update' })
+          await fs.promises.writeFile(
+            path.join(edited === 'input' ? changed : service.getInstalledSkillDirectory(installed), 'extra.txt'),
+            'edited'
+          )
+          const before = rows()
+          expect(await service.applyImport({ items, policy: 'update', revision: preview.revision })).toEqual(
+            items.map((item) => ({ id: item.id, status: 'error', code: 'stale_plan', retryable: true }))
+          )
+          expect(rows()).toEqual(before)
+          expect(fs.existsSync(path.join(root, 'library', 'first'))).toBe(false)
+        }
+      )
+
+      it('emits catalog changes only after successful mutations, never Preview or an all-skip Apply', async () => {
+        const installed = await service.installFromDirectory({ directoryPath: await directory('old/same', 'old') })
+        const effects: DataApiDataChangeEffect[] = []
+        notifyDataApiDataChangeMock.mockImplementation((changes: DataApiDataChangeEffect[]) => effects.push(...changes))
+        try {
+          const items = [input('incoming', await directory('incoming/same', 'new'))]
+          const preview = await service.previewImport({ items, policy: 'skip' })
+          expect(effects).toEqual([])
+          expect((await service.applyImport({ items, policy: 'skip', revision: preview.revision }))[0].status).toBe(
+            'skipped'
+          )
+          expect(effects).toEqual([])
+          expect((await run(items, 'update')).outcomes[0].status).toBe('updated')
+          expect(effects).toEqual([
+            { endpoint: '/skills', kind: 'membership', entityIds: [installed.id] },
+            {
+              endpoint: '/skills',
+              kind: 'membership',
+              dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+              entityIds: [installed.id]
+            },
+            { endpoint: '/skills/:skillId', entityIds: [installed.id] }
+          ])
+        } finally {
+          notifyDataApiDataChangeMock.mockReset()
+        }
+      })
+
+      it.each([
+        ['zip', 'zip_missing_skill_md'],
+        ['directory', 'directory_missing_skill_md'],
+        ['file', 'invalid_zip_file'],
+        ['missing', 'invalid_input']
+      ] as const)('preserves the invalid-input reason for %s inputs', async (fixture, code) => {
+        const selected = path.join(root, fixture === 'zip' ? 'no-skill.zip' : fixture)
+        if (fixture === 'zip') {
+          const zip = new AdmZip()
+          zip.addFile('nested/README.md', Buffer.from('# No skill'))
+          zip.writeZip(selected)
+        } else if (fixture === 'directory') {
+          await fs.promises.mkdir(selected)
+        } else if (fixture === 'file') {
+          await fs.promises.writeFile(selected, 'not a ZIP')
+        }
+        const items = [input(fixture, selected, fixture === 'zip' || fixture === 'file' ? 'zip' : 'directory')]
+        const { preview, outcomes } = await run(items, 'keep_both')
+        expect(preview.items[0]).toMatchObject({ id: fixture, status: 'invalid', code, destinationFolder: null })
+        expect(outcomes).toEqual([{ id: fixture, status: 'error', code, retryable: false }])
+        expect(rows()).toHaveLength(0)
+      })
+
+      it('returns invalid batch results in order and publishes valid inputs only', async () => {
+        const brokenZip = path.join(root, 'broken.zip')
+        await fs.promises.writeFile(brokenZip, 'not a zip')
+        const empty = path.join(root, 'empty')
+        await fs.promises.mkdir(empty)
+        const archive = path.join(root, '.ZIP')
+        const zip = new AdmZip()
+        zip.addFile('SKILL.md', Buffer.from('# unnamed'))
+        zip.writeZip(archive)
+        const items = [
+          input('bad', brokenZip, 'zip'),
+          input('missing', empty),
+          input('empty-base', archive, 'zip'),
+          input('good', await directory('incoming/good'))
+        ]
+        const { preview, outcomes } = await run(items, 'keep_both')
+        expect(preview.items.map((item) => item.status)).toEqual(['invalid', 'invalid', 'invalid', 'new'])
+        expect(outcomes).toEqual([
+          { id: 'bad', status: 'error', code: 'invalid_input', retryable: false },
+          { id: 'missing', status: 'error', code: 'directory_missing_skill_md', retryable: false },
+          { id: 'empty-base', status: 'error', code: 'invalid_input', retryable: false },
+          expect.objectContaining({ id: 'good', status: 'installed', folderName: 'good' })
+        ])
+        expect(rows()).toHaveLength(1)
+      })
+
+      it('creates a fresh local copy of a builtin without inheriting provenance or joins', async () => {
+        const installed = await service.installFromDirectory({ directoryPath: await directory('old/builtin') })
+        await seedAgent()
+        agentGlobalSkillService.upsertJoin(AGENT_ID, installed.id, false)
+        agentGlobalSkillService.update(installed.id, { source: 'builtin', namespace: 'builtin', isEnabled: false })
+        const before = rows()[0]
+        const { outcomes } = await run([input('copy', await directory('incoming/builtin'))], 'keep_both')
+        const outcome = outcomes[0]
+        expect(outcome).toMatchObject({ status: 'installed', folderName: 'builtin-2' })
+        if (outcome.status !== 'installed') throw new Error('Expected a fresh copy')
+        expect(rows().find((row) => row.id === installed.id)).toEqual(before)
+        expect(rows().find((row) => row.id === outcome.skillId)).toMatchObject({
+          source: 'local',
+          namespace: null,
+          isEnabled: true
+        })
+        expect(agentGlobalSkillService.listJoinBySkill(outcome.skillId)).toEqual([])
+        expect(await fs.promises.readFile(path.join(root, 'mirror', 'builtin-2', 'extra.txt'), 'utf8')).toBe('original')
+      })
+
+      it('stages all inputs before an earlier replacement can alter a later input', async () => {
+        const a = await service.installFromDirectory({ directoryPath: await directory('old/a', 'a') })
+        const b = await service.installFromDirectory({ directoryPath: await directory('old/b', 'b') })
+        const nested = await directory('library/a/b', 'nested original')
+        const changes = [input('replace-a', await directory('another/a', 'replacement')), input('replace-b', nested)]
+        const result = await run(changes, 'update')
+        expect(result.outcomes).toEqual([
+          { id: 'replace-a', status: 'updated', skillId: a.id, folderName: 'a' },
+          { id: 'replace-b', status: 'updated', skillId: b.id, folderName: 'b' }
+        ])
+        expect(await fs.promises.readFile(path.join(root, 'library', 'b', 'extra.txt'), 'utf8')).toBe('nested original')
+      })
+
+      it('reports recovery failure explicitly and stops all subsequent publications', async () => {
+        const installed = await service.installFromDirectory({ directoryPath: await directory('old/a', 'old') })
+        const items = [input('a', await directory('incoming/a', 'new')), input('b', await directory('incoming/b', 'b'))]
+        const preview = await service.previewImport({ items, policy: 'update' })
+        vi.spyOn(service, 'linkMirror').mockRejectedValue(new Error('mirror cannot be restored'))
+        expect(await service.applyImport({ items, policy: 'update', revision: preview.revision })).toEqual([
+          { id: 'a', status: 'error', code: 'recovery_failed', retryable: false },
+          { id: 'b', status: 'error', code: 'recovery_failed', retryable: false }
+        ])
+        expect(rows().map((row) => row.id)).toEqual([installed.id])
+        expect(fs.existsSync(path.join(root, 'library', 'b'))).toBe(false)
+        expect(await fs.promises.readFile(path.join(root, 'library', 'a', 'extra.txt'), 'utf8')).toBe('old')
+      })
+
+      it.each(['publish', 'database', 'mirror'] as const)(
+        'compensates a %s failure across files, row provenance and joins',
+        async (step) => {
+          const installed = await service.installFromDirectory({ directoryPath: await directory('old/same', 'old') })
+          await seedAgent()
+          agentGlobalSkillService.upsertJoin(AGENT_ID, installed.id, false)
+          agentGlobalSkillService.update(installed.id, {
+            source: 'system',
+            namespace: 'cli',
+            sourceUrl: 'file:///old',
+            isEnabled: false
+          })
+          const items = [input('incoming', await directory('incoming/same', 'new'))]
+          const preview = await service.previewImport({ items, policy: 'update' })
+          const before = rows()[0]
+          if (step === 'publish') {
+            const copy = fs.promises.copyFile
+            vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (source, destination, ...rest) => {
+              if (String(destination) === path.join(root, 'library', 'same', 'extra.txt'))
+                throw new Error('copy failed')
+              return copy(source, destination, ...rest)
+            })
+          } else if (step === 'database') {
+            const update = agentGlobalSkillService.updateTx.bind(agentGlobalSkillService)
+            vi.spyOn(agentGlobalSkillService, 'updateTx').mockImplementationOnce((...args) => {
+              update(...args)
+              throw new Error('db failed after write')
+            })
+          } else vi.spyOn(service, 'linkMirror').mockRejectedValueOnce(new Error('mirror failed after DB commit'))
+          expect((await service.applyImport({ items, policy: 'update', revision: preview.revision }))[0]).toMatchObject(
+            { status: 'error', code: 'publish_failed' }
+          )
+          expect(rows()[0]).toMatchObject({ ...before, updatedAt: expect.any(Number) })
+          expect(agentGlobalSkillService.listJoinBySkill(installed.id)).toEqual([
+            { agentId: AGENT_ID, isEnabled: false }
+          ])
+          expect(await fs.promises.readFile(path.join(root, 'library', 'same', 'extra.txt'), 'utf8')).toBe('old')
+          expect(await fs.promises.readFile(path.join(root, 'mirror', 'same', 'extra.txt'), 'utf8')).toBe('old')
+        }
+      )
     })
 
     it('classifies a real ZIP without SKILL.md and preserves the extraction path without adding rows', async () => {

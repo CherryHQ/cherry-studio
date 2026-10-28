@@ -11,14 +11,22 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
+import { copyDirectoryRecursive } from '@main/utils/fileOperations'
 import { directoryExists } from '@main/utils/legacyFile'
-import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata, PluginError } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillCatalogEntry } from '@shared/types/skill'
 import type {
+  SkillImportFailureCode,
   SkillImportSystemOptions,
+  SkillImportInput,
+  SkillImportPolicy,
+  SkillImportPreview,
+  SkillImportPreviewItem,
+  SkillImportTarget,
+  SkillImportOutcome,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
   SkillInstallOptions,
@@ -30,7 +38,8 @@ import type {
 import {
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
-  parseSkillSourceUrl
+  parseSkillSourceUrl,
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX
 } from '@shared/utils/skillMarketplace'
 
 import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
@@ -44,6 +53,17 @@ const logger = loggerService.withContext('SkillService')
 
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+
+interface PreparedImport {
+  input: SkillImportInput
+  tempDir: string
+  directory?: string
+  origin?: string
+  selection?: string
+  folder?: string
+  hash?: string
+  failure?: SkillImportFailureCode
+}
 
 type SkillRemoteUpdateErrorCode = (typeof skillErrorCodes)[keyof typeof skillErrorCodes]
 
@@ -256,6 +276,396 @@ export class SkillService {
 
     const canonicalPath = await fs.promises.realpath(directoryPath)
     return this.installSkillDir(canonicalPath, 'local', pathToFileURL(canonicalPath).href)
+  }
+
+  async previewImport(options: { items: SkillImportInput[]; policy: SkillImportPolicy }): Promise<SkillImportPreview> {
+    const prepared = await this.prepareImports(options.items)
+    try {
+      return await this.mutationLock.runExclusive(() =>
+        runPathMutationExclusive(() => this.planImports(prepared, options.policy))
+      )
+    } finally {
+      await Promise.all(prepared.map((item) => safeRemoveDirectory(item.tempDir)))
+    }
+  }
+
+  async applyImport(options: {
+    items: SkillImportInput[]
+    policy: SkillImportPolicy
+    revision: string
+  }): Promise<SkillImportOutcome[]> {
+    const prepared = await this.prepareImports(options.items)
+    try {
+      return await this.mutationLock.runExclusive(() =>
+        runPathMutationExclusive(async () => {
+          const plan = await this.planImports(prepared, options.policy)
+          if (plan.revision !== options.revision) {
+            return options.items.map((item) => ({
+              id: item.id,
+              status: 'error',
+              code: 'stale_plan',
+              retryable: true
+            }))
+          }
+          const outcomes: SkillImportOutcome[] = []
+          const resolved = new Map<string, { skillId: string; folderName: string }>()
+          let recoveryFailed = false
+          for (const [index, item] of prepared.entries()) {
+            const entry = plan.items[index]
+            const failure = (code: 'dependency_failed' | 'publish_failed' | 'recovery_failed'): SkillImportOutcome => ({
+              id: item.input.id,
+              status: 'error',
+              code,
+              retryable: code !== 'recovery_failed'
+            })
+            if (recoveryFailed) {
+              outcomes.push(failure('recovery_failed'))
+              continue
+            }
+            if (entry.code) {
+              outcomes.push({
+                id: entry.id,
+                status: entry.status === 'blocked' ? 'blocked' : 'error',
+                code: entry.code,
+                retryable: false
+              })
+              continue
+            }
+            const predecessor = entry.target?.kind === 'input' ? resolved.get(entry.target.id) : undefined
+            if (entry.target?.kind === 'input' && !predecessor && options.policy !== 'keep_both') {
+              outcomes.push(failure('dependency_failed'))
+              continue
+            }
+            const targetId = entry.target?.kind === 'installed' ? entry.target.id : predecessor?.skillId
+            if (entry.status === 'conflict' && options.policy === 'skip') {
+              const skipped = targetId ? { skillId: targetId, folderName: entry.destinationFolder! } : undefined
+              if (skipped) resolved.set(entry.id, skipped)
+              outcomes.push({ id: entry.id, status: 'skipped', ...skipped })
+              continue
+            }
+            try {
+              const target = options.policy === 'update' && targetId ? agentGlobalSkillService.getById(targetId) : null
+              if (options.policy === 'update' && targetId && !target) {
+                outcomes.push(failure('dependency_failed'))
+                continue
+              }
+              const installed = await this.publishImport(item, entry.destinationFolder!, target)
+              resolved.set(entry.id, { skillId: installed.id, folderName: installed.folderName })
+              outcomes.push({
+                id: entry.id,
+                status: target ? 'updated' : 'installed',
+                skillId: installed.id,
+                folderName: installed.folderName
+              })
+            } catch (error) {
+              recoveryFailed = error instanceof AggregateError
+              logger.error('Batch skill publication failed', { inputId: entry.id, error })
+              outcomes.push(failure(recoveryFailed ? 'recovery_failed' : 'publish_failed'))
+            }
+          }
+          return outcomes
+        })
+      )
+    } finally {
+      await Promise.all(prepared.map((item) => safeRemoveDirectory(item.tempDir)))
+    }
+  }
+
+  private async prepareImports(inputs: SkillImportInput[]): Promise<PreparedImport[]> {
+    const prepared: PreparedImport[] = []
+    try {
+      for (const input of inputs) {
+        const item: PreparedImport = { input, tempDir: await createTempDir('batch-import') }
+        prepared.push(item)
+        try {
+          const canonical = await fs.promises.realpath(input.path)
+          item.origin = pathToFileURL(canonical).href
+          let sourceDirectory = canonical
+          if (input.kind === 'zip') {
+            await validateZipFile(input.path)
+            const extraction = path.join(item.tempDir, 'extracted')
+            await fs.promises.mkdir(extraction)
+            await extractZip(canonical, extraction)
+            sourceDirectory = await resolveSkillDirectory(extraction, null, null)
+            await assertSkillDirectoryWithinLimits(sourceDirectory)
+            item.selection = path
+              .relative(await fs.promises.realpath(extraction), sourceDirectory)
+              .split(path.sep)
+              .join('/')
+            item.folder = sanitizeFolderName(
+              item.selection ? path.basename(sourceDirectory) : path.basename(input.path).replace(/\.zip$/i, '')
+            )
+          } else {
+            if (!(await directoryExists(canonical))) throw new Error('Selected input is not a directory')
+            item.selection = ''
+            item.folder = sanitizeFolderName(path.basename(canonical))
+          }
+          if (!item.folder) throw new Error('Empty skill folder name')
+          item.directory = path.join(item.tempDir, 'staged', item.folder)
+          await copyDirectoryRecursive(sourceDirectory, item.directory)
+          item.hash = await this.installer.computeDirectoryHash(item.directory)
+          await parseSkillMetadata(item.directory, item.folder, 'skills')
+        } catch (error) {
+          logger.warn('Invalid batch skill input', { inputId: input.id, error })
+          item.hash = undefined
+          item.failure = 'invalid_input'
+          if (error instanceof SkillImportError) {
+            switch (error.code) {
+              case 'INVALID_ZIP_FILE':
+                item.failure = 'invalid_zip_file'
+                break
+              case 'DIRECTORY_NOT_FOUND':
+                item.failure = 'directory_not_found'
+                break
+              case 'SKILL_DIRECTORY_NOT_FOUND':
+                item.failure = input.kind === 'zip' ? 'zip_missing_skill_md' : 'directory_missing_skill_md'
+                break
+            }
+          } else if (error instanceof PluginError && error.type === 'FILE_NOT_FOUND') {
+            item.failure = input.kind === 'zip' ? 'zip_missing_skill_md' : 'directory_missing_skill_md'
+          }
+        }
+      }
+      return prepared
+    } catch (error) {
+      await Promise.all(prepared.map((item) => safeRemoveDirectory(item.tempDir)))
+      throw error
+    }
+  }
+
+  private async planImports(prepared: PreparedImport[], policy: SkillImportPolicy): Promise<SkillImportPreview> {
+    const skills = agentGlobalSkillService
+      .listAll()
+      .sort((a, b) =>
+        a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+      )
+    const storageRoot = application.getPath('feature.agents.skills')
+    const entries = (
+      await fs.promises.readdir(storageRoot, { withFileTypes: true }).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+        throw error
+      })
+    )
+      .filter((entry) => !entry.name.startsWith('.'))
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    const hashes = new Map<string, string | null>()
+    const physicalHashes = new Map<string, string | null>()
+    for (const skill of skills) {
+      const physical = entries.filter(
+        (entry) => normalizeFolderKey(entry.name) === normalizeFolderKey(skill.folderName)
+      )
+      const selected =
+        physical.find((entry) => entry.name === skill.folderName) ?? (physical.length === 1 ? physical[0] : undefined)
+      const directory = selected?.isDirectory() ? selected.name : null
+      if (directory && !physicalHashes.has(directory)) {
+        physicalHashes.set(
+          directory,
+          await this.installer.computeDirectoryHash(this.getSkillStoragePath(directory)).catch(() => null)
+        )
+      }
+      hashes.set(skill.folderName, directory ? physicalHashes.get(directory)! : null)
+    }
+    const reserved = new Set(
+      [...skills.map((skill) => skill.folderName), ...entries.map((entry) => entry.name)].map(normalizeFolderKey)
+    )
+    const items: SkillImportPreviewItem[] = []
+    const installedTarget = (skill: InstalledSkill): SkillImportTarget => ({
+      kind: 'installed',
+      id: skill.id,
+      folderName: skill.folderName,
+      source: skill.source
+    })
+    for (const [index, incoming] of prepared.entries()) {
+      const entry: SkillImportPreviewItem = {
+        id: incoming.input.id,
+        status: 'invalid',
+        reasons: [],
+        target: null,
+        otherMatches: [],
+        destinationFolder: null,
+        provenanceChange: null
+      }
+      items.push(entry)
+      if (!incoming.hash || !incoming.folder) {
+        entry.code = incoming.failure ?? 'invalid_input'
+        continue
+      }
+      const key = normalizeFolderKey(incoming.folder)
+      const folderMatches = skills.filter((skill) => normalizeFolderKey(skill.folderName) === key)
+      const diskMatches = entries.filter((disk) => normalizeFolderKey(disk.name) === key)
+      const hashMatches = skills.filter((skill) => hashes.get(skill.folderName) === incoming.hash)
+      const previous = prepared.slice(0, index)
+      const earlierFolder = previous.findIndex((item) => item.hash && normalizeFolderKey(item.folder!) === key)
+      const earlierHash = previous.findIndex((item) => item.hash === incoming.hash)
+      const prospective = (previousIndex: number): SkillImportTarget => ({
+        kind: 'input',
+        id: prepared[previousIndex].input.id,
+        folderName: items[previousIndex].destinationFolder ?? prepared[previousIndex].folder!,
+        source:
+          policy === 'skip' && items[previousIndex].target
+            ? items[previousIndex].target.source
+            : prepared[previousIndex].input.kind === 'zip'
+              ? 'zip'
+              : 'local'
+      })
+      if (folderMatches.length || diskMatches.length || earlierFolder !== -1) entry.reasons.push('folder_name')
+      if (hashMatches.length || earlierHash !== -1) entry.reasons.push('identical_content')
+      // An occupied/ambiguous folder takes precedence even when unrelated content matches elsewhere.
+      const folderOccupied = folderMatches.length > 0 || diskMatches.length > 0
+      entry.target = folderOccupied
+        ? folderMatches.length === 1
+          ? installedTarget(folderMatches[0])
+          : null
+        : earlierFolder !== -1
+          ? prospective(earlierFolder)
+          : hashMatches.length
+            ? installedTarget(hashMatches[0])
+            : earlierHash !== -1
+              ? prospective(earlierHash)
+              : null
+      const matches = [
+        ...new Map([...folderMatches, ...hashMatches].map((skill) => [skill.id, installedTarget(skill)])).values()
+      ]
+      for (const [previousIndex, item] of previous.entries()) {
+        if (item.hash && (normalizeFolderKey(item.folder!) === key || item.hash === incoming.hash))
+          matches.push(prospective(previousIndex))
+      }
+      entry.otherMatches = matches.filter((match) => match.kind !== entry.target?.kind || match.id !== entry.target.id)
+      entry.status = entry.reasons.length ? 'conflict' : 'new'
+      entry.destinationFolder = entry.target?.folderName ?? incoming.folder
+      if (policy === 'update') {
+        const targetKey = normalizeFolderKey(entry.destinationFolder)
+        const targetRows = skills.filter((skill) => normalizeFolderKey(skill.folderName) === targetKey)
+        const targetEntries = entries.filter((disk) => normalizeFolderKey(disk.name) === targetKey)
+        if (folderMatches.length > 1 || diskMatches.length > 1 || targetRows.length > 1 || targetEntries.length > 1)
+          entry.code = 'ambiguous_folder'
+        else if (
+          (folderOccupied && !folderMatches.length) ||
+          (targetEntries.length &&
+            (!targetEntries[0].isDirectory() ||
+              (entry.target?.kind === 'installed' && targetEntries[0].name !== entry.target.folderName)))
+        )
+          entry.code = 'disk_occupancy'
+        else if (entry.target?.source === 'builtin' || targetRows.some((skill) => skill.source === 'builtin'))
+          entry.code = 'builtin_target'
+        if (entry.code) entry.status = 'blocked'
+        if (!entry.code && entry.target && ['marketplace', 'system'].includes(entry.target.source)) {
+          entry.provenanceChange = { from: entry.target.source, to: incoming.input.kind === 'zip' ? 'zip' : 'local' }
+        }
+      }
+      if (policy === 'keep_both' || entry.status === 'new') {
+        let folder = incoming.folder
+        for (let suffix = 2; reserved.has(normalizeFolderKey(folder)); suffix++) {
+          const ending = `-${suffix}`
+          folder = incoming.folder.slice(0, 80 - ending.length) + ending
+        }
+        entry.destinationFolder = folder
+        reserved.add(normalizeFolderKey(folder))
+      }
+    }
+    const revision = createHash('sha256')
+      .update(
+        JSON.stringify({
+          policy,
+          inputs: prepared.map((item) => ({
+            input: { id: item.input.id, kind: item.input.kind, path: item.input.path },
+            origin: item.origin,
+            selection: item.selection,
+            folder: item.folder,
+            hash: item.hash
+          })),
+          library: skills.map((skill) => ({
+            id: skill.id,
+            folder: skill.folderName,
+            source: skill.source,
+            origin: skill.sourceUrl,
+            namespace: skill.namespace,
+            createdAt: skill.createdAt,
+            hash: hashes.get(skill.folderName)
+          })),
+          occupancy: entries.map((entry) => ({
+            name: entry.name,
+            directory: entry.isDirectory(),
+            symlink: entry.isSymbolicLink()
+          })),
+          items
+        })
+      )
+      .digest('hex')
+    return { items, revision }
+  }
+
+  private async publishImport(
+    item: PreparedImport,
+    folder: string,
+    target: InstalledSkill | null
+  ): Promise<InstalledSkill> {
+    const staging = path.join(path.dirname(item.directory!), folder)
+    if (staging !== item.directory) await fs.promises.rename(item.directory!, staging)
+    const metadata = await parseSkillMetadata(staging, folder, 'skills')
+    const destination = this.getSkillStoragePath(folder)
+    await fs.promises.mkdir(path.dirname(destination), { recursive: true })
+    const prepared = await this.installer.prepareInstall(staging, destination)
+    let changedId: string | undefined
+    try {
+      if ((await this.installer.computeDirectoryHash(destination)) !== item.hash)
+        throw new Error('Published skill differs from the validated plan')
+      const values = {
+        name: metadata.name,
+        description: metadata.description ?? null,
+        author: metadata.author ?? null,
+        version: metadata.version ?? null,
+        tags: metadata.tags ?? [],
+        source: item.input.kind === 'zip' ? 'zip' : 'local',
+        sourceUrl: item.origin!,
+        namespace: null,
+        contentHash: `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}${item.hash}`
+      }
+      changedId = application.get('DbService').withWriteTx((tx) => {
+        if (target) {
+          agentGlobalSkillService.updateTx(tx, target.id, values)
+          return target.id
+        }
+        return agentGlobalSkillService.insertTx(tx, { ...values, folderName: folder }).id
+      })
+      await this.linkMirror(folder, { throwOnError: true })
+      const installed = agentGlobalSkillService.getById(changedId)
+      if (!installed) throw new Error('Skill disappeared after batch publication')
+      await prepared.commit()
+      agentGlobalSkillService.notifySkillMembershipChange(changedId)
+      return installed
+    } catch (error) {
+      const recoveryErrors: unknown[] = []
+      await prepared.rollback().catch((failure) => recoveryErrors.push(failure))
+      if (changedId) {
+        try {
+          application.get('DbService').withWriteTx((tx) => {
+            if (target) {
+              agentGlobalSkillService.updateTx(tx, target.id, {
+                name: target.name,
+                description: target.description,
+                author: target.author,
+                version: target.version,
+                tags: target.sourceTags,
+                source: target.source,
+                sourceUrl: target.sourceUrl,
+                namespace: target.namespace,
+                contentHash: target.contentHash
+              })
+            } else agentGlobalSkillService.deleteByIdTx(tx, changedId!)
+          })
+        } catch (failure) {
+          recoveryErrors.push(failure)
+        }
+      }
+      if (target) await this.linkMirror(folder, { throwOnError: true }).catch((failure) => recoveryErrors.push(failure))
+      else
+        await fs.promises
+          .rm(this.getMirrorPath(folder), { recursive: true, force: true })
+          .catch((failure) => recoveryErrors.push(failure))
+      if (recoveryErrors.length) throw new AggregateError([error, ...recoveryErrors], 'Batch skill recovery failed')
+      throw error
+    }
   }
 
   /** List user-owned workspace skills from supported project skill roots. */

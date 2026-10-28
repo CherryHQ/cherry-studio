@@ -5,6 +5,10 @@ import {
   type InstalledSkill,
   type LocalSkill,
   type SkillCatalogEntry,
+  SkillImportItemsSchema,
+  type SkillImportOutcome,
+  SkillImportPolicySchema,
+  type SkillImportPreview,
   SkillRemoteUpdateCheckSchema,
   type SkillResult,
   type SystemSkillCandidate
@@ -23,6 +27,18 @@ import { defineRoute } from '../define'
  * validates inputs, not outputs.
  */
 export const skillRequestSchemas = {
+  'skill.import.preview': defineRoute({
+    input: z.strictObject({ items: SkillImportItemsSchema, policy: SkillImportPolicySchema }),
+    output: z.custom<SkillImportPreview>()
+  }),
+  'skill.import.apply': defineRoute({
+    input: z.strictObject({
+      items: SkillImportItemsSchema,
+      policy: SkillImportPolicySchema,
+      revision: z.string().min(1)
+    }),
+    output: z.custom<SkillImportOutcome[]>()
+  }),
   'skill.install': defineRoute({
     input: z.object({ installSource: z.string() }),
     output: z.custom<SkillResult<InstalledSkill>>()

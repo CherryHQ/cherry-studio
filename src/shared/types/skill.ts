@@ -6,6 +6,8 @@
 
 import * as z from 'zod'
 
+import { AbsoluteFilePathSchema } from './file'
+
 // ============================================================================
 // Search source registries
 // ============================================================================
@@ -236,3 +238,61 @@ export interface SystemSkillCandidate {
 
 /** Installed catalog entry enriched by the filesystem-owned skill workflow. */
 export type SkillCatalogEntry = InstalledSkill & { scope: 'system' | 'builtin' | 'local' }
+
+export const SkillImportInputSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.enum(['zip', 'directory']),
+  path: AbsoluteFilePathSchema
+})
+export type SkillImportInput = z.infer<typeof SkillImportInputSchema>
+
+export const SkillImportPolicySchema = z.enum(['skip', 'update', 'keep_both'])
+export type SkillImportPolicy = z.infer<typeof SkillImportPolicySchema>
+
+export const SkillImportItemsSchema = z
+  .array(SkillImportInputSchema)
+  .min(1)
+  .refine((items) => new Set(items.map((item) => item.id)).size === items.length, 'Input ids must be unique')
+
+export type SkillImportFailureCode =
+  | 'invalid_input'
+  | 'invalid_zip_file'
+  | 'directory_not_found'
+  | 'zip_missing_skill_md'
+  | 'directory_missing_skill_md'
+  | 'builtin_target'
+  | 'ambiguous_folder'
+  | 'disk_occupancy'
+  | 'stale_plan'
+  | 'dependency_failed'
+  | 'publish_failed'
+  | 'recovery_failed'
+
+export interface SkillImportTarget {
+  kind: 'installed' | 'input'
+  id: string
+  folderName: string
+  source: string
+}
+
+export interface SkillImportPreviewItem {
+  id: string
+  status: 'new' | 'conflict' | 'invalid' | 'blocked'
+  reasons: Array<'folder_name' | 'identical_content'>
+  target: SkillImportTarget | null
+  otherMatches: SkillImportTarget[]
+  destinationFolder: string | null
+  provenanceChange: { from: string; to: 'local' | 'zip' } | null
+  code?: SkillImportFailureCode
+  message?: string
+}
+
+export interface SkillImportPreview {
+  items: SkillImportPreviewItem[]
+  revision: string
+}
+
+export type SkillImportOutcome =
+  | { id: string; status: 'installed' | 'updated'; skillId: string; folderName: string }
+  | { id: string; status: 'skipped'; skillId?: string; folderName?: string }
+  | { id: string; status: 'blocked' | 'error'; code: SkillImportFailureCode; retryable: boolean; message?: string }

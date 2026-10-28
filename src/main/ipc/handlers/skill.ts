@@ -9,7 +9,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { SkillResult } from '@shared/types/skill'
+import type { SkillImportFailureCode, SkillResult } from '@shared/types/skill'
 
 const logger = loggerService.withContext('skillHandlers')
 
@@ -44,6 +44,33 @@ function describeLocalImportFailure(error: unknown, kind: 'zip' | 'directory'): 
   return null
 }
 
+function describeBatchFailure(code: SkillImportFailureCode): string {
+  switch (code) {
+    case 'invalid_zip_file':
+      return t('skill.import.invalid_zip_file')
+    case 'directory_not_found':
+      return t('skill.import.directory_not_found')
+    case 'zip_missing_skill_md':
+      return t('skill.import.zip_missing_skill_md')
+    case 'directory_missing_skill_md':
+      return t('skill.import.directory_missing_skill_md')
+    case 'invalid_input':
+      return t('skill.import.batch_invalid')
+    case 'builtin_target':
+    case 'ambiguous_folder':
+    case 'disk_occupancy':
+      return t('skill.import.batch_blocked')
+    case 'stale_plan':
+      return t('skill.import.batch_stale')
+    case 'dependency_failed':
+      return t('skill.import.batch_dependency')
+    case 'recovery_failed':
+      return t('skill.import.batch_recovery')
+    case 'publish_failed':
+      return t('skill.import.batch_failed')
+  }
+}
+
 /**
  * Skill handlers delegating to the `skillService` direct-import singleton. Legacy routes keep
  * their `SkillResult` envelope until their callers migrate; new routes return data directly so
@@ -75,6 +102,17 @@ async function toSkillResult<T>(
 }
 
 export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
+  'skill.import.preview': async (options) => {
+    const preview = await skillService.previewImport(options)
+    return {
+      ...preview,
+      items: preview.items.map((item) => (item.code ? { ...item, message: describeBatchFailure(item.code) } : item))
+    }
+  },
+  'skill.import.apply': async (options) => {
+    const outcomes = await skillService.applyImport(options)
+    return outcomes.map((item) => ('code' in item ? { ...item, message: describeBatchFailure(item.code) } : item))
+  },
   'skill.install': ({ installSource }) =>
     toSkillResult(() => skillService.install({ installSource }), 'Failed to install skill'),
   'skill.uninstall': ({ skillId }) => toSkillResult(() => skillService.uninstall(skillId), 'Failed to uninstall skill'),
