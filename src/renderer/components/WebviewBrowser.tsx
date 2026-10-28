@@ -85,8 +85,13 @@ export function WebviewBrowser({
   // An <Activity>-hidden tab runs this cleanup too: main freezes a guest left hidden.
   useEffect(() => {
     const webview = webviewRef.current
-    if (!isHostActive || !isReady || !webview) return
-    const webviewId = webview.getWebContentsId()
+    if (!isHostActive || !webview) return
+    let webviewId: number
+    try {
+      webviewId = webview.getWebContentsId()
+    } catch {
+      return // A new guest has no contents until dom-ready, which re-runs this effect.
+    }
     const report = (visible: boolean) =>
       void ipcApi.request('webview.set_visible', { webviewId, visible }).catch(() => {})
     report(true)

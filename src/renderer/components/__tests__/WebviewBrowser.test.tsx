@@ -90,7 +90,10 @@ describe('WebviewBrowser', () => {
     expect(address).toHaveValue('next.test')
   })
 
-  it('reports its guest hidden while the tab Activity is hidden so main can freeze it', () => {
+  it.each([
+    ['loaded', false],
+    ['still loading a subresource', true]
+  ])('reports its %s guest hidden while the tab Activity is hidden so main can freeze it', (_label, loading) => {
     const request = vi.mocked(ipcApi.request)
     const browser = (
       <WebviewBrowser
@@ -104,7 +107,7 @@ describe('WebviewBrowser', () => {
     const guest = view.container.querySelector('webview')!
     Object.assign(guest, {
       getWebContentsId: () => 42,
-      isLoading: () => false,
+      isLoading: () => loading,
       getURL: () => 'https://example.com',
       getTitle: () => 'Example',
       canGoBack: () => false,
