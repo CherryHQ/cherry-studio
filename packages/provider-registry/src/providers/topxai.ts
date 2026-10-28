@@ -1,10 +1,9 @@
 import { openaiCompatible } from './types'
 
-// TopxAI relays Claude, GPT, Grok, GLM, Kimi, DeepSeek and Jev through one
-// prepaid key. `/v1` is OpenAI-compatible (chat completions and responses) and
-// forwards `reasoning_effort` unchanged; the Claude models are also served on
-// an Anthropic Messages endpoint at the host root. `/v1/models` needs the key,
-// so the model list follows the live API. Prices: https://ai.topxea.com/pricing
+// This preset exposes OpenAI Chat Completions and Anthropic Messages.
+// Models are discovered from the authenticated /v1/models endpoint; their
+// capabilities and reasoning options vary. Jev's separate System One API
+// is outside this chat preset. See https://ai.topxea.com/docs/api-reference.
 export default openaiCompatible({
   id: 'topxai',
   name: 'TopxAI',
