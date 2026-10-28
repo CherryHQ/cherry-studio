@@ -18,9 +18,23 @@ function isSecureOrLoopbackUrl(value: string): boolean {
   )
 }
 
+// A development backend configured through MAIN_VITE_CHERRY_CLOUD_API_ORIGIN may serve plain HTTP on a LAN
+// address; production builds never set it, so only the exact configured origin is exempt.
+function isConfiguredDevelopmentOrigin(value: string): boolean {
+  const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+  if (!configuredOrigin) return false
+  const url = new URL(value)
+  return !url.username && !url.password && url.origin === new URL(configuredOrigin).origin
+}
+
 export const createDesktopAuthorizationResponseSchema = z.looseObject({
   authorization_id: z.uuid(),
-  authorization_url: z.url().refine(isSecureOrLoopbackUrl, 'Authorization URL must use HTTPS or loopback HTTP'),
+  authorization_url: z
+    .url()
+    .refine(
+      (value) => isSecureOrLoopbackUrl(value) || isConfiguredDevelopmentOrigin(value),
+      'Authorization URL must use HTTPS, loopback HTTP, or the configured development origin'
+    ),
   expires_at: utcDateTimeSchema
 })
 

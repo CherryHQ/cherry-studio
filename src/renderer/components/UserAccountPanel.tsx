@@ -20,11 +20,8 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { getAppEdition } from '@renderer/utils/appEdition'
 import { isEmoji } from '@renderer/utils/naming'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-
-import UserPopup from './UserPopup'
 
 type SubscriptionLookup = { status: 'loading' } | { status: 'ready'; planName: string | null } | { status: 'error' }
 
@@ -47,11 +44,10 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     isRevokingSession,
     isAuthorizing
   } = useCherryAccountSession(active)
-  const isGlobalEdition = getAppEdition() === 'global'
   const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
 
   useEffect(() => {
-    if (!active || !isGlobalEdition || !isCloudSignedIn) return
+    if (!active || !isCloudSignedIn) return
     let cancelled = false
     setSubscriptionLookup({ status: 'loading' })
     void ipcApi
@@ -67,15 +63,11 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     return () => {
       cancelled = true
     }
-  }, [active, cloudStatus?.displayName, isCloudSignedIn, isGlobalEdition, planRequestVersion])
+  }, [active, cloudStatus?.displayName, isCloudSignedIn, planRequestVersion])
 
   const handleOpenAccountDetails = () => {
     onRequestClose?.()
-    if (isGlobalEdition) {
-      openSettingsTab('/settings/profile')
-    } else {
-      void UserPopup.show()
-    }
+    openSettingsTab('/settings/profile')
   }
 
   const handleOpenSettings = () => {
@@ -212,21 +204,19 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
         </Button>
       </ColFlex>
       <ColFlex className="border-border-subtle gap-0.5 border-t pt-1 pb-2">
-        {isGlobalEdition ? (
-          <Button
-            type="button"
-            className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
-            disabled={subscriptionLoading}
-            onClick={handleSubscriptionClick}
-            size="sm"
-            variant="ghost">
-            <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-left" title={paidPlanName ?? undefined}>
-              {paidPlanName ?? t('settings.subscription.card_label')}
-            </span>
-            <span className="shrink-0 text-muted-foreground">{subscriptionAction}</span>
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
+          disabled={subscriptionLoading}
+          onClick={handleSubscriptionClick}
+          size="sm"
+          variant="ghost">
+          <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-left" title={paidPlanName ?? undefined}>
+            {paidPlanName ?? t('settings.subscription.card_label')}
+          </span>
+          <span className="shrink-0 text-muted-foreground">{subscriptionAction}</span>
+        </Button>
         <Button
           className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
           onClick={handleOpenSettings}
