@@ -24,7 +24,7 @@ import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/scre
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
-import { sendChatMarker } from '../helpers/chat'
+import { submitChatMarker } from '../helpers/chat'
 import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from '../helpers/knowledge'
 import { selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
@@ -949,12 +949,16 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
   await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
   await page.getByText(name, { exact: true }).click()
   await page.getByRole('dialog').last().getByRole('button', { name: 'Close', exact: true }).click()
+  await page
+    .locator('[data-ui~="chat.composer"] [contenteditable="true"]')
+    .first()
+    .fill('这是仅供内部使用的回归测试。内部代号是什么？请引用来源文件。')
   await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
   const quickPanel = page.getByTestId('quick-panel')
   await quickPanel.getByText('Knowledge Base', { exact: true }).click()
   await quickPanel.getByText(name, { exact: true }).click()
   await page.keyboard.press('Escape')
-  const messageId = await sendChatMarker(page, '内部代号是什么？请引用来源文件。', 'canary-seven', false)
+  const messageId = await submitChatMarker(page, 'canary-seven', false)
   const response = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
   await expect(response.getByText(/\d+ citations?/i)).toBeVisible()
   await expect(response).toContainText('mp66-ground-truth.md')

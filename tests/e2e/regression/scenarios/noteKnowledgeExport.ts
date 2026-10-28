@@ -12,7 +12,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { sendChatMarker } from '../helpers/chat'
+import { submitChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -151,7 +151,14 @@ export async function noteKnowledgeExport(app: RegressionApp, page: Page, testIn
           id: 'mp79-model',
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId: config.chatModel, endpointTypes: ['openai-chat-completions'] }]
+          body: [
+            {
+              providerId,
+              modelId: config.chatModel,
+              endpointTypes: ['openai-chat-completions'],
+              capabilities: ['function-call']
+            }
+          ]
         })
         return [provider.status, enabled.status, model.status]
       },
@@ -196,16 +203,15 @@ export async function noteKnowledgeExport(app: RegressionApp, page: Page, testIn
     if (await expand.isVisible()) await expand.click()
     await chat.getByTestId('topic-list-row').filter({ hasText: topicName }).click()
     const composer = chat.locator('[data-ui~="chat.composer"]')
+    await composer
+      .locator('[contenteditable="true"]')
+      .first()
+      .fill('What is the observatory access code? Search the attached knowledge base and cite the note.')
     await composer.getByRole('button', { name: 'Knowledge Base', exact: true }).click()
     await page.getByTestId('quick-panel').getByText(baseName, { exact: true }).click()
     await page.keyboard.press('Escape')
     await expect(composer).toContainText(baseName)
-    await sendChatMarker(
-      page,
-      'What is the observatory access code? Search the attached knowledge base and cite the note.',
-      secret,
-      false
-    )
+    await submitChatMarker(page, secret, false)
     const answer = chat
       .locator('[data-ui~="chat.message"][data-message-id]')
       .filter({ has: page.locator('.message-assistant') })

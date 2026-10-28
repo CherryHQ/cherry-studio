@@ -173,7 +173,14 @@ export async function knowledgeNotes(app: RegressionApp, page: Page, testInfo: T
           id: 'mp63-model',
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId: 'mp63-chat', endpointTypes: ['openai-chat-completions'] }]
+          body: [
+            {
+              providerId,
+              modelId: 'mp63-chat',
+              endpointTypes: ['openai-chat-completions'],
+              capabilities: ['function-call']
+            }
+          ]
         })
         return { provider: provider.status, enabled: enabled.status, model: model.status, baseId, assistantName }
       },
