@@ -1709,8 +1709,8 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
 
     // A SendMessage to a still-running agent returns the queued form (no resumedAgentId, only
-    // pin.id). Its send call id must still tag that agent's subsequent content for round splitting.
-    it('re-tags content of a running agent from a queued-pin SendMessage receipt', () => {
+    // pin.id). Its send call id tags that agent's subsequent content as queued, not confirmed.
+    it('tags content after a queued-pin receipt as queued, not confirmed', () => {
       const { adapter, parts } = createAdapter()
 
       adapter.handleMessage({
@@ -1772,6 +1772,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         (chunk) => chunk.type === 'tool-output-available' && chunk.toolCallId === 'send-use'
       ) as { providerMetadata?: Record<string, Record<string, unknown>> }
       expect(receiptChunk.providerMetadata?.cherry?.launchToolCallId).toBe('launch-use')
+      expect(receiptChunk.providerMetadata?.cherry?.receiptQueued).toBe(true)
 
       adapter.handleMessage({
         type: 'stream_event',
@@ -1785,7 +1786,8 @@ describe('ClaudeCodeStreamAdapter', () => {
         providerMetadata?: Record<string, Record<string, unknown>>
       }
       expect(textStart.providerMetadata?.['claude-code']?.parentToolCallId).toBe('launch-use')
-      expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+      expect(textStart.providerMetadata?.cherry?.queuedViaCallId).toBe('send-use')
+      expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBeUndefined()
     })
 
     // Only the SendMessage tool produces a resume receipt: another tool's JSON output that
@@ -1885,6 +1887,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         providerMetadata?: Record<string, Record<string, unknown>>
       }
       expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+      expect(textStart.providerMetadata?.cherry?.queuedViaCallId).toBeUndefined()
     })
 
     // A tool that started before a queued send must keep its originating round: its result is
@@ -1974,6 +1977,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(readChunks.length).toBeGreaterThan(0)
       for (const chunk of readChunks) {
         expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBeUndefined()
+        expect(chunk.providerMetadata?.cherry?.queuedViaCallId).toBeUndefined()
       }
 
       // A tool whose input starts after the receipt does carry the marker on all its chunks.
@@ -2002,7 +2006,8 @@ describe('ClaudeCodeStreamAdapter', () => {
       const grepStamped = grepChunks.filter((chunk) => chunk.providerMetadata !== undefined)
       expect(grepStamped.length).toBeGreaterThan(0)
       for (const chunk of grepStamped) {
-        expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+        expect(chunk.providerMetadata?.cherry?.queuedViaCallId).toBe('send-use')
+        expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBeUndefined()
       }
     })
 
@@ -2103,6 +2108,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(readChunks.length).toBeGreaterThan(0)
       for (const chunk of readChunks) {
         expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBeUndefined()
+        expect(chunk.providerMetadata?.cherry?.queuedViaCallId).toBeUndefined()
       }
 
       // A subsequent response picks the latest marker up.
@@ -2131,7 +2137,8 @@ describe('ClaudeCodeStreamAdapter', () => {
       const grepStamped = grepChunks.filter((chunk) => chunk.providerMetadata !== undefined)
       expect(grepStamped.length).toBeGreaterThan(0)
       for (const chunk of grepStamped) {
-        expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+        expect(chunk.providerMetadata?.cherry?.queuedViaCallId).toBe('send-use')
+        expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBeUndefined()
       }
     })
 
