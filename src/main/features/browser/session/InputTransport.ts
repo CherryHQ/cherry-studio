@@ -14,7 +14,8 @@ export interface KeyStroke {
 }
 
 export interface InputTransport {
-  readonly kind: 'cdp' | 'send-input-event'
+  /** Whether replaying an insertion can recover a read-back mismatch. */
+  readonly canReplayInsertion: boolean
   keyDown(stroke: KeyStroke, options?: CommandOptions): Promise<void>
   char(stroke: KeyStroke, options?: CommandOptions): Promise<void>
   keyUp(stroke: KeyStroke, options?: CommandOptions): Promise<void>
@@ -24,7 +25,7 @@ export interface InputTransport {
 }
 
 export class CdpInputTransport implements InputTransport {
-  readonly kind = 'cdp'
+  readonly canReplayInsertion = true
 
   constructor(private readonly session: GuestSession) {}
 
@@ -115,7 +116,7 @@ const DOM_KEY_TO_ELECTRON_ACCELERATOR: Record<string, string> = {
 }
 
 export class SendInputEventTransport implements InputTransport {
-  readonly kind = 'send-input-event'
+  readonly canReplayInsertion = false
 
   constructor(private readonly session: GuestSession) {}
 
@@ -140,6 +141,10 @@ export class SendInputEventTransport implements InputTransport {
 
   async keyDown(stroke: KeyStroke, options?: CommandOptions): Promise<void> {
     this.check(options)
+    if (stroke.selectAll) {
+      if (!(await this.selectAll(options))) throw new BrowserSessionError('not_found')
+      return
+    }
     this.send('keyDown', stroke)
   }
 
@@ -149,6 +154,7 @@ export class SendInputEventTransport implements InputTransport {
   }
 
   async keyUp(stroke: KeyStroke): Promise<void> {
+    if (stroke.selectAll) return
     // Release is best-effort; only a destroyed guest skips delivery.
     if (this.session.guest.isDestroyed()) return
     this.send('keyUp', stroke)

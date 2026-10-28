@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { CommandOptions } from '../browserUse'
@@ -19,6 +20,43 @@ afterEach(() => {
 const stroke: KeyStroke = { key: 'A', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 8, text: 'A' }
 
 describe('Input transport', () => {
+  it.each([
+    ['managed', true],
+    ['borrowed', false]
+  ] as const)('declares insertion replay capability for %s input', (ownership, canReplayInsertion) => {
+    expect(createTransport(ownership).input.canReplayInsertion).toBe(canReplayInsertion)
+  })
+
+  it.each(['text', 'email'])(
+    'select-all keyDown selects only supported borrowed targets without key delivery: %s',
+    async (type) => {
+      const { input, session, mock } = createTransport('borrowed')
+      const dom = new JSDOM(`<input type="${type}" value="draft">`, { runScripts: 'outside-only' })
+      try {
+        const field = dom.window.document.querySelector('input')!
+        field.focus()
+        if (type === 'text') field.setSelectionRange(5, 5)
+        const sendCommand = mock.debugger.sendCommand.getMockImplementation()!
+        mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+          if (method === 'Runtime.evaluate')
+            return { result: { value: dom.window.eval((params as { expression: string }).expression) } }
+          return sendCommand(method, params)
+        })
+        await session.send('Runtime.enable')
+        const selection = input.keyDown({ ...stroke, text: undefined, selectAll: true })
+        if (type === 'text') {
+          await expect(selection).resolves.toBeUndefined()
+          expect([field.selectionStart, field.selectionEnd]).toEqual([0, 5])
+        } else await expect(selection).rejects.toMatchObject({ code: 'not_found' })
+        expect(field.value).toBe('draft')
+        expect(mock.sendInputEvent.mock.calls).toEqual([])
+        expect(mock.debugger.sendCommand.mock.calls.filter(([method]) => method.startsWith('Input.'))).toEqual([])
+      } finally {
+        dom.window.close()
+      }
+    }
+  )
+
   it('preserves the CDP key, character, text and select-all protocol', async () => {
     const { input, mock } = createTransport('managed')
     await input.keyDown({ ...stroke, selectAll: true })

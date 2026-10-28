@@ -427,16 +427,48 @@ describe('Browser actions', () => {
     await pressKey(session, 'Control+a', {})
     await pressKey(session, 'Enter', {})
     const keys = commands.filter((c) => c.method === 'Input.dispatchKeyEvent').map((c) => c.params)
-    const selection = platform.isMac ? [] : [{ type: 'rawKeyDown', commands: ['selectAll'] }, { type: 'keyUp' }]
-    expect(keys.slice(0, selection.length)).toEqual(selection)
-    expect(keys[selection.length]).toMatchObject({
+    expect(keys).toHaveLength(5)
+    expect(keys[0]).toEqual({
       key: 'a',
       code: 'KeyA',
       windowsVirtualKeyCode: 65,
-      modifiers: 2
+      modifiers: 2,
+      type: 'rawKeyDown',
+      ...(!platform.isMac ? { commands: ['selectAll'] } : {})
     })
     expect(keys.filter((k) => k.type === 'char')).toEqual([expect.objectContaining({ key: 'Enter', text: '\r' })])
     await expect(pressKey(session, 'Bogus+a', {})).rejects.toThrow('not_allowed')
+  })
+
+  it.each([
+    [true, 'Meta+a', 4],
+    [false, 'Control+a', 2]
+  ] as const)('sends exactly one complete managed select-all chord on isMac=%s', async (isMac, chord, modifiers) => {
+    const platformSpy = vi.spyOn(platform, 'isMac', 'get').mockReturnValue(isMac)
+    try {
+      await pressKey(session, chord, {})
+      expect(inputCommands()).toEqual([
+        {
+          method: 'Input.dispatchKeyEvent',
+          params: {
+            key: 'a',
+            code: 'KeyA',
+            windowsVirtualKeyCode: 65,
+            modifiers,
+            type: 'rawKeyDown',
+            commands: ['selectAll']
+          }
+        },
+        {
+          method: 'Input.dispatchKeyEvent',
+          params: { key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers, type: 'keyUp' }
+        }
+      ])
+      expect(commands.filter(({ method }) => method === 'Runtime.evaluate')).toEqual([])
+      expect(sendInputEvent.mock.calls).toEqual([])
+    } finally {
+      platformSpy.mockRestore()
+    }
   })
 
   it.each([
@@ -635,12 +667,12 @@ describe('Browser actions', () => {
       try {
         const field = target as HTMLInputElement
         field.focus()
+        field.setSelectionRange(3, 3)
+        expect([field.selectionStart, field.selectionEnd]).toEqual([3, 3])
         await pressKey(session, chord, borrowedOptions)
         expect([field.selectionStart, field.selectionEnd]).toEqual([0, 3])
-        expect(sendInputEvent.mock.calls.map(([event]) => event)).toEqual([
-          { type: 'keyDown', keyCode: 'a', modifiers: [isMac ? 'meta' : 'control'] },
-          { type: 'keyUp', keyCode: 'a', modifiers: [isMac ? 'meta' : 'control'] }
-        ])
+        expect(sendInputEvent.mock.calls).toEqual([])
+        expect(host.value).toBe('host draft')
         await pressKey(session, 'Backspace', borrowedOptions)
         expect(field.value).toBe('')
         expect(host.value).toBe('host draft')
@@ -758,6 +790,12 @@ describe('Browser actions', () => {
             { type: 'char', keyCode: '=', modifiers: [] },
             { type: 'keyUp', keyCode: '=', modifiers: [] }
           ]
+        }
+        if (chord === (platform.isMac ? 'Meta+a' : 'Control+a')) {
+          expect([(target as HTMLInputElement).selectionStart, (target as HTMLInputElement).selectionEnd]).toEqual([
+            0, 3
+          ])
+          expected[chord] = []
         }
         expect(sendInputEvent.mock.calls.map(([event]) => event)).toEqual(expected[chord])
         expect(inputCommands()).toEqual([])

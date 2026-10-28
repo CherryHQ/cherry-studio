@@ -86,8 +86,11 @@ the action checks element focus, and the transport checks cancellation, deadline
 dialogs and guest availability before delivery.
 Target focus loss returns `input_not_focused`; unavailable renderer focus preparation
 returns `input_unavailable`. Inspect the page and take a fresh snapshot before retrying;
-earlier input may already have been applied. Keys are released even after cancellation,
-timeout or route/ref invalidation, using a separate one-second deadline; only guest destruction skips release. All MCP interactions
+earlier input may already have been applied. Key release is always attempted after cancellation,
+timeout or route/ref invalidation, using a separate one-second deadline. Borrowed input
+skips release only when the guest is destroyed. Managed (CDP) input cannot deliver
+release while a page JavaScript dialog is open because the CDP channel rejects commands
+during the dialog. All MCP interactions
 enable focus emulation. Pending dialogs and download state changes accompany
 results. Popups switch the active tab and report `newTabId`; the current result snapshot still
 belongs to the source tab, so observe the new tab explicitly. An `execute` interrupted by a page dialog returns the same error envelope.

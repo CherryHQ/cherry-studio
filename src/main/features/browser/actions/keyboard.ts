@@ -34,10 +34,6 @@ export async function pressKey(session: GuestSession, chord: string, options: Br
   const prepared = resolveChord(chord)
   await options.focusInput?.(options)
   const guard = () => options.assertRoute?.(options) ?? Promise.resolve()
-  if (prepared.selectAll) {
-    await guard()
-    if (!(await session.input.selectAll(options))) throw new BrowserSessionError('not_found')
-  }
   await dispatchKey(session, prepared, options, guard)
 }
 
@@ -176,8 +172,7 @@ export async function typeText(
         )
       if ((await read()) !== expected) {
         await guard()
-        if (session.input.kind === 'send-input-event' || /[\r\n]/.test(expected))
-          throw new BrowserSessionError('not_found')
+        if (!session.input.canReplayInsertion || /[\r\n]/.test(expected)) throw new BrowserSessionError('not_found')
         await clearField()
         for (const character of expected) {
           check()
