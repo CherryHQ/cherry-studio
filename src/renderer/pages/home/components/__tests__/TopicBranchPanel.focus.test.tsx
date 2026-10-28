@@ -6,6 +6,7 @@ import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import type * as DataApiHooks from '@data/hooks/useDataApi'
 import {
   buildTopicMessageFlowGraph,
@@ -130,6 +131,87 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
     })
   }
 
+  // A discarded opening response must not consume the cycle before the notification read commits.
+  it('waits for overlapping real SWR notification revalidation before locating the new branch', async () => {
+    const actual = await vi.importActual<typeof DataApiHooks>('@data/hooks/useDataApi')
+    vi.mocked(useQuery).mockImplementation(actual.useQuery)
+    vi.mocked(useDataChange).mockImplementation(actual.useDataChange)
+    const cached = makeTree('long-11')
+    const refreshed = makeTree('short-sibling')
+    const opening = deferred<TreeResponse>()
+    const replacement = deferred<TreeResponse>()
+    const get = vi.mocked(dataApiService.get)
+    get.mockReset()
+    get.mockResolvedValue(cached)
+    const cache = new Map()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+    )
+    const { rerender } = render(<TopicBranchPanel open topicId="topic-1" focusKey="cycle:0" />, { wrapper })
+    await flushFrame()
+    expect(setViewport).toHaveBeenLastCalledWith(getCenteredViewport(cached, 'long-11').viewport, { duration: 0 })
+    const flow = screen.getByTestId('react-flow')
+    const previousViewport = flow.getAttribute('data-default-viewport')
+    rerender(<TopicBranchPanel open={false} topicId="topic-1" focusKey="cycle:0" />)
+    await flushFrame()
+    setViewport.mockClear()
+    defaultViewports.length = 0
+    get.mockReset()
+    get.mockReturnValueOnce(opening.promise).mockReturnValueOnce(replacement.promise)
+    rerender(<TopicBranchPanel open topicId="topic-1" focusKey="cycle:1" />)
+    await flushFrame()
+    expect(get).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/topics/:topicId/tree', routeParams: { topicId: 'topic-1' } }])
+    })
+    expect(get).toHaveBeenCalledTimes(2)
+    await act(async () => opening.resolve(cached))
+    await flushFrame()
+    expect.soft(setViewport).not.toHaveBeenCalled()
+    expect.soft(screen.getByTestId('react-flow')).toBe(flow)
+    expect.soft(flow).toHaveAttribute('data-default-viewport', previousViewport)
+
+    await act(async () => replacement.resolve(refreshed))
+    await flushFrame()
+    const { node, viewport } = getCenteredViewport(refreshed, 'short-sibling')
+    expect(setViewport).toHaveBeenCalledExactlyOnceWith(viewport, { duration: 0 })
+    expect(setViewport.mock.calls.map(([value]) => value)).not.toContainEqual(
+      getCenteredViewport(cached, 'long-11').viewport
+    )
+    expect(screen.getByTestId('react-flow')).toBe(flow)
+    const applied = setViewport.mock.calls.at(-1)![0] as Viewport
+    const left = node.position.x * applied.zoom + applied.x
+    const top = node.position.y * applied.zoom + applied.y
+    expect(left).toBeGreaterThanOrEqual(0)
+    expect(top).toBeGreaterThanOrEqual(0)
+    expect(left + TOPIC_MESSAGE_FLOW_NODE_SIZE.width * applied.zoom).toBeLessThanOrEqual(canvasSize.width)
+    expect(top + TOPIC_MESSAGE_FLOW_NODE_SIZE.height * applied.zoom).toBeLessThanOrEqual(canvasSize.height)
+  })
+
+  // Cold opening must reuse SWR's initial read instead of starting another full tree request.
+  it('uses one real SWR read on cold open and centers the active node', async () => {
+    const actual = await vi.importActual<typeof DataApiHooks>('@data/hooks/useDataApi')
+    vi.mocked(useQuery).mockImplementation(actual.useQuery)
+    const initial = deferred<TreeResponse>()
+    const get = vi.mocked(dataApiService.get)
+    get.mockReset()
+    get.mockReturnValue(initial.promise)
+    const cache = new Map()
+    render(<TopicBranchPanel open topicId="topic-1" />, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+      )
+    })
+    await flushFrame()
+    expect.soft(get).toHaveBeenCalledTimes(1)
+    expect(setViewport).not.toHaveBeenCalled()
+    const tree = makeTree('long-11')
+    await act(async () => initial.resolve(tree))
+    await flushFrame()
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(setViewport).toHaveBeenCalledExactlyOnceWith(getCenteredViewport(tree, 'long-11').viewport, { duration: 0 })
+  })
+
   // A deduped reopen must force its own fetch and never consume cached active A, even before data renders.
   it('forces one refresh per open cycle when automatic revalidation stays deduped', async () => {
     const initial = makeTree('long-0')
@@ -145,7 +227,7 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
     const flow = screen.getByTestId('react-flow')
     const appliedCount = setViewport.mock.calls.length
 
-    MockUseDataApiUtils.mockQueryResult('/topics/:topicId/tree', { data: cached, isRefreshing: false, refetch })
+    MockUseDataApiUtils.mockQueryResult('/topics/:topicId/tree', { data: cached, isRefreshing: true, refetch })
     rerender(<TopicBranchPanel open={false} topicId="topic-1" focusKey="cycle:0" />)
     await flushFrame()
     expect.soft(refetch).toHaveBeenCalledTimes(1)
@@ -304,7 +386,7 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
   })
 
   // Refresh failures must keep the cached tree usable, including SWR's resolved-cache error path.
-  it.each(['reject', 'cached-result', 'empty-result'] as const)(
+  it.each(['reject', 'cached-result', 'empty-result', 'uncommitted-result'] as const)(
     'falls back to cached active after a refresh %s',
     async (failure) => {
       const cached = makeTree('short-sibling')
@@ -315,9 +397,15 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
       await flushFrame()
       expect(setViewport).not.toHaveBeenCalled()
       const error = new Error('Tree refresh failed')
-      MockUseDataApiUtils.mockQueryResult('/topics/:topicId/tree', { data: cached, error, refetch })
+      MockUseDataApiUtils.mockQueryResult('/topics/:topicId/tree', {
+        data: cached,
+        error: failure === 'uncommitted-result' ? undefined : error,
+        isRefreshing: false,
+        refetch
+      })
       await act(async () => {
         if (failure === 'reject') refresh.reject(error)
+        else if (failure === 'uncommitted-result') refresh.resolve(makeTree('long-11'))
         else refresh.resolve(failure === 'cached-result' ? cached : undefined)
       })
       rerender(<TopicBranchPanel open topicId="topic-1" focusKey="cycle:0" />)

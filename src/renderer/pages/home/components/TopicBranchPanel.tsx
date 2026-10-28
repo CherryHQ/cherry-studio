@@ -61,46 +61,75 @@ const TopicBranchPanel: FC<Props> = ({
   const contextMenuMessageIdRef = useRef<string | null>(null)
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
-  const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
+  const { data, error, isLoading, isRefreshing, refetch } = useQuery('/topics/:topicId/tree', {
     enabled: open,
     params: { topicId }
   })
-  const refreshCycleRef = useRef<{ id: number; topicId: string; focusKey: Props['focusKey'] } | null>(null)
+  const refreshCycleRef = useRef<{
+    id: number
+    topicId: string
+    focusKey: Props['focusKey']
+    sequence: number
+    pending: number
+  } | null>(null)
   const [cycleRefresh, setCycleRefresh] = useState<{
     cycle: NonNullable<typeof refreshCycleRef.current>
+    sequence: number
     data?: unknown
+    settled: boolean
+    failed?: boolean
     ready: boolean
   } | null>(null)
+
+  const refreshTree = useCallback(async () => {
+    const cycle = refreshCycleRef.current
+    if (!cycle) return
+    const sequence = ++cycle.sequence
+    cycle.pending++
+    setCycleRefresh((previous) =>
+      previous?.cycle === cycle && previous.ready ? previous : { cycle, sequence, settled: false, ready: false }
+    )
+    let refreshedData: unknown
+    let failed = false
+    try {
+      refreshedData = await refetch()
+    } catch {
+      failed = true
+    } finally {
+      cycle.pending--
+      if (refreshCycleRef.current === cycle) {
+        setCycleRefresh((previous) => {
+          if (!previous || previous.cycle !== cycle || previous.ready) return previous
+          if (sequence !== cycle.sequence) return { ...previous }
+          return { cycle, sequence, data: refreshedData, settled: true, failed, ready: false }
+        })
+      }
+    }
+  }, [refetch])
 
   useEffect(() => {
     if (!open) return
     if (refreshCycleRef.current?.topicId === topicId && refreshCycleRef.current.focusKey === focusKey) return
-    const cycle = { id: (refreshCycleRef.current?.id ?? 0) + 1, topicId, focusKey }
+    const cycle = { id: (refreshCycleRef.current?.id ?? 0) + 1, topicId, focusKey, sequence: 0, pending: 0 }
     refreshCycleRef.current = cycle
-
-    const refresh = async () => {
-      try {
-        const refreshedData = await refetch()
-        if (refreshCycleRef.current === cycle) {
-          setCycleRefresh({ cycle, data: refreshedData, ready: false })
-        }
-      } catch {
-        if (refreshCycleRef.current === cycle) setCycleRefresh({ cycle, ready: true })
-      }
-    }
-    void refresh()
-  }, [open, topicId, focusKey, refetch])
+    setCycleRefresh({ cycle, sequence: 0, settled: false, ready: false })
+    if (data !== undefined) void refreshTree()
+  }, [open, topicId, focusKey, data, refreshTree])
 
   useEffect(() => {
-    // SWR mutate returns the committed cache reference; wait until that reference is rendered.
     if (
       cycleRefresh &&
       !cycleRefresh.ready &&
-      (data === cycleRefresh.data || (cycleRefresh.data === undefined && error))
+      cycleRefresh.cycle === refreshCycleRef.current &&
+      cycleRefresh.sequence === cycleRefresh.cycle.sequence &&
+      (cycleRefresh.sequence === 0
+        ? data !== undefined || error
+        : cycleRefresh.settled &&
+          (cycleRefresh.failed || data === cycleRefresh.data || (cycleRefresh.cycle.pending === 0 && !isRefreshing)))
     ) {
       setCycleRefresh({ ...cycleRefresh, ready: true })
     }
-  }, [cycleRefresh, data, error])
+  }, [cycleRefresh, data, error, isRefreshing])
 
   const focusReady =
     open &&
@@ -112,7 +141,7 @@ const TopicBranchPanel: FC<Props> = ({
   useDataChange(
     '/topics/:topicId/tree',
     () => {
-      if (open) void refetch()
+      if (open) void refreshTree()
     },
     { routeParams: { topicId } }
   )
