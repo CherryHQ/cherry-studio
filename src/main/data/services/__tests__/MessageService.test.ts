@@ -27,8 +27,27 @@ vi.mock('@data/dataApiDataChange', () => ({
 
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
-import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
+import {
+  type MessageData,
+  type MessageRole,
+  toContentRole,
+  TREE_OFF_PATH_DEPTH_LIMIT
+} from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+
+function treeRow(topicId: string, id: string, parentId: string | null, order: number) {
+  return {
+    id,
+    parentId,
+    topicId,
+    role: order % 2 === 0 ? ('user' as const) : ('assistant' as const),
+    data: mainText(id),
+    status: 'success' as const,
+    siblingsGroupId: 0,
+    createdAt: 100 + order,
+    updatedAt: 100 + order
+  }
+}
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -1844,6 +1863,54 @@ describe('MessageService', () => {
       const result = messageService.getTree('topic-deep')
 
       expect(result.nodes.map((node) => node.id)).toEqual(Array.from({ length: count }, (_, i) => `d-${i}`))
+    })
+
+    it('stops an off-path branch at TREE_OFF_PATH_DEPTH_LIMIT levels', async () => {
+      const chainLength = TREE_OFF_PATH_DEPTH_LIMIT + 500
+      const rows = withRoot('topic-off-path', [
+        treeRow('topic-off-path', 'u0', null, 0),
+        treeRow('topic-off-path', 'a0', 'u0', 1),
+        ...Array.from({ length: chainLength }, (_, i) =>
+          treeRow('topic-off-path', `x${i}`, i === 0 ? 'u0' : `x${i - 1}`, 2 + i)
+        )
+      ])
+      await dbh.db.insert(topicTable).values({ id: 'topic-off-path', activeNodeId: 'a0', orderKey: 'off-path' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+
+      const ids = new Set(messageService.getTree('topic-off-path').nodes.map((node) => node.id))
+
+      expect(ids.has('a0')).toBe(true)
+      // u0 is level 0, so x(n) sits at level n + 1.
+      expect(ids.has(`x${TREE_OFF_PATH_DEPTH_LIMIT - 2}`)).toBe(true)
+      expect(ids.has(`x${TREE_OFF_PATH_DEPTH_LIMIT - 1}`)).toBe(false)
+      expect(ids.size).toBe(2 + TREE_OFF_PATH_DEPTH_LIMIT - 1)
+    })
+
+    it('keeps an active path past the depth limit whole, with its direct children only', async () => {
+      const pathLength = TREE_OFF_PATH_DEPTH_LIMIT + 500
+      const sideParent = `p${TREE_OFF_PATH_DEPTH_LIMIT + 100}`
+      const rows = withRoot('topic-deep-active', [
+        ...Array.from({ length: pathLength }, (_, i) =>
+          treeRow('topic-deep-active', `p${i}`, i === 0 ? null : `p${i - 1}`, i)
+        ),
+        treeRow('topic-deep-active', 'side', sideParent, pathLength),
+        treeRow('topic-deep-active', 'side-child', 'side', pathLength + 1)
+      ])
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-deep-active', activeNodeId: `p${pathLength - 1}`, orderKey: 'deep-active' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+
+      const ids = new Set(messageService.getTree('topic-deep-active').nodes.map((node) => node.id))
+
+      expect(ids.has(`p${pathLength - 1}`)).toBe(true)
+      expect(ids.has('side')).toBe(true)
+      expect(ids.has('side-child')).toBe(false)
+      expect(ids.size).toBe(pathLength + 1)
     })
   })
 

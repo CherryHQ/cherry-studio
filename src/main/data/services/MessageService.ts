@@ -43,6 +43,7 @@ import {
   type SiblingsGroup,
   toContentRole,
   TOPIC_MESSAGE_SEARCH_ROLES,
+  TREE_OFF_PATH_DEPTH_LIMIT,
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
@@ -460,17 +461,31 @@ export class MessageService {
       return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
     }
 
+    const activePath = new Set<string>()
+    let pathNodeId = activeNodeId
+    while (pathNodeId && !activePath.has(pathNodeId)) {
+      const pathMessage = messagesById.get(pathNodeId)
+      if (!pathMessage) break
+      activePath.add(pathNodeId)
+      pathNodeId = pathMessage.parentId
+    }
+
     const resultNodes: TreeNode[] = []
     const siblingsGroups: SiblingsGroup[] = []
     const visitedGroups = new Set<string>()
 
     // Explicit stack, not recursion: a linear chat is one tree level per message, deeper
     // than the JS call stack. Children are pushed reversed to keep pre-order output.
-    const pending = [...rootIds].reverse()
+    const pending: Array<[nodeId: string, depth: number]> = rootIds.map((id): [string, number] => [id, 0]).reverse()
     while (pending.length > 0) {
-      const nodeId = pending.pop()!
+      const [nodeId, depth] = pending.pop()!
       const message = messagesById.get(nodeId)
       if (!message) continue
+      const isReturned =
+        depth < TREE_OFF_PATH_DEPTH_LIMIT ||
+        activePath.has(nodeId) ||
+        (message.parentId !== null && activePath.has(message.parentId))
+      if (!isReturned) continue
 
       const children = childrenMap.get(nodeId) || []
       const hasChildren = children.length > 0
@@ -515,7 +530,7 @@ export class MessageService {
       }
 
       for (let i = children.length - 1; i >= 0; i--) {
-        pending.push(children[i])
+        pending.push([children[i], depth + 1])
       }
     }
 
