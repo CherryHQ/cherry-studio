@@ -24,6 +24,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import { MAX_RETRY_FALLBACK_MODELS } from '@shared/ai/retry'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
@@ -320,7 +321,7 @@ const GeneralSettings: FC = () => {
               <div className="min-w-0 flex-1">
                 <SettingRowTitle>{t('settings.models.retry.fallback_models')}</SettingRowTitle>
                 <SettingDescription className="mt-1.5 leading-5">
-                  {t('settings.models.retry.fallback_models_description')}
+                  {t('settings.models.retry.fallback_models_description', { count: MAX_RETRY_FALLBACK_MODELS })}
                 </SettingDescription>
               </div>
               <div className="flex w-[220px] min-w-0 shrink-0 items-center">
@@ -328,7 +329,7 @@ const GeneralSettings: FC = () => {
                   multiple={true}
                   selectionType="id"
                   value={retryFallbackModelIds}
-                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
+                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds.slice(0, MAX_RETRY_FALLBACK_MODELS))}
                   filter={chatModelFilter}
                   trigger={
                     <Button

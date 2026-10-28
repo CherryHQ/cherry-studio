@@ -185,6 +185,14 @@ describe('createAiRepair', () => {
     expect(JSON.parse(repaired!.input)).toEqual({ arguments: { query: 'hello world' } })
   })
 
+  it('disables SDK retries so one bad tool call cannot multiply repair requests', async () => {
+    generateText.mockResolvedValue({ output: { query: 'hello world' } })
+
+    await callRepair(makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hello world' }))
+
+    expect(generateText.mock.calls[0][2].maxRetries).toBe(0)
+  })
+
   it('reuses the request usage middleware so repair is an independent invocation', async () => {
     const plugins = [{ name: 'usage' }]
     const repairWithUsage = createAiRepair({

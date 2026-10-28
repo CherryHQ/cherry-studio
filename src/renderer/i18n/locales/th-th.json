@@ -5058,7 +5058,7 @@
   "settings.models.retry.description": "ลองใหม่สำหรับการเรียกแชท, embedding และ rerank; แชทสามารถสลับไปใช้โมเดลสำรองได้",
   "settings.models.retry.fallback_models": "โมเดลสำรอง",
   "settings.models.retry.fallback_models_count": "เลือก {{count}} โมเดล",
-  "settings.models.retry.fallback_models_description": "โมเดลที่ลองตามลำดับเมื่อโมเดลหลักล้มเหลว",
+  "settings.models.retry.fallback_models_description": "โมเดลที่ลองตามลำดับเมื่อโมเดลหลักล้มเหลว (สูงสุด {{count}} โมเดล)",
   "settings.models.retry.max_attempts": "จำนวนครั้งลองสูงสุด",
   "settings.models.retry.tooltip": "ข้อผิดพลาดที่ลองใหม่ได้จะลองโมเดลปัจจุบันซ้ำถึงขีดจำกัดที่กำหนด หากยังล้มเหลว หรือข้อผิดพลาดไม่สามารถลองใหม่ได้ โมเดลสำรองจะถูกลองครั้งละหนึ่งตามลำดับ หากมีหลาย API Keys สำหรับโมเดลเดียวกัน ข้อผิดพลาด 401/429 จะสลับไปที่คีย์ถัดไปก่อน การลองใหม่และการสำรองใช้เฉพาะก่อนเนื้อหาเริ่มสตรีม",
   "settings.models.toolbar.pull_short": "ซิงค์โมเดล",

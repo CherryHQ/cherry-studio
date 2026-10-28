@@ -1,6 +1,8 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { RetryFallbackModelId } from '@shared/data/preference/preferenceTypes'
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
@@ -29,5 +31,16 @@ describe('readRetryPolicy', () => {
       backoffEnabled: true,
       fallbackModelIds: ['anthropic::claude']
     })
+  })
+
+  it('bounds the configured fallback list so one failed call cannot fan out to every model', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', true)
+    const configured: RetryFallbackModelId[] = Array.from({ length: 9 }, (_, index) => `provider::model-${index}`)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.fallback_model_ids', configured)
+
+    const { fallbackModelIds } = readRetryPolicy()
+
+    expect(fallbackModelIds).not.toHaveLength(configured.length)
+    expect(fallbackModelIds).toEqual(configured.slice(0, fallbackModelIds.length))
   })
 })
