@@ -1389,7 +1389,14 @@ export class BinaryManager extends BaseService {
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
-    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
+    let installTool = definition.tool
+    if (installTool === 'claude' && isWin && process.arch === 'arm64') {
+      // mise 2026.7.14 omits the Windows ARM64 override; keep its manifest checksum verification.
+      const url =
+        'https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/{{ version }}/win32-arm64/claude.exe'
+      installTool = `claude[url="${url}",bin="claude.exe"]`
+    }
+    const toolSpec = `${addNpmAllowBuildsOption(installTool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
