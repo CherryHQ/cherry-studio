@@ -994,6 +994,72 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.discardResponse.mock.calls).toEqual([['chat-1', { replyToMessageId: 'first-id' }]])
   })
 
+  it('prepends source chat context when the channel exposes a chat type', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'oc_123',
+      chatType: 'group',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+
+    const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+    expect(parts[0]).toEqual({
+      type: 'text',
+      text: '[channel-context] channel=feishu chat_id=oc_123 chat_type=group'
+    })
+    expect(parts[1]).toEqual({ type: 'text', text: 'Hi' })
+  })
+
+  it('omits source chat context when the channel exposes no chat type', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+
+    const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+    expect(parts).toEqual([{ type: 'text', text: 'Hi' }])
+  })
+
+  it('keeps the chat type when rapid messages merge into one batch', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    const first = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'oc_123',
+      chatType: 'group',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'first'
+    })
+    await vi.advanceTimersByTimeAsync(500)
+    const second = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'oc_123',
+      chatType: 'group',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'second'
+    })
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await Promise.all([first, second])
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+    const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+    expect(parts[0]).toEqual({
+      type: 'text',
+      text: '[channel-context] channel=feishu chat_id=oc_123 chat_type=group'
+    })
+    expect(parts[1]).toEqual({ type: 'text', text: 'first\nsecond' })
+  })
+
   it('flushes a sustained message burst at the original sixteen-second deadline', async () => {
     const adapter = createMockAdapter()
     simulateStream([{ type: 'text-delta', delta: 'reply' }])

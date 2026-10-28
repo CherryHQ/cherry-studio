@@ -359,6 +359,8 @@ export class ChannelMessageHandler {
     return {
       chatId: first.chatId,
       ...(first.conversationId ? { conversationId: first.conversationId } : {}),
+      // A batch always comes from one chat, so the kind is consistent across messages.
+      ...(first.chatType ? { chatType: first.chatType } : {}),
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
@@ -410,7 +412,20 @@ export class ChannelMessageHandler {
         await prepareAgentSessionWorkspaceDirectory(session)
       }
 
-      const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
+      const userParts: CherryMessagePart[] = []
+      // Surface the source chat identity as leading session context so the agent can pick a
+      // reply style per chat kind (Feishu p2p vs group) from metadata alone, without guessing
+      // from message text or chat-id prefixes. Channels that do not expose a chat kind keep
+      // their payload unchanged.
+      if (message.chatType) {
+        userParts.push({
+          type: 'text',
+          text: `[channel-context] channel=${adapter.channelType} chat_id=${message.chatId} chat_type=${message.chatType}`
+        })
+      }
+      if (message.text) {
+        userParts.push({ type: 'text', text: message.text })
+      }
       if (message.images?.length && workDir) {
         userParts.push(...(await this.persistImages(message.images)))
       }

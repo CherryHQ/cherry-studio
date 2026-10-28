@@ -14,6 +14,13 @@ export type ChannelMessageEvent = {
   userName: string
   text: string
   /**
+   * Source chat kind where the platform distinguishes direct messages from group chats
+   * (Feishu `p2p`/`group`; adapters that can distinguish fill it, others omit it).
+   * Surfaced to the agent as session context so reply style can differ per chat kind
+   * without inspecting message text.
+   */
+  chatType?: 'p2p' | 'group'
+  /**
    * Platform message id of the inbound message, carried so the reply can target it (e.g. QQ
    * passive reply, Telegram reply-to). Bound to the specific message being answered rather than
    * looked up from mutable per-chat state at send time. Adapters that don't need it omit it.

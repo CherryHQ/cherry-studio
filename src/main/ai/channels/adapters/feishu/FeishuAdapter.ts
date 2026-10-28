@@ -494,6 +494,7 @@ class FeishuAdapter extends ChannelAdapter {
     }
     this.emit('message', {
       chatId: message.chatId,
+      chatType: message.chatType,
       ...conversation,
       userId: message.senderId,
       userName: message.senderName ?? '',
