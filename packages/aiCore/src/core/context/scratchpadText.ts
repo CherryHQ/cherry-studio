@@ -2415,12 +2415,26 @@ export function stableScratchpadStreamPrefix(
   const active = masked.slice(currentStart)
   const tick = active.indexOf('`')
   if (tick !== -1) {
-    const match = /<(?:thinking|analysis|assessment)(?:[\s/>]|$)/i.exec(masked.slice(currentStart + tick))
-    let markup = match ? currentStart + tick + match.index : -1
+    // The trailing delimiter can still grow on the next delta and revoke
+    // this pairing. Only spans with a sealed closing run own stable markup.
+    const inlineRanges = maskInlineCodeSpans(masked).ranges.filter((range) => range.end < masked.length)
+    let inlineIndex = 0
+    const ownedByInlineCode = (at: number): boolean => {
+      while (inlineIndex < inlineRanges.length && inlineRanges[inlineIndex].end <= at) inlineIndex++
+      return inlineIndex < inlineRanges.length && at >= inlineRanges[inlineIndex].start
+    }
+    let markup = -1
+    for (const match of masked.slice(currentStart + tick).matchAll(/<(?:thinking|analysis|assessment)(?:[\s/>]|$)/gi)) {
+      const at = currentStart + tick + match.index
+      if (!ownedByInlineCode(at)) {
+        markup = at
+        break
+      }
+    }
     // A partial wrapper name is already ambiguous; do not emit it and then
     // retract when the next delta completes the name inside revocable HTML.
     const lastLt = masked.lastIndexOf('<')
-    if (lastLt >= currentStart + tick) {
+    if (lastLt >= currentStart + tick && !ownedByInlineCode(lastLt)) {
       const tail = masked.slice(lastLt + 1).toLowerCase()
       if (MODEL_SCRATCHPAD_TAG_NAMES.some((name) => name.startsWith(tail)))
         markup = markup === -1 ? lastLt : Math.min(markup, lastLt)

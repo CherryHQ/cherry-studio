@@ -350,6 +350,47 @@ describe('append-only scratchpad answer streaming', () => {
     s.stop()
     expect(s.text()).toBe('`x`\n\nAnswer. after')
   })
+  it('withholds a closing backtick run that can still grow and revoke inline ownership', () => {
+    for (const n of [1, 2, 3, 4, 5])
+      for (const extra of [1, 2]) {
+        const raw = (n < 3 ? '' : 'Text ') + '`'.repeat(n) + '<thinking>SECRET</thinking>' + '`'.repeat(n + extra)
+        for (const size of [1, 2, 3, 5, 7, raw.length]) {
+          const s = setup()
+          for (let i = 0; i < raw.length; i += size) {
+            s.push(raw.slice(i, i + size))
+            expect(s.text()).not.toContain('SECRET')
+          }
+          s.stop()
+          expect(s.text()).toBe(stripKnownModelScratchpadBlocksPreservingCodeFences(raw))
+          s.a.handleMessage({
+            type: 'assistant',
+            parent_tool_use_id: null,
+            session_id: 's',
+            uuid: crypto.randomUUID(),
+            message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+          } as any)
+          expect(s.text()).not.toContain('SECRET')
+        }
+      }
+  })
+  it('keeps both completed triple-backtick inline spans through stop and snapshot', () => {
+    const raw = 'Here:\n\n```<thinking>one</thinking>``` and ```<thinking>two</thinking>``` end'
+    for (const size of [1, 2, 3, 4, 5, 6, 7, raw.length]) {
+      const s = setup()
+      for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+      s.stop()
+      expect(s.a.scratchpadPrefixViolation).toBe(false)
+      expect(s.text(), `size ${size}`).toBe(raw)
+      s.a.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 's',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+      } as any)
+      expect(s.text()).toBe(raw)
+    }
+  })
   it('strips sibling-item paragraph analysis without confusing setext precedence', () => {
     for (const raw of [
       '* star\n-\n    <thinking>SECRET</thinking>\n',
