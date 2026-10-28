@@ -224,6 +224,111 @@ describe('SkillService', () => {
       }
       const rows = () => dbh.db.select().from(agentGlobalSkillTable).all()
 
+      it('preserves a concurrent new directory created during an earlier update', async () => {
+        const installed = await service.installFromDirectory({ directoryPath: await directory('old/first', 'old') })
+        const items = [
+          input('first', await directory('incoming/first', 'replacement')),
+          input('second', await directory('incoming/second', 'second')),
+          input('third', await directory('incoming/third', 'third'))
+        ]
+        const preview = await service.previewImport({ items, policy: 'update' })
+        expect(preview.items[0].target).toMatchObject({ kind: 'installed', id: installed.id })
+        expect(preview.items[1].status).toBe('new')
+        const folder = preview.items[1].destinationFolder!
+        const destination = path.join(root, 'library', folder)
+        const descriptor = '---\nname: concurrent\n---\nAgent-authored skill'
+        const sentinel = Buffer.from('concurrent author sentinel: do not replace\n')
+        const installer = (service as unknown as { installer: SkillInstaller }).installer
+        const prepareInstall = installer.prepareInstall.bind(installer)
+        vi.spyOn(installer, 'prepareInstall').mockImplementationOnce(async (...args) => {
+          await fs.promises.mkdir(destination)
+          await fs.promises.writeFile(path.join(destination, 'SKILL.md'), descriptor)
+          await fs.promises.writeFile(path.join(destination, 'sentinel.txt'), sentinel)
+          return prepareInstall(...args)
+        })
+
+        const outcomes = await service.applyImport({ items, policy: 'update', revision: preview.revision })
+        expect.soft(outcomes[1]).toMatchObject({ status: 'error', code: 'publish_failed', retryable: true })
+        expect(fs.existsSync(destination)).toBe(true)
+        expect
+          .soft(await fs.promises.readFile(path.join(destination, 'sentinel.txt')).catch(() => null))
+          .toEqual(sentinel)
+        expect.soft(await fs.promises.readFile(path.join(destination, 'SKILL.md'), 'utf8')).toBe(descriptor)
+        expect.soft(agentGlobalSkillService.listAll().some((row) => row.folderName === folder)).toBe(false)
+        expect(outcomes[0]).toMatchObject({ status: 'updated', skillId: installed.id })
+        expect(outcomes[2]).toMatchObject({ status: 'installed', folderName: 'third' })
+      })
+
+      it.each(['skip', 'keep_both'] as const)(
+        'preserves a concurrent destination under %s while continuing the batch',
+        async (policy) => {
+          if (policy === 'keep_both')
+            await service.installFromDirectory({ directoryPath: await directory('old/second', 'old') })
+          const items = [
+            input('first', await directory('incoming/first', 'first')),
+            input('second', await directory('incoming/second', 'second')),
+            input('third', await directory('incoming/third', 'third'))
+          ]
+          const preview = await service.previewImport({ items, policy })
+          const folder = preview.items[1].destinationFolder!
+          expect(folder).toBe(policy === 'keep_both' ? 'second-2' : 'second')
+          const destination = path.join(root, 'library', folder)
+          const descriptor = '---\nname: concurrent\n---\nAgent-authored skill'
+          const sentinel = Buffer.from('concurrent author sentinel: do not replace\n')
+          const linkMirror = service.linkMirror.bind(service)
+          vi.spyOn(service, 'linkMirror').mockImplementationOnce(async (...args) => {
+            await fs.promises.mkdir(destination)
+            await fs.promises.writeFile(path.join(destination, 'SKILL.md'), descriptor)
+            await fs.promises.writeFile(path.join(destination, 'sentinel.txt'), sentinel)
+            return linkMirror(...args)
+          })
+
+          const outcomes = await service.applyImport({ items, policy, revision: preview.revision })
+          expect.soft(outcomes[1]).toMatchObject({ status: 'error', code: 'publish_failed', retryable: true })
+          expect(fs.existsSync(destination)).toBe(true)
+          expect
+            .soft(await fs.promises.readFile(path.join(destination, 'sentinel.txt')).catch(() => null))
+            .toEqual(sentinel)
+          expect.soft(await fs.promises.readFile(path.join(destination, 'SKILL.md'), 'utf8')).toBe(descriptor)
+          expect.soft(agentGlobalSkillService.listAll().some((row) => row.folderName === folder)).toBe(false)
+          expect(outcomes[0]).toMatchObject({ status: 'installed', folderName: 'first' })
+          expect(outcomes[2]).toMatchObject({ status: 'installed', folderName: 'third' })
+        }
+      )
+
+      it('reports a plain file selected as a directory as unavailable', async () => {
+        const selected = path.join(root, 'plain-file')
+        await fs.promises.writeFile(selected, 'not a directory')
+        const preview = await service.previewImport({ items: [input('file', selected)], policy: 'skip' })
+        expect(preview.items[0]).toMatchObject({ status: 'invalid', code: 'directory_not_found' })
+      })
+
+      it('reports a directory removed after preview as unavailable in preview and apply', async () => {
+        const selected = await directory('incoming/removed')
+        const items = [input('removed', selected)]
+        const first = await service.previewImport({ items, policy: 'skip' })
+        expect(first.items[0].status).toBe('new')
+        await fs.promises.rm(selected, { recursive: true })
+
+        const preview = await service.previewImport({ items, policy: 'skip' })
+        expect.soft(preview.items[0]).toMatchObject({ status: 'invalid', code: 'directory_not_found' })
+        expect(await service.applyImport({ items, policy: 'skip', revision: preview.revision })).toEqual([
+          { id: 'removed', status: 'error', code: 'directory_not_found', retryable: false }
+        ])
+        expect(rows()).toEqual([])
+      })
+
+      it('reports a directory removed between availability validation and realpath as unavailable', async () => {
+        const selected = await directory('incoming/removed-during-scan')
+        const realpath = fs.promises.realpath
+        vi.spyOn(fs.promises, 'realpath').mockImplementation(async (...args) => {
+          if (String(args[0]) === selected) await fs.promises.rm(selected, { recursive: true, force: true })
+          return realpath(...args)
+        })
+        const preview = await service.previewImport({ items: [input('removed', selected)], policy: 'skip' })
+        expect(preview.items[0]).toMatchObject({ status: 'invalid', code: 'directory_not_found' })
+      })
+
       describe('symlinked staging directory', () => {
         beforeEach(async () => {
           const real = path.join(root, 'tmp-real')
@@ -407,6 +512,7 @@ describe('SkillService', () => {
         ]
         const preview = await service.previewImport({ items, policy: 'update' })
         vi.spyOn(SkillInstaller.prototype, 'prepareInstall').mockRejectedValueOnce(new Error('publication failure'))
+        vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('publication failure'))
         expect(await service.applyImport({ items, policy: 'update', revision: preview.revision })).toEqual([
           { id: 'a', status: 'error', code: 'publish_failed', retryable: true },
           { id: 'b', status: 'error', code: 'dependency_failed', retryable: true },
@@ -632,7 +738,7 @@ describe('SkillService', () => {
         } else if (fixture === 'file') {
           await fs.promises.writeFile(selected, 'not a ZIP')
         }
-        const items = [input(fixture, selected, fixture === 'zip' || fixture === 'file' ? 'zip' : 'directory')]
+        const items = [input(fixture, selected, fixture === 'directory' ? 'directory' : 'zip')]
         const { preview, outcomes } = await run(items, 'keep_both')
         expect(preview.items[0]).toMatchObject({ id: fixture, status: 'invalid', code, destinationFolder: null })
         expect(outcomes).toEqual([{ id: fixture, status: 'error', code, retryable: false }])

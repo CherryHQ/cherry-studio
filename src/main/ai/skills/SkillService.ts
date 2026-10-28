@@ -44,7 +44,7 @@ import {
 
 import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillImportError } from './SkillImportError'
-import { SkillInstaller } from './SkillInstaller'
+import { SkillInstaller, type PreparedSkillInstall } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
 import { buildSystemSkillSources } from './systemSkillSources'
@@ -378,7 +378,13 @@ export class SkillService {
         const item: PreparedImport = { input, tempDir: await createTempDir('batch-import') }
         prepared.push(item)
         try {
-          const canonical = await fs.promises.realpath(input.path)
+          if (input.kind === 'directory' && !(await directoryExists(input.path)))
+            throw new SkillImportError('DIRECTORY_NOT_FOUND', `Directory not found: ${input.path}`)
+          const canonical = await fs.promises.realpath(input.path).catch((error) => {
+            if (input.kind === 'directory' && (error as NodeJS.ErrnoException).code === 'ENOENT')
+              throw new SkillImportError('DIRECTORY_NOT_FOUND', `Directory not found: ${input.path}`)
+            throw error
+          })
           item.origin = pathToFileURL(canonical).href
           let sourceDirectory = canonical
           if (input.kind === 'zip') {
@@ -396,7 +402,8 @@ export class SkillService {
               item.selection ? path.basename(sourceDirectory) : path.basename(input.path).replace(/\.zip$/i, '')
             )
           } else {
-            if (!(await directoryExists(canonical))) throw new Error('Selected input is not a directory')
+            if (!(await directoryExists(canonical)))
+              throw new SkillImportError('DIRECTORY_NOT_FOUND', `Directory not found: ${input.path}`)
             item.selection = ''
             item.folder = sanitizeFolderName(path.basename(canonical))
           }
@@ -605,9 +612,21 @@ export class SkillService {
     const metadata = await parseSkillMetadata(staging, folder, 'skills')
     const destination = this.getSkillStoragePath(folder)
     await fs.promises.mkdir(path.dirname(destination), { recursive: true })
-    const prepared = await this.installer.prepareInstall(staging, destination)
+    let prepared: PreparedSkillInstall
+    if (target) prepared = await this.installer.prepareInstall(staging, destination)
+    else {
+      await fs.promises.mkdir(destination)
+      prepared = {
+        commit: async () => undefined,
+        rollback: () => fs.promises.rm(destination, { recursive: true, force: true })
+      }
+    }
     let changedId: string | undefined
     try {
+      if (!target) {
+        for (const entry of await fs.promises.readdir(staging))
+          await fs.promises.rename(path.join(staging, entry), path.join(destination, entry))
+      }
       if ((await this.installer.computeDirectoryHash(destination)) !== item.hash)
         throw new Error('Published skill differs from the validated plan')
       const values = {
