@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getAppLanguage } from '@main/i18n'
 import { isTranscriptionModelId, TranscriptionLanguageSource } from '@shared/ai/localVoice'
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 
@@ -67,13 +68,14 @@ export async function transcribeChannelAudio(input: VoiceAudioInput, callerSigna
       language: 'feature.voice.recognition.language'
     })
     const modelId = preferences.modelId ?? ''
-    const locale = preferences.language ?? ''
+    const locale = (preferences.language ?? '').trim()
     if (!modelId || !isTranscriptionModelId(modelId)) throw new VoiceRuntimeError('unsupported')
     const plan = resolveTranscriptionRequest({
       modelId,
-      language: locale
-        ? { source: TranscriptionLanguageSource.Explicit, locale }
-        : { source: TranscriptionLanguageSource.ModelDefault }
+      language:
+        locale && locale.toLowerCase() !== 'auto'
+          ? { source: TranscriptionLanguageSource.Explicit, locale }
+          : { source: TranscriptionLanguageSource.Interface, locale: Intl.getCanonicalLocales(getAppLanguage())[0] }
     })
     check()
     const status = await wait(getLocalVoiceStatus(plan.modelId, plan.options, signal))

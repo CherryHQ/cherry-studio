@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, TranscriptionLanguageSource } from '@shared/ai/localVoice'
+import type * as I18n from '@main/i18n'
+import {
+  APPLE_ASR_MODEL_ID,
+  FUNASR_MODEL_ID,
+  WINDOWS_ASR_MODEL_ID,
+  TranscriptionLanguageSource
+} from '@shared/ai/localVoice'
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
+
+import type * as Adapters from '../localAdapters'
+import type { VoiceEnvironment } from '../voicePlatform'
 
 const mocks = vi.hoisted(() => ({
   preferences: vi.fn(),
@@ -25,9 +34,17 @@ vi.mock('../localAdapters', () => ({
   voiceAudioProcess: { id: 'voice.audio' }
 }))
 vi.mock('../execution', () => ({ startTranscription: mocks.start }))
+vi.mock('@main/i18n', async (orig) => ({
+  ...(await orig<typeof I18n>()),
+  getAppLanguage: () => interfaceLanguage
+}))
 
 import { transcribeChannelAudio } from '../channelTranscription'
 import { inspectCanonicalWav } from '../localAdapters/inspectCanonicalWav'
+
+const actual = await vi.importActual<typeof Adapters>('../localAdapters')
+let environment: VoiceEnvironment
+let interfaceLanguage: string
 
 const wav = Uint8Array.from(
   Buffer.from('524946462600000057415645666d74201000000001000100803e0000007d00000200100064617461020000000000', 'hex')
@@ -43,8 +60,10 @@ describe('channel transcription', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.resetAllMocks()
+    environment = { platform: 'darwin', majorVersion: 26 }
+    interfaceLanguage = 'ja-JP'
     mocks.preferences.mockReturnValue({ modelId: APPLE_ASR_MODEL_ID, language: '' })
-    mocks.resolve.mockImplementation(({ modelId, language }) => ({ modelId, options: { language: language.locale } }))
+    mocks.resolve.mockImplementation((input) => actual.resolveTranscriptionRequest(input, environment))
     mocks.status.mockResolvedValue({ status: 'ready' })
     mocks.createInstance.mockReturnValue({ request: mocks.decode, dispose: mocks.dispose })
     mocks.decode.mockResolvedValue({ wav })
@@ -70,14 +89,14 @@ describe('channel transcription', () => {
     async (status) => {
       mocks.status.mockResolvedValue({ status })
       await expect(transcribeChannelAudio(input)).rejects.toMatchObject({ reason: 'unsupported' })
-      expect(mocks.status).toHaveBeenCalledWith(APPLE_ASR_MODEL_ID, { language: undefined }, expect.any(AbortSignal))
+      expect(mocks.status).toHaveBeenCalledWith(APPLE_ASR_MODEL_ID, { language: 'ja-JP' }, expect.any(AbortSignal))
       expect(mocks.resolve).toHaveBeenCalledTimes(1)
       expect(mocks.createInstance).not.toHaveBeenCalled()
       expect(mocks.start).not.toHaveBeenCalled()
     }
   )
 
-  it.each(['en-US', ''])('keeps explicit model and language selection %j', async (language) => {
+  it.each(['en-US', 'de-DE'])('keeps explicit model and language selection %j', async (language) => {
     mocks.preferences.mockReturnValue({ modelId: APPLE_ASR_MODEL_ID, language })
     await expect(transcribeChannelAudio(input)).resolves.toBe('transcript')
     expect(mocks.preferences).toHaveBeenCalledWith({
@@ -86,16 +105,15 @@ describe('channel transcription', () => {
     })
     expect(mocks.resolve).toHaveBeenCalledWith({
       modelId: APPLE_ASR_MODEL_ID,
-      language: language
-        ? { source: TranscriptionLanguageSource.Explicit, locale: language }
-        : { source: TranscriptionLanguageSource.ModelDefault }
+      language: { source: TranscriptionLanguageSource.Explicit, locale: language }
     })
+    expect(mocks.status).toHaveBeenCalledWith(APPLE_ASR_MODEL_ID, { language }, expect.any(AbortSignal))
     expect(mocks.start).toHaveBeenCalledWith(
       {
         modelId: APPLE_ASR_MODEL_ID,
         input: { kind: TranscriptionInputKind.Audio, audio: wav },
         output: TranscriptionOutputKind.Final,
-        options: { language: language || undefined }
+        options: { language }
       },
       expect.any(AbortSignal)
     )
@@ -108,13 +126,56 @@ describe('channel transcription', () => {
     expect(mocks.createInstance).toHaveBeenCalledWith({ id: 'voice.audio' })
   })
 
-  it('propagates rejected explicit locale selection', async () => {
-    mocks.resolve.mockImplementation(() => {
-      throw new Error('invalid locale')
-    })
-    await expect(transcribeChannelAudio(input)).rejects.toThrow('invalid locale')
+  it.each([
+    { modelId: APPLE_ASR_MODEL_ID, environment: { platform: 'darwin', majorVersion: 26 }, language: 'ja-JP' },
+    { modelId: WINDOWS_ASR_MODEL_ID, environment: { platform: 'win32', arch: 'x64' }, language: 'ja-JP' },
+    { modelId: FUNASR_MODEL_ID, environment: { platform: 'linux', arch: 'x64' }, language: undefined }
+  ])('follows interface language with $modelId', async ({ modelId, environment: modelEnvironment, language }) => {
+    environment = modelEnvironment
+    mocks.preferences.mockReturnValue({ modelId, language: '' })
+    await expect(transcribeChannelAudio(input)).resolves.toBe('transcript')
+    expect.soft(mocks.status).toHaveBeenCalledWith(modelId, { language }, expect.any(AbortSignal))
+    expect.soft(mocks.start).toHaveBeenCalledWith(
+      {
+        modelId,
+        input: { kind: TranscriptionInputKind.Audio, audio: wav },
+        output: TranscriptionOutputKind.Final,
+        options: { language }
+      },
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('propagates rejected explicit locale selection for automatic-detection models', async () => {
+    environment = { platform: 'linux', arch: 'x64' }
+    mocks.preferences.mockReturnValue({ modelId: FUNASR_MODEL_ID, language: 'ja-JP' })
+    await expect(transcribeChannelAudio(input)).rejects.toMatchObject({ reason: 'invalid_request' })
     expect(mocks.status).not.toHaveBeenCalled()
     expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.start).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['AuTo', 'ja-JP', TranscriptionLanguageSource.Interface],
+    ['auto', 'ja-JP', TranscriptionLanguageSource.Interface],
+    [' ', 'ja-JP', TranscriptionLanguageSource.Interface],
+    [' de-DE ', 'de-DE', TranscriptionLanguageSource.Explicit]
+  ])('normalizes recognition language %j', async (storedLanguage, language, source) => {
+    mocks.preferences.mockReturnValue({ modelId: APPLE_ASR_MODEL_ID, language: storedLanguage })
+    await expect(transcribeChannelAudio(input)).resolves.toBe('transcript')
+    expect.soft(mocks.status).toHaveBeenCalledWith(APPLE_ASR_MODEL_ID, { language }, expect.any(AbortSignal))
+    expect.soft(mocks.start.mock.calls[0][0].options).toEqual({ language })
+    expect(mocks.resolve).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID, language: { source, locale: language } })
+  })
+
+  it('reads interface language again for each transcription', async () => {
+    await expect(transcribeChannelAudio(input)).resolves.toBe('transcript')
+    interfaceLanguage = 'de-DE'
+    await expect(transcribeChannelAudio(input)).resolves.toBe('transcript')
+    expect.soft(mocks.status.mock.calls[0][1]).toEqual({ language: 'ja-JP' })
+    expect.soft(mocks.status.mock.calls[1][1]).toEqual({ language: 'de-DE' })
+    expect.soft(mocks.start.mock.calls[0][0].options).toEqual({ language: 'ja-JP' })
+    expect.soft(mocks.start.mock.calls[1][0].options).toEqual({ language: 'de-DE' })
   })
 
   it('waits for execution-owned cleanup before returning trimmed text', async () => {
