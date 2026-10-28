@@ -280,6 +280,7 @@
     "@radix-ui/react-context-menu": "^2.3.3",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
+    "@react-aria/live-announcer": "3.4.4",
     "@sentry/vite-plugin": "5.4.0",
     "@sting8k/pi-vcc": "0.8.1",
     "@tailwindcss/vite": "^4.3.3",

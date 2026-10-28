@@ -705,6 +705,9 @@ importers:
       '@radix-ui/react-switch':
         specifier: ^1.2.6
         version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@react-aria/live-announcer':
+        specifier: 3.4.4
+        version: 3.4.4
       '@sentry/vite-plugin':
         specifier: 5.4.0
         version: 5.4.0(encoding@0.1.13)(supports-color@8.1.1)
@@ -6280,6 +6283,9 @@ packages:
     peerDependencies:
       react: '>=16.9.0'
       react-dom: '>=16.9.0'
+
+  '@react-aria/live-announcer@3.4.4':
+    resolution: {integrity: sha512-PTTBIjNRnrdJOIRTDGNifY2d//kA7GUAwRFJNOEwSNG4FW+Bq9awqLiflw0JkpyB0VNIwou6lqKPHZVLsGWOXA==}
 
   '@replit/codemirror-lang-nix@6.0.1':
     resolution: {integrity: sha512-lvzjoYn9nfJzBD5qdm3Ut6G3+Or2wEacYIDJ49h9+19WSChVnxv4ojf+rNmQ78ncuxIt/bfbMvDLMeMP0xze6g==}
@@ -20312,6 +20318,10 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
+  '@react-aria/live-announcer@3.4.4':
+    dependencies:
+      '@swc/helpers': 0.5.20
+
   '@replit/codemirror-lang-nix@6.0.1(@codemirror/autocomplete@6.20.1)(@codemirror/language@6.12.2)(@codemirror/state@6.5.4)(@codemirror/view@6.39.16)(@lezer/common@1.5.1)(@lezer/highlight@1.2.3)(@lezer/lr@1.4.8)':
     dependencies:
       '@codemirror/autocomplete': 6.20.1
@@ -21319,7 +21329,6 @@ snapshots:
   '@swc/helpers@0.5.20':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@swc/types@0.1.27':
     dependencies:
