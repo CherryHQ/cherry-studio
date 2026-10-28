@@ -21,6 +21,7 @@ import { sendChatMarker } from '../helpers/chat'
 import { chooseImportFile } from '../helpers/chooseImportFile'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { revealVirtualized } from '../helpers/virtualList'
 import { applicationDataMigration } from '../scenarios/applicationDataMigration'
 import { clearCacheItems } from '../scenarios/clearCacheItems'
 import { importConversationFixtures } from '../scenarios/importConversationFixtures'
@@ -632,10 +633,13 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
       const topics = after.topics.filter((t) => t.assistantId === newAssistants[0].id)
       expect(topics.map((t) => t.name).sort()).toEqual(fixtures.conversations.map((c) => c.name).sort())
       await selectSidebarApp(page, 'Chat')
-      const header = page
+      const chat = page.locator('[data-ui~="chat.view"]:visible')
+      const scroller = chat.locator('[data-virtual-scrolling]').first()
+      const header = chat
         .locator('[data-ui~="chat.group-header"]')
         .filter({ hasText: `${source} Import` })
         .first()
+      await revealVirtualized(page, scroller, header)
       await expect(header).toBeVisible()
       await header.hover()
       const expand = header.getByRole('button', { name: 'Expand', exact: true })
@@ -655,7 +659,9 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
             parts: [{ type: 'text', text }]
           }))
         )
-        await page.getByTestId('topic-list-row').filter({ hasText: conversation.name }).click()
+        const topicRow = chat.getByTestId('topic-list-row').filter({ hasText: conversation.name })
+        await revealVirtualized(page, scroller, topicRow)
+        await topicRow.click()
         const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
         await expect(messages).toHaveCount(conversation.messages.length)
         for (const [i, text] of conversation.messages.entries()) await expect(messages.nth(i)).toContainText(text)
