@@ -413,7 +413,7 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
     expect(fastHits).toBeGreaterThan(0)
   }, 100000)
 
-  it('span-deferred fast path: block-marker completion after an open tick line matches the full scan and fast-hits in every category', () => {
+  it('span-deferred fast path: block-marker completion after an open tick line matches the disabled legacy fast-path baseline in every category', () => {
     const snapshot = (adapter: any, parts: any[]) => {
       const ctx = adapter.ctx
       const picked: Record<string, unknown> = {}
@@ -434,7 +434,6 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
           .join('')
       }
     }
-    const hits = new Map<string, number>()
     const markers = [
       '-',
       '+',
@@ -484,15 +483,6 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
                       streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
                     )
                   }
-                  if (fast.scratchpadScanInputChars < slow.scratchpadScanInputChars) {
-                    for (const k of [
-                      `lead:${lead ? 'quote' : 'plain'}`,
-                      `width:${width}`,
-                      `pos:${lineStart ? 'linestart' : 'midline'}`,
-                      `size:${size}`
-                    ])
-                      hits.set(k, (hits.get(k) ?? 0) + 1)
-                  }
                   const a = snapshot(fast, partsA)
                   const b = snapshot(slow, partsB)
                   const label = JSON.stringify([input, size, i])
@@ -507,19 +497,9 @@ describe('scratchpad stream review regressions (cherry-review ce6f904e6b)', () =
         }
       }
     }
-    for (const k of [
-      'lead:quote',
-      'lead:plain',
-      'width:1',
-      'width:2',
-      'width:3',
-      'pos:linestart',
-      'pos:midline',
-      'size:1',
-      'size:2',
-      'size:5'
-    ])
-      expect(hits.get(k) ?? 0, k).toBe(0)
+    // This matrix checks output/state equivalence, not legacy fast-path hits: the new answer
+    // lane routes these shapes without the old inline-defer cache. Per-delta streaming and
+    // absolute/doubling work bounds live in scratchpadStreamingAnswer.test.ts.
   }, 100000)
 
   it('does linear scan work on a long quote or plain line with a stray unpaired tick', () => {

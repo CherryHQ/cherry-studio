@@ -130,6 +130,20 @@ describe('append-only scratchpad answer streaming', () => {
       expect(s.text()).toBe(stripKnownModelScratchpadBlocksPreservingCodeFences(raw))
     }
   })
+  it('preserves canonical post-fence migration across two-digit/tab markers and delta sizes', () => {
+    for (const marker of ['10. ', '1.\t'])
+      for (const size of [1, 2, 3, 5, 7, 20, 100]) {
+        const before = `${marker}~~~\n    code\n    ~~~\n\n<thinking>strip</thinking>\n`
+        const s = setup()
+        for (let i = 0; i < before.length; i += size) s.push(before.slice(i, i + size))
+        s.push('Use `open prose ')
+        s.push('<thinking>private</thinking>\n\nDone')
+        s.stop()
+        const raw = before + 'Use `open prose <thinking>private</thinking>\n\nDone'
+        expect(s.text()).toBe(stripKnownModelScratchpadBlocksPreservingCodeFences(raw))
+        expect(s.a.scratchpadPrefixViolation).toBe(false)
+      }
+  })
   it('streams every delta of ordinary multiline markdown after an unmatched tick', () => {
     for (const width of [1, 2, 3])
       for (const quote of ['', '> ']) {

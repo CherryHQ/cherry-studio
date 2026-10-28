@@ -177,7 +177,6 @@ type StreamContext = {
     segments: string[]
     visible: string
     pending: boolean
-    markupSeen: boolean
     probe: string
     tickSeen: boolean
     legacy: boolean
@@ -1769,7 +1768,6 @@ export class ClaudeCodeStreamAdapter {
       segments: [],
       visible: '',
       pending: false,
-      markupSeen: false,
       probe: '',
       tickSeen: false,
       legacy: false
@@ -1830,7 +1828,6 @@ export class ClaudeCodeStreamAdapter {
       }
     }
     if (state.pending && !/[<>`~\r\n]/.test(text)) return ''
-    state.markupSeen = true
     const raw = state.segments.join('')
     this.scratchpadScanInputChars += raw.length
     const { visible, pending, checkpoint } = stableScratchpadStreamPrefix(raw)
@@ -1849,7 +1846,6 @@ export class ClaudeCodeStreamAdapter {
       state.segments = tail ? [tail] : []
       state.visible = visible.slice(checkpoint.visible)
       state.tickSeen = true
-      state.markupSeen = tail.includes('<')
       state.legacy = false
     }
     return delta
