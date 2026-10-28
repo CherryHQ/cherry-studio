@@ -22,7 +22,18 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
   const agentName = `${name} Agent`
   const prompt = '输出当前时间'
   let agentId: string | undefined
-  let conversationUrl: string | undefined
+  let conversationTabId: string | undefined
+  const activeTab = () =>
+    page.evaluate(() => {
+      const cache = JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}') as {
+        'ui.tab.active_tab_id'?: string
+        'ui.tab.normal_tabs'?: { id: string; url: string }[]
+        'ui.tab.pinned_tabs'?: { id: string; url: string }[]
+      }
+      return [...(cache['ui.tab.normal_tabs'] ?? []), ...(cache['ui.tab.pinned_tabs'] ?? [])].find(
+        (tab) => tab.id === cache['ui.tab.active_tab_id']
+      )
+    })
   const sessionsBefore = await page.evaluate(async () => {
     const response = await window.api.dataApi.request({
       id: 'MP-145-read',
@@ -87,7 +98,12 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     expect(draft).toMatch(/名称|name/i)
     expect(draft).toMatch(/时间|when|time|schedule/i)
     expect(draft).toMatch(/提示词|prompt/i)
-    conversationUrl = page.url()
+    await expect.poll(async () => (await activeTab())?.url).toContain('/app/agents')
+    conversationTabId = (await activeTab())!.id
+    const returnToConversation = async () => {
+      await page.getByTestId('app-shell-tab-strip').locator(`[data-tab-id="${conversationTabId}"]`).click()
+      await expect(view).toBeVisible()
+    }
     const messages = view.locator('[data-ui~="chat.message"]:visible')
     const questionInput = view.getByRole('textbox', { name: 'Enter your answer...', exact: true })
     const questionnaire = view
@@ -104,7 +120,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
               )
             }
             return (
-              (await messages.count()) > previousCount &&
+              ((await messages.count()) > previousCount || previousQuestion !== undefined) &&
               (await messages.last().getByTestId('completed-process-trigger').isVisible())
             )
           },
@@ -141,15 +157,13 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     }
     await expect(answer).toContainText(/确认|confirm|proceed|shall.*creat|ready.*creat/i)
     const readTasks = async () => {
-      const response = await page.evaluate(
-        (agentId) =>
-          window.api.dataApi.request({
-            id: 'MP-145-tasks',
-            method: 'GET',
-            path: `/agents/${agentId}/tasks`,
-            params: { limit: 200 }
-          }),
-        agentId!
+      const response = await page.evaluate(() =>
+        window.api.dataApi.request({
+          id: 'MP-145-tasks',
+          method: 'GET',
+          path: '/agent-tasks',
+          params: { limit: 200 }
+        })
       )
       expect(response.status).toBe(200)
       return (response.data as { items: ScheduledTaskEntity[] }).items
@@ -183,7 +197,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await screenshot('MP-145 created task card')
     const openTask = async () => {
       await card.getByRole('button', { name: /查看任务|View task/i }).click()
-      await expect(page).toHaveURL(new RegExp(`/settings/scheduled-tasks/${created.id}`))
+      await expect.poll(async () => (await activeTab())?.url).toBe(`/settings/scheduled-tasks/${created.id}`)
       await expect(page.getByText(name, { exact: true })).toBeVisible()
       await expect(page.getByText(prompt, { exact: true })).toBeVisible()
       await page.getByRole('tab', { name: 'General', exact: true }).click()
@@ -215,7 +229,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
       )
       .toBe('completed')
     expect(result?.trim()).toBeTruthy()
-    await page.goto(conversationUrl)
+    await returnToConversation()
     await expect(card).toContainText(/已触发|Triggered/i)
     await expect(card).toContainText(result!)
     await screenshot('MP-145 triggered card and latest result')
@@ -224,7 +238,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
     await expect.poll(async () => (await readTasks()).some((task) => task.id === created.id)).toBe(false)
-    await page.goto(conversationUrl)
+    await returnToConversation()
     await expect(messages.last()).toContainText(/该定时任务已删除|This scheduled task has been deleted/i)
     await screenshot('MP-145 deleted task card')
   } finally {
@@ -232,18 +246,35 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     const cleanupErrors = await page.evaluate(
       async ({ agentId, name, sessionsBefore }) => {
         const errors: string[] = []
-        if (agentId) {
-          const tasks = await window.api.dataApi.request({
-            id: 'MP-145-read',
+        const tasks = await window.api.dataApi.request({
+          id: 'MP-145-cleanup-tasks',
+          method: 'GET',
+          path: '/agent-tasks',
+          params: { limit: 200 }
+        })
+        if (tasks.status === 200) {
+          for (const task of (tasks.data as { items: ScheduledTaskEntity[] }).items.filter(
+            (task) => task.name === name
+          )) {
+            const deleted = (await window.api.ipcApi.request('ai.agent.task.delete', {
+              agentId: task.agentId,
+              taskId: task.id
+            })) as IpcResult<void>
+            if (!deleted.ok) errors.push(`Could not delete case task ${task.id}`)
+          }
+          const remaining = await window.api.dataApi.request({
+            id: 'MP-145-verify-task-cleanup',
             method: 'GET',
-            path: `/agents/${agentId}/tasks`
+            path: '/agent-tasks',
+            params: { limit: 200 }
           })
-          if (tasks.status === 200)
-            for (const task of (tasks.data as { items: ScheduledTaskEntity[] }).items.filter(
-              (task) => task.name === name
-            )) {
-              await window.api.ipcApi.request('ai.agent.task.delete', { agentId, taskId: task.id })
-            }
+          if (
+            remaining.status !== 200 ||
+            (remaining.data as { items: ScheduledTaskEntity[] }).items.some((task) => task.name === name)
+          )
+            errors.push('cleanup left the case task active')
+        } else {
+          errors.push('Could not list case tasks for cleanup')
         }
         const sessions = await window.api.dataApi.request({
           id: 'MP-145-read',

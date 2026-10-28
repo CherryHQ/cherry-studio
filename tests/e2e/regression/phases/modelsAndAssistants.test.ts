@@ -6,6 +6,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { hasOwnedAppActiveTasks } from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
@@ -356,6 +357,12 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     diagnostics.identity = { messageId, topicId, assistantId }
     diagnostics.beforeRestart = await observe(messageId, topicId).catch((error) => ({ error: String(error) }))
 
+    await expect
+      .poll(() => hasOwnedAppActiveTasks(app.record), {
+        timeout: 15_000,
+        message: 'Disconnected streams must release main-process activity before the persistence restart'
+      })
+      .toBe(false)
     page = await app.restart('authenticated')
     let stored: typeof beforeRestart
     try {

@@ -80,6 +80,17 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
       expect(to).not.toBeNull()
       await page.mouse.move(to!.x + to!.width / 2, to!.y + (after ? to!.height - 3 : 3), { steps: 20 })
       await page.waitForTimeout(300)
+      await testInfo.attach('MP-54 drag target state', {
+        body: JSON.stringify(
+          await page.locator('[data-drop-indicator]').evaluateAll((indicators) =>
+            indicators.map((indicator) => ({
+              position: indicator.getAttribute('data-drop-indicator'),
+              target: (indicator.parentElement as HTMLElement | null)?.innerText
+            }))
+          )
+        ),
+        contentType: 'application/json'
+      })
     } finally {
       await page.mouse.up()
     }

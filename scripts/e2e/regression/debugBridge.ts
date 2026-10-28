@@ -62,6 +62,18 @@ export async function requestOwnedAppQuit(record: AppRecord): Promise<void> {
   )
 }
 
+export async function hasOwnedAppActiveTasks(record: AppRecord): Promise<boolean> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const application = Object.values(process.mainModule.require('node:module')._cache)
+        .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+      return application.get('RuntimeActivityService').hasActiveTasks()
+    })()`
+  )
+}
+
 export async function assertOwnedAppIsolation(record: AppRecord, homeDirectory: string): Promise<void> {
   assertOwnedProcess(record, record.electronPid, 'electron')
   const directories = await evaluateCdpExpression<Record<string, string | undefined>>(
