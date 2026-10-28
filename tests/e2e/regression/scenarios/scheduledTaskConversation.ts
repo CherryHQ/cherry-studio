@@ -89,10 +89,42 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     expect(draft).toMatch(/提示词|prompt/i)
     conversationUrl = page.url()
     const messages = view.locator('[data-ui~="chat.message"]:visible')
-    const waitForAnswer = async (previousCount: number) => {
-      await expect.poll(() => messages.count(), { timeout: 90_000 }).toBeGreaterThan(previousCount)
-      await expect(messages.last().getByTestId('completed-process-trigger')).toBeVisible({ timeout: 90_000 })
-      return messages.last()
+    const questionInput = view.getByRole('textbox', { name: 'Enter your answer...', exact: true })
+    const questionnaire = view
+      .locator('[data-composer-viewport-inset-target]')
+      .filter({ has: page.getByRole('textbox', { name: 'Enter your answer...', exact: true }) })
+    const waitForAnswer = async (previousCount: number, previousQuestion?: string) => {
+      await expect
+        .poll(
+          async () => {
+            if (await questionInput.isVisible()) {
+              return (
+                (await questionInput.isEnabled()) &&
+                (await questionnaire.getByRole('heading', { level: 2 }).innerText()) !== previousQuestion
+              )
+            }
+            return (
+              (await messages.count()) > previousCount &&
+              (await messages.last().getByTestId('completed-process-trigger').isVisible())
+            )
+          },
+          { timeout: 90_000, message: 'Agent must finish its response or request a user answer' }
+        )
+        .toBe(true)
+      return (await questionInput.isVisible()) ? questionnaire : messages.last()
+    }
+    const reply = async (text: string) => {
+      const previousCount = await messages.count()
+      let previousQuestion: string | undefined
+      if (await questionInput.isVisible()) {
+        previousQuestion = await questionnaire.getByRole('heading', { level: 2 }).innerText()
+        await questionInput.fill(text)
+        await questionInput.press('Enter')
+      } else {
+        await composer.fill(text)
+        await view.getByRole('button', { name: 'Send', exact: true }).click()
+      }
+      return waitForAnswer(previousCount, previousQuestion)
     }
     let previousCount = await messages.count()
     // Send the entry's untouched draft, then answer the interview one question at a time.
@@ -108,10 +140,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     ]
     for (const turn of turns) {
       await expect(answer).toContainText(turn.question)
-      previousCount = await messages.count()
-      await composer.fill(turn.answer)
-      await view.getByRole('button', { name: 'Send', exact: true }).click()
-      answer = await waitForAnswer(previousCount)
+      answer = await reply(turn.answer)
     }
     await expect(answer).toContainText(/确认|confirm/i)
     const readTasks = async () => {
@@ -132,12 +161,10 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     expect(beforeConfirmation.filter((task) => task.name === name)).toHaveLength(0)
     previousCount = await messages.count()
     const confirm = answer.getByRole('button', { name: /^(确认|Confirm)$/i })
-    if (await confirm.isVisible()) await confirm.click()
-    else {
-      await composer.fill('确认创建。')
-      await view.getByRole('button', { name: 'Send', exact: true }).click()
-    }
-    await waitForAnswer(previousCount)
+    if (await confirm.isVisible()) {
+      await confirm.click()
+      await waitForAnswer(previousCount)
+    } else await reply('确认创建。')
     await expect
       .poll(
         async () => {

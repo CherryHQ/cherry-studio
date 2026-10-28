@@ -10,6 +10,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function agentSessionList(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -29,7 +30,8 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
   }
   const preferences = await page.evaluate(async () => ({
     mode: await window.api.preference.get('agent.session.display_mode'),
-    position: await window.api.preference.get('agent.session.position')
+    position: await window.api.preference.get('agent.session.position'),
+    menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   const response = await page.evaluate(() =>
     window.api.dataApi.request({ id: 'mp54-agents', method: 'GET', path: '/agents' })
@@ -94,7 +96,8 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await page.evaluate(() =>
       window.api.preference.setMultiple({
         'agent.session.display_mode': 'agent',
-        'agent.session.position': 'right'
+        'agent.session.position': 'right',
+        'menu.presentation_mode': 'cherry'
       })
     )
     await page.reload()
@@ -144,14 +147,10 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await row(names[1]).getByRole('button', { name: 'Pin task', exact: true }).click()
     await expect.poll(async () => (await pins()).length).toBe(2)
 
-    await page.evaluate(() =>
-      window.api.preference.setMultiple({
-        'agent.session.position': 'left',
-        'agent.session.display_mode': 'agent'
-      })
-    )
-    await page.reload()
-    await selectSidebarApp(page, 'Work')
+    await row(names[0]).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Session position', exact: true }).hover()
+    await page.getByRole('menuitem', { name: 'Left', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('agent.session.position'))).toBe('left')
     await testInfo.attach('MP-54 grouped panel layout', {
       body: JSON.stringify(
         await page.evaluate(async () => ({
@@ -170,6 +169,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
       contentType: 'application/json'
     })
     const agentHeader = list().locator('[data-ui~="chat.group-header"]').filter({ hasText: agent!.name }).first()
+    await revealVirtualized(page, list().getByRole('listbox'), agentHeader)
     await agentHeader.hover()
     const expand = agentHeader.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
@@ -201,6 +201,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
       .toEqual(desired)
     await expect.soft(list().getByTestId('agent-session-row').first()).toContainText(secondName, { timeout: 2000 })
     const restartedHeader = list().locator('[data-ui~="chat.group-header"]').filter({ hasText: agent!.name }).first()
+    await revealVirtualized(page, list().getByRole('listbox'), restartedHeader)
     await restartedHeader.hover()
     const restartedExpand = restartedHeader.getByRole('button', { name: 'Expand', exact: true })
     if (await restartedExpand.isVisible()) await restartedExpand.click()
@@ -223,7 +224,8 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
       async ({ preferences, ids }) => {
         await window.api.preference.setMultiple({
           'agent.session.display_mode': preferences.mode,
-          'agent.session.position': preferences.position
+          'agent.session.position': preferences.position,
+          'menu.presentation_mode': preferences.menuMode
         })
         if (ids.length) {
           const deleted = (await window.api.ipcApi.request('ai.agent.session.delete_permanently', {

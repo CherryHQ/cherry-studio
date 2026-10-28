@@ -562,9 +562,9 @@ test(...caseDefinition('MP-131'), async ({ app, mainWindow: page }, testInfo) =>
     await selectSidebarApp(page, 'Chat')
     // Normalize tabs left by earlier cases through the same close actions users have.
     while ((await tabs.count()) > 1) {
-      const count = await tabs.count()
-      await menu(tabs.last(), 'Close Tab')
-      await expect(tabs).toHaveCount(count - 1)
+      const id = await tabs.last().getAttribute('data-tab-id')
+      await menu(strip.locator(`[data-tab-id="${id}"]`), 'Close Tab')
+      await expect(strip.locator(`[data-tab-id="${id}"]`)).toHaveCount(0)
     }
     await menu(tabs.first(), 'Close Tab')
     await expect(tab('Launchpad')).toBeVisible()
