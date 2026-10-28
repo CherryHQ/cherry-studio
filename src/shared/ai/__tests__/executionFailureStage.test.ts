@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 
 import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 
+import { serializeError } from '../../../main/ai/utils/serializeError'
 import { toExecutionFailure, toWireExecutionFailure } from '../executionFailure'
 
 const SSE_QUOTA_FRAME =
@@ -208,6 +209,21 @@ describe('execution failure — SSE frame residue', () => {
 
     expect(failure.failure.stage).toBe('stream')
     expect(failure.failure.reasonCode).toBe('provider_unavailable')
+  })
+
+  it('attributes a bare mid-stream provider payload to the stream stage once named a StreamError', () => {
+    // The AI SDK hands the error chunk's payload over as a bare object; the Agent layer
+    // normalizes it to a `StreamError`. Before that, the nameless serialized error read
+    // as stage `unknown` even though the failure happened inside an open response.
+    const normalized = new Error('The server is overloaded, please retry')
+    normalized.name = 'StreamError'
+    ;(normalized as unknown as Record<string, unknown>).providerErrorCode = 'server_overloaded'
+    ;(normalized as unknown as Record<string, unknown>).providerErrorType = 'server_error'
+
+    const failure = toExecutionFailure(serializeError(normalized))
+    expect(failure.failure.stage).toBe('stream')
+    expect(failure.failure.reasonCode).toBe('provider_unavailable')
+    expect(failure.message).toBe('The server is overloaded, please retry')
   })
 
   it('attributes a provider 504 saying "No response from upstream" to the HTTP stage', () => {
