@@ -24,7 +24,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import {
   restoreStoredChannelContext,
-  stripChannelContextParts,
   validateEditedInput
 } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
@@ -169,10 +168,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
         model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
-      // Hidden channel metadata is host-owned: it enters only through the main-side durable
-      // delivery message. Renderer-submitted parts are stripped of it - schema-valid is not
-      // authority - and the edit flow restores the stored target's own part at persist time.
-      userMessageParts: deliveryMessage?.data.parts ?? stripChannelContextParts(req.userMessageParts ?? []),
+      // Hidden channel metadata is host-owned and this layer TRUSTS its main-process callers:
+      // channel facades (ChannelMessageHandler via startAgentSessionRun) and the durable delivery
+      // message legitimately carry data-channel-context. Renderer-submitted parts are stripped at
+      // the IPC ingress (ai.stream.open / ai.agent.session.edit_resend), never here.
+      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
       ...(deliveryMessage ? { deliveryMessage } : {}),
       shouldAutoNameInitialTurn
     }

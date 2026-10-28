@@ -11,6 +11,7 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { stripChannelContextParts } from '@main/ai/agentSession/editInput'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
@@ -139,7 +140,14 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
+    // Renderer ingress: hidden channel metadata is host-owned, so renderer-supplied parts never
+    // keep it (schema-valid is not authority). Trusted main-process facades dispatch directly and
+    // never pass through this strip.
+    const dispatchRequest: MainDispatchRequest = {
+      ...request,
+      ...(request.userMessageParts ? { userMessageParts: stripChannelContextParts(request.userMessageParts) } : {}),
+      interactionWindowId: senderId
+    }
     return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
@@ -257,6 +265,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
           .get('AiStreamManager')
           .dispatch(new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)), {
             ...input,
+            // Renderer ingress strip; the resent turn's hidden metadata is restored from the
+            // stored edit target inside the edit transaction, never from renderer input.
+            userMessageParts: stripChannelContextParts(input.userMessageParts ?? []),
             trigger: 'edit-agent-message',
             topicId: buildAgentSessionTopicId(sessionId),
             editTarget: target

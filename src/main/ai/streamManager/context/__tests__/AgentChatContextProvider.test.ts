@@ -4,6 +4,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createChannelContextPart } from '@shared/data/types/uiParts'
 
+import { stripChannelContextParts } from '../../../agentSession/editInput'
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
@@ -466,12 +467,14 @@ describe('AgentChatContextProvider', () => {
     const storedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_123', chatType: 'group' })
     const forgedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_forged', chatType: 'group' })
 
-    function editReq(userMessageParts: unknown[]): MainDispatchRequest {
+    function editReq(userMessageParts: CherryMessagePart[]): MainDispatchRequest {
+      // Mirror production ingress: ai.agent.session.edit_resend strips renderer parts before the
+      // request reaches this provider, which then trusts its main-process callers.
       return openReq({
         trigger: 'edit-agent-message',
         editTarget: { messageId: 'msg-1', version: 'v1' },
-        userMessageParts
-      } as Partial<MainDispatchRequest>)
+        userMessageParts: stripChannelContextParts(userMessageParts)
+      })
     }
 
     function persistedUserParts(): unknown {
@@ -518,15 +521,22 @@ describe('AgentChatContextProvider', () => {
       expect(persistedUserParts()).toEqual([{ type: 'text', text: '/compact' }, storedContext])
     })
 
-    it('strips renderer-supplied channel context from ordinary submits', async () => {
+    it('preserves trusted main-process channel context through submit dispatch', async () => {
+      // Facade contract (ChannelMessageHandler -> startAgentSessionRun): main-authored parts carry
+      // the hidden source-chat identity with no durable delivery message, and this layer must not
+      // strip them. Renderer forgery is stripped upstream at the IPC ingress (covered in ai.test).
       await provider.prepareDispatch(
         makeSubscriber(),
-        openReq({ userMessageParts: [forgedContext, { type: 'text', text: 'hello' }] })
+        openReq({ userMessageParts: [storedContext, { type: 'text', text: 'hello from feishu' }] })
       )
 
       expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
       const parts = mocks.saveMessagesTx.mock.calls[0][1].messages[0].data.parts
-      expect(parts).toEqual([{ type: 'text', text: 'hello' }])
+      expect(parts).toEqual([storedContext, { type: 'text', text: 'hello from feishu' }])
+      expect(mocks.runtimeBeginTurn.mock.calls[0][0].userMessage.data.parts).toEqual([
+        storedContext,
+        { type: 'text', text: 'hello from feishu' }
+      ])
     })
   })
 })
