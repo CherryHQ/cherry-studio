@@ -107,7 +107,8 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
       const pickStillInScope = () => mountedRef.current && assistantSnapshotRef.current?.id === assistantAtPick?.id
       const run = async (): Promise<boolean> => {
         if (!assistantAtPick || !pickStillInScope()) return false
-        const currentIds = latestKnowledgeBaseIdsRef.current ?? assistantAtPick.knowledgeBaseIds ?? []
+        const baseIds = latestKnowledgeBaseIdsRef.current
+        const currentIds = baseIds ?? assistantAtPick.knowledgeBaseIds ?? []
         if (currentIds.includes(base.id)) return true
         const knowledgeBaseIds = [...currentIds, base.id]
         try {
@@ -117,13 +118,19 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
           // A mid-PATCH switch already re-scoped the settled ids to the new assistant; writing
           // the old list back would leak this assistant's bases into its next PATCH, and the
           // awaiting picker must not settle the pick into the new scope's draft either.
-          if (pickStillInScope()) {
+          if (!pickStillInScope()) return false
+          // CAS: adopt this write's array only when the settled ids still match the list it
+          // was computed from. A delivery accepted while the mutation was awaited is newer
+          // server truth (e.g. a settings save that landed after this older PATCH committed);
+          // unconditionally restoring this request's array would resurrect removed bindings
+          // and delete that edit in the next full-array PATCH. Timestamps cannot order these
+          // relation-only writes reliably, so guard on the settled base itself.
+          if (settledIdsUnchanged(latestKnowledgeBaseIdsRef.current, baseIds)) {
             latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
             const updatedAtMs = Date.parse(updated.updatedAt)
             if (!Number.isNaN(updatedAtMs)) settledUpdatedAtMsRef.current = updatedAtMs
-            return true
           }
-          return false
+          return true
         } catch (error) {
           logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
             assistantId: assistantAtPick.id,
@@ -133,7 +140,11 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
           // still commit in the main process. Treating it as failed would let the next
           // full-array PATCH delete that committed link; keeping the pick settled (and
           // checked) retries the id idempotently in the next PATCH instead.
-          if (isRequestTimeout(error) && pickStillInScope()) {
+          if (
+            isRequestTimeout(error) &&
+            pickStillInScope() &&
+            settledIdsUnchanged(latestKnowledgeBaseIdsRef.current, baseIds)
+          ) {
             latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
             return true
           }
@@ -167,6 +178,13 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
  * Allows users to select knowledge bases to provide context for their messages.
  * Visible in the Chat and Session scopes (see `KNOWLEDGE_BASE_TOOLBAR_MANIFEST`).
  */
+/** True when the settled ids are value-equal to the list a pending write was based on. */
+function settledIdsUnchanged(settled: string[] | null, base: string[] | null): boolean {
+  if (settled === base) return true
+  if (settled == null || base == null || settled.length !== base.length) return false
+  return settled.every((id, i) => id === base[i])
+}
+
 const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.label,

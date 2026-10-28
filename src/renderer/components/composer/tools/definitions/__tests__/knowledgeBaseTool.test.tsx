@@ -434,6 +434,39 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     await secondPick
   })
 
+  it('keeps a newer delivered binding when an older auto-link completes late', async () => {
+    // The auto-link PATCH commits before an external settings save; while its mutation is
+    // still awaited, the newer binding delivery is accepted. The late PATCH response must
+    // not regress the settled ids — the next pick patches from the newer list.
+    let resolveFirstPatch: (assistant: unknown) => void = () => {}
+    const firstPatch = new Promise<unknown>((resolve) => {
+      resolveFirstPatch = resolve
+    })
+    mocks.updateAssistant.mockImplementationOnce(() => firstPatch).mockImplementationOnce(async () => ({}))
+
+    const { list, deliver } = await openRuntimePanel([kb('kb-1'), kb('kb-2'), kb('kb-3'), kb('kb-4')], ['kb-1'])
+
+    const firstPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(1, 'assistant-1', {
+      knowledgeBaseIds: ['kb-1', 'kb-2']
+    })
+
+    // Newer external binding reaches this runtime while the first mutation is awaited.
+    deliver({ id: 'assistant-1', knowledgeBaseIds: ['kb-3'], updatedAt: iso(9_000) })
+
+    // The older write's response resolves last; its array must NOT overwrite the delivery.
+    resolveFirstPatch({ updatedAt: iso(5_000) })
+    await firstPick
+
+    const secondPick = list[3].action?.({ item: { ...list[3], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-1', {
+      knowledgeBaseIds: ['kb-3', 'kb-4']
+    })
+    await secondPick
+  })
+
   it('keeps a completed external edit authoritative instead of mistaking it for staleness', async () => {
     // P2 probe: link kb-2, let the write settle, then clear the binding externally. The
     // edit's revision is NEWER than the settled write, so it must replace the settled
