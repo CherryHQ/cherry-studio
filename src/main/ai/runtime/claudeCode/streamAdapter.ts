@@ -1560,11 +1560,16 @@ export class ClaudeCodeStreamAdapter {
     if (maskedAdvance.fences.length > 0 && maskedAdvance.text.endsWith(lastFenceToken)) {
       const fenceStart = maskedAdvance.text.length - lastFenceToken.length
       const beforeFence = maskedAdvance.text.slice(0, fenceStart)
-      // Masked and raw text are byte-identical before the fence, so this line
-      // start is the same offset in the raw span.
-      const holdFrom = Math.max(beforeFence.lastIndexOf('\n'), beforeFence.lastIndexOf('\r')) + 1
-      if (holdFrom > 0) {
-        advanceIndentedMaskState(ctx.scratchpadMaskState, maskedAdvance.text.slice(0, holdFrom))
+      const maskedHoldFrom = Math.max(beforeFence.lastIndexOf('\n'), beforeFence.lastIndexOf('\r')) + 1
+      const maskedPrefix = maskedAdvance.text.slice(0, maskedHoldFrom)
+      // Earlier fence placeholders change coordinates. Restore their widths
+      // before slicing the original input at this completed-line boundary.
+      const holdFrom = maskedPrefix.replace(
+        new RegExp(`${maskedAdvance.placeholderBase}CODE_FENCE_(\\d+)\\uE001`, 'g'),
+        (token, index) => maskedAdvance.fences[Number(index)] ?? token
+      ).length
+      if (maskedHoldFrom > 0) {
+        advanceIndentedMaskState(ctx.scratchpadMaskState, maskedPrefix)
       }
       ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(holdFrom)
       ctx.scratchpadMaskUnsteppedEolFree = false

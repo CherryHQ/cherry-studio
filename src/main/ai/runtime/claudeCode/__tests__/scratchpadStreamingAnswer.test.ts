@@ -350,6 +350,89 @@ describe('append-only scratchpad answer streaming', () => {
     s.stop()
     expect(s.text()).toBe('`x`\n\nAnswer. after')
   })
+  it('strips sibling-item paragraph analysis without confusing setext precedence', () => {
+    for (const raw of [
+      '* star\n-\n    <thinking>SECRET</thinking>\n',
+      '- a\n-\n    <thinking>SECRET</thinking>\n',
+      '1. item\n-\n    <thinking>SECRET</thinking>\n',
+      '* star\n-  \n    <thinking>SECRET</thinking>\n',
+      '* star\n -\n    <thinking>SECRET</thinking>\n',
+      '- list para\n-\t\n    <thinking>SECRET</thinking>\n'
+    ])
+      for (const size of [1, 2, 3, 5, 7, 13, raw.length]) {
+        const s = setup()
+        for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+        s.stop()
+        expect(s.text()).not.toContain('SECRET')
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text()).not.toContain('SECRET')
+      }
+  })
+  it('strips the independent cross-container and empty-marker privacy corpus', () => {
+    for (const raw of [
+      '> quoted para\n-\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n- \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n-  \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n-   \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n-\t\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n - \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -  \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -   \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -\t\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  - \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -  \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -   \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -\t\n    <thinking>SECRET</thinking>\n',
+      '-\n- \n    <analysis>SECRET</analysis>\n',
+      '# H\n \n-\n- \n    <analysis>SECRET</analysis>\n'
+    ]) {
+      for (const size of [1, 2, 3, 5, 7, 13, raw.length]) {
+        const s = setup()
+        for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+        s.stop()
+        expect(s.text()).not.toContain('SECRET')
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text()).not.toContain('SECRET')
+      }
+    }
+  })
+  it('preserves setext and consecutive-fence code through fragmented stop and snapshot', () => {
+    for (const raw of [
+      ...['-', '- ', '-  ', '-   ', '--', '-- ', '==='].map(
+        (underline) => `Title\n${underline}\n    <thinking>literal example</thinking>\n`
+      ),
+      '~~~\nx\n~~~\n~~~xml\ny\n~~~\n    <thinking>CODE</thinking>\n'
+    ]) {
+      for (const size of [1, 2, 3, 5, 7, 13, raw.length]) {
+        const s = setup()
+        for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+        s.stop()
+        expect(s.text(), `size ${size}`).toBe(raw)
+        s.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        expect(s.text(), `snapshot size ${size}`).toBe(raw)
+      }
+    }
+  })
   it('finalizes malformed nesting with the one-pass whole-text remainder', () => {
     const raw = '<thinking><thinking>1. - <analysis>#x``x`SECRET`1. </thinking><analysis></assessment>> > 1. '
     for (const size of [1, 3, 7, raw.length]) {

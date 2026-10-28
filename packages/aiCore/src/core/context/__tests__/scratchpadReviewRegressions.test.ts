@@ -6,6 +6,70 @@ import { maskIndentedCodeBlocks, maskIndentedCodeBlocksReference, stripModelScra
 // cherry-review findings on head ce6f904e6b (heading boundary, quoted-list
 // ownership, placeholder exhaustion). Each input was clean on the merge base.
 describe('scratchpad strip review regressions', () => {
+  it('does not let a sibling dash underline an unreachable list paragraph', () => {
+    for (const raw of [
+      '* star\n-\n    <thinking>SECRET</thinking>\n',
+      '- a\n-\n    <thinking>SECRET</thinking>\n',
+      '1. item\n-\n    <thinking>SECRET</thinking>\n',
+      '* star\n-  \n    <thinking>SECRET</thinking>\n',
+      '* star\n -\n    <thinking>SECRET</thinking>\n',
+      '- list para\n-\t\n    <thinking>SECRET</thinking>\n'
+    ]) {
+      expect(ContextPrompts.formatCompactSummary(raw)).not.toContain('SECRET')
+      expect(maskIndentedCodeBlocks(raw).text).toBe(maskIndentedCodeBlocksReference(raw).text)
+    }
+  })
+  it('keeps quote-container and empty-marker setext privacy boundaries', () => {
+    for (const raw of [
+      '> quoted para\n-\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n- \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n-  \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n-   \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n-\t\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n - \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -  \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -   \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n -\t\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -\n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  - \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -  \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -   \n    <thinking>SECRET</thinking>\n',
+      '> quoted para\n  -\t\n    <thinking>SECRET</thinking>\n',
+      '-\n- \n    <analysis>SECRET</analysis>\n',
+      '# H\n \n-\n- \n    <analysis>SECRET</analysis>\n'
+    ]) {
+      expect(ContextPrompts.formatCompactSummary(raw)).not.toContain('SECRET')
+      expect(maskIndentedCodeBlocks(raw).text).toBe(maskIndentedCodeBlocksReference(raw).text)
+    }
+  })
+  it('preserves newly opened quoted code after changing list type', () => {
+    const raw =
+      '-\t tabitem\n   ind3\n- > A\n+ plus\n  >     <analysis>SECRET</analysis>\n- > a\n  >     <analysis>SECRET</analysis>\n'
+    const out = ContextPrompts.formatCompactSummary(raw)
+    expect(out.match(/SECRET/g)?.length).toBe(1)
+    expect(out).toContain('+ plus\n  >     <analysis>SECRET</analysis>')
+  })
+  it('does not treat an underline outside its quoted paragraph or after an empty item as setext', () => {
+    for (const prefix of ['> quoted para\n', '-\n', '- \n']) {
+      for (const marker of ['-', '- ', '-  ', '-\t', ' - ', '  - ']) {
+        const raw = prefix + marker + '\n    <thinking>SECRET</thinking>\n'
+        expect(ContextPrompts.formatCompactSummary(raw), JSON.stringify(raw)).not.toContain('SECRET')
+      }
+    }
+  })
+  it('removes quoted-list paragraph analysis from the actual compact-summary formatter', () => {
+    expect(ContextPrompts.formatCompactSummary('- > A\n  >     <analysis>SECRET</analysis>')).toBe(
+      '- > A\n  >     '.trimEnd()
+    )
+  })
+  it('preserves code after a single-hyphen setext heading in both scanners', () => {
+    for (const underline of ['-', '- ', '-  ', '-   ', '--', '-- ', '===']) {
+      const raw = `Title\n${underline}\n    <thinking>literal example</thinking>\n`
+      expect(stripModelScratchpadBlocks(raw), JSON.stringify(underline)).toBe(raw.trimEnd())
+      expect(maskIndentedCodeBlocks(raw).text).toBe(maskIndentedCodeBlocksReference(raw).text)
+    }
+  })
   it('keeps indented code after an unindented heading that follows a list', () => {
     const input = '- A\n# H\n    <thinking>literal</thinking>\n'
     expect(stripModelScratchpadBlocks(input)).toBe('- A\n# H\n    <thinking>literal</thinking>')

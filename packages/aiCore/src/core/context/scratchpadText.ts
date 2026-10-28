@@ -447,6 +447,33 @@ function explicitQuoteDepth(line: string): number {
   }
 }
 
+/** Empty list markers open an item, not a paragraph; scan quote prefixes without backtracking. */
+function isEmptyListItem(line: string): boolean {
+  let rest = line
+  for (;;) {
+    const quote = /^ {0,3}> ?/.exec(rest)
+    if (!quote) return /^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]*$/.test(rest)
+    rest = rest.slice(quote[0].length)
+  }
+}
+
+/** Quote depth of paragraph content, including quotes opened after list markers. */
+function paragraphQuoteDepth(line: string): number {
+  let rest = expandFencePrefixTabs(line)
+  let depth = 0
+  for (;;) {
+    const quote = /^ {0,3}> ?/.exec(rest)
+    if (quote) {
+      depth++
+      rest = rest.slice(quote[0].length)
+      continue
+    }
+    const list = /^ {0,3}(?:[-*+]|\d{1,9}[.)]) +/.exec(rest)
+    if (!list) return depth
+    rest = rest.slice(list[0].length)
+  }
+}
+
 function inlineBlockStart(text: string, index: number): number {
   let start = 0
   let quoteDepth = 0
@@ -1255,6 +1282,7 @@ export function maskIndentedCodeBlocksReference(text: string): {
     // retaining its own forward-scanner implementation.
     const quoteStripped = expandFencePrefixTabs(line).replace(/^(?: {0,3}> ?)+/, '')
     const breakContent = stripInheritedListIndent(quoteStripped, inheritedListColumns)
+    if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(breakContent)) return true
     if (/^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(breakContent)) return true
     const stripped = stripMarkdownContainerMarkers(line)
     const content =
@@ -1313,9 +1341,14 @@ export function maskIndentedCodeBlocksReference(text: string): {
       inheritedListColumns > 0 && expanded.startsWith(' '.repeat(inheritedListColumns)) ? inheritedListColumns : 0
     const listContent = expanded.slice(nestedOffset)
     const thematic = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(listContent)
-    const list = thematic ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(listContent)
+    const setext =
+      paragraphOpen &&
+      nestedOffset === inheritedListColumns &&
+      paragraphQuoteDepth(line) === quoteDepth &&
+      /^ {0,3}(?:=+|-+)[ \t]*$/.test(listContent)
+    const list = thematic || setext ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +|$)(.*)$/.exec(listContent)
     if (list) {
-      const padding = list[3].length <= 4 ? list[3].length : 1
+      const padding = list[4].trim() !== '' && list[3].length > 0 && list[3].length <= 4 ? list[3].length : 1
       const nextColumns = nestedOffset + list[1].length + list[2].length + padding
       const markerColumn = nestedOffset + list[1].length
       truncateUnreachedOuterLists(listColumnStack, line, depth)
@@ -1394,14 +1427,15 @@ export function maskIndentedCodeBlocksReference(text: string): {
     // paragraph (CommonMark 0.31.2 §4.4, §5.1) - so the missing deeper
     // markers must not re-open code classification (cherry-pr-review
     // round-16 lazy-quote-analysis-retained).
-    const lazyDepthDecrease = paragraphOpen && depth > 0 && depth < quoteDepth
+    const paragraphDepth = paragraphQuoteDepth(line)
+    const lazyDepthDecrease = paragraphOpen && paragraphDepth > 0 && paragraphDepth < quoteDepth
     if (
-      (depth > 0 && depth !== quoteDepth && !lazyDepthDecrease) ||
-      isListItemStart(line) ||
+      (paragraphDepth > 0 && paragraphDepth !== quoteDepth && !lazyDepthDecrease) ||
+      (isListItemStart(line) && !setext) ||
       previousListColumns !== inheritedListColumns
     )
       paragraphOpen = false
-    if (depth > 0) quoteDepth = depth
+    if (paragraphDepth > 0 || isListItemStart(line)) quoteDepth = paragraphDepth
     if (line.trim() === '' || isContainerOnlyLine(line)) {
       paragraphOpen = false
       // A raw blank line (no quote marker) ends its blockquote: list state
@@ -1422,7 +1456,7 @@ export function maskIndentedCodeBlocksReference(text: string): {
       continue
     }
     if (paragraphOpen || !isIndentedCodeLine(line)) {
-      paragraphOpen = !isLeafBlockBoundaryLine(line, paragraphOpen)
+      paragraphOpen = !isLeafBlockBoundaryLine(line, paragraphOpen) && !isEmptyListItem(line)
       outLines.push(line + (endings[i] ?? ''))
       i++
       continue
@@ -1579,6 +1613,7 @@ export function isLeafBlockBoundaryLineFor(
   // as nested lists before testing the leaf boundary.
   const quoteStripped = expandFencePrefixTabs(l).replace(/^(?: {0,3}> ?)+/, '')
   const breakContent = stripInheritedListIndent(quoteStripped, inheritedListColumns)
+  if (paragraphWasOpen && /^ {0,3}(?:=+|-+)[ \t]*$/.test(breakContent)) return true
   if (/^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(breakContent)) return true
   const stripped = stripMarkdownContainerMarkers(l)
   const content =
@@ -1686,9 +1721,14 @@ export function indentedMaskStep(
       : 0
   const listContent = expanded.slice(nestedOffset)
   const thematic = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(listContent)
-  const list = thematic ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +)(.*)$/.exec(listContent)
+  const setext =
+    state.paragraphOpen &&
+    nestedOffset === state.inheritedListColumns &&
+    paragraphQuoteDepth(line) === state.quoteDepth &&
+    /^ {0,3}(?:=+|-+)[ \t]*$/.test(listContent)
+  const list = thematic || setext ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +|$)(.*)$/.exec(listContent)
   if (list) {
-    const padding = list[3].length <= 4 ? list[3].length : 1
+    const padding = list[4].trim() !== '' && list[3].length > 0 && list[3].length <= 4 ? list[3].length : 1
     const nextColumns = nestedOffset + list[1].length + list[2].length + padding
     const markerColumn = nestedOffset + list[1].length
     truncateUnreachedOuterLists(state.listColumnStack, line, depth)
@@ -1742,14 +1782,15 @@ export function indentedMaskStep(
     }
   }
   // Lazy depth decrease keeps the paragraph (round-16): see the reference loop.
-  const lazyDepthDecrease = state.paragraphOpen && depth > 0 && depth < state.quoteDepth
+  const paragraphDepth = paragraphQuoteDepth(line)
+  const lazyDepthDecrease = state.paragraphOpen && paragraphDepth > 0 && paragraphDepth < state.quoteDepth
   if (
-    (depth > 0 && depth !== state.quoteDepth && !lazyDepthDecrease) ||
-    isListItemStart(line) ||
+    (paragraphDepth > 0 && paragraphDepth !== state.quoteDepth && !lazyDepthDecrease) ||
+    (isListItemStart(line) && !setext) ||
     previousListColumns !== state.inheritedListColumns
   )
     state.paragraphOpen = false
-  if (depth > 0) state.quoteDepth = depth
+  if (paragraphDepth > 0 || isListItemStart(line)) state.quoteDepth = paragraphDepth
   if (line.trim() === '' || isContainerOnlyLine(line)) {
     state.paragraphOpen = false
     if (line.trim() === '') {
@@ -1765,7 +1806,7 @@ export function indentedMaskStep(
     return
   }
   if (state.paragraphOpen || !isIndentedCodeLineFor(line, state.enclosingListStack)) {
-    state.paragraphOpen = !isLeafBlockBoundaryLine(line, state.paragraphOpen)
+    state.paragraphOpen = !isLeafBlockBoundaryLine(line, state.paragraphOpen) && !isEmptyListItem(line)
     ctx.outLines.push(line + ending)
     return
   }
