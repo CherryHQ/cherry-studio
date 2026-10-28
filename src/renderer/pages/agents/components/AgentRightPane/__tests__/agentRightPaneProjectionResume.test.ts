@@ -1635,6 +1635,43 @@ describe('agent right pane flow rounds', () => {
       'More original-run output'
     ])
     expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+    expect(
+      projection.messages.find((item) => item.id === 'call_launch:agent-flow-assistant-1')?.metadata
+    ).not.toMatchObject({ resumeDelivery: 'queued' })
+  })
+
+  // The adapter cannot tell whether a queued pin was consumed before the response began; the round
+  // stays visible, but its marker makes the delivery explicitly unconfirmed.
+  it('marks a round tagged by a queued receipt as delivery-unconfirmed', () => {
+    const parts = stampReceipt([
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, LAUNCH_OUTPUT),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        QUEUED_OUTPUT
+      ),
+      textPart('More original-run output', 'call_launch'),
+      {
+        type: 'text',
+        text: 'Queued round answer',
+        providerMetadata: {
+          'claude-code': { parentToolCallId: 'call_launch' },
+          cherry: { queuedViaCallId: 'call_send' }
+        }
+      } as unknown as CherryMessagePart
+    ])
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(flowTexts(projection, 'call_launch:agent-flow-assistant-1')).toEqual(['Queued round answer'])
+    expect(
+      projection.messages.find((item) => item.id === 'call_launch:agent-flow-assistant-1')?.metadata
+    ).toMatchObject({ resumeDelivery: 'queued' })
   })
 
   // The live between-tools guard stays: a vouched edge keeps the flow live.

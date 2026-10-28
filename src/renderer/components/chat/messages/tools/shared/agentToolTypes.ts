@@ -309,6 +309,11 @@ export function getPartResumeMarker(part: CherryMessagePart): string | undefined
   return getPartCherryString(part, 'resumedViaCallId')
 }
 
+/** The SendMessage call id whose queued delivery this part may answer; delivery is unconfirmed. */
+export function getPartQueuedMarker(part: CherryMessagePart): string | undefined {
+  return getPartCherryString(part, 'queuedViaCallId')
+}
+
 /** The background agent a SendMessage receipt points at: `resumedAgentId` when it woke a stopped
  *  agent, or `pin.id` when the target was still running and the message was queued for delivery. */
 export function getResumedAgentId(output: unknown): string | undefined {

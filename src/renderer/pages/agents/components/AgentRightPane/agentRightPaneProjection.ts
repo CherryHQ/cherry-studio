@@ -7,6 +7,7 @@ import {
   buildAgentLaunchIndex,
   extractLaunchReceiptId,
   getPartLaunchToolCallId,
+  getPartQueuedMarker,
   getPartResumeMarker,
   getResumedAgentId,
   isBackgroundAgentOutput,
@@ -686,7 +687,7 @@ export function buildAgentToolFlowProjection(
     const taggedReceiptCallIds = new Set<string>()
     for (const { parts } of messageEntries) {
       for (const part of parts) {
-        const marker = getPartResumeMarker(part)
+        const marker = getPartResumeMarker(part) ?? getPartQueuedMarker(part)
         if (marker !== undefined && receiptPrompts.has(marker)) taggedReceiptCallIds.add(marker)
       }
     }
@@ -704,6 +705,9 @@ export function buildAgentToolFlowProjection(
       return created
     }
     let currentRank = 0
+    // A round whose marker came from a queued pin is explicitly unconfirmed: its content may still
+    // answer the previous request, so it must not read as a delivered continuation.
+    const queuedRanks = new Set<number>()
     // The result text only fills a flow that has no streamed child parts at all (a runtime whose
     // foreground calls emit no detachable content); Claude Code streams them even for foreground
     // runs, so injecting there would duplicate the report. Background launch receipts are control
@@ -767,7 +771,9 @@ export function buildAgentToolFlowProjection(
         // whose prompt is unknown reads as an empty round, so that content stays in this one. The
         // adapter only stamps parts whose parent is this launch root, but sibling flows sharing the
         // walk order need the receipt-set check too.
-        const marker = getPartResumeMarker(part)
+        const deliveredMarker = getPartResumeMarker(part)
+        const queuedMarker = deliveredMarker === undefined ? getPartQueuedMarker(part) : undefined
+        const marker = deliveredMarker ?? queuedMarker
         const markerOwnsThisFlow =
           marker !== undefined &&
           receiptPrompts.has(marker) &&
@@ -785,7 +791,10 @@ export function buildAgentToolFlowProjection(
             flowSettled)
         ) {
           const rank = receiptRank.get(marker ?? toolCallId ?? '')
-          if (rank !== undefined) currentRank = rank
+          if (rank !== undefined) {
+            currentRank = rank
+            if (queuedMarker !== undefined) queuedRanks.add(rank)
+          }
         }
         if (isResumeReceipt) continue
 
@@ -825,7 +834,8 @@ export function buildAgentToolFlowProjection(
         parts: roundContent,
         metadata: {
           createdAt: selectedCreatedAt,
-          status: flowSettled ? 'success' : 'pending'
+          status: flowSettled ? 'success' : 'pending',
+          ...(queuedRanks.has(rank) ? { resumeDelivery: 'queued' as const } : {})
         }
       } as CherryUIMessage
       flowMessages.push(assistantMessage)
