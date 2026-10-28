@@ -132,6 +132,22 @@ describe('file editing lifetime', () => {
     expect(lease.getSnapshot()).toMatchObject({ savedContent: 'b', isDirty: false, conflict: false })
   })
 
+  it('refreshes a clean session from disk on external-change notification', async () => {
+    // This is the path NotesPage's watcher callback drives via notifyExternalChange ->
+    // lease.invalidate(): a clean, ready session must adopt the new disk content.
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'a', isDirty: false })
+    disk = snapshot('edited elsewhere')
+    await lease.invalidate()
+    expect(lease.getSnapshot()).toMatchObject({
+      draft: 'edited elsewhere',
+      savedContent: 'edited elsewhere',
+      isDirty: false,
+      conflict: false
+    })
+    expect(writes).toEqual([])
+  })
+
   it('preserves the draft on an external change and only replaces it on explicit reload', async () => {
     const lease = await manager.acquire('notes', handle)
     lease.acceptEdit('b')
