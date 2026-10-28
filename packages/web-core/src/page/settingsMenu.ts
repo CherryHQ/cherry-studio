@@ -6,6 +6,7 @@ export { getSettingsSectionTitleKey, type SettingsMenuEntry } from '@renderer/co
 const webSections = new Set([
   '/settings/provider',
   '/settings/model',
+  '/settings/prompts',
   '/settings/general',
   '/settings/appearance',
   '/settings/archive',

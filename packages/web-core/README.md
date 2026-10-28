@@ -32,7 +32,7 @@ Firefox and Safari.
 | Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. Fetching the model list and checking a model work for every provider except Vertex AI. |
 | CherryIN sign-in, Cherry account, the built-in CherryAI model | No | First-run setup offers provider setup only; CherryIN works with an API key. |
 | Saving and exporting messages | Markdown and image downloads | Notes, knowledge bases, Word and note apps are desktop-only. |
-| Settings | Provider, default model, general, appearance, archive, about | Other sections are desktop-only. |
+| Settings | Provider, default model, prompts, general, appearance, archive, about | Other sections are desktop-only. |
 | Agents | Pi runtime | Claude Code and other runtimes, skills, slash commands, heartbeat and scheduled runs are desktop-only. |
 | Agent file tools | Yes | `read`, `write`, `edit`, `ls`, `find`, `grep` in a workspace in the browser's storage. |
 | Agent file tree, file preview and editor | Yes | The editor saves only over the version it opened, as on the desktop. A local folder's tree does not see changes made outside the app. |
@@ -191,7 +191,7 @@ opens the `local` account (every visitor shares it until login exists) and then 
 `src/renderer/windows/main/entryPoint.tsx`. If the account does not open, for example while
 another tab holds it, `src/page/startError.ts` replaces the spinner with the reason and a
 reload button. `pageModuleReplacements` swaps renderer modules
-in the page: Sentry is off, the settings menu keeps the provider, default model,
+in the page: Sentry is off, the settings menu keeps the provider, default model, prompts,
 general, appearance, archive and about sections, creating an agent shows Pi as its runtime
 instead of a choice, and the Pyodide worker starts in a sandboxed iframe. The launchpad, the
 composer's tools, the message menu, the user menu and first-run setup keep only the entries the
@@ -208,11 +208,11 @@ The renderer itself changes in two places. First-run setup's `enableCherryInLogi
 here. `src/renderer/utils/hostFeatures.ts` says what the app around the renderer can do: more
 windows, opening paths in the computer's apps, app zoom, updates, developer tools, stored image
 uploads, file storage (attachments and the files page), reading Word documents' text, notes,
-knowledge bases, mini apps, paintings, dictation and reading aloud, diagnostics (Doctor, problem
-reports and the feedback assistant), the agent browser, computer use, the desktop program's own
-settings (start at login, tray, its network access, GPU and power use, native menus, the spell
-checker's languages), listing installed fonts, Claude Code agents, provider sign-ins through a CLI,
-an app login or GitHub's device login, and the built-in CherryAI model. The
+knowledge bases, MCP servers for assistants, mini apps, paintings, dictation and reading aloud,
+diagnostics (Doctor, problem reports and the feedback assistant), the agent browser, computer use,
+the desktop program's own settings (start at login, tray, its network access, GPU and power use,
+native menus, the spell checker's languages), listing installed fonts, Claude Code agents, provider
+sign-ins through a CLI, an app login or GitHub's device login, and the built-in CherryAI model. The
 desktop has all of them; `src/page/hostFeatures.ts` has none, so the entries for them, and their
 settings search results, are hidden in the page.
 

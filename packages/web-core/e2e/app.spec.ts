@@ -21,6 +21,7 @@ test('runs the desktop main window with only the Web edition features', async ({
   await expect(page.locator('[data-ui~="part:menu-item"]')).toHaveText([
     'Model Provider',
     'Default Model',
+    'Prompts',
     'General',
     'Appearance',
     'Archive',
@@ -164,6 +165,16 @@ test('creates an assistant without the knowledge bases the Web edition lacks', a
   const wizard = page.getByRole('dialog', { name: 'New Assistant' })
   await expect(wizard.getByText('System Prompt', { exact: true })).toBeVisible()
   await expect(wizard.getByText('Knowledge', { exact: true })).toHaveCount(0)
+})
+
+test('edits an assistant without the browser and MCP tools the Web edition lacks', async ({ page }) => {
+  await gotoApp(page)
+  await page.getByRole('button', { name: 'Edit Assistant: Cherry Assistant' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Assistant' })
+  await expect(dialog.getByRole('tab', { name: 'System Prompt' })).toBeVisible()
+  for (const tab of ['Tools', 'Built-in', 'MCP']) {
+    await expect(dialog.getByRole('tab', { name: tab, exact: true })).toHaveCount(0)
+  }
 })
 
 test('quotes the selected text of a reply in the composer', async ({ page }) => {

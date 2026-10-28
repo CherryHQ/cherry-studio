@@ -45,8 +45,11 @@ test("leaves the desktop's browser and computer control out of an agent's tools"
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('tab', { name: 'Built-in tools' }).click()
   await expect(dialog.getByText('Read files').first()).toBeVisible()
+  await expect(dialog.getByText('Run Python code').first()).toBeVisible()
   await expect(dialog.getByText('Allow AI browser control')).toHaveCount(0)
   await expect(dialog.getByText('Allow agents to control desktop applications')).toHaveCount(0)
+  // Only Claude Code agents read environment variables, the one field of the Advanced tab.
+  await expect(dialog.getByRole('tab', { name: 'Advanced' })).toHaveCount(0)
 })
 
 test('writes a file only after approval and keeps the turn across a reload', async ({ page }) => {
@@ -373,6 +376,54 @@ test("finds a file by name in the file pane and in the composer's mentions", asy
   await composerInput(page).click()
   await page.keyboard.type('@target')
   await expect(page.getByRole('button', { name: 'target-file.txt deep/inner/target-file.txt' })).toBeVisible()
+  await removeOpfsFolder(page, name)
+})
+
+test('asks before overwriting a file another program changed in the picked folder', async ({
+  page,
+  browserName
+}, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium-based browsers can pick a local folder')
+  const name = `picked-${testInfo.testId}-${Date.now().toString(36)}`
+  await pickOpfsFolder(page, name)
+  const filePath = 'shared.txt'
+  const accessFile = (content?: string) =>
+    page.evaluate(
+      async ({ name, filePath, content }) => {
+        const folder = await (await navigator.storage.getDirectory()).getDirectoryHandle(name)
+        const file = await folder.getFileHandle(filePath)
+        if (content === undefined) return (await file.getFile()).text()
+        const writable = await file.createWritable()
+        await writable.write(content)
+        await writable.close()
+        return content
+      },
+      { name, filePath, content }
+    )
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+  await workspaceSelector(page).click()
+  await page.getByText('Add new work directory').click()
+  await expect(workspaceSelector(page)).toHaveText(name)
+  await send(page, `please call write {"path":"${filePath}","content":"before"}`)
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByText(filePath, { exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await expect(page.locator('.cm-content')).toHaveText('before')
+  await accessFile('changed by another program')
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.insertText(' and mine')
+
+  const dialog = page.getByRole('dialog', { name: 'File changed on disk' })
+  await expect(dialog).toBeVisible()
+  expect(await accessFile()).toBe('changed by another program')
+  await dialog.getByRole('button', { name: 'Reload file' }).click()
+  await expect(page.locator('.cm-content')).toHaveText('changed by another program')
   await removeOpfsFolder(page, name)
 })
 

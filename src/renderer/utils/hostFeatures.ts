@@ -23,6 +23,8 @@ export const hostFeatures = {
   notes: true,
   /** Knowledge bases, which index files with the desktop's native libraries. */
   knowledgeBases: true,
+  /** MCP servers for assistants. */
+  mcp: true,
   /** Mini apps, websites the desktop shows in its own web views. */
   miniApps: true,
   /** Paintings: the image generation page and its default model. */
