@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.9
+
+### Patch Changes
+
+- [#21869](https://github.com/CherryHQ/cherry-studio/pull/21869) [`27f1231`](https://github.com/CherryHQ/cherry-studio/commit/27f123168ac36d5b116a9458598557af61f85985) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Infer low, medium, and high reasoning effort controls for manually added StepFun step-5-preview models.
+
 ## 0.2.8
 
 ### Patch Changes
