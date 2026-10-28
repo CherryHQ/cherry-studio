@@ -8,7 +8,8 @@ import {
   getFileProcessingFailureMessage,
   getFileProcessingMarkdownArtifactPath
 } from '@main/features/fileProcessing'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { KNOWLEDGE_ITEM_ERROR_FILE_PROCESSING_TIMED_OUT } from '@shared/data/types/knowledge'
 import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
@@ -93,7 +94,9 @@ export function createCheckFileProcessingResultJobHandler(
       if (snapshot.status !== 'completed') {
         markItemFailed(
           itemId,
-          `File processing job ${fileProcessingJobId} ${snapshot.status}: ${getFileProcessingFailureMessage(snapshot)}`
+          snapshot.error?.code === JOB_ERROR_CODES.HANDLER_TIMEOUT
+            ? KNOWLEDGE_ITEM_ERROR_FILE_PROCESSING_TIMED_OUT
+            : `File processing job ${fileProcessingJobId} ${snapshot.status}: ${getFileProcessingFailureMessage(snapshot)}`
         )
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return

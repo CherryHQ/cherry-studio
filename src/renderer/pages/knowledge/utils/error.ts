@@ -14,6 +14,7 @@ type KnowledgeErrorTranslator = (
     | 'knowledge.error.missing_vector_store'
     | 'knowledge.error.directory_not_migrated'
     | 'knowledge.error.indexing_interrupted'
+    | 'knowledge.error.file_processing_timed_out'
 ) => string
 
 /** Localized copy for a known base error code. Exhaustive over `KnowledgeBaseErrorCode`. */
@@ -48,6 +49,8 @@ const translateKnowledgeItemErrorCode = (code: KnowledgeItemErrorCode, t: Knowle
   switch (code) {
     case 'directory_not_migrated':
       return t('knowledge.error.directory_not_migrated')
+    case 'file_processing_timed_out':
+      return t('knowledge.error.file_processing_timed_out')
     case 'indexing_interrupted':
       return t('knowledge.error.indexing_interrupted')
     default:

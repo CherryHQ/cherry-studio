@@ -11,7 +11,8 @@ import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/Knowle
 import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { formatRelativeTime } from '@renderer/utils/time'
+import { createDurationFormatter, formatRelativeTime } from '@renderer/utils/time'
+import type { FileProcessingStage } from '@shared/data/types/fileProcessing'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
@@ -43,18 +44,36 @@ const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
   return ` ${progress}%`
 }
 
-/**
- * Live " NN%" suffix for a row whose linked document processor is running (remote OCR /
- * conversion). Mounted only while `item.status === 'processing'`; the main process mirrors the
- * processor job's progress into the shared cache while the item waits on it and clears it once
- * the job settles, so absence just means the processor reports no progress.
- */
-const KnowledgeItemFileProcessingProgress = ({ itemId }: { itemId: string }) => {
-  const progress = useSharedCacheValue(`knowledge.item.file_processing_progress.${itemId}` as const)
-  if (progress == null) {
-    return null
-  }
-  return ` ${progress}%`
+const FILE_PROCESSING_LABEL_KEYS = {
+  uploading: 'knowledge.data_source.status.file_processing_uploading',
+  queued: 'knowledge.data_source.status.file_processing_queued',
+  parsing: 'knowledge.data_source.status.file_processing_parsing',
+  converting: 'knowledge.data_source.status.file_processing_converting'
+} as const satisfies Record<FileProcessingStage, string>
+
+const KnowledgeItemFileProcessingStatus = ({
+  itemId,
+  status
+}: {
+  itemId: string
+  status: DataSourceStatusViewModel
+}) => {
+  const {
+    t,
+    i18n: { language }
+  } = useTranslation()
+  const state = useSharedCacheValue(`knowledge.item.file_processing_state.${itemId}` as const)
+  const label = t(state?.stage ? FILE_PROCESSING_LABEL_KEYS[state.stage] : 'knowledge.status.processing')
+  const statusText = `${label}${state?.progress != null && state.progress > 0 ? ` ${state.progress}%` : ''}`
+  const tooltip = state
+    ? t(
+        state.stage === 'queued'
+          ? 'knowledge.data_source.status.file_processing_queued_elapsed'
+          : 'knowledge.data_source.status.file_processing_elapsed',
+        { stage: label, duration: createDurationFormatter(language)(state.elapsedMs) }
+      )
+    : null
+  return <KnowledgeItemStatusBadge status={status} statusText={statusText} tooltip={tooltip} />
 }
 
 const KnowledgeDirectoryCopyStatus = ({ itemId }: { itemId: string }) => {
@@ -67,11 +86,11 @@ const KnowledgeDirectoryCopyStatus = ({ itemId }: { itemId: string }) => {
 }
 
 const KnowledgeItemStatusBadge = ({
-  failureReason,
+  tooltip,
   status,
   statusText
 }: {
-  failureReason: string | null
+  tooltip: string | null
   status: DataSourceStatusViewModel
   statusText: ReactNode
 }) => {
@@ -87,21 +106,22 @@ const KnowledgeItemStatusBadge = ({
   const content = (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 text-xs',
-        failureReason && 'cursor-help',
+        'inline-flex max-w-full min-w-0 items-center gap-1 text-xs',
+        tooltip && 'cursor-help',
         status.textClassName
       )}
-      tabIndex={failureReason ? 0 : undefined}
-      aria-label={failureReason ?? undefined}>
+      tabIndex={tooltip ? 0 : undefined}
+      aria-label={tooltip ?? undefined}
+      title={typeof statusText === 'string' ? statusText : undefined}>
       {icon}
-      <span>{statusText}</span>
+      <span className="min-w-0 truncate">{statusText}</span>
     </span>
   )
 
-  if (failureReason) {
+  if (tooltip) {
     return (
       <NormalTooltip
-        content={failureReason}
+        content={tooltip}
         side="bottom"
         contentProps={{
           className: 'max-w-72'
@@ -259,22 +279,25 @@ const KnowledgeItemRow = ({
         <div role="gridcell" className="truncate text-xs text-muted-foreground">
           {typeLabel}
         </div>
-        <div role="gridcell">
-          <KnowledgeItemStatusBadge
-            status={status}
-            failureReason={failureReason}
-            statusText={
-              item.type === 'directory' && item.status === 'preparing' ? (
-                <KnowledgeDirectoryCopyStatus itemId={item.id} />
-              ) : (
-                <>
-                  {t(status.labelKey)}
-                  {item.status === 'processing' ? <KnowledgeItemFileProcessingProgress itemId={item.id} /> : null}
-                  {item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
-                </>
-              )
-            }
-          />
+        <div role="gridcell" className="min-w-0">
+          {item.status === 'processing' ? (
+            <KnowledgeItemFileProcessingStatus itemId={item.id} status={status} />
+          ) : (
+            <KnowledgeItemStatusBadge
+              status={status}
+              tooltip={failureReason}
+              statusText={
+                item.type === 'directory' && item.status === 'preparing' ? (
+                  <KnowledgeDirectoryCopyStatus itemId={item.id} />
+                ) : (
+                  <>
+                    {t(status.labelKey)}
+                    {item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+                  </>
+                )
+              }
+            />
+          )}
         </div>
         <div role="gridcell" className="truncate text-xs text-foreground-tertiary">
           {updatedAt}

@@ -209,6 +209,43 @@ describe('check-file-processing-result job handler', () => {
     expect(ctx.reportProgress).not.toHaveBeenCalledWith(100, { stage: 'done' })
   })
 
+  it.each([
+    'JobHandlerTimeout',
+    'MinerU polling aborted; last known remote state=pending; elapsed polling wait this attempt=1800000 ms'
+  ])('maps a linked job execution timeout to actionable item guidance: %s', async (message) => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        status: 'failed',
+        error: { code: 'JOB_HANDLER_TIMEOUT', message, retryable: true }
+      })
+    )
+    const ctx = createCtx(createCheckPayload())
+    await handler.execute(ctx)
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
+      error: 'file_processing_timed_out'
+    })
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
+  })
+
+  it('preserves provider timeout wording when the job code is not HANDLER_TIMEOUT', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        status: 'failed',
+        error: { code: 'FAILED', message: 'provider timeout', retryable: false }
+      })
+    )
+    await handler.execute(createCtx(createCheckPayload()))
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
+      error: 'File processing job fp-job-1 failed: provider timeout'
+    })
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
+  })
+
   it('marks an over-limit PDF failed with manual split guidance and does not index it', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())

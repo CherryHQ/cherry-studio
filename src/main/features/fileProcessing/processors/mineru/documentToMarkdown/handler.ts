@@ -1,10 +1,33 @@
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessingStage } from '@shared/data/types/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
 import type { MineruExtractFileResult, PreparedMineruQueryContext, PreparedMineruStartContext } from '../types'
 import { createUploadTask, getBatchResult, mapProgress, uploadFile } from '../utils'
+
+const MINERU_STAGES: Record<Exclude<MineruExtractFileResult['state'], 'done' | 'failed'>, FileProcessingStage> = {
+  'waiting-file': 'uploading',
+  pending: 'queued',
+  running: 'parsing',
+  converting: 'converting'
+}
+
+const MINERU_REMOTE_STATES: Record<FileProcessingStage, MineruExtractFileResult['state']> = {
+  uploading: 'waiting-file',
+  queued: 'pending',
+  parsing: 'running',
+  converting: 'converting'
+}
+
+export function formatMineruPollingAbort(details: {
+  lastKnownStage: FileProcessingStage | null
+  elapsedMs: number
+}): string {
+  const state = details.lastKnownStage === null ? 'unknown' : MINERU_REMOTE_STATES[details.lastKnownStage]
+  return `MinerU polling aborted; last known remote state=${state}; elapsed polling wait this attempt=${Math.max(0, Math.floor(details.elapsedMs))} ms`
+}
 
 type MineruQueryContext = Omit<PreparedMineruQueryContext, 'signal'>
 
@@ -19,6 +42,7 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 
     return {
       mode: 'remote-poll',
+      formatPollingAbort: formatMineruPollingAbort,
       async startRemote(startSignal) {
         const uploadTask = await createUploadTask({
           ...startContext,
@@ -121,6 +145,7 @@ export function buildPollResult(
   if (fileResult.state !== 'done') {
     return {
       status: 'processing',
+      stage: MINERU_STAGES[fileResult.state],
       progress: mapProgress(fileResult)
     }
   }

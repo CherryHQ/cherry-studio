@@ -177,6 +177,22 @@ describe('mineru utils', () => {
       progress: 0
     })
 
+    expect(buildPollResult({ state: 'waiting-file' }, 'https://mineru.net')).toEqual({
+      status: 'processing',
+      stage: 'uploading',
+      progress: 0
+    })
+    expect(buildPollResult({ state: 'pending' }, 'https://mineru.net')).toEqual({
+      status: 'processing',
+      stage: 'queued',
+      progress: 0
+    })
+    expect(buildPollResult({ state: 'converting' }, 'https://mineru.net')).toEqual({
+      status: 'processing',
+      stage: 'converting',
+      progress: 99
+    })
+
     expect(
       buildPollResult(
         {
@@ -191,6 +207,7 @@ describe('mineru utils', () => {
       )
     ).toEqual({
       status: 'processing',
+      stage: 'parsing',
       progress: 25
     })
 

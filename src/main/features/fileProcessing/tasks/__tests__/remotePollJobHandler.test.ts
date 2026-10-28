@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 import type { JobContext } from '@main/core/job/types'
 
+import { formatMineruPollingAbort } from '../../processors/mineru/documentToMarkdown/handler'
+import { executeRemotePolling } from '../remotePolling'
 import type { FileProcessingJobPayload } from '../shared'
 
 const {
@@ -120,6 +122,7 @@ function setupCapability() {
       { feature: 'document_to_markdown', inputs: ['document'], maxInputBytes: 1024 * 1024 * 1024, maxInputPages: 1000 }
     ]
   })
+  return prepared
 }
 
 function createCtx(
@@ -223,6 +226,7 @@ describe('remotePollJobHandler.execute', () => {
     })
     expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {})
     expect(toPersistableMock).toHaveBeenCalledWith(remoteCtx, 'provider-task-xyz')
+    expect(vi.mocked(ctx.reportProgress).mock.calls[0]).toEqual([0, { stage: null }])
 
     const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mock.calls
     expect(patchCalls).toHaveLength(1)
@@ -351,6 +355,83 @@ describe('remotePollJobHandler.execute', () => {
     expect(patchPayloads[0]).toEqual({ remoteState: { providerTaskId: 't', stage: 'parsing', apiHost: 'https://h' } })
     expect(patchPayloads[1]).toEqual({ remoteState: { providerTaskId: 't', stage: 'exporting', apiHost: 'https://h' } })
   })
+
+  it('reports every nonterminal observation, including equal percentages and identical stages', async () => {
+    vi.useFakeTimers()
+    const prepared = setupCapability()
+    rehydrateMock.mockReturnValue({ providerTaskId: 't', remoteContext: {} })
+    pollRemoteMock
+      .mockResolvedValueOnce({ status: 'processing', stage: 'queued', progress: 0 })
+      .mockResolvedValueOnce({ status: 'processing', stage: 'queued', progress: 0 })
+      .mockResolvedValueOnce({ status: 'processing', stage: 'parsing', progress: 0 })
+      .mockResolvedValueOnce({ status: 'processing', stage: 'parsing', progress: 25 })
+      .mockResolvedValueOnce({ status: 'processing', stage: 'converting', progress: 99 })
+      .mockResolvedValueOnce({ status: 'completed', output: { kind: 'markdown', markdownContent: 'done' } })
+    const ctx = createCtx({ metadata: { remoteState: { providerTaskId: 't', stage: 'exporting' } } })
+    const result = executeRemotePolling(ctx, prepared, { id: 'mineru' } as never)
+    await vi.advanceTimersByTimeAsync(5000)
+    await result
+    expect(vi.mocked(ctx.reportProgress).mock.calls).toEqual([
+      [0, { stage: null }],
+      [0, { stage: 'queued' }],
+      [0, { stage: 'queued' }],
+      [0, { stage: 'parsing' }],
+      [25, { stage: 'parsing' }],
+      [99, { stage: 'converting' }]
+    ])
+  })
+
+  it.each(['sleep', 'poll', 'empty'] as const)(
+    'preserves the last observation when aborted during %s',
+    async (where) => {
+      vi.useFakeTimers()
+      const prepared = { ...setupCapability(), formatPollingAbort: formatMineruPollingAbort }
+      rehydrateMock.mockReturnValue({ providerTaskId: 't', remoteContext: {} })
+      pollRemoteMock.mockResolvedValueOnce({ status: 'processing', stage: 'queued', progress: 0 })
+      if (where === 'empty') pollRemoteMock.mockResolvedValueOnce({ status: 'processing', progress: 0 })
+      const controller = new AbortController()
+      if (where === 'poll') {
+        pollRemoteMock.mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true })
+            })
+        )
+      }
+      const ctx = createCtx({ signal: controller.signal, metadata: { remoteState: { providerTaskId: 't' } } })
+      const result = executeRemotePolling(ctx, prepared, { id: 'mineru' } as never)
+      const assertion = expect(result).rejects.toThrow(
+        `MinerU polling aborted; last known remote state=pending; elapsed polling wait this attempt=${where === 'sleep' ? 500 : 1500} ms`
+      )
+      await vi.advanceTimersByTimeAsync(where === 'sleep' ? 500 : 1500)
+      if (where === 'empty') expect(vi.mocked(ctx.reportProgress).mock.calls.at(-1)).toEqual([0, { stage: null }])
+      controller.abort(new Error('aborted by caller'))
+      await assertion
+    }
+  )
+
+  it.each(['start', 'rehydrate'] as const)(
+    'reports unknown on abort before any observation during %s',
+    async (where) => {
+      const prepared = { ...setupCapability(), formatPollingAbort: formatMineruPollingAbort }
+      const controller = new AbortController()
+      const rejectOnAbort = () => {
+        controller.abort(new Error('aborted by caller'))
+        return Promise.reject(controller.signal.reason)
+      }
+      if (where === 'start') startRemoteMock.mockImplementationOnce(rejectOnAbort)
+      rehydrateMock.mockReturnValue({ providerTaskId: 't', remoteContext: {} })
+      if (where === 'rehydrate') pollRemoteMock.mockImplementationOnce(rejectOnAbort)
+      const ctx = createCtx({
+        signal: controller.signal,
+        metadata: where === 'rehydrate' ? { remoteState: { providerTaskId: 't', stage: 'parsing' } } : {}
+      })
+      await expect(executeRemotePolling(ctx, prepared, { id: 'mineru' } as never)).rejects.toThrow(
+        /^MinerU polling aborted; last known remote state=unknown; elapsed polling wait this attempt=\d+ ms$/
+      )
+      if (where === 'rehydrate') expect(vi.mocked(ctx.reportProgress).mock.calls).toEqual([[0, { stage: null }]])
+    }
+  )
 
   it('throws when pollRemote returns failed status before artifacts are persisted', async () => {
     setupCapability()

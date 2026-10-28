@@ -1,5 +1,6 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessingStage } from '@shared/data/types/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
 export type ImageToTextHandlerOutput = {
@@ -70,6 +71,7 @@ export type FileProcessingRemotePollResult<
 > =
   | {
       status: 'pending' | 'processing'
+      stage?: FileProcessingStage
       progress: number
       /**
        * Return a new reference when the remote context has changed since the
@@ -105,6 +107,11 @@ export interface PreparedRemoteJob<
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > {
   mode: 'remote-poll'
+  /**
+   * Optional, processor-owned wording for the diagnostic thrown when polling is aborted
+   * (the processor knows its own remote state vocabulary).
+   */
+  formatPollingAbort?(details: { lastKnownStage: FileProcessingStage | null; elapsedMs: number }): string
   startRemote(signal?: AbortSignal): Promise<{
     providerTaskId: string
     status: 'pending' | 'processing'

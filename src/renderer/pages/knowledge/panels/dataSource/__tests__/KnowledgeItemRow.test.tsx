@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import type * as TimeUtils from '@renderer/utils/time'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
@@ -20,7 +21,8 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   useSharedCacheValue: (...args: unknown[]) => mockUseSharedCacheValue(...args)
 }))
 
-vi.mock('@renderer/utils/time', () => ({
+vi.mock('@renderer/utils/time', async (importOriginal) => ({
+  ...(await importOriginal<typeof TimeUtils>()),
   formatRelativeTime: () => '刚刚'
 }))
 
@@ -169,11 +171,19 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string, options?: Record<string, number>) => {
+    t: (key: string, options?: Record<string, string | number>) => {
       if (key === 'knowledge.data_source.status.copying') {
         return `复制中 ${options?.percent}%`
       }
       const translations: Record<string, string> = {
+        'knowledge.data_source.status.file_processing_uploading': '等待上传',
+        'knowledge.data_source.status.file_processing_queued': '排队中',
+        'knowledge.data_source.status.file_processing_parsing': '解析中',
+        'knowledge.data_source.status.file_processing_converting': '转换中',
+        'knowledge.data_source.status.file_processing_elapsed': '{{stage}}。总等待时间：{{duration}}。',
+        'knowledge.data_source.status.file_processing_queued_elapsed':
+          '正在文档服务中排队，服务可能繁忙。总等待时间：{{duration}}。',
+        'knowledge.error.file_processing_timed_out': '文档处理尚未完成便已超时。请使用“重新索引”重试。',
         'knowledge.data_source.status.ready': '就绪',
         'knowledge.data_source.status.error': '失败',
         'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
@@ -197,7 +207,7 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.table.open_row': '打开行',
         'common.more': '更多'
       }
-      return translations[key] ?? key
+      return (translations[key] ?? key).replace(/{{(\w+)}}/g, (_match, name: string) => String(options?.[name] ?? ''))
     }
   })
 }))
@@ -298,17 +308,60 @@ describe('KnowledgeItemRow', () => {
 
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'embedding' })} {...defaultHandlers} />)
 
-    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.embedding_progress.file-1')
     expect(screen.getByText('向量化中 42%')).toBeInTheDocument()
   })
 
-  it('shows the mirrored file-processing percentage while processing', () => {
-    mockUseSharedCacheValue.mockReturnValue(42)
+  it('shows positive progress with the generic label when the current stage is unknown', () => {
+    mockUseSharedCacheValue.mockReturnValue({ stage: null, progress: 42, elapsedMs: 5000 })
 
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'processing' })} {...defaultHandlers} />)
 
-    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.file_processing_progress.file-1')
     expect(screen.getByText('处理中 42%')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['uploading', '等待上传'],
+    ['queued', '排队中'],
+    ['parsing', '解析中'],
+    ['converting', '转换中']
+  ])('renders the observed %s stage independently of zero progress', (stage, label) => {
+    mockUseSharedCacheValue.mockReturnValue({ stage, progress: 0, elapsedMs: 5000 })
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'processing' })} {...defaultHandlers} />)
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('总等待时间：5秒。')
+  })
+
+  it('updates sampled total wait and then stage and percentage on new observations', () => {
+    mockUseSharedCacheValue.mockReturnValue({ stage: 'queued', progress: 0, elapsedMs: 5000 })
+    const item = createFileItem({ id: 'file-1', status: 'processing' })
+    const { rerender } = render(<KnowledgeItemRow item={item} {...defaultHandlers} />)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('正在文档服务中排队，服务可能繁忙。总等待时间：5秒。')
+    expect(screen.getByLabelText('正在文档服务中排队，服务可能繁忙。总等待时间：5秒。')).toHaveAttribute(
+      'tabindex',
+      '0'
+    )
+    mockUseSharedCacheValue.mockReturnValue({ stage: 'queued', progress: 0, elapsedMs: 10000 })
+    rerender(<KnowledgeItemRow item={item} {...defaultHandlers} />)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('总等待时间：10秒。')
+    mockUseSharedCacheValue.mockReturnValue({ stage: 'parsing', progress: 25, elapsedMs: 15000 })
+    rerender(<KnowledgeItemRow item={item} {...defaultHandlers} />)
+    expect(screen.getByText('解析中 25%')).toBeInTheDocument()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('解析中。总等待时间：15秒。')
+  })
+
+  it('localizes the failed item timeout guidance', () => {
+    render(
+      <KnowledgeItemRow
+        item={{
+          ...createFileItem({ id: 'file-1', status: 'failed' }),
+          status: 'failed',
+          error: 'file_processing_timed_out'
+        }}
+        {...defaultHandlers}
+      />
+    )
+    expect(screen.getByRole('tooltip')).toHaveTextContent('文档处理尚未完成便已超时。请使用“重新索引”重试。')
   })
 
   it('shows the bare processing label while the document processor reports no progress', () => {
@@ -318,6 +371,7 @@ describe('KnowledgeItemRow', () => {
 
     expect(screen.getByText('处理中')).toBeInTheDocument()
     expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
   it('shows the bare embedding label while the job has not published a percentage yet', () => {
@@ -338,7 +392,6 @@ describe('KnowledgeItemRow', () => {
       <KnowledgeItemRow item={createDirectoryItem({ id: 'directory-1', status: 'preparing' })} {...defaultHandlers} />
     )
 
-    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.directory_copy_progress.directory-1')
     expect(screen.getByText('复制中 38%')).toBeInTheDocument()
   })
 

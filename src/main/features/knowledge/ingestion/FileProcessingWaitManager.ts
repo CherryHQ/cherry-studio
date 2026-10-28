@@ -1,15 +1,17 @@
 import { application } from '@application'
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
+import type { CacheKnowledgeItemFileProcessingState } from '@shared/data/cache/cacheValueTypes'
+import type { FileProcessingStage } from '@shared/data/types/fileProcessing'
 
 interface FileProcessingWait {
   baseId: string
   jobId: string
-  /** Last percentage written to the item, so an unchanged value is not broadcast again. */
-  mirroredProgress?: number
+  startedWaitingAt: number
+  publishedState?: CacheKnowledgeItemFileProcessingState
 }
 
-function fileProcessingProgressCacheKey(itemId: string): `knowledge.item.file_processing_progress.${string}` {
-  return `knowledge.item.file_processing_progress.${itemId}`
+function fileProcessingStateCacheKey(itemId: string): `knowledge.item.file_processing_state.${string}` {
+  return `knowledge.item.file_processing_state.${itemId}`
 }
 
 /**
@@ -21,23 +23,24 @@ export class FileProcessingWaitManager {
   private readonly waits = new Map<string, FileProcessingWait>()
 
   add(baseId: string, itemId: string, jobId: string): void {
-    this.waits.set(itemId, { baseId, jobId })
+    this.delete(itemId)
+    this.waits.set(itemId, { baseId, jobId, startedWaitingAt: Date.now() })
   }
 
   has(itemId: string): boolean {
     return this.waits.has(itemId)
   }
 
-  /** End an item's wait and clear the percentage mirrored onto it. */
+  /** End an item's wait and clear its published state. */
   delete(itemId: string): void {
     const wait = this.waits.get(itemId)
     if (!wait) {
       return
     }
-    this.waits.delete(itemId)
-    if (wait.mirroredProgress !== undefined) {
-      application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(itemId))
+    if (wait.publishedState !== undefined) {
+      application.get('CacheService').deleteShared(fileProcessingStateCacheKey(itemId))
     }
+    this.waits.delete(itemId)
   }
 
   /** The file-processing jobs that items of `baseId` wait on, limited to `itemIds` when given. */
@@ -55,12 +58,28 @@ export class FileProcessingWaitManager {
   mirrorProgress(): void {
     const cacheService = application.get('CacheService')
     for (const [itemId, wait] of this.waits) {
-      const progress = cacheService.getShared(`${JOB_PROGRESS_KEY_PREFIX}${wait.jobId}`)?.progress
-      if (progress === undefined || progress === wait.mirroredProgress) {
+      const source = cacheService.getShared(`${JOB_PROGRESS_KEY_PREFIX}${wait.jobId}`)
+      const detail = source?.detail
+      const stage = detail && typeof detail === 'object' && 'stage' in detail ? detail.stage : null
+      const state: CacheKnowledgeItemFileProcessingState = {
+        stage: isFileProcessingStage(stage) ? stage : null,
+        progress: typeof source?.progress === 'number' ? source.progress : null,
+        elapsedMs: Math.max(0, Date.now() - wait.startedWaitingAt)
+      }
+      const previous = wait.publishedState
+      if (
+        previous?.stage === state.stage &&
+        previous.progress === state.progress &&
+        previous.elapsedMs === state.elapsedMs
+      ) {
         continue
       }
-      cacheService.setShared(fileProcessingProgressCacheKey(itemId), progress)
-      wait.mirroredProgress = progress
+      cacheService.setShared(fileProcessingStateCacheKey(itemId), state)
+      wait.publishedState = state
     }
   }
+}
+
+function isFileProcessingStage(value: unknown): value is FileProcessingStage {
+  return value === 'uploading' || value === 'queued' || value === 'parsing' || value === 'converting'
 }

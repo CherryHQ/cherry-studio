@@ -1209,13 +1209,15 @@ describe('KnowledgeService', () => {
 
     MockMainCacheServiceUtils.setSharedCacheValue('jobs.progress.fp-job-1', { progress: 42 })
     mirrorProgress()
-    expect(MockMainCacheServiceUtils.getSharedCacheValue('knowledge.item.file_processing_progress.file-1')).toBe(42)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('knowledge.item.file_processing_state.file-1')).toEqual({
+      stage: null,
+      progress: 42,
+      elapsedMs: expect.any(Number)
+    })
 
     finished.resolve({})
     await flushMicrotasks()
-    expect(
-      MockMainCacheServiceUtils.getSharedCacheValue('knowledge.item.file_processing_progress.file-1')
-    ).toBeUndefined()
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('knowledge.item.file_processing_state.file-1')).toBeUndefined()
   })
 
   it('auto-renames a duplicate uploaded file name instead of rejecting the import', async () => {

@@ -94,9 +94,10 @@ job's `JobHandle.finished` and enqueues one `check-file-processing-result` when 
 settles. Until then the item is registered in `FileProcessingWaitManager`, which three
 readers use:
 
-- `KnowledgeService` copies each job's progress onto
-  `knowledge.item.file_processing_progress.${itemId}` every 5 seconds, writing only
-  values that changed, and the entry's removal clears it;
+- `KnowledgeService` mirrors each job's current stage and percentage, together with
+  sampled total item wait, onto `knowledge.item.file_processing_state.${itemId}` every
+  5 seconds. Missing job progress clears the stage and percentage while elapsed wait
+  advances; ending or replacing a wait removes its published state;
 - delete, replace, and base deletion cancel the FileProcessing jobs of the items they
   remove. They read the registry only after their knowledge-job cancels settle,
   because a copy job cancelled after its commit still starts file processing;
@@ -108,7 +109,10 @@ minutes for background jobs, 30 for remote polling) bound a running job, and a q
 job waits as long as the queue ahead of it. The registry lives in memory, like
 `finished`; after a restart no item is waiting, and boot recovery fails the items left
 in `processing`. On success the output's relative path is recorded via
-`updateIndexedRelativePath`, then `index-documents` is scheduled.
+`updateIndexedRelativePath`, then `index-documents` is scheduled. A linked job with
+`JOB_HANDLER_TIMEOUT` fails the item with `file_processing_timed_out`, localized as
+Reindex guidance. MinerU polling abort diagnostics retain the last observed remote
+state and elapsed polling wait for that attempt in the job error.
 
 Knowledge starts these FileProcessing jobs with `recovery: 'abandon'`. Boot recovery fails an
 interrupted item (`recoverInterruptedItems`), so its conversion is cancelled at startup instead of
