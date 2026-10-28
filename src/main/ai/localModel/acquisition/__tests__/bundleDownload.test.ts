@@ -202,7 +202,7 @@ describe('downloadBundleFiles', () => {
     const parallel: ModelBundle = { ...BUNDLE, files: [failing, slow], parallelFetchFrom: 0 }
     let siblingSignal: AbortSignal | undefined
     let siblingSettled = false
-    streamToFileVerified.mockImplementation(async (url, dest, options) => {
+    streamToFileVerified.mockImplementation(async (_url, dest, options) => {
       if (dest.endsWith('lexicon-a.txt')) throw new Error('mirror exhausted')
       siblingSignal = (options as { signal?: AbortSignal } | undefined)?.signal
       await new Promise<void>((resolve) => {
