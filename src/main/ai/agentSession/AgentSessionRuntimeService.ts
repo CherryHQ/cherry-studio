@@ -2641,6 +2641,8 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
       entry.pendingRecoveryFlowChunkCount = Math.max(0, (entry.pendingRecoveryFlowChunkCount ?? 0) - buffered.length)
       for (const replayed of buffered) {
+        // The message buffer's dropped start is authoritative: a late delta cannot open it.
+        if (!admitRestartedFlowPart(entry.pendingBackgroundFlowDiscardedParts, hostMessageId, replayed)) continue
         if ((replayed.type === 'tool-input-start' || replayed.type === 'tool-input-available') && replayed.toolCallId) {
           this.rememberFlowAnchor(entry, replayed.toolCallId, hostMessageId)
         }
