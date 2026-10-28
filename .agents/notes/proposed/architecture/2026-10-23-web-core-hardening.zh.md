@@ -17,7 +17,7 @@ Status: proposed
 
 ## Proposal
 
-所有改动都在 `packages/web-core` 内,只有桌面端首次启动页多了一个开关(`enableCherryInLogin`),Web 版把它关掉:CherryIN 登录要回调到本机,网页收不到。
+大部分改动在 `packages/web-core` 内。桌面端渲染层新增两样 Web 版取值不同的东西:首次启动页的一个开关(`enableCherryInLogin`),Web 版把它关掉,因为 CherryIN 登录要回调到本机,网页收不到;以及一个模块 `src/renderer/utils/hostFeatures.ts`,说明渲染层所在的应用能做哪些事(第 6 条)。桌面端把其中每一项都设为 true,所以显示的内容和以前一样;web-core 用一个全部设为 false 的模块替换它。
 
 1. **内容安全策略。** web-core 在一处定义策略,开发服务器和 `vite preview` 把它和 COOP、COEP 一起作为响应头下发;应用构建时把这些响应头写进 `dist/app/_headers`(Cloudflare Pages 和 Netlify 读取的文件),README 说明其他托管方式怎么配置。
    - `default-src 'self'`;`object-src 'none'`;`form-action 'self'`;`frame-ancestors 'none'`。不设 `base-uri`:桌面端的 HTML 预览会设置 `<base href="about:srcdoc">`,而 `script-src` 已经限制了脚本的来源。
@@ -43,6 +43,12 @@ Status: proposed
    - **长 Agent 会话:** 50 轮 Agent 对话,每轮写入并读取一个文件。记录同样的测量值。
    - 这份 Note 改为 implemented 时写入测量结果。
 6. **能力清单。** README 新增一张表,按用户能感知的功能(对话、附件、Agent 工具、Python、JavaScript、本地文件夹、MCP、知识库、小程序、备份等)列出 Web 版能做什么、哪些仍只在桌面端,以及每项需要的浏览器。Web 版不支持的功能已经会返回 `WebUnsupportedError`;这张表是用户和管理员查阅的地方。Web 版同时不再显示通往这些功能的入口:启动台里的其他应用、输入框的工具、消息菜单里的笔记、知识库、朗读和笔记类应用导出、Agent 的浏览器、语音输入、帮助菜单、用户菜单里的 Cherry 账号和 CherryIN 登录。把消息保存或导出为 Markdown 或图片改为浏览器下载,Agent 的文件树和文件预览可以使用。
+   - `hostFeatures` 表明应用做不到某件事时,渲染层隐藏对应入口:更多窗口、用电脑上的应用打开路径、应用缩放、更新、开发者工具、图片上传、文件存储(附件和文件页)、Word 文档文字、笔记、知识库、助手的 MCP 服务器、小程序、绘画、语音输入和朗读、诊断、Agent 浏览器、电脑操控、桌面程序自身的设置(开机启动、托盘、网络访问、GPU 和电源、原生菜单、拼写检查的语言)、已安装的字体、Claude Code Agent、服务商登录,以及内置的 CherryAI 模型。设置搜索不收录被隐藏的项。
+   - 只有桌面程序才会执行的偏好设置(开发者模式、原生菜单样式、Agent 浏览器面板)在每次启动时都被设为关闭(`fixedWebPreferences`),原来打开过的工作区也一样。
+   - 内置的 CherryAI 模型需要桌面应用里内置的客户端密钥,所以 Web 版的首次设置不能跳过:用户要先配置一个服务商。
+   - Pi Agent 的编辑框不再提供环境变量,只有 Claude Code 运行时会读取它(运行时能力 `envVars`)。这也改变了桌面端:这个字段对 Pi Agent 本来就不起作用。
+   - 文件树的模糊匹配打分从 `src/main/services/file/tree/search.ts` 移到 `fuzzyScore.ts`,供 Worker 的文件搜索复用。
+7. **渲染层调用检查。** 一个 e2e 测试(`e2e/rendererCalls.spec.ts`)收集渲染层源码调用的每条 IpcApi 路由和旧版 `window.api` 通道,以及 Web 版应答的每个调用(Worker 的处理函数和通道,以及页面的 `answerInPage` 和 `handleInPage`)。Web 版不应答的调用必须登记,并写明它的调用方在 Web 上为什么到达不了(页面不在 Web 菜单里、某个 `hostFeatures` 项、某个固定的偏好设置)。出现新的未应答调用时测试失败,登记项已经不需要登记时测试也失败。
 
 不在范围内:企业版 Web 应用的加固(它的 CSP `connect-src`、只放在 Worker 内存里的 access token、不同个人资料之间的隔离)在企业仓库里做;后端鉴权随企业后端跟进;备份与恢复(M4);以及 #21728 验收项中依赖备份的那些证据。
 
@@ -53,6 +59,7 @@ Status: proposed
 - **在社区版里限制 `connect-src`。** 模型请求发往用户自己添加的服务商,任何白名单都会让自定义服务商失效。
 - **只在用户操作时申请持久化存储。** Chrome 和 Edge 不弹窗直接决定;Firefox 会弹出自己的提示。打开账号时就申请,能从第一次访问起保护数据。
 - **在所有浏览器里做压力测试。** 只有 Chromium 能测 Worker 的内存;WebKit 和 Firefox 的耗时来自现有的规模测试。
+- **只在 web-core 里隐藏入口,替换每个显示入口的渲染层模块。** 桌面端源码不用改,但要把几十个桌面端模块复制到 web-core,和桌面端越走越远。用一个 `hostFeatures` 模块,每个入口和它的条件都留在桌面端源码里。
 
 ## Acceptance criteria
 
@@ -61,7 +68,8 @@ Status: proposed
 - AC3 — 打开账号时会申请持久化存储;申请被拒绝时(模拟),每个账号只出现一次警告提示,重新加载后不再出现;申请被批准时不出现提示。(verification: packaged artifact)
 - AC4 — 在三个浏览器中,模型回复的 HTML 和 HTML 代码块预览里的脚本都不会运行,也读不到 OPFS;QuickJS 脚本看不到 `fetch`、`indexedDB`、`navigator` 和 `postMessage` 中的任何一个。(verification: packaged artifact)
 - AC5 — 长对话和长 Agent 会话测试在 Chromium 中运行,对话每 50 轮、Agent 每 10 轮记录一次回复耗时以及页面和它的各个 Worker 的内存,记录写在这份 Note 里。第 200 轮(对话)和第 50 轮(Agent)之后的内存,最多是第 50 轮(对话)和第 10 轮(Agent)之后的 1.5 倍;最后十次回复的平均耗时最多是最初十次的两倍。(verification: packaged artifact)
-- AC6 — README 有能力清单,清单中标为仅桌面端的每条路由都返回 `WebUnsupportedError`。Web 版不显示第 6 条列出的入口,并能把消息保存为下载文件。`src/main`、`src/preload`、`src/renderer` 和 `src/shared` 下除首次启动页的 `enableCherryInLogin` 开关及其测试外没有文件改动。(verification: packaged artifact、change-scope report 和 code review)
+- AC6 — README 有能力清单,清单中标为仅桌面端的每条路由都返回 `WebUnsupportedError`。Web 版不显示第 6 条列出的入口,并能把消息保存为下载文件。首次设置不能跳过。`src/main`、`src/preload`、`src/renderer` 和 `src/shared` 下只有这些改动:首次启动页的开关、`hostFeatures` 和按它隐藏入口的代码(包括设置搜索和话题菜单里可选的保存操作)、运行时能力 `envVars`、模糊匹配打分模块,以及它们的测试;除了 Pi Agent 的环境变量,桌面端显示的入口和以前一样。(verification: packaged artifact、change-scope report 和 code review)
+- AC7 — `e2e/rendererCalls.spec.ts` 通过:渲染层调用的每条 IpcApi 路由和 `window.api` 通道,要么由 Worker 或页面应答,要么已登记并写明它的调用方在 Web 上为什么到达不了,并且没有过时的登记项。(verification: packaged artifact)
 
 ## Risks
 
@@ -70,4 +78,5 @@ Status: proposed
 - **是否持久化由浏览器决定。** Chrome 按站点使用情况决定是否授予,第一次访问的用户经常被拒绝;在备份完成之前,警告是唯一的缓解办法。
 - **压力测试的阈值基于模拟服务商。** 真实服务商流式输出更慢、回复更长;这些测试检测的是应用本身的泄漏和变慢,不是真实环境下的速度。
 - **存储已满时只有笼统的报错。** 浏览器给每个站点的配额占磁盘的很大一部分(Chrome 和 Safari 最多 60%,Firefox 10%),试用账号不太可能用满;真用满时,写入失败显示的是桌面端的通用错误。
+- **新的桌面端入口。** 一个需要桌面端的新渲染层入口,在它读取 `hostFeatures` 之前会显示在 Web 上。它调用 Web 版不应答的路由时,渲染层调用检查会发现;如果它只是改一个 Web 上没有代码读取的设置,检查发现不了。
 - **依赖 CDN。** Pyodide 仍从 jsDelivr 加载;屏蔽它的部署会失去 Python。把 Pyodide 随应用一起托管留给以后的改动。
