@@ -48,6 +48,20 @@
       "description": "Open website links in shared built-in browser tabs"
     },
     {
+      "targetKey": "app.browser.downloads.ask_where_to_save",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Ask where to save each file before downloading in the built-in browser (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.browser.downloads.dir",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Directory for built-in browser downloads when not asking; empty uses the system Downloads folder (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,

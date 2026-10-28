@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
@@ -24,6 +25,7 @@ import {
   isAllowedAgentHtmlArtifactEntryUrl
 } from '@main/utils/agentWebviewRequest'
 import { getAppEdition } from '@main/utils/appEdition'
+import { resolveDownloadSavePath } from '@main/utils/downloadPath'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -399,6 +401,7 @@ export class MainWindowService extends BaseService {
     restrictedSession.setUserAgent(userAgent)
     restrictedSession.setPermissionCheckHandler(() => false)
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
+    const handleBrowserDownload = allowDownloads ? this.attachBrowserDownloadHandler(restrictedSession) : undefined
     if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       try {
@@ -420,9 +423,45 @@ export class MainWindowService extends BaseService {
       restrictedSession.setPermissionCheckHandler(null)
       restrictedSession.setPermissionRequestHandler(null)
       restrictedSession.removeListener('will-download', handleWillDownload)
+      handleBrowserDownload?.dispose()
       restrictedSession.webRequest.onBeforeRequest(null)
       clearPolicy?.()
     })
+  }
+
+  /**
+   * Route built-in browser downloads straight to the configured folder once the
+   * user turned off the per-file save dialog; leaving the item untouched keeps
+   * Electron's native save dialog (the default, matching Chrome).
+   */
+  private attachBrowserDownloadHandler(restrictedSession: Electron.Session): { dispose: () => void } {
+    const preferenceService = application.get('PreferenceService')
+    // Downloads that have a destination but no file on disk yet must still keep
+    // the name they received, or two overlapping transfers write the same file.
+    // Reservations are case-folded: on a case-insensitive volume `report.pdf`
+    // and `REPORT.pdf` are one file; on a case-sensitive one the cost is only
+    // an extra suffix.
+    const activeDownloads = new Set<string>()
+    // macOS resolves composed and decomposed forms to the same file, so fold
+    // both case and Unicode normalization when claiming a destination.
+    const reservationKey = (candidate: string) => candidate.normalize('NFC').toLowerCase()
+    const handleDownload = (_event: Electron.Event, item: Electron.DownloadItem) => {
+      if (preferenceService.get('app.browser.downloads.ask_where_to_save')) return
+      const dir = preferenceService.get('app.browser.downloads.dir') || application.getPath('sys.downloads')
+      const savePath = resolveDownloadSavePath(
+        dir,
+        item.getFilename(),
+        (candidate) => activeDownloads.has(reservationKey(candidate)) || existsSync(candidate)
+      )
+      activeDownloads.add(reservationKey(savePath))
+      item.setSavePath(savePath)
+      // A completed file is caught by `existsSync`; a cancelled one never lands.
+      item.once('done', () => activeDownloads.delete(reservationKey(savePath)))
+    }
+    restrictedSession.on('will-download', handleDownload)
+    return {
+      dispose: () => restrictedSession.removeListener('will-download', handleDownload)
+    }
   }
 
   private isBrowserEntryUrl(url: string): boolean {
