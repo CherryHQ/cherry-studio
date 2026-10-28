@@ -28,7 +28,9 @@ async function collectMiddleware(provider: Provider): Promise<LanguageModelMiddl
   // The callback only reads `middlewares`; the rest of the request context is unused here.
   const context = { middlewares: [] as LanguageModelMiddleware[] } as unknown as AiRequestContext
   await plugin.configureContext?.(context)
-  return context.middlewares[0]
+  const middleware = context.middlewares?.[0]
+  if (!middleware) throw new Error('expected gatewayAnthropicCacheFeature to register a middleware')
+  return middleware
 }
 
 const baseParams = {

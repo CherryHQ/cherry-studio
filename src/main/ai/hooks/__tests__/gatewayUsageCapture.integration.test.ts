@@ -68,8 +68,8 @@ async function buildWrappedModel(model: { doGenerate?: () => Promise<unknown>; d
     gatewayUsageNormalizeFeature,
     gatewayAnthropicCacheFeature
   ]).modelAdapters
-  const plugins = [...adapters, createAiUsagePlugin(captureContext as never)]
-  const manager = new PluginManager(plugins as never)
+  const plugins = [...adapters, createAiUsagePlugin(captureContext)]
+  const manager = new PluginManager(plugins)
   const context = { middlewares: [] as LanguageModelMiddleware[] } as unknown as AiRequestContext
   await manager.executeConfigureContext(context)
   return wrapLanguageModel({ model: model as never, middleware: context.middlewares as never })
@@ -85,7 +85,7 @@ describe('usage capture at the billing point sees reconciled cache buckets', () 
       doGenerate: async () => ({ usage: FLAT_GATEWAY_USAGE, finishReason: 'stop', content: [] })
     })
 
-    await wrapped.doGenerate({ prompt: [] } as never)
+    await wrapped.doGenerate({ prompt: [] })
 
     expect(recordInvocation).toHaveBeenCalledTimes(1)
     expect(recordInvocation.mock.calls[0]?.[0].usage).toMatchObject(EXPECTED_CAPTURED_USAGE)
@@ -94,9 +94,9 @@ describe('usage capture at the billing point sees reconciled cache buckets', () 
   it('records reconciled buckets for a streaming call', async () => {
     const finish: LanguageModelV3StreamPart = {
       type: 'finish',
-      finishReason: 'stop',
+      finishReason: { unified: 'stop', raw: 'stop' },
       usage: FLAT_GATEWAY_USAGE as unknown as LanguageModelV3Usage
-    } as LanguageModelV3StreamPart
+    }
     const wrapped = await buildWrappedModel({
       doStream: async () => ({
         stream: new ReadableStream<LanguageModelV3StreamPart>({
@@ -105,7 +105,7 @@ describe('usage capture at the billing point sees reconciled cache buckets', () 
       })
     })
 
-    const { stream } = await wrapped.doStream({ prompt: [] } as never)
+    const { stream } = await wrapped.doStream({ prompt: [] })
     for await (const _ of stream as unknown as AsyncIterable<unknown>) void _
 
     expect(recordInvocation).toHaveBeenCalledTimes(1)
