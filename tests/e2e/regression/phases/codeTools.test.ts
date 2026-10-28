@@ -66,10 +66,28 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
   await closeSettings(page)
   const baseline = new Set(listOwnedProcessIds(app.record))
   await openCodeTool(page, 'Claude Code')
+  const codeView = page.locator('[data-ui~="code.view"]:visible').first()
+  const install = codeView.getByRole('button', { name: 'Install', exact: true })
+  const launch = codeView.getByRole('button', { name: 'Launch', exact: true })
+  await expect(install.or(launch)).toBeVisible()
+  if (await install.isVisible()) {
+    await install.click()
+    await expect(launch).toBeVisible({ timeout: 5 * 60_000 })
+  }
   await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
   await launchWithWorkspace(app, page)
   await expect
-    .poll(() => observeOwnedProcess(app.record, 'claude', true, baseline).passed, { timeout: 60_000 })
+    .poll(
+      () =>
+        observeOwnedProcess(
+          app.record,
+          'claude',
+          true,
+          baseline,
+          app.record.platform === 'windows' ? 'claude.exe' : undefined
+        ).passed,
+      { timeout: 60_000 }
+    )
     .toBe(true)
 })
 

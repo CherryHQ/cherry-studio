@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process'
+import { win32 } from 'node:path'
 
 import type { AppRecord } from './lifecycle'
 
 interface ProcessInfo {
   command: string
+  executablePath?: string
   parentPid: number
   pid: number
 }
@@ -11,17 +13,18 @@ interface ProcessInfo {
 export function listProcesses(record: AppRecord): ProcessInfo[] {
   if (record.platform === 'windows') {
     const script =
-      'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress'
+      'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine,ExecutablePath | ConvertTo-Json -Compress'
     const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       encoding: 'utf8',
       timeout: 15_000
     }).trim()
     if (!output) return []
     const raw = JSON.parse(output) as
-      | { CommandLine?: string; ParentProcessId: number; ProcessId: number }
-      | Array<{ CommandLine?: string; ParentProcessId: number; ProcessId: number }>
+      | { CommandLine?: string; ExecutablePath?: string; ParentProcessId: number; ProcessId: number }
+      | Array<{ CommandLine?: string; ExecutablePath?: string; ParentProcessId: number; ProcessId: number }>
     return (Array.isArray(raw) ? raw : [raw]).map((processInfo) => ({
       command: processInfo.CommandLine ?? '',
+      executablePath: processInfo.ExecutablePath,
       parentPid: processInfo.ParentProcessId,
       pid: processInfo.ProcessId
     }))
@@ -62,7 +65,8 @@ export function observeOwnedProcess(
   record: AppRecord,
   commandFragment: string,
   expectedRunning: boolean,
-  baselinePids: ReadonlySet<number> = new Set()
+  baselinePids: ReadonlySet<number> = new Set(),
+  executableName?: string
 ): ProcessObservation {
   const fragment = commandFragment.trim().toLowerCase()
   if (fragment.length < 2) throw new Error('Process evidence requires a command fragment with at least two characters')
@@ -73,6 +77,9 @@ export function observeOwnedProcess(
       (processInfo) =>
         processInfo.pid !== record.electronPid &&
         belongsToApp(processInfo, byPid, record.electronPid) &&
+        (!executableName ||
+          (processInfo.executablePath &&
+            win32.basename(processInfo.executablePath).toLowerCase() === executableName.toLowerCase())) &&
         processInfo.command.toLowerCase().includes(fragment)
     )
     .map(({ command, pid }) => ({ command, pid }))
