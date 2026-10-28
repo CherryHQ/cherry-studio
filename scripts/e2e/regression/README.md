@@ -18,6 +18,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `debugBridge.ts`, `cdpClient.ts` | Explicit main-process debug operations and HTTP callback delivery |
 | `systemAutomation.ts` | Native dialogs, external text selection, and keyboard input |
 | `RegressionReporter.ts` | Playwright result adapter and run-state updates |
+| `RedactionReporter.ts` | Redact configured credentials before other Playwright reporters serialize steps and errors |
 | `state.ts`, `report.ts` | Run state, platform/aggregate verdicts, and human-readable reports |
 | `fixtureFiles.ts`, `paths.ts`, `config.ts` | Input fixtures, run-owned paths, and configuration |
 
@@ -82,7 +83,7 @@ task names and outcomes.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.
 Only one phase writes a platform's run state at a time; keep `workers: 1` and sequential workflow steps.
 The macOS and Windows jobs run in parallel; each platform keeps its own isolated run directory.
-Test names and generated report text use English. External errors and captured application content remain unchanged.
+Test names and generated report text use English. External errors and captured application content retain their original language. Keep `RedactionReporter.ts` first when selecting custom reporters so configured credentials are removed from steps and errors before JSON, HTML and blob serialization.
 
 Capability requirements belong to cases. Missing required capabilities skip execution with an explicit reason and are recorded as blocked, never passed.
 Capability probes are preflight checks, not evidence that a product interaction succeeded.

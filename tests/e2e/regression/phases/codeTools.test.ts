@@ -54,7 +54,6 @@ async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Select Folder', exact: true }).click()
-  await page.waitForTimeout(1_000)
   chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
   await expect(dialog.getByPlaceholder('Select working directory', { exact: true })).toHaveValue(app.paths.workspace)
   if (app.record.platform === 'windows') {

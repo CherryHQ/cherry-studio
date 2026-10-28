@@ -505,25 +505,43 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
       'if (-not $dialog) { throw "Native file dialog was not found" }',
-      '$shell = New-Object -ComObject WScript.Shell',
-      `if (-not $shell.AppActivate(${electronPid})) { throw "Native file dialog could not be activated" }`,
-      'Start-Sleep -Milliseconds 300',
       ...(isDirectory
         ? [
+            '$dialog.SetFocus()',
             '[System.Windows.Forms.SendKeys]::SendWait("^l")',
-            'Start-Sleep -Milliseconds 200',
-            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
+            '$addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
+            'do {',
+            '  $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+            '  if (-not $address) { Start-Sleep -Milliseconds 100 }',
+            '} while (-not $address -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $address) { throw "Native folder address input was not found" }',
+            '$value = $address.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
+            `$value.SetValue('${escapePowerShell(filePath)}')`,
+            `if ($value.Current.Value -ne '${escapePowerShell(filePath)}') { throw "Native folder address readback mismatch" }`,
+            '$dialogHandle = $dialog.Current.NativeWindowHandle',
+            '$address.SetFocus()',
             '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
-            'Start-Sleep -Milliseconds 750',
-            '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-            '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
-            'if (-not $dialog) { throw "Native folder dialog closed before selection" }',
-            '$acceptHandle = [NativeDialog]::GetDlgItem([IntPtr]$dialog.Current.NativeWindowHandle, 1)',
-            'if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native folder accept button was not found" }',
-            '$null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-            'Start-Sleep -Milliseconds 500'
+            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
+            'do {',
+            '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+            '  $dialog = $windows | Where-Object { $_.Current.NativeWindowHandle -eq $dialogHandle } | Select-Object -First 1',
+            '  if (-not $dialog) { break }',
+            '  $editing = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+            '  if (-not $editing) { break }',
+            '  Start-Sleep -Milliseconds 100',
+            '} while ([DateTime]::UtcNow -lt $deadline)',
+            'if ($dialog) {',
+            '  if ($editing) { throw "Native folder navigation did not finish" }',
+            '  $acceptHandle = [NativeDialog]::GetDlgItem([IntPtr]$dialogHandle, 1)',
+            '  if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native folder accept button was not found" }',
+            '  $null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+            '}'
           ]
         : [
+            '$shell = New-Object -ComObject WScript.Shell',
+            `if (-not $shell.AppActivate(${electronPid})) { throw "Native file dialog could not be activated" }`,
+            'Start-Sleep -Milliseconds 300',
             '[System.Windows.Forms.SendKeys]::SendWait("%n")',
             'Start-Sleep -Milliseconds 200',
             `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
@@ -532,7 +550,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       stdio: ['ignore', 'ignore', 'pipe'],
-      timeout: 15_000
+      timeout: 25_000
     })
   }
   return filePath
