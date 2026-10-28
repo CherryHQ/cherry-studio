@@ -82,11 +82,12 @@ function DialogContent({
   overlayClassName,
   onPointerDown,
   size = 'default',
+  style,
   ref,
   ...props
 }: DialogContentProps) {
   const [contentElement, setContentElement] = React.useState<HTMLDivElement | null>(null)
-  const dialogPortalContainer = useDialogPortalContainer()
+  const [tooltipLayer, setTooltipLayer] = React.useState<HTMLDivElement | null>(null)
   const handleRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       setContentElement(node)
@@ -98,6 +99,11 @@ function DialogContent({
     },
     [ref]
   )
+
+  // Callers raise the dialog's z-index through className or style; the tooltip layer must follow it.
+  React.useLayoutEffect(() => {
+    if (contentElement && tooltipLayer) tooltipLayer.style.zIndex = getComputedStyle(contentElement).zIndex
+  }, [contentElement, tooltipLayer, className, style])
 
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -114,8 +120,9 @@ function DialogContent({
         Keep Content as a direct Portal child so Radix Presence receives its DOM ref and
         can retain it for the closed-state animation. Nested overlays still inherit the
         content element as their portal target from the provider inside Content.
-        Tooltips portal beside Content instead: it is the containing block for their fixed
-        positioning, so overflow set by callers on Content would clip them.
+        Tooltips portal into the layer after Content instead: Content is the containing block
+        for their fixed positioning, so overflow set by callers on Content would clip them.
+        The layer shares Content's z-index and follows it in DOM order, so they paint above it.
 
         The closed-state animation duration below must equal DIALOG_CLOSE_DURATION_MS
         (above); a test enforces it. Imperative host removal timing is defined separately
@@ -139,8 +146,9 @@ function DialogContent({
         onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
           checkForDefaultPrevented: false
         })}
+        style={style}
         {...props}>
-        <PortalContainerProvider container={contentElement} tooltipContainer={dialogPortalContainer}>
+        <PortalContainerProvider container={contentElement} tooltipContainer={tooltipLayer}>
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close
@@ -152,6 +160,7 @@ function DialogContent({
           )}
         </PortalContainerProvider>
       </DialogPrimitive.Content>
+      <div ref={setTooltipLayer} data-slot="dialog-tooltip-layer" className="fixed" />
     </DialogPortal>
   )
 }

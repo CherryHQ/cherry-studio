@@ -42,6 +42,18 @@ function getTooltipContent(text: string) {
   return content as HTMLElement
 }
 
+function getDialogContent(title: string) {
+  const content = screen.getByText(title).closest('[data-slot="dialog-content"]')
+  expect(content).toBeInstanceOf(HTMLElement)
+  return content as HTMLElement
+}
+
+function getTooltipLayer(tooltipContent: HTMLElement) {
+  const layer = tooltipContent.closest('[data-slot="dialog-tooltip-layer"]')
+  expect(layer).toBeInstanceOf(HTMLElement)
+  return layer as HTMLElement
+}
+
 function DialogWithSelect({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const [selectOpen, setSelectOpen] = useState(false)
 
@@ -96,14 +108,14 @@ describe('Dialog primitive', () => {
 
   // The content box is a transformed containing block; callers that add overflow to it would clip
   // any tooltip mounted inside, while focusable overlays must stay inside for the focus trap.
-  it('portals tooltips beside the dialog while focusable overlays stay inside its content', () => {
+  it('portals tooltips into a layer after the dialog content at its z-index', () => {
     const pagePortalContainer = document.createElement('div')
     document.body.appendChild(pagePortalContainer)
 
     render(
       <DialogPortalContainerProvider container={pagePortalContainer}>
         <Dialog open>
-          <DialogContent aria-describedby={undefined} className="overflow-hidden">
+          <DialogContent aria-describedby={undefined} className="overflow-hidden" style={{ zIndex: 10000 }}>
             <DialogTitle>Custom action</DialogTitle>
             <Tooltip isOpen content="Simple hint">
               <span>Model</span>
@@ -120,31 +132,41 @@ describe('Dialog primitive', () => {
       </DialogPortalContainerProvider>
     )
 
-    const dialogContent = screen.getByText('Custom action').closest('[data-slot="dialog-content"]')
+    const dialogContent = getDialogContent('Custom action')
     for (const hint of ['Simple hint', 'Compound hint']) {
       const tooltipContent = getTooltipContent(hint)
-      expect(pagePortalContainer).toContainElement(tooltipContent)
+      const layer = getTooltipLayer(tooltipContent)
       expect(dialogContent).not.toContainElement(tooltipContent)
+      expect(layer.parentElement).toBe(dialogContent.parentElement)
+      expect(dialogContent.compareDocumentPosition(layer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(layer).toHaveStyle({ zIndex: '10000' })
     }
     expect(dialogContent).toContainElement(screen.getByTestId('popover-content'))
 
     pagePortalContainer.remove()
   })
 
-  it('portals tooltips to the document body when the dialog itself has no page portal', () => {
-    render(
-      <Dialog open>
-        <DialogContent aria-describedby={undefined} className="overflow-hidden">
-          <DialogTitle>Custom action</DialogTitle>
-          <Tooltip isOpen content="Simple hint">
-            <span>Model</span>
-          </Tooltip>
-        </DialogContent>
-      </Dialog>
-    )
+  it('keeps the tooltip layer at the dialog z-index when it changes while open', () => {
+    function FullscreenToggleDialog({ fullscreen }: { fullscreen: boolean }) {
+      return (
+        <Dialog open>
+          <DialogContent
+            aria-describedby={undefined}
+            className={fullscreen ? 'fullscreen' : undefined}
+            style={fullscreen ? { zIndex: 10000 } : undefined}>
+            <DialogTitle>Preview</DialogTitle>
+            <Tooltip isOpen content="Save hint">
+              <span>Save</span>
+            </Tooltip>
+          </DialogContent>
+        </Dialog>
+      )
+    }
 
-    const dialogContent = screen.getByText('Custom action').closest('[data-slot="dialog-content"]')
-    expect(dialogContent).not.toContainElement(getTooltipContent('Simple hint'))
+    const { rerender } = render(<FullscreenToggleDialog fullscreen={false} />)
+    rerender(<FullscreenToggleDialog fullscreen />)
+
+    expect(getTooltipLayer(getTooltipContent('Save hint'))).toHaveStyle({ zIndex: '10000' })
   })
 
   it('keeps tooltips in a portal scope declared inside the dialog', () => {
