@@ -51,23 +51,17 @@ export default defineProvider({
     }
   },
   overrides: [
-    ...[
-      ['mimo-v2-5', 'mimo-v2.5'],
-      ['mimo-v2-5-pro', 'mimo-v2.5-pro'],
-      ['mimo-v2-6-flash', 'mimo-v2.6-flash'],
-      ['mimo-v2-6-pro', 'mimo-v2.6-pro'],
-      ['mimo-v2-6-pro-ultraspeed', 'mimo-v2.6-pro-ultraspeed']
-    ].map(([modelId, apiModelId]) => ({
-      modelId,
-      apiModelId,
-      reasoningContracts: {
-        'anthropic-messages': { support: toggleSupport, wire: anthropicWire },
-        'openai-chat-completions': { support: toggleSupport, wire: chatWire },
-        'openai-responses': { support: toggleSupport, wire: responsesWire }
-      }
-    })),
+    ...['mimo-v2.5', 'mimo-v2.5-pro', 'mimo-v2.6-flash', 'mimo-v2.6-pro', 'mimo-v2.6-pro-ultraspeed'].map(
+      (apiModelId) => ({
+        apiModelId,
+        reasoningContracts: {
+          'anthropic-messages': { support: toggleSupport, wire: anthropicWire },
+          'openai-chat-completions': { support: toggleSupport, wire: chatWire },
+          'openai-responses': { support: toggleSupport, wire: responsesWire }
+        }
+      })
+    ),
     {
-      modelId: 'mimo-v2-5-pro-ultraspeed',
       apiModelId: 'mimo-v2.5-pro-ultraspeed',
       reasoningContracts: {
         'anthropic-messages': { support: { controls: [] }, wire: { disabled: true } },

@@ -75,16 +75,16 @@ export default defineProvider({
     }
   },
   overrides: [
-    { modelId: 'claude-haiku-5-5' },
-    { modelId: 'claude-sonnet-5-5' },
-    { modelId: 'claude-fable-5-1' },
-    { modelId: 'claude-opus-5-5', supportsFastMode: true },
-    { modelId: 'claude-fable-5' },
-    { modelId: 'claude-sonnet-5' },
-    { modelId: 'claude-opus-4-5' },
-    { modelId: 'claude-opus-4-1' },
-    { modelId: 'claude-sonnet-4-5' },
-    { modelId: 'claude-haiku-4-5' },
+    { apiModelId: 'claude-haiku-5-5' },
+    { apiModelId: 'claude-sonnet-5-5' },
+    { apiModelId: 'claude-fable-5-1' },
+    { apiModelId: 'claude-opus-5-5', supportsFastMode: true },
+    { apiModelId: 'claude-fable-5' },
+    { apiModelId: 'claude-sonnet-5' },
+    { apiModelId: 'claude-opus-4-5' },
+    { apiModelId: 'claude-opus-4-1' },
+    { apiModelId: 'claude-sonnet-4-5' },
+    { apiModelId: 'claude-haiku-4-5' },
     // Each extended-context model is served twice: the plain id, and its `[1m]`
     // twin. The plain row pins `apiModelId` to its own id so it always claims the
     // canonical `providerId::modelId` slot, whatever order the rows are indexed in.

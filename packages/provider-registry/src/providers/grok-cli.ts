@@ -147,7 +147,7 @@ export default defineProvider({
       }
     },
     {
-      modelId: 'grok-build',
+      apiModelId: 'grok-build',
       name: 'Grok Build',
       description:
         "Grok Build is xAI's agentic coding model, available through the SuperGrok subscription via the Grok CLI proxy.",
@@ -165,7 +165,7 @@ export default defineProvider({
       }
     },
     {
-      modelId: 'grok-composer-2.5-fast',
+      apiModelId: 'grok-composer-2.5-fast',
       name: 'Composer 2.5 Fast',
       description:
         "Composer 2.5 Fast is xAI's fast coding model, available through the SuperGrok subscription via the Grok CLI proxy.",

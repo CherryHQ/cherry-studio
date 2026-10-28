@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { splitOverrideWireId } from '../../scripts/canonicalize'
+import { providerModelEntries } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 
 /**
@@ -17,12 +17,10 @@ const provider = (providerId: string) => {
   return result
 }
 
-// Look up by the CANONICAL key the catalog ships: source authors `modelId` as the served id
-// (`qwen3.7-max`), and generation splits it into key + `apiModelId` (see splitOverrideWireId).
+// Look up by the CANONICAL key the catalog ships: source authors the served `apiModelId`
+// (`qwen3.7-max`), and generation derives the key (see deriveOverrideModelId).
 const endpointsOf = (providerId: string, modelId: string): string[] | undefined => {
-  const entry = provider(providerId)
-    .overrides?.map((o) => splitOverrideWireId(o))
-    .find((o) => o.modelId === modelId)
+  const entry = providerModelEntries(provider(providerId)).find((o) => o.modelId === modelId)
   if (!entry) throw new Error(`Missing override: ${providerId}/${modelId}`)
   return entry.endpointTypes
 }
@@ -61,7 +59,7 @@ describe('dashscope (Bailian) endpoint matrix', () => {
   })
 
   it('never pins any dashscope model to a single endpoint', () => {
-    const singlePinned = (provider('dashscope').overrides ?? [])
+    const singlePinned = providerModelEntries(provider('dashscope'))
       .filter((o) => o.endpointTypes?.length === 1)
       .map((o) => `${o.modelId}:${o.endpointTypes?.join()}`)
     expect(singlePinned).toEqual([])
@@ -104,7 +102,7 @@ describe('deepseek endpoint matrix', () => {
   })
 
   it('lists only the current official DeepSeek model IDs', () => {
-    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual([
+    expect(providerModelEntries(provider('deepseek')).map(({ modelId }) => modelId)).toEqual([
       'deepseek-flash',
       'deepseek-v4-flash',
       'deepseek-v4-pro'
