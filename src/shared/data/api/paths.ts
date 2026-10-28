@@ -78,7 +78,7 @@ export type QueryParamsForPath<Path extends string, Method extends 'GET' | 'POST
  */
 export type BodyForPath<Path extends string, Method extends string> =
   SchemaKeyForPath<Path> extends keyof ApiSchemas
-    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { body: infer B } }
+    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { body?: infer B } }
       ? B
       : any
     : any

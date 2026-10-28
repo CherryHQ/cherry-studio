@@ -861,7 +861,7 @@ const AgentComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
-  const releaseFollowupEditRef = useRef<() => void>(() => {})
+  const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -1552,7 +1552,10 @@ const AgentComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
+    // Send/enqueue consumed the draft: mark the edit-session retirement so a
+    // suspended edit-switch closes its captured recovery copy instead of
+    // releasing a duplicate (cherry-pr-review retired-edit-recovery).
+    releaseFollowupEditRef.current('submitted')
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1592,7 +1595,7 @@ const AgentComposerInner = ({
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
-    sendId: sendFollowup,
+    steer: steerFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
     takeForEdit: takeFollowupForEdit,
@@ -1675,7 +1678,7 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
-        enqueueFollowup(draft, payload)
+        void enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
       }
@@ -1904,18 +1907,28 @@ const AgentComposerInner = ({
                   items={queuedFollowups}
                   paused={followupPaused}
                   onTogglePause={() => setFollowupPaused(!followupPaused)}
-                  onSteer={sendFollowup}
-                  onEdit={(id) => {
+                  onSteer={async (id) => {
+                    // Claim-guarded send: only the window whose claim wins sends,
+                    // so a manual steer racing another window's auto-drain cannot
+                    // deliver the same queued message twice.
+                    await steerFollowup(id, sendQueuedPayload)
+                  }}
+                  onEdit={async (id) => {
                     if (directSendInFlightRef.current) return
                     if (launchOptions?.editing) {
+                      // A message-edit session owns the composer: taking a queued
+                      // item must not try to capture it as an outgoing followup.
                       releaseEdit()
-                      const item = queuedFollowups.find((entry) => entry.id === id)
+                      const item = await takeFollowupForEdit(id, () => null)
                       if (!item) return
                       restoreFollowupDraft(item)
-                      removeFollowup(id)
                       return
                     }
-                    const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+                    // Atomic take: undefined when the item is owned by an
+                    // in-flight drain, so an edit can never race its send.
+                    // Switching the edit target returns the outgoing draft to
+                    // its queue slot, rebuilt from the live editor, first.
+                    const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
                     if (!incoming) return
                     restoreFollowupDraft(incoming)
                   }}

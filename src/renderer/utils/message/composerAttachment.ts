@@ -48,6 +48,14 @@ export interface ComposerAttachment {
   type: FileType
   /** Pasted-text marker (existing composer-only kind). */
   composerFileKind?: ComposerFileKind
+  /**
+   * Managed file-entry identity, present only on persisted followup-queue
+   * payloads (`persistBlobAttachments`): a composer-local attachment never
+   * holds one. Delivery resolves it to the entry's CURRENT physical path -
+   * the persisted `path` snapshot goes stale when userData relocates
+   * (cherry-pr-review inv_66be8317fbf2fe8a).
+   */
+  entryId?: string
 }
 
 /**

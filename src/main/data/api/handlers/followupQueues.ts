@@ -15,6 +15,7 @@ import {
   FollowupQueueScopeQuerySchema,
   FollowupQueueSettlementBodySchema,
   SetFollowupQueueStateSchema,
+  RemoveFollowupQueueSchema,
   type FollowupQueueSchemas
 } from '@shared/data/api/schemas/followupQueues'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -33,8 +34,9 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
   },
 
   '/followup-queues/:id': {
-    DELETE: async ({ params }) => {
-      followupQueueService.remove(params.id)
+    DELETE: async ({ params, body }) => {
+      const parsed = RemoveFollowupQueueSchema.parse(body ?? {})
+      followupQueueService.remove(params.id, parsed.transferHeldId)
       return undefined
     }
   },
@@ -42,7 +44,7 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
   '/followup-queues/:id/claim': {
     POST: async ({ params, body }) => {
       const parsed = ClaimFollowupQueueBodySchema.parse(body)
-      return followupQueueService.claim(params.id, parsed.claimToken)
+      return followupQueueService.claim(params.id, parsed.claimToken, parsed.completionAt)
     }
   },
 
@@ -72,7 +74,7 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
   '/followup-queues/claim:head': {
     POST: async ({ body }) => {
       const parsed = ClaimFollowupQueueHeadSchema.parse(body)
-      return followupQueueService.claimHead(parsed.scopeKey, parsed.claimToken)
+      return followupQueueService.claimHead(parsed.scopeKey, parsed.claimToken, parsed.completionAt)
     }
   },
 

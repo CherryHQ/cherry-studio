@@ -109,6 +109,125 @@ describe('FollowupQueueService', () => {
     })
   })
 
+  describe('enqueue anchor placement (inv_9ecff9fca3bdab04)', () => {
+    it.each([false, true])(
+      'atomically restores before successors when predecessor anchors disappear, earlier sent=%s (inv_e83eca5d2cb29820)',
+      (removeEarlier) => {
+        const a = enqueueIn(SCOPE_A, 'a')
+        const b = enqueueIn(SCOPE_A, 'b')
+        enqueueIn(SCOPE_A, 'd')
+        const e = enqueueIn(SCOPE_A, 'e')
+        followupQueueService.remove(b.id)
+        if (removeEarlier) followupQueueService.remove(a.id)
+        followupQueueService.claim(e.id, 'live-incoming')
+        const restored = followupQueueService.enqueue({
+          scopeKey: SCOPE_A,
+          draft: draft('c restored'),
+          payload: payload('c restored'),
+          held: true,
+          anchor: { after: b.id },
+          restorePredecessors: [a.id, b.id]
+        })
+        followupQueueService.remove(e.id, restored.id)
+        followupQueueService.enqueue({
+          id: restored.id,
+          scopeKey: SCOPE_A,
+          draft: restored.draft,
+          payload: restored.payload
+        })
+        if (!removeEarlier) followupQueueService.remove(a.id)
+        expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({
+          claimed: true,
+          id: restored.id,
+          alreadySent: false
+        })
+      }
+    )
+
+    it('inserts at the referenced slot while a live claim bars reorders', () => {
+      const first = enqueueIn(SCOPE_A, 'a')
+      const second = enqueueIn(SCOPE_A, 'b')
+      // A live send claim bars reorders for its whole lifetime...
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1').claimed).toBe(true)
+      expectErrorCode(
+        () => followupQueueService.reorderBatch([{ id: second.id, anchor: { position: 'first' } }]),
+        ErrorCode.CONFLICT
+      )
+      // ...but the anchored INSERT is not claim-barred: the restore lands at
+      // its slot atomically, however long the send lasts.
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { after: first.id }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['a', 'r', 'b'])
+    })
+
+    it('degrades an anchor retained as a closed receipt to a tail insert (inv_3f3a68791f4b48f1)', () => {
+      // Removal keeps a terminal `closed` receipt row; anchor resolution must
+      // not see it, or the insert lands ahead of waiting drafts ([r,b])
+      // instead of taking the documented removed-anchor tail fallback ([b,r])
+      // - a peer removing the anchor after the renderer's membership read
+      // otherwise changes restored-message delivery order
+      // (cherry-pr-review inv_3f3a68791f4b48f1#f1).
+      const removed = enqueueIn(SCOPE_A, 'a')
+      enqueueIn(SCOPE_A, 'b')
+      followupQueueService.remove(removed.id)
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { after: removed.id }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['b', 'r'])
+    })
+
+    it('degrades a stale anchor to a tail insert instead of failing the restore', () => {
+      enqueueIn(SCOPE_A, 'a')
+      enqueueIn(SCOPE_A, 'b')
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { after: '99999999-9999-7999-8999-999999999999' }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['a', 'b', 'r'])
+    })
+
+    it("places a position: 'first' anchor at the head", () => {
+      enqueueIn(SCOPE_A, 'a')
+      followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        anchor: { position: 'first' }
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['r', 'a'])
+    })
+
+    it('ignores the anchor on a duplicate-id retry, keeping the landed position', () => {
+      enqueueIn(SCOPE_A, 'a')
+      const id = '44444444-4444-7444-8444-444444444444'
+      const first = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        id,
+        anchor: { position: 'first' }
+      })
+      const again = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('r'),
+        payload: payload('r'),
+        id,
+        anchor: { position: 'last' }
+      })
+      expect(again).toEqual(first)
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.draft.text)).toEqual(['r', 'a'])
+    })
+  })
+
   describe('claim', () => {
     it('should let exactly one claimant win (cross-window arbitration)', () => {
       const item = enqueueIn(SCOPE_A, 'a')
@@ -251,6 +370,392 @@ describe('FollowupQueueService', () => {
       expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
         claimed: true,
         id: staleId,
+        alreadySent: false
+      })
+    })
+  })
+
+  describe('held recovery copies', () => {
+    it('should stamp an editor-owned recovery copy with the held sentinel on insert', async () => {
+      const item = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('held'),
+        payload: payload('held'),
+        held: true
+      })
+
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, item.id))
+      expect(row.claimToken).toBe('held:edit-restore')
+      expect(row.status).toBe('pending')
+      // Still listed: the session shows its recovery copy in the queue.
+      expect(followupQueueService.listByScope(SCOPE_A).map((entry) => entry.id)).toEqual([item.id])
+    })
+
+    it('parks a transferred held head across windows until release, including a lost DELETE response (inv_d42203843d6d319f)', () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      const next = enqueueIn(SCOPE_A, 'c')
+      // The DELETE committed, but its renderer response/release was lost.
+      followupQueueService.remove(incoming.id, outgoing.id)
+      followupQueueService.remove(incoming.id, outgoing.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({ claimed: false })
+      expect(followupQueueService.claim(outgoing.id, 'manual')).toEqual({ claimed: false, alreadySent: false })
+      followupQueueService.enqueue({
+        id: outgoing.id,
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: false
+      })
+      expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({
+        claimed: true,
+        id: outgoing.id,
+        alreadySent: false
+      })
+      expect(followupQueueService.listByScope(SCOPE_A).find((item) => item.id === next.id)?.status).toBe('pending')
+    })
+
+    it('lets a crash-orphaned transfer rejoin at its original FIFO slot after aging out', async () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      enqueueIn(SCOPE_A, 'c')
+      followupQueueService.remove(incoming.id, outgoing.id)
+      await dbh.db
+        .update(followupQueueTable)
+        .set({ updatedAt: Date.now() - 31 * 60 * 1000 })
+        .where(eq(followupQueueTable.id, outgoing.id))
+      expect(followupQueueService.claimHead(SCOPE_A, 'after-crash')).toEqual({
+        claimed: true,
+        id: outgoing.id,
+        alreadySent: false
+      })
+    })
+
+    it('does not re-park an already-released copy when the incoming DELETE retries', () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      followupQueueService.remove(incoming.id, outgoing.id)
+      followupQueueService.enqueue({
+        id: outgoing.id,
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: false
+      })
+      followupQueueService.remove(incoming.id, outgoing.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'peer')).toEqual({
+        claimed: true,
+        id: outgoing.id,
+        alreadySent: false
+      })
+    })
+
+    it('does not transfer a held copy from a different scope', async () => {
+      const outgoing = followupQueueService.enqueue({
+        scopeKey: SCOPE_B,
+        draft: draft('a'),
+        payload: payload('a'),
+        held: true
+      })
+      const incoming = enqueueIn(SCOPE_A, 'b')
+      followupQueueService.remove(incoming.id, outgoing.id)
+      const [copy] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, outgoing.id))
+      expect(copy.claimToken).toBe('held:edit-restore')
+    })
+
+    it('should skip a live held head instead of stalling the queue behind it', () => {
+      const held = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('held'),
+        payload: payload('held'),
+        held: true
+      })
+      const next = enqueueIn(SCOPE_A, 'next')
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: next.id,
+        alreadySent: false
+      })
+      // The held copy is untouched: still pending for its owning edit session.
+      expect(followupQueueService.listByScope(SCOPE_A).find((entry) => entry.id === held.id)).toMatchObject({
+        status: 'pending'
+      })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2')).toEqual({ claimed: false })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/followup-queues', kind: 'projection', entityIds: [next.id] }
+      ])
+    })
+
+    it('should report no claimable head when only held copies remain', () => {
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('held'), payload: payload('held'), held: true })
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({ claimed: false })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should refuse a direct claim (manual steer) of a live held copy', () => {
+      const held = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('held'),
+        payload: payload('held'),
+        held: true
+      })
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claim(held.id, 'token-1')).toEqual({ claimed: false, alreadySent: false })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should let an aged-out held copy rejoin delivery (crash orphan self-heals)', async () => {
+      const heldId = '22222222-2222-7222-8222-222222222222'
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: heldId,
+          scopeKey: SCOPE_A,
+          draft: draft('orphan'),
+          payload: payload('orphan'),
+          status: 'pending',
+          claimToken: 'held:edit-restore',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: Date.now() - 31 * 60 * 1000
+        }
+      ])
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: heldId,
+        alreadySent: false
+      })
+    })
+
+    it('should re-stamp an already-landed copy when a held retry arrives', async () => {
+      const id = '44444444-4444-7444-8444-444444444444'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+
+      const again = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        id,
+        held: true
+      })
+
+      expect(again.id).toBe(id)
+      expect(followupQueueService.listByScope(SCOPE_A)).toHaveLength(1)
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).toBe('held:edit-restore')
+      // And the landed copy is now ineligible for delivery.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({ claimed: false })
+    })
+
+    it('should refresh an already-held copy stamp when another held retry arrives', async () => {
+      const id = '77777777-7777-4777-8777-777777777777'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id, held: true })
+      // Age the stamp: a live edit session can outlast the stale-claim window.
+      const agedStamp = Date.now() - 20 * 60 * 1000
+      await dbh.db.update(followupQueueTable).set({ updatedAt: agedStamp }).where(eq(followupQueueTable.id, id))
+
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id, held: true })
+
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).toBe('held:edit-restore')
+      expect(row.updatedAt).toBeGreaterThan(agedStamp)
+      // Still ineligible for delivery while the session keeps refreshing it.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({ claimed: false })
+    })
+
+    it('should leave a live delivery claim alone when a held retry arrives', async () => {
+      const id = '55555555-5555-7555-8555-555555555555'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+      expect(followupQueueService.claim(id, 'token-delivery')).toEqual({ claimed: true, alreadySent: false })
+
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id, held: true })
+
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).toBe('token-delivery')
+      expect(row.status).toBe('sending')
+    })
+
+    it('should not stamp a closed receipt when a held retry arrives after removal', async () => {
+      const id = '66666666-6666-7666-8666-666666666666'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+      followupQueueService.remove(id)
+
+      const again = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        id,
+        held: true
+      })
+
+      expect(again.status).toBe('closed')
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).not.toBe('held:edit-restore')
+    })
+  })
+
+  describe('completion fencing', () => {
+    it('should reject a delayed claim carrying an older consumed completion', () => {
+      // Two completions settle in order; a delayed transport retry still
+      // carrying the first completion's identity must not deliver a second
+      // row for a turn that already delivered one (cherry-pr-review).
+      const first = enqueueIn(SCOPE_A, 'a')
+      const second = enqueueIn(SCOPE_A, 'b')
+      const third = enqueueIn(SCOPE_A, 'c')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 100)).toEqual({
+        claimed: true,
+        id: first.id,
+        alreadySent: false
+      })
+      followupQueueService.markSent(first.id, 'token-1')
+      followupQueueService.remove(first.id)
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 200)).toEqual({
+        claimed: true,
+        id: second.id,
+        alreadySent: false
+      })
+      followupQueueService.markSent(second.id, 'token-2')
+      followupQueueService.remove(second.id)
+
+      // The delayed retry for completion 100 is obsolete even though 200 is newer.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-3', 100)).toEqual({ claimed: false })
+      expect(followupQueueService.listByScope(SCOPE_A).find((item) => item.id === third.id)).toMatchObject({
+        status: 'pending'
+      })
+    })
+
+    it('should release the reservation when the winning claim ends without a delivery', () => {
+      // The composer unmounted (or lost its mirror) before dispatching a
+      // granted claim: the release must free the completion so reopening the
+      // conversation can drain the row for the same turn (cherry-pr-review).
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 300)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      followupQueueService.markFailed(item.id, 'token-1')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 300)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+    })
+
+    it('should release an abandoned reservation once its unsent claim is stale', async () => {
+      // The renderer crashed after the grant reached main but before it was
+      // received: no send and no release follow, and main keeps the
+      // reservation. Reopening after the stale-claim window generates a new
+      // token for the same completion; the reservation must reconcile with
+      // the expired unsent claim so the row drains instead of stranding
+      // (cherry-pr-review inv_6245082567738132).
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 9500)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+
+      // Crash without release: the row stays sending/unsent until it ages out.
+      await dbh.db
+        .update(followupQueueTable)
+        .set({ updatedAt: Date.now() - 31 * 60 * 1000 })
+        .where(eq(followupQueueTable.id, item.id))
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 9500)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+    })
+
+    it('should keep the fence when the abandoned claim recorded a send or is gone', async () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 9600)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      followupQueueService.markSent(item.id, 'token-1')
+
+      // Crash between send and dequeue: the sent row ages out, but the
+      // delivery already happened, so a new token for the same completion
+      // stays fenced while the winner's own retry re-acquires.
+      await dbh.db
+        .update(followupQueueTable)
+        .set({ updatedAt: Date.now() - 31 * 60 * 1000 })
+        .where(eq(followupQueueTable.id, item.id))
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 9600)).toEqual({ claimed: false })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 9600)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: true
+      })
+
+      // Once the sent row is dequeued, the reservation is all that remains:
+      // a completed delivery keeps its fence.
+      followupQueueService.remove(item.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-3', 9600)).toEqual({ claimed: false })
+    })
+
+    it('should keep the fence for a completed delivery and for foreign releases', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      // A release attempted with the wrong token touches neither the row nor
+      // the reservation.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 400)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      followupQueueService.markFailed(item.id, 'token-foreign')
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 400)).toEqual({ claimed: false })
+
+      // Delivery completes: the fence survives the dequeue.
+      followupQueueService.markSent(item.id, 'token-1')
+      followupQueueService.remove(item.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-3', 400)).toEqual({ claimed: false })
+    })
+
+    it('should let the winning token re-acquire its own consumed completion', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 500)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      // A retry carrying the token of a committed claim re-acquires it.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 500)).toEqual({
+        claimed: true,
+        id: item.id,
         alreadySent: false
       })
     })
@@ -665,6 +1170,54 @@ describe('FollowupQueueService', () => {
       topicService.delete('topic-a')
 
       expect(enqueueIn('topic-a:assistant-1', 'a1')).toMatchObject({ scopeKey: 'topic-a:assistant-1' })
+    })
+  })
+
+  it('keeps the completion retryable when the claim commit fails', async () => {
+    const item = enqueueIn(SCOPE_A, 'retry after failed commit')
+    const dbService = application.get('DbService')
+    const original = dbService.withWriteTx.bind(dbService) as (fn: (tx: unknown) => unknown) => unknown
+    const injected = vi.spyOn(dbService, 'withWriteTx')
+    injected.mockImplementationOnce(((fn: (tx: unknown) => unknown) =>
+      original((tx) => {
+        fn(tx)
+        throw new Error('injected commit failure')
+      })) as typeof dbService.withWriteTx)
+    try {
+      expect(() => followupQueueService.claimHead(SCOPE_A, 'token-commit', 9700001)).toThrow('injected commit failure')
+    } finally {
+      injected.mockRestore()
+    }
+    const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, item.id))
+    expect(row.status).toBe('pending')
+    // The failed attempt must not retain the completion fence (cherry-pr-review):
+    // the retry for the same completion claims the head again.
+    expect(followupQueueService.claimHead(SCOPE_A, 'token-commit', 9700001)).toEqual({
+      claimed: true,
+      id: item.id,
+      alreadySent: false
+    })
+  })
+
+  it('releases a held copy when a non-held retry lands after ownership transferred', () => {
+    const item = followupQueueService.enqueue({
+      scopeKey: SCOPE_A,
+      draft: draft('switching away mid-recovery'),
+      payload: payload('switching away mid-recovery'),
+      held: true
+    })
+    // Held recovery copies stay ineligible even for their own window.
+    expect(followupQueueService.claimHead(SCOPE_A, 'token-hold', 9800001)).toEqual({ claimed: false })
+    followupQueueService.enqueue({
+      id: item.id,
+      scopeKey: SCOPE_A,
+      draft: draft('switching away mid-recovery'),
+      payload: payload('switching away mid-recovery')
+    })
+    expect(followupQueueService.claimHead(SCOPE_A, 'token-hold', 9800001)).toEqual({
+      claimed: true,
+      id: item.id,
+      alreadySent: false
     })
   })
 })

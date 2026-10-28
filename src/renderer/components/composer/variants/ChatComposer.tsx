@@ -582,7 +582,7 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
-  const releaseFollowupEditRef = useRef<() => void>(() => {})
+  const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -1560,7 +1560,10 @@ const ChatComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
+    // Send/enqueue consumed the draft: mark the edit-session retirement so a
+    // suspended edit-switch closes its captured recovery copy instead of
+    // releasing a duplicate (cherry-pr-review retired-edit-recovery).
+    releaseFollowupEditRef.current('submitted')
     setText('')
     setDraftTokens(undefined)
     setFiles([])
@@ -1579,7 +1582,7 @@ const ChatComposerInner = ({
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
-    sendId: sendFollowup,
+    steer: steerFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
     takeForEdit: takeFollowupForEdit,
@@ -1837,7 +1840,7 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
+        void enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
       }
@@ -2035,18 +2038,28 @@ const ChatComposerInner = ({
                 items={queuedFollowups}
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
+                onSteer={async (id) => {
+                  // Claim-guarded send: only the window whose claim wins sends,
+                  // so a manual steer racing another window's auto-drain cannot
+                  // deliver the same queued message twice.
+                  await steerFollowup(id, sendQueuedPayload)
+                }}
+                onEdit={async (id) => {
                   if (directSendInFlightRef.current) return
                   if (editingMessageForCurrentTopic) {
+                    // A message-edit session owns the composer: taking a queued
+                    // item must not try to capture it as an outgoing followup.
                     releaseEdit()
-                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    const item = await takeFollowupForEdit(id, () => null)
                     if (!item) return
                     restoreFollowupDraft(item)
-                    removeFollowup(id)
                     return
                   }
-                  const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+                  // Atomic take: undefined when the item is owned by an
+                  // in-flight drain, so an edit can never race its send.
+                  // Switching the edit target returns the outgoing draft to
+                  // its queue slot, rebuilt from the live editor, first.
+                  const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
                   if (!incoming) return
                   restoreFollowupDraft(incoming)
                 }}
