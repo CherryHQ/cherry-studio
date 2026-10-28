@@ -1,38 +1,35 @@
 {
-  "generated_at": "2026-10-27T17:51:29.008452+00:00",
+  "generated_at": "2026-10-28T00:00:00Z",
+  "date": "2026-10-28",
   "v2_branch_status": {
-    "open_prs": 0,
-    "merged_prs_30d": 0,
-    "note": "v2 branch merged into main; both v1 and v2 code coexist on main during refactor."
+    "open_prs_targeting_v2": 0,
+    "note": "No open PRs targeting v2 branch. Active development is on main branch."
   },
-  "merged_by_track": {},
-  "open_prs": [],
-  "active_tracks": [
-    {
-      "track": "Data Layer",
-      "status": "in_progress",
-      "replacing": [
-        "Redux",
-        "Dexie",
-        "ElectronStore"
-      ],
-      "adopting": [
-        "Cache",
-        "Preference",
-        "DataApi (SQLite + Drizzle)"
-      ]
-    },
-    {
-      "track": "UI Layer",
-      "status": "in_progress",
-      "replacing": [
-        "antd",
-        "HeroUI",
-        "styled-components"
-      ],
-      "adopting": [
-        "@cherrystudio/ui (Tailwind CSS + Shadcn UI)"
-      ]
-    }
-  ]
+  "v2_tagged_open_issues": [
+    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error", "labels": ["bug","p1","v2","agent","chat"], "comments": 107},
+    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation", "labels": ["bug","p1","models","v2","chat"], "comments": 108},
+    {"number": 22121, "title": "[Bug]: Responses reasoning delta reaches chat consumers without initialized reasoning part", "labels": ["bug","p1","models","v2","chat"], "comments": 28},
+    {"number": 21418, "title": "[Bug]: Restore triggers app auto-restart, commit fails; backup archive corrupted", "labels": ["bug","p1","windows","data","v2"], "comments": 12},
+    {"number": 20937, "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM)", "labels": ["bug","p1","windows","v2","agent"], "comments": 2},
+    {"number": 21085, "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context", "labels": ["bug","p1","rag","assistant","performance","v2","chat"], "comments": 6},
+    {"number": 20374, "title": "Unable to read Word and PDF documents", "labels": ["bug","p1","needs-repro","data","v2"], "comments": 0},
+    {"number": 19929, "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM", "labels": ["bug","p1","windows","v2","agent"], "comments": 7},
+    {"number": 19625, "title": "[Bug]: Windows in-app update exits but leaves old 1.9.x version installed", "labels": ["bug","p1","windows","needs-repro","needs-triage","v2"], "comments": 0},
+    {"number": 20027, "title": "Explain and recover when all generated images are filtered as invalid", "labels": ["bug","p1","ui-ux","models","v2"], "comments": 0},
+    {"number": 20021, "title": "Local OCR and embedding fail when onnxruntime_binding.node cannot initialize on Windows", "labels": ["bug","p1","windows","rag","v2","ocr"], "comments": 2},
+    {"number": 19379, "title": "Pi runtime: report_artifacts deliverables never render", "labels": ["bug","p1","ui-ux","v2","agent"], "comments": 1},
+    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts for every tool call", "labels": ["bug","p1","assistant","v2","agent"], "comments": 1},
+    {"number": 17949, "title": "[Bug]: V2 (regression) cannot check and manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "comments": 1}
+  ],
+  "v2_p1_count": 14,
+  "v2_recent_main_prs": {
+    "note": "Recent main branch PRs show web-core worker, browser agent, and web search work — v2 features landing via main.",
+    "sample": [
+      "feat(web-core): run the data layer in a browser Core Worker",
+      "feat(web-core): run chat in the desktop main window in the browser",
+      "feat(web-core): run Pi agents in the browser",
+      "feat(browser): block ads and let the agent save its own rules",
+      "feat(web-search): add ContextFetch search provider"
+    ]
+  }
 }

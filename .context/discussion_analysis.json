@@ -1,10 +1,17 @@
 {
-  "generated_at": "2026-10-27T17:51:46.969587+00:00",
-  "total": 0,
-  "by_category": [],
-  "unanswered_count": 0,
-  "unanswered_sample": [],
-  "recent_active_7d": 0,
-  "top_upvoted": [],
-  "_note": "Discussions unavailable: GraphQL API not accessible in this execution environment"
+  "generated_at": "2026-10-28T00:00:00Z",
+  "date": "2026-10-28",
+  "note": "GitHub Discussions API not available via MCP tools in this session. Analysis based on issue tracker data.",
+  "issue_discussion_proxy": {
+    "high_engagement_issues_today": [
+      {"number": 22909, "title": "[Bug]: Work conversation 413 request body limit", "comments": 7},
+      {"number": 22852, "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay", "comments": 8},
+      {"number": 22971, "title": "[Feature]: Allow knowledge-app URI schemes in Markdown links", "comments": 3},
+      {"number": 22775, "title": "[Bug]: DeepSeek Harness crashes on work-conversation requests", "comments": 31}
+    ],
+    "feature_requests_high_interest": [
+      {"number": 19441, "title": "[Feature]: Video generation feature urgently needed", "comments": 9},
+      {"number": 17801, "title": "[Feature]: Add prominent status indicator for agent thinking", "comments": 6}
+    ]
+  }
 }
