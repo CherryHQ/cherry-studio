@@ -15,15 +15,13 @@ export function buildHostEndpointPreviews(params: {
   authConfig?: AuthConfig | null
   primaryEndpoint: EndpointType
   apiHost: string
-  anthropicApiHost: string
-  providerAnthropicHost: string
 }) {
-  const { provider, authConfig, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost } = params
+  const { provider, authConfig, primaryEndpoint, apiHost } = params
   const appendVersion = !isWithTrailingSharp(apiHost)
   let formattedHost: string
 
   if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-    formattedHost = formatApiHost(anthropicApiHost || apiHost, appendVersion)
+    formattedHost = formatApiHost(apiHost, appendVersion)
   } else if (
     provider.id === 'copilot' ||
     isCherryAIProvider(provider) ||
@@ -66,10 +64,7 @@ export function buildHostEndpointPreviews(params: {
     return formattedHost
   })()
 
-  const anthropicHostPreview = `${formatApiHost(anthropicApiHost || providerAnthropicHost)}/messages`
-
   return {
-    hostPreview,
-    anthropicHostPreview
+    hostPreview
   }
 }
