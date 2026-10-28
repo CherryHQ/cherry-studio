@@ -2908,12 +2908,15 @@ export class AgentSessionRuntimeService extends BaseService {
       application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
     } else if (data.event === 'notification') {
       // The bookend is not consumption: the SDK emits it at the terminal transition and separately
-      // queues the shell result as input for the NEXT generation. Owe the authority (its drain may
-      // not have run yet); `receiveOnlyHeadless` consumes it when that generation starts, and the
-      // wake's claim pays the stashed recipients.
+      // queues the shell result. Where that result lands depends on the query state: with a live
+      // turn streaming, SDK 0.3.284 consumes the notification inside that same query, so no
+      // receive-only generation follows — recording the authority as owed here would strand the
+      // hold (the drain guard waits on a debt nothing pays). Only a settled turn queues the result
+      // for the next generation, whose `receiveOnlyHeadless` consumes the debt and whose wake pays
+      // the stashed recipients.
       const authorities = this.backgroundTaskAuthorities.get(entry.sessionId)
       const authority = authorities?.get(data.taskId)
-      if (authorities && authority !== undefined) {
+      if (authorities && authority !== undefined && !hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {
         authorities.delete(data.taskId)
         const completed = this.completedBackgroundTasks.get(entry.sessionId) ?? new Map<string, boolean>()
         completed.set(data.taskId, authority)

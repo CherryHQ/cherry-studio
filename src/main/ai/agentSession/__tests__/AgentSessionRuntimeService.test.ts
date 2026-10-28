@@ -1083,6 +1083,54 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    // A native background shell finishing DURING a live foreground turn has its notification
+    // consumed by that same query (SDK 0.3.284) — no receive-only generation follows to pay the
+    // completion debt, so recording one would hold the topic open after everything settles.
+    it('records no completion debt when a live turn consumes the notification mid-query', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+      ;(service as any).rememberBackgroundTaskIds(entry, [{ id: 'task-live', status: 'running' }] as any)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      // The bookend arrives while the foreground turn is still live and streaming.
+      ;(service as any).publishBackgroundTaskEvent(entry, {
+        taskId: 'task-live',
+        event: 'notification',
+        status: 'completed'
+      } as any)
+      const completed = (service as any).completedBackgroundTasks.get('session-1') as Map<string, boolean> | undefined
+      expect(completed?.has('task-live') ?? false).toBe(false)
+
+      // The drain edge is free to settle the stream.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
+    // With the spawning turn already settled, the result is queued for the NEXT generation, whose
+    // receive-only wake consumes the recorded debt — the guard must still see it and hold.
+    it('keeps recording completion debt when no live turn will consume the notification', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      ;(service as any).rememberBackgroundTaskIds(entry, [{ id: 'task-drained', status: 'running' }] as any)
+      service.markTurnTerminal('session-1', 'success')
+
+      ;(service as any).publishBackgroundTaskEvent(entry, {
+        taskId: 'task-drained',
+        event: 'notification',
+        status: 'completed'
+      } as any)
+      const completed = (service as any).completedBackgroundTasks.get('session-1') as Map<string, boolean>
+      expect(completed.has('task-drained')).toBe(true)
+      void service.closeSession('session-1')
+    })
+
     it('leaves the held topic stream to a still-settling turn instead of finalizing it early', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
