@@ -1943,6 +1943,7 @@ describe('cherry-tools autonomy tools', () => {
     describe('headless turns', () => {
       beforeEach(() => {
         mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        mockGetSessionToolsAuthorization.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
         mockGetChannel.mockReturnValue(telegramChannel)
         mockGetAgent.mockReturnValue(agentWithConfig)
       })
@@ -1959,6 +1960,49 @@ describe('cherry-tools autonomy tools', () => {
           'Headless channel or scheduled turns cannot mutate agent configuration'
         )
         expect(mockUpdateChannel).not.toHaveBeenCalled()
+      })
+
+      it('denies a headless-origin child after the foreground settled interactive', async () => {
+        // A scheduled/channel turn spawned a native background child and settled; a later desktop
+        // turn is interactive. The child's calls arrive under the root Session id with its own
+        // bridge origin, so the boundary must resolve THAT origin's headless state, not the
+        // foreground turn's.
+        mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+        mockGetSessionToolsAuthorization.mockImplementation((_sessionId: string, origin?: string) =>
+          origin === 'exec_headless_child'
+            ? { currentTurn: 'headless', userResponse: 'unavailable' }
+            : { currentTurn: 'interactive', userResponse: 'stream' }
+        )
+
+        const result = await callTool(
+          createServer('agent_1'),
+          { action: 'remove_channel', channel_id: 'ch_1' },
+          'config',
+          'exec_headless_child'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain(
+          'Headless channel or scheduled turns cannot mutate agent configuration'
+        )
+        expect(mockDeleteChannel).not.toHaveBeenCalled()
+      })
+
+      it('still mutates for a call from the interactive foreground itself', async () => {
+        mockGetSessionToolsAuthorization.mockImplementation((_sessionId: string, origin?: string) =>
+          origin === 'exec_headless_child'
+            ? { currentTurn: 'headless', userResponse: 'unavailable' }
+            : { currentTurn: 'interactive', userResponse: 'stream' }
+        )
+
+        const result = await callTool(
+          createServer('agent_1'),
+          { action: 'remove_channel', channel_id: 'ch_1' },
+          'config'
+        )
+
+        expect(result.isError).toBeUndefined()
+        expect(mockDeleteChannel).toHaveBeenCalled()
       })
 
       it.each([

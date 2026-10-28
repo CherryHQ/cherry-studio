@@ -1135,17 +1135,22 @@ function configSetBootstrap(ctx: AutonomyToolsContext, completed: boolean): Call
   return { content: [{ type: 'text', text }] }
 }
 
-function assertConfigMutationAuthorized(ctx: AutonomyToolsContext): void {
-  const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
-  if (interaction.currentTurn === 'headless') {
+function assertConfigMutationAuthorized(ctx: AutonomyToolsContext, bridgeOrigin?: string): void {
+  // Resolve by the CALLER's originating execution, not the foreground turn's interaction state:
+  // after a scheduled/channel turn settles, a native background child's calls still arrive under
+  // the root Session id, and the foreground state at that moment would credit it wrongly.
+  const authorization = application
+    .get('AgentSessionRuntimeService')
+    .getSessionToolsAuthorization(ctx.sessionId, bridgeOrigin)
+  if (authorization.currentTurn === 'headless' || authorization.userResponse === 'unavailable') {
     throw new Error(
       'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
     )
   }
 }
 
-async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput): Promise<CallToolResult> {
-  if (args.action !== 'status') assertConfigMutationAuthorized(ctx)
+async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput, bridgeOrigin?: string): Promise<CallToolResult> {
+  if (args.action !== 'status') assertConfigMutationAuthorized(ctx, bridgeOrigin)
   switch (args.action) {
     case 'status':
       return configStatus(ctx)
@@ -1179,8 +1184,10 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       (args) => sendNotification(ctx, args)
     )
   }
-  server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
-    runConfig(ctx, args)
+  server.registerTool(
+    CONFIG_TOOL_NAME,
+    { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema },
+    (args, toolCtx) => runConfig(ctx, args, originOf(toolCtx))
   )
   server.registerTool(
     SESSION_LIST_TOOL_NAME,
