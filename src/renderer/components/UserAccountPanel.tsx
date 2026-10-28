@@ -9,7 +9,7 @@ import { CommandShortcut } from '@renderer/components/command'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
-import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
+import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { isEmoji } from '@renderer/utils/naming'
@@ -98,7 +98,7 @@ export function UserAccountPanel({
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
     } else if (!isCloudSignedIn) {
-      void handleCloudLogin()
+      void startCherryCloudSubscription()
     } else if (plansError && !plans) {
       void reloadPlans().catch(() => {})
     } else if (plans) {
@@ -106,7 +106,7 @@ export function UserAccountPanel({
       if (paidPlanName) {
         openSettingsTab('/settings/profile')
       } else {
-        void openCherryCloudAccountPortal()
+        void startCherryCloudSubscription()
       }
     }
   }

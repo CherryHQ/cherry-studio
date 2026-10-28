@@ -49,7 +49,18 @@ const cherryCloudPlanSummarySchema = z.looseObject({
   quota_pool_count: z.number().int().nonnegative(),
   model_count: z.number().int().nonnegative(),
   subscription_price: cherryCloudSubscriptionPriceSchema.optional(),
-  purchase_available: z.boolean()
+  purchase_available: z.boolean(),
+  /** Catalog entries of the models the plan grants, so the client can show what subscribing unlocks. */
+  models: z
+    .array(
+      z.looseObject({
+        id: z.string(),
+        display_name: z.string().min(1),
+        capabilities: z.array(z.string()).optional(),
+        available_features: z.array(cherryCloudModelFeatureSchema)
+      })
+    )
+    .optional()
 })
 
 const cherryCloudQuotaWindowSchema = z.looseObject({
