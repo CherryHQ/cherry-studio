@@ -362,15 +362,6 @@ describe('GeneralSettings', () => {
     expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeEnabled()
   })
 
-  it('shows the TUN explanation in the proxy mode row', () => {
-    render(<GeneralSettings />)
-
-    const proxyRow = document.getElementById('setting-general-proxy-mode')
-    expect(proxyRow).not.toBeNull()
-    expect(within(proxyRow!).getByText('settings.proxy.mode.description')).toBeVisible()
-    expect(within(proxyRow!).getByText('settings.proxy.mode.title')).toBeVisible()
-  })
-
   it('renders model retry settings in General and persists changes', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,

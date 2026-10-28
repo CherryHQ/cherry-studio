@@ -59,12 +59,6 @@ export type KnowledgeProgressDetail =
       skippedMissingSource?: number
     }
   | {
-      stage: 'waiting'
-      pollRound: number
-      fileProcessingJobId?: string
-      fileProcessing?: unknown
-    }
-  | {
       stage: 'failed'
     }
 
@@ -124,8 +118,7 @@ export function knowledgeIndexIdempotencyKey(
 export function knowledgeFileProcessingCheckIdempotencyKey(
   baseId: KnowledgeBaseId,
   itemId: KnowledgeItemId,
-  fileProcessingJobId: string,
-  pollRound: number
+  fileProcessingJobId: string
 ): string {
-  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}:${pollRound}`
+  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}`
 }

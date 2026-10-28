@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,11 +9,9 @@ import CodeViewer from '../CodeViewer'
 
 vi.mock('html-to-image', () => ({ toCanvas: vi.fn() }))
 
-const getCodePreProperties = async () => ({ class: 'shiki' })
 const captureHighlight = vi.hoisted(() => ({ read: vi.fn(), cleanup: vi.fn() }))
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
-    getCodePreProperties,
     isCodeThemeDark: false,
     highlightRange: captureHighlight.read,
     cleanupTokenizers: captureHighlight.cleanup
@@ -31,6 +29,7 @@ let clientWidth = 640
 let measuredRowHeight: (element: HTMLElement) => number = () => 21
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   captureHighlight.read.mockReset()
   captureHighlight.cleanup.mockReset()
   MockUsePreferenceUtils.resetMocks()
@@ -67,7 +66,12 @@ beforeEach(() => {
     return { top, bottom: top + 300, left: 0, right: 640, width: 640, height: 300, x: 0, y: top, toJSON() {} }
   })
 })
-afterEach(() => {
+afterEach(async () => {
+  cleanup()
+  // Drain the virtualizer's scroll-end debounce before jsdom destroys window.
+  await act(() => vi.runOnlyPendingTimers())
+  expect(vi.getTimerCount()).toBe(0)
+  vi.useRealTimers()
   vi.restoreAllMocks()
   for (const key of ['clientWidth', 'clientHeight', 'offsetWidth', 'offsetHeight', 'scrollHeight', 'scrollTo']) {
     const descriptor = originalDescriptors[key]
@@ -115,7 +119,7 @@ describe('CodeViewer', () => {
       if (highlighted) prefixHeight = 5000
       captureHighlight.read.mockImplementation(async () => {
         await new Promise((resolve) => setTimeout(resolve, 20))
-        return { start: 0, lines: lines.map((content) => [{ content, offset: 0, color: '#ff0000' }]) }
+        return { start: 0, lines: lines.map((content) => [{ content, offset: 0, className: 'code-syntax-keyword' }]) }
       })
       const { container } = render(
         <CodeViewer value={lines.join('\n')} language="text" expanded options={{ highlight: highlighted }} />
@@ -124,7 +128,7 @@ describe('CodeViewer', () => {
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async (root) => {
         expect([...root.querySelectorAll('.line-content')].map((line) => line.textContent)).toEqual(lines)
         if (highlighted)
-          expect(root.querySelector('[data-index="119"] .line-content span')).toHaveStyle({ color: '#ff0000' })
+          expect(root.querySelector('[data-index="119"] .line-content span')).toHaveClass('code-syntax-keyword')
         if (mode === 'failure') throw new Error('rasterization failed')
         return Object.assign(document.createElement('canvas'), { toDataURL: () => 'data:image/png;base64,dGVzdA==' })
       })
@@ -200,7 +204,7 @@ describe('CodeViewer', () => {
     expect(lines).toHaveLength(3)
     expect(lines[0].textContent).toBe('hello  ')
     expect(lines[1].textContent).toBe('\t🍒')
-    expect(lines[0].querySelector('span')?.style.opacity).toBe('1')
+    expect(lines[0].querySelector('span')).not.toHaveStyle({ opacity: '0.35' })
   })
 
   it('copies complete line contents when selection endpoints are elements', () => {
@@ -260,7 +264,6 @@ describe('CodeViewer', () => {
   })
 
   it('reveals one-based source lines, including trailing blank lines, and permits repeated navigation', () => {
-    vi.useFakeTimers()
     const scrollIntoView = vi.fn()
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
@@ -293,7 +296,6 @@ describe('CodeViewer', () => {
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
       else delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollIntoView
-      vi.useRealTimers()
     }
   })
 
@@ -524,6 +526,21 @@ describe('CodeViewer', () => {
     scrollHeight = 1600
     rerender(<CodeViewer {...props} value={'first\nsecond\nthird'} />)
     expect(scroller.scrollTop).toBe(100)
+  })
+
+  it('recalculates the document height when line wrapping is toggled', () => {
+    const value = Array.from({ length: 100 }, () => 'x'.repeat(100)).join('\n')
+    const props = { language: 'text', expanded: false, height: 300, value } as const
+    measuredRowHeight = () => 42
+    const { container, rerender } = render(<CodeViewer {...props} wrapped />)
+    const list = container.querySelector<HTMLElement>('.shiki-list')!
+    expect(list.style.height).toBe('4200px')
+    measuredRowHeight = () => 21
+    rerender(<CodeViewer {...props} wrapped={false} />)
+    expect(list.style.height).toBe('2100px')
+    measuredRowHeight = () => 42
+    rerender(<CodeViewer {...props} wrapped />)
+    expect(list.style.height).toBe('4200px')
   })
 
   it('uses measured wrapped heights after streaming changes a row', () => {

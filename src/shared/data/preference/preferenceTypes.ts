@@ -268,6 +268,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'serply',
   'yuanbao',
   'deepseek',
+  'searchapi',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 

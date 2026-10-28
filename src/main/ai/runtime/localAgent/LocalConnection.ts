@@ -8,8 +8,8 @@ import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import type { LocalAgentConfiguration, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import { AsyncEventQueue } from '@shared/utils/async'
 
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,

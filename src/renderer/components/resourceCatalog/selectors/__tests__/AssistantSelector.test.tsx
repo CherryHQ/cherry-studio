@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,6 +50,18 @@ const MODEL = vi.hoisted(
       isHidden: false
     }) as const
 )
+
+// Selector tests exercise creation and refresh; editor sessions are covered separately.
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ value, onChange, placeholder, editable }: CherryStudioUi.CodeEditorProps) => (
+    <textarea
+      value={value}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+      placeholder={typeof placeholder === 'string' ? placeholder : undefined}
+      readOnly={editable === false}
+    />
+  )
+}))
 
 vi.mock('@renderer/components/ModelSelector', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelSelectorModule>()),
@@ -480,6 +493,7 @@ describe('AssistantSelector', () => {
   })
 
   it('creates an assistant, refreshes, reopens the selector, and does not auto-select by default', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={onChange} />
@@ -491,9 +505,9 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
       target: { value: 'Created from selector' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
       expect(createAssistantMock).toHaveBeenCalledWith({
@@ -513,6 +527,7 @@ describe('AssistantSelector', () => {
   })
 
   it('auto-selects the created assistant when enabled', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <AssistantSelector
@@ -527,9 +542,9 @@ describe('AssistantSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(onChange).toHaveBeenCalledWith('created-assistant')
@@ -598,15 +613,16 @@ describe('AssistantSelector', () => {
   })
 
   it('notifies when created assistant cannot be refreshed into the selector', async () => {
+    const user = userEvent.setup()
     refetchAssistantsMock.mockRejectedValueOnce(new Error('Refresh failed'))
     renderSelector()
     await openCreateDialog()
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 

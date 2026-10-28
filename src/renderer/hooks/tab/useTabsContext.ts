@@ -6,6 +6,8 @@ import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
  * Options for opening a tab
  */
 export interface OpenTabOptions {
+  /** New tab position (defaults to immediately after the active tab). */
+  position?: 'after-active' | 'end'
   /** Force open a new tab even if one with the same URL exists */
   forceNew?: boolean
   /** Tab title (defaults to URL path) */

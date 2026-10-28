@@ -4,8 +4,8 @@ import { query, type Query, type SDKUserMessage } from '@anthropic-ai/claude-age
 import type { FinishReason } from 'ai'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { AsyncEventQueue } from '@shared/utils/async'
 
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import { ClaudeCodeStreamAdapter } from '../claudeCode'
 import type { AgentRuntimeUserInput } from '../types'
 import { resolveLocalAgentLaunch } from './launch'

@@ -9,10 +9,8 @@ import { asRecord } from './values'
 export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFileDraft {
   if (file.language !== 'json') return file
   parseJsonOrThrow(file.content)
-  const content = applyEdits(
-    file.content,
-    format(file.content, undefined, { insertSpaces: true, tabSize: 2, eol: '\n' })
-  )
+  const source = file.content.replace(/\r\n?/g, '\n')
+  const content = applyEdits(source, format(source, undefined, { insertSpaces: true, tabSize: 2, eol: '\n' }))
   return { ...file, content: `${content.trimEnd()}\n` }
 }
 
