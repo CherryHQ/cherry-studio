@@ -907,6 +907,7 @@
   "chat.settings.show_line_numbers": "Show line numbers in code",
   "chat.settings.thought_auto_collapse.label": "Collapse Thought Content",
   "chat.settings.thought_auto_collapse.tip": "Automatically collapse thought content after thinking ends",
+  "chat.stream_replay_truncated": "Stream replay was truncated. Earlier content from the active response may be missing.",
   "chat.topics.auto_rename": "Generate conversation name",
   "chat.topics.auto_rename_failed": "Failed to auto-generate conversation name",
   "chat.topics.clear.title": "Clear Messages",

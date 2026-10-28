@@ -139,13 +139,18 @@ export class DataApiService implements ApiClient {
     try {
       logger.debug(`Making ${request.method} request to ${request.path}`, { request })
 
-      // Direct IPC call with timeout
-      const response = await Promise.race([
-        window.api.dataApi.request(request),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(DataApiErrorFactory.timeout(request.path, 3000, requestContext)), 3000)
-        )
-      ])
+      const ipcRequest = window.api.dataApi.request(request)
+      const awaitOriginalResponse =
+        request.method === 'GET' && /^\/agent-sessions\/[^/?#]+\/messages$/.test(request.path)
+      // This in-process transcript read can wait behind starvation, not transport failure.
+      const response = awaitOriginalResponse
+        ? await ipcRequest
+        : await Promise.race([
+            ipcRequest,
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(DataApiErrorFactory.timeout(request.path, 3000, requestContext)), 3000)
+            )
+          ])
 
       if (response.error) {
         // Reconstruct DataApiError from serialized response

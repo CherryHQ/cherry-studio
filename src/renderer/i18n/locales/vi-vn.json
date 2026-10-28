@@ -907,6 +907,7 @@
   "chat.settings.show_line_numbers": "Hiển thị số dòng trong mã",
   "chat.settings.thought_auto_collapse.label": "Thu gọn Nội dung Suy nghĩ",
   "chat.settings.thought_auto_collapse.tip": "Tự động thu gọn nội dung suy nghĩ sau khi kết thúc suy nghĩ",
+  "chat.stream_replay_truncated": "Bản phát lại luồng đã bị cắt bớt. Một phần nội dung trước đó của phản hồi đang diễn ra có thể bị thiếu.",
   "chat.topics.auto_rename": "Tự động đổi tên",
   "chat.topics.auto_rename_failed": "Không thể tự động tạo tên cuộc trò chuyện",
   "chat.topics.clear.title": "Tin nhắn rõ ràng",

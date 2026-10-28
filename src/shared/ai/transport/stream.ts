@@ -297,7 +297,13 @@ export interface AiStreamAttachTerminal {
 }
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
+  | {
+      status: 'attached'
+      bufferedChunks: StreamChunkPayload[]
+      /** Known omission while building this replay means it is not complete history.
+       * False is no general integrity certificate; this flag is not a count. */
+      replayTruncated: boolean
+    }
   | ({ status: 'done' } & AiStreamAttachTerminal)
   | ({ status: 'paused' } & AiStreamAttachTerminal)
   | { status: 'error'; error?: SerializedError }

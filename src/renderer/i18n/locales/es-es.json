@@ -907,6 +907,7 @@
   "chat.settings.show_line_numbers": "Mostrar números de línea",
   "chat.settings.thought_auto_collapse.label": "Plegado automático del contenido de pensamiento",
   "chat.settings.thought_auto_collapse.tip": "El contenido de pensamiento se pliega automáticamente después de finalizar el pensamiento",
+  "chat.stream_replay_truncated": "La reproducción del flujo se ha truncado. Puede que falte contenido anterior de la respuesta en curso.",
   "chat.topics.auto_rename": "Generar nombre de tema",
   "chat.topics.auto_rename_failed": "No se pudo generar automáticamente el nombre de la conversación",
   "chat.topics.clear.title": "Limpiar mensajes",

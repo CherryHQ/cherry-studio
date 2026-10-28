@@ -907,6 +907,7 @@
   "chat.settings.show_line_numbers": "コードに行番号を表示",
   "chat.settings.thought_auto_collapse.label": "思考内容を自動的に折りたたむ",
   "chat.settings.thought_auto_collapse.tip": "思考が終了したら思考内容を自動的に折りたたみます",
+  "chat.stream_replay_truncated": "ストリームの再生が切り詰められました。現在の応答の初期の内容が一部欠落している可能性があります。",
   "chat.topics.auto_rename": "自動リネーム",
   "chat.topics.auto_rename_failed": "会話名の自動生成に失敗しました",
   "chat.topics.clear.title": "メッセージをクリア",

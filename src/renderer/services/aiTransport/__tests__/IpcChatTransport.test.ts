@@ -1,9 +1,14 @@
-import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
+
+vi.unmock('@renderer/services/toast')
+vi.unmock('@cherrystudio/ui')
 
 import { IpcChatTransport } from '../IpcChatTransport'
 
@@ -132,11 +137,18 @@ describe('IpcChatTransport', () => {
   let transport: IpcChatTransport
   let mock: ReturnType<typeof createMockAiApi>
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    toast.closeAll()
+    await i18n.changeLanguage('en-US')
     mock = createMockAiApi()
     ipcMock.request = mock.request
     ipcMock.on = mock.on
     transport = new IpcChatTransport()
+  })
+
+  afterEach(() => {
+    toast.closeAll()
+    vi.useRealTimers()
   })
 
   const topicId = 'topic-1'
@@ -296,7 +308,7 @@ describe('IpcChatTransport', () => {
   })
 
   it('reconnectToStream returns stream when attached', async () => {
-    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks: [] })
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', replayTruncated: false, bufferedChunks: [] })
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)
@@ -312,5 +324,108 @@ describe('IpcChatTransport', () => {
     const reader = stream!.getReader()
     const { done } = await reader.read()
     expect(done).toBe(true)
+  })
+})
+
+describe('truncated reconnect notifications', () => {
+  let mock: ReturnType<typeof createMockAiApi>
+  const transport = new IpcChatTransport()
+  const warning = 'Stream replay was truncated. Earlier content from the active response may be missing.'
+
+  beforeEach(async () => {
+    toast.closeAll()
+    await i18n.changeLanguage('en-US')
+    mock = createMockAiApi()
+    ipcMock.request = mock.request
+    ipcMock.on = mock.on
+  })
+
+  afterEach(() => {
+    toast.closeAll()
+    vi.useRealTimers()
+  })
+
+  it('warns in the current language while delivering surviving replay and live continuation', async () => {
+    await i18n.changeLanguage('zh-CN')
+    const replay: UIMessageChunk = { type: 'text-delta', id: 't', delta: 'survivor' }
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      replayTruncated: true,
+      bufferedChunks: [{ topicId: 'topic-1', chunk: replay }]
+    })
+    const stream = await transport.reconnectToStream({ chatId: 'topic-1' })
+    const reader = stream!.getReader()
+    expect(toast.getToastQueue().toasts).toMatchObject([
+      {
+        key: 'ai-stream-replay-truncated:topic-1',
+        type: 'warning',
+        timeout: 8000,
+        title: '流式回放已截断，当前回复的部分早期内容可能缺失。'
+      }
+    ])
+    await expect(reader.read()).resolves.toMatchObject({ value: replay })
+    mock.emitChunk('topic-1', { type: 'text-delta', id: 't', delta: ' live' })
+    mock.emitDone('topic-1')
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: ' live' } })
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+  })
+
+  it.each(['attached', 'done', 'paused', 'error', 'not-found'])(
+    'keeps %s without truncation silent and preserves existing warnings',
+    async (status) => {
+      mock.mockApi.streamAttach.mockResolvedValue({ status, replayTruncated: false, bufferedChunks: [] })
+      const first = await transport.reconnectToStream({ chatId: 'topic-1' })
+      if (status === 'attached') await first?.cancel()
+      if (status === 'error') await expect(first!.getReader().read()).rejects.toThrow()
+      expect(toast.getToastQueue().toasts).toEqual([])
+      toast.warning({ key: 'ai-stream-replay-truncated:topic-1', title: warning, timeout: 8000 })
+      const second = await transport.reconnectToStream({ chatId: 'topic-1' })
+      if (status === 'attached') await second?.cancel()
+      if (status === 'error') await expect(second!.getReader().read()).rejects.toThrow()
+      expect(toast.getToastQueue().toasts).toMatchObject([{ title: warning }])
+    }
+  )
+
+  it('warns even if a surviving chunk cannot be parsed', async () => {
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      replayTruncated: true,
+      bufferedChunks: [{ topicId: 'topic-1', chunk: { type: 'text-delta', id: 't', delta: 'missing opener' } }]
+    })
+    const stream = await transport.reconnectToStream({ chatId: 'topic-1' })
+    expect(toast.getToastQueue().toasts).toMatchObject([{ title: warning }])
+    mock.emitDone('topic-1')
+    await expect(
+      readUIMessageStream({ stream: stream!, terminateOnError: true })[Symbol.asyncIterator]().next()
+    ).rejects.toThrow()
+  })
+
+  it('coalesces both consumers per topic, separates topics, and warns again after removal or expiry', async () => {
+    const { TopicStreamSubscription } = await import('../TopicStreamSubscription')
+    vi.useFakeTimers()
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', replayTruncated: true, bufferedChunks: [] })
+    const sub = new TopicStreamSubscription('topic-1')
+    sub.register('provider::model', undefined, 1)
+    const stream = await transport.reconnectToStream({ chatId: 'topic-1' })
+    await stream?.cancel()
+    expect(toast.getToastQueue().toasts).toMatchObject([{ key: 'ai-stream-replay-truncated:topic-1', title: warning }])
+    const other = await transport.reconnectToStream({ chatId: 'topic-2' })
+    await other?.cancel()
+    expect(
+      toast
+        .getToastQueue()
+        .toasts.map((item) => item.key)
+        .sort()
+    ).toEqual(['ai-stream-replay-truncated:topic-1', 'ai-stream-replay-truncated:topic-2'])
+    toast.closeToast('ai-stream-replay-truncated:topic-1')
+    const repeat = await transport.reconnectToStream({ chatId: 'topic-1' })
+    await repeat?.cancel()
+    expect(toast.getToastQueue().toasts).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(toast.getToastQueue().toasts).toEqual([])
+    const later = await transport.reconnectToStream({ chatId: 'topic-1' })
+    await later?.cancel()
+    expect(toast.getToastQueue().toasts).toMatchObject([{ title: warning }])
+    sub.dispose()
   })
 })

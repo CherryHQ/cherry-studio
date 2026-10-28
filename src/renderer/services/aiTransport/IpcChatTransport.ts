@@ -1,7 +1,9 @@
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -80,6 +82,14 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     if (result.status === 'error') {
       return new ReadableStream<UIMessageChunk>({
         start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
+      })
+    }
+
+    if (result.replayTruncated) {
+      toast.warning({
+        key: `ai-stream-replay-truncated:${topicId}`,
+        title: i18n.t('chat.stream_replay_truncated'),
+        timeout: 8000
       })
     }
 

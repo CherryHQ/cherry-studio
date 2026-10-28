@@ -1886,7 +1886,7 @@ export class AiStreamManager extends BaseService {
         ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
       )
     }
-    return { status: 'attached', bufferedChunks }
+    return { status: 'attached', bufferedChunks, replayTruncated: totalDropped > 0 }
   }
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {

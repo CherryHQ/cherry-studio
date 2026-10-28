@@ -907,6 +907,7 @@
   "chat.settings.show_line_numbers": "代码显示行号",
   "chat.settings.thought_auto_collapse.label": "思考内容自动折叠",
   "chat.settings.thought_auto_collapse.tip": "思考结束后思考内容自动折叠",
+  "chat.stream_replay_truncated": "流式回放已截断，当前回复的部分早期内容可能缺失。",
   "chat.topics.auto_rename": "生成对话名",
   "chat.topics.auto_rename_failed": "自动生成对话名失败",
   "chat.topics.clear.title": "清空消息",

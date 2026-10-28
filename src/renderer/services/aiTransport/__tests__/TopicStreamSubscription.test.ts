@@ -1,9 +1,14 @@
-import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
+
+vi.unmock('@renderer/services/toast')
+vi.unmock('@cherrystudio/ui')
 
 import { TopicStreamSubscription } from '../TopicStreamSubscription'
 
@@ -58,7 +63,7 @@ function createMockAiApi() {
   }
   const mockApi = {
     streamOpen: vi.fn().mockResolvedValue({ mode: 'started' }),
-    streamAttach: vi.fn().mockResolvedValue({ status: 'attached', bufferedChunks: [] }),
+    streamAttach: vi.fn().mockResolvedValue({ status: 'attached', replayTruncated: false, bufferedChunks: [] }),
     streamDetach: vi.fn().mockResolvedValue(undefined),
     streamAbort: vi.fn().mockResolvedValue(undefined),
     onStreamChunk: vi.fn((cb) => {
@@ -174,10 +179,17 @@ const B = 'anthropic::claude' as UniqueModelId
 describe('TopicStreamSubscription', () => {
   let mock: ReturnType<typeof createMockAiApi>
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    toast.closeAll()
+    await i18n.changeLanguage('en-US')
     mock = createMockAiApi()
     ipcMock.request = mock.request
     ipcMock.on = mock.on
+  })
+
+  afterEach(() => {
+    toast.closeAll()
+    vi.useRealTimers()
   })
 
   it('attaches once for the topic regardless of how many executions register', async () => {
@@ -344,12 +356,18 @@ describe('TopicStreamSubscription', () => {
 
   it('detaches once attach resolves when the execution unregistered while attach was in flight', async () => {
     // Hold streamAttach open so register→unregister both happen before it resolves.
-    let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
+    let resolveAttach!: (res: {
+      status: 'attached'
+      replayTruncated: boolean
+      bufferedChunks: StreamChunkPayload[]
+    }) => void
     mock.mockApi.streamAttach.mockImplementationOnce(
       () =>
-        new Promise<{ status: 'attached'; bufferedChunks: StreamChunkPayload[] }>((resolve) => {
-          resolveAttach = resolve
-        })
+        new Promise<{ status: 'attached'; replayTruncated: boolean; bufferedChunks: StreamChunkPayload[] }>(
+          (resolve) => {
+            resolveAttach = resolve
+          }
+        )
     )
 
     const sub = new TopicStreamSubscription(TOPIC)
@@ -359,7 +377,7 @@ describe('TopicStreamSubscription', () => {
     expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
 
     // Resolving attach must detach once, with no branches left to keep Main's listener.
-    resolveAttach({ status: 'attached', bufferedChunks: [] })
+    resolveAttach({ status: 'attached', replayTruncated: false, bufferedChunks: [] })
     await tick()
     expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
     expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId: TOPIC })
@@ -385,6 +403,7 @@ describe('TopicStreamSubscription', () => {
   it('demuxes attach-replay bufferedChunks by executionId', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
+      replayTruncated: false,
       bufferedChunks: [
         { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('replayA') },
         { topicId: TOPIC, executionId: B, attemptId: 1, chunk: textChunk('replayB') }
@@ -403,6 +422,7 @@ describe('TopicStreamSubscription', () => {
   it('retires covered sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
+      replayTruncated: false,
       bufferedChunks: [
         { topicId: TOPIC, executionId: A, attemptId: 2, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') },
         { topicId: TOPIC, executionId: B, attemptId: 1, anchorMessageId: 'assistant-b', chunk: textChunk('replayB') }
@@ -430,12 +450,18 @@ describe('TopicStreamSubscription', () => {
   })
 
   it('does not reopen covered attempts when the topic terminal arrives before attach replay', async () => {
-    let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
+    let resolveAttach!: (res: {
+      status: 'attached'
+      replayTruncated: boolean
+      bufferedChunks: StreamChunkPayload[]
+    }) => void
     mock.mockApi.streamAttach.mockImplementationOnce(
       () =>
-        new Promise<{ status: 'attached'; bufferedChunks: StreamChunkPayload[] }>((resolve) => {
-          resolveAttach = resolve
-        })
+        new Promise<{ status: 'attached'; replayTruncated: boolean; bufferedChunks: StreamChunkPayload[] }>(
+          (resolve) => {
+            resolveAttach = resolve
+          }
+        )
     )
 
     const sub = new TopicStreamSubscription(TOPIC)
@@ -445,6 +471,7 @@ describe('TopicStreamSubscription', () => {
     mock.emitDone(TOPIC, B, 'success', true, 'assistant-b', 1, 2)
     resolveAttach({
       status: 'attached',
+      replayTruncated: false,
       bufferedChunks: [
         { topicId: TOPIC, executionId: A, attemptId: 2, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') },
         { topicId: TOPIC, executionId: B, attemptId: 1, anchorMessageId: 'assistant-b', chunk: textChunk('replayB') }
@@ -460,6 +487,7 @@ describe('TopicStreamSubscription', () => {
   it('retires covered replay branches on a terminal error watermark', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
+      replayTruncated: false,
       bufferedChunks: [
         { topicId: TOPIC, executionId: A, attemptId: 1, anchorMessageId: 'assistant-a', chunk: textChunk('replayA') }
       ] satisfies StreamChunkPayload[]
@@ -525,5 +553,101 @@ describe('TopicStreamSubscription', () => {
     expect(await readAll(sa)).toEqual([])
     expect(terminals).toEqual([expect.objectContaining({ isAbort: false, isError: true })])
     sub.dispose()
+  })
+})
+
+describe('truncated topic replay notifications', () => {
+  let mock: ReturnType<typeof createMockAiApi>
+  const subscriptions: TopicStreamSubscription[] = []
+  const warning = 'Stream replay was truncated. Earlier content from the active response may be missing.'
+
+  beforeEach(async () => {
+    toast.closeAll()
+    await i18n.changeLanguage('en-US')
+    mock = createMockAiApi()
+    ipcMock.request = mock.request
+    ipcMock.on = mock.on
+  })
+
+  afterEach(() => {
+    for (const sub of subscriptions.splice(0)) sub.dispose()
+    toast.closeAll()
+    vi.useRealTimers()
+  })
+
+  function subscribe(topicId = TOPIC) {
+    const sub = new TopicStreamSubscription(topicId)
+    subscriptions.push(sub)
+    return { sub, stream: sub.register(A, undefined, 1) }
+  }
+
+  it('warns with the current language and preserves replay plus live continuation', async () => {
+    await i18n.changeLanguage('zh-CN')
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      replayTruncated: true,
+      bufferedChunks: [{ topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('survivor') }]
+    })
+    const { stream } = subscribe()
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: textChunk('survivor') })
+    expect(toast.getToastQueue().toasts).toMatchObject([
+      {
+        key: `ai-stream-replay-truncated:${TOPIC}`,
+        type: 'warning',
+        timeout: 8000,
+        title: '流式回放已截断，当前回复的部分早期内容可能缺失。'
+      }
+    ])
+    mock.emitChunk(TOPIC, A, textChunk(' live'))
+    mock.emitDone(TOPIC, A, 'success', true)
+    await expect(reader.read()).resolves.toMatchObject({ value: textChunk(' live') })
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+  })
+
+  it.each(['attached', 'done', 'paused', 'error', 'not-found'])(
+    'keeps %s without truncation silent and preserves existing warnings',
+    async (status) => {
+      mock.mockApi.streamAttach.mockResolvedValue({ status, replayTruncated: false, bufferedChunks: [] })
+      const { sub } = subscribe()
+      // The request is already resolved; let its continuation complete without a timer.
+      await Promise.resolve()
+      expect(toast.getToastQueue().toasts).toEqual([])
+      sub.dispose()
+      toast.warning({ key: `ai-stream-replay-truncated:${TOPIC}`, title: warning, timeout: 8000 })
+      subscribe()
+      await Promise.resolve()
+      expect(toast.getToastQueue().toasts).toMatchObject([{ title: warning }])
+    }
+  )
+
+  it('warns even if a surviving chunk cannot be parsed', async () => {
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      replayTruncated: true,
+      bufferedChunks: [{ topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('missing opener') }]
+    })
+    const { stream } = subscribe()
+    await Promise.resolve()
+    expect(toast.getToastQueue().toasts).toMatchObject([{ title: warning }])
+    mock.emitDone(TOPIC, A, 'success', true)
+    await expect(
+      readUIMessageStream({ stream, terminateOnError: true })[Symbol.asyncIterator]().next()
+    ).rejects.toThrow()
+  })
+
+  it('ignores a truncated attach that resolves after disposal', async () => {
+    let resolve!: (value: unknown) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(() => new Promise((done) => (resolve = done)))
+    const { sub, stream } = subscribe()
+    sub.dispose()
+    resolve({
+      status: 'attached',
+      replayTruncated: true,
+      bufferedChunks: [{ topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('must not deliver') }]
+    })
+    await Promise.resolve()
+    expect(toast.getToastQueue().toasts).toEqual([])
+    expect(await readAll(stream)).toEqual([])
   })
 })

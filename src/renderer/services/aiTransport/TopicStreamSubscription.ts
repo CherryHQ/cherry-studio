@@ -1,7 +1,9 @@
 import type { UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -459,6 +461,13 @@ export class TopicStreamSubscription {
         this.#attached = true
         switch (res.status) {
           case 'attached':
+            if (res.replayTruncated) {
+              toast.warning({
+                key: `ai-stream-replay-truncated:${this.#topicId}`,
+                title: i18n.t('chat.stream_replay_truncated'),
+                timeout: 8000
+              })
+            }
             for (const payload of res.bufferedChunks) this.#routeChunk(payload)
             break
           case 'not-found':
