@@ -224,6 +224,117 @@ describe('SkillService', () => {
       }
       const rows = () => dbh.db.select().from(agentGlobalSkillTable).all()
 
+      it.each([
+        ['skip', 1],
+        ['skip', 3],
+        ['keep_both', 1],
+        ['keep_both', 3]
+      ] as const)('installs %s imports with %i inputs across filesystems', async (policy, count) => {
+        if (policy === 'keep_both')
+          await service.installFromDirectory({ directoryPath: await directory('old/first', 'old') })
+        const before = rows().map((row) => row.folderName)
+        const items: SkillImportInput[] = []
+        for (const name of ['first', 'second', 'third'].slice(0, count)) {
+          const selected = await directory(`incoming/${name}`, name)
+          await fs.promises.mkdir(path.join(selected, 'scripts'))
+          await fs.promises.writeFile(path.join(selected, 'scripts', 'run.sh'), `#!/bin/sh\necho ${name}\n`)
+          items.push(input(name, selected))
+        }
+        const rename = fs.promises.rename
+        vi.spyOn(fs.promises, 'rename').mockImplementation(async (source, destination) => {
+          if (
+            String(source).startsWith(path.join(root, 'zip-install-')) &&
+            String(destination).startsWith(path.join(root, 'library') + path.sep)
+          )
+            throw Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
+          return rename(source, destination)
+        })
+
+        const { preview, outcomes } = await run(items, policy)
+
+        expect(outcomes).toEqual(
+          items.map((item, index) => ({
+            id: item.id,
+            status: 'installed',
+            skillId: expect.any(String),
+            folderName: preview.items[index].destinationFolder
+          }))
+        )
+        expect(preview.items[0].status).toBe(policy === 'skip' ? 'new' : 'conflict')
+        expect(rows()).toHaveLength(before.length + count)
+        const installer = new SkillInstaller()
+        for (const [index, item] of items.entries()) {
+          const folderName = preview.items[index].destinationFolder!
+          expect(outcomes[index]).toMatchObject({
+            status: 'installed',
+            skillId: rows().find((row) => row.folderName === folderName)?.id,
+            folderName
+          })
+          expect(await installer.computeDirectoryHash(path.join(root, 'library', folderName))).toBe(
+            await installer.computeDirectoryHash(item.path)
+          )
+        }
+        expect((await fs.promises.readdir(path.join(root, 'library'))).sort()).toEqual(
+          [...before, ...preview.items.map((item) => item.destinationFolder!)].sort()
+        )
+      })
+
+      it('installs identical later content when the earlier conflict is skipped', async () => {
+        const installed = await service.installFromDirectory({ directoryPath: await directory('old/same', 'A') })
+        const items = [
+          input('same', await directory('incoming/same', 'B')),
+          input('renamed', await directory('incoming/renamed', 'B'))
+        ]
+        const { preview, outcomes } = await run(items, 'skip')
+
+        expect.soft(preview.items[1]).toMatchObject({ status: 'new', reasons: [], target: null, otherMatches: [] })
+        expect(outcomes[0]).toEqual({ id: 'same', status: 'skipped', skillId: installed.id, folderName: 'same' })
+        expect(outcomes[1]).toEqual({
+          id: 'renamed',
+          status: 'installed',
+          skillId: expect.any(String),
+          folderName: 'renamed'
+        })
+        expect(rows()).toEqual(
+          expect.arrayContaining([expect.objectContaining({ folderName: 'renamed', description: 'B' })])
+        )
+        expect(await fs.promises.readFile(path.join(root, 'library', 'same', 'extra.txt'), 'utf8')).toBe('A')
+        expect(await new SkillInstaller().computeDirectoryHash(path.join(root, 'library', 'renamed'))).toBe(
+          await new SkillInstaller().computeDirectoryHash(items[1].path)
+        )
+      })
+
+      it.each(['skip', 'update'] as const)(
+        'installs later content after an unmanaged first destination under %s',
+        async (policy) => {
+          await directory('library/same', 'unmanaged')
+          const items = [
+            input('same', await directory('incoming/same', 'B')),
+            input('renamed', await directory('incoming/renamed', 'B'))
+          ]
+          const { preview, outcomes } = await run(items, policy)
+
+          expect.soft(preview.items[1]).toMatchObject({ status: 'new', reasons: [], target: null, otherMatches: [] })
+          expect(preview.items[0]).toMatchObject(
+            policy === 'update' ? { status: 'blocked', code: 'disk_occupancy' } : { status: 'conflict', target: null }
+          )
+          expect(outcomes[0]).toMatchObject(
+            policy === 'update' ? { status: 'blocked', code: 'disk_occupancy' } : { status: 'skipped' }
+          )
+          expect(outcomes[1]).toEqual({
+            id: 'renamed',
+            status: 'installed',
+            skillId: expect.any(String),
+            folderName: 'renamed'
+          })
+          expect(rows()).toEqual([expect.objectContaining({ folderName: 'renamed', description: 'B' })])
+          expect(await fs.promises.readFile(path.join(root, 'library', 'same', 'extra.txt'), 'utf8')).toBe('unmanaged')
+          expect(await new SkillInstaller().computeDirectoryHash(path.join(root, 'library', 'renamed'))).toBe(
+            await new SkillInstaller().computeDirectoryHash(items[1].path)
+          )
+        }
+      )
+
       it('preserves a concurrent new directory created during an earlier update', async () => {
         const installed = await service.installFromDirectory({ directoryPath: await directory('old/first', 'old') })
         const items = [
@@ -511,8 +622,11 @@ describe('SkillService', () => {
           input('c', await directory('c/renamed'))
         ]
         const preview = await service.previewImport({ items, policy: 'update' })
-        vi.spyOn(SkillInstaller.prototype, 'prepareInstall').mockRejectedValueOnce(new Error('publication failure'))
-        vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('publication failure'))
+        const mkdir = fs.promises.mkdir
+        vi.spyOn(fs.promises, 'mkdir').mockImplementation(async (...args: Parameters<typeof mkdir>) => {
+          if (String(args[0]) === path.join(root, 'library', 'same')) throw new Error('publication failure')
+          return mkdir(...args)
+        })
         expect(await service.applyImport({ items, policy: 'update', revision: preview.revision })).toEqual([
           { id: 'a', status: 'error', code: 'publish_failed', retryable: true },
           { id: 'b', status: 'error', code: 'dependency_failed', retryable: true },

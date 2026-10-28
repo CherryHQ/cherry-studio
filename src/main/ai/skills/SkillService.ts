@@ -502,8 +502,14 @@ export class SkillService {
       const diskMatches = entries.filter((disk) => normalizeFolderKey(disk.name) === key)
       const hashMatches = skills.filter((skill) => hashes.get(skill.folderName) === incoming.hash)
       const previous = prepared.slice(0, index)
-      const earlierFolder = previous.findIndex((item) => item.hash && normalizeFolderKey(item.folder!) === key)
-      const earlierHash = previous.findIndex((item) => item.hash === incoming.hash)
+      const willPublish = (previousIndex: number) =>
+        !items[previousIndex].code && !(policy === 'skip' && items[previousIndex].status === 'conflict')
+      const earlierFolder = previous.findIndex(
+        (item, previousIndex) => willPublish(previousIndex) && item.hash && normalizeFolderKey(item.folder!) === key
+      )
+      const earlierHash = previous.findIndex(
+        (item, previousIndex) => willPublish(previousIndex) && item.hash === incoming.hash
+      )
       const prospective = (previousIndex: number): SkillImportTarget => ({
         kind: 'input',
         id: prepared[previousIndex].input.id,
@@ -534,7 +540,11 @@ export class SkillService {
         ...new Map([...folderMatches, ...hashMatches].map((skill) => [skill.id, installedTarget(skill)])).values()
       ]
       for (const [previousIndex, item] of previous.entries()) {
-        if (item.hash && (normalizeFolderKey(item.folder!) === key || item.hash === incoming.hash))
+        if (
+          willPublish(previousIndex) &&
+          item.hash &&
+          (normalizeFolderKey(item.folder!) === key || item.hash === incoming.hash)
+        )
           matches.push(prospective(previousIndex))
       }
       entry.otherMatches = matches.filter((match) => match.kind !== entry.target?.kind || match.id !== entry.target.id)
@@ -623,10 +633,7 @@ export class SkillService {
     }
     let changedId: string | undefined
     try {
-      if (!target) {
-        for (const entry of await fs.promises.readdir(staging))
-          await fs.promises.rename(path.join(staging, entry), path.join(destination, entry))
-      }
+      if (!target) await copyDirectoryRecursive(staging, destination)
       if ((await this.installer.computeDirectoryHash(destination)) !== item.hash)
         throw new Error('Published skill differs from the validated plan')
       const values = {
