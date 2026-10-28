@@ -3786,6 +3786,8 @@
   "settings.browser.search": "依標題或網址搜尋紀錄",
   "settings.browser.site_data": "網站資料",
   "settings.browser.source": "瀏覽器",
+  "settings.browser.spellcheck": "瀏覽器頁面拼字檢查",
+  "settings.browser.spellcheckHelp": "檢查內建瀏覽器開啟頁面中的拼字。預設關閉，同時阻止 webview 工作階段下載拼字詞典。",
   "settings.browser.title": "瀏覽器",
   "settings.browser.unsupported": "部分資料不受支援",
   "settings.channels.title": "頻道",

@@ -3786,6 +3786,8 @@
   "settings.browser.search": "Αναζήτηση ιστορικού με τίτλο ή URL",
   "settings.browser.site_data": "Δεδομένα ιστοτόπων",
   "settings.browser.source": "Πρόγραμμα περιήγησης",
+  "settings.browser.spellcheck": "Ορθογραφικός έλεγχος στις σελίδες του προγράμματος περιήγησης",
+  "settings.browser.spellcheckHelp": "Έλεγχος ορθογραφίας στις σελίδες που ανοίγει το ενσωματωμένο πρόγραμμα περιήγησης. Απενεργοποιημένο από προεπιλογή, το οποίο εμποδίζει επίσης τις συνεδρίες webview να κατεβάζουν λεξικά ορθογραφίας.",
   "settings.browser.title": "Πρόγραμμα περιήγησης",
   "settings.browser.unsupported": "Ορισμένα δεδομένα δεν υποστηρίζονται",
   "settings.channels.title": "Κανάλια",

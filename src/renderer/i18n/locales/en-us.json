@@ -3786,6 +3786,8 @@
   "settings.browser.search": "Search history by title or URL",
   "settings.browser.site_data": "Website data",
   "settings.browser.source": "Browser",
+  "settings.browser.spellcheck": "Spell check in browser pages",
+  "settings.browser.spellcheckHelp": "Check spelling in pages opened by the built-in browser. Off by default, which also keeps webview sessions from downloading spelling dictionaries.",
   "settings.browser.title": "Browser",
   "settings.browser.unsupported": "Some data is unsupported",
   "settings.channels.title": "Channels",

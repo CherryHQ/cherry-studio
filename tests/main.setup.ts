@@ -83,6 +83,7 @@ vi.mock('electron', async () => {
       getVersion: vi.fn(() => '1.0.0'),
       getLocale: vi.fn(() => 'en-US'),
       getPreferredSystemLanguages: vi.fn(() => ['en-US']),
+      isReady: vi.fn(() => true),
       // Explicit false (matching the previous `undefined` semantics) so the
       // dev-only logs diversion in core/paths/constants.ts stays exercised.
       isPackaged: false,
@@ -122,6 +123,9 @@ vi.mock('electron', async () => {
       defaultSession: {
         clearCache: vi.fn(),
         clearStorageData: vi.fn(),
+        setSpellCheckerEnabled: vi.fn(),
+        setSpellCheckerLanguages: vi.fn(),
+        availableSpellCheckerLanguages: [],
         webRequest: {
           onBeforeSendHeaders: vi.fn()
         }
@@ -142,6 +146,9 @@ vi.mock('electron', async () => {
           setPermissionCheckHandler: vi.fn(),
           setDisplayMediaRequestHandler: vi.fn(),
           setDevicePermissionHandler: vi.fn(),
+          setSpellCheckerEnabled: vi.fn(),
+          setSpellCheckerLanguages: vi.fn(),
+          availableSpellCheckerLanguages: ['en-US', 'de'],
           protocol: { handle: vi.fn(), unhandle: vi.fn() },
           webRequest: {
             onBeforeRequest: vi.fn(),

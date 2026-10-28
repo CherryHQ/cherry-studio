@@ -3786,6 +3786,8 @@
   "settings.browser.search": "タイトルや URL で履歴を検索",
   "settings.browser.site_data": "サイトデータ",
   "settings.browser.source": "ブラウザー",
+  "settings.browser.spellcheck": "ブラウザページのスペルチェック",
+  "settings.browser.spellcheckHelp": "内蔵ブラウザで開いたページのスペルをチェックします。既定ではオフで、webview セッションによるスペル辞書のダウンロードも止まります。",
   "settings.browser.title": "ブラウザー",
   "settings.browser.unsupported": "一部のデータは未対応です",
   "settings.channels.title": "チャンネル",

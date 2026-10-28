@@ -11,6 +11,7 @@ import type { WebviewAnnotation, WebviewAnnotationTarget } from '@shared/types/w
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
+import { applySpellcheck, isBrowserSession } from '../webviewSpellcheck'
 import { exportAnnotationDocument } from './annotationExport'
 import { AnnotationSession } from './AnnotationSession'
 import { RemoteDebuggingMonitor } from './RemoteDebuggingMonitor'
@@ -311,7 +312,17 @@ export class WebviewService extends BaseService {
   }
 
   setSpellCheckerEnabled(webviewId: number, isEnable: boolean, senderId: WindowId | null): void {
-    this.findOwnedGuest(webviewId, senderId)?.session.setSpellCheckerEnabled(isEnable)
+    const guest = this.findOwnedGuest(webviewId, senderId)
+    if (!guest) return
+    // Browser panes follow app.browser.spellcheck; the renderer's copy of the
+    // global preference must not flip them on navigation. Other webviews (mini
+    // apps) keep following the global preference, with their dictionary list
+    // gated at session creation (see webviewSpellcheck.ts).
+    if (isBrowserSession(guest.session)) return
+    const languages = isEnable
+      ? application.get('PreferenceService').get('app.spell_check.languages')
+      : ([] as string[])
+    applySpellcheck(guest.session, { enabled: isEnable, languages })
   }
 
   setOpenLinkExternal(webviewId: number, isExternal: boolean, senderId: WindowId | null): void {

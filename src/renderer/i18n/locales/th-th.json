@@ -3786,6 +3786,8 @@
   "settings.browser.search": "ค้นหาประวัติด้วยชื่อหรือ URL",
   "settings.browser.site_data": "ข้อมูลเว็บไซต์",
   "settings.browser.source": "เบราว์เซอร์",
+  "settings.browser.spellcheck": "ตรวจสอบการสะกดในหน้าเว็บของเบราว์เซอร์",
+  "settings.browser.spellcheckHelp": "ตรวจสอบการสะกดในหน้าที่เปิดด้วยเบราว์เซอร์ในแอป ปิดไว้โดยค่าเริ่มต้น ซึ่งยังป้องกันไม่ให้เซสชัน webview ดาวน์โหลดพจนานุกรมการสะกด",
   "settings.browser.title": "เบราว์เซอร์",
   "settings.browser.unsupported": "ข้อมูลบางส่วนไม่รองรับ",
   "settings.channels.title": "แชนแนล",

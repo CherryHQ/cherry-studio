@@ -37,6 +37,7 @@ export function BrowserSettings() {
   const { t } = useTranslation()
   const [openLinks, setOpenLinks] = usePreference('app.browser.open_links_in_browser')
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
+  const [spellcheck, setSpellcheck] = usePreference('app.browser.spellcheck')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
   const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
@@ -89,6 +90,32 @@ export function BrowserSettings() {
               setError(false)
               try {
                 await setOpenLinks(value)
+              } catch {
+                setError(true)
+              } finally {
+                setSaving(false)
+              }
+            }}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-browser-spellcheck" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0">
+            <SettingRowTitle id="browser-spellcheck-title">{t('settings.browser.spellcheck')}</SettingRowTitle>
+            <SettingDescription id="browser-spellcheck-help">{t('settings.browser.spellcheckHelp')}</SettingDescription>
+          </div>
+          <Switch
+            id="browser-spellcheck"
+            aria-labelledby="browser-spellcheck-title"
+            aria-describedby="browser-spellcheck-help"
+            className="mt-0.5"
+            checked={spellcheck}
+            disabled={saving}
+            onCheckedChange={async (value) => {
+              setSaving(true)
+              setError(false)
+              try {
+                await setSpellcheck(value)
               } catch {
                 setError(true)
               } finally {

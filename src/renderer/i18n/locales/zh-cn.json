@@ -3786,6 +3786,8 @@
   "settings.browser.search": "按标题或网址搜索记录",
   "settings.browser.site_data": "网站数据",
   "settings.browser.source": "浏览器",
+  "settings.browser.spellcheck": "浏览器页面拼写检查",
+  "settings.browser.spellcheckHelp": "检查内置浏览器打开页面中的拼写。默认关闭，同时阻止 webview 会话下载拼写词典。",
   "settings.browser.title": "浏览器",
   "settings.browser.unsupported": "部分数据不受支持",
   "settings.channels.title": "频道",

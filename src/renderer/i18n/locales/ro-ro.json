@@ -3786,6 +3786,8 @@
   "settings.browser.search": "Caută în istoric după titlu sau URL",
   "settings.browser.site_data": "Datele site-urilor",
   "settings.browser.source": "Browser",
+  "settings.browser.spellcheck": "Verificare ortografică în paginile browserului",
+  "settings.browser.spellcheckHelp": "Verifică ortografia în paginile deschise de browserul integrat. Dezactivat implicit, ceea ce împiedică și sesiunile webview să descarce dicționare.",
   "settings.browser.title": "Browser",
   "settings.browser.unsupported": "Unele date nu sunt acceptate",
   "settings.channels.title": "Canale",

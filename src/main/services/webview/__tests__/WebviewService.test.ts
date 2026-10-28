@@ -10,6 +10,7 @@ import { WebSocketServer } from 'ws'
 import { application } from '@application'
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 const {
   getBrowserService,
@@ -23,21 +24,37 @@ const {
   agentSessions
 } = vi.hoisted(() => ({
   getBrowserService: vi.fn(),
-  agentSessions: new Map<string, { setSpellCheckerEnabled: ReturnType<typeof vi.fn> }>(),
+  agentSessions: new Map<
+    string,
+    {
+      setSpellCheckerEnabled: ReturnType<typeof vi.fn>
+      setSpellCheckerLanguages: ReturnType<typeof vi.fn>
+      availableSpellCheckerLanguages: string[]
+    }
+  >(),
   guestById: new Map<number, unknown>(),
   guestByTarget: new Map<string, unknown>(),
   getAllWebContents: vi.fn(() => [] as unknown[]),
   getWindow: vi.fn(),
   getPath: vi.fn(() => '/app/out/preload/webview.js'),
   siteSession: {
+    partition: 'persist:webview',
     on: vi.fn(),
     removeListener: vi.fn(),
     getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
     setUserAgent: vi.fn(),
     setSpellCheckerEnabled: vi.fn(),
+    setSpellCheckerLanguages: vi.fn(),
+    availableSpellCheckerLanguages: ['en-US'],
     webRequest: { onBeforeSendHeaders: vi.fn() }
   },
-  localSession: { setSpellCheckerEnabled: vi.fn(), removeListener: vi.fn() }
+  localSession: {
+    partition: 'persist:miniapp:com.example',
+    setSpellCheckerEnabled: vi.fn(),
+    setSpellCheckerLanguages: vi.fn(),
+    availableSpellCheckerLanguages: ['en-US'],
+    removeListener: vi.fn()
+  }
 }))
 
 vi.mock('@application', async () => {
@@ -81,6 +98,7 @@ vi.mock('electron', () => ({
   app: {
     on: vi.fn(),
     removeListener: vi.fn(),
+    getLocale: vi.fn(() => 'en-US'),
     commandLine: {
       hasSwitch: vi.fn(() => false),
       getSwitchValue: vi.fn(() => '')
@@ -95,7 +113,11 @@ vi.mock('electron', () => ({
       if (partition.startsWith('agent-') || partition === 'persist:agent-browser') {
         let agentSession = agentSessions.get(partition)
         if (!agentSession) {
-          agentSession = { setSpellCheckerEnabled: vi.fn() }
+          agentSession = {
+            setSpellCheckerEnabled: vi.fn(),
+            setSpellCheckerLanguages: vi.fn(),
+            availableSpellCheckerLanguages: ['en-US']
+          }
           agentSessions.set(partition, agentSession)
         }
         return agentSession
@@ -522,6 +544,33 @@ describe('WebviewService webview ownership', () => {
     service.setSpellCheckerEnabled(7, false, 'owner')
 
     expect(guestSession.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
+    expect(guestSession.setSpellCheckerLanguages).toHaveBeenCalledWith([])
+  })
+
+  it('enables an owned mini app without clearing its language list', () => {
+    const guest = createContents(7, host, { session: siteSession })
+    guestById.set(7, guest)
+
+    service.setSpellCheckerEnabled(7, true, 'owner')
+
+    // The global language preference defaults to []; writing that empty list
+    // would set kSpellCheckEnable to false on Windows and Linux.
+    expect(siteSession.setSpellCheckerLanguages).toHaveBeenLastCalledWith(['en-US'])
+    expect(siteSession.setSpellCheckerLanguages).not.toHaveBeenCalledWith([])
+    expect(siteSession.setSpellCheckerEnabled).toHaveBeenLastCalledWith(true)
+  })
+
+  it('leaves agent browser panes to app.browser.spellcheck', () => {
+    const browserSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    const guest = createContents(7, host, { session: browserSession })
+    guestById.set(7, guest)
+    vi.mocked(browserSession.setSpellCheckerEnabled).mockClear()
+    vi.mocked(browserSession.setSpellCheckerLanguages).mockClear()
+
+    service.setSpellCheckerEnabled(7, true, 'owner')
+
+    expect(browserSession.setSpellCheckerEnabled).not.toHaveBeenCalled()
+    expect(browserSession.setSpellCheckerLanguages).not.toHaveBeenCalled()
   })
 
   it('ignores best-effort guest settings after the guest has detached', () => {
