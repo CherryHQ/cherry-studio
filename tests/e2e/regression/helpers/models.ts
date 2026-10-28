@@ -16,9 +16,7 @@ export async function selectVisibleModel(page: Page, model: string, providerId?:
   await search.fill(modelName)
   // Without the provider, another provider exposing the same model id can match first.
   const option = providerId
-    ? selector.locator(
-        `[role="option"][data-testid="model-selector-item-${createUniqueModelId(providerId, model)}"]`
-      )
+    ? selector.locator(`[role="option"][data-testid="model-selector-item-${createUniqueModelId(providerId, model)}"]`)
     : selector
         .locator(`[role="option"][data-testid$="::${model}"], [role="option"][data-testid$="::${modelName}"]`)
         .first()
