@@ -16,7 +16,7 @@ Windows folder selection can also accept the default directory when process acti
 
 Scenario cleanup cancels only Windows file dialogs belonging to the verified driver-owned Electron process. It recognizes a native file input and Cancel button instead of dismissing arbitrary windows or accepting a pending save.
 
-Windows folder selection focuses that dialog, opens its address field and sets the literal path through ValuePattern. It reads the value back before committing and waits for the same dialog to close or leave address-editing mode before accepting. The caller retains its exact selected-directory assertion.
+Windows folder selection activates the owned dialog by its native handle and verifies foreground ownership before sending keys. It opens the address field and sets the literal path through ValuePattern, reads the value back before committing, and waits for the same dialog to close or leave address-editing mode before accepting. The caller retains its exact selected-directory assertion.
 
 ## Alternatives considered
 
@@ -24,6 +24,7 @@ Windows folder selection focuses that dialog, opens its address field and sets t
 - Catching export errors or accepting any nonempty file hides broken output and cross-case contamination.
 - Restarting Electron after every failure hides the leaked dialog and discards shared-run behavior.
 - Longer keyboard delays do not verify focus or preserve literal path characters.
+- UI Automation SetFocus depends on the provider and does not guarantee foreground activation; use the native window activation API and verify the result.
 
 ## Consequences
 
