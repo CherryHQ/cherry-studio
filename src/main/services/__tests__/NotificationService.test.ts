@@ -8,6 +8,7 @@ import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
+import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 
@@ -31,6 +32,8 @@ const mocks = vi.hoisted(() => ({
     click?: () => void
     show: ReturnType<typeof vi.fn<() => void>>
   }>,
+  edition: vi.fn(() => 'global'),
+  fetch: vi.fn<typeof fetch>(),
   focusOrOpen: vi.fn(() => Promise.resolve()),
   isActiveInFocusedWindow: vi.fn(async () => false),
   getWindowInfosByType: vi.fn(),
@@ -76,6 +79,7 @@ vi.mock('@main/i18n', () => ({
   )
 }))
 vi.mock('electron', () => ({
+  net: { fetch: mocks.fetch },
   app: {
     setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
   },
@@ -97,8 +101,10 @@ vi.mock('electron', () => ({
     }
   }
 }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: mocks.edition }))
 
 const { NotificationService } = await import('../NotificationService')
+const { OfficialAnnouncementService } = await import('../OfficialAnnouncementService')
 
 const mainWindowInfo = (overrides: Partial<WindowInfo> = {}): WindowInfo => ({
   id: 'main-1',
@@ -233,6 +239,254 @@ describe('NotificationService', () => {
     await service._doStop()
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  describe('official announcement polling', () => {
+    let announcements: InstanceType<typeof OfficialAnnouncementService>
+    let scheduler: SchedulerService
+    let preferenceChanged: () => void
+    const interval = 30 * 60 * 1000
+    const announcement = (id: string, published_at = '2026-10-28T01:00:00.000001Z') => ({
+      id,
+      published_at,
+      title: `Announcement ${id}`,
+      content: '**中文** 😀\n<b>plain text</b>',
+      platforms: ['desktop'],
+      products: ['global', 'cn']
+    })
+    const respond = (items = [announcement('one')], total = items.length) => Response.json({ items, total })
+    const enable = (enabled: boolean) => {
+      mocks.preferenceValues['app.notification.center.official.enabled'] = enabled
+      preferenceChanged()
+    }
+
+    beforeEach(async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-10-28T02:00:00Z'))
+      mocks.edition.mockReturnValue('global')
+      mocks.fetch.mockReset().mockImplementation(async () => respond())
+      scheduler = new SchedulerService()
+      const get = vi.mocked(application.get).getMockImplementation()!
+      vi.mocked(application.get).mockImplementation(((name: string) => {
+        if (name === 'SchedulerService') return scheduler
+        if (name === 'NotificationService') return service
+        if (name === 'PreferenceService')
+          return {
+            ...get(name),
+            subscribeChange: (_key: string, listener: () => void) => {
+              preferenceChanged = listener
+              return () => {
+                preferenceChanged = () => {}
+              }
+            }
+          }
+        return get(name as never)
+      }) as typeof application.get)
+      announcements = new OfficialAnnouncementService()
+      await announcements._doInit()
+    })
+
+    afterEach(async () => {
+      await announcements._doStop()
+      await scheduler._doStop()
+      vi.clearAllTimers()
+    })
+
+    it.each(['global', 'cn'])(
+      'requests the %s desktop feed after all-ready and polls after completion',
+      async (edition) => {
+        mocks.edition.mockReturnValue(edition)
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(mocks.fetch).not.toHaveBeenCalled()
+        await announcements._doAllReady()
+        await vi.advanceTimersByTimeAsync(4999)
+        expect(notificationRecordService.unreadCount()).toBe(0)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(mocks.fetch.mock.calls[0][0]).toBe(
+          `https://api.cherry-ai.com/api/announcements?platform=desktop&product=${edition}&limit=100&offset=0`
+        )
+        expect(notificationRecordService.list({}).items[0]).toMatchObject({
+          createdAt: Date.parse('2026-10-28T01:00:00Z'),
+          readAt: null,
+          message: '**中文** 😀 <b>plain text</b>',
+          target: { content: announcement('one').content }
+        })
+        await vi.advanceTimersByTimeAsync(interval - 1)
+        expect(mocks.fetch).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(mocks.fetch).toHaveBeenCalledTimes(2)
+        expect(notificationRecordService.unreadCount()).toBe(1)
+        expect(mocks.electronNotifications).toHaveLength(0)
+      }
+    )
+
+    it('preserves read and dismissed versions across restart and distinguishes fractional republication', async () => {
+      mocks.fetch.mockImplementation(async () => respond([announcement('read'), announcement('dismissed')]))
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      const records = notificationRecordService.list({}).items
+      const read = records.find((record) => record.title === 'Announcement read')!
+      notificationRecordService.markRead(read.id)
+      notificationRecordService.dismiss(records.find((record) => record.id !== read.id)!.id)
+      await announcements._doStop()
+      await announcements._doInit()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.list({}).items).toHaveLength(1)
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      mocks.fetch.mockImplementation(async () => respond([announcement('read', '2026-10-28T01:00:00.000002Z')]))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.list({}).items).toHaveLength(2)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+    })
+
+    it('continues past duplicates and recovers offset shifts on the next complete poll', async () => {
+      const first = Array.from({ length: 100 }, (_, index) => announcement(String(index)))
+      mocks.fetch
+        .mockImplementationOnce(async () => respond(first, 102))
+        .mockImplementationOnce(async () => respond([first[99], announcement('tail')], 102))
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.unreadCount()).toBe(101)
+      expect(new URL(String(mocks.fetch.mock.calls[1][0])).searchParams.get('offset')).toBe('100')
+      mocks.fetch
+        .mockImplementationOnce(async () => respond(first, 102))
+        .mockImplementationOnce(async () => respond([announcement('missing'), announcement('tail')], 102))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(102)
+      mocks.fetch.mockImplementation(async () => respond([], 102))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(102)
+    })
+
+    it('stops at the 30-day boundary and truncates summaries by code point without changing content', async () => {
+      const cutoff = new Date(Date.now() + 5000 - 30 * 24 * 60 * 60 * 1000).toISOString()
+      const content = `${'中'.repeat(239)}😀\n  **end**`
+      mocks.fetch.mockImplementation(async () =>
+        respond(
+          [
+            { ...announcement('recent'), content },
+            announcement('boundary', cutoff),
+            announcement('old', '2026-01-01T00:00:00Z')
+          ],
+          500
+        )
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.list({}).items).toEqual([
+        expect.objectContaining({
+          message: `${'中'.repeat(239)}😀`,
+          target: { kind: 'announcement', content }
+        })
+      ])
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      [
+        'network error',
+        () => {
+          throw new TypeError('Network request failed')
+        }
+      ],
+      ['503', () => new Response('unavailable', { status: 503 })],
+      ['invalid JSON', () => new Response('{')],
+      ['null items', () => Response.json({ items: null, total: 1 })],
+      ['invalid total', () => Response.json({ items: [], total: -1 })],
+      ['invalid timestamp', () => respond([announcement('bad', '2026-02-30T00:00:00Z')])]
+    ] as const)('retains history after %s and retries next round', async (_name, response) => {
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      mocks.fetch.mockImplementationOnce(async () => response())
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      mocks.fetch.mockImplementationOnce(async () => respond([announcement('new')]))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(2)
+    })
+
+    it('retries unwritten records after a partial persistence failure', async () => {
+      const create = notificationRecordService.create.bind(notificationRecordService)
+      vi.spyOn(notificationRecordService, 'create')
+        .mockImplementationOnce(create)
+        .mockImplementationOnce(() => {
+          throw new Error('disk full')
+        })
+      mocks.fetch.mockImplementation(async () =>
+        respond([announcement('one'), announcement('two'), announcement('three')])
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(3)
+    })
+
+    it('stays idle while disabled and leaves history untouched on an empty feed', async () => {
+      enable(false)
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(mocks.fetch).not.toHaveBeenCalled()
+      enable(true)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      mocks.fetch.mockImplementation(async () => respond([], 0))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      enable(false)
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(['disable', 'stop'])('discards late responses after %s and keeps the new poll schedule', async (action) => {
+      let resolve!: (response: Response) => void
+      mocks.fetch.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done
+          })
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      const signal = mocks.fetch.mock.calls[0][1]!.signal!
+      if (action === 'stop') await announcements._doStop()
+      else enable(false)
+      expect(signal.aborted).toBe(true)
+      if (action === 'stop') await announcements._doInit()
+      else enable(true)
+      resolve(respond([announcement('stale')]))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.list({}).items.map((record) => record.title)).toEqual(['Announcement one'])
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(mocks.fetch).toHaveBeenCalledTimes(3)
+    })
+
+    it('times out a stalled response body and waits 30 minutes after failure before retrying', async () => {
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+        const controller = new AbortController()
+        setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), ms)
+        return controller.signal
+      })
+      mocks.fetch.mockImplementationOnce(
+        async (_url, options) =>
+          ({
+            ok: true,
+            json: () =>
+              new Promise((_resolve, reject) =>
+                options!.signal!.addEventListener('abort', () => reject(options!.signal!.reason))
+              )
+          }) as Response
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000 + 14_999)
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(1 + interval - 1)
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+    })
   })
 
   it('persists completions with OS delivery off and never resurrects a dismissed duplicate', () => {

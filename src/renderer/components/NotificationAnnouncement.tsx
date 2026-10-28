@@ -1,7 +1,6 @@
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Markdown, type MarkdownProps } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { NotificationTarget } from '@shared/data/types/notification'
@@ -22,36 +21,11 @@ export default function NotificationAnnouncement({
 }) {
   const { t } = useTranslation()
   const { url: announcementUrl } = announcement
-  const components = useMemo<MarkdownProps['components']>(
-    () => ({
-      a: ({ href, children }) => {
-        if (!href) return <span>{children}</span>
-        let url: string
-        try {
-          url = new URL(href, announcementUrl).href
-        } catch {
-          return <span>{children}</span>
-        }
-        return (
-          <a
-            href={url}
-            onClick={(event) => {
-              event.preventDefault()
-              openLink(url)
-            }}>
-            {children}
-          </a>
-        )
-      }
-    }),
-    [announcementUrl]
-  )
-
   return (
     <>
-      <Markdown id={`notification-${id}`} components={components} className="text-sm text-muted-foreground">
+      <div id={`notification-${id}`} className="whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground">
         {announcement.content}
-      </Markdown>
+      </div>
       {announcementUrl && (
         <Button variant="outline" onClick={() => openLink(announcementUrl)}>
           {t('common.open')}
