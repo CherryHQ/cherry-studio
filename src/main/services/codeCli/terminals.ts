@@ -97,7 +97,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'WSL (Ubuntu/Debian)',
     command: (_: string, fullCommand: string) => ({
       command: 'wsl',
-      args: ['bash', '-c', `cmd.exe /c '${fullCommand}' ; read -p 'Press Enter to exit'`]
+      args: ['--exec', 'bash', '-c', `"cmd.exe /c ${posixQuote(fullCommand)} ; read -p 'Press Enter to exit'"`]
     })
   },
   {

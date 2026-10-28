@@ -1,3 +1,4 @@
+import type * as ChildProcessModule from 'node:child_process'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,8 @@ import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
+
+import { posixQuote } from '../shellQuote'
 
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
@@ -143,6 +146,32 @@ vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
   chmodSync: vi.fn()
 }))
+
+// Only ordinary cmd /s stripping and whole-token double quotes are modeled; expansions are rejected.
+function decodeWslCommandLine(commandLine: string) {
+  if (!/^"[A-Za-z0-9 :\\/'"._;-]+"$/.test(commandLine)) {
+    throw new Error('Unsupported cmd fixture: only literal paths, spaces and whole-token double quotes are supported')
+  }
+  const rest = commandLine.slice(1, -1)
+  const tokens = rest.match(/"[^"]*"|[^ "]+/g) ?? []
+  if (tokens.join(' ') !== rest || tokens[0] !== 'wsl') {
+    throw new Error('Unsupported cmd fixture: expected wsl and space-separated, whole-token quotes')
+  }
+  return tokens.map((token) => posixQuote(token.startsWith('"') ? token.slice(1, -1) : token)).join(' ')
+}
+
+const WSL_HANDOFF_STAND_IN = String.raw`
+function cmd.exe() {
+  printf 'cmd\0%d\0' "$#"
+  for arg in "$@"; do printf '%s\0' "$arg"; done
+}
+export -f cmd.exe
+function wsl() {
+  printf 'wsl\0%d\0' "$#"
+  for arg in "$@"; do printf '%s\0' "$arg"; done
+  if [ "$1" = '--exec' ]; then shift; "$@"; else /bin/bash -c "$*"; fi
+}
+`
 
 async function loadModules() {
   const { BaseService } = await import('@main/core/lifecycle')
@@ -954,6 +983,76 @@ describe('CodeCliService', () => {
         expect(launch![1]).toEqual(['/c', batPath])
         expect(launch![2]).toMatchObject({ shell: true, detached: true })
       } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('hands the spaced batch path to cmd.exe when WSL is selected', async () => {
+      const { application } = await import('@application')
+      const getPath = vi.mocked(application.getPath)
+      const originalGetPath = getPath.getMockImplementation()!
+      const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const actual = await vi.importActual<typeof ChildProcessModule>('node:child_process')
+      const prototype = actual.ChildProcess.prototype as ChildProcessModule.ChildProcess & {
+        spawn(options: { file: string; args: string[]; windowsVerbatimArguments: boolean }): void
+      }
+      const tempDir = String.raw`C:\Users\John Doe\AppData\Local\Temp\CherryStudio\cli`
+      expect(tempDir).toContain(' ')
+      getPath.mockImplementation((key) => (key === 'feature.cli.temp' ? tempDir : originalGetPath(key)))
+      childProcessMock.execAsync.mockImplementation((command: string) => {
+        if (command === 'wsl --status') return Promise.resolve({ stdout: '' })
+        return Promise.reject(new Error('terminal unavailable'))
+      })
+      vi.useFakeTimers()
+      let interceptor: ReturnType<typeof vi.spyOn> | undefined
+      let commandLine = ''
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: String.raw`C:\projects\demo`,
+          terminal: TerminalApp.WSL
+        })
+        expect(result.success).toBe(true)
+        const batPath = vi.mocked(fs.writeFileSync).mock.calls.at(-1)![0] as string
+        expect(batPath).toContain(tempDir)
+        expect(batPath).toContain(' ')
+        const launch = vi.mocked(spawn).mock.calls.at(-1)!
+        expect(launch[0]).toBe('wsl')
+        expect(launch[2]).toMatchObject({ shell: true, detached: true })
+
+        // Intercept below Node's real normalization so no Windows process is launched on this host.
+        interceptor = vi.spyOn(prototype, 'spawn').mockImplementation((normalized) => {
+          expect(normalized.file.toLowerCase()).toMatch(/cmd\.exe$/)
+          expect(normalized.args.slice(1, 4)).toEqual(['/d', '/s', '/c'])
+          expect(normalized.windowsVerbatimArguments).toBe(true)
+          commandLine = normalized.args[4]
+        })
+        actual.spawn(launch[0], launch[1] as string[], launch[2])
+        interceptor.mockRestore()
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+
+        const decoded = decodeWslCommandLine(commandLine)
+        const handoff = actual.spawnSync('/bin/bash', ['-c', `${WSL_HANDOFF_STAND_IN}\n${decoded}`], {
+          input: '',
+          encoding: 'utf8'
+        })
+        expect(handoff.error).toBeUndefined()
+        expect(handoff.signal).toBeNull()
+        expect(handoff.stderr).toBe('')
+        const fields = handoff.stdout.split('\0')
+        const cmdIndex = fields.indexOf('cmd')
+        expect(fields[cmdIndex + 1], 'cmd.exe argument count').toBe('2')
+        expect(fields.slice(cmdIndex + 2, -1)).toEqual(['/c', batPath])
+        expect(fields.slice(0, 5)).toEqual(['wsl', '4', '--exec', 'bash', '-c'])
+        expect(cmdIndex, 'one program operand after bash -c').toBe(6)
+      } finally {
+        interceptor?.mockRestore()
+        Object.defineProperty(process, 'platform', platformDescriptor)
+        getPath.mockImplementation(originalGetPath)
         vi.useRealTimers()
       }
     })

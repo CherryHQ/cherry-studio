@@ -1,8 +1,11 @@
+import { spawnSync } from 'node:child_process'
+
 import { describe, expect, it } from 'vitest'
 
 import { TerminalApp } from '@shared/types/codeCli'
 
-import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS } from '../terminals'
+import { posixQuote } from '../shellQuote'
+import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS, WINDOWS_TERMINALS_WITH_COMMANDS } from '../terminals'
 
 function commandFor(id: TerminalApp) {
   const cfg = MACOS_TERMINALS_WITH_COMMANDS.find((t) => t.id === id)
@@ -55,6 +58,69 @@ describe('macOS inner-double-quote terminal builders neutralize directory and fu
     (id) => {
       const { args } = commandFor(id)("/tmp/o'brien", 'run')
       expect(args.join('\n')).toContain("'/tmp/o'\\''brien'")
+    }
+  )
+})
+
+function windowsShellCommandLine(command: string, args: string[]) {
+  return `"${[command, ...args].join(' ')}"`
+}
+
+// Only ordinary cmd /s stripping and whole-token double quotes are modeled; expansions are rejected.
+function decodeWslCommandLine(commandLine: string) {
+  if (!/^"[A-Za-z0-9 :\\/'"._;-]+"$/.test(commandLine)) {
+    throw new Error('Unsupported cmd fixture: only literal paths, spaces and whole-token double quotes are supported')
+  }
+  const rest = commandLine.slice(1, -1)
+  const tokens = rest.match(/"[^"]*"|[^ "]+/g) ?? []
+  if (tokens.join(' ') !== rest || tokens[0] !== 'wsl') {
+    throw new Error('Unsupported cmd fixture: expected wsl and space-separated, whole-token quotes')
+  }
+  return tokens.map((token) => posixQuote(token.startsWith('"') ? token.slice(1, -1) : token)).join(' ')
+}
+
+const WSL_HANDOFF_STAND_IN = String.raw`
+function cmd.exe() {
+  printf 'cmd\0%d\0' "$#"
+  for arg in "$@"; do printf '%s\0' "$arg"; done
+}
+export -f cmd.exe
+function wsl() {
+  printf 'wsl\0%d\0' "$#"
+  for arg in "$@"; do printf '%s\0' "$arg"; done
+  if [ "$1" = '--exec' ]; then shift; "$@"; else /bin/bash -c "$*"; fi
+}
+`
+
+describe('WSL launcher handoff through the retained Windows shell transport', () => {
+  it.each([
+    String.raw`C:\projects\demo\launch.bat`,
+    String.raw`C:\Users\John Doe\AppData\Local\Temp\CherryStudio\cli\launch_kimi-code_1758.bat`,
+    String.raw`C:\Users\O'Brien\AppData\Local\Temp\CherryStudio\cli\launch.bat`
+  ])('preserves /c and the literal batch path %s', (batPath) => {
+    const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((terminal) => terminal.id === TerminalApp.WSL)!
+    const { command, args } = cfg.command(String.raw`C:\projects\demo`, batPath)
+    const decoded = decodeWslCommandLine(windowsShellCommandLine(command, args))
+    const result = spawnSync('/bin/bash', ['-c', `${WSL_HANDOFF_STAND_IN}\n${decoded}`], {
+      input: '',
+      encoding: 'utf8'
+    })
+    expect(result.error).toBeUndefined()
+    expect(result.signal).toBeNull()
+    expect(result.stderr).toBe('')
+    const fields = result.stdout.split('\0')
+    const cmdIndex = fields.indexOf('cmd')
+    expect(fields[cmdIndex + 1], 'cmd.exe argument count').toBe('2')
+    expect(fields.slice(cmdIndex + 2, -1)).toEqual(['/c', batPath])
+    expect(fields.slice(0, 5)).toEqual(['wsl', '4', '--exec', 'bash', '-c'])
+    expect(cmdIndex, 'one program operand after bash -c').toBe(6)
+  })
+
+  it.each(['%', '!', '^', '&', '|', '<', '>', '$', '`', '(', ')', '\n', '\0', '"'])(
+    'rejects unsupported cmd fixture syntax %j',
+    (character) => {
+      const line = windowsShellCommandLine('wsl', ['bash', '-c', `cmd.exe /c C:\\${character}\\launch.bat`])
+      expect(() => decodeWslCommandLine(line)).toThrow('Unsupported cmd fixture')
     }
   )
 })
