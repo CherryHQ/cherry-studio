@@ -35,16 +35,25 @@ export function UserAvatar({ user, className }: { user: SidebarUser; className?:
   const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
 
   return (
-    <div className={`overflow-hidden rounded-full ${className ?? ''}`}>
-      {user.avatar && !isTextAvatar(user.avatar) ? (
-        <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
-      ) : isEmojiAvatar ? (
-        <EmojiIcon emoji={user.avatar!} fluid />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
-          {getUserAvatarFallback(user)}
-        </div>
-      )}
+    <div className={`relative ${className ?? ''}`}>
+      <div className="size-full overflow-hidden rounded-full">
+        {user.avatar && !isTextAvatar(user.avatar) ? (
+          <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+        ) : isEmojiAvatar ? (
+          <EmojiIcon emoji={user.avatar!} fluid />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
+            {getUserAvatarFallback(user)}
+          </div>
+        )}
+      </div>
+      {user.badgeLabel ? (
+        <span
+          role="status"
+          aria-label={user.badgeLabel}
+          className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-destructive ring-2 ring-sidebar"
+        />
+      ) : null}
     </div>
   )
 }

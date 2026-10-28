@@ -14,7 +14,8 @@ const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
 const cloudAvailability = vi.hoisted(() => {
   const isModelHidden: (model: Model, includeAgentOnlyModels: boolean) => boolean = () => false
-  return { isModelHidden, isModelUnavailable: () => false, getModelDescription: () => undefined }
+  const isModelFree: (model: Model) => boolean = () => false
+  return { isModelHidden, isModelFree, isModelUnavailable: () => false, getModelDescription: () => undefined }
 })
 vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   useCherryCloudModelAvailability: () => cloudAvailability
@@ -29,6 +30,10 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: (...args: unknown[]) => mockUsePins(...args)
+}))
+const cloudPlans = vi.hoisted(() => ({ data: undefined as unknown, activePaid: undefined as unknown }))
+vi.mock('@renderer/hooks/useCherryCloudPlans', () => ({
+  useCherryCloudPlans: () => ({ plansQuery: { data: cloudPlans.data }, activePaid: cloudPlans.activePaid })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -145,6 +150,78 @@ describe('useModelSelectorData', () => {
     ])
     expect(result.current.modelItems.map((item) => item.model)).toEqual([cloud])
     expect(result.current.modelItems[0].showIdentifier).toBe(false)
+  })
+
+  it('lists free CherryAI models after subscription models unless searching', () => {
+    const qwen = makeModel('qwen', CHERRYAI_PROVIDER_ID)
+    const paid = makeModel('paid-model', CHERRY_CLOUD_PROVIDER_ID)
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [qwen, paid]
+    })
+    cloudAvailability.isModelFree = (model) => model.providerId === CHERRYAI_PROVIDER_ID
+
+    try {
+      const { result, rerender } = renderHook(({ searchText }) => useModelSelectorData({ searchText }), {
+        initialProps: { searchText: '' }
+      })
+
+      expect(result.current.modelItems.map((item) => item.model)).toEqual([paid, qwen])
+      expect(result.current.listItems[0]).toMatchObject({ type: 'group', isCherryAiGroup: true })
+
+      rerender({ searchText: 'qwen' })
+
+      expect(result.current.modelItems.map((item) => item.model)).toEqual([qwen])
+    } finally {
+      cloudAvailability.isModelFree = () => false
+    }
+  })
+
+  it('lists purchasable plan models the account cannot use as locked rows with their capabilities', () => {
+    const owned = makeModel('owned-model', CHERRY_CLOUD_PROVIDER_ID)
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [owned]
+    })
+    const planModel = (id: string, features: string[]) => ({
+      id,
+      display_name: id.toUpperCase(),
+      capabilities: ['reasoning', 'not-a-capability'],
+      available_features: features
+    })
+    cloudPlans.data = {
+      measured_at: '2026-10-27T00:00:00Z',
+      entitlements: [],
+      available_plans: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 3,
+          // The China backend reports false for plans its portal still sells.
+          purchase_available: false,
+          models: [
+            planModel('owned-model', ['agent', 'chat', 'translate']),
+            planModel('locked-chat', ['agent', 'chat', 'translate']),
+            planModel('locked-agent-only', ['agent'])
+          ]
+        }
+      ]
+    }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+      const lockedItems = result.current.modelItems.filter((item) => item.locked)
+
+      expect(lockedItems.map((item) => item.model.name)).toEqual(['LOCKED-CHAT'])
+      expect(lockedItems[0].model.capabilities).toEqual(['reasoning'])
+      expect(result.current.modelItems.filter((item) => item.model.id === owned.id)).toHaveLength(1)
+      expect(result.current.selectableModelsById.has(lockedItems[0].modelId)).toBe(false)
+    } finally {
+      cloudPlans.data = undefined
+    }
   })
 
   it('passes the selector activation state to every catalog query', () => {

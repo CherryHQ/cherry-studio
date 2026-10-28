@@ -32,5 +32,7 @@ export type SidebarVisibleLayout = Exclude<SidebarLayout, 'hidden'>
 export interface SidebarUser {
   name: string
   avatar?: string
+  /** Accessible label for a red dot on the avatar, shown only when set. */
+  badgeLabel?: string
   onClick?: () => void
 }

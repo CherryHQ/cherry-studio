@@ -1,5 +1,5 @@
 import { first } from 'es-toolkit/compat'
-import { CircleSlash, Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Lock, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -15,12 +15,13 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Checkbox, CustomTag, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -51,6 +52,8 @@ const logger = loggerService.withContext('ModelSelector')
 const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
+// Matches the subscription accent used for Cherry Cloud plan entry points.
+const LOCKED_TAG_COLOR = '#d48806'
 const FILTER_TAG_SIZE = 10
 const FILTER_TAG_FADE_WIDTH_PX = 24
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
@@ -170,6 +173,7 @@ function ModelRow({
   item,
   disabled,
   description,
+  isFree,
   optionId,
   isFocused,
   onPin,
@@ -184,6 +188,7 @@ function ModelRow({
   item: ModelSelectorModelItem
   disabled: boolean
   description?: ReactNode
+  isFree: boolean
   optionId: string
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
@@ -196,7 +201,11 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
-  const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
+  // Cherry Cloud free-plan models are free by entitlement, which the static model data cannot tell.
+  const rowTags = useMemo(() => {
+    const tags = getModelDisplayTags(item.model, undefined, item.provider)
+    return isFree && !tags.includes('free') ? [...tags, 'free' as const] : tags
+  }, [isFree, item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier
     ? item.groupKind === 'pinned'
@@ -228,8 +237,17 @@ function ModelRow({
   ) : null
 
   const trailing =
-    rowTags.length > 0 ? (
+    rowTags.length > 0 || item.locked ? (
       <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+        {item.locked && (
+          <CustomTag
+            size={ROW_TAG_SIZE}
+            color={LOCKED_TAG_COLOR}
+            icon={<Lock size={ROW_TAG_SIZE} />}
+            className="h-full items-center">
+            {t('models.type.subscription')}
+          </CustomTag>
+        )}
         {rowTags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
@@ -527,8 +545,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   const {
     availableTags,
     getModelDescription,
+    isModelFree,
     isModelUnavailable,
     isLoading,
+    subscribedPlanName,
     isPinActionDisabled,
     listItems,
     modelItems,
@@ -646,6 +666,11 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
+      if (item.locked) {
+        setOpen(false)
+        void startCherryCloudSubscription()
+        return
+      }
       if (isSelectionDisabled(item.model, item.provider)) return
       skipNextFocusScroll.current = true
 
@@ -894,6 +919,23 @@ export function ModelSelector(props: ModelSelectorProps) {
                 </Button>
               </Tooltip>
             )}
+            {item.isCherryAiGroup &&
+              (subscribedPlanName ? (
+                <span className="ml-auto truncate rounded-full border border-border px-1.5 font-medium text-[10px] text-foreground leading-4">
+                  {subscribedPlanName}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="ml-auto cursor-pointer border-0 bg-transparent p-0 text-[11px] text-link hover:underline"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setOpen(false)
+                    void startCherryCloudSubscription()
+                  }}>
+                  {t('settings.subscription.go_to_subscribe')}
+                </button>
+              ))}
           </div>
         )
       }
@@ -911,6 +953,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             item={item}
             disabled={isSelectionDisabled(item.model, item.provider)}
             description={getModelDescription(item.model)}
+            isFree={isModelFree(item.model)}
             optionId={getModelSelectorOptionDomId(listboxId, item.key)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
@@ -929,8 +972,11 @@ export function ModelSelector(props: ModelSelectorProps) {
       focusedItemKey,
       handleNavigateToProviderSettings,
       handleSelectItem,
+      setOpen,
+      subscribedPlanName,
       handleTogglePin,
       getModelDescription,
+      isModelFree,
       isPinActionDisabled,
       isSelectionDisabled,
       listboxId,

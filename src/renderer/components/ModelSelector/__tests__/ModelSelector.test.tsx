@@ -24,7 +24,13 @@ const mocks = vi.hoisted(() => ({
   shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
   virtualize: false,
-  useModelSelectorData: vi.fn()
+  useModelSelectorData: vi.fn(),
+  startCherryCloudSubscription: vi.fn(),
+  displayTags: [] as string[]
+}))
+
+vi.mock('@renderer/services/cherryCloudSubscription', () => ({
+  startCherryCloudSubscription: mocks.startCherryCloudSubscription
 }))
 
 vi.mock('@logger', () => ({
@@ -65,8 +71,8 @@ vi.mock('@renderer/utils/model', async (importOriginal) => ({
 
 vi.mock('@renderer/components/tags/Model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelTags>()),
-  getModelDisplayTags: () => [],
-  ModelTag: () => null
+  getModelDisplayTags: () => mocks.displayTags,
+  ModelTag: ({ tag }: { tag: string }) => <span data-testid={`model-tag-${tag}`} />
 }))
 
 vi.mock('../ModelSelectorDetailCard', () => ({
@@ -236,6 +242,7 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
   return {
     availableTags: [],
     getModelDescription: () => undefined,
+    isModelFree: () => false,
     isModelUnavailable: () => false,
     isLoading: false,
     isPinActionDisabled: false,
@@ -310,6 +317,61 @@ describe('ModelSelector', () => {
 
     expect(screen.getByText('| gpt-4-variant-a')).toBeInTheDocument()
     expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
+  })
+
+  describe('CherryAI group', () => {
+    const renderCherryAiGroup = (subscribedPlanName?: string, onSelect = vi.fn()) => {
+      const item = makeModelItem('openai::gpt-4')
+      const locked = { ...makeModelItem('openai::plan-model'), locked: true }
+      const listItems: FlatListItem[] = [
+        { key: 'provider-cherryai', type: 'group', title: 'CherryAI', groupKind: 'provider', isCherryAiGroup: true },
+        item,
+        locked
+      ]
+      mocks.useModelSelectorData.mockReturnValue(
+        makeData({
+          listItems,
+          modelItems: [item, locked],
+          isModelFree: (model) => model.id === item.modelId,
+          subscribedPlanName
+        })
+      )
+      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
+    }
+
+    afterEach(() => {
+      mocks.displayTags = []
+    })
+
+    it('offers a subscribe link and tags free models for an unsubscribed account', async () => {
+      // Entitlement-free Cloud models carry no static free marker; the row still tags them.
+      mocks.displayTags = ['reasoning']
+      renderCherryAiGroup()
+
+      expect(screen.getByTestId('model-tag-free')).toBeInTheDocument()
+      // Locked plan rows keep their capability tags beside the lock.
+      expect(screen.getAllByTestId('model-tag-reasoning')).toHaveLength(2)
+      await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' }))
+      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
+    })
+
+    it('starts Subscribe instead of selecting a locked plan model', async () => {
+      const onSelect = vi.fn()
+      renderCherryAiGroup(undefined, onSelect)
+
+      expect(screen.getByText('models.type.subscription')).toBeInTheDocument()
+      await userEvent.click(screen.getByTestId('model-selector-item-openai::plan-model'))
+
+      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
+      expect(onSelect).not.toHaveBeenCalled()
+    })
+
+    it('shows the backend plan name instead of the link once subscribed', () => {
+      renderCherryAiGroup('Plus')
+
+      expect(screen.getByText('Plus')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'settings.subscription.go_to_subscribe' })).not.toBeInTheDocument()
+    })
   })
 
   it('keeps the provider in a pinned row without a provider group', () => {
