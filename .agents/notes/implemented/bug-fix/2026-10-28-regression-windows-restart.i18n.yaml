@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-regression-windows-restart.md
+2026-10-28-regression-windows-restart.md: c7d2c25c9e5b842cadb651974373d434f19a7fbe
+2026-10-28-regression-windows-restart.zh.md: 1eea0e92c613457ab1ac7aef333f72a31b74301b

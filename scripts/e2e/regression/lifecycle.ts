@@ -350,6 +350,14 @@ export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Pr
 
 export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
   const current = readOwnedRecord(paths)
+  if (current.platform === 'windows') {
+    const { requestOwnedAppQuit } = await import('./debugBridge')
+    const app = readAppRecord(paths)
+    await requestOwnedAppQuit(app)
+    if (!(await waitForExit(app.electronPid, 30_000))) {
+      throw new Error('Owned Cherry Studio did not exit after a normal shutdown request')
+    }
+  }
   await stopOwnedApp(paths)
   return launchApp(paths, {
     mode: current.mode,

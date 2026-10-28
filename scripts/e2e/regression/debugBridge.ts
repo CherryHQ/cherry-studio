@@ -50,6 +50,18 @@ export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{
   )
 }
 
+export async function requestOwnedAppQuit(record: AppRecord): Promise<void> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  await evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const { app } = process.mainModule.require('electron')
+      setImmediate(() => app.quit())
+      return true
+    })()`
+  )
+}
+
 export async function assertOwnedAppIsolation(record: AppRecord, homeDirectory: string): Promise<void> {
   assertOwnedProcess(record, record.electronPid, 'electron')
   const directories = await evaluateCdpExpression<Record<string, string | undefined>>(

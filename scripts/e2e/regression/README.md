@@ -47,7 +47,10 @@ Branch runs prepare `rebuild:electron` and `build:utility-process` once after in
 application dependencies. The controller then launches the development server directly,
 including on profile switches and persistence-test restarts. Local controller runs must
 perform the same preparation in the target checkout before `launch`; release installers
-do not need it. Restarting still stops the owned application and preserves its profile.
+do not need it. Restarting preserves the owned application's profile. On Windows,
+restart requests `app.quit()` through its verified main-process inspector and waits
+for normal shutdown so persistence tests do not simulate a forced crash. A shutdown
+timeout fails the restart; it does not force termination and launch a replacement.
 Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
 so package-manager subprocesses cannot escape the owned process group. Each profile sets
 `CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
