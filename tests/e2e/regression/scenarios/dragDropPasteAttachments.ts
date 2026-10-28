@@ -160,9 +160,10 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
     const send = async (prompt: string, expectedText?: string) => {
       await expect(editor).toBeEditable({ timeout: 5_000 })
       await editor.click()
-      await editor.press('ControlOrMeta+End')
+      await editor.press('ArrowRight')
       await page.keyboard.insertText(` ${prompt}`)
       await expect(editor).toContainText(prompt, { timeout: 5_000 })
+      if (expectedText) await expect(tokens, 'Typing must preserve the attachment token').toHaveCount(1)
       const answer = `MP33_RECEIVED_${prompt}`
       await Promise.all([
         (async () => {
