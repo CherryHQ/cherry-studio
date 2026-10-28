@@ -293,10 +293,19 @@ hardware-acceleration preference.
 ### Kokoro Chinese-English speech
 
 The `kokoro-multi-lang-v1.1` bundle pins the full-precision ONNX weights, all 103 voices,
-Chinese normalization rules, both Chinese and English lexicons, and the English eSpeak
-data needed for words absent from the lexicon. Every file is checksummed and fetched from
-an immutable Hugging Face revision, with hf-mirror as a fallback. The native runtime is
+Chinese normalization rules, both Chinese and English lexicons, and the eSpeak data the
+frontend needs for words absent from either lexicon: the English voice files plus the
+Chinese `cmn` voice and dictionary. Every file is checksummed and fetched from an
+immutable Hugging Face revision, with hf-mirror as a fallback. The native runtime is
 shared with FunASR; removing either model retains it while the other is installed.
+
+A bundle's `files` array is also its install order. Kokoro lists its lexicons, Chinese
+FSTs, tokens, eSpeak data, then `model.onnx` and `voices.bin`, and marks the two lexicons
+as `parallelFetchFrom`; downloads and the on-disk scan walk that list, so an interrupted
+download leaves the frontend present and the weights missing — reported as incomplete and
+resumed — instead of complete-looking and unloadable. Every word outside a lexicon is
+resolved through eSpeak under the model's `en-us` voice, so an eSpeak voice the install
+lacks ends the `inference.tts` process rather than falling back or failing one request.
 
 Kokoro runs through `inference.tts` on macOS arm64/x64, Linux arm64/x64 and Windows arm64/x64.
 Windows ARM64 shares the verified Sherpa runtime with FunASR. The worker loads both
