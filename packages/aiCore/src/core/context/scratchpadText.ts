@@ -3013,6 +3013,7 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
       return prefix.length
     }
     let scan = 0
+    let candidateIsLiteralBody = false
     while (scan < prefix.length) {
       const lt = prefix.indexOf('<', scan)
       if (lt === -1) break
@@ -3042,10 +3043,14 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
       }
       // Other tags own their attributes, and HTML text elements own their literal bodies.
       const parsed = parseOpeningTagAt(prefix, lt)
-      const textEnd = parsed ? htmlTextElementEnd(prefix, parsed, lt) : null
+      const textEnd = parsed ? htmlTextElementEnd(out, parsed, lt) : null
+      if (textEnd !== null && textEnd > tagIndex) {
+        candidateIsLiteralBody = true
+        break
+      }
       scan = textEnd ?? (parsed ? lt + parsed.opener.length : lt + 1)
     }
-    if (balance > 0) break
+    if (candidateIsLiteralBody || balance > 0) break
     out = out.slice(0, trailing.index)
   }
   out = unmaskInlineCodeSpans(out, spans, inlineBase)

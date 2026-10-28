@@ -82,6 +82,70 @@ describe('append-only scratchpad answer streaming', () => {
     s.stop()
     expect(s.a.scratchpadPrefixViolation).toBe(false)
   })
+  it('preserves unfinished nested marker fence partitions and matching snapshots', () => {
+    const pieces = ['- item\n\n- 1.', ' ~~~\n     <thinking>x</thinking>\n     ~~~\n']
+    const raw = pieces.join('')
+    const s = setup()
+    for (const piece of pieces) s.push(piece)
+    s.stop()
+    expect(s.text()).toBe(raw)
+    s.a.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 's',
+      uuid: crypto.randomUUID(),
+      message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+    } as any)
+    expect(s.text()).toBe(raw)
+  })
+  it('matches whole normalization for nested marker, quote, and CRLF split matrices', () => {
+    for (const nl of ['\n', '\r\n']) {
+      for (const [marker, indent] of [
+        ['- 1.', '     '],
+        ['- 1)', '     '],
+        ['+ 1.', '     '],
+        ['- - 1.', '       '],
+        ['> - 1.', '>      ']
+      ]) {
+        const raw = ['- item', '', `${marker} ~~~`, `${indent}<thinking>x</thinking>`, `${indent}~~~`, ''].join(nl)
+        const canonical = stripKnownModelScratchpadBlocksPreservingCodeFences(raw)
+        for (const size of [1, 2, 3, raw.length]) {
+          const s = setup()
+          for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+          s.stop()
+          expect(s.text(), JSON.stringify({ nl, marker, size, phase: 'stop' })).toBe(canonical)
+          s.a.handleMessage({
+            type: 'assistant',
+            parent_tool_use_id: null,
+            session_id: 's',
+            uuid: crypto.randomUUID(),
+            message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+          } as any)
+          expect(s.text(), JSON.stringify({ nl, marker, size, phase: 'snapshot' })).toBe(canonical)
+        }
+      }
+    }
+  })
+  it('preserves trailing protocol-shaped literals inside unclosed HTML text bodies in every delivery', () => {
+    for (const name of ['textarea', 'script', 'style', 'title'])
+      for (const size of [1, 3, 1000]) {
+        const raw = `<${name}>Literal </parameter>`
+        const s = setup()
+        for (let i = 0; i < raw.length; i += size) s.push(raw.slice(i, i + size))
+        s.stop()
+        expect(s.text()).toBe(raw)
+        const snap = setup()
+        snap.a.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 's',
+          uuid: crypto.randomUUID(),
+          message: { role: 'assistant', content: [{ type: 'text', text: raw }] }
+        } as any)
+        snap.stop()
+        expect(snap.text()).toBe(raw)
+      }
+  })
   it('normalizes snapshot-only text and reconciled assistant suffixes before emission', () => {
     const payload = 'Public <thinking>secret</thinking> answer'
     for (const streamed of [false, true]) {

@@ -1842,9 +1842,10 @@ export class ClaudeCodeStreamAdapter {
     this.scratchpadScanInputChars += raw.length
     const { visible, pending, checkpoint } = stableScratchpadStreamPrefix(raw)
     if (!visible.startsWith(state.visible)) {
+      if (!this.scratchpadPrefixViolation)
+        logger.warn('Scratchpad stream classification changed after emission; withholding unresolved output')
       this.scratchpadPrefixViolation = true
       ctx.scratchpadPartFailed = true
-      logger.warn('Scratchpad stream classification changed after emission; withholding unresolved output')
       state.pending = true
       return ''
     }
@@ -2156,6 +2157,9 @@ export class ClaudeCodeStreamAdapter {
     ) {
       return openLine
     }
+    // A complete outer marker followed by an unfinished nested marker must retain its raw
+    // spelling: the next delta can supply whitespace and a fence on that nested marker.
+    if (/^(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)+(?:[-*+]|\d{1,9}[.)]?)[ \t]*$/.test(remainder)) return openLine
     const cacheableKey = ctx.textBlockContextStart + lineStart
     const cached = ctx.scratchpadOpenLineCarry
     let markerHead: string
