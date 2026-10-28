@@ -72,9 +72,9 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-function pushSelection(text: string, isFullscreen = false) {
+function pushSelection(text: string, isFullscreen = false, programName = '') {
   act(() => {
-    mocks.handlers.get('selection.text_selected')?.({ text, isFullscreen })
+    mocks.handlers.get('selection.text_selected')?.({ text, isFullscreen, programName })
   })
 }
 
@@ -94,12 +94,16 @@ describe('SelectionToolbar actions', () => {
   it('forwards fresh selection data and fullscreen state to default actions', () => {
     render(<SelectionToolbar />)
     mocks.ipcRequest.mockClear()
-    pushSelection('selected text', true)
+    pushSelection('selected text', true, 'com.google.Chrome')
 
     fireEvent.click(screen.getByRole('button', { name: 'Summary' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.process_action', {
-      actionItem: expect.objectContaining({ id: 'summary', selectedText: 'selected text' }),
+      actionItem: expect.objectContaining({
+        id: 'summary',
+        selectedText: 'selected text',
+        programName: 'com.google.Chrome'
+      }),
       isFullScreen: true
     })
     expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.hide_toolbar')

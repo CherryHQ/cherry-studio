@@ -1,6 +1,7 @@
 import type { TextSelectionData } from 'selection-hook'
 import * as z from 'zod'
 
+import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import { defineRoute } from '../define'
@@ -31,7 +32,10 @@ const selectionActionItemSchema: z.ZodType<SelectionActionItem> = z.object({
   icon: z.string().optional(),
   prompt: z.string().optional(),
   assistantId: z.string().optional(),
+  agentId: z.string().optional(),
+  agentWorkspace: AgentSessionWorkspaceSourceSchema.optional(),
   selectedText: z.string().optional(),
+  programName: z.string().optional(),
   searchEngine: z.string().optional()
 })
 

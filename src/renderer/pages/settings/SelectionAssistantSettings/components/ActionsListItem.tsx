@@ -14,31 +14,41 @@ interface ActionItemProps {
   onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
   getSearchEngineInfo: (engine: string) => { icon: any; name: string } | null
+  getAgentInfo: (item: SelectionActionItem) => { emoji: string; name: string } | null
 }
 
-const ActionsListItem = memo(({ item, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo }: ActionItemProps) => {
-  const { t } = useTranslation()
-  const isEnabled = item.enabled
+const ActionsListItem = memo(
+  ({ item, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo, getAgentInfo }: ActionItemProps) => {
+    const { t } = useTranslation()
+    const isEnabled = item.enabled
+    const agentInfo = getAgentInfo(item)
 
-  return (
-    <Item disabled={!isEnabled} className={isLastEnabledItem ? 'non-draggable' : ''}>
-      <ItemLeft>
-        <ItemIcon disabled={!isEnabled}>
-          <DynamicIcon name={item.icon as any} size={16} fallback={() => <div style={{ width: 16, height: 16 }} />} />
-        </ItemIcon>
-        <ItemName disabled={!isEnabled}>{item.isBuiltIn ? t(item.name) : item.name}</ItemName>
-        {item.id === 'search' && item.searchEngine && (
-          <ItemDescription>
-            {getSearchEngineInfo(item.searchEngine)?.icon}
-            <span>{getSearchEngineInfo(item.searchEngine)?.name}</span>
-          </ItemDescription>
-        )}
-      </ItemLeft>
+    return (
+      <Item disabled={!isEnabled} className={isLastEnabledItem ? 'non-draggable' : ''}>
+        <ItemLeft>
+          <ItemIcon disabled={!isEnabled}>
+            <DynamicIcon name={item.icon as any} size={16} fallback={() => <div style={{ width: 16, height: 16 }} />} />
+          </ItemIcon>
+          <ItemName disabled={!isEnabled}>{item.isBuiltIn ? t(item.name) : item.name}</ItemName>
+          {item.id === 'search' && item.searchEngine && (
+            <ItemDescription>
+              {getSearchEngineInfo(item.searchEngine)?.icon}
+              <span>{getSearchEngineInfo(item.searchEngine)?.name}</span>
+            </ItemDescription>
+          )}
+          {agentInfo && (
+            <ItemDescription>
+              <span aria-hidden="true">{agentInfo.emoji}</span>
+              <span className="truncate">{agentInfo.name}</span>
+            </ItemDescription>
+          )}
+        </ItemLeft>
 
-      <ActionOperations item={item} onEdit={onEdit} onDelete={onDelete} />
-    </Item>
-  )
-})
+        <ActionOperations item={item} onEdit={onEdit} onDelete={onDelete} />
+      </Item>
+    )
+  }
+)
 
 interface ActionOperationsProps {
   item: SelectionActionItem
@@ -60,7 +70,7 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
     )
   }
 
-  if (item.isBuiltIn && item.id === 'search') {
+  if (item.isBuiltIn && (item.id === 'search' || item.id === 'ask-agent')) {
     return (
       <UserActionOpSection>
         <Button variant="ghost" size="icon-sm" onClick={() => onEdit(item)}>

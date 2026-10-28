@@ -56,6 +56,7 @@ const SelectionToolbar: FC = () => {
   }, [actionItems])
 
   const selectedText = useRef('')
+  const programName = useRef('')
   // [macOS] only macOS has the fullscreen mode
   const isFullScreen = useRef(false)
 
@@ -68,6 +69,7 @@ const SelectionToolbar: FC = () => {
   // listen to selection events pushed from main (useIpcOn self-cleans on unmount)
   useIpcOn('selection.text_selected', (selectionData) => {
     selectedText.current = selectionData.text
+    programName.current = selectionData.programName
     isFullScreen.current = selectionData.isFullscreen ?? false
   })
 
@@ -164,7 +166,7 @@ const SelectionToolbar: FC = () => {
   const handleAction = useCallback(
     (action: SelectionActionItem) => {
       /** avoid mutating the original action, it will cause syncing issue */
-      const newAction = { ...action, selectedText: selectedText.current }
+      const newAction = { ...action, selectedText: selectedText.current, programName: programName.current }
 
       switch (action.id) {
         case 'copy':

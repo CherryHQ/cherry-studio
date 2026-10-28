@@ -11,6 +11,7 @@ import type { SelectionActionItem } from '@shared/data/preference/preferenceType
 import { ACTIONS_DIVIDER, type ActionRow, useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsListDivider from './ActionsListDivider'
 import ActionsListItem from './ActionsListItem'
+import SelectionActionAskAgentModal from './SelectionActionAskAgentModal'
 import SelectionActionModelSettings from './SelectionActionModelSettings'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
@@ -33,18 +34,22 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
     customItemsCount,
     isUserModalOpen,
     isSearchModalOpen,
+    isAskAgentModalOpen,
     userEditingAction,
     setIsUserModalOpen,
     setIsSearchModalOpen,
+    setIsAskAgentModalOpen,
     handleEditActionItem,
     handleAddNewAction,
     handleUserModalOk,
     handleSearchModalOk,
+    handleAskAgentModalOk,
     handleDeleteActionItem,
     handleReset,
     actionRows,
     handleReorderRows,
     getSearchEngineInfo,
+    getAgentInfo,
     MAX_CUSTOM_ITEMS,
     MAX_ENABLED_ITEMS
   } = useActionItems(actionItems, setActionItems)
@@ -97,6 +102,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
               onEdit={handleEditActionItem}
               onDelete={handleDeleteActionItem}
               getSearchEngineInfo={getSearchEngineInfo}
+              getAgentInfo={getAgentInfo}
             />
           )
         }
@@ -116,6 +122,13 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         onOk={handleSearchModalOk}
         onCancel={() => setIsSearchModalOpen(false)}
         currentAction={actionItems?.find((item) => item.id === 'search')}
+      />
+
+      <SelectionActionAskAgentModal
+        isModalOpen={isAskAgentModalOpen}
+        onOk={handleAskAgentModalOk}
+        onCancel={() => setIsAskAgentModalOpen(false)}
+        currentAction={actionItems?.find((item) => item.id === 'ask-agent')}
       />
     </SettingGroup>
   )
