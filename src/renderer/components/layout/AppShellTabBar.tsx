@@ -18,7 +18,7 @@ import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
-import { isMac } from '@renderer/utils/platform'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 import { WindowControls } from '../WindowControls'
@@ -613,7 +613,7 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
+              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_0.5px_var(--border-subtle)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
             // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
             // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
@@ -621,9 +621,10 @@ export const AppShellTabBar = ({
             closingClass: 'bg-accent text-accent-foreground'
           }
         : {
-            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
+            activeClass:
+              'bg-black/8 text-sidebar-foreground shadow-[inset_0_0_0_0.5px_var(--border-subtle)] dark:bg-white/7 dark:text-sidebar-foreground',
             hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground',
+              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/3 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/3 dark:data-[menu-open=true]:text-sidebar-foreground',
             closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
           },
     [isMacTransparentWindow]
@@ -815,7 +816,7 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
+    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true, position: 'end' })
   }
 
   // ─── Close-in-place freeze/thaw ─────────────────────────────────────────────
@@ -917,8 +918,9 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         data-ui="app.tab-bar"
+        style={isWin ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}
         className={cn(
-          'relative flex h-11 w-full select-none items-center gap-2 [-webkit-app-region:drag]',
+          'relative flex h-11 w-full shrink-0 select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           'pl-0'
         )}>

@@ -21,6 +21,8 @@ import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSec
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { ToolResultLinkList } from '../shared/ToolResultLinkList'
+import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
 import { truncateOutput } from '../shared/truncateOutput'
 
 interface Props {
@@ -181,27 +183,34 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 type ExtractedContent = {
   text: string
   images: Array<{ data: string; mimeType: string }>
+  links: ToolResultLinkData[]
 }
 
 /**
  * Extract preview content from MCP tool response using SDK schema
  */
 const extractPreviewContent = (response: unknown): ExtractedContent => {
-  if (!response) return { text: '', images: [] }
+  if (!response) return { text: '', images: [], links: [] }
 
   const hasMcpContent =
     typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
   const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
   if (result?.success) {
     const contents = result.data.content
-    if (contents.length === 0) return { text: '', images: [] }
+    if (contents.length === 0) return { text: '', images: [], links: [] }
 
     const textParts: string[] = []
     const images: Array<{ data: string; mimeType: string }> = []
+    const links: ToolResultLinkData[] = []
     for (const content of contents) {
       switch (content.type) {
         case 'text':
           if (content.text) {
+            const textLinks = getToolResultLinks(content)
+            if (textLinks) {
+              for (const link of textLinks) links.push(link)
+              break
+            }
             try {
               const parsed = JSON.parse(content.text)
               textParts.push(JSON.stringify(parsed, null, 2))
@@ -218,13 +227,21 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
         case 'resource':
           textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
           break
+        case 'resource_link': {
+          const resourceLinks = getToolResultLinks(content)
+          if (resourceLinks) links.push(...resourceLinks)
+          else textParts.push(content.uri)
+          break
+        }
       }
     }
-    return { text: textParts.join('\n\n'), images }
+    return { text: textParts.join('\n\n'), images, links }
   }
 
   // Fallback: return JSON string for unknown format
-  return { text: JSON.stringify(response, null, 2), images: [] }
+  const text = JSON.stringify(response, null, 2)
+  const links = getToolResultLinks({ type: 'text', text: typeof response === 'string' ? response : text })
+  return { text: links ? '' : text, images: [], links: links ?? [] }
 }
 
 const truncateArgText = (text: string): string => {
@@ -296,6 +313,7 @@ const ExpandedToolResponseContent: FC<{
   const [showResponse, setShowResponse] = useState(false)
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
   const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
+  const [responseLinks, setResponseLinks] = useState<ToolResultLinkData[]>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
   const highlightedForRef = useRef<{ response: unknown; highlight: typeof highlightCode } | null>(null)
@@ -341,11 +359,13 @@ const ExpandedToolResponseContent: FC<{
     const highlight = async () => {
       setHighlightedResponse('')
       setResponseImages([])
+      setResponseLinks([])
       setIsTruncated(false)
       setOriginalLength(0)
-      const { text: previewContent, images } = extractPreviewContent(response)
+      const { text: previewContent, images, links } = extractPreviewContent(response)
       if (cancelled) return
       setResponseImages(images)
+      setResponseLinks(links)
       const {
         data: truncatedContent,
         isTruncated: wasTruncated,
@@ -354,7 +374,7 @@ const ExpandedToolResponseContent: FC<{
       if (cancelled) return
       setIsTruncated(wasTruncated)
       setOriginalLength(origLen)
-      const result = await highlightCode(truncatedContent, 'json')
+      const result = truncatedContent ? await highlightCode(truncatedContent, 'json') : ''
       if (cancelled) return
       highlightedForRef.current = { response, highlight: highlightCode }
       setHighlightedResponse(result)
@@ -420,23 +440,26 @@ const ExpandedToolResponseContent: FC<{
       {renderArgsTable()}
 
       {/* Response */}
-      {response !== undefined && response !== null && (highlightedResponse || responseImages.length > 0) && (
-        <ResponseSection>
-          <ArgsSectionTitle>Response</ArgsSectionTitle>
-          {highlightedResponse && (
-            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
-          )}
-          {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-          {responseImages.map((img, idx) => (
-            <img
-              key={idx}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              alt="Tool output"
-              style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
-            />
-          ))}
-        </ResponseSection>
-      )}
+      {response !== undefined &&
+        response !== null &&
+        (highlightedResponse || responseImages.length > 0 || responseLinks.length > 0) && (
+          <ResponseSection>
+            <ArgsSectionTitle>Response</ArgsSectionTitle>
+            {highlightedResponse && (
+              <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+            )}
+            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+            <ToolResultLinkList links={responseLinks} />
+            {responseImages.map((img, idx) => (
+              <img
+                key={idx}
+                src={`data:${img.mimeType};base64,${img.data}`}
+                alt="Tool output"
+                style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
+              />
+            ))}
+          </ResponseSection>
+        )}
     </div>
   )
 }

@@ -30,7 +30,9 @@ export function SkillsSettings() {
   const enabledOnlyLabel = t('settings.skills.enabledOnly')
 
   return (
-    <SettingsContentBody className="min-h-0 flex-1 overflow-hidden pt-4" innerClassName="flex min-h-0 flex-1 flex-col">
+    <SettingsContentBody
+      className="min-h-0 flex-1 overflow-hidden p-0 pt-4"
+      innerClassName="flex min-h-0 max-w-none flex-1 flex-col">
       <Tabs value={scope} onValueChange={setScope} variant="underline" className="min-h-0 flex-1">
         <TabsContent value={scope} className="mt-0 flex min-h-0 flex-1 flex-col">
           <ResourceCatalogView

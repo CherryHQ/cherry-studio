@@ -39,6 +39,7 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
+export { FileEditService } from './FileEditService'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
 
@@ -90,3 +91,5 @@ export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'
+
+export { FileIntakeService, FileIntakeError, type FileIntakeOwner } from './FileIntakeService'

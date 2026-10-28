@@ -30,6 +30,62 @@ export const REGRESSION_CASES = [
     title: 'Preserve a partial chat response after disconnect and restart',
     task: 'chat-stream-failure'
   },
+  {
+    id: 'SET-05',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'About page shows the running version',
+    task: 'about'
+  },
+  {
+    id: 'TOPIC-01',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Multiple conversations keep their own messages after restart',
+    task: 'custom-provider-chat'
+  },
+  {
+    id: 'TOPIC-02',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Rename a conversation and keep the new name after restart',
+    task: 'custom-provider-chat'
+  },
+  {
+    id: 'CHAT-01',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Composer keeps a multi-line draft and clears it after sending',
+    task: 'custom-provider-chat'
+  },
+  {
+    id: 'CHAT-02',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Message actions are offered on a reply and Delete removes it',
+    task: 'custom-provider-chat'
+  },
+  {
+    id: 'SET-01',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Settings navigation opens each section and settings search finds them',
+    task: 'about'
+  },
+  {
+    id: 'SET-02',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Changing a setting persists after restart',
+    task: 'settings'
+  },
+  {
+    id: 'SET-03',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Changing the newline shortcut persists after restart',
+    task: 'settings'
+  },
   { id: 'T-01', capabilities: [], phase: '04-translation', title: 'Translate text', task: 'translation' },
   {
     id: 'T-02',
@@ -108,13 +164,6 @@ export const REGRESSION_CASES = [
     phase: '10-agent-runtimes',
     title: 'Pi Runtime',
     task: 'pi-runtime'
-  },
-  {
-    id: 'A-05',
-    capabilities: ['desktopAutomation'],
-    phase: '10-agent-runtimes',
-    title: 'DeepSeek Harness Runtime',
-    task: 'deepseek-harness-runtime'
   },
   {
     id: 'A-01',

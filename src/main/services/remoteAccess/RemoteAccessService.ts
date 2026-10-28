@@ -1,6 +1,7 @@
 import { powerMonitor } from 'electron'
 
 import { application } from '@application'
+import { isUploadChunk } from '@cherrystudio/remote-protocol'
 import { remoteLimits, type RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
   acceptSecureChannel,
@@ -35,7 +36,13 @@ const transportLog: ChannelOptions['logger'] = {
 
 @Injectable('RemoteAccessService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiStreamManager', 'AgentSessionRuntimeService'])
+@DependsOn([
+  'AiStreamManager',
+  'AgentSessionRuntimeService',
+  'FileManager',
+  'FileIntakeService',
+  'AttachmentPresenceService'
+])
 export class RemoteAccessService extends BaseService {
   private identity?: Promise<Uint8Array>
   private readonly advertisement = new RemoteAdvertisement((status) => {
@@ -83,6 +90,10 @@ export class RemoteAccessService extends BaseService {
     })
   }
 
+  protected onStop(): void {
+    this.closeIngress()
+  }
+
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
   updateDirectEndpoint(endpoint: { port: number; ipv6?: boolean } | undefined): void {
     if (this.endpoint?.port === endpoint?.port && this.endpoint?.ipv6 === endpoint?.ipv6) return
@@ -110,8 +121,8 @@ export class RemoteAccessService extends BaseService {
 
   async getConnectionEndpoints() {
     const desktopIdentity = deviceIdentityId(await this.getIdentity())
-    const { addresses, port } = await application.get('ApiGatewayService').getRemoteEndpoint()
-    return { desktopIdentity, endpoints: addresses.map((host) => ({ host, port, security: 'ws' as const })) }
+    const { endpoints } = await application.get('ApiGatewayService').getRemoteEndpoint()
+    return { desktopIdentity, endpoints }
   }
 
   async createInvitation() {
@@ -197,13 +208,30 @@ export class RemoteAccessService extends BaseService {
     entry.remote = remote
     let windowStart = Date.now()
     let count = 0
+    let uploadCount = 0
     while (!entry.abort.signal.aborted) {
       const input = await channel.read(entry.abort.signal)
+      if (isUploadChunk(input)) {
+        void remote.receiveUpload(input).catch(() => socket.close(1011, 'Remote upload failed'))
+        continue
+      }
       if (Date.now() - windowStart >= 1000) {
         windowStart = Date.now()
         count = 0
+        uploadCount = 0
       }
-      if (++count > 64) throw new Error('Remote request rate exceeded')
+      const upload =
+        input !== null && typeof input === 'object' && 'method' in input && input.method === 'agent.content.read'
+      if (upload ? ++uploadCount > 512 : ++count > 256) {
+        // Awaiting keeps a flood of refusals from queueing ahead of the socket; excess must not end the session.
+        const refusal = remote.rpc.refuse(input, {
+          reason: 'RATE_LIMITED',
+          message: 'Request rate exceeded',
+          retryAfterMs: Math.max(1, windowStart + 1000 - Date.now())
+        })
+        if (refusal) await remote.send(refusal).catch(() => socket.close(1011, 'Remote request failed'))
+        continue
+      }
       void remote.rpc
         .receive(input, undefined)
         .then(async (response) => {

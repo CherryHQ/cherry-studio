@@ -48,7 +48,7 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'OcrInferenceService') return { recognize: recognizeMock }
-    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
+    if (name === 'LocalModelService') return { isDefaultModelReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   const originalGetPath = result.application.getPath.getMockImplementation()!

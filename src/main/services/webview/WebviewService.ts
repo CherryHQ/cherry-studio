@@ -13,6 +13,8 @@ import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webvi
 import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
 import { exportAnnotationDocument } from './annotationExport'
 import { AnnotationSession } from './AnnotationSession'
+import { HiddenGuestFreezer } from './HiddenGuestFreezer'
+import { RemoteDebuggingMonitor } from './RemoteDebuggingMonitor'
 
 const logger = loggerService.withContext('WebviewService')
 /** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
@@ -71,19 +73,87 @@ function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: bo
 export class WebviewService extends BaseService {
   private readonly preloadBindings = new Map<Electron.WebContents, () => void>()
   private readonly annotationSessions = new Map<number, AnnotationSession>()
+  private debuggingMonitor?: RemoteDebuggingMonitor
+  private debuggingRevision = 0
+  private readonly debuggingTargets = new Map<string, number>()
+  private readonly hiddenGuests = new HiddenGuestFreezer((guest) => this.isGuestDebugging(guest.id))
 
   protected async onInit() {
     this.initSessionUserAgent()
     this.initWebviews()
+    this.initDebuggingMonitor()
   }
 
   protected async onStop() {
+    this.debuggingMonitor?.stop()
+    this.hiddenGuests.dispose()
     const annotationSessions = [...this.annotationSessions.values()]
     for (const annotationSession of annotationSessions) annotationSession.dispose()
     await Promise.all(annotationSessions.map((annotationSession) => annotationSession.waitForIdle()))
     for (const cleanup of this.preloadBindings.values()) cleanup()
     this.preloadBindings.clear()
     this.annotationSessions.clear()
+  }
+
+  private initDebuggingMonitor() {
+    if (!app.commandLine.hasSwitch('remote-debugging-port')) return
+    const monitor = new RemoteDebuggingMonitor(
+      async () => {
+        const configuredPort = Number(app.commandLine.getSwitchValue('remote-debugging-port'))
+        if (Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort < 65535) return configuredPort
+        const activePort = Number(
+          (await fs.readFile(application.getPath('app.userdata', 'DevToolsActivePort'), 'utf8')).split(/\r?\n/)[0]
+        )
+        if (!Number.isInteger(activePort) || activePort < 1 || activePort > 65535) {
+          throw new Error('Remote debugging port is not available')
+        }
+        return activePort
+      },
+      (targetId, attached) => {
+        const revision = ++this.debuggingRevision
+        const previousOwner = this.debuggingTargets.get(targetId)
+        const guest = webContents.fromDevToolsTargetId(targetId)
+        const owner =
+          previousOwner ?? (guest && !guest.isDestroyed() && guest.getType() === 'webview' ? guest.id : undefined)
+        if (!attached) this.debuggingTargets.delete(targetId)
+        if (owner === undefined) return
+        if (attached) this.debuggingTargets.set(targetId, owner)
+        application.get('IpcApiService').broadcast('webview.debugging.changed', {
+          webviewId: owner,
+          attached: this.isGuestDebugging(owner),
+          revision
+        })
+      }
+    )
+    this.debuggingMonitor = monitor
+    this.registerDisposable(() => {
+      monitor.stop()
+      if (this.debuggingMonitor === monitor) this.debuggingMonitor = undefined
+    })
+    monitor.start()
+  }
+
+  getDebuggingState(webviewId: number, senderId: WindowId | null) {
+    const guest = this.requireOwnedGuest(webviewId, senderId)
+    return {
+      attached: this.isGuestDebugging(guest.id),
+      revision: this.debuggingRevision
+    }
+  }
+
+  private isGuestDebugging(webviewId: number): boolean {
+    for (const targetId of this.debuggingMonitor?.getAttachedTargetIds() ?? []) {
+      let owner = this.debuggingTargets.get(targetId)
+      if (owner === undefined) {
+        const guest = webContents.fromDevToolsTargetId(targetId)
+        if (guest && !guest.isDestroyed() && guest.getType() === 'webview') {
+          owner = guest.id
+          this.debuggingTargets.set(targetId, owner)
+        }
+      }
+      if (owner === webviewId) return true
+    }
+    return false
   }
 
   /**
@@ -245,6 +315,11 @@ export class WebviewService extends BaseService {
 
   setSpellCheckerEnabled(webviewId: number, isEnable: boolean, senderId: WindowId | null): void {
     this.findOwnedGuest(webviewId, senderId)?.session.setSpellCheckerEnabled(isEnable)
+  }
+
+  setGuestVisible(webviewId: number, visible: boolean, senderId: WindowId | null): void {
+    const guest = this.findOwnedGuest(webviewId, senderId)
+    if (guest) this.hiddenGuests.setVisible(guest, visible)
   }
 
   setOpenLinkExternal(webviewId: number, isExternal: boolean, senderId: WindowId | null): void {

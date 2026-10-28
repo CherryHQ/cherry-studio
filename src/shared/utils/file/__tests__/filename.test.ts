@@ -41,6 +41,22 @@ describe('sanitizeFilename', () => {
     expect(result.length).toBe(255)
   })
 
+  it('trims trailing whitespace exposed by truncation', () => {
+    // A space sits exactly at the 255-char cut: pre-fix left it as the final
+    // character, producing a Windows-illegal name ending in whitespace.
+    const name = 'x'.repeat(254) + ' ' + 'y'.repeat(50)
+    const result = sanitizeFilename(name)
+    expect(result).toBe('x'.repeat(254))
+    expect(result.endsWith(' ')).toBe(false)
+  })
+
+  it('trims trailing dot exposed by truncation', () => {
+    const name = 'x'.repeat(254) + '.' + 'y'.repeat(50)
+    const result = sanitizeFilename(name)
+    expect(result).toBe('x'.repeat(254))
+    expect(result.endsWith('.')).toBe(false)
+  })
+
   it('returns "untitled" when every character was sanitised away', () => {
     expect(sanitizeFilename('...')).toBe('untitled')
     expect(sanitizeFilename('   ')).toBe('untitled')
@@ -90,5 +106,21 @@ describe('validateFileName', () => {
 
   it('accepts a clean filename', () => {
     expect(validateFileName('hello.txt')).toEqual({ valid: true })
+  })
+})
+
+describe('filename edge cases', () => {
+  it('keeps surrogate pairs whole when truncating to 255 code units', () => {
+    const sanitized = sanitizeFilename('😀'.repeat(200))
+
+    expect(sanitized.length).toBeLessThanOrEqual(255)
+    expect([...sanitized].every((character) => character.length === 2)).toBe(true)
+  })
+
+  it('rejects ASCII control characters for win32 names', () => {
+    const result = validateFileName('report\u0001.pdf', 'win32')
+
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.error).toMatch(/control/i)
   })
 })

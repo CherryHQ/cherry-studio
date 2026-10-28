@@ -44,7 +44,15 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('react-i18next', () => ({
   Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
   useTranslation: () => ({
-    t: (key: string) => mocks.translations.get(key) ?? key,
+    t: (key: string, options?: Record<string, string>) => {
+      let translation = mocks.translations.get(key) ?? key
+      if (options) {
+        for (const [k, v] of Object.entries(options)) {
+          translation = translation.replace(new RegExp(`{{${k}}}`, 'g'), v)
+        }
+      }
+      return translation
+    },
     i18n: {
       language: mocks.language,
       exists: (key: string) => mocks.i18nKeys.has(key)
@@ -80,6 +88,32 @@ describe('ErrorBlock', () => {
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
+  })
+
+  // Main-side copy and mapping are asserted in src/main/features/apiGateway/__tests__/bindError.test.ts.
+  // This only guards that providerErrorText keeps the serialized message visible.
+  it.each([
+    {
+      message:
+        '操作系统拒绝内部 API 网关在 ::1，请求的 TCP 端口 49152 上监听（EACCES）。请重试请求。如果仍然失败，请联系系统管理员检查对回环监听的限制。',
+      diagnosis: '操作系统拒绝内部 API 网关',
+      recovery: '请重试请求'
+    },
+    {
+      message:
+        '操作系统拒绝 API 网关在 ::1，TCP 端口 49152 上监听（EACCES）。请在“设置 → API 网关”中选择其他“端口”，离开输入框以保存，然后点击“启动”。请将客户端的连接地址更新为新地址。',
+      diagnosis: '操作系统拒绝 API 网关',
+      recovery: '离开输入框以保存，然后点击“启动”'
+    }
+  ])('keeps serialized Chinese IPv6 bind recovery visible through providerErrorText: $diagnosis', (copy) => {
+    const error = { name: 'Error', message: copy.message, stack: null, cause: null }
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    const diagnostic = screen.getByText(copy.message)
+    expect(diagnostic).toHaveTextContent(copy.diagnosis)
+    expect(diagnostic).toHaveTextContent('::1')
+    expect(diagnostic).toHaveTextContent('49152')
+    expect(diagnostic).toHaveTextContent('EACCES')
+    expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
@@ -439,5 +473,61 @@ describe('ErrorBlock', () => {
     expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
     await user.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
+  })
+
+  // #22571: the stale assistant-bound model is gone from the install, so the headline must name
+  // that layer instead of the generic "no permission" text, and detail must not fall back to a
+  // guessed provider/model.
+  it('names the model that is missing from the app and keeps provider settings recovery', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set(
+      'error.diagnosis.model_unavailable',
+      'Model {{model}} no longer exists in this app — pick a replacement'
+    )
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'DataApiError',
+          message: "Model with id 'openai/gpt-test' not found",
+          stack: null
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText('Model openai/gpt-test no longer exists in this app — pick a replacement')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.bad_request')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('shows configuration guidance without inventing a model for %s', (errorMessage) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('code.select_provider_model', enUS['code.select_provider_model'])
+    mocks.translations.set('error.diagnosis.model_unavailable', enUS['error.diagnosis.model_unavailable'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: errorMessage, stack: null }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['code.select_provider_model'])).toBeInTheDocument()
+    expect(screen.queryByText(/Model not no longer/)).toBeNull()
+    expect(screen.queryByText(errorMessage)).toBeNull()
+    expect(screen.queryByText('error.diagnosis.bad_request')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 })
