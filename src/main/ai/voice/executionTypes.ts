@@ -1,5 +1,6 @@
 import type { SpeechOptions, SpeechResult, TranscriptionOptions, TranscriptionResult } from '@cherrystudio/ai-core'
-import type { LocalSpeechModelId, LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import type { LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import type { SpeechModelId } from '@shared/ai/speech'
 import type {
   SpeechTextEvent,
   TranscriptRevision,
@@ -19,7 +20,7 @@ export interface VoiceExecution {
 }
 
 export type SpeechSource =
-  | (SpeechResult & { readonly kind: typeof SpeechOutputKind.Audio })
+  | (SpeechResult & { readonly kind: typeof SpeechOutputKind.Audio; readonly playbackRate?: number })
   | {
       readonly kind: typeof SpeechOutputKind.PcmStream
       readonly format: SpeechPcmFormat
@@ -43,7 +44,7 @@ export interface TranscriptionExecution extends VoiceExecution {
 }
 
 export interface SpeechRequest {
-  readonly modelId: LocalSpeechModelId
+  readonly modelId: SpeechModelId
   readonly input:
     | { readonly kind: typeof SpeechInputKind.Text; readonly text: string }
     | { readonly kind: typeof SpeechInputKind.TextStream; readonly events: AsyncIterable<SpeechTextEvent> }

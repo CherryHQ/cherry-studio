@@ -26,6 +26,7 @@ import {
   LOCAL_MODEL_STATUS_CACHE_KEY,
   type LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { VoicePlaybackState, VoiceSessionEvent } from '@shared/ipc/schemas/voice'
 
 vi.unmock('@cherrystudio/ui')
@@ -113,13 +114,21 @@ const models = [
   {
     id: APPLE_ASR_MODEL_ID,
     name: 'Apple System ASR',
+    capabilities: [MODEL_CAPABILITY.AUDIO_TRANSCRIPT],
     localeSelection: { defaultLocale: 'en-US' },
     resourceOperations: [VoiceResourceOperation.InstallLocale]
   },
-  { id: APPLE_TTS_MODEL_ID, name: 'Apple System TTS', localeSelection: null, resourceOperations: [] },
+  {
+    id: APPLE_TTS_MODEL_ID,
+    name: 'Apple System TTS',
+    capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION],
+    localeSelection: null,
+    resourceOperations: []
+  },
   {
     id: FUNASR_MODEL_ID,
     name: 'FunASR Nano',
+    capabilities: [MODEL_CAPABILITY.AUDIO_TRANSCRIPT],
     localeSelection: null,
     resourceOperations: [
       VoiceResourceOperation.Download,
@@ -223,6 +232,42 @@ describe('VoiceSettings', () => {
     confirm.mockReset()
     vi.clearAllMocks()
   })
+
+  it.each([true, false])(
+    'selects cloud models and multilingual voices with local models available: %s',
+    async (withLocalModels) => {
+      const cloud = {
+        id: 'google::gemini-2.5-flash-preview-tts',
+        name: 'Google · Gemini TTS',
+        capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION],
+        localeSelection: null,
+        resourceOperations: []
+      }
+      voice.listModels.mockResolvedValue({
+        models: [...(withLocalModels ? models : []), cloud],
+        defaultSpeechModelId: APPLE_TTS_MODEL_ID
+      })
+      voice.listVoices.mockResolvedValue([
+        { id: 'Kore', name: 'Kore' },
+        { id: 'Puck', name: 'Puck' }
+      ])
+      voice.resolveSpeech.mockResolvedValue({ modelId: cloud.id, voice: 'Kore', speed: 1, status: { status: 'ready' } })
+      MockUsePreferenceUtils.setMultiplePreferenceValues({
+        'feature.voice.speech.model_id': cloud.id,
+        'feature.voice.speech.voice_id': ''
+      })
+      const user = userEvent.setup()
+      render(<VoiceSettings />)
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled())
+      expect(screen.getByRole('combobox', { name: 'Speech model' })).toHaveTextContent('Google · Gemini TTS')
+      expect(screen.getByRole('combobox', { name: 'Speech language' })).toBeDisabled()
+      await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
+      await user.click(await screen.findByRole('option', { name: 'Puck' }))
+      await waitFor(() =>
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('Puck')
+      )
+    }
+  )
 
   it('shows effective defaults without persisting platform-specific choices', async () => {
     render(<VoiceSettings />)
@@ -399,6 +444,7 @@ describe('VoiceSettings', () => {
         ...models,
         {
           id: 'local-voice::qwen3-asr-1.7b',
+          capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION],
           name: 'Qwen3-ASR 1.7B (8-bit)',
           localeSelection: null,
           resourceOperations: [VoiceResourceOperation.Download]
@@ -1010,7 +1056,12 @@ describe('VoiceSettings', () => {
       voice.listModels.mockResolvedValue({
         models: [
           ...(onlySpeechModel ? [] : models),
-          { id: modelId, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+          {
+            id: modelId,
+            capabilities: ['audio-generation'],
+            localeSelection: null,
+            resourceOperations: [VoiceResourceOperation.Download]
+          }
         ]
       })
       voice.getModelStatus.mockResolvedValue({ status: 'not_installed', reason: 'model_required' })
@@ -1027,7 +1078,12 @@ describe('VoiceSettings', () => {
     voice.listModels.mockResolvedValue({
       models: [
         ...models,
-        { id: KOKORO_TTS_MODEL_ID, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+        {
+          id: KOKORO_TTS_MODEL_ID,
+          capabilities: ['audio-generation'],
+          localeSelection: null,
+          resourceOperations: [VoiceResourceOperation.Download]
+        }
       ]
     })
     voice.getModelStatus.mockImplementation(async ({ modelId }) => ({
@@ -1062,6 +1118,7 @@ describe('VoiceSettings', () => {
         ...models,
         {
           id: QWEN3_TTS_MODEL_ID,
+          capabilities: ['audio-generation'],
           name: 'Qwen3-TTS',
           localeSelection: null,
           resourceOperations: [VoiceResourceOperation.Download]
@@ -1109,7 +1166,13 @@ describe('VoiceSettings', () => {
       voice.listModels.mockResolvedValue({
         models: [
           ...models,
-          { id: QWEN3_TTS_MODEL_ID, name: 'Qwen3-TTS', localeSelection: null, resourceOperations: [] }
+          {
+            id: QWEN3_TTS_MODEL_ID,
+            capabilities: ['audio-generation'],
+            name: 'Qwen3-TTS',
+            localeSelection: null,
+            resourceOperations: []
+          }
         ]
       })
       voice.listVoices.mockResolvedValue([{ id, name, language, languages }])

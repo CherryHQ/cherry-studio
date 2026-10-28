@@ -9,7 +9,9 @@ import { isEmpty } from 'es-toolkit/compat'
 import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
+import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
@@ -40,13 +42,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import {
-  getBaseUrl,
-  getExtraHeaders,
-  getProviderAppHeaders,
-  headersWithoutCredentials,
-  routeToEndpoint
-} from '../utils/provider'
+import { getExtraHeaders, getProviderAppHeaders, headersWithoutCredentials, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
@@ -126,6 +122,14 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   return formatApiHost(baseURL, appendApiVersion)
 }
 
+function formatEndpointUrl(baseUrl: string, provider: Provider, endpointType?: EndpointType) {
+  const { baseURL, endpoint } = routeToEndpoint(baseUrl)
+  return {
+    baseURL: formatBaseURL(endpoint ? `${baseURL}#` : baseUrl, provider, endpointType),
+    endpoint
+  }
+}
+
 /** Presets whose IMAGE models route to the extension provider's own transport (see the builder). */
 const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.modelscope,
@@ -161,6 +165,14 @@ function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
 
 function withSelectedApiKey(build: ProviderConfigBuilder): ConfigBuilderEntry['build'] {
   return async (ctx) => {
+    if (!ctx.resolvedBaseUrl) {
+      throw new Error(
+        t('provider.errors.missing_connection', {
+          provider: ctx.actualProvider.name,
+          endpoint: ctx.endpointType ?? 'OpenAI'
+        })
+      )
+    }
     const selected = selectApiKey(ctx)
     return {
       config: await build(selected),
@@ -202,8 +214,7 @@ export async function resolveProviderAiSdkConfig(
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
-  const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
-  const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
+  const { baseURL, endpoint } = formatEndpointUrl(baseUrl, provider, endpointType)
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
 
   const ctx: BuilderContext = {
@@ -452,7 +463,8 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
   // Use the raw configured baseURL (the adapter appends `/responses`); the
   // formatted one in baseConfig has `/v1` tacked on, which the codex path rejects.
   const rawBaseUrl =
-    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://chatgpt.com/backend-api/codex'
+    resolveEndpointBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) ||
+    'https://chatgpt.com/backend-api/codex'
   const baseURL = rawBaseUrl.replace(/\/+$/, '')
 
   return {
@@ -505,7 +517,7 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
   // Use the raw configured baseURL (already `…/v1`; the adapter appends
   // `/responses`); the formatted one in baseConfig would double the `/v1`.
   const rawBaseUrl =
-    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://cli-chat-proxy.grok.com/v1'
+    resolveEndpointBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://cli-chat-proxy.grok.com/v1'
   const baseURL = rawBaseUrl.replace(/\/+$/, '')
 
   return {
@@ -744,8 +756,12 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
 
 function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
   const provider = ctx.actualProvider
-  const anthropicBaseURL = formatApiHost(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
-  const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
+  const anthropicBaseURL = formatApiHost(resolveEndpointBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES))
+  const geminiBaseURL = formatApiHost(
+    resolveEndpointBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT),
+    true,
+    'v1beta'
+  )
 
   const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
 
@@ -890,10 +906,10 @@ function buildOpenResponsesConfig(ctx: BuilderContext): ProviderConfig<'open-res
 }
 
 function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType, string>> {
-  const entries = Object.entries(provider.endpointConfigs ?? {}).flatMap(([endpointType, config]) => {
-    if (!config?.baseUrl) return []
-    const formatted = formatBaseURL(config.baseUrl, provider, endpointType as EndpointType)
-    return [[endpointType, routeToEndpoint(formatted).baseURL] as const]
+  const entries = Object.entries(provider.endpointConfigs ?? {}).flatMap(([endpointType]) => {
+    const baseUrl = resolveEndpointBaseUrl(provider, endpointType as EndpointType)
+    if (!baseUrl) return []
+    return [[endpointType, formatEndpointUrl(baseUrl, provider, endpointType as EndpointType).baseURL] as const]
   })
   return Object.fromEntries(entries)
 }
@@ -950,14 +966,7 @@ function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undef
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
   const endpointType = ctx.endpointType
-  let rawBaseURL: string
-
-  if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-    const anthropicBaseURL = getBaseUrl(ctx.actualProvider, endpointType)
-    rawBaseURL = anthropicBaseURL || ctx.baseConfig.baseURL
-  } else {
-    rawBaseURL = ctx.baseConfig.baseURL
-  }
+  const rawBaseURL = ctx.baseConfig.baseURL
 
   const baseURL = isWithTrailingSharp(ctx.resolvedBaseUrl)
     ? ctx.baseConfig.baseURL

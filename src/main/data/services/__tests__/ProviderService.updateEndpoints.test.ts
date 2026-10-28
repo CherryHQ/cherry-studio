@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
+import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 // Stub the registry loader so the preset lookup returns a minimal CherryIN row
@@ -21,7 +22,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             'anthropic-messages': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'openai-responses': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
-            'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
+            'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
+            'openai-image-generation': { adapterFamily: 'cherryin' }
           }
         }
       ]
@@ -168,5 +170,40 @@ describe('ProviderService.update — endpoint config overrides', () => {
     })
     const runtime = providerService.getByProviderId('cherryin-express-2')
     expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('cherryin')
+  })
+
+  it('keeps inherited image addresses out of storage and restores inheritance when an override is cleared', () => {
+    const id = 'image-relay'
+    providerService.create({
+      providerId: id,
+      presetProviderId: 'cherryin',
+      name: 'Image relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1' } }
+    })
+    const read = () => providerService.getByProviderId(id)
+    const imageUrl = () => resolveEndpointBaseUrl(read(), ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
+    expect(imageUrl()).toBe('https://relay.example/v1')
+    providerService.update(id, { name: 'Renamed', endpointConfigs: read().endpointConfigs })
+    const row = dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, id)).get()!
+    expect(row.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]?.baseUrl).toBeUndefined()
+
+    providerService.update(id, {
+      endpointConfigs: {
+        ...read().endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example/v1' }
+      }
+    })
+    providerService.update(id, {
+      endpointConfigs: {
+        ...read().endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-relay.example/v1' }
+      }
+    })
+    expect(imageUrl()).toBe('https://images.example/v1')
+    const remaining = { ...read().endpointConfigs }
+    delete remaining[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    providerService.update(id, { endpointConfigs: remaining })
+    expect(imageUrl()).toBe('https://new-relay.example/v1')
   })
 })

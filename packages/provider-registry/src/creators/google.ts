@@ -72,6 +72,41 @@ export default defineCreator({
   serverToolFunctionMixing: ['gemini-3', 'gemini-4-argon', 'gemini-flash-latest', 'gemini-pro-latest'],
   models: [
     {
+      id: 'gemini-2.5-flash-preview-tts',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['google-generate-content']
+    },
+    {
+      id: 'gemini-2.5-pro-preview-tts',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['google-generate-content']
+    },
+    {
+      id: 'gemini-2.5-flash-tts',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['google-generate-content']
+    },
+    {
+      id: 'gemini-2.5-pro-tts',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['google-generate-content']
+    },
+    {
+      id: 'gemini-3.1-flash-tts-preview',
+      capabilities: ['reasoning', 'audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['google-generate-content']
+    },
+    {
       id: 'gemini-4-argon',
       name: 'Gemini 4 Argon',
       family: 'gemini-4',

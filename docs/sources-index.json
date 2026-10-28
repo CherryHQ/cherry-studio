@@ -95,7 +95,7 @@
     },
     {
       "path": "docs/references/ai/provider-resolution.md",
-      "sources": ["packages/aiCore/src/core/providers/core/initialization.ts","src/main/ai/provider/config.ts","src/main/ai/provider/endpoint.ts"]
+      "sources": ["packages/aiCore/src/core/providers/core/initialization.ts","packages/provider-registry/src/registry-utils.ts","src/main/ai/provider/config.ts","src/main/ai/provider/custom/geminiSpeechModel.ts","src/main/ai/provider/endpoint.ts","src/main/ai/provider/endpointConnection.ts","src/main/ai/provider/speech.ts","src/main/ai/voice/speechModels.ts"]
     },
     {
       "path": "docs/references/ai/provider-state-ownership.md",

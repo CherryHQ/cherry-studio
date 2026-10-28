@@ -49,6 +49,9 @@ export default defineProvider({
     'openai-image-generation': {
       adapterFamily: 'newapi'
     },
+    'openai-text-to-speech': {
+      adapterFamily: 'newapi'
+    },
     'openai-image-edit': {
       adapterFamily: 'newapi'
     }

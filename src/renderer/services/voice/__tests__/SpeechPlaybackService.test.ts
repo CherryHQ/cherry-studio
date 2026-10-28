@@ -19,6 +19,7 @@ const sessionId = '00000000-0000-4000-8000-000000000001'
 const requestId = '00000000-0000-4000-8000-000000000002'
 class FakeAudio extends EventTarget {
   src = ''
+  playbackRate = 1
   removeAttribute(name: string) {
     if (name === 'src') this.src = ''
   }
@@ -192,6 +193,25 @@ function createHarness(options: { chunks?: string[]; audio?: FakeAudio } = {}) {
 beforeEach(() => vi.restoreAllMocks())
 
 describe('SpeechPlaybackService planning and playback', () => {
+  it.each([undefined, 1.5])(
+    'uses the output playback rate without applying synthesis speed twice (%s)',
+    async (playbackRate) => {
+      const { service, voice, audios } = createHarness()
+      const generate = voice.generateSpeech.getMockImplementation()!
+      voice.generateSpeech.mockImplementation((input) => {
+        const operation = generate(input)
+        return {
+          ...operation,
+          result: operation.result.then((result) => ({ ...result, output: { ...result.output, playbackRate } }))
+        }
+      })
+      await service.start(baseInput)
+      expect(audios[0].playbackRate).toBe(playbackRate ?? 1)
+      expect(service.getSnapshot().phase).toBe('playing')
+      await service.stop()
+    }
+  )
+
   it.each(['readSpeechPreferenceInput', 'initialize'] as const)(
     'cancels pending auto-read during %s when the preference is turned off',
     async (boundary) => {

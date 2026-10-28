@@ -3,6 +3,8 @@
  * `docs/references/ai/adapter-family.md` for design rationale.
  */
 
+import { ENDPOINT_CONNECTION_FAMILY } from '@cherrystudio/provider-registry'
+import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -10,7 +12,6 @@ import { getRawModelId } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
-import { getBaseUrl } from '../utils/provider'
 import { resolveGatewayRoute } from './gatewayRouting'
 
 export interface ResolvedEndpoint {
@@ -38,18 +39,8 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
- * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
- * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
- * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
- *
- * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
- * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
- * `endpointTypes[0]` expresses. It wins only when the model declares that endpoint AND the provider
- * configures a base URL for it; otherwise the normal order applies and the caller sees the declined
- * preference in the returned `endpointType`. The base-URL condition is not redundant: `getBaseUrl`
- * cascades across `endpointConfigs`, so an unconfigured preference would resolve to another
- * endpoint's host instead of failing.
+ * Priority: usable preference → model primary → gateway route → provider default.
+ * Preferences must be model-supported and resolve a connection within the same family.
  */
 export function resolveEffectiveEndpoint(
   provider: Provider,
@@ -60,14 +51,20 @@ export function resolveEffectiveEndpoint(
   const preferred =
     preferredEndpointType &&
     model.endpointTypes?.includes(preferredEndpointType) &&
-    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
+    resolveEndpointBaseUrl(provider, preferredEndpointType)
       ? preferredEndpointType
       : undefined
   const endpointType =
-    preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+    preferred ??
+    model.endpointTypes?.[0] ??
+    gatewayRoute?.endpointType ??
+    provider.defaultChatEndpoint ??
+    (Object.keys(ENDPOINT_CONNECTION_FAMILY) as EndpointType[]).find(
+      (candidate) => provider.endpointConfigs?.[candidate]?.baseUrl
+    )
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
-  return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
+  return { endpointType, baseUrl: resolveEndpointBaseUrl(provider, endpointType), providerOptionsKey }
 }
 
 /** Maps base id → variant id (`openai` + `openai-chat-completions` → `openai-chat`). No-op when no variant exists. */

@@ -19,6 +19,7 @@ import {
 import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 
 import type { SpeechOperation } from '../executionTypes'
+import { completeSpeechOperation, completeTranscriptionOperation } from '../sdkOperations'
 import type { TranscriptionModelDefinition, SpeechModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import { getVoiceEnvironment, type VoiceEnvironment } from '../voicePlatform'
@@ -26,7 +27,6 @@ import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { decodeVoiceRecording } from './recordingDecoder'
 import { withScratch } from './scratch'
-import { completeSpeechOperation, completeTranscriptionOperation } from './sdkOperations'
 import { nativeClient, normalizeFailure } from './systemSpeech'
 
 const logger = loggerService.withContext('AppleVoiceAdapter')

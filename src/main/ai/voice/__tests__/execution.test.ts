@@ -10,7 +10,7 @@ const models = vi.hoisted(() => ({
 }))
 
 vi.mock('../localAdapters', async () => {
-  const { completeSpeechOperation, completeTranscriptionOperation } = await import('../localAdapters/sdkOperations')
+  const { completeSpeechOperation, completeTranscriptionOperation } = await import('../sdkOperations')
   return {
     getSpeechOperations: () => [
       completeSpeechOperation(() => {
