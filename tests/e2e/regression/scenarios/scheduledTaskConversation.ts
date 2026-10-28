@@ -205,8 +205,9 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await screenshot('MP-145 deleted task card')
   } finally {
     await screenshot('MP-145 final application state')
-    await page.evaluate(
+    const cleanupErrors = await page.evaluate(
       async ({ agentId, name, sessionsBefore }) => {
+        const errors: string[] = []
         if (agentId) {
           const tasks = await window.api.dataApi.request({
             id: 'MP-145-read',
@@ -231,23 +232,41 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
             .filter(({ id }) => !sessionsBefore.includes(id))
             .map(({ id }) => id)
           if (sessionIds.length) {
+            for (const id of sessionIds) {
+              const stopped = (await window.api.ipcApi.request('ai.stream.abort', {
+                topicId: `agent-session:${id}`
+              })) as IpcResult<void>
+              if (!stopped.ok) errors.push(`Could not stop case session ${id}: ${stopped.error.code}`)
+            }
             const deleted = (await window.api.ipcApi.request('ai.agent.session.delete_permanently', {
               sessionIds
             })) as IpcResult<{ deletedIds: string[] }>
-            if (!deleted.ok || sessionIds.some((id) => !deleted.data.deletedIds.includes(id))) {
-              throw new Error('cleanup left case sessions active')
-            }
+            if (!deleted.ok) errors.push(`Could not delete case sessions: ${deleted.error.code}`)
+            const remaining = await window.api.dataApi.request({
+              id: 'MP-145-verify-cleanup',
+              method: 'GET',
+              path: '/agent-sessions',
+              params: { ids: sessionIds }
+            })
+            if (remaining.status !== 200 || (remaining.data as { items: unknown[] }).items.length > 0)
+              errors.push('cleanup left case sessions active')
           }
+        } else {
+          errors.push('Could not list case sessions for cleanup')
         }
         if (agentId) {
           const deletedAgent = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
             agentId,
             deleteSessions: true
           })) as IpcResult<{ deleted: boolean }>
-          if (!deletedAgent.ok || !deletedAgent.data.deleted) throw new Error('cleanup left the case agent active')
+          if (!deletedAgent.ok || !deletedAgent.data.deleted) errors.push('cleanup left the case agent active')
         }
+        return errors
       },
       { agentId, name, sessionsBefore }
     )
+    expect
+      .soft(cleanupErrors, 'Scheduled-task cleanup must not leave running sessions or mask the case failure')
+      .toEqual([])
   }
 }
