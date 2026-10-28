@@ -987,7 +987,9 @@ describe('CodeCliService', () => {
       }
     })
 
-    it('hands the spaced batch path to cmd.exe when WSL is selected', async () => {
+    // This handoff model needs POSIX /bin/bash, absent on Windows runners.
+    // The Windows path stays covered by the PR smoke checklist.
+    it.skipIf(process.platform === 'win32')('hands the spaced batch path to cmd.exe when WSL is selected', async () => {
       const { application } = await import('@application')
       const getPath = vi.mocked(application.getPath)
       const originalGetPath = getPath.getMockImplementation()!

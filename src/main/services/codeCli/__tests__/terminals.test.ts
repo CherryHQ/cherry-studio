@@ -93,11 +93,15 @@ function wsl() {
 `
 
 describe('WSL launcher handoff through the retained Windows shell transport', () => {
-  it.each([
-    String.raw`C:\projects\demo\launch.bat`,
-    String.raw`C:\Users\John Doe\AppData\Local\Temp\CherryStudio\cli\launch_kimi-code_1758.bat`,
-    String.raw`C:\Users\O'Brien\AppData\Local\Temp\CherryStudio\cli\launch.bat`
-  ])('preserves /c and the literal batch path %s', (batPath) => {
+  // This handoff model needs POSIX /bin/bash, absent on Windows runners.
+  // The Windows path stays covered by the PR smoke checklist.
+  it
+    .skipIf(process.platform === 'win32')
+    .each([
+      String.raw`C:\projects\demo\launch.bat`,
+      String.raw`C:\Users\John Doe\AppData\Local\Temp\CherryStudio\cli\launch_kimi-code_1758.bat`,
+      String.raw`C:\Users\O'Brien\AppData\Local\Temp\CherryStudio\cli\launch.bat`
+    ])('preserves /c and the literal batch path %s', (batPath) => {
     const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((terminal) => terminal.id === TerminalApp.WSL)!
     const { command, args } = cfg.command(String.raw`C:\projects\demo`, batPath)
     const decoded = decodeWslCommandLine(windowsShellCommandLine(command, args))
