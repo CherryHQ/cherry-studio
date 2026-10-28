@@ -138,11 +138,10 @@ describe('AskUserQuestionComposer', () => {
 
     const row = screen.getByRole('button', { name: /Winston/ })
     const span = within(row).getByText(description)
-    // These classes are the layout contract for the reported option-description truncation.
+    // Bound the combined list, not individual descriptions, so every option remains reachable.
+    expect.soft(row.parentElement).toHaveClass('max-h-[50vh]', 'overflow-y-auto', 'overscroll-contain')
     expect(span).toHaveClass(
       'block',
-      'max-h-36',
-      'overflow-y-auto',
       'whitespace-pre-wrap',
       'break-words',
       'font-medium',
@@ -151,9 +150,46 @@ describe('AskUserQuestionComposer', () => {
       'leading-4'
     )
     expect(span).not.toHaveClass('truncate')
+    expect.soft(span).not.toHaveClass('max-h-36')
+    expect.soft(span).not.toHaveClass('overflow-y-auto')
     expect(span.textContent).toBe(description)
     expect(span.textContent).toHaveLength(2000)
     expect(span.textContent).toMatch(/END-OF-DESCRIPTION-22984$/)
+  })
+
+  it('bounds four twelve-line multi-select options in one scrollable list while retaining every control', () => {
+    const options = Array.from({ length: 4 }, (_, optionIndex) => ({
+      label: `Option ${optionIndex + 1}`,
+      description: Array.from({ length: 12 }, (_, lineIndex) => `Option ${optionIndex + 1} line ${lineIndex + 1}`).join(
+        '\n'
+      )
+    }))
+    render(
+      <AskUserQuestionComposer
+        request={makeRequest([{ ...questions[0], options, multiSelect: true }, questions[1]])}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const firstOption = screen.getByRole('button', { name: /Option 1/ })
+    // The combined list owns the scrolling bound; each description stays fully expanded.
+    expect.soft(firstOption.parentElement).toHaveClass('max-h-[50vh]', 'overflow-y-auto', 'overscroll-contain')
+    for (const option of options) {
+      const row = screen.getByRole('button', { name: new RegExp(option.label) })
+      const span = within(row).getByText(
+        (_, element) => element?.tagName === 'SPAN' && element.textContent === option.description
+      )
+      expect(row).toBeInTheDocument()
+      expect(span.textContent).toBe(option.description)
+      expect(span).not.toHaveClass('truncate')
+      expect.soft(span).not.toHaveClass('max-h-36')
+      expect.soft(span).not.toHaveClass('overflow-y-auto')
+    }
+    expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Enter your answer...' })).toBeInTheDocument()
   })
 
   it('preserves all twelve authored lines in an option description', () => {
@@ -261,8 +297,6 @@ describe('AskUserQuestionComposer', () => {
     expect(span.textContent).toBe('Mature ecosystem')
     expect(span).toHaveClass(
       'block',
-      'max-h-36',
-      'overflow-y-auto',
       'whitespace-pre-wrap',
       'break-words',
       'font-medium',
@@ -270,6 +304,8 @@ describe('AskUserQuestionComposer', () => {
       'text-xs',
       'leading-4'
     )
+    expect(span).not.toHaveClass('max-h-36')
+    expect(span).not.toHaveClass('overflow-y-auto')
     expect(span).not.toHaveClass('truncate')
   })
 

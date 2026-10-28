@@ -266,7 +266,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           </div>
         </div>
 
-        <div className="mt-2 flex flex-col gap-1.5">
+        <div className="mt-2 flex max-h-[50vh] flex-col gap-1.5 overflow-y-auto overscroll-contain">
           {currentQuestion.options.map((option, optionIndex) => {
             const isSelected = selectedForCurrent.includes(option.label)
 
@@ -296,7 +296,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold text-foreground text-sm leading-5">{option.label}</span>
                   {option.description && (
-                    <span className="block max-h-36 overflow-y-auto whitespace-pre-wrap break-words font-medium text-muted-foreground text-xs leading-4">
+                    <span className="block whitespace-pre-wrap break-words font-medium text-muted-foreground text-xs leading-4">
                       {option.description}
                     </span>
                   )}
