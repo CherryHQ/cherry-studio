@@ -40,6 +40,7 @@ import {
   type MarkdownSanitizeSchema,
   SVG_ELEMENT_REGEX
 } from './utils'
+import { rehypeNormalizeLinkScheme } from './utils/normalize-link-scheme'
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
   if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
@@ -191,6 +192,9 @@ export function MarkdownCore({
       : extendedSchema
     const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
+      // Sanitize compares protocols case-sensitively, but URI schemes are case-insensitive.
+      // Normalize schemes instead of expanding the allow-list.
+      rehypeNormalizeLinkScheme,
       [sanitizeFn, effectiveSchema] as Pluggable,
       rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
