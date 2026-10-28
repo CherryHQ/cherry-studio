@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { rm, writeFile, readFile } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 
 import type { Page } from '@playwright/test'
@@ -730,38 +730,7 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     await rm(exportedPath, { force: true })
     await cards.first().getByRole('button', { name: 'More', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Export Assistant', exact: true }).click()
-    if (app.record.platform === 'macos') {
-      // Keep the JSON extension: the generic save helper strips it from the native filename.
-      execFileSync(
-        'osascript',
-        [
-          '-e',
-          [
-            'on run argv',
-            'tell application "System Events"',
-            'set frontmost of first application process whose unix id is (item 3 of argv as integer) to true',
-            'delay 2',
-            'keystroke "g" using {command down, shift down}',
-            'delay 1',
-            'keystroke (item 1 of argv)',
-            'key code 36',
-            'delay 1',
-            'keystroke "a" using command down',
-            'keystroke (item 2 of argv)',
-            'key code 36',
-            'end tell',
-            'end run'
-          ].join('\n'),
-          '--',
-          dirname(exportedPath),
-          basename(exportedPath),
-          String(app.record.electronPid)
-        ],
-        { timeout: 15000 }
-      )
-    } else {
-      await saveNativeFile(app.record.platform, app.paths, exportedPath)
-    }
+    await saveNativeFile(app.record.platform, app.paths, exportedPath)
     // Poll the parsed payload, not just file size: a leftover file from an earlier invocation would
     // satisfy a nonempty check and then fail the name assertion against stale output.
     await expect
