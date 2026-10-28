@@ -45,7 +45,7 @@ Variables and properties stay uncolored so that color marks only syntax. Dark-mo
 - **Message viewer, Tiptap, and CodeMirror syntax:** `getCodeBlockPalette` maps a CSS-variable theme to `var(--cherry-code-*)` references.
 - **Pierre files and diffs:** `src/renderer/utils/pierreCodeTheme.ts` registers `cherry` once on the main thread with `registerCustomTheme(..., 'zed')`; the worker pool resolves themes there and sends them to its workers.
 - **Dark-mode detection:** for `cherry`, `isCodeThemeDark` follows the application appearance instead of a fixed `appearance` field.
-- **Gutters:** line-number gutters are transparent and scroll horizontally with the code, as message viewer line numbers already do. Pierre (`unsafeCSS`) and CodeMirror (`gutters({ fixed: false })`) no longer pin the gutter, so code never passes beneath it.
+- **Gutters:** line-number gutters are transparent and scroll horizontally with the code, as message viewer line numbers already do. Pierre (`unsafeCSS`) and CodeMirror (`gutters({ fixed: false })`) no longer pin the gutter, so code never passes beneath it. Pierre's floating editor widgets, such as search, derive their fill from `--diffs-bg`, so they use the opaque `popover` surface.
 - **CodeMirror chrome:** with `chat.code.editor.theme_*` set to `auto`, `getCherryCmTheme` loads a Cherry chrome theme on demand instead of `materialLight` / `dark`. It uses a transparent background and takes text, caret, selection, gutter, and active-line colors from application tokens; syntax colors come from the same palette.
 
 Explicitly selected third-party themes keep their full colors and background. Stored preference values are not rewritten, and no migration is needed.

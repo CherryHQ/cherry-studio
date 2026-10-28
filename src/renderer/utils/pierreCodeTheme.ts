@@ -5,5 +5,8 @@ import { CHERRY_CODE_THEME, cherryCodeTheme } from '@cherrystudio/ui/code-highli
 // The worker pool resolves themes on the main thread, so one registration covers workers too.
 registerCustomTheme(CHERRY_CODE_THEME, () => Promise.resolve(cherryCodeTheme), 'zed')
 
-/** Lets line numbers scroll with the code; a sticky gutter would need an opaque fill that cannot match the host. */
-export const CHERRY_GUTTER_CSS = '[data-gutter]{position:relative}'
+/**
+ * Line numbers scroll with the code: a sticky gutter would need an opaque fill that cannot match the host.
+ * Floating widgets such as search derive their fill from `--diffs-bg`, so give them the popover surface.
+ */
+export const CHERRY_EDITOR_CSS = '[data-gutter]{position:relative}[data-editor-widget]{--diffs-bg:var(--popover)}'

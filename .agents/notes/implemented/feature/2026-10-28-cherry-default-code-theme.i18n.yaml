@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-28-cherry-default-code-theme.md
-2026-10-28-cherry-default-code-theme.md: 9e03deb88ad709c0d569ed2d5c4b563b3dc11cf3
-2026-10-28-cherry-default-code-theme.zh.md: ff50ab37ae23d44dd960f6e9e3ce876da8918a48
+2026-10-28-cherry-default-code-theme.md: 815c0b46c3f205b4679aa657d1745500f531b006
+2026-10-28-cherry-default-code-theme.zh.md: 57494c3e32970db2e7bfff35541f489643e77854

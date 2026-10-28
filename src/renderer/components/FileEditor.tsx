@@ -10,7 +10,7 @@ import { CHERRY_CODE_THEME } from '@cherrystudio/ui/code-highlight'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { CHERRY_GUTTER_CSS } from '@renderer/utils/pierreCodeTheme'
+import { CHERRY_EDITOR_CSS } from '@renderer/utils/pierreCodeTheme'
 import { cn } from '@renderer/utils/style'
 
 const logger = loggerService.withContext('FileEditor')
@@ -104,7 +104,7 @@ export default function FileEditor({
       themeType: isCodeThemeDark ? 'dark' : 'light',
       overflow: wrapLines ? 'wrap' : 'scroll',
       disableLineNumbers: !showLineNumbers,
-      unsafeCSS: theme === CHERRY_CODE_THEME ? CHERRY_GUTTER_CSS : undefined
+      unsafeCSS: theme === CHERRY_CODE_THEME ? CHERRY_EDITOR_CSS : undefined
     }),
     [theme, isCodeThemeDark, showLineNumbers, wrapLines]
   )

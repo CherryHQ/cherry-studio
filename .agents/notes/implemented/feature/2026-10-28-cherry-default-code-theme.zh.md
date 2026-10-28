@@ -45,7 +45,7 @@ Status: implemented
 - **消息查看器、Tiptap 与 CodeMirror 语法色：** `getCodeBlockPalette` 将 CSS 变量主题映射为 `var(--cherry-code-*)` 引用。
 - **Pierre 文件与 Diff：** `src/renderer/utils/pierreCodeTheme.ts` 在主线程通过 `registerCustomTheme(..., 'zed')` 注册一次 `cherry`；worker pool 在主线程解析主题后再发送给各 worker。
 - **暗色判断：** 使用 `cherry` 时，`isCodeThemeDark` 跟随应用的明暗模式，而不是读取固定的 `appearance` 字段。
-- **行号栏：** 行号栏透明，并在横向滚动时随代码一起移动，与消息查看器现有的行号行为一致。Pierre（`unsafeCSS`）和 CodeMirror（`gutters({ fixed: false })`）不再固定行号栏，代码不会从行号栏下方经过。
+- **行号栏：** 行号栏透明，并在横向滚动时随代码一起移动，与消息查看器现有的行号行为一致。Pierre（`unsafeCSS`）和 CodeMirror（`gutters({ fixed: false })`）不再固定行号栏，代码不会从行号栏下方经过。Pierre 的浮动编辑器控件（如搜索框）的底色由 `--diffs-bg` 派生，因此改用不透明的 `popover` 表面。
 - **CodeMirror 外观：** `chat.code.editor.theme_*` 为 `auto` 时，`getCherryCmTheme` 按需加载 Cherry 外观主题，不再使用 `materialLight` / `dark`。该主题背景透明，正文、光标、选区、行号栏和当前行颜色取自应用的颜色变量，语法色使用同一套调色板。
 
 用户主动选择的第三方主题保留完整配色和背景。不改写已保存的设置值，也不需要迁移。
