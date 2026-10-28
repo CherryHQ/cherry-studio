@@ -77,8 +77,8 @@ Pipeline order (documented in the `toModelMessages` JSDoc):
 
 ## Verification
 
-- New regression suite: 9 tests covering the wire bytes `@ai-sdk/google` would send (capturing
-  `generateText` fetch bodies). All fail without the fix (7/8), all pass with it.
+- Regression — new regression suite: 9 tests covering the wire bytes `@ai-sdk/google` would send
+  (capturing `generateText` fetch bodies). All fail without the fix (7/8), all pass with it.
 - Existing suites: `src/main/ai/messages/` 228 tests pass; `src/main/ai/runtime/aiSdk/` 749 tests
   pass (one flaky timeout test now runs in 15s vs 20s limit).
 - `oxlint --deny-warnings`, `oxfmt --check`, and `tsc --noEmit` (ignoring pre-existing
