@@ -1,14 +1,17 @@
+import { Blob as NodeBlob } from 'node:buffer'
+
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
-import { useHeifRendition } from '../useHeifRendition'
+import { useHeifRendition, useHeifRenditions } from '../useHeifRendition'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: mocks }))
 const png = { content: new Uint8Array([137, 80, 78, 71]) }
 beforeEach(() => {
+  vi.stubGlobal('Blob', NodeBlob)
   mocks.request.mockReset().mockResolvedValue(png)
   Object.defineProperty(URL, 'createObjectURL', {
     configurable: true,
@@ -16,7 +19,58 @@ beforeEach(() => {
   })
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
 })
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+it('preserves the rendition and its URL when a new sources array has equal values', async () => {
+  const source = { source: '/tmp/photo.heic', mediaType: 'image/heic', filename: 'photo.heic' }
+  const { result, rerender } = renderHook(({ sources }) => useHeifRenditions(sources), {
+    initialProps: { sources: [source] }
+  })
+  await waitFor(() => expect(result.current[0].url).toBe('blob:first'))
+
+  rerender({ sources: [{ ...source }] })
+
+  expect(result.current[0]).toEqual({ url: 'blob:first', loading: false })
+  expect(mocks.request).toHaveBeenCalledTimes(1)
+  expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
+  expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+})
+
+it.each([
+  { kind: 'path', source: () => '/tmp/old.heic', replacement: () => '/tmp/new.heic' },
+  {
+    kind: 'Blob with equal type and size',
+    source: () => new Blob(['old'], { type: 'image/heic' }),
+    replacement: () => new Blob(['new'], { type: 'image/heic' })
+  }
+])('replaces and revokes the rendition when the $kind changes', async ({ source, replacement }) => {
+  const { result, rerender } = renderHook(({ sources }) => useHeifRenditions(sources), {
+    initialProps: { sources: [{ source: source() }] }
+  })
+  await waitFor(() => expect(result.current[0].url).toBe('blob:first'))
+
+  rerender({ sources: [{ source: replacement() }] })
+
+  await waitFor(() => expect(result.current[0].url).toBe('blob:second'))
+  expect(mocks.request).toHaveBeenCalledTimes(2)
+  expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:first')
+})
+
+it('replaces the rendition on explicit refresh even when source values are equal', async () => {
+  const { result, rerender } = renderHook(({ sources, refreshKey }) => useHeifRenditions(sources, refreshKey), {
+    initialProps: { sources: [{ source: '/tmp/photo.heic' }], refreshKey: 0 }
+  })
+  await waitFor(() => expect(result.current[0].url).toBe('blob:first'))
+
+  rerender({ sources: [{ source: '/tmp/photo.heic' }], refreshKey: 1 })
+
+  await waitFor(() => expect(result.current[0].url).toBe('blob:second'))
+  expect(mocks.request).toHaveBeenCalledTimes(2)
+  expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:first')
+})
 
 it('never lets an obsolete conversion replace a newer source', async () => {
   let complete!: (value: typeof png) => void

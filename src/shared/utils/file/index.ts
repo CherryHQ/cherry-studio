@@ -5,6 +5,7 @@ export {
   codeLangExts,
   customTextExts,
   documentExts,
+  heifImageExts,
   imageExts,
   knowledgeFileProcessingExts,
   knowledgeSupportedFileExts,

@@ -68,3 +68,23 @@ it('keeps raw HEIF out of thumbnails and lightbox inputs while preserving ordina
   unmount()
   expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:message-png')
 })
+
+it('keeps the HEIF rendition in ImageBlock when attachment sources rerender with equal values', async () => {
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:message-png') })
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+  mocks.request.mockResolvedValue({ content: new Uint8Array([137, 80, 78, 71]) })
+  const { rerender } = render(
+    <MessageImageBlock sources={[{ url: 'file:///tmp/photo.heic', mediaType: 'image/heic', filename: 'photo.heic' }]} />
+  )
+  await waitFor(() => expect(images()).toEqual(['blob:message-png']))
+
+  rerender(
+    <MessageImageBlock sources={[{ url: 'file:///tmp/photo.heic', mediaType: 'image/heic', filename: 'photo.heic' }]} />
+  )
+
+  expect(images()).toEqual(['blob:message-png'])
+  expect(mocks.request).toHaveBeenCalledExactlyOnceWith('file.get_heif_rendition', {
+    source: { kind: 'path', path: '/tmp/photo.heic' }
+  })
+  expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+})

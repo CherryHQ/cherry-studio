@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { heifErrorKey, type HeifImageSource, isHeifImage, resolveHeifImage } from '@renderer/utils/heif'
 
@@ -9,19 +9,34 @@ export interface HeifImageState {
 }
 
 export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKey = 0): HeifImageState[] {
+  const previousSources = useRef(sources)
+  if (
+    previousSources.current.length !== sources.length ||
+    !sources.every((item, index) => {
+      const previous = previousSources.current[index]
+      return (
+        Object.is(item.source, previous.source) &&
+        item.mediaType === previous.mediaType &&
+        item.filename === previous.filename
+      )
+    })
+  ) {
+    previousSources.current = sources
+  }
+  const stableSources = previousSources.current
   const initial = useMemo(
     () =>
-      sources.map((item) => ({
+      stableSources.map((item) => ({
         url: !isHeifImage(item) && typeof item.source === 'string' ? item.source : undefined,
         loading: isHeifImage(item)
       })),
-    [sources]
+    [stableSources]
   )
   const [result, setResult] = useState<{ initial: HeifImageState[]; refreshKey: number; states: HeifImageState[] }>()
   useEffect(() => {
     let disposed = false
     const urls: string[] = []
-    sources.forEach((item, index) => {
+    stableSources.forEach((item, index) => {
       if (!isHeifImage(item)) return
       void resolveHeifImage(item.source)
         .then((blob) => {
@@ -47,7 +62,7 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
       disposed = true
       urls.forEach((url) => URL.revokeObjectURL(url))
     }
-  }, [sources, initial, refreshKey])
+  }, [stableSources, initial, refreshKey])
   return result?.initial === initial && result.refreshKey === refreshKey ? result.states : initial
 }
 
