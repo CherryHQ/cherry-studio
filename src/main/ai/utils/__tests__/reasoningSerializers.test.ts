@@ -12,7 +12,11 @@ import {
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 
 import { makeModel } from '../../__tests__/fixtures'
-import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
+import {
+  encodeReasoningInvocation,
+  normalizeRequestedSelection,
+  resolveReasoningInvocation
+} from '../reasoningSerializers'
 
 describe('Claude Opus 5.5 reasoning requests', () => {
   const controls = inferReasoningControls('claude-opus-5-5')
@@ -209,6 +213,46 @@ describe('automatic effort against a model that does not declare it', () => {
     })
 
     expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'max' })
+  })
+})
+
+// Watt's boolean thinking flag against a synced DeepSeek-V4-Pro: the model
+// resolves to its creator entry, whose effort controls project the wire to
+// selectableEfforts: ['none'] — Default/Off only. The full projected
+// model-to-request path must still send the flag in every reachable state.
+describe('Watt Cloud chat_template_kwargs.thinking requests', () => {
+  const wattWire = (providerId: string) =>
+    readProviderRegistry(path.join(process.cwd(), 'packages/provider-registry/data/providers.json')).providers.find(
+      (provider) => provider.id === providerId
+    )?.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+  const profile = wattWire('watt-cloud')!
+
+  const wattDeepSeekV4Pro = makeModel({
+    id: 'watt-cloud::deepseek-v4-pro',
+    reasoning: {
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }, { kind: 'toggle' }],
+      selectableEfforts: ['none']
+    }
+  })
+
+  it('explicitly enables thinking on the Default selection', () => {
+    const invocation = resolveReasoningInvocation({ selection: 'default', model: wattDeepSeekV4Pro, profile })
+    expect(encodeReasoningInvocation(invocation)).toEqual({ chat_template_kwargs: { thinking: true } })
+  })
+
+  it('disables thinking on the Off selection', () => {
+    const invocation = resolveReasoningInvocation({ selection: 'none', model: wattDeepSeekV4Pro, profile })
+    expect(encodeReasoningInvocation(invocation)).toEqual({ chat_template_kwargs: { thinking: false } })
+  })
+
+  // Auto is not in the projected vocabulary, so a persisted Auto normalizes to
+  // Default — which must carry the enable rather than omit the flag.
+  it('keeps a persisted Auto working through the Default normalization', () => {
+    const selection = normalizeRequestedSelection('auto', wattDeepSeekV4Pro)
+    expect(selection).toBe('default')
+
+    const invocation = resolveReasoningInvocation({ selection, model: wattDeepSeekV4Pro, profile })
+    expect(encodeReasoningInvocation(invocation)).toEqual({ chat_template_kwargs: { thinking: true } })
   })
 })
 
