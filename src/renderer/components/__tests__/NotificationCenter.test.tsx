@@ -1,5 +1,5 @@
 import { MockDataApiUtils, mockDataApiService } from '@test-mocks/renderer/DataApiService'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { getI18n } from 'react-i18next'
 import { SWRConfig } from 'swr'
@@ -21,7 +21,8 @@ describe('NotificationCenter reading', () => {
   })
 
   it.each([null, 1])('only persists unread announcements (readAt=%s)', async (readAt) => {
-    const content = '**中文** 😀\n<b>Full announcement details</b>\n[link](https://example.com)'
+    const content =
+      '**中文** 😀\n<b>Full announcement details</b>\n[link](https://example.com)\n' + '完整公告内容。'.repeat(30)
     const record: NotificationRecord = {
       id: 'c4519cf1-0405-4eb1-a18c-17b263872413',
       eventKey: 'announcement:reading',
@@ -48,9 +49,19 @@ describe('NotificationCenter reading', () => {
     )
     await user.click(await screen.findByRole('button', { name: 'Notification center' }))
     const item = await screen.findByRole('button', { name: record.title })
+    expect(item).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(record.message)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
+    const previewText = /^\*\*中文\*\* 😀 <b>Full announcement details<\/b> \[link\]/
+    const preview = within(item).getByText(previewText)
+    // The collapsed preview fades; expansion must remove this mask in place.
+    expect(preview).toHaveClass('[mask-image:linear-gradient(to_bottom,black_75%,transparent)]')
     await user.click(item)
-    const body = await screen.findByText(content, { normalizer: (text) => text })
+    const body = await within(item).findByText(content, { normalizer: (text) => text })
     expect(body).toBeVisible()
+    expect(item).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByText(content, { normalizer: (text) => text })).toHaveLength(1)
+    expect(preview).not.toBeInTheDocument()
     expect(body.textContent).toBe(content)
     expect(screen.queryByRole('link', { name: 'link' })).not.toBeInTheDocument()
     // Preserving line breaks is part of the announcement text contract.
@@ -59,6 +70,8 @@ describe('NotificationCenter reading', () => {
     expect(window.api.ipcApi.request).toHaveBeenCalledWith('system.shell.open_website', 'https://example.com/news')
     await user.click(item)
     await waitFor(() => expect(screen.queryByText(content, { normalizer: (text) => text })).not.toBeInTheDocument())
+    expect(item).toHaveAttribute('aria-expanded', 'false')
+    expect(within(item).getByText(previewText)).toBeVisible()
     await user.click(item)
     expect(await screen.findByText(content, { normalizer: (text) => text })).toBeVisible()
     expect(record.readAt).not.toBeNull()

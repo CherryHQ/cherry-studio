@@ -21,12 +21,12 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { NotificationCategory, NotificationRecord } from '@shared/data/types/notification'
 
+import NotificationAnnouncement from './NotificationAnnouncement'
 import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
 import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('NotificationCenter')
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
-const NotificationAnnouncement = lazy(() => import('./NotificationAnnouncement'))
 const categories = ['all', 'system', 'usage', 'official'] as const
 type Filter = 'all' | NotificationCategory
 
@@ -56,6 +56,7 @@ function NotificationItem({
   })
   const release = record.target?.kind === 'release' ? record.target : null
   const announcement = record.target?.kind === 'announcement' ? record.target : null
+  const announcementUrl = announcement?.url
   const expandable = !!(release || announcement)
   const Icon = notificationCategoryIcons[record.category]
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
@@ -100,9 +101,13 @@ function NotificationItem({
                 <NotificationTitle record={record} />
               </span>
             </span>
-            <span className="block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground">
-              {notificationPreview(record.message)}
-            </span>
+            {announcement ? (
+              <NotificationAnnouncement id={record.id} announcement={announcement} expanded={expanded} />
+            ) : (
+              <span className="block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground">
+                {notificationPreview(record.message)}
+              </span>
+            )}
             <time
               dateTime={new Date(record.createdAt).toISOString()}
               className="mt-1 block text-xs text-muted-foreground">
@@ -129,15 +134,24 @@ function NotificationItem({
           </Button>
         </Tooltip>
       </div>
-      {expandable && expanded && (
+      {expanded && (release || announcementUrl) && (
         <div className="space-y-3 px-3 pb-4">
-          <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
-            {release ? (
+          {release && (
+            <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
               <ReleaseNotes content={release.releaseNotes} />
-            ) : announcement ? (
-              <NotificationAnnouncement id={record.id} announcement={announcement} />
-            ) : null}
-          </Suspense>
+            </Suspense>
+          )}
+          {announcementUrl && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                void ipcApi
+                  .request('system.shell.open_website', announcementUrl)
+                  .catch((error) => logger.error('Failed to open announcement link', error as Error))
+              }>
+              {t('common.open')}
+            </Button>
+          )}
           {canUpdate && appUpdateState.lastErrorKey && (
             <p role="alert" className="text-sm text-destructive">
               {t(appUpdateState.lastErrorKey)}

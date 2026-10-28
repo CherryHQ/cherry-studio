@@ -1,36 +1,25 @@
-import { useTranslation } from 'react-i18next'
-
-import { Button } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
 import type { NotificationTarget } from '@shared/data/types/notification'
 
-const logger = loggerService.withContext('NotificationAnnouncement')
-const openLink = (url: string) => {
-  void ipcApi
-    .request('system.shell.open_website', url)
-    .catch((error) => logger.error('Failed to open announcement link', error as Error))
-}
+import { notificationPreview } from './notificationPresentation'
 
 export default function NotificationAnnouncement({
   id,
-  announcement
+  announcement,
+  expanded
 }: {
   id: string
   announcement: Extract<NotificationTarget, { kind: 'announcement' }>
+  expanded: boolean
 }) {
-  const { t } = useTranslation()
-  const { url: announcementUrl } = announcement
   return (
-    <>
-      <div id={`notification-${id}`} className="whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground">
-        {announcement.content}
-      </div>
-      {announcementUrl && (
-        <Button variant="outline" onClick={() => openLink(announcementUrl)}>
-          {t('common.open')}
-        </Button>
-      )}
-    </>
+    <span
+      id={`notification-${id}`}
+      className={
+        expanded
+          ? 'block whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground'
+          : 'block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground'
+      }>
+      {expanded ? announcement.content : notificationPreview(announcement.content)}
+    </span>
   )
 }
