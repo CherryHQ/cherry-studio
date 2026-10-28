@@ -90,7 +90,10 @@ focus emulation. Pending dialogs and download state changes accompany
 results. Popups switch the active tab and report `newTabId`; the current result snapshot still
 belongs to the source tab, so observe the new tab explicitly. An `execute` interrupted by a page dialog returns the same error envelope.
 
-For borrowed input, `submit: true` now delivers the Enter key event to the bound
+Text newlines are inserted as characters, never as Enter commands. Borrowed input
+uses only `char '\r'`, without Enter key-down/key-up. A single-line target rejects
+multiline text with `not_found` before any mutation. For `type`, `submit: true` is
+the only path that sends Enter. Borrowed input delivers the Enter key event to the bound
 guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
 Page `keydown` handlers receive it and textareas insert a line break. Forms that
 accept implicit submission (a submit button, or at most one field that blocks

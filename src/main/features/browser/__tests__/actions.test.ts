@@ -1,6 +1,8 @@
 import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as platform from '@main/core/platform'
+
 import { selectOption } from '../actions/forms'
 import { pressKey, typeText } from '../actions/keyboard'
 import { click, hover } from '../actions/mouse'
@@ -103,6 +105,8 @@ beforeEach(() => {
     let active = dom.window.document.activeElement
     while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
     const recipient = active as HTMLInputElement
+    if (event.type === 'keyDown' && event.keyCode === 'Enter' && recipient.tagName === 'INPUT')
+      recipient.form?.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
     if (event.type === 'keyDown' && event.keyCode === 'Backspace') {
       if ('value' in recipient) {
         const start = recipient.selectionStart ?? recipient.value.length
@@ -393,24 +397,113 @@ describe('Browser actions', () => {
       }
     )
 
-    it('delivers a text line break as Enter with a carriage-return character', async () => {
+    it.each([
+      [false, '\n'],
+      [true, '\n'],
+      [false, '\r'],
+      [true, '\r'],
+      [false, '\r\n'],
+      [true, '\r\n']
+    ] as const)('rejects multiline input before mutation (clear=%s, newline=%j)', async (clear, newline) => {
+      const form = dom.window.document.createElement('form')
+      form.innerHTML = '<button type="submit">Submit</button>'
+      form.prepend(target)
+      dom.window.document.body.append(form)
+      const submissions: string[] = []
+      form.addEventListener('submit', (event) => {
+        event.preventDefault()
+        submissions.push((target as HTMLInputElement).value)
+      })
+      const url = dom.window.location.href
+      await expect(
+        typeText(session, 'e1', `hello${newline}world`, clear, false, borrowedOptions)
+      ).rejects.toMatchObject({
+        code: 'not_found'
+      })
+      expect((target as HTMLInputElement).value).toBe('old')
+      expect(submissions).toEqual([])
+      expect(dom.window.location.href).toBe(url)
+      expect(sendInputEvent.mock.calls).toEqual([])
+      expect(host.value).toBe('host draft')
+      expect(inputCommands()).toEqual([])
+    })
+
+    it('inserts a textarea newline as a character without an Enter command', async () => {
       target = dom.window.document.createElement('textarea')
+      ;(target as HTMLTextAreaElement).value = 'old'
       dom.window.document.body.append(target)
-      await typeText(session, 'e1', 'A\nB', false, false, borrowedOptions)
-      expect((target as HTMLTextAreaElement).value).toBe('A\nB')
+      const submissions: Event[] = []
+      dom.window.document.addEventListener('submit', (event) => submissions.push(event))
+      await typeText(session, 'e1', 'a\nb', true, false, borrowedOptions)
+      expect((target as HTMLTextAreaElement).value).toBe('a\nb')
+      expect(submissions).toEqual([])
       expect(host.value).toBe('host draft')
       expect(inputCommands()).toEqual([])
       expect(sendInputEvent.mock.calls.map(([event]) => [event.type, event.keyCode])).toEqual([
-        ['keyDown', 'A'],
-        ['char', 'A'],
-        ['keyUp', 'A'],
-        ['keyDown', 'Enter'],
+        ['keyDown', 'Backspace'],
+        ['keyUp', 'Backspace'],
+        ['keyDown', 'a'],
+        ['char', 'a'],
+        ['keyUp', 'a'],
         ['char', '\r'],
-        ['keyUp', 'Enter'],
-        ['keyDown', 'B'],
-        ['char', 'B'],
-        ['keyUp', 'B']
+        ['keyDown', 'b'],
+        ['char', 'b'],
+        ['keyUp', 'b']
       ])
+    })
+
+    it.each([
+      ['email', 'old@example.com', 'new@example.com'],
+      ['number', '123', '456']
+    ])('replaces a borrowed %s value and notifies page listeners', async (kind, oldValue, newValue) => {
+      const field = target as HTMLInputElement
+      field.type = kind
+      field.value = oldValue
+      const changes: Array<{ type: string; bubbles: boolean; value: string }> = []
+      for (const type of ['input', 'change'])
+        dom.window.document.addEventListener(type, (event) => {
+          if (event.target === field) changes.push({ type: event.type, bubbles: event.bubbles, value: field.value })
+        })
+      expect(field.selectionStart).toBeNull()
+      await typeText(session, 'e1', newValue, true, false, borrowedOptions)
+      expect(field.value).toBe(newValue)
+      expect(changes).toEqual([
+        { type: 'input', bubbles: true, value: '' },
+        { type: 'change', bubbles: true, value: '' }
+      ])
+      expect(sendInputEvent.mock.calls.map(([event]) => [event.type, event.keyCode])).toEqual(
+        [...newValue].flatMap((character) => [
+          ['keyDown', character],
+          ['char', character],
+          ['keyUp', character]
+        ])
+      )
+      expect(host.value).toBe('host draft')
+      expect(inputCommands()).toEqual([])
+    })
+
+    it.each([
+      [true, 'Meta+a'],
+      [false, 'Control+a']
+    ] as const)('selects borrowed field contents on isMac=%s with %s', async (isMac, chord) => {
+      const platformSpy = vi.spyOn(platform, 'isMac', 'get').mockReturnValue(isMac)
+      try {
+        const field = target as HTMLInputElement
+        field.focus()
+        await pressKey(session, chord, borrowedOptions)
+        expect([field.selectionStart, field.selectionEnd]).toEqual([0, 3])
+        expect(sendInputEvent.mock.calls.map(([event]) => event)).toEqual([
+          { type: 'keyDown', keyCode: 'a', modifiers: [isMac ? 'meta' : 'control'] },
+          { type: 'keyUp', keyCode: 'a', modifiers: [isMac ? 'meta' : 'control'] }
+        ])
+        await pressKey(session, 'Backspace', borrowedOptions)
+        expect(field.value).toBe('')
+        expect(host.value).toBe('host draft')
+        expect(hostDom.window.document.activeElement).toBe(host)
+        expect(inputCommands()).toEqual([])
+      } finally {
+        platformSpy.mockRestore()
+      }
     })
 
     it.each(['Bogus+a', 'Control+Nope'])('rejects invalid chord %s before requesting focus', async (chord) => {

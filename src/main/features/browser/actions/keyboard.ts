@@ -16,12 +16,43 @@ async function requestInputFocus(session: GuestSession, options: BrowserActionOp
 export async function pressKey(session: GuestSession, chord: string, options: BrowserActionOptions) {
   const prepared = resolveChord(chord)
   await requestInputFocus(session, options)
+  if (session.sendInputEvent && prepared.selectAll) {
+    await options.assertInputTarget?.(undefined, options)
+    await selectText(session, undefined, true, false, options)
+  }
   await dispatchKey(
     session,
     prepared,
     options,
     () => options.assertInputTarget?.(undefined, options) ?? Promise.resolve()
   )
+}
+
+async function selectText(
+  session: GuestSession,
+  objectId: string | undefined,
+  all: boolean,
+  clear: boolean,
+  options: BrowserActionOptions
+) {
+  const declaration = `function(all, clear){
+    if(!this || !this.isConnected || this.disabled || this.readOnly) return false;
+    if(this.setSelectionRange && this.selectionStart !== null){ this.setSelectionRange(all ? 0 : this.value.length, this.value.length); return 'selected' }
+    if(this.isContentEditable){ const r=document.createRange(); r.selectNodeContents(this); if(!all) r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return 'selected' }
+    if(clear && this.tagName === 'INPUT'){
+      this.value = ''; this.dispatchEvent(new Event('input', {bubbles:true})); this.dispatchEvent(new Event('change', {bubbles:true})); return 'cleared'
+    }
+    return false
+  }`
+  if (objectId)
+    return callOnElement<'selected' | 'cleared' | false>(session, objectId, declaration, [all, clear], options)
+  const response = await session.send(
+    'Runtime.evaluate',
+    { expression: `(${declaration}).call(document.activeElement, ${all}, ${clear})`, returnByValue: true },
+    options
+  )
+  if (response.exceptionDetails) throw new BrowserSessionError('not_found')
+  return response.result.value as 'selected' | 'cleared' | false
 }
 
 type ResolvedChord = {
@@ -126,13 +157,10 @@ async function insertText(
 ) {
   if (session.sendInputEvent) {
     for (const character of text) {
-      const enter = character === '\n' || character === '\r'
-      await dispatchKey(
-        session,
-        { key: enter ? 'Enter' : character, text: enter ? '\r' : character, modifiers: 0 },
-        options,
-        guard
-      )
+      if (character === '\n' || character === '\r') {
+        await guard()
+        session.sendInputEvent({ type: 'char', keyCode: '\r' })
+      } else await dispatchKey(session, { key: character, text: character, modifiers: 0 }, options, guard)
     }
   } else {
     await guard()
@@ -152,17 +180,17 @@ export async function typeText(
     session,
     ref,
     async (objectId, backendNodeId, check) => {
-      const initial = await callOnElement<{ editable: boolean; value: string }>(
+      const initial = await callOnElement<{ editable: boolean; value: string; multiline: boolean }>(
         session,
         objectId,
         `function(){
       const editable = this.isConnected && !this.disabled && !this.readOnly && (this.isContentEditable || this.tagName === 'TEXTAREA' || (this.tagName === 'INPUT' && ['text','search','email','url','tel','password','number'].includes(this.type)));
-      return { editable, value: this.value ?? this.textContent ?? '' }
+      return { editable, value: this.value ?? this.textContent ?? '', multiline: this.isContentEditable || this.tagName === 'TEXTAREA' }
     }`,
         [],
         options
       )
-      if (!initial.editable) throw new BrowserSessionError('not_found')
+      if (!initial.editable || (!initial.multiline && /[\r\n]/.test(text))) throw new BrowserSessionError('not_found')
       check()
       await requestInputFocus(session, options)
       check()
@@ -173,27 +201,18 @@ export async function typeText(
         check()
       }
       const sendChord = (chord: string) => dispatchKey(session, resolveChord(chord), options, guard)
-      const selectText = (all: boolean) =>
-        callOnElement<boolean>(
-          session,
-          objectId,
-          `function(all){
-          if(this.setSelectionRange && this.selectionStart !== null){ this.setSelectionRange(all ? 0 : this.value.length, this.value.length); return true }
-          if(this.isContentEditable){ const r=document.createRange(); r.selectNodeContents(this); if(!all) r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return true }
-          return false
-        }`,
-          [all],
-          options
-        )
       const clearField = async () => {
         if (session.sendInputEvent) {
           await guard()
-          if (!(await selectText(true))) throw new BrowserSessionError('not_found')
+          const selection = await selectText(session, objectId, true, true, options)
+          if (selection === 'cleared') return
+          if (!selection) throw new BrowserSessionError('not_found')
         } else await sendChord(`${isMac ? 'Meta' : 'Control'}+a`)
         await sendChord('Backspace')
       }
       if (clear) await clearField()
-      else if (!(await selectText(false))) await sendChord(isMac ? 'Meta+ArrowRight' : 'End')
+      else if (!(await selectText(session, objectId, false, false, options)))
+        await sendChord(isMac ? 'Meta+ArrowRight' : 'End')
       await insertText(session, text, options, guard)
       const expected = (clear ? '' : initial.value) + text
       const read = () =>
