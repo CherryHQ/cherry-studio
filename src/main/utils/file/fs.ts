@@ -97,13 +97,18 @@ export async function readChunk(
 ): Promise<Uint8Array<ArrayBuffer>> {
   const fileHandle = await fsOpen(path, 'r')
   try {
-    const buffer = new Uint8Array(length)
+    let buffer = new Uint8Array(Math.min(length, 64 * 1024))
     let totalBytesRead = 0
     while (totalBytesRead < length) {
+      if (totalBytesRead === buffer.byteLength) {
+        const expanded = new Uint8Array(Math.min(length, buffer.byteLength * 2))
+        expanded.set(buffer)
+        buffer = expanded
+      }
       const { bytesRead } = await fileHandle.read(
         buffer,
         totalBytesRead,
-        length - totalBytesRead,
+        buffer.byteLength - totalBytesRead,
         offset + totalBytesRead
       )
       if (bytesRead === 0) break
