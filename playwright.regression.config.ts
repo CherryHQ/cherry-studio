@@ -18,6 +18,7 @@ export default defineConfig({
   retries: 0,
   projects: [{ name: process.platform === 'win32' ? 'Windows' : 'macOS' }],
   reporter: [
+    ['./scripts/e2e/regression/RedactionReporter.ts'],
     ['./scripts/e2e/regression/RegressionReporter.ts'],
     ['list'],
     ['html', { open: 'never', outputFolder: join(runDirectory, 'report', `playwright-${phase}`) }],
