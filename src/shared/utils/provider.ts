@@ -221,10 +221,6 @@ export const DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS = [
   { canonicalId: 'kimi-k3', wireIds: ['kimi-k3', 'kimi/kimi-k3'] }
 ] as const
 
-function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
-  return provider.serverTools?.find((tool) => tool.id === id)
-}
-
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
@@ -303,15 +299,9 @@ function isBuiltinServerToolAvailable(
   // Vendor narrowing stays provider-level: no provider splits it across same-tool declarations.
   if (!declarations.some((tool) => serverToolServesModelVendor(tool, model))) return false
 
-  if (
-    declarations.some(
-      (tool) => tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS && serverToolServesEndpoint(tool, endpoint)
-    )
-  ) {
-    return true
-  }
-  // Bailian's responses-only SKUs stay gated by main's wire-accurate table; the final
-  // delegation is this branch's endpoint-aware eligibility (declaration × endpoint pairing).
+  // Bailian's responses-only SKUs are provider-scoped narrowing and precede every scope
+  // fallback: an all-chat declaration serving the endpoint must not bypass this gate
+  // (main's contract), and model-dependent delegation happens only past it.
   if (matchesPreset(provider, 'dashscope')) {
     const rawId = getRawModelId(model)
     const responsesOnly = DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.find(
@@ -319,16 +309,22 @@ function isBuiltinServerToolAvailable(
     )
     if (
       responsesOnly &&
-      (resolveServerToolEndpoint(model, provider, endpointType) !== ENDPOINT_TYPE.OPENAI_RESPONSES ||
-        !responsesOnly.wireIds.some((wireId) => wireId === rawId))
+      (endpoint !== ENDPOINT_TYPE.OPENAI_RESPONSES || !responsesOnly.wireIds.some((wireId) => wireId === rawId))
     ) {
       return false
     }
   }
 
-  if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
-    return !isNonChatModel(model)
+  if (
+    declarations.some(
+      (tool) => tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS && serverToolServesEndpoint(tool, endpoint)
+    )
+  ) {
+    return true
   }
+  // Model-dependent scopes need a runtime declaration that serves the endpoint — the
+  // endpoint pairing itself is compiled into the registry's generated eligibility.
+  if (!declarations.some((tool) => serverToolServesEndpoint(tool, endpoint))) return false
 
   return isServerToolModelEligible(model, provider, toolId, endpoint)
 }

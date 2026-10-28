@@ -76,10 +76,15 @@ const qwencloudResponsesSupport: ReasoningSupport = {
   supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 }
 
-const responsesEffortWire = modeWire(
+/**
+ * Hosted DeepSeek-V4 / GLM-5.2 default to `high` on Responses, and an `xhigh` ask maps to
+ * `max` server-side (api-reference/chat/openai-responses) — the endpoint-wide `xhigh` auto
+ * default would silently select their maximum effort tier.
+ */
+const hostedResponsesEffortWire = modeWire(
   'reasoningEffort',
   { off: 'none', auto: EFFORT, effort: EFFORT },
-  { autoEffort: 'xhigh' }
+  { autoEffort: 'high' }
 )
 
 /**
@@ -373,7 +378,7 @@ export default defineProvider({
         endpointTypes: ['openai-responses', 'openai-chat-completions'],
         reasoningContracts: {
           'openai-chat-completions': { support: deepseekV4ChatSupport, wire: effortChatWire },
-          'openai-responses': { support: qwencloudResponsesSupport, wire: responsesEffortWire }
+          'openai-responses': { support: qwencloudResponsesSupport, wire: hostedResponsesEffortWire }
         }
       })
     ),
@@ -382,7 +387,7 @@ export default defineProvider({
       endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { support: glm52ChatSupport, wire: effortChatWire },
-        'openai-responses': { support: qwencloudResponsesSupport, wire: responsesEffortWire }
+        'openai-responses': { support: qwencloudResponsesSupport, wire: hostedResponsesEffortWire }
       }
     },
     ...listedModels.map((modelId): Partial<ProviderModelOverride> => ({ modelId })),

@@ -385,6 +385,7 @@ function buildRequestBody(
     case 'wanx-v1':
       return buildWanxV1Body(input, bag)
     case 'wan2.5-i2i-preview':
+    case 'wan2-5-i2i-preview':
       return buildWan25I2IBody(input, bag)
     case 'qwen-mt-image':
       return buildQwenMtImageBody(input, bag)

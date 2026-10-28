@@ -37717,7 +37717,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "xhigh"
+                "auto": "high"
               },
               "operations": [
                 {
@@ -37816,7 +37816,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "xhigh"
+                "auto": "high"
               },
               "operations": [
                 {
@@ -37915,7 +37915,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "xhigh"
+                "auto": "high"
               },
               "operations": [
                 {
@@ -38115,7 +38115,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "xhigh"
+                "auto": "high"
               },
               "operations": [
                 {
