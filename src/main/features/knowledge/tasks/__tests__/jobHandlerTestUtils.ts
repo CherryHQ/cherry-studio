@@ -9,6 +9,7 @@ import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
 import type * as PathStorage from '../../pathStorage'
+import type * as DirectorySource from '../../pipeline/sources/directory'
 import type * as NoteSnapshot from '../../pipeline/sources/noteSnapshot'
 import type * as UrlSnapshot from '../../pipeline/sources/urlSnapshot'
 
@@ -32,7 +33,10 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemUpdateSnapshotRelativePathMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
-  prepareKnowledgeItemMock: vi.fn(),
+  pinDirectoryPathPrefixMock: vi.fn(),
+  createExpandedDirectoryChildrenMock: vi.fn(),
+  expandDirectoryOwnerToTreeMock: vi.fn(),
+  prepareFileCopyIntoKnowledgeBaseAtMock: vi.fn(),
   fetchKnowledgeWebPageMock: vi.fn(),
   captureUrlSnapshotFileMock: vi.fn(),
   captureNoteSnapshotFileMock: vi.fn(),
@@ -69,7 +73,10 @@ export const {
   knowledgeItemUpdateSnapshotRelativePathMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
-  prepareKnowledgeItemMock,
+  pinDirectoryPathPrefixMock,
+  createExpandedDirectoryChildrenMock,
+  expandDirectoryOwnerToTreeMock,
+  prepareFileCopyIntoKnowledgeBaseAtMock,
   fetchKnowledgeWebPageMock,
   captureUrlSnapshotFileMock,
   captureNoteSnapshotFileMock,
@@ -150,7 +157,13 @@ vi.mock('../../pipeline/readers/KnowledgeReader', () => ({
 }))
 
 vi.mock('../prepareItem', () => ({
-  prepareKnowledgeItem: prepareKnowledgeItemMock
+  pinDirectoryPathPrefix: pinDirectoryPathPrefixMock,
+  createExpandedDirectoryChildren: createExpandedDirectoryChildrenMock
+}))
+
+vi.mock('../../pipeline/sources/directory', async () => ({
+  ...(await vi.importActual<typeof DirectorySource>('../../pipeline/sources/directory')),
+  expandDirectoryOwnerToTree: expandDirectoryOwnerToTreeMock
 }))
 
 vi.mock('../../pipeline/sources/url', () => ({
@@ -185,7 +198,8 @@ vi.mock('../../pathStorage', async () => {
     // Reindex re-acquires a leaf's bytes through these before rebuilding; stub the writes so
     // tests assert what would land in raw/ without touching the real filesystem.
     copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,
-    writeFileIntoKnowledgeBaseAt: writeFileIntoKnowledgeBaseAtMock
+    writeFileIntoKnowledgeBaseAt: writeFileIntoKnowledgeBaseAtMock,
+    prepareFileCopyIntoKnowledgeBaseAt: prepareFileCopyIntoKnowledgeBaseAtMock
   }
 })
 
@@ -207,11 +221,13 @@ vi.mock('../../pipeline/indexing/localEmbeddingTokenLimit', () => ({
   refineLocalEmbeddingChunks: refineLocalEmbeddingChunksMock
 }))
 
+export const { createCopySourcesJobHandler } = await import('../copySourcesJobHandler')
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
 export const { createCheckFileProcessingResultJobHandler } = await import('../checkFileProcessingResultJobHandler')
 export const { createIndexDocumentsJobHandler } = await import('../indexDocumentsJobHandler')
 export const { createPrepareRootJobHandler } = await import('../prepareRootJobHandler')
 export const { createReindexSubtreeJobHandler } = await import('../reindexSubtreeJobHandler')
+export const { FileProcessingWaitManager } = await import('../../ingestion/FileProcessingWaitManager')
 
 export const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 export const FILE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abd'
@@ -221,6 +237,7 @@ type KnowledgeJobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<J
 
 export function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: 'kb-1',
     name: 'KB',
     groupId: null,
@@ -343,6 +360,14 @@ export function createAbortedCtx<TInput>(input: TInput, jobId = 'job-1'): JobCon
   }
 }
 
+/** A stand-in for the temp-file copy `prepareFileCopyIntoKnowledgeBaseAt` hands back. */
+export function createPreparedCopy() {
+  return {
+    commit: vi.fn().mockResolvedValue({ mtime: 0, size: 0 }),
+    abort: vi.fn().mockResolvedValue(undefined)
+  }
+}
+
 export function createJobSnapshot(overrides: KnowledgeJobSnapshotInput): JobSnapshot {
   return {
     id: 'job-1',
@@ -374,7 +399,6 @@ export const knowledgeLockManager = {
 }
 
 export const ingestionService: Mocked<KnowledgeItemScheduler> = {
-  scheduleFileProcessingCheck: vi.fn(),
   scheduleIndexing: vi.fn(),
   scheduleItem: scheduleItemMock
 }
@@ -413,7 +437,10 @@ beforeEach(() => {
       metadata: { source: 'note-1' }
     }
   ])
-  prepareKnowledgeItemMock.mockResolvedValue([createNoteItem('leaf-1', 'dir-1')])
+  pinDirectoryPathPrefixMock.mockReturnValue('dir-1')
+  expandDirectoryOwnerToTreeMock.mockResolvedValue([])
+  createExpandedDirectoryChildrenMock.mockResolvedValue([createNoteItem('leaf-1', 'dir-1')])
+  prepareFileCopyIntoKnowledgeBaseAtMock.mockImplementation(async () => createPreparedCopy())
   const indexStore = {
     rebuildMaterial: rebuildMaterialMock,
     deleteMaterials: deleteMaterialsMock,
@@ -441,7 +468,6 @@ beforeEach(() => {
   probeKnowledgeFileMock.mockResolvedValue('readable')
   probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
-  ingestionService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   ingestionService.scheduleIndexing.mockResolvedValue(undefined)
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
 })

@@ -10,8 +10,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({ registerAdapterFactory: vi.fn() }))
-
 vi.mock('electron', () => ({
   app: { getPath: () => '/mock/userData' },
   nativeTheme: { themeSource: '', shouldUseDarkColors: false },
@@ -65,14 +63,7 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
   LoggerLevel: { info: 3 }
 }))
 
-import '../feishu/FeishuAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const call = vi.mocked(registerAdapterFactory).mock.calls.find(([type]) => type === 'feishu')
-  if (!call) throw new Error('registerAdapterFactory was not called for feishu')
-  return call[1] as (channel: any, agentId: string) => any
-}
+import { createFeishuAdapter } from '../feishu/FeishuAdapter'
 
 function incomingMessage(overrides: Partial<NormalizedMessage> = {}): NormalizedMessage {
   return {
@@ -114,23 +105,21 @@ describe('FeishuAdapter', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    return getFactory()(
-      {
-        id: (overrides.channelId as string) ?? 'ch-1',
-        type: 'feishu',
-        enabled: true,
-        config: {
-          app_id: (overrides.app_id as string) ?? 'test-app-id',
-          app_secret: (overrides.app_secret as string) ?? 'test-app-secret',
-          encrypt_key: (overrides.encrypt_key as string) ?? '',
-          verification_token: (overrides.verification_token as string) ?? '',
-          allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
-          domain: (overrides.domain as string) ?? 'feishu'
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createFeishuAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-1',
+      channelType: 'feishu',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        app_id: (overrides.app_id as string) ?? 'test-app-id',
+        app_secret: (overrides.app_secret as string) ?? 'test-app-secret',
+        encrypt_key: (overrides.encrypt_key as string) ?? '',
+        verification_token: (overrides.verification_token as string) ?? '',
+        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
+        domain: (overrides.domain as 'feishu' | 'lark') ?? 'feishu',
+        ...(Object.hasOwn(overrides, 'mention_only') ? { mention_only: overrides.mention_only as boolean } : {})
+      }
+    })
   }
 
   it('reports connected only after the official channel handshake completes', async () => {
@@ -161,6 +150,22 @@ describe('FeishuAdapter', () => {
       outbound: { textChunkLimit: 4000 },
       wsConfig: { pingTimeout: 10 }
     })
+  })
+
+  it('honors explicit Feishu mention_only=false', async () => {
+    const adapter = createAdapter({ mention_only: false })
+    await adapter.connect()
+
+    expect(channelOptions?.policy.requireMention).toBe(false)
+    expect(channelOptions?.policy.dmMode).toBe('open')
+    expect(channelOptions?.policy.respondToMentionAll).toBe(false)
+  })
+
+  it('honors explicit Feishu mention_only=true', async () => {
+    const adapter = createAdapter({ mention_only: true })
+    await adapter.connect()
+
+    expect(channelOptions?.policy.requireMention).toBe(true)
   })
 
   it('forwards configured event security to the WebSocket dispatcher', async () => {
@@ -381,7 +386,7 @@ describe('FeishuAdapter', () => {
     await adapter.onTextUpdate('oc_123', 'partial response')
     mockSetContent.mockRejectedValueOnce(new Error('card update failed'))
 
-    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBeUndefined()
+    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBe(true)
   })
 
   it('ignores late card updates after disconnecting an active stream', async () => {

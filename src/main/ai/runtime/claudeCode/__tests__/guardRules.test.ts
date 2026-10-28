@@ -1,16 +1,17 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
-import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const mocks = vi.hoisted(() => ({
@@ -35,9 +36,10 @@ const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as con
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
-  approval: 'required',
   mountedServers: WITHOUT_HOST_TOOLS
-}).map(toMcpRuntimeName)
+})
+  .filter(({ approval }) => approval !== 'auto')
+  .map(toMcpRuntimeName)
 const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
   .filter((entry) => !WITHOUT_HOST_TOOLS.has(entry.serverName))
   .map(toMcpRuntimeName)
@@ -264,66 +266,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('headless-config-mutation', () => {
-    const configTool = toCherryBuiltinRuntimeName('config')
-
-    it('denies mutating actions on headless turns, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({
-            toolName: configTool,
-            permissionMode: mode,
-            input: { action: 'add_channel' },
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-        expect(decision?.ruleId).toBe('headless-config-mutation')
-      }
-    })
-
-    it('leaves reads and interactive mutations alone', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: configTool,
-            input: { action: 'status' },
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-      await expect(
-        evaluate(makeCtx({ toolName: configTool, input: { action: 'add_channel' } }))
-      ).resolves.toBeUndefined()
-    })
-  })
-
-  describe('skill-install', () => {
-    const install = 'mcp__skills__install_skill'
-
-    it('denies headless installation outside bypass', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: install, interaction: { currentTurn: 'headless', userResponse: 'stream' } })
-      )
-      expect(decision?.ruleId).toBe('skill-install')
-    })
-
-    it('lifts the headless deny under bypassPermissions (explicit unattended opt-in)', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: install,
-            permissionMode: 'bypassPermissions',
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-    })
-
-    it('does not gate interactive installation (canUseTool handles it)', async () => {
-      await expect(evaluate(makeCtx({ toolName: install }))).resolves.toBeUndefined()
-    })
-  })
-
   describe('interactive-headless + ask-user-question', () => {
     it('denies interactive tools with no responder in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
@@ -435,6 +377,23 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       }
     })
 
+    it('denies the UI-backed draft tool on headless Assistant turns', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            builtinRole: 'assistant',
+            toolName,
+            permissionMode: 'default',
+            interaction: HEADLESS
+          })
+        )
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+    })
+
+    it('leaves the draft tool auto-approved on interactive Assistant turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'assistant', toolName }))).resolves.toBeUndefined()
+    })
+
     it('leaves the draft tool auto-approved on interactive Support turns', async () => {
       await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
     })
@@ -481,20 +440,38 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('non-bypassable-approval', () => {
-    const sessionSend = toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME)
+  describe.each([SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME])('delegation approval: %s', (name) => {
+    const toolName = toCherryBuiltinRuntimeName(name)
 
-    it('requires live approval under bypassPermissions', async () => {
-      await expect(
-        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions' }))
-      ).resolves.toMatchObject({ effect: 'ask', ruleId: 'non-bypassable-approval' })
+    it.each(['auto', 'bypassPermissions'] as const)(
+      'does not ask in an interactive %s turn',
+      async (permissionMode) => {
+        await expect(evaluate(makeCtx({ toolName, permissionMode }))).resolves.toBeUndefined()
+        await expect(evaluate(makeCtx({ toolName, permissionMode, isDisabled: () => true }))).resolves.toMatchObject({
+          effect: 'deny',
+          ruleId: 'disabled-tool'
+        })
+      }
+    )
+
+    it.each(['default', 'acceptEdits', 'plan'] as const)('asks in %s', async (permissionMode) => {
+      await expect(evaluate(makeCtx({ toolName, permissionMode }))).resolves.toMatchObject({ effect: 'ask' })
     })
 
-    it('denies an unattended delegation under bypassPermissions', async () => {
-      await expect(
-        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
-      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'non-bypassable-approval' })
-    })
+    it.each(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'] as const)(
+      'denies unattended delegation in %s',
+      async (permissionMode) => {
+        for (const interaction of [
+          HEADLESS,
+          { ...HEADLESS, userResponse: 'stream' },
+          { ...INTERACTIVE, userResponse: 'unavailable' }
+        ] as const) {
+          await expect(evaluate(makeCtx({ toolName, permissionMode, interaction }))).resolves.toMatchObject({
+            effect: 'deny'
+          })
+        }
+      }
+    )
   })
 
   describe('user-data-sqlite-write', () => {
@@ -559,6 +536,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
+    it.skipIf(process.platform === 'win32')('asks for a dangling symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-file')
+      await symlink(path.join(root, 'missing.txt'), link)
+      const decision = await evaluate(makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: link } }))
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
+    it('asks for a new file below a dangling directory symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-dir')
+      await symlink(path.join(root, 'missing-dir'), link, process.platform === 'win32' ? 'junction' : 'dir')
+      const decision = await evaluate(
+        makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(link, 'new.txt') } })
+      )
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
     it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
       await expect(
         evaluate(
@@ -579,4 +572,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'uses the persistent browser grant in %s mode',
+    async (permissionMode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const context = makeCtx({
+        toolName: 'mcp__browser__click',
+        mountedServers: new Set(['browser']),
+        permissionMode
+      })
+      expect(await evaluate(context)).toBeUndefined()
+      await pref.set('app.browser.agent_control.enabled', false)
+      expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
+    }
+  )
 })

@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
 import { jobScheduleTable } from './job'
@@ -9,6 +9,9 @@ export const agentSessionTable = sqliteTable(
   'agent_session',
   {
     id: uuidPrimaryKey(),
+    type: text({ enum: ['conversation', 'background'] })
+      .notNull()
+      .default('conversation'),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     // Whether the name was manually edited by user.
@@ -27,7 +30,7 @@ export const agentSessionTable = sqliteTable(
     // Dedicated conversation activity time. Name, owner, workspace and order
     // changes must not move this column.
     lastActivityAt: integer().notNull().$defaultFn(Date.now),
-    ...createUpdateTimestamps
+    ...createUpdateDeleteTimestamps
   },
   (t) => [
     orderKeyIndex('agent_session')(t),
@@ -38,3 +41,4 @@ export const agentSessionTable = sqliteTable(
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect
 export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
+export type AgentSessionType = AgentSessionRow['type']

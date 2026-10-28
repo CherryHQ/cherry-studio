@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
+import {
+  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
+  BACKUP_DISK_FULL_ERROR_CODE
+} from '@shared/types/backup'
 
 import { getLocalizedBackupErrorMessage } from '../backup'
 
@@ -15,6 +19,12 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 describe('getLocalizedBackupErrorMessage', () => {
+  it('maps a WebDAV upload size rejection after IPC without exposing the server response', () => {
+    expect(
+      getLocalizedBackupErrorMessage(new Error('Error invoking remote method: BACKUP_WEBDAV_TOO_LARGE: HTTP 413'))
+    ).toBe('localized:backup.error.webdav_too_large')
+  })
+
   it('maps the active-writer code without exposing the raw English error', () => {
     const result = getLocalizedBackupErrorMessage(
       new Error(`Error invoking remote method: ${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
@@ -24,6 +34,16 @@ describe('getLocalizedBackupErrorMessage', () => {
     expect(result).not.toContain(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
     expect(result).not.toContain('conversation')
   })
+
+  it.each(['message.backup.failed', 'message.restore.failed'] as const)(
+    'explains unfinished background tasks instead of the generic %s fallback after IPC',
+    (fallback) => {
+      const error = new Error(
+        `Error invoking remote method 'backup:backupToLocalDir': Error: ${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Background data writes did not quiesce in time.`
+      )
+      expect(getLocalizedBackupErrorMessage(error, fallback)).toBe('localized:backup.error.background_tasks')
+    }
+  )
 
   it.each([
     Object.assign(new Error('copy failed'), { code: 'ENOSPC' }),

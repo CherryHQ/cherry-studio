@@ -22,10 +22,10 @@ describe('provider reasoning contracts', () => {
   })
 
   it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
-    expect(override('deepseek', 'deepseek-v4-flash').pricing).toEqual({
-      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
-      input: { currency: 'USD', perMillionTokens: 0.44 },
-      output: { currency: 'USD', perMillionTokens: 1.32 }
+    expect(override('deepseek', 'deepseek-flash').pricing).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.006 },
+      input: { currency: 'USD', perMillionTokens: 0.3 },
+      output: { currency: 'USD', perMillionTokens: 1.2 }
     })
     expect(override('deepseek', 'deepseek-v4-pro').pricing).toEqual({
       cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
@@ -78,10 +78,8 @@ describe('provider reasoning contracts', () => {
     expect(dashscopeSupport?.controls).toEqual([{ default: 'max', kind: 'effort', values: ['none', 'max'] }])
   })
 
-  // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
-  // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
-  // degrades to `high`.
-  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+  // Every shipping DeepSeek V4 model must offer the off switch and translate xhigh to max.
+  it.each(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
     'maps %s reasoning to the official effort vocabulary',
     (modelId) => {
       const contracts = override('deepseek', modelId).reasoningContracts
@@ -109,6 +107,15 @@ describe('provider reasoning contracts', () => {
       })
     }
   )
+
+  it('carries the off switch on the provider-level DeepSeek Responses endpoint', () => {
+    const responsesFormat = provider('deepseek').endpointConfigs?.['openai-responses']?.reasoningFormat as {
+      wire?: { off?: { operations?: unknown[] } }
+    }
+    expect(responsesFormat?.wire?.off?.operations).toEqual([
+      { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+    ])
+  })
 
   // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
   // models with no per-model override). The @ai-sdk/deepseek schema only accepts thinking.type

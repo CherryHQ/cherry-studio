@@ -43,6 +43,7 @@ import {
   type SiblingsGroup,
   toContentRole,
   TOPIC_MESSAGE_SEARCH_ROLES,
+  TREE_OFF_PATH_DEPTH_LIMIT,
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
@@ -125,7 +126,7 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
  * Raw SQL via `db.all(sql\`...\`)` returns snake_case columns and CANNOT be
  * passed here directly. See docs/references/data/database-patterns.md →
  * "Raw SQL Queries & Recursive CTEs" for the recommended CTE-for-IDs +
- * ORM-for-rows pattern used by getTree, getBranchMessages, getPathToNode.
+ * ORM-for-rows pattern used by getBranchMessages, getPathToNode.
  *
  * Also handles JSON columns: ORM returns parsed objects; the parseJson
  * helper covers any legacy code path that still hands in JSON strings.
@@ -362,6 +363,34 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
+  private getActiveTopicTx(tx: DbOrTx, topicId: string): typeof topicTable.$inferSelect {
+    const [topic] = tx
+      .select()
+      .from(topicTable)
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+    return topic
+  }
+
+  private findAddressableMessageRowTx(tx: DbOrTx, id: string): MessageRow | undefined {
+    const [result] = tx
+      .select({ message: messageTable })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+      .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt), isNull(topicTable.deletedAt)))
+      .limit(1)
+      .all()
+    return result?.message
+  }
+
+  private getAddressableMessageRowTx(tx: DbOrTx, id: string): MessageRow {
+    const row = this.findAddressableMessageRowTx(tx, id)
+    if (!row) throw DataApiErrorFactory.notFound('Message', id)
+    return row
+  }
+
   purgeByTopicIdsTx(tx: DbOrTx, topicIds: string[]): void {
     const uniqueTopicIds = Array.from(new Set(topicIds))
     if (uniqueTopicIds.length === 0) return
@@ -391,222 +420,72 @@ export class MessageService {
   }
 
   /**
-   * Get tree structure for visualization
-   *
-   * Optimized to avoid loading all messages:
-   * 1. Uses CTE to get active path (single query)
-   * 2. Uses CTE to get tree nodes within depth limit (single query)
-   * 3. Fetches additional nodes for active path if beyond depth limit
+   * Get the topic's whole message tree for the flow canvas
    */
-  getTree(topicId: string, options: { rootId?: string; nodeId?: string; depth?: number } = {}): TreeResponse {
+  getTree(topicId: string): TreeResponse {
     const db = application.get('DbService').getDb()
-    const { depth = 1 } = options
+    const topic = this.getActiveTopicTx(db, topicId)
+    const activeNodeId = topic.activeNodeId
 
-    // Get topic to verify existence and get activeNodeId
-    const [topic] = db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
-
-    if (!topic) {
-      throw DataApiErrorFactory.notFound('Topic', topicId)
-    }
-
-    const activeNodeId = options.nodeId || topic.activeNodeId
-
-    // Build active path via CTE (single query)
-    const activePath = new Set<string>()
-    if (activeNodeId) {
-      const pathRows = db.all<{ id: string; parent_id: string | null }>(sql`
-        WITH RECURSIVE path AS (
-          SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
-          UNION ALL
-          SELECT m.id, m.parent_id FROM message m
-          INNER JOIN path p ON m.id = p.parent_id
-          WHERE m.deleted_at IS NULL
-        )
-        SELECT id, parent_id FROM path
-      `)
-      pathRows.forEach((r) => {
-        activePath.add(r.id)
-      })
-    }
-
-    // The virtual root (the single parentId-null row) is structural and never
-    // rendered. Drop it from the active path; its children — the first-turn
-    // messages — are the logical roots of the flow canvas.
-    const [rootRow] = db
-      .select({ id: messageTable.id })
+    const rows = db
+      .select()
       .from(messageTable)
-      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
-      .limit(1)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .orderBy(asc(messageTable.createdAt), asc(messageTable.id))
       .all()
-    const virtualRootId = rootRow?.id ?? null
-    if (virtualRootId) {
-      activePath.delete(virtualRootId)
+
+    const messagesById = new Map<string, Message>()
+    const childrenMap = new Map<string, string[]>()
+    let virtualRootId: string | null = null
+
+    for (const row of rows) {
+      // The virtual root (the single parentId-null row) is structural and never rendered;
+      // its children — the first-turn messages — are the logical roots of the flow canvas.
+      if (row.parentId === null) {
+        virtualRootId = row.id
+        continue
+      }
+      const message = rowToMessage(row)
+      messagesById.set(message.id, message)
+
+      const siblings = childrenMap.get(row.parentId)
+      if (siblings) {
+        siblings.push(message.id)
+      } else {
+        childrenMap.set(row.parentId, [message.id])
+      }
     }
 
-    // Without an explicit root, the flow canvas is a topic-level view: every
-    // first-turn message (child of the virtual root) starts its own tree.
-    const explicitRootId = options.rootId
-    // The virtual root is never a renderable tree node; using it as an explicit root
-    // would feed it to messageToTreeNode (which throws on a parentless node).
-    if (explicitRootId && explicitRootId === virtualRootId) {
-      throw DataApiErrorFactory.invalidOperation('get tree', 'rootId cannot be the virtual root')
-    }
-    const rootIds = explicitRootId
-      ? [explicitRootId]
-      : virtualRootId
-        ? db
-            .select({ id: messageTable.id, createdAt: messageTable.createdAt })
-            .from(messageTable)
-            .where(
-              and(
-                eq(messageTable.topicId, topicId),
-                eq(messageTable.parentId, virtualRootId),
-                isNull(messageTable.deletedAt)
-              )
-            )
-            .all()
-            .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
-            .map((row) => row.id)
-        : []
-
+    const rootIds = virtualRootId ? (childrenMap.get(virtualRootId) ?? []) : []
     if (rootIds.length === 0) {
       return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
     }
 
-    // Get tree with depth limit via CTE
-    // Use a large depth for unlimited (-1)
-    const maxDepth = depth === -1 ? 999 : depth
-
-    // Recursive CTE returns ID + depth only (single-word columns are
-    // casing-safe). Full rows are fetched via ORM below for camelCase mapping.
-    // See docs/references/data/database-patterns.md.
-    const treeDepthRows = db.all<{ id: string; tree_depth: number }>(sql`
-      WITH RECURSIVE tree AS (
-        SELECT id, 0 as tree_depth FROM message
-        WHERE id IN (${sql.join(
-          rootIds.map((id) => sql`${id}`),
-          sql`, `
-        )}) AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.id, t.tree_depth + 1 FROM message m
-        INNER JOIN tree t ON m.parent_id = t.id
-        WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
-      )
-      SELECT id, tree_depth FROM tree
-    `)
-
-    const depthByCteId = new Map(treeDepthRows.map((r) => [r.id, r.tree_depth]))
-    const baseTreeRows =
-      treeDepthRows.length === 0
-        ? []
-        : db
-            .select()
-            .from(messageTable)
-            .where(
-              inArray(
-                messageTable.id,
-                treeDepthRows.map((r) => r.id)
-              )
-            )
-            .all()
-
-    const treeRows: Array<typeof messageTable.$inferSelect & { treeDepth: number }> = baseTreeRows.map((r) => ({
-      ...r,
-      treeDepth: depthByCteId.get(r.id)!
-    }))
-
-    // Also fetch active path nodes that might be beyond depth limit
-    const treeNodeIds = new Set(treeRows.map((r) => r.id))
-    const missingActivePathIds = [...activePath].filter((id) => !treeNodeIds.has(id))
-
-    if (missingActivePathIds.length > 0) {
-      const additionalRows = db
-        .select()
-        .from(messageTable)
-        .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
-        .all()
-      for (const row of additionalRows) {
-        treeRows.push({ ...row, treeDepth: maxDepth + 1 })
-        treeNodeIds.add(row.id)
-      }
+    const activePath = new Set<string>()
+    let pathNodeId = activeNodeId
+    while (pathNodeId && !activePath.has(pathNodeId)) {
+      const pathMessage = messagesById.get(pathNodeId)
+      if (!pathMessage) break
+      activePath.add(pathNodeId)
+      pathNodeId = pathMessage.parentId
     }
 
-    // Also need children of active path nodes for proper tree building
-    // Get all children of active path nodes that we haven't loaded yet
-    const activePathArray = [...activePath]
-    if (activePathArray.length > 0 && treeNodeIds.size > 0) {
-      const childrenRows = db
-        .select()
-        .from(messageTable)
-        .where(
-          and(
-            inArray(messageTable.parentId, activePathArray),
-            isNull(messageTable.deletedAt),
-            sql`${messageTable.id} NOT IN (${sql.join(
-              [...treeNodeIds].map((id) => sql`${id}`),
-              sql`, `
-            )})`
-          )
-        )
-        .all()
-
-      for (const row of childrenRows) {
-        if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
-          treeNodeIds.add(row.id)
-        }
-      }
-    } else if (activePathArray.length > 0) {
-      // No tree nodes loaded yet, just get all children of active path
-      const childrenRows = db
-        .select()
-        .from(messageTable)
-        .where(and(inArray(messageTable.parentId, activePathArray), isNull(messageTable.deletedAt)))
-        .all()
-
-      for (const row of childrenRows) {
-        if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
-          treeNodeIds.add(row.id)
-        }
-      }
-    }
-
-    if (treeRows.length === 0) {
-      return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
-    }
-
-    // Build maps for tree processing
-    const messagesById = new Map<string, Message>()
-    const childrenMap = new Map<string, string[]>()
-    const depthMap = new Map<string, number>()
-
-    for (const row of treeRows) {
-      const message = rowToMessage(row)
-      // First-turn messages keep their real parent — the topic's virtual root. The
-      // virtual root itself is never a tree node (rootIds are its children), so no
-      // tree node / sibling group has a null parent; the canvas skips edges to the
-      // (unrendered) virtual root.
-      messagesById.set(message.id, message)
-      depthMap.set(message.id, row.treeDepth)
-
-      const parentId = message.parentId || 'root'
-      if (!childrenMap.has(parentId)) {
-        childrenMap.set(parentId, [])
-      }
-      childrenMap.get(parentId)!.push(message.id)
-    }
-
-    // Collect nodes based on depth
     const resultNodes: TreeNode[] = []
     const siblingsGroups: SiblingsGroup[] = []
     const visitedGroups = new Set<string>()
-    const childrenKeyFor = (parentId: string | null) => parentId ?? 'root'
-    const groupKeyFor = (parentId: string | null, siblingsGroupId: number) => `${parentId ?? 'root'}-${siblingsGroupId}`
 
-    const collectNodes = (nodeId: string, currentDepth: number, isOnActivePath: boolean) => {
+    // Explicit stack, not recursion: a linear chat is one tree level per message, deeper
+    // than the JS call stack. Children are pushed reversed to keep pre-order output.
+    const pending: Array<[nodeId: string, depth: number]> = rootIds.map((id): [string, number] => [id, 0]).reverse()
+    while (pending.length > 0) {
+      const [nodeId, depth] = pending.pop()!
       const message = messagesById.get(nodeId)
-      if (!message) return
+      if (!message) continue
+      const isReturned =
+        depth < TREE_OFF_PATH_DEPTH_LIMIT ||
+        activePath.has(nodeId) ||
+        (message.parentId !== null && activePath.has(message.parentId))
+      if (!isReturned) continue
 
       const children = childrenMap.get(nodeId) || []
       const hasChildren = children.length > 0
@@ -618,12 +497,12 @@ export class MessageService {
       // The `parentId !== null` guard narrows it without a non-null assertion.
       if (siblingsGroupId !== 0 && message.parentId !== null) {
         const groupParentId = message.parentId
-        const groupKey = groupKeyFor(groupParentId, siblingsGroupId)
+        const groupKey = `${groupParentId}-${siblingsGroupId}`
         if (!visitedGroups.has(groupKey)) {
           visitedGroups.add(groupKey)
 
           // Find all siblings in this group
-          const parentChildren = childrenMap.get(childrenKeyFor(groupParentId)) || []
+          const parentChildren = childrenMap.get(groupParentId) || []
           const groupMembers = parentChildren
             .map((id) => messagesById.get(id)!)
             .filter((m) => m && m.siblingsGroupId === siblingsGroupId)
@@ -650,20 +529,9 @@ export class MessageService {
         resultNodes.push(messageToTreeNode(message, hasChildren))
       }
 
-      // Recurse to children
-      const shouldExpand = isOnActivePath || (depth === -1 ? true : currentDepth < depth)
-      if (shouldExpand) {
-        for (const childId of children) {
-          const childOnPath = activePath.has(childId)
-          collectNodes(childId, isOnActivePath ? 0 : currentDepth + 1, childOnPath)
-        }
+      for (let i = children.length - 1; i >= 0; i--) {
+        pending.push([children[i], depth + 1])
       }
-    }
-
-    // Start from the logical roots — the virtual root's children (first-turn messages).
-    // Each is an independent subtree the flow canvas collects.
-    for (const startRootId of rootIds) {
-      collectNodes(startRootId, 0, activePath.has(startRootId))
     }
 
     return {
@@ -699,11 +567,7 @@ export class MessageService {
     const { cursor, limit = DEFAULT_LIMIT, includeSiblings = true } = options
 
     // Get topic
-    const [topic] = db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
-
-    if (!topic) {
-      throw DataApiErrorFactory.notFound('Topic', topicId)
-    }
+    const topic = this.getActiveTopicTx(db, topicId)
 
     // Authoritative first-turn signal for renderers (pagination-independent): a message is a
     // first turn iff its parentId === this root id. Looked up once, returned in the response.
@@ -722,27 +586,27 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId, rootId }
     }
 
-    const fullPath = this.getPathRowsToNodeTx(db, nodeId, { topicId })
+    const pathIds = this.getPathIdsToNodeTx(db, nodeId, { topicId })
 
-    // Apply pagination
+    // Apply pagination on ids; only the returned page loads full rows.
     let startIndex = 0
-    let endIndex = fullPath.length
+    let endIndex = pathIds.length
 
     if (cursor) {
-      const cursorIndex = fullPath.findIndex((m) => m.id === cursor)
+      const cursorIndex = pathIds.indexOf(cursor)
       if (cursorIndex === -1) {
         throw DataApiErrorFactory.notFound('Message (cursor)', cursor)
       }
       startIndex = Math.max(0, cursorIndex - limit)
       endIndex = cursorIndex
     } else {
-      startIndex = Math.max(0, fullPath.length - limit)
+      startIndex = Math.max(0, pathIds.length - limit)
     }
 
-    const paginatedPath = fullPath.slice(startIndex, endIndex)
+    const paginatedPath = this.getRowsInOrderTx(db, pathIds.slice(startIndex, endIndex))
 
     // Calculate nextCursor: if there are more historical messages
-    const nextCursor = startIndex > 0 ? fullPath[startIndex].id : undefined
+    const nextCursor = startIndex > 0 ? pathIds[startIndex] : undefined
 
     // Build result with optional siblings
     const result: BranchMessage[] = []
@@ -825,18 +689,7 @@ export class MessageService {
    */
   getById(id: string): Message {
     const db = application.get('DbService').getDb()
-
-    const [row] = db
-      .select()
-      .from(messageTable)
-      .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
-      .limit(1)
-      .all()
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Message', id)
-    }
-
+    const row = this.getAddressableMessageRowTx(db, id)
     return rowToMessage(row)
   }
 
@@ -916,6 +769,7 @@ export class MessageService {
   /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
   setCompactionSummary(id: string, summary: string): void {
     application.get('DbService').withWriteTx((tx) => {
+      this.getAddressableMessageRowTx(tx, id)
       tx.update(messageTable).set({ compactionSummary: summary }).where(eq(messageTable.id, id)).run()
     })
     logger.info('Set message compactionSummary', { id, length: summary.length })
@@ -991,17 +845,20 @@ export class MessageService {
   getChildrenByParentId(parentId: string): Message[] {
     const db = application.get('DbService').getDb()
     const rows = db
-      .select()
+      .select({ message: messageTable })
       .from(messageTable)
-      .where(and(eq(messageTable.parentId, parentId), isNull(messageTable.deletedAt)))
+      .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+      .where(and(eq(messageTable.parentId, parentId), isNull(messageTable.deletedAt), isNull(topicTable.deletedAt)))
       .all()
-    return rows.map(rowToMessage)
+    return rows.map(({ message }) => rowToMessage(message))
   }
 
   /** Update siblingsGroupId for a single message. */
   updateSiblingsGroupId(id: string, siblingsGroupId: number): void {
-    const db = application.get('DbService').getDb()
-    db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id)).run()
+    application.get('DbService').withWriteTx((tx) => {
+      this.getAddressableMessageRowTx(tx, id)
+      tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id)).run()
+    })
   }
 
   /**
@@ -1024,10 +881,7 @@ export class MessageService {
    */
   createSibling(sourceId: string, data: MessageData): Message {
     const message = application.get('DbService').withWriteTx((tx) => {
-      const [source] = tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1).all()
-      if (!source) {
-        throw DataApiErrorFactory.notFound('Message', sourceId)
-      }
+      const source = this.getAddressableMessageRowTx(tx, sourceId)
       // The virtual root has no siblings — copying its null parentId would insert a second
       // null-parent row and trip message_topic_root_uniq. Reject cleanly (the CHECK +
       // unique index are the structural backstop; this is the friendly API error).
@@ -1134,11 +988,7 @@ export class MessageService {
     const message = application.get('DbService').withWriteTx((tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
-      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
-
-      if (!topic) {
-        throw DataApiErrorFactory.notFound('Topic', topicId)
-      }
+      const topic = this.getActiveTopicTx(tx, topicId)
 
       // Step 2: Resolve parentId based on the three possible input states:
       // - undefined: auto-resolve based on topic state
@@ -1159,11 +1009,7 @@ export class MessageService {
         // Explicit parent ID: verify existence and topic membership. Each
         // topic's message tree is self-contained — cross-topic parent refs
         // aren't a supported shape.
-        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
-
-        if (!parent) {
-          throw DataApiErrorFactory.notFound('Message', dto.parentId)
-        }
+        const parent = this.getAddressableMessageRowTx(tx, dto.parentId)
         if (parent.topicId !== topicId) {
           throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
         }
@@ -1218,15 +1064,7 @@ export class MessageService {
    */
   reserveBranch(anchorId: string, activate: boolean = true): Message {
     const message = application.get('DbService').withWriteTx((tx) => {
-      const [anchor] = tx
-        .select()
-        .from(messageTable)
-        .where(and(eq(messageTable.id, anchorId), isNull(messageTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!anchor) {
-        throw DataApiErrorFactory.notFound('Message', anchorId)
-      }
+      const anchor = this.getAddressableMessageRowTx(tx, anchorId)
       if (anchor.role !== 'assistant') {
         throw DataApiErrorFactory.invalidOperation('reserve branch', 'the branch anchor must be an assistant message')
       }
@@ -1302,10 +1140,7 @@ export class MessageService {
     let activityChanged = false
     const result = application.get('DbService').withWriteTx((tx) => {
       // Validate topic
-      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1).all()
-      if (!topic) {
-        throw DataApiErrorFactory.notFound('Topic', input.topicId)
-      }
+      this.getActiveTopicTx(tx, input.topicId)
       let latestActivityAt: number | null = null
 
       // 1. Resolve user message — insert new, or fetch existing
@@ -1318,10 +1153,7 @@ export class MessageService {
           // First-turn message: hang it off the topic's virtual root (created if absent).
           resolvedParentId = this.getRootMessageIdTx(tx, input.topicId)
         } else {
-          const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
-          if (!parent) {
-            throw DataApiErrorFactory.notFound('Message', dto.parentId)
-          }
+          const parent = this.getAddressableMessageRowTx(tx, dto.parentId)
           if (parent.topicId !== input.topicId) {
             throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
           }
@@ -1349,10 +1181,7 @@ export class MessageService {
         userMessage = rowToMessage(row)
         if (isConversationActivityRole(dto.role)) latestActivityAt = createdAt
       } else if (input.userMessage.mode === 'existing') {
-        const [row] = tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1).all()
-        if (!row) {
-          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
-        }
+        const row = this.getAddressableMessageRowTx(tx, input.userMessage.id)
         if (row.topicId !== input.topicId) {
           throw DataApiErrorFactory.invalidOperation(
             'reserve assistant turn',
@@ -1361,15 +1190,7 @@ export class MessageService {
         }
         userMessage = rowToMessage(row)
       } else {
-        const [row] = tx
-          .select()
-          .from(messageTable)
-          .where(and(eq(messageTable.id, input.userMessage.id), isNull(messageTable.deletedAt)))
-          .limit(1)
-          .all()
-        if (!row) {
-          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
-        }
+        const row = this.getAddressableMessageRowTx(tx, input.userMessage.id)
         if (row.topicId !== input.topicId) {
           throw DataApiErrorFactory.invalidOperation('fill reserved branch', 'Message does not belong to this topic')
         }
@@ -1490,40 +1311,20 @@ export class MessageService {
 
   isAwaitingInputLeaf(id: string, topicId: string): boolean {
     const db = application.get('DbService').getDb()
-    const [row] = db
-      .select()
-      .from(messageTable)
-      .where(and(eq(messageTable.id, id), eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
-      .limit(1)
-      .all()
-    return row ? this.isAwaitingInputLeafTx(db, rowToMessage(row)) : false
+    const row = this.findAddressableMessageRowTx(db, id)
+    return row?.topicId === topicId ? this.isAwaitingInputLeafTx(db, rowToMessage(row)) : false
   }
 
   /**
    * Update a message
    *
    * Uses transaction to ensure atomicity of validation and update.
-   * Cycle check is performed outside transaction as a read-only safety check.
    */
   update(id: string, dto: UpdateMessageDto): Message {
-    // Pre-transaction: Check for cycle if moving to new parent
-    // This is done outside transaction since getDescendantIds uses its own db context
-    // and cycle check is a safety check (worst case: reject valid operation)
-    if (dto.parentId !== undefined && dto.parentId !== null) {
-      const descendants = this.getDescendantIds(id)
-      if (descendants.includes(dto.parentId)) {
-        throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
-      }
-    }
-
     let activityChanged = false
     const message = application.get('DbService').withWriteTx((tx) => {
       // Get existing message within transaction
-      const [existingRow] = tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1).all()
-
-      if (!existingRow) {
-        throw DataApiErrorFactory.notFound('Message', id)
-      }
+      const existingRow = this.getAddressableMessageRowTx(tx, id)
 
       const existing = rowToMessage(existingRow)
 
@@ -1545,12 +1346,16 @@ export class MessageService {
         }
       }
 
-      // Verify new parent exists if changing parent
       if (dto.parentId !== undefined && dto.parentId !== existing.parentId && dto.parentId !== null) {
-        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
-
-        if (!parent) {
-          throw DataApiErrorFactory.notFound('Message', dto.parentId)
+        if (dto.parentId === id) {
+          throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
+        }
+        const parent = this.getAddressableMessageRowTx(tx, dto.parentId)
+        if (parent.topicId !== existing.topicId) {
+          throw DataApiErrorFactory.invalidOperation('move message', 'Parent message does not belong to this topic')
+        }
+        if (this.getDescendantIdsTx(tx, id).includes(dto.parentId)) {
+          throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
         }
       }
 
@@ -1609,8 +1414,7 @@ export class MessageService {
   ): Message {
     let activityTopicId: string | null = null
     application.get('DbService').withWriteTx((tx) => {
-      const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
-      if (!row) throw DataApiErrorFactory.notFound('Message', id)
+      const row = this.getAddressableMessageRowTx(tx, id)
       if (row.role !== 'assistant') {
         throw DataApiErrorFactory.invalidOperation('finalize message', 'only assistant messages can be finalized')
       }
@@ -1625,7 +1429,7 @@ export class MessageService {
         : null
       tx.update(messageTable)
         .set({
-          data: input.data,
+          data: { ...input.data, modelSelection: row.data?.modelSelection },
           status: input.status,
           stats: stats ?? null
         })
@@ -1654,8 +1458,7 @@ export class MessageService {
    */
   resetAssistantForRetry(id: string): Message {
     const { updated, affectedIds, topicId } = application.get('DbService').withWriteTx((tx) => {
-      const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
-      if (!row) throw DataApiErrorFactory.notFound('Message', id)
+      const row = this.getAddressableMessageRowTx(tx, id)
       if (row.role !== 'assistant') {
         throw DataApiErrorFactory.invalidOperation('retry message', 'only assistant messages can be retried')
       }
@@ -1675,6 +1478,7 @@ export class MessageService {
       }
       const data: MessageData = {
         parts: [],
+        ...(row.data?.modelSelection ? { modelSelection: row.data.modelSelection } : {}),
         ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
       }
       const descendantIds = this.getDescendantIdsTx(tx, id)
@@ -1718,7 +1522,7 @@ export class MessageService {
    */
   addToolOutputFileRef(messageId: string, fileEntryId: string): boolean {
     return application.get('DbService').withWriteTx((tx) => {
-      const row = tx.select({ id: messageTable.id }).from(messageTable).where(eq(messageTable.id, messageId)).get()
+      const row = this.findAddressableMessageRowTx(tx, messageId)
       if (!row) return false
       const now = Date.now()
       const result = tx
@@ -1757,7 +1561,7 @@ export class MessageService {
   } | null {
     const completedAt = Date.now()
     const result = application.get('DbService').withWriteTx((tx) => {
-      const [row] = tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1).all()
+      const row = this.findAddressableMessageRowTx(tx, anchorId)
       if (!row) return { response: null, activityTopicId: null }
 
       const existing = rowToMessage(row)
@@ -1816,21 +1620,7 @@ export class MessageService {
    */
   deleteReplyGroup(id: string): DeleteMessageResponse {
     const result = application.get('DbService').withWriteTx((tx) => {
-      const [target] = tx
-        .select({
-          id: messageTable.id,
-          parentId: messageTable.parentId,
-          topicId: messageTable.topicId,
-          role: messageTable.role,
-          status: messageTable.status,
-          siblingsGroupId: messageTable.siblingsGroupId
-        })
-        .from(messageTable)
-        .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
-        .limit(1)
-        .all()
-
-      if (!target) throw DataApiErrorFactory.notFound('Message', id)
+      const target = this.getAddressableMessageRowTx(tx, id)
       if (!target.parentId || target.role !== 'assistant') {
         throw DataApiErrorFactory.invalidOperation(
           'delete message group',
@@ -1868,9 +1658,10 @@ export class MessageService {
 
       const targetIds = targets.map((message) => message.id)
 
-      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, target.topicId)).limit(1).all()
-      if (!topic) throw DataApiErrorFactory.notFound('Topic', target.topicId)
+      const topic = this.getActiveTopicTx(tx, target.topicId)
 
+      const contextChangedIds = targets.flatMap((message) => this.getDescendantIdsTx(tx, message.id))
+      this.clearContextAnchorsTx(tx, contextChangedIds)
       const reparentedIds = this.reparentChildrenTx(tx, targets)
       let newActiveNodeId: string | null | undefined
       const activeNodeRemoved = Boolean(topic.activeNodeId && targetIds.includes(topic.activeNodeId))
@@ -1891,17 +1682,37 @@ export class MessageService {
       }
 
       return {
+        topicId: target.topicId,
+        contextChangedIds,
         deletedIds: targetIds,
         reparentedIds: reparentedIds.length > 0 ? reparentedIds : undefined,
         newActiveNodeId
       }
     })
 
+    const { topicId, contextChangedIds, ...response } = result
+    const changedIds = [...new Set([...response.deletedIds, ...(response.reparentedIds ?? []), ...contextChangedIds])]
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: changedIds
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: changedIds },
+      { endpoint: '/messages/:id', entityIds: changedIds },
+      ...(response.newActiveNodeId !== undefined
+        ? ([
+            { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+            { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+          ] as const)
+        : [])
+    ])
     logger.info('Deleted assistant reply group with reparenting', {
-      count: result.deletedIds.length,
-      reparentedCount: result.reparentedIds?.length ?? 0
+      count: response.deletedIds.length,
+      reparentedCount: response.reparentedIds?.length ?? 0
     })
-    return result
+    return response
   }
 
   /**
@@ -1936,21 +1747,10 @@ export class MessageService {
     awaitingInputOnly: boolean = false
   ): DeleteMessageResponse {
     const result = application.get('DbService').withWriteTx((tx) => {
-      const [messageRow] = tx
-        .select()
-        .from(messageTable)
-        .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!messageRow) {
-        throw DataApiErrorFactory.notFound('Message', id)
-      }
+      const messageRow = this.getAddressableMessageRowTx(tx, id)
       const message = rowToMessage(messageRow)
 
-      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, message.topicId)).limit(1).all()
-      if (!topic) {
-        throw DataApiErrorFactory.notFound('Topic', message.topicId)
-      }
+      const topic = this.getActiveTopicTx(tx, message.topicId)
 
       // The virtual root is structural — deleting it would orphan first-turn children
       // or leave a rootless topic. It is removable only via topic deletion (FK cascade).
@@ -1981,10 +1781,8 @@ export class MessageService {
         // Check if activeNodeId is affected
         activeNodeRemoved = Boolean(topic.activeNodeId && deletedIds.includes(topic.activeNodeId))
 
-        // The self-FK is ON DELETE CASCADE, so deleting the target removes its whole
-        // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
-        // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
-        // from getDescendantIds for the response and the activeNodeId check.)
+        // Flatten the subtree before deleting so very deep chains do not exceed
+        // SQLite's trigger-recursion limit when ON DELETE CASCADE fires.
         for (let i = 0; i < descendantIds.length; i += SQLITE_INARRAY_CHUNK) {
           const chunk = descendantIds.slice(i, i + SQLITE_INARRAY_CHUNK)
           this.flattenUnderTx(tx, id, inArray(messageTable.id, chunk))
@@ -2000,7 +1798,7 @@ export class MessageService {
           message.role === 'assistant' &&
           message.siblingsGroupId !== 0 &&
           topic.activeNodeId !== null &&
-          this.getPathRowsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).some((row) => row.id === id)
+          this.getPathIdsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).includes(id)
         const group = isContextReply
           ? tx
               .select({ id: messageTable.id })
@@ -2032,7 +1830,6 @@ export class MessageService {
         // Check if activeNodeId is affected
         activeNodeRemoved = topic.activeNodeId === id
 
-        // Hard delete this message
         tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
@@ -2205,6 +2002,7 @@ export class MessageService {
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
     const result = application.get('DbService').withWriteTx((tx) => {
+      this.getActiveTopicTx(tx, topicId)
       const rootId = this.getRootMessageIdTx(tx, topicId)
 
       const rows = tx
@@ -2248,10 +2046,6 @@ export class MessageService {
   /**
    * Get all descendant IDs of a message
    */
-  private getDescendantIds(id: string): string[] {
-    return this.getDescendantIdsTx(application.get('DbService').getDb(), id)
-  }
-
   private getDescendantIdsTx(tx: DbOrTx, id: string): string[] {
     // Use recursive query to get all descendants
     const result = tx.all<{ id: string }>(sql`
@@ -2276,6 +2070,7 @@ export class MessageService {
    */
   getPathToNode(nodeId: string): Message[] {
     const db = application.get('DbService').getDb()
+    this.getAddressableMessageRowTx(db, nodeId)
     const pathRows = this.getPathRowsToNodeTx(db, nodeId)
     return pathRows.map(rowToMessage)
   }
@@ -2286,10 +2081,15 @@ export class MessageService {
    * the same-topic message-tree invariant.
    */
   getPathRowsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): MessageRow[] {
-    // Recursive CTE collects ancestor IDs (single-column, casing-safe);
-    // full rows fetched via ORM for camelCase mapping.
-    const ancestorIdRows = options.topicId
-      ? tx.all<{ id: string }>(sql`
+    return this.getRowsInOrderTx(tx, this.getPathIdsToNodeTx(tx, nodeId, options))
+  }
+
+  /** Root -> node path ids, without loading message rows. Same scoping as `getPathRowsToNodeTx`. */
+  private getPathIdsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): string[] {
+    // Raw CTE rows keep snake_case `parent_id`; they only feed this id walk, never rowToMessage.
+    // Rows come back in node → root order.
+    const ancestorRows = options.topicId
+      ? tx.all<{ id: string; parent_id: string | null }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message
             WHERE id = ${nodeId} AND topic_id = ${options.topicId} AND deleted_at IS NULL
@@ -2298,9 +2098,9 @@ export class MessageService {
             INNER JOIN ancestors a ON m.id = a.parent_id
             WHERE m.topic_id = ${options.topicId} AND m.deleted_at IS NULL
           )
-          SELECT id FROM ancestors
+          SELECT id, parent_id FROM ancestors
         `)
-      : tx.all<{ id: string }>(sql`
+      : tx.all<{ id: string; parent_id: string | null }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
             UNION ALL
@@ -2308,28 +2108,38 @@ export class MessageService {
             INNER JOIN ancestors a ON m.id = a.parent_id
             WHERE m.deleted_at IS NULL
           )
-          SELECT id FROM ancestors
+          SELECT id, parent_id FROM ancestors
         `)
 
-    if (ancestorIdRows.length === 0) {
+    if (ancestorRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
-
-    const ancestorIds = ancestorIdRows.map((r) => r.id)
-    const whereClause = options.topicId
-      ? and(inArray(messageTable.id, ancestorIds), eq(messageTable.topicId, options.topicId))
-      : inArray(messageTable.id, ancestorIds)
-    const ancestorRows = tx.select().from(messageTable).where(whereClause).all()
-
-    // Preserve CTE order (nodeId → root) before reversing to root → nodeId.
-    const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
-    const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
     // root → node order, with the structural virtual root (the only parentId-null
     // row) dropped: content paths start at the first-turn message, not the
     // content-less root.
-    const chain = ordered.reverse()
-    return chain[0]?.parentId === null ? chain.slice(1) : chain
+    const ids: string[] = []
+    for (let i = ancestorRows.length - 1; i >= 0; i--) {
+      if (ancestorRows[i].parent_id !== null) ids.push(ancestorRows[i].id)
+    }
+    return ids
+  }
+
+  /** Full rows for `ids`, returned in `ids` order. */
+  private getRowsInOrderTx(tx: DbOrTx, ids: string[]): MessageRow[] {
+    const rowsById = new Map<string, MessageRow>()
+    for (let offset = 0; offset < ids.length; offset += SQLITE_INARRAY_CHUNK) {
+      const chunk = ids.slice(offset, offset + SQLITE_INARRAY_CHUNK)
+      // No topic_id predicate: callers pass ids that are already topic-scoped, and adding one
+      // makes SQLite scan the topic index once per chunk instead of looking ids up by key.
+      for (const row of tx.select().from(messageTable).where(inArray(messageTable.id, chunk)).all()) {
+        rowsById.set(row.id, row)
+      }
+    }
+    return ids.flatMap((id) => {
+      const row = rowsById.get(id)
+      return row ? [row] : []
+    })
   }
 
   /**
@@ -2425,6 +2235,7 @@ export class MessageService {
    */
   getPathThrough(topicId: string, nodeId: string): Message[] {
     const db = application.get('DbService').getDb()
+    this.getActiveTopicTx(db, topicId)
 
     const [node] = db
       .select()
@@ -2450,14 +2261,15 @@ export class MessageService {
         SELECT id, created_at FROM message
           WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.id, m.created_at FROM message m
-          INNER JOIN subtree s ON m.parent_id = s.id
-          WHERE m.topic_id = ${topicId} AND m.deleted_at IS NULL
+        -- Without ANALYZE stats the planner picks message_topic_created_idx and rescans the topic per row;
+        -- unary + on topic_id forces message_parent_id_idx, CROSS JOIN pins subtree as the outer loop.
+        SELECT m.id, m.created_at FROM subtree s
+          CROSS JOIN message m ON m.parent_id = s.id AND +m.topic_id = ${topicId} AND m.deleted_at IS NULL
       )
       SELECT s.id FROM subtree s
       WHERE NOT EXISTS (
         SELECT 1 FROM message c
-        WHERE c.parent_id = s.id AND c.topic_id = ${topicId} AND c.deleted_at IS NULL
+        WHERE c.parent_id = s.id AND +c.topic_id = ${topicId} AND c.deleted_at IS NULL
       )
       ORDER BY s.created_at DESC
       LIMIT 1

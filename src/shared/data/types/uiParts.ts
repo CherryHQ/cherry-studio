@@ -26,7 +26,7 @@
 import * as z from 'zod'
 
 import type { CompactionAnchorData } from '@shared/ai/compaction'
-import { type FileType, FileTypeSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
 import type { CherryMessagePart } from './message'
@@ -145,6 +145,7 @@ export type CherryDataPartTypes = {
   'compaction-anchor': CompactionAnchorPartData
   'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
+  'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   code: CodePartData
@@ -215,10 +216,15 @@ export interface CherryFileMeta {
    * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
+  /** Previously persisted workspace copy; retained only for existing message references. */
+  workingFileEntryId?: string
+  /** Upload-time integrity metadata for the managed attachment. */
+  remoteAttachment?: { sha256: string; byteLength: number }
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string
   /** Safe composer-only source marker used to restore sent-message token previews. */
   composerFileKind?: 'pasted-text'
+  originalPath?: AbsoluteFilePath
 }
 
 /**
@@ -265,7 +271,8 @@ const ComposerMessageTokenKindSchema = z.enum([
   'command',
   'knowledge',
   'reference',
-  'quote'
+  'quote',
+  'webviewAnnotation'
 ])
 
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
@@ -308,9 +315,14 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 })
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
+  workingFileEntryId: z.string().optional(),
   fileEntryId: z.string().optional(),
+  remoteAttachment: z
+    .object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), byteLength: z.number().int().nonnegative() })
+    .optional(),
   fileTokenSourceId: z.string().optional(),
-  composerFileKind: z.literal('pasted-text').optional()
+  composerFileKind: z.literal('pasted-text').optional(),
+  originalPath: AbsoluteFilePathSchema.optional()
 })
 
 const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({

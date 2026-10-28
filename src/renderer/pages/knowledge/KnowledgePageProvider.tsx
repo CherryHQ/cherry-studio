@@ -24,6 +24,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemType } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import {
   useCreateKnowledgeGroup,
@@ -59,6 +60,7 @@ interface KnowledgePageContextValue {
   isAddSourceDialogOpen: boolean
   pendingAddSource: KnowledgeItemType | undefined
   pendingAddFiles: File[] | undefined
+  pendingAddDirectoryPaths: AbsoluteFilePath[] | undefined
   isRagConfigDrawerOpen: boolean
   isRecallTestDrawerOpen: boolean
   isCreateBaseDialogOpen: boolean
@@ -78,7 +80,7 @@ interface KnowledgePageContextValue {
   closeItemChunks: () => void
   openFilePreview: (target: KnowledgeFilePreviewTarget) => void
   closeFilePreview: () => void
-  openAddSourceDialog: (source?: KnowledgeItemType, files?: File[]) => void
+  openAddSourceDialog: (source?: KnowledgeItemType, files?: File[], directoryPaths?: AbsoluteFilePath[]) => void
   openRagConfigDrawer: () => void
   openRecallTestDrawer: () => void
   handleRagConfigDrawerOpenChange: (open: boolean) => void
@@ -106,9 +108,14 @@ interface KnowledgePageContextValue {
 
 const KnowledgePageContext = createContext<KnowledgePageContextValue | null>(null)
 
-export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
+interface KnowledgePageProviderProps extends PropsWithChildren {
+  baseId?: string
+  onBaseIdChange: (baseId?: string) => void
+}
+
+export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: KnowledgePageProviderProps) => {
   const { t } = useTranslation()
-  const { bases, isLoading } = useKnowledgeBases()
+  const { bases, isLoading, error: basesError } = useKnowledgeBases()
   const { groups } = useKnowledgeGroups()
   const { createGroup, isCreating: isCreatingGroup } = useCreateKnowledgeGroup()
   const { createBase, isCreating: isCreatingBase } = useCreateKnowledgeBase()
@@ -117,7 +124,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const { updateGroup, isUpdating: isUpdatingGroup } = useUpdateKnowledgeGroup()
   const { deleteBase } = useDeleteKnowledgeBase()
   const { deleteGroup } = useDeleteKnowledgeGroup()
-  const [selectedBaseId, setSelectedBaseId] = useState('')
+  const selectedBaseId = baseId ?? ''
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [selectedItemView, setSelectedItemView] = useState<'content' | 'chunks'>('content')
   const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
@@ -136,6 +143,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false)
   const [pendingAddSource, setPendingAddSource] = useState<KnowledgeItemType | undefined>()
   const [pendingAddFiles, setPendingAddFiles] = useState<File[] | undefined>()
+  const [pendingAddDirectoryPaths, setPendingAddDirectoryPaths] = useState<AbsoluteFilePath[] | undefined>()
   const [isRagConfigDrawerOpen, setIsRagConfigDrawerOpen] = useState(false)
   const [isRecallTestDrawerOpen, setIsRecallTestDrawerOpen] = useState(false)
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
@@ -171,6 +179,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   )
 
   useEffect(() => {
+    if (isLoading || basesError) return
+
     if (pendingSelectedBaseId) {
       if (bases.some((base) => base.id === pendingSelectedBaseId)) {
         setPendingSelectedBaseId(null)
@@ -189,7 +199,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     if (bases.length === 0) {
       if (selectedBaseId) {
         resetBaseNavigation()
-        setSelectedBaseId('')
+        onBaseIdChange()
       }
       setSelectedItemId(null)
       return
@@ -198,10 +208,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
     if (!selectedBaseId || !hasSelectedBase) {
       resetBaseNavigation()
-      setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
+      onBaseIdChange(bases[0].id)
     }
-  }, [bases, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
+  }, [bases, basesError, isLoading, onBaseIdChange, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
 
   const selectBase = useCallback(
     (baseId: string) => {
@@ -215,11 +225,16 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
         pendingSelectedBaseListRef.current = bases
       }
 
-      setSelectedBaseId(baseId)
+      onBaseIdChange(baseId)
       setSelectedItemId(null)
     },
-    [bases, resetBaseNavigation]
+    [bases, resetBaseNavigation, onBaseIdChange]
   )
+
+  useEffect(() => {
+    resetBaseNavigation()
+    setSelectedItemId(null)
+  }, [selectedBaseId, resetBaseNavigation])
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {
@@ -256,11 +271,15 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setIsCreateBaseDialogOpen(true)
   }, [])
 
-  const openAddSourceDialog = useCallback((source?: KnowledgeItemType, files?: File[]) => {
-    setPendingAddSource(source)
-    setPendingAddFiles(files?.length ? files : undefined)
-    setIsAddSourceDialogOpen(true)
-  }, [])
+  const openAddSourceDialog = useCallback(
+    (source?: KnowledgeItemType, files?: File[], directoryPaths?: AbsoluteFilePath[]) => {
+      setPendingAddSource(source)
+      setPendingAddFiles(files?.length ? files : undefined)
+      setPendingAddDirectoryPaths(directoryPaths?.length ? directoryPaths : undefined)
+      setIsAddSourceDialogOpen(true)
+    },
+    []
+  )
 
   const openRagConfigDrawer = useCallback(() => {
     setIsRagConfigDrawerOpen(true)
@@ -312,6 +331,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     if (!open) {
       setPendingAddSource(undefined)
       setPendingAddFiles(undefined)
+      setPendingAddDirectoryPaths(undefined)
     }
   }, [])
 
@@ -344,26 +364,18 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateBaseCreated = useCallback(
     (createdBase: { id: string }) => {
-      resetBaseNavigation()
-      setPendingSelectedBaseId(createdBase.id)
-      pendingSelectedBaseListRef.current = bases
-      setSelectedBaseId(createdBase.id)
-      setSelectedItemId(null)
+      selectBase(createdBase.id)
     },
-    [bases, resetBaseNavigation]
+    [selectBase]
   )
 
   const handleRestoreBaseRestored = useCallback(
     (restoredBase: { id: string }) => {
-      resetBaseNavigation()
       setRestoringBase(null)
       setRestoreBaseInitialValues(undefined)
-      setPendingSelectedBaseId(restoredBase.id)
-      pendingSelectedBaseListRef.current = bases
-      setSelectedBaseId(restoredBase.id)
-      setSelectedItemId(null)
+      selectBase(restoredBase.id)
     },
-    [bases, resetBaseNavigation]
+    [selectBase]
   )
 
   const moveBase = useCallback(
@@ -470,6 +482,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isAddSourceDialogOpen,
       pendingAddSource,
       pendingAddFiles,
+      pendingAddDirectoryPaths,
       isRagConfigDrawerOpen,
       isRecallTestDrawerOpen,
       isCreateBaseDialogOpen,
@@ -537,6 +550,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       handleRestoreBaseRestored,
       isAddSourceDialogOpen,
       pendingAddFiles,
+      pendingAddDirectoryPaths,
       pendingAddSource,
       isRagConfigDrawerOpen,
       isRecallTestDrawerOpen,

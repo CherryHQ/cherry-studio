@@ -2,7 +2,8 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type {
@@ -22,51 +23,50 @@ export const useChannels = (type?: AgentChannelType) => {
     query: type ? { type } : undefined,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange('/agent-channels', () => void refetch())
   const channels = data ?? (EMPTY_CHANNELS as AgentChannelEntity[])
 
-  const { trigger: createTrigger } = useMutation('POST', '/agent-channels', { refresh: ['/agent-channels'] })
   const createChannel = useCallback(
     async (channelData: CreateAgentChannelDto) => {
       try {
-        return await createTrigger({ body: channelData })
+        const channel = await ipcApi.request('channel.create', channelData)
+        await mutate()
+        return channel
       } catch (err) {
         logger.error('Failed to create channel', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.createError')))
         return null
       }
     },
-    [createTrigger, t]
+    [mutate, t]
   )
 
-  const { trigger: updateTrigger } = useMutation('PATCH', '/agent-channels/:channelId', {
-    refresh: ({ args }) => ['/agent-channels', `/agent-channels/${args?.params.channelId}` as never]
-  })
   const updateChannel = useCallback(
     async (id: string, updates: UpdateAgentChannelDto) => {
       try {
-        return await updateTrigger({ params: { channelId: id }, body: updates })
+        const channel = await ipcApi.request('channel.update', { channelId: id, updates })
+        await mutate()
+        return channel
       } catch (err) {
         logger.error('Failed to update channel', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.updateError')))
         return null
       }
     },
-    [updateTrigger, t]
+    [mutate, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-channels/:channelId', {
-    refresh: ['/agent-channels']
-  })
   const deleteChannel = useCallback(
     async (id: string) => {
       try {
-        await deleteTrigger({ params: { channelId: id } })
+        await ipcApi.request('channel.delete', { channelId: id })
+        await mutate()
       } catch (err) {
         logger.error('Failed to delete channel', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.deleteError')))
       }
     },
-    [deleteTrigger, t]
+    [mutate, t]
   )
 
   return { channels, error, isLoading, refetch, mutate, createChannel, updateChannel, deleteChannel }

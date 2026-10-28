@@ -39,8 +39,9 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
+export { FileEditService } from './FileEditService'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
-export { DirectoryTreeManager, DirectoryTreeStoppedError } from './tree/DirectoryTreeManager'
+export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
 
 // DanglingCache: interface and singleton are both exported for in-process
 // callers (orphanSweep, business services querying live state). External
@@ -68,7 +69,8 @@ export { createDirectoryWatcher } from './watcher'
 // Projection helper: managed FileEntry → live on-disk FileInfo descriptor.
 export { toFileInfo } from './toFileInfo'
 
-// Path-level system helpers. `safeOpen` is the public default-open primitive;
+// Path-level system helpers. `safeOpen` is the public default-open primitive and
+// `openRequestPath` is the only sanctioned door for renderer-supplied path text;
 // raw Electron shell access remains internal to the file module.
 export { safeOpen, showInFolder } from './system'
 
@@ -77,13 +79,17 @@ export { safeOpen, showInFolder } from './system'
 export { dispatchHandle } from './internal/dispatch'
 
 // Path-level content helpers for FileHandle routes and the path-only conditional write.
+export { runPathMutationExclusive } from './pathMutationLock'
 export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/content'
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.
 export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
+export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'
+
+export { FileIntakeService, FileIntakeError, type FileIntakeOwner } from './FileIntakeService'

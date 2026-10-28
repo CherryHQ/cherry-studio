@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentPropsWithoutRef, ComponentType } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +11,8 @@ import { createFilePathHandle } from '@shared/utils/file'
 
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
-  textPreview: vi.fn()
+  textPreview: vi.fn(),
+  selectionGate: null as Promise<void> | null
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -58,9 +60,20 @@ vi.mock('../plugins/text/textFilePreviewPlugin', () => ({
     id: 'text',
     extensions: [],
     load: async () => ({
-      default: () => {
+      default: ({ onSelectionReference }: { onSelectionReference?: (reference: unknown) => void }) => {
         mocks.textPreview()
-        return <div data-testid="text-file-preview" />
+        return (
+          <div data-testid="text-file-preview">
+            <button
+              type="button"
+              onClick={async () => {
+                if (mocks.selectionGate) await mocks.selectionGate
+                onSelectionReference?.(SELECTION_REFERENCE_FIXTURE)
+              }}>
+              report-selection
+            </button>
+          </div>
+        )
       }
     })
   }
@@ -72,12 +85,20 @@ vi.mock('react-i18next', () => ({
 
 import { FilePreview } from '../FilePreview'
 
+const SELECTION_REFERENCE_FIXTURE = {
+  path: '/tmp/notes.txt',
+  anchor: { format: 'docx', paragraph: 0 },
+  excerpt: 'hello',
+  fileStamp: { size: 1, mtimeMs: 1 }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
 
 beforeEach(() => {
+  mocks.selectionGate = null
   mocks.ipcApiRequest.mockResolvedValue({
     kind: 'file',
     type: 'other',
@@ -89,6 +110,39 @@ beforeEach(() => {
 })
 
 describe('FilePreview', () => {
+  it('rejects old async selections while refreshed metadata is pending and accepts new selections afterwards', async () => {
+    const user = userEvent.setup()
+    const metadata = { kind: 'file', type: 'text', size: 1, modifiedAt: 1 }
+    mocks.ipcApiRequest.mockResolvedValue(metadata)
+    const capture = vi.fn()
+    const props = { filePath: '/tmp/notes.txt' as AbsoluteFilePath, onSelectionReference: capture }
+    const view = render(<FilePreview {...props} refreshKey={0} />)
+    let finishSelection!: () => void
+    mocks.selectionGate = new Promise<void>((resolve) => {
+      finishSelection = resolve
+    })
+    await user.click(await screen.findByRole('button', { name: 'report-selection' }))
+
+    let finishMetadata!: (value: typeof metadata) => void
+    mocks.ipcApiRequest.mockReturnValueOnce(
+      new Promise<typeof metadata>((resolve) => {
+        finishMetadata = resolve
+      })
+    )
+    view.rerender(<FilePreview {...props} refreshKey={1} />)
+    await act(async () => {
+      finishSelection()
+    })
+    expect(capture).not.toHaveBeenCalled()
+
+    await act(async () => {
+      finishMetadata(metadata)
+    })
+    mocks.selectionGate = null
+    await user.click(screen.getByRole('button', { name: 'report-selection' }))
+    await waitFor(() => expect(capture).toHaveBeenCalledExactlyOnceWith(SELECTION_REFERENCE_FIXTURE))
+  })
+
   it('shows unsupported state for an existing binary file without a preview plugin', async () => {
     render(<FilePreview filePath={'/tmp/report.zip' as AbsoluteFilePath} />)
 
@@ -156,5 +210,23 @@ describe('FilePreview', () => {
 
     expect(await screen.findByTestId('text-file-preview')).toBeInTheDocument()
     expect(mocks.textPreview).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards plugin selection references to the host callback verbatim', async () => {
+    mocks.ipcApiRequest.mockResolvedValueOnce({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
+    const onSelectionReference = vi.fn()
+
+    render(<FilePreview filePath={'/tmp/notes.txt' as AbsoluteFilePath} onSelectionReference={onSelectionReference} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'report-selection' }))
+
+    expect(onSelectionReference).toHaveBeenCalledWith(SELECTION_REFERENCE_FIXTURE)
   })
 })

@@ -1,31 +1,23 @@
-import { net } from 'electron'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions } from '@main/core/job/types'
+import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'
+import { probeOpenMineru } from './processors/openMineru/protocol'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
 import type { FileProcessingJobPayload } from './tasks/shared'
 import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
-import { getRequiredApiHost, getRequiredCapability } from './utils/provider'
+import { getApiKey, getRequiredApiHost, getRequiredCapability } from './utils/provider'
 
 const logger = loggerService.withContext('FileProcessingService')
-
-/**
- * Long enough for a LAN host, short enough that the dropdown gating it does not
- * feel stuck. Matches OpenClawService's gateway health probe.
- */
-const CONNECTIVITY_PROBE_TIMEOUT_MS = 3_000
 
 @Injectable('FileProcessingService')
 @ServicePhase(Phase.WhenReady)
@@ -54,11 +46,17 @@ export class FileProcessingService extends BaseService {
    * type to enqueue under (background vs remote-poll), and for background the
    * processor's `runtime` picks the local or remote half. Both are synchronous
    * lookups — no `await prepare()` is needed at enqueue time.
+   *
+   * `options.recovery` overrides the handler's restart behavior (resume) for a
+   * caller that will not read the result of a job resumed after a restart.
+   *
+   * @returns The job's handle. Its `finished` promise lives in this process only, so it does
+   *   not resolve for a job that a restart resumes.
    */
   async startJob(
     input: StartFileProcessingJobInput,
-    options: Pick<EnqueueOptions, 'parentId'> = {}
-  ): Promise<JobSnapshot> {
+    options: Pick<EnqueueOptions, 'parentId' | 'recovery'> = {}
+  ): Promise<JobHandle> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -86,7 +84,10 @@ export class FileProcessingService extends BaseService {
           ? 'file-processing.background-local'
           : 'file-processing.background'
     const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
+    const handle = jobManager.enqueue(type, payload, {
+      ...(options.parentId ? { parentId: options.parentId } : {}),
+      recovery: options.recovery
+    })
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,
@@ -97,7 +98,7 @@ export class FileProcessingService extends BaseService {
       output
     })
 
-    return handle.snapshot
+    return handle
   }
 
   /**
@@ -126,27 +127,7 @@ export class FileProcessingService extends BaseService {
     return ListAvailableFileProcessorsResultSchema.parse({ processorIds })
   }
 
-  /**
-   * Is a self-hosted processor's server actually up?
-   *
-   * For a processor the user runs themselves there is nothing in the config that
-   * answers this — Open MinerU needs no API key and its preset ships a working
-   * default host, so a user who has done nothing looks identical to one running
-   * a real deployment. Only the host can tell us apart.
-   *
-   * Probes `/health`, the endpoint both `mineru-api` and `mineru-router` expose,
-   * and treats **404 as the one negative answer**: something is listening but it
-   * has no `/health`, so it is not MinerU (port 8000 is a busy neighbourhood).
-   * Every other status means the server is alive and we let it through — 503 is
-   * how MinerU reports a full request queue, 401/403 come from a reverse proxy in
-   * front of it, and greying out a working deployment is far worse than letting a
-   * broken one through, which merely fails the way it already does today.
-   *
-   * Deliberately no `sanitizeRemoteUrl`: the host being probed is the same one
-   * `executeTask` posts the user's document to with a bare `net.fetch`, and this
-   * sends an unauthenticated GET whose body we never read. A probe stricter than
-   * the execution path would report "unreachable" for hosts that actually work.
-   */
+  /** Reachability is distinct from a successful protocol or authentication check. */
   async checkOpenMineruConnectivity(): Promise<boolean> {
     const processorId = 'open-mineru'
     const feature = 'document_to_markdown'
@@ -162,11 +143,8 @@ export class FileProcessingService extends BaseService {
     }
 
     try {
-      const response = await net.fetch(`${apiHost}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(CONNECTIVITY_PROBE_TIMEOUT_MS)
-      })
-      return response.status !== 404
+      const probe = await probeOpenMineru({ apiHost, apiKey: getApiKey(config, processorId) })
+      return probe.kind === 'supported' || probe.kind === 'http-error'
     } catch (error) {
       logger.debug('File processor connectivity probe failed', { processorId, apiHost, error })
       return false

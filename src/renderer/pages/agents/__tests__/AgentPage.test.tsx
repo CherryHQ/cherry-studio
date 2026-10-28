@@ -82,6 +82,8 @@ const agentPageMocks = vi.hoisted(() => ({
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
+  tabUrl: '/app/agents?sessionId=session-initial',
+  tabMetadata: {} as Record<string, unknown>,
   navigate: vi.fn(),
   composerLaunchOptions: undefined as any,
   dataApiGet: vi.fn(),
@@ -113,6 +115,7 @@ const agentPageMocks = vi.hoisted(() => ({
 const activeSessionMocks = vi.hoisted(() => ({
   session: null as any,
   isLoading: false,
+  mutate: vi.fn(),
   error: undefined as Error | undefined,
   sessionSource: 'none' as 'query' | 'pending' | 'none'
 }))
@@ -188,6 +191,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   const React = await import('react')
 
   return {
+    useCache: () => [undefined, vi.fn()],
     useSharedCache: () => [null, vi.fn()],
     usePersistCache: (key: string) => {
       const initialValue = (() => {
@@ -272,6 +276,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => {
       return {
         session: pendingSession ?? activeSessionMocks.session ?? undefined,
         isLoading: activeSessionMocks.isLoading,
+        mutate: activeSessionMocks.mutate,
         error: activeSessionMocks.error,
         sessionSource: pendingSession
           ? 'pending'
@@ -319,12 +324,24 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/tab', () => ({
-  useCloseConversationTabs: () => agentPageMocks.closeConversationTabs,
-  useCurrentTabId: () => 'agent-tab',
-  useIsActiveTab: () => agentPageMocks.isActiveTab,
-  useTabSelfVisuals: vi.fn()
-}))
+vi.mock('@renderer/hooks/tab', () => {
+  const updateTab = (_id: string, updates: { metadata: Record<string, unknown> }) => {
+    agentPageMocks.tabMetadata = updates.metadata
+  }
+  return {
+    useCloseConversationTabs: () => agentPageMocks.closeConversationTabs,
+    useCurrentTab: () => ({
+      id: 'agent-tab',
+      type: 'route' as const,
+      title: 'Agents',
+      url: agentPageMocks.tabUrl,
+      metadata: agentPageMocks.tabMetadata
+    }),
+    useTabs: () => ({ updateTab }),
+    useCurrentTabId: () => 'agent-tab',
+    useIsActiveTab: () => agentPageMocks.isActiveTab
+  }
+})
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
@@ -340,20 +357,23 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    init: vi.fn(),
-    type: '3rdParty'
-  },
-  useTranslation: () => ({
-    t: (key: string) =>
-      ({
-        'agent.manage.title': '管理智能体',
-        'agent.session.list.title': '任务',
-        'settings.about.feedback.agent.description': '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。'
-      })[key] ?? key
-  })
-}))
+vi.mock('react-i18next', () => {
+  const t = (key: string, options?: { name?: string }) =>
+    ({
+      'agent.manage.title': '管理智能体',
+      'agent.session.list.title': '任务',
+      'settings.about.feedback.agent.description': '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。',
+      'settings.skills.intentInvalid': 'Skill unavailable',
+      'settings.skills.launchDraft': `Use ${options?.name ?? ''} Skill to help me.`
+    })[key] ?? key
+  return {
+    initReactI18next: {
+      init: vi.fn(),
+      type: '3rdParty'
+    },
+    useTranslation: () => ({ t })
+  }
+})
 
 vi.mock('../AgentChat', () => ({
   default: ({
@@ -591,6 +611,7 @@ vi.mock('../AgentSidePanel', () => ({
 vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
+    activeSessionId,
     historyRecordsActive,
     agentSessionsSource,
     onAddAgent,
@@ -600,6 +621,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     onSelectedAgentClick
   }: {
     activeAgentId?: string | null
+    activeSessionId?: string | null
     historyRecordsActive?: boolean
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
@@ -613,6 +635,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     return (
       <div
         data-active-agent-id={activeAgentId ?? ''}
+        data-active-session-id={activeSessionId ?? ''}
         data-history-active={String(Boolean(historyRecordsActive))}
         data-testid="agent-resource-list">
         <button type="button" onClick={() => void onAddAgent?.()}>
@@ -676,17 +699,25 @@ vi.mock('../components/Sessions', () => ({
 }))
 
 vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
-  default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (sessionId: string | null) => void }) =>
+  default: ({
+    open,
+    onActiveRecordChange
+  }: {
+    open?: boolean
+    onActiveRecordChange?: (sessionId: string | null) => void
+  }) =>
     open ? (
       <div data-testid="history-records-view">
-        <button type="button" onClick={() => onRecordSelect?.(null)}>
+        <button type="button" onClick={() => onActiveRecordChange?.('session-next')}>
+          Replace history session
+        </button>
+        <button type="button" onClick={() => onActiveRecordChange?.(null)}>
           Clear history session
         </button>
       </div>
     ) : null
 }))
 
-import { useTabSelfVisuals } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 
@@ -697,6 +728,8 @@ describe('AgentPage', () => {
     vi.clearAllMocks()
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-initial'
+    agentPageMocks.tabMetadata = {}
     agentPageMocks.navigate.mockReset()
     agentPageMocks.navigate.mockResolvedValue(undefined)
     agentPageMocks.composerLaunchOptions = undefined
@@ -779,6 +812,7 @@ describe('AgentPage', () => {
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
     activeSessionMocks.session = null
     activeSessionMocks.isLoading = false
+    activeSessionMocks.mutate.mockReset()
     activeSessionMocks.error = undefined
     activeSessionMocks.sessionSource = 'none'
 
@@ -847,6 +881,141 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
   })
 
+  it('pre-fills the scheduled task starter prompt without sending it, and drops it once sent', async () => {
+    agentPageMocks.agents = []
+    const taskSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-task-chat',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    agentPageMocks.routeSearch = { intent: 'task', sessionId: taskSession.id }
+    activeSessionMocks.session = taskSession
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: { sessionId: 'session-task-chat' },
+        replace: true
+      })
+    )
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-task-chat')
+    expect(agentPageMocks.composerLaunchOptions).toMatchObject({
+      initialDraft: { text: 'settings.scheduledTasks.chatDraft', tokens: [] }
+    })
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+
+    agentPageMocks.routeSearch = { sessionId: 'session-task-chat' }
+    act(() => {
+      agentPageMocks.composerLaunchOptions.onSent()
+    })
+
+    await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
+  })
+
+  it('consumes a prepared Skill intent once and creates a composer token from the installed Skill', async () => {
+    agentPageMocks.agents = []
+    const skillSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-skill',
+      agentId: 'cherry-assistant',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    agentPageMocks.routeSearch = { intent: 'skill', sessionId: skillSession.id, skillId: 'skill-1' }
+    activeSessionMocks.session = skillSession
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+      if (path === '/skills/skill-1') {
+        return {
+          id: 'skill-1',
+          name: 'Writer',
+          description: 'Draft clear prose',
+          folderName: 'writer',
+          source: 'local',
+          sourceUrl: null,
+          namespace: null,
+          author: null,
+          version: null,
+          sourceTags: [],
+          contentHash: 'hash',
+          isGlobalEnabled: true,
+          isEnabled: true,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        }
+      }
+      return agentPageMocks.workspace
+    })
+
+    const view = render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeDefined())
+    expect(agentPageMocks.composerLaunchOptions).toMatchObject({
+      initialDraft: {
+        text: 'Use Writer Skill to help me.',
+        tokens: [
+          expect.objectContaining({
+            description: 'Draft clear prose',
+            id: 'skill:writer',
+            kind: 'skill',
+            promptText: 'Use the writer skill.'
+          })
+        ]
+      }
+    })
+    expect(agentPageMocks.invalidateCache).toHaveBeenCalledWith([
+      '/agents',
+      '/skills',
+      '/agent-sessions',
+      '/agent-sessions/session-skill'
+    ])
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-skill' },
+      replace: true
+    })
+    expect(cacheService.has(getAgentDraftCacheKey('session-skill'))).toBe(false)
+
+    agentPageMocks.routeSearch = { sessionId: 'session-skill' }
+    view.unmount()
+    agentPageMocks.composerLaunchOptions = undefined
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
+  })
+
+  it('clears an invalid Skill intent without creating a composer draft', async () => {
+    const skillSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-missing-skill',
+      agentId: 'cherry-assistant',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    agentPageMocks.routeSearch = {
+      intent: 'skill',
+      sessionId: skillSession.id,
+      skillId: 'missing-skill'
+    }
+    activeSessionMocks.session = skillSession
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.dataApiGet.mockRejectedValueOnce(new Error('missing'))
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Skill unavailable'))
+    expect(agentPageMocks.composerLaunchOptions).toBeUndefined()
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-missing-skill' },
+      replace: true
+    })
+  })
+
   it('starts the model read from the visible list agent hint', async () => {
     agentPageMocks.isActiveTab = true
     agentPageMocks.agents = [{ id: 'agent-a', model: 'provider-a::model-a', name: 'Agent A' }]
@@ -876,6 +1045,7 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', 'agent-a')
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-session-id', 'session-created')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
@@ -1454,6 +1624,44 @@ describe('AgentPage', () => {
     )
     expect(recoveryNavigations).toHaveLength(1)
   })
+
+  it.each(['success', 'not-found', 'failure', 'cancelled'])(
+    'settles fork navigation from a fresh destination query, ignoring cached errors: %s',
+    async (scenario) => {
+      const lookup = Promise.withResolvers<void>()
+      activeSessionMocks.mutate.mockImplementation((fetch) => fetch())
+      agentPageMocks.dataApiGet.mockReturnValueOnce(lookup.promise)
+      activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'parent')
+      agentPageMocks.routeSearch = { sessionId: 'parent', forkReturnSessionId: 'child' }
+      const { unmount } = render(<AgentPage />)
+      expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/parent')
+      expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+      if (scenario === 'cancelled') unmount()
+      await act(async () => {
+        if (scenario === 'success' || scenario === 'cancelled') lookup.resolve()
+        else lookup.reject(scenario === 'not-found' ? activeSessionMocks.error : new Error('Connection failed'))
+      })
+      if (scenario === 'cancelled') {
+        expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+        return
+      }
+      expect(agentPageMocks.navigate.mock.calls).toEqual([
+        [
+          {
+            to: '/app/agents',
+            search: { sessionId: scenario === 'success' ? 'parent' : 'child' },
+            replace: true
+          }
+        ]
+      ])
+      if (scenario === 'success') expect(toast.error).not.toHaveBeenCalled()
+      else
+        expect(toast.error).toHaveBeenCalledWith(
+          scenario === 'not-found' ? 'agent_session_fork.source_not_found' : 'Connection failed'
+        )
+    }
+  )
 
   it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
@@ -2076,22 +2284,23 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-next')
   })
 
-  it('creates a default empty session when history clears the active session', async () => {
+  it('keeps history open after replacing or clearing the active session without creating one', async () => {
+    const user = userEvent.setup()
     render(<AgentPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear history session' }))
-
-    await waitFor(() =>
-      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
-        body: {
-          agentId: 'agent-a',
-          name: '',
-          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        }
-      })
-    )
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
+    await user.click(screen.getByRole('button', { name: 'Open history records' }))
+    await user.click(screen.getByRole('button', { name: 'Replace history session' }))
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-next'))
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-next' },
+      replace: true
+    })
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clear history session' }))
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {
@@ -2453,9 +2662,6 @@ describe('AgentPage', () => {
     const { rerender } = render(<AgentPage />)
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: false })
-    )
 
     agentPageMocks.routeSearch = { sessionId: 'session-2' }
     activeSessionMocks.session = null
@@ -2465,9 +2671,6 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-2'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: true })
-    )
 
     activeSessionMocks.session = {
       id: 'session-2',
@@ -2481,9 +2684,6 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-2')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('false')
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: false })
-    )
   })
 
   it('does not create a first-launch session from remembered agent and workspace state', () => {
@@ -2527,22 +2727,37 @@ describe('AgentPage', () => {
   })
 
   it('creates and activates a conversation for an agentId entry with no session yet', async () => {
-    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
       { id: 'agent-b', model: 'model-b', name: 'Agent B' }
     ]
     agentPageMocks.classicLayoutSessions = []
-    agentPageMocks.dataApiPost.mockResolvedValue({
+    const session = {
       ...agentPageMocks.persistedSession,
       id: 'session-pinned-agent',
       agentId: 'agent-a',
       name: '',
       workspaceId: '',
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-    })
+    }
+    let finishCreation!: (value: typeof session) => void
+    agentPageMocks.dataApiPost.mockReturnValue(
+      new Promise((resolve) => {
+        finishCreation = resolve
+      })
+    )
 
-    render(<AgentPage />)
+    const { rerender } = render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+
+    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.tabMetadata = { agentPinPending: true, retained: true }
+    rerender(<AgentPage />)
+    expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
+    expect(agentPageMocks.tabMetadata).toEqual({ retained: true })
+    expect(screen.getByTestId('active-session')).toBeEmptyDOMElement()
 
     await waitFor(() =>
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
@@ -2550,7 +2765,129 @@ describe('AgentPage', () => {
         expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
       )
     )
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-pinned-agent'))
+    agentPageMocks.tabMetadata = { retained: 'updated' }
+    rerender(<AgentPage />)
+
+    await act(async () => finishCreation(session))
+    await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-pinned-agent'))
+  })
+
+  it('does not close Manage Agents when leftover agentId is only in the bound route', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-pinned-agent' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-pinned-agent'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.classicLayoutSessions = [
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-pinned-agent',
+        agentId: 'agent-a',
+        name: 'Pinned session'
+      }
+    ]
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-pinned-agent',
+      agentId: 'agent-a',
+      name: 'Pinned session'
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+
+    agentPageMocks.routeSearch = { agentId: 'agent-a', sessionId: 'session-pinned-agent' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-pinned-agent'
+    rerender(<AgentPage />)
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-pinned-agent')
+  })
+
+  it('keeps Manage Agents open when leftover agentId is on the tab URL of a bound session', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-pinned-agent' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-pinned-agent'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.classicLayoutSessions = [
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-pinned-agent',
+        agentId: 'agent-a',
+        name: 'Pinned session'
+      }
+    ]
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-pinned-agent',
+      agentId: 'agent-a',
+      name: 'Pinned session'
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+
+    agentPageMocks.routeSearch = { sessionId: 'session-pinned-agent' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-pinned-agent&agentId=agent-a'
+    rerender(<AgentPage />)
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-pinned-agent')
+  })
+
+  it('consumes metadata-only Agent pin delivery and closes again on a second activation', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-pinned-agent' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-pinned-agent'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.classicLayoutSessions = [
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-pinned-agent',
+        agentId: 'agent-a',
+        name: 'Pinned session'
+      }
+    ]
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-pinned-agent',
+      agentId: 'agent-a',
+      name: 'Pinned session'
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+
+    const originalMetadata = { agentPinPending: true, retained: 'value' }
+    agentPageMocks.tabMetadata = originalMetadata
+    rerender(<AgentPage />)
+
+    expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-pinned-agent')
+    expect(agentPageMocks.tabMetadata).toEqual({ retained: 'value' })
+    expect(originalMetadata).toEqual({ agentPinPending: true, retained: 'value' })
+
+    rerender(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    agentPageMocks.tabMetadata = { ...agentPageMocks.tabMetadata, agentPinPending: true }
+    rerender(<AgentPage />)
+    expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
+    expect(agentPageMocks.tabMetadata).toEqual({ retained: 'value' })
   })
 
   it('does not let a stale agentId entry replace a newer Agent conversation', async () => {
@@ -2614,11 +2951,14 @@ describe('AgentPage', () => {
   })
 
   it('records the visible agent reported by the chat body', async () => {
+    const user = userEvent.setup()
     render(<AgentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show visible agent' }))
+    await user.click(screen.getByRole('button', { name: 'Show visible agent' }))
 
-    await waitFor(() => expect(agentPageMocks.setLastUsedAgentId).toHaveBeenCalledWith('agent-visible'))
+    await waitFor(() =>
+      expect(cacheService.setPersist).toHaveBeenCalledWith('ui.agent.last_used_agent_id', 'agent-visible')
+    )
   })
 
   it('records the visible workspace reported by the chat body', async () => {

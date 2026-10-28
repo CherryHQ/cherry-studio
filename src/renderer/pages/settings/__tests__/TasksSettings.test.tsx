@@ -3,16 +3,18 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
-
-import TasksSettings, {
+import {
   formStateToTrigger,
   type ScheduleFormState,
-  TaskTimeSelect,
   triggerToFormState
-} from '../TasksSettings'
+} from '@renderer/components/ScheduledTask/scheduleForm'
+import { TaskFormDialog, TaskTimeSelect } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { toast } from '@renderer/services/toast'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
+
+import TasksSettings from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
 
@@ -107,6 +109,10 @@ const navigationMocks = vi.hoisted(() => ({
   taskId: 'task-1' as string | undefined
 }))
 
+const ipcMocks = vi.hoisted(() => ({
+  request: vi.fn()
+}))
+
 const channelDataMock = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>,
   isLoading: false
@@ -123,9 +129,12 @@ vi.mock('@renderer/hooks/agent/useChannels', () => ({
   useChannels: () => ({ channels: channelDataMock.channels, isLoading: channelDataMock.isLoading })
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useQuery: (path: string) =>
-    path === '/agents' ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false } : { data: [] }
+    path === '/agents'
+      ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
+      : { data: [], refetch: vi.fn() }
 }))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
@@ -245,6 +254,10 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openRoute: navigationMocks.openRoute
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcMocks.request }
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -768,6 +781,11 @@ describe('scheduled task frequency conversion', () => {
       trigger: { kind: 'once', at: 1_785_576_600_000 }
     },
     {
+      name: 'Cron expression',
+      form: { kind: 'cron', value: '*/40 8-12 * * *', weekday: '1', timeoutMinutes },
+      trigger: { kind: 'cron', expr: '*/40 8-12 * * *' }
+    },
+    {
       name: 'daily with multiple times',
       form: { kind: 'daily', value: '09:30,18:30', weekday: '1', timeoutMinutes },
       trigger: { kind: 'cron', expr: '30 9,18 * * *' }
@@ -826,6 +844,21 @@ describe('scheduled task frequency conversion', () => {
   it('keeps a Cron with per-field minute lists on the custom path', () => {
     // '0,30 9 * * *' is valid but cannot come from the shared-minute presets.
     expect(triggerToFormState({ kind: 'cron', expr: '0,30 9 * * *' }).kind).toBe('cron')
+  })
+
+  it.each(['61 8-12 * * *', 'not a cron expression', '0 0 31 2 *'])(
+    'rejects an invalid or non-running Cron expression: %s',
+    (value) => {
+      expect(formStateToTrigger({ kind: 'cron', value, weekday: '1', timeoutMinutes })).toBeNull()
+    }
+  )
+
+  it('keeps a valid six-field Cron expression editable', () => {
+    const value = '* * * * * *'
+    expect(formStateToTrigger({ kind: 'cron', value, weekday: '1', timeoutMinutes })).toEqual({
+      kind: 'cron',
+      expr: value
+    })
   })
 
   it.each([
@@ -1125,8 +1158,37 @@ describe('TasksSettings routing and creation', () => {
     expect(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' })).toBeDisabled()
     const agentCreate = screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' })
     expect(agentCreate).toBeEnabled()
-    fireEvent.click(agentCreate)
-    expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
+  })
+
+  it('opens a prepared Cherry Assistant chat with the scheduled task intent', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockResolvedValue({ sessionId: 'session-task-chat' })
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() =>
+      expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents', {
+        intent: 'task',
+        sessionId: 'session-task-chat'
+      })
+    )
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create')
+  })
+
+  it('stays on the page and reports the failure when the chat session cannot be created', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockRejectedValue(new Error('restore failed'))
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.scheduledTasks.agentCreateFailed'))
+    expect(navigationMocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('uses the header as the only creation entry when the empty state has an Agent', async () => {
@@ -1163,7 +1225,7 @@ describe('TasksSettings routing and creation', () => {
       'data-value',
       '00'
     )
-    expect(within(dialog).queryByRole('option', { name: 'agent.tasks.schedule.advanced' })).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('option', { name: 'agent.tasks.schedule.cron' })).toBeInTheDocument()
     expect(within(dialog).queryByText('agent.tasks.schedule.description')).not.toBeInTheDocument()
 
     expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' })).toBeRequired()
@@ -1193,6 +1255,26 @@ describe('TasksSettings routing and creation', () => {
 
     expect(within(dialog).getByRole('button', { name: 'common.cancel' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'agent.tasks.save' })).not.toHaveAttribute('data-size')
+  })
+
+  it('selects Cron without removing the schedule presets', async () => {
+    navigationMocks.taskId = undefined
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('option', { name: 'agent.tasks.schedule.cron' }))
+
+    expect(within(dialog).getByRole('combobox', { name: 'agent.tasks.frequency.label' })).toHaveAttribute(
+      'data-value',
+      'cron'
+    )
+    expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })).toHaveValue('')
+    expect(within(dialog).getByRole('option', { name: 'agent.tasks.schedule.daily' })).toBeInTheDocument()
   })
 
   it('uses shared schedule controls instead of native time and number widgets', async () => {
@@ -1301,6 +1383,61 @@ describe('TasksSettings routing and creation', () => {
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(taskMutationMocks.refetchTasks).not.toHaveBeenCalled()
+  })
+
+  it('creates a task with a valid Cron expression', async () => {
+    navigationMocks.taskId = undefined
+    taskMutationMocks.createTask.mockResolvedValue({ ...taskDataMock.defaultTask, id: 'task-new' })
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Morning checks' }
+    })
+    fireEvent.change(within(dialog).getByLabelText('agent.tasks.prompt.label'), {
+      target: { value: 'Check the morning queues' }
+    })
+    fireEvent.click(within(dialog).getByRole('option', { name: 'agent.tasks.schedule.cron' }))
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' }), {
+      target: { value: '*/40 8-12 * * *' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.createTask).toHaveBeenCalledWith(
+        'agent-1',
+        expect.objectContaining({ trigger: { kind: 'cron', expr: '*/40 8-12 * * *' } })
+      )
+    )
+  })
+
+  it('blocks an invalid Cron expression and identifies the field', async () => {
+    navigationMocks.taskId = undefined
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Morning checks' }
+    })
+    fireEvent.change(within(dialog).getByLabelText('agent.tasks.prompt.label'), {
+      target: { value: 'Check the morning queues' }
+    })
+    fireEvent.click(within(dialog).getByRole('option', { name: 'agent.tasks.schedule.cron' }))
+    const cronInput = within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })
+    fireEvent.change(cronInput, { target: { value: '61 8-12 * * *' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    expect(cronInput).toHaveAttribute('aria-invalid', 'true')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('agent.tasks.schedule.invalidCron')
+    expect(taskMutationMocks.createTask).not.toHaveBeenCalled()
   })
 
   it('creates a daily task with multiple times', async () => {
@@ -1421,6 +1558,8 @@ describe('TasksSettings routing and creation', () => {
 describe('TasksSettings detail behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    translationMock.i18n.language = 'en-US'
+    translationMock.t = (key: string) => key
     navigationMocks.taskId = 'task-1'
     navigationMocks.navigate.mockResolvedValue(undefined)
     agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
@@ -1443,6 +1582,23 @@ describe('TasksSettings detail behavior', () => {
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
   })
 
+  it('preserves prompt text while allowing unbroken tokens to wrap', async () => {
+    const longToken = `https://example.com/${'a'.repeat(240)}`
+    const prompt = `Keep this newline.\n${longToken}`
+    taskDataMock.task = { ...taskDataMock.defaultTask, prompt }
+    translationMock.t = (key: string) => (key === 'agent.tasks.prompt.label' ? enUS[key] : key)
+
+    render(<TasksSettings />)
+
+    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
+    const promptText = await screen.findByText((_, node) => {
+      return node?.getAttribute('data-slot') === 'item-description' && (node.textContent ?? '').includes(longToken)
+    })
+    expect(promptText.textContent).toBe(prompt)
+    // Layout contract: the prompt stays fully visible and long tokens may break at any character.
+    expect(promptText).toHaveClass('line-clamp-none', 'wrap-anywhere', 'whitespace-pre-wrap')
+  })
+
   it('keeps task logs searchable and opens the related session', async () => {
     taskLogsMock.logs = [
       taskLogsMock.defaultTaskLog,
@@ -1458,6 +1614,41 @@ describe('TasksSettings detail behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.logs.viewSession' }))
     expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
+  })
+
+  it('finds a task run by the date and 24-hour time displayed in the log', async () => {
+    taskLogsMock.logs = [
+      { ...taskLogsMock.defaultTaskLog, startedAt: '2026-06-25T15:45:00.000Z' },
+      { ...taskLogsMock.defaultTaskLog, id: 'log-2', startedAt: '2026-06-26T09:30:00.000Z', result: 'other run' }
+    ]
+    const user = userEvent.setup()
+    render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByRole('cell', { name: '6/25, 15:45' })).toBeInTheDocument()
+    const search = screen.getByPlaceholderText('agent.tasks.logs.search')
+    await user.type(search, '15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+    expect(screen.queryByText('other run')).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, '6/25, 15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+  })
+
+  it('updates log dates and date searches when the UI language changes', async () => {
+    taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, startedAt: '2026-06-25T15:45:00.000Z' }]
+    const user = userEvent.setup()
+    const { rerender } = render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByRole('cell', { name: '6/25, 15:45' })).toBeInTheDocument()
+    translationMock.i18n.language = 'de-DE'
+    rerender(<TasksSettings />)
+    expect(screen.getByRole('cell', { name: '25.6., 15:45' })).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('agent.tasks.logs.search'), '25.6., 15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
   })
 
   it('renders a dash for a run without a duration', async () => {
@@ -1564,6 +1755,76 @@ describe('TasksSettings detail behavior', () => {
     )
   })
 
+  it('round-trips an existing custom Cron expression through edit and reload', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, trigger: { kind: 'cron', expr: '*/15 9-17 * * 1-5' } }
+    taskMutationMocks.updateTask.mockImplementationOnce(async (_agentId, _taskId, patch) => {
+      taskDataMock.task = { ...taskDataMock.task, ...patch }
+      tasksVersionMock.bump()
+      return taskDataMock.task
+    })
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    let dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('combobox', { name: 'agent.tasks.frequency.label' })).toHaveAttribute(
+      'data-value',
+      'cron'
+    )
+    const cronInput = within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })
+    expect(cronInput).toHaveValue('*/15 9-17 * * 1-5')
+
+    fireEvent.change(cronInput, { target: { value: '*/40 8-12 * * *' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', {
+        trigger: { kind: 'cron', expr: '*/40 8-12 * * *' }
+      })
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })).toHaveValue('*/40 8-12 * * *')
+  })
+
+  it('saves unrelated edits without rewriting a previously accepted non-running Cron', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, trigger: { kind: 'cron', expr: '0 0 31 2 *' } }
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })).toHaveValue('0 0 31 2 *')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Renamed task' })
+    )
+  })
+
+  it('rejects a changed non-running Cron on an existing task', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, trigger: { kind: 'cron', expr: '0 0 31 2 *' } }
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    const cronInput = within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })
+    fireEvent.change(cronInput, { target: { value: '0 0 30 2 *' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    expect(cronInput).toHaveAttribute('aria-invalid', 'true')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('agent.tasks.schedule.invalidCron')
+    expect(taskMutationMocks.updateTask).not.toHaveBeenCalled()
+  })
+
   it('persists the simplified interval editor through the shared edit Dialog', async () => {
     render(<TasksSettings />)
 
@@ -1658,6 +1919,31 @@ describe('TasksSettings detail behavior', () => {
         trigger: { kind: 'interval', ms: 900_000, anchor: 'createdAt' }
       })
     )
+  })
+
+  // The chat card mounts the editor already open on its first Edit click.
+  it('keeps saved channel recipients when the editor mounts already open', async () => {
+    channelDataMock.channels = [
+      { id: 'channel-agent-1', agentId: 'agent-1', name: 'Agent One Telegram', isActive: true, activeChatIds: ['c-1'] }
+    ]
+    const onUpdate = vi.fn().mockResolvedValue(true)
+
+    render(
+      <TaskFormDialog
+        open
+        task={{ ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }}
+        agents={[{ id: 'agent-1', name: 'Agent One' }]}
+        onOpenChange={vi.fn()}
+        onUpdate={onUpdate}
+      />
+    )
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ name: 'Renamed task' }))
   })
 
   it('keeps the owning Agent fixed while editing an existing task', async () => {
@@ -1810,6 +2096,17 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     expect(screen.queryByRole('menuitem', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
+  })
+
+  it('shows missed tasks without an enable switch and allows an explicit manual run', async () => {
+    const user = userEvent.setup()
+    taskDataMock.task = { ...taskDataMock.defaultTask, enabled: false, status: 'missed' }
+    render(<TasksSettings />)
+    await screen.findByText('agent.tasks.status.missed')
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.edit' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 })
 

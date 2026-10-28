@@ -3,6 +3,7 @@ import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
+import semver from 'semver'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -15,6 +16,7 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
 import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
@@ -29,7 +31,7 @@ const logger = loggerService.withContext('AppUpdaterService')
 
 type ReleaseRegion = 'cn' | 'global'
 
-const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
+export const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
 const RELEASE_HISTORY_TIMEOUT_MS = 10_000
 const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
 
@@ -158,8 +160,15 @@ export class AppUpdaterService extends BaseService {
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
-    const onUpdateNotAvailable = () => {
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
+    const onUpdateNotAvailable = (updateInfo: UpdateInfo) => {
+      const result = this.resolveNotAvailableResult(updateInfo)
+      if (!result.isCurrent) {
+        logger.warn(
+          `managed feed target ${result.feedVersion} differs from installed ${result.currentVersion} (channel: ${autoUpdater.channel}) — treating as withheld, not current`
+        )
+      }
+      const payload: AppUpdaterNotAvailablePayload = { isCurrent: result.isCurrent }
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', payload)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
@@ -212,8 +221,8 @@ export class AppUpdaterService extends BaseService {
 
     // disable downgrade after change the channel
     autoUpdater.allowDowngrade = false
-    // Keep differential downloads disabled for the current release artifacts.
-    autoUpdater.disableDifferentialDownload = true
+    // The updater falls back to a full download when blockmaps or the cached base are unavailable.
+    autoUpdater.disableDifferentialDownload = false
   }
 
   private async fetchReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
@@ -244,6 +253,28 @@ export class AppUpdaterService extends BaseService {
       logger.warn('Failed to fetch release history', error as Error)
       return null
     }
+  }
+
+  public async queryUpdateAvailability(): Promise<
+    | { status: 'unsupported' }
+    | { status: 'current'; currentVersion: string }
+    | { status: 'available'; currentVersion: string; version: string }
+  > {
+    if (this.isPortable()) return { status: 'unsupported' }
+    const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
+    const updater = new ReleaseNotesUpdater()
+    updater.logger = logger as Logger
+    updater.forceDevUpdateConfig = !app.isPackaged
+    updater.autoDownload = false
+    updater.autoInstallOnAppQuit = false
+    updater.requestHeaders = updateHeaders
+    updater.channel = updateChannel
+    updater.allowDowngrade = false
+    const result = await updater.checkForUpdates()
+    if (!result) throw new Error('Update query did not produce a result')
+    return result.isUpdateAvailable
+      ? { status: 'available', currentVersion, version: result.updateInfo.version }
+      : { status: 'current', currentVersion }
   }
 
   public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
@@ -389,6 +420,31 @@ export class AppUpdaterService extends BaseService {
   public quitAndInstall() {
     application.markQuitting()
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
+  }
+
+  /**
+   * Feed/install mismatch means withheld (withdrawn/stale/staged). A prerelease install stays
+   * current against an older (e.g. stable) feed, but not when the feed advertises a newer version.
+   * Unparseable versions stay current.
+   */
+  private resolveNotAvailableResult(updateInfo: UpdateInfo | null | undefined): {
+    currentVersion: string
+    feedVersion: string | null
+    isCurrent: boolean
+  } {
+    const currentVersion = app.getVersion()
+    const feedVersion = updateInfo?.version || null
+    let isCurrent = true
+    if (feedVersion) {
+      try {
+        isCurrent =
+          semver.eq(feedVersion, currentVersion) ||
+          (semver.prerelease(currentVersion) !== null && !semver.gt(feedVersion, currentVersion))
+      } catch {
+        // Unparseable versions fail closed to current.
+      }
+    }
+    return { currentVersion, feedVersion, isCurrent }
   }
 
   /**

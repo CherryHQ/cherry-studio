@@ -147,6 +147,7 @@ describe('UsageSettings', () => {
     expect(screen.getByText('用量最高模型')).toBeInTheDocument()
     expect(screen.getByText('日均')).toBeInTheDocument()
   })
+
   it('shows the full total including Other and preserves the trend chart when returning from Total', async () => {
     const user = userEvent.setup()
     usageDataOverride.current = {
@@ -233,5 +234,11 @@ describe('UsageSettings', () => {
     render(<UsageSettings />)
     expect(screen.getByLabelText('总计 · 成本')).toHaveTextContent('¥12.00')
     expect(screen.getByText('分析').parentElement!).toHaveTextContent('¥12.00')
+  })
+
+  it('shows usage analytics without the personal profile editor', () => {
+    render(<UsageSettings />)
+    expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '头像' })).not.toBeInTheDocument()
   })
 })

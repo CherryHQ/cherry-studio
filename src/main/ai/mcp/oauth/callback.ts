@@ -2,6 +2,8 @@ import type EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
 
+import { UnauthorizedError } from '@modelcontextprotocol/client'
+
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 
@@ -12,6 +14,7 @@ const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
+  private authCallback?: URLSearchParams
 
   constructor(options: OAuthCallbackServerOptions) {
     const { port, path, events } = options
@@ -24,12 +27,12 @@ export class CallBackServer {
       // Only handle requests to the callback path
       if (req.url?.startsWith(path)) {
         try {
-          // Parse the URL to extract the authorization code
+          // Keep every callback parameter so the SDK can validate `iss` and
+          // complete the authorization-server-bound exchange.
           const url = new URL(req.url, `http://127.0.0.1:${port}`)
-          const code = url.searchParams.get('code')
-          if (code) {
-            // Emit the code event
-            this.events.emit('auth-code-received', code)
+          if (url.searchParams.has('code') || url.searchParams.has('error')) {
+            this.authCallback = new URLSearchParams(url.searchParams)
+            this.events.emit('auth-callback-received', this.authCallback)
             // Send success response to browser
             const title = t('settings.mcp.oauth.callback.title')
             const message = t('settings.mcp.oauth.callback.message')
@@ -78,7 +81,7 @@ export class CallBackServer {
             `)
           } else {
             res.writeHead(400, { 'Content-Type': 'text/plain' })
-            res.end('Missing authorization code')
+            res.end('Missing OAuth callback parameters')
           }
         } catch (error) {
           logger.error('Error processing OAuth callback:', error as Error)
@@ -113,9 +116,15 @@ export class CallBackServer {
     return this.server
   }
 
-  async close() {
-    const server = await this.server
-    server.close()
+  async close(): Promise<void> {
+    const server = await this.server.catch(() => undefined)
+    if (!server?.listening) return
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) reject(error)
+        else resolve()
+      })
+    })
   }
 
   /**
@@ -123,17 +132,32 @@ export class CallBackServer {
    * `timeoutMs`. Without the reject path the caller's `await` hangs forever on a
    * cancelled / never-completed callback, leaking the connect attempt and its status.
    */
-  async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
+  async waitForAuthCallback(timeoutMs = 300_000, signal?: AbortSignal): Promise<URLSearchParams> {
+    signal?.throwIfAborted()
+    if (this.authCallback) return new URLSearchParams(this.authCallback)
     return new Promise((resolve, reject) => {
-      const onCode = (code: string) => {
+      const cleanup = () => {
         clearTimeout(timer)
-        resolve(code)
+        this.events.off('auth-callback-received', onCallback)
+        signal?.removeEventListener('abort', onAbort)
+      }
+      // Consent pages often close without redirecting on cancel, so an expired wait means abandoned.
+      const notCompleted = () => new UnauthorizedError(t('settings.mcp.oauth.not_completed'))
+      const onAbort = () => {
+        cleanup()
+        const reason = signal?.reason
+        reject(reason instanceof DOMException && reason.name === 'TimeoutError' ? notCompleted() : reason)
+      }
+      const onCallback = (params: URLSearchParams) => {
+        cleanup()
+        resolve(params)
       }
       const timer = setTimeout(() => {
-        this.events.off('auth-code-received', onCode)
-        reject(new Error(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`))
+        cleanup()
+        reject(notCompleted())
       }, timeoutMs)
-      this.events.once('auth-code-received', onCode)
+      this.events.once('auth-callback-received', onCallback)
+      signal?.addEventListener('abort', onAbort, { once: true })
     })
   }
 }

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-agent-task-update-notify.md
+2026-10-28-agent-task-update-notify.md: 6f42a7fbdeeeaaf8175963d40dd160e16e836e6b
+2026-10-28-agent-task-update-notify.zh.md: 52549fb19b7af3aac73b05b6d8962fb62e03ff40

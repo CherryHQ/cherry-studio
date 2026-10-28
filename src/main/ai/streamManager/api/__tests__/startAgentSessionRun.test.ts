@@ -172,6 +172,35 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     expect(sendSpy).not.toHaveBeenCalled()
   })
 
+  it('waits for the previous terminal dispatch to settle before checking liveness', async () => {
+    const manager = managerHolder.current as ManagerInstance
+    let releaseTerminal!: () => void
+    vi.spyOn(manager, 'whenTerminalDispatchSettled').mockReturnValue(
+      new Promise<void>((resolve) => {
+        releaseTerminal = resolve
+      })
+    )
+    const hasLiveStream = vi.spyOn(manager, 'hasLiveStream').mockReturnValue(false)
+
+    const run = startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('queued')],
+      listeners: [listener('task')],
+      requireIdle: { expectedAgentId: 'agent-1' }
+    })
+    await flush()
+    expect(hasLiveStream).not.toHaveBeenCalled()
+    expect(runtimeBusy).not.toHaveBeenCalled()
+    expect(events).toEqual([])
+
+    releaseTerminal()
+    await flush()
+    expect(events).toEqual(['prepare:agent-session:s:0'])
+    prepareResolvers[0]()
+    await expect(run).resolves.toEqual({ mode: 'started' })
+    expect(events).toEqual(['prepare:agent-session:s:0', 'send:agent-session:s'])
+  })
+
   it('returns busy when the runtime becomes active during preparation', async () => {
     prepareDispatchMock.mockRejectedValueOnce(
       DataApiErrorFactory.resourceLocked('Agent session', 's', 'an active turn')

@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
+import type { RemoteProviderId, WebSearchCapability as SharedWebSearchCapability } from '@cherrystudio/web-search'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -83,10 +85,12 @@ export type LanguageVarious =
   | 'en-US'
   | 'es-ES'
   | 'fr-FR'
+  | 'it-IT'
   | 'ja-JP'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'th-TH'
   | 'tr-TR'
   | 'vi-VN'
 
@@ -131,22 +135,34 @@ export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
  * existing flat `SidebarFavoriteItem[]` values.
  */
 export type SidebarFavoriteItem =
-  | {
-      type: 'app'
-      id: SidebarFavorite
-    }
-  | {
-      type: 'mini_app'
-      id: string
-    }
-  | {
-      type: 'agent'
-      id: string
-    }
-  | {
-      type: 'assistant'
-      id: string
-    }
+  | { type: 'app'; id: SidebarFavorite }
+  | { type: 'mini_app'; id: string }
+  | { type: 'agent'; id: string }
+  | { type: 'assistant'; id: string }
+
+export interface ResourceLocator {
+  providerId: string
+  resourceId: string
+}
+
+export type SidebarShortcutTarget = {
+  kind: 'resource'
+  locator: ResourceLocator
+  activationId?: string
+}
+
+export interface SidebarShortcutItem {
+  type: 'shortcut'
+  id: string
+  target: SidebarShortcutTarget
+  fallbackLabel?: string
+}
+
+export function createSidebarShortcutId(target: SidebarShortcutTarget): string {
+  const parts = ['sidebar-shortcut', target.locator.providerId, target.locator.resourceId]
+  if (target.activationId !== undefined) parts.push(target.activationId)
+  return parts.map(encodeURIComponent).join(':')
+}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -247,14 +263,20 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'fetch',
   'jina',
   'firecrawl',
-  'parallel'
-] as const
+  'crawl4ai',
+  'parallel',
+  'serply',
+  'yuanbao',
+  'deepseek',
+  'searchapi',
+  'duckduckgo'
+] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
 export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
 
-export type WebSearchCapability = (typeof WEB_SEARCH_CAPABILITIES)[number]
+export type WebSearchCapability = SharedWebSearchCapability
 
 export type WebSearchProviderCapabilityOverride = {
   apiHost?: string
@@ -324,7 +346,8 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qoder-cli',
   'github-copilot-cli',
   'pi',
-  'hermes'
+  'hermes',
+  'minimax-code'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
@@ -432,4 +455,9 @@ export type CustomToolDefinition = {
   name: string
   tool: string
   requestedVersion?: string
+}
+
+export type AdvertisedRemoteEndpoint = DirectEndpoint & {
+  /** Original validated input for display; transport endpoints omit this field. */
+  inputUrl?: string
 }

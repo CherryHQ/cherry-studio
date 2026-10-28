@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
 import type * as UseModelModule from '@renderer/hooks/useModel'
 
 const {
@@ -49,6 +51,18 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
+// Selector tests exercise creation and refresh; editor sessions are covered separately.
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ value, onChange, placeholder, editable }: CherryStudioUi.CodeEditorProps) => (
+    <textarea
+      value={value}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+      placeholder={typeof placeholder === 'string' ? placeholder : undefined}
+      readOnly={editable === false}
+    />
+  )
+}))
+
 vi.mock('@renderer/components/ModelSelector', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelSelectorModule>()),
   ModelSelector: ({
@@ -76,20 +90,25 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTa
   PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
-  useInfiniteQuery: () => ({
-    pages: [{ items: [], total: 0 }],
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    hasNext: false,
-    loadNext: vi.fn(),
-    refresh: vi.fn()
-  }),
-  useMutation: useMutationMock,
-  useQuery: useQueryMock
-}))
+vi.mock('@renderer/data/hooks/useDataApi', async () => {
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+
+  return {
+    ...MockUseDataApi,
+    useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+    useInfiniteQuery: () => ({
+      pages: [{ items: [], total: 0 }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    }),
+    useMutation: useMutationMock,
+    useQuery: useQueryMock
+  }
+})
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
@@ -111,7 +130,8 @@ vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({ openTab: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeStyleModule>()),
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
 }))
@@ -473,6 +493,7 @@ describe('AssistantSelector', () => {
   })
 
   it('creates an assistant, refreshes, reopens the selector, and does not auto-select by default', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={onChange} />
@@ -484,9 +505,9 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
       target: { value: 'Created from selector' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
       expect(createAssistantMock).toHaveBeenCalledWith({
@@ -506,6 +527,7 @@ describe('AssistantSelector', () => {
   })
 
   it('auto-selects the created assistant when enabled', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <AssistantSelector
@@ -520,9 +542,9 @@ describe('AssistantSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(onChange).toHaveBeenCalledWith('created-assistant')
@@ -591,15 +613,16 @@ describe('AssistantSelector', () => {
   })
 
   it('notifies when created assistant cannot be refreshed into the selector', async () => {
+    const user = userEvent.setup()
     refetchAssistantsMock.mockRejectedValueOnce(new Error('Refresh failed'))
     renderSelector()
     await openCreateDialog()
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 

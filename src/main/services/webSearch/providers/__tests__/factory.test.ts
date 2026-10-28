@@ -37,12 +37,15 @@ vi.mock('electron', () => ({
 
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
+import { DeepSeekProvider } from '../api/DeepSeekProvider'
+import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { JinaProvider } from '../api/JinaProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
+import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { createWebSearchProvider } from '../factory'
@@ -71,6 +74,9 @@ describe('createWebSearchProvider', () => {
   it('registers every supported provider id', () => {
     expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       'bocha',
+      'crawl4ai',
+      'deepseek',
+      'duckduckgo',
       'exa',
       'exa-mcp',
       'fetch',
@@ -78,8 +84,11 @@ describe('createWebSearchProvider', () => {
       'jina',
       'parallel',
       'querit',
+      'searchapi',
       'searxng',
+      'serply',
       'tavily',
+      'yuanbao',
       'zhipu'
     ])
   })
@@ -112,5 +121,21 @@ describe('createWebSearchProvider', () => {
       )
     ).toBeInstanceOf(JinaProvider)
     expect(createWebSearchProvider(createProvider({ id: 'parallel' }), rotationState)).toBeInstanceOf(ParallelProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'duckduckgo' }), rotationState)).toBeInstanceOf(
+      DuckduckgoProvider
+    )
+    expect(createWebSearchProvider(createProvider({ id: 'serply' }), rotationState)).toBeInstanceOf(SerplyProvider)
+    expect(
+      createWebSearchProvider(
+        createProvider({
+          id: 'deepseek',
+          capabilities: [
+            { feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' },
+            { feature: 'fetchUrls', apiHost: 'https://api.deepseek.com' }
+          ]
+        }),
+        rotationState
+      )
+    ).toBeInstanceOf(DeepSeekProvider)
   })
 })

@@ -6,6 +6,55 @@
   },
   "definitions": [
     {
+      "targetKey": "assistant.archive.related_topics",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Remember whether archiving an assistant also archives its related topics"
+    },
+    {
+      "targetKey": "chat.message.user_content.default_expanded",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Expand long user messages by default unless the user has manually toggled that message"
+    },
+    {
+      "targetKey": "app.computer_use.agent_control.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow local agents to observe and control desktop applications through the Computer Use SDK"
+    },
+    {
+      "targetKey": "agent.commit_attribution.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.browser.agent_control.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Allow agents to control their visible browser pane (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.browser.open_links_in_browser",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Open website links in shared built-in browser tabs"
+    },
+    {
+      "targetKey": "app.browser.auto_open_panel",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Automatically open the right-side browser panel when tools browse the web (default: true)."
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
@@ -90,11 +139,81 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.voice.input.device_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Exact microphone device ID; null follows the system default"
+    },
+    {
+      "targetKey": "feature.voice.recognition.model_id",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Exact local ASR model selection; empty means no explicit selection"
+    },
+    {
+      "targetKey": "feature.voice.recognition.language",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Recognition language; empty is omitted at the Voice call boundary"
+    },
+    {
+      "targetKey": "feature.voice.speech.model_id",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Exact local TTS model selection; empty means no explicit selection"
+    },
+    {
+      "targetKey": "feature.voice.speech.voice_id",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Exact installed system voice identifier; empty means no explicit selection"
+    },
+    {
+      "targetKey": "feature.voice.speech.speed",
+      "type": "number",
+      "defaultValue": 1,
+      "status": "classified",
+      "description": "Speech rate multiplier constrained by the Voice request contract"
+    },
+    {
+      "targetKey": "feature.voice.speech.language",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Speech language; empty is omitted at the Voice call boundary"
+    },
+    {
+      "targetKey": "feature.voice.auto_read.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable global automatic reading of eligible assistant output"
+    },
+    {
+      "targetKey": "feature.voice.auto_read.disclosure_confirmed",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the user confirmed the automatic reading disclosure"
+    },
+    {
       "targetKey": "feature.local_model.hardware_acceleration.enabled",
       "type": "boolean",
       "defaultValue": true,
       "status": "classified",
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.message.keep_intermediate_text",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Keep intermediate assistant text in the response lane while tools and reasoning remain folded (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "chat.web_search.default_search_keywords_provider",
@@ -191,7 +310,40 @@
         { "id": "knowledge", "type": "app" }
       ],
       "status": "classified",
-      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+      "description": "Legacy sidebar favorites, preserved as the source for shortcut migration"
+    },
+    {
+      "targetKey": "ui.sidebar_shortcut",
+      "type": "PreferenceTypes.SidebarShortcutItem[]",
+      "defaultValue": [
+        {
+          "id": "sidebar-shortcut:core.app:agents",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "agents" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:assistants",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "assistants" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:translate",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:paintings",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "paintings" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:knowledge",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "knowledge" } },
+          "type": "shortcut"
+        }
+      ],
+      "status": "classified",
+      "description": "Left sidebar shortcuts, an ordered list of generic resource targets with provider-owned activation"
     },
     {
       "targetKey": "ui.launchpad.app_order",
@@ -488,6 +640,20 @@
       "description": "Command shortcut: app.window.show (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.window.close",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "W"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.window.close (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.zoom.in",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -690,6 +856,19 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.close",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "W"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.close (unified command system)"
+    },
+    {
       "targetKey": "shortcut.tab.next",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -745,6 +924,13 @@
       "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
     },
     {
+      "targetKey": "chat.save.knowledge.last_base_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Knowledge base id last used by the save-conversation-to-knowledge dialog; preselected on the next open when it still exists and is usable."
+    },
+    {
       "targetKey": "feature.screenshot.enabled",
       "type": "boolean",
       "defaultValue": false,
@@ -771,6 +957,13 @@
       },
       "status": "classified",
       "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "data.trash.retention_days",
+      "type": "number",
+      "defaultValue": 30,
+      "status": "classified",
+      "description": "Trash retention in days before automatic purge; 0 = never auto-purge (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.language",
@@ -827,6 +1020,34 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.remote_access.advertised_endpoint",
+      "type": "PreferenceTypes.AdvertisedRemoteEndpoint",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "Optional advertised remote connection endpoint; null uses the active local listener addresses."
+    },
+    {
+      "targetKey": "feature.voice.dictation.mouse_hold_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable mouse hold dictation on registered editable inputs"
+    },
+    {
+      "targetKey": "feature.voice.dictation.hold_shortcut",
+      "type": "string",
+      "defaultValue": "AltLeft",
+      "status": "classified",
+      "description": "Physical key codes for application-local hold dictation; empty disables the shortcut"
+    },
+    {
+      "targetKey": "feature.voice.dictation.toggle_shortcut",
+      "type": "string",
+      "defaultValue": "AltLeft+ControlLeft",
+      "status": "classified",
+      "description": "Physical key codes for application-local toggle dictation; empty disables the shortcut"
     }
   ]
 }

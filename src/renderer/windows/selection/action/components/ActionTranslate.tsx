@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wrapLinesContext'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
@@ -18,6 +20,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
+import { ResultReadAloudButton } from './ResultReadAloudButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -29,36 +32,39 @@ const ActionResultContent = React.lazy(importActionResultContent)
 
 interface Props {
   action: SelectionActionItem
+  sourceEntityId: string
   scrollToBottom: () => void
 }
 
 const logger = loggerService.withContext('ActionTranslate')
 const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
 const TRANSLATION_TOPIC_ID = 'selection-translation'
-const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
+const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) => {
   const { t } = useTranslation()
   const selectedText = action.selectedText
 
   const [language] = usePreference('app.language')
-  const [preferredLangCode, setPreferredLangCode] = usePreference('feature.translate.action.preferred_lang')
-  const [alterLangCode, setAlterLangCode] = usePreference('feature.translate.action.alter_lang')
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
-  // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
-  const effectivePreferredLangCode =
-    language === 'zh-TW' && preferredLangCode === BUILTIN_LANGUAGE.zhCN.langCode
-      ? BUILTIN_LANGUAGE.zhTW.langCode
-      : preferredLangCode
+  // Read once, not subscribed: the pair is session-local, so saves from other windows must not retarget it.
+  const [savedLangCodes, setSavedLangCodes] = useState<{
+    preferred: TranslateLangCode
+    alter: TranslateLangCode
+  } | null>(null)
 
-  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
-    const lang = getLanguage(effectivePreferredLangCode)
-    if (lang) {
-      return lang
-    }
-    logger.warn('[initialize targetLanguage] Unknown language; fallback to zh-CN')
-    return BUILTIN_LANGUAGE.zhCN as unknown as TranslateLanguage
-  })
+  useEffect(() => {
+    void preferenceService
+      .getMultiple({
+        preferred: 'feature.translate.action.preferred_lang',
+        alter: 'feature.translate.action.alter_lang'
+      })
+      .then(setSavedLangCodes)
+  }, [])
+
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(
+    BUILTIN_LANGUAGE.zhCN as unknown as TranslateLanguage
+  )
 
   const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(
     BUILTIN_LANGUAGE.enUS as unknown as TranslateLanguage
@@ -77,22 +83,31 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   // It's called only in initialization.
   // It will change target/alter language, so fetchResult will be triggered. Be careful!
   const updateLanguagePair = useCallback(() => {
-    if (!isLanguagesLoaded) {
-      logger.silly('[updateLanguagePair] Languages are not loaded. Skip.')
+    if (!isLanguagesLoaded || !savedLangCodes) {
+      logger.silly('[updateLanguagePair] Languages or saved language codes are not loaded. Skip.')
       return
     }
 
-    const targetLang = getLanguage(effectivePreferredLangCode)
+    // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
+    const preferredLangCode =
+      language === 'zh-TW' && savedLangCodes.preferred === BUILTIN_LANGUAGE.zhCN.langCode
+        ? BUILTIN_LANGUAGE.zhTW.langCode
+        : savedLangCodes.preferred
+
+    const targetLang = getLanguage(preferredLangCode)
     if (targetLang) {
       setTargetLanguage(targetLang)
+      setActualTargetLanguage(targetLang)
       targetLangRef.current = targetLang
+    } else {
+      logger.warn('[updateLanguagePair] Unknown target language; fallback to zh-CN')
     }
 
-    const alterLang = getLanguage(alterLangCode)
+    const alterLang = getLanguage(savedLangCodes.alter)
     if (alterLang) {
       setAlterLanguage(alterLang)
     }
-  }, [getLanguage, isLanguagesLoaded, effectivePreferredLangCode, alterLangCode])
+  }, [getLanguage, isLanguagesLoaded, savedLangCodes, language])
 
   // Initialize values only once
   const initialize = useCallback(async () => {
@@ -101,9 +116,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    // Only try to initialize when languages loaded, so updateLanguagePair would not fail.
-    if (!isLanguagesLoaded) {
-      logger.silly('[initialize] Languages not loaded. Skip initialization.')
+    // Only try to initialize when languages and saved language codes are loaded, so updateLanguagePair would not fail.
+    if (!isLanguagesLoaded || !savedLangCodes) {
+      logger.silly('[initialize] Languages or saved language codes not loaded. Skip initialization.')
       return
     }
 
@@ -118,11 +133,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
     setInitialized(true)
-  }, [initialized, isLanguagesLoaded, selectedText, updateLanguagePair])
+  }, [initialized, isLanguagesLoaded, savedLangCodes, selectedText, updateLanguagePair])
 
   // Try to initialize when:
   // 1. action.selectedText change (generally will not)
-  // 2. isLanguagesLoaded change (only initialize when languages loaded)
+  // 2. isLanguagesLoaded / savedLangCodes change (only initialize when both loaded)
   // 3. updateLanguagePair change (depend on translateLanguages and isLanguagesLoaded)
   useEffect(() => {
     void initialize()
@@ -239,10 +254,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       targetLangRef.current = newTargetLanguage
       setAlterLanguage(newAlterLanguage)
 
-      void setPreferredLangCode(newTargetLanguage.langCode)
-      void setAlterLangCode(newAlterLanguage.langCode)
+      void preferenceService.set('feature.translate.action.preferred_lang', newTargetLanguage.langCode)
+      void preferenceService.set('feature.translate.action.alter_lang', newAlterLanguage.langCode)
     },
-    [initialized, setPreferredLangCode, setAlterLangCode]
+    [initialized]
   )
 
   // Handle direct target language change from the main dropdown
@@ -259,10 +274,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         // New language is different from both, update target
         setTargetLanguage(newLang)
         targetLangRef.current = newLang
-        void setPreferredLangCode(newLang.langCode)
+        void preferenceService.set('feature.translate.action.preferred_lang', newLang.langCode)
       }
     },
-    [initialized, getLanguage, targetLanguage.langCode, alterLanguage.langCode, setPreferredLangCode]
+    [initialized, getLanguage, targetLanguage.langCode, alterLanguage.langCode]
   )
 
   // Settings popover content
@@ -318,7 +333,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col items-center">
+      <div className="flex w-full min-w-0 flex-1 flex-col items-center">
         <div className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1">
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
@@ -404,15 +419,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             </div>
           </div>
         )}
-        <div className="mt-4 w-full whitespace-pre-wrap break-words">
+        <div className="mt-4 w-full min-w-0 max-w-full whitespace-pre-wrap break-words">
           {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
             <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
-              <ActionResultContent
-                key={latestAssistantMessage.id}
-                message={latestAssistantMessage}
-                partsByMessageId={partsMap}
-              />
+              <CodeBlockWrapLinesContext value={true}>
+                <ActionResultContent
+                  key={latestAssistantMessage.id}
+                  message={latestAssistantMessage}
+                  partsByMessageId={partsMap}
+                />
+              </CodeBlockWrapLinesContext>
             </Suspense>
           )}
         </div>
@@ -423,7 +440,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         )}
       </div>
       <div className="min-h-3" />
-      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content}>
+        {!isStreaming && !error && content.trim() && (
+          <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+        )}
+      </WindowFooter>
     </>
   )
 }

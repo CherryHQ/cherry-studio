@@ -18,6 +18,7 @@ const mockRenderConfig = vi.hoisted(() => ({
   renderInputMessageAsMarkdown: false
 }))
 const imagePreviewShowMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const openExternalUrl = vi.hoisted(() => vi.fn())
 
 const mockTranslations = vi.hoisted(() => ({
   'message.message.user_content.expand': 'Expand',
@@ -26,7 +27,7 @@ const mockTranslations = vi.hoisted(() => ({
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
-  useOptionalMessageListActions: () => undefined
+  useOptionalMessageListActions: () => ({ openExternalUrl })
 }))
 
 vi.mock('@renderer/services/ImagePreviewService', () => ({
@@ -291,7 +292,7 @@ describe('MainTextBlock', () => {
     isStreaming?: boolean
     citations?: Citation[]
     citationReferences?: { citationBlockId?: string; citationBlockSource?: any }[]
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'system'
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
     readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
@@ -324,6 +325,22 @@ describe('MainTextBlock', () => {
       expect(getRenderedMarkdown()).toBeInTheDocument()
       expect(screen.getByText('Markdown: Assistant response')).toBeInTheDocument()
       expect(getRenderedPlainText()).not.toBeInTheDocument()
+    })
+
+    it('enables bare file paths only for assistant markdown', () => {
+      const assistant = renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'assistant' })
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBe(true)
+
+      assistant.unmount()
+      capturedChatMarkdownProps.length = 0
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'user' })
+
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBeUndefined()
+
+      capturedChatMarkdownProps.length = 0
+      renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'system' })
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBe(false)
     })
 
     it('keeps inline HTML generating until smoothed content reaches the completed source', () => {
@@ -416,30 +433,40 @@ describe('MainTextBlock', () => {
       expect(markdown.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
     })
 
-    it('should preserve link token rendering in sent user messages', () => {
-      const url = 'https://www.example.com/docs'
-      renderMainTextBlock({
-        content: url,
-        role: 'user',
-        composer: {
-          version: 1,
-          tokens: [
-            {
-              id: 'link-token-1',
-              kind: 'link',
-              label: 'example.com/docs',
-              index: 0,
-              textOffset: 0,
-              promptText: url
-            }
-          ]
-        }
-      })
+    it.each([false, true])(
+      'opens sent link tokens through the conversation when markdown mode is %s',
+      async (markdown) => {
+        const user = userEvent.setup()
+        mockRenderConfig.renderInputMessageAsMarkdown = markdown
+        const url = 'https://www.example.com/docs'
+        renderMainTextBlock({
+          content: url,
+          role: 'user',
+          composer: {
+            version: 1,
+            tokens: [
+              {
+                id: 'link-token-1',
+                kind: 'link',
+                label: 'example.com/docs',
+                index: 0,
+                textOffset: 0,
+                promptText: url
+              }
+            ]
+          }
+        })
 
-      expect(screen.getByRole('link', { name: url })).toHaveTextContent('example.com/docs')
-      expect(document.querySelector('[data-composer-link-favicon]')).toBeInTheDocument()
-      expect(getRenderedPlainText()).not.toHaveTextContent(url)
-    })
+        expect(screen.getByRole('link', { name: url })).toHaveTextContent('example.com/docs')
+        await user.click(screen.getByRole('link', { name: url }))
+        expect(openExternalUrl).toHaveBeenLastCalledWith(url)
+
+        openExternalUrl.mockClear()
+        screen.getByRole('link', { name: url }).focus()
+        await user.keyboard('{Enter}')
+        expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(url)
+      }
+    )
 
     it('should keep quote token tooltip content in markdown-rendered user messages', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = true

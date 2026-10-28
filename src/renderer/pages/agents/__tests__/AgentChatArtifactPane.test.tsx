@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
@@ -7,14 +7,15 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import AgentChat from '../AgentChat'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const diagnosticDialogMocks = vi.hoisted(() => ({
-  onOpenChange: undefined as ((open: boolean) => void) | undefined
-}))
+const showDoctorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
@@ -47,24 +48,8 @@ vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
   default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
 }))
 
-vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => ({
-  default: ({
-    initialDescription,
-    onOpenChange
-  }: {
-    initialDescription?: string
-    onOpenChange: (open: boolean) => void
-  }) => {
-    diagnosticDialogMocks.onOpenChange = onOpenChange
-    return (
-      <div role="dialog" aria-label="Review diagnostic report">
-        <textarea aria-label="Problem description" readOnly value={initialDescription ?? ''} />
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel diagnostic report
-        </button>
-      </div>
-    )
-  }
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: (...args: unknown[]) => showDoctorMock(...args) }
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
@@ -171,7 +156,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
   const workspaceRootId = '__workspace_root__'
 
   return {
-    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { maxDepth: 1, watchMissingRoot: true },
     isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
       Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
     useArtifactFileTreeModel: ({
@@ -401,7 +386,7 @@ vi.mock('@renderer/components/composer/ComposerCore', () => ({
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => ({})
+  useToolApprovalComposerOverrides: () => []
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
@@ -569,7 +554,7 @@ vi.mock('@renderer/utils/agentSession', () => ({
 vi.mock('react-i18next', async (importOriginal) => {
   const translations: Record<string, string> = {
     'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
-    'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report'
+    'agent.builtin.cherry_support.diagnostics.review': 'Report a problem'
   }
   return {
     ...(await importOriginal<typeof ReactI18next>()),
@@ -621,11 +606,13 @@ vi.mock('../components/AgentSessionMessages', async () => {
     sessionId,
     openAgentToolFlow,
     openArtifactFile,
+    previewInputFile,
     openDiagnosticReport
   }: {
     sessionId: string
     openAgentToolFlow?: (input: any) => void
     openArtifactFile?: (path: string) => void
+    previewInputFile?: (input: InputFilePreview) => void
     openDiagnosticReport?: (description?: string) => void
   }) => {
     const [messageState, setMessageState] = React.useState('')
@@ -668,6 +655,16 @@ vi.mock('../components/AgentSessionMessages', async () => {
             })
           }>
           open flow b
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            previewInputFile?.({
+              displayName: 'sent-report.md',
+              previewPath: '/managed/sent-report.md' as AbsoluteFilePath
+            })
+          }>
+          Preview sent attachment
         </button>
         <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
           open artifact file
@@ -713,7 +710,7 @@ describe('AgentChat artifact pane', () => {
     conversationBootstrap: createConversationBootstrap()
   })
   const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
-    render(<AgentChat {...activeSessionProps()} {...props} />)
+    render(<AgentChat {...activeSessionProps()} {...props} />, { wrapper: FileEditSessionProvider })
   const rerenderAgentChat = (
     rerender: ReturnType<typeof render>['rerender'],
     props: Partial<ComponentProps<typeof AgentChat>> = {}
@@ -728,7 +725,7 @@ describe('AgentChat artifact pane', () => {
   }
 
   beforeEach(() => {
-    diagnosticDialogMocks.onOpenChange = undefined
+    showDoctorMock.mockReset()
     ipcRequestMock.mockReset()
     ipcRequestMock.mockImplementation((route: string) =>
       route === 'file.get_metadata'
@@ -740,7 +737,7 @@ describe('AgentChat artifact pane', () => {
             modifiedAt: 1,
             mime: 'text/plain'
           })
-        : Promise.resolve(undefined)
+        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined)
     )
     agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
       messages: [],
@@ -788,15 +785,19 @@ describe('AgentChat artifact pane', () => {
     } as unknown as typeof supportBootstrap.resources.agent
     supportBootstrap.resources.model = undefined
 
-    renderAgentChat({ conversationBootstrap: supportBootstrap })
+    const view = renderAgentChat({ conversationBootstrap: supportBootstrap })
 
     expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+    expect(showDoctorMock).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Open inline diagnostic draft' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Inline draft from this message')
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+    expect(showDoctorMock).toHaveBeenCalledWith({
+      initialPanel: 'report',
+      initialDescription: 'Inline draft from this message'
+    })
+
+    rerenderAgentChat(view.rerender)
+    expect(screen.queryByRole('button', { name: 'Open inline diagnostic draft' })).not.toBeInTheDocument()
   })
 
   it('preserves message subtree state while Support capability resolves', async () => {
@@ -817,77 +818,6 @@ describe('AgentChat artifact pane', () => {
     rerenderAgentChat(view.rerender, { conversationBootstrap: supportBootstrap })
 
     expect(screen.getByRole('textbox', { name: 'Message subtree state' })).toHaveValue('keep local state')
-  })
-
-  it('discards a diagnostic draft when the active session changes', async () => {
-    const user = userEvent.setup()
-    const sessionA = createConversationBootstrap()
-    sessionA.resources.agent = {
-      id: 'agent-1',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionA.resources.agent
-    const nonSupportSession = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-2',
-      agentId: 'agent-2'
-    })
-    const sessionB = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-3',
-      agentId: 'agent-3'
-    })
-    sessionB.resources.agent = {
-      id: 'agent-3',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionB.resources.agent
-
-    const view = renderAgentChat({ conversationBootstrap: sessionA })
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Draft for session-1')
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: nonSupportSession })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionB })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionA })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-  })
-
-  it('ignores a stale close callback from the previous session draft', async () => {
-    const user = userEvent.setup()
-    const sessionA = createConversationBootstrap()
-    sessionA.resources.agent = {
-      id: 'agent-1',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionA.resources.agent
-    const sessionB = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-2',
-      agentId: 'agent-2'
-    })
-    sessionB.resources.agent = {
-      id: 'agent-2',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionB.resources.agent
-
-    const view = renderAgentChat({ conversationBootstrap: sessionA })
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    const closeSessionA = diagnosticDialogMocks.onOpenChange
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionB })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Draft for session-2')
-
-    act(() => closeSessionA?.(false))
-
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Draft for session-2')
   })
 
   it('opens and closes the artifact pane without replacing the existing chat shell pane', () => {
@@ -1018,6 +948,15 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+  })
+
+  it('opens a sent attachment through the message-list bridge', async () => {
+    const user = userEvent.setup()
+    renderAgentChat()
+    await user.click(screen.getByRole('button', { name: 'Preview sent attachment' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(await screen.findByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'sent-report.md')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/managed')
   })
 
   it('keeps the viewport and visited capability mounted while a center surface is presented', () => {

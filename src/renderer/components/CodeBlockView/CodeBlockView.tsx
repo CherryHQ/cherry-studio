@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react'
+import type { EditorState } from '@uiw/react-codemirror'
 import dayjs from 'dayjs'
 import React, {
   memo,
@@ -11,9 +12,11 @@ import React, {
   useRef,
   useState
 } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
-import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { type CodeEditorHandles } from '@cherrystudio/ui'
+import { codeBlockHighlightStyle } from '@cherrystudio/ui/code-block'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ActionTool } from '@renderer/components/ActionTools'
@@ -30,8 +33,9 @@ import {
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { toast } from '@renderer/services/toast'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
@@ -42,10 +46,10 @@ import { cn } from '@renderer/utils/style'
 import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
+import { useCodeBlockWrapLines } from './wrapLinesContext'
 
 const logger = loggerService.withContext('CodeBlockView')
 const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
-const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 
 interface Props {
   children: string
@@ -87,11 +91,29 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     maxHeight
   } = props
   const { t } = useTranslation()
+  const [document, setDocument] = useState(() => ({
+    accepted: children,
+    language,
+    stateRef: { current: null as EditorState | null },
+    epoch: 0
+  }))
+  if (document.accepted !== children || document.language !== language) {
+    const echoed = document.language === language && document.stateRef.current?.sliceDoc() === children
+    setDocument({
+      accepted: children,
+      language,
+      stateRef: echoed ? document.stateRef : { current: null },
+      epoch: document.epoch + Number(!echoed)
+    })
+  }
+  const source = document.stateRef.current?.sliceDoc() ?? children
+  const { codeBlockStyle, isCodeThemeDark } = useCodeStyle()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
   const [codeExecutionTimeoutMinutes] = usePreference('chat.code.execution.timeout_minutes')
   const [codeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable] = usePreference('chat.code.wrappable')
+  const wrapLines = useCodeBlockWrapLines()
   const [codeImageTools] = usePreference('chat.code.image_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [codeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
@@ -100,14 +122,14 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     autocompletion: 'chat.code.editor.autocompletion',
     foldGutter: 'chat.code.editor.fold_gutter',
     highlightActiveLine: 'chat.code.editor.highlight_active_line',
-    keymap: 'chat.code.editor.keymap',
-    themeLight: 'chat.code.editor.theme_light',
-    themeDark: 'chat.code.editor.theme_dark'
+    keymap: 'chat.code.editor.keymap'
   })
 
-  const canEdit = codeEditor.enabled && editable
-  const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
-  const startedStreamingRef = useRef(isStreaming)
+  const canEdit = codeEditor.enabled && editable && !isStreaming
+  const hasSpecialView = SPECIAL_VIEWS.includes(language)
+  const specialViewDefinition = hasSpecialView
+    ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
+    : undefined
 
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
@@ -116,7 +138,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const viewMode = useMemo<ViewMode>(() => {
     if (viewState.mode === 'edit' && !canEdit) return 'source'
     if (!hasSpecialView && viewState.mode !== 'edit') {
-      return canEdit && !startedStreamingRef.current && viewState.mode === 'special' ? 'edit' : 'source'
+      return 'source'
     }
     return viewState.mode
   }, [canEdit, hasSpecialView, viewState.mode])
@@ -149,17 +171,16 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
   const specialViewRef = useRef<BasicPreviewHandles>(null)
-  const latestActionContextRef = useRef({ source: children, language, t })
+  const latestActionContextRef = useRef({ source, stateRef: document.stateRef, language, t })
 
   useLayoutEffect(() => {
-    latestActionContextRef.current = { source: children, language, t }
-  }, [children, language, t])
+    latestActionContextRef.current = { source, stateRef: document.stateRef, language, t }
+  }, [source, document.stateRef, language, t])
 
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
   const isEditing = canEdit && (viewMode === 'edit' || (viewMode === 'split' && viewState.previousMode === 'edit'))
-  const activeCmTheme = useCmTheme(isEditing)
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
@@ -179,7 +200,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     () => maxHeight === undefined && (!codeCollapsible || expandOverride),
     [codeCollapsible, expandOverride, maxHeight]
   )
-  const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
+  const shouldWrap = useMemo(
+    () => wrapLines || (codeWrappable && wrapOverride),
+    [codeWrappable, wrapLines, wrapOverride]
+  )
   const sourceMaxHeight =
     typeof maxHeight === 'number' ? `${maxHeight}px` : (maxHeight ?? `${MAX_COLLAPSED_CODE_HEIGHT}px`)
 
@@ -196,8 +220,11 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const handleCopySource = useCallback(async (): Promise<boolean> => {
     try {
-      const content = sourceViewRef.current?.getContent?.() ?? latestActionContextRef.current.source
-      await navigator.clipboard.writeText(content.trimEnd())
+      const content =
+        sourceViewRef.current?.getContent?.() ??
+        latestActionContextRef.current.stateRef.current?.sliceDoc() ??
+        latestActionContextRef.current.source
+      await navigator.clipboard.writeText(content)
       toast.success(latestActionContextRef.current.t('code_block.copy.success'))
       return true
     } catch (error) {
@@ -208,7 +235,11 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   }, [])
 
   const handleDownloadSource = useCallback(() => {
-    const { source: currentSource, language: currentLanguage } = latestActionContextRef.current
+    const { language: currentLanguage } = latestActionContextRef.current
+    const currentSource =
+      sourceViewRef.current?.getContent?.() ??
+      latestActionContextRef.current.stateRef.current?.sliceDoc() ??
+      latestActionContextRef.current.source
     let fileName = ''
 
     // 尝试提取 HTML 标题
@@ -226,7 +257,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   }, [])
 
   const handleRunScript = useCallback(() => {
-    const source = latestActionContextRef.current.source
+    const source =
+      sourceViewRef.current?.getContent?.() ??
+      latestActionContextRef.current.stateRef.current?.sliceDoc() ??
+      latestActionContextRef.current.source
     setIsRunning(true)
     setExecutionResult(null)
 
@@ -246,9 +280,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       })
   }, [codeExecutionTimeoutMinutes])
 
-  const showPreviewTools = useMemo(() => {
-    return hasSpecialView && (viewMode === 'special' || viewMode === 'split')
-  }, [hasSpecialView, viewMode])
+  const showPreviewTools =
+    Boolean(specialViewDefinition?.supportsImageActions) && (viewMode === 'special' || viewMode === 'split')
 
   const handleToggleExpanded = useCallback(() => setExpandOverride((current) => !current), [])
   const handleToggleWrapped = useCallback(() => setWrapOverride((current) => !current), [])
@@ -301,7 +334,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   useWrapTool({
     enabled: !isInSpecialView,
     wrapped: shouldWrap,
-    wrappable: codeWrappable,
+    wrappable: codeWrappable && !wrapLines,
     toggle: handleToggleWrapped,
     setTools
   })
@@ -313,74 +346,85 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   })
 
   const hasStatusBar = isExecutable && !!executionResult
+  const editorState = document.stateRef.current
 
-  // 源代码视图组件
-  const sourceView = useMemo(
-    () =>
-      isEditing ? (
-        <CodeEditor
-          className="source-view"
-          ref={sourceViewRef}
-          theme={activeCmTheme}
-          fontSize={fontSize - 1}
-          value={children}
-          language={language}
-          onSave={onSave}
-          onHeightChange={handleHeightChange}
-          maxHeight={sourceMaxHeight}
-          options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
-          expanded={shouldExpand}
-          wrapped={shouldWrap}
-          autoScrollToBottom={isStreaming && !shouldExpand}
-        />
-      ) : (
-        <CodeViewer
-          className="source-view"
-          value={children}
-          language={language}
-          onHeightChange={handleHeightChange}
-          expanded={shouldExpand}
-          wrapped={shouldWrap}
-          maxHeight={sourceMaxHeight}
-          onRequestExpand={maxHeight === undefined && codeCollapsible ? handleRequestExpand : undefined}
-          autoScrollToBottom={isStreaming && !shouldExpand}
-          options={isStreaming ? STREAMING_CODE_VIEWER_OPTIONS : HIGHLIGHTED_CODE_VIEWER_OPTIONS}
-        />
-      ),
+  const viewer = useMemo(
+    () => (
+      <CodeViewer
+        className="source-view"
+        value={source}
+        editorState={editorState}
+        language={language}
+        onHeightChange={handleHeightChange}
+        expanded={shouldExpand}
+        wrapped={shouldWrap}
+        maxHeight={sourceMaxHeight}
+        onRequestExpand={maxHeight === undefined && codeCollapsible ? handleRequestExpand : undefined}
+        autoScrollToBottom={isStreaming && !shouldExpand}
+        options={HIGHLIGHTED_CODE_VIEWER_OPTIONS}
+      />
+    ),
     [
-      activeCmTheme,
-      children,
-      codeCollapsible,
-      codeEditor,
-      codeShowLineNumbers,
-      fontSize,
-      handleHeightChange,
-      handleRequestExpand,
-      isEditing,
-      isStreaming,
+      source,
+      editorState,
       language,
-      maxHeight,
-      onSave,
+      handleHeightChange,
       shouldExpand,
       shouldWrap,
-      sourceMaxHeight
+      sourceMaxHeight,
+      maxHeight,
+      codeCollapsible,
+      handleRequestExpand,
+      isStreaming
     ]
+  )
+
+  const sourceView = isEditing ? (
+    <ErrorBoundary
+      fallback={viewer}
+      resetKeys={[document.epoch]}
+      onError={(error) => logger.error('Code editor unavailable', error)}>
+      <LazyCodeEditor
+        key={document.epoch}
+        className="source-view"
+        ref={sourceViewRef}
+        stateRef={document.stateRef}
+        fallback={viewer}
+        syntaxHighlightStyle={codeBlockHighlightStyle}
+        theme={isCodeThemeDark ? 'dark' : 'light'}
+        fontSize={fontSize - 1}
+        value={source}
+        language={language}
+        onSave={onSave}
+        onHeightChange={handleHeightChange}
+        maxHeight={sourceMaxHeight}
+        options={{ lineNumbers: codeShowLineNumbers, ...codeEditor }}
+        expanded={shouldExpand}
+        wrapped={shouldWrap}
+        style={{ backgroundColor: 'var(--code-background)', color: 'var(--code-foreground)' }}
+        autoScrollToBottom={isStreaming && !shouldExpand}
+      />
+    </ErrorBoundary>
+  ) : (
+    viewer
   )
 
   // 特殊视图组件映射
   const specialView = useMemo(() => {
-    const SpecialView = SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
-
-    if (!SpecialView) return null
+    if (!specialViewDefinition) return null
+    const SpecialView = specialViewDefinition.component
 
     return (
       <Suspense fallback={null}>
-        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools} isStreaming={isStreaming}>
-          {children}
+        <SpecialView
+          ref={specialViewDefinition.supportsImageActions ? specialViewRef : undefined}
+          enableToolbar={codeImageTools}
+          isStreaming={isStreaming}>
+          {source}
         </SpecialView>
       </Suspense>
     )
-  }, [children, codeImageTools, isStreaming, language])
+  }, [source, codeImageTools, isStreaming, specialViewDefinition])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
@@ -399,31 +443,29 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   }, [isInSpecialView, language])
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
-  const renderContent = useMemo(() => {
-    const showSpecialView = !!specialView && ['special', 'split'].includes(viewMode)
-    const showSourceView = !specialView || viewMode !== 'special'
-
-    return (
-      <div
-        className={cn(
-          'split-view-wrapper flex *:min-w-0 *:flex-1',
-          !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
-          !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
-          showSpecialView &&
-            showSourceView &&
-            "relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:-translate-x-1/2 before:bg-muted before:content-['']"
-        )}>
-        {showSpecialView && specialView}
-        {showSourceView && sourceView}
-      </div>
-    )
-  }, [hasStatusBar, specialView, sourceView, viewMode])
+  const showSpecialView = !!specialView && ['special', 'split'].includes(viewMode)
+  const showSourceView = !specialView || viewMode !== 'special'
+  const renderContent = (
+    <div
+      className={cn(
+        'split-view-wrapper flex *:min-w-0 *:flex-1',
+        !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
+        !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
+        showSpecialView &&
+          showSourceView &&
+          "relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:-translate-x-1/2 before:bg-muted before:content-['']"
+      )}>
+      {showSpecialView && specialView}
+      {showSourceView && sourceView}
+    </div>
+  )
 
   return (
     <div
       data-ui="part:code-block"
+      style={codeBlockStyle}
       className={cn(
-        'code-block relative w-full min-w-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle',
+        'code-block relative w-full min-w-0 overflow-clip rounded-lg border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
         isInSpecialView

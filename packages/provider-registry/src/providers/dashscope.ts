@@ -1,6 +1,7 @@
 import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
+import { fixedSamplingParameterSupport } from './parameterSupports'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
@@ -26,12 +27,7 @@ const webSearchModelPrefixes = [
   'deepseek-v3-2',
   'deepseek-v3-1',
   'deepseek-r1',
-  'deepseek-v3',
-  'kimi-k2',
-  'kimi-k3',
-  'kimi-latest',
-  'glm-4',
-  'glm-5'
+  'deepseek-v3'
 ]
 
 // Web-extractor (help.aliyun.com/zh/model-studio/web-extractor) is served for the Qwen Max/Plus/Flash
@@ -242,12 +238,8 @@ const responsesModels = new Set([
   'qwen3.8-max-preview'
 ])
 
-/**
- * Dual-endpoint SKUs whose built-in search only works on Chat Completions. Bailian serves the Responses
- * `web_search` tool for the Qwen3.x line only ("Responses API 仅支持 Qwen3.7 Max系列、Qwen3.6、Qwen3.5、
- * qwen3-max"), while these aliases search via `enable_search` on Chat. Order Chat first so the default
- * endpoint is the one where their search actually works; Responses stays selectable.
- */
+// These Qwen aliases serve search through Chat's `enable_search`, so Chat leads.
+// Responses stays selectable for inference; see `servesResponsesWebSearch` in src/main/ai/utils/websearch.ts.
 const chatWebSearchOnlyModels = new Set(['qwen-plus', 'qwen-flash', 'qwen-plus-character'])
 
 /**
@@ -330,6 +322,8 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     apiModelId: 'kimi/kimi-k3',
     modelId: 'kimi-k3',
     ...endpointPin('kimi-k3'),
+    // Bailian forwards to Moonshot's backend, whose fixed sampling lock applies unchanged.
+    parameterSupport: fixedSamplingParameterSupport,
     reasoningContracts: {
       'openai-chat-completions': { support: kimiK3Support, wire: effortChatWire }
     }
@@ -381,7 +375,7 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
-      modelIds: ['minimax-m2-1']
+      modelIds: ['minimax-m2-1', 'glm-5-2', 'kimi-k3']
     },
     {
       id: 'url-context',

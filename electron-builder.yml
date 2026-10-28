@@ -21,6 +21,7 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
@@ -32,11 +33,13 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!native"
   - "!config"
   - "!patches"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
+  - "!**/node_modules/@cherrystudio/computer-use-{darwin,win32,linux}-*/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -64,7 +67,12 @@ files:
   - "!node_modules/@tavily/core/node_modules/js-tiktoken"
   - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
+  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
+  # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
+  # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
+  - "!node_modules/selection-hook/build/**"
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
   - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
@@ -74,6 +82,9 @@ files:
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
+  - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
+  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform packaging
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -82,8 +93,6 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  # DSH runs as an external Node process: bundle its JS and unpack only native/runtime files.
-  - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"
   - "node_modules/detect-libc/**"
@@ -91,10 +100,7 @@ asarUnpack:
   - "node_modules/node-pty/**"
   - "node_modules/koffi/**"
   - "node_modules/@koromix/koffi-*/**"
-  - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
-  - "node_modules/@deepseek-ai/dsh-win32-process/**"
-  - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
-  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/yaml/**"
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
@@ -102,6 +108,8 @@ asarUnpack:
   - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
+  - from: "src/main/ai/voice/localAdapters/NOTICE.txt"
+    to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
@@ -110,13 +118,16 @@ win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   extraResources:
+    # before-pack adds system-speech only for x64; extraResources .exe files use signtoolOptions below.
     - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
       to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
   signtoolOptions:
-    sign: scripts/win-sign.js
+    sign: scripts/packaging/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
   # Preserve the existing global installer identity so either edition replaces the same Windows installation.
@@ -129,26 +140,33 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
-  differentialPackage: false
+  differentialPackage: true
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
   # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
   unpackDirName: true
 mac:
+  extraFiles:
+    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+      to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
+  sign: scripts/packaging/mac-sign.js
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
+    NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   target:
     - target: dmg
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -171,65 +189,92 @@ rpm:
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
+  useMultipleRangeRequest: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-beforePack: scripts/before-pack.js
-afterPack: scripts/after-pack.js
-afterSign: scripts/notarize.js
-artifactBuildCompleted: scripts/artifact-build-completed.js
+beforePack: scripts/packaging/before-pack.js
+afterPack: scripts/packaging/after-pack.js
+afterSign: scripts/packaging/notarize.js
+artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.14 - New Features, Fixes, and Performance
+    Cherry Studio 2.1.8 - Editing, Voice, and Integration Updates
 
     ✨ New Features
-    - [Agent] Agent sessions now label self-started replies — “Goal round N” for DSH goal continuations, or “Continued after background work” — so users understand why a new message appears.
-    - [Models] DeepSeek V4.1 Flash Expires-On-0910 vision model is now available in the catalog.
-    - [Cherry Cloud] Cloud sessions are now bound to the current computer, preserving free-grant history across credential resets.
+    - [File Editing] Isolate drafts across notes, skills and artifacts, retain failed edits for retry, and support up to 8 MiB text editing and previews.
+    - [Language] Add Italian (it-IT) UI support with full translations and emoji picker.
+    - [Voice] Hold the mouse button in a text input to start dictation, release to transcribe.
+    - [Voice] Streaming speech synthesis with real-time audio playback.
+    - [Web Search] Add Tencent Yuanbao Search as a built-in provider.
+    - [Scheduled Tasks] Create and manage scheduled tasks through an agent chat with an interactive task card.
+    - [Screenshot] Copy the capture to clipboard while keeping the overlay open.
+    - [Selection] Select text anywhere to automatically copy it and show a quick-quote toolbar.
+    - [Composer] File and link tokens align with the text line, show per-type file icons, and load favicons while editing.
+    - [RTF] Preview Rich Text Format files as formatted documents.
+    - [Feishu] Configure whether the bot only replies to @mentions in group chats.
+    - [Remote Access] Set a custom hostname, IP or port for pairing invitations.
+    - [Assistant] Remember the “Also archive related topics” choice for future archives.
 
     🐛 Bug Fixes
-    - [Startup] Fixed Cherry Studio failing to start after an upgrade when the built-in Support Agent still needs to be created.
-    - [Local Models] Windows cleanup now tolerates transient DLL release failures after an inference utility process exits.
-    - [Knowledge Base] Fixed tables from PDFs imported through Mistral OCR being dropped; table contents are now indexed as Markdown tables.
-    - [Pi] Fix OpenCode Go/Zen requests failing with MissingSessionID by preserving the agent session header.
-    - [Export] Notion export now waits for the page body to be written and reports failed writes as errors instead of success.
-    - [Obsidian] Fix invalid front matter when the note title contains “: “ or starts with “#”, and export tags as a proper YAML list.
-    - [Prompt Polish] Add cancellation and a 60-second timeout so stalled requests return to a retryable state.
-    - [Chat] Show safe, actionable provider details instead of generic errors such as “400 null”.
-    - [Debug] Fixed truncated Outputs and UI freezes when inspecting long streaming responses in the message debug panel (Call Chain).
-    - [Provider] OpenCode Go/Zen requests from model health checks, topic naming, and context compaction now carry the required session header.
-    - [Chat] Deleting a response selected for context now preserves other replies and transfers context and follow-up messages to an adjacent reply.
-    - [Cherry Cloud] Unsupported client versions now show an update-required message instead of asking users to retry login.
-    - [Chat] Fixed text-only continuation turns incorrectly processing stale image attachments and failing before the response starts.
-    - [Cherry Cloud] Login now requires a configured client signing key for custom builds.
+    - [Notes] Fix note content being overwritten when switching between cached notes.
+    - [Skills] Show localized error messages when a ZIP or folder is missing SKILL.md, without leaking temporary paths.
+    - [Chat] Expand long user messages by default; keep follow-up queues independent of read receipts.
+    - [Proxy] Match short wildcard IP bypass rules like 192.168.* on Windows.
+    - [Claude Code] Keep the 1M context budget when routing through the internal gateway.
+    - [Tab Bar] Closing the last tab opens the Launchpad instead of quitting the app.
+    - [File Preview] Preserve reading state when refreshing files; fix line spacing for Word documents.
+    - [Sidebar] Selected entries use neutral filled icons in both light and dark themes.
+    - [Chat Layout] Isolate list-group expansion state per window.
+    - [Paintings] Cap loading grid density to prevent performance issues.
+    - [MCP] Keep literal # characters in saved headers and environment values.
+    - [Knowledge] Ship a baseline sqlite-vec build for Linux x64.
+    - [Voice] Add diagnostics for operation failures and stream timeouts.
+    - [Agent Session] Continue the target workspace when creating across agents; surface compaction failures.
+    - [Messages] Drop historical tool parts with incompatible replay inputs.
+    - [Virtual List] Hand sticky headers over at the pinned stack bottom.
+    - [Notes] Fixed an issue where dismissing the "note changed on disk" conflict dialog left the editor session stuck, failing all later note renames, deletions, and moves with misleading errors.
 
-    ⚡ Performance
-    - [Knowledge] Knowledge page management dialogs and item detail panels are now loaded on demand instead of with the page.
+    🔒 Security
+    - [Electron] Upgrade to 44.9.3 for certificate security fixes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.14 - 新功能、修复与性能优化
+    Cherry Studio 2.1.8 - 编辑、语音与集成更新
 
     ✨ 新功能
-    - [智能体] 智能体会话现在为自动发起的回复添加标签——DSH 目标推进显示”目标推进 · 第 N 轮”，后台工作后继续显示”后台工作后继续”——让用户了解为什么出现了新消息。
-    - [模型] DeepSeek V4.1 Flash Expires-On-0910 视觉模型现已上架模型目录。
-    - [樱桃云] 云会话现已绑定当前设备，在凭证重置后保留免费额度历史。
+    - [文件编辑] 隔离笔记、技能和工件的草稿，保留保存失败的编辑以便重试，支持最大 8 MiB 的文本编辑与预览。
+    - [语言] 添加意大利语 (it-IT) 界面支持，包含完整翻译和表情选择器。
+    - [语音] 在文本输入中按住鼠标按钮开始听写，松开后转写。
+    - [语音] 流式语音合成与实时音频播放。
+    - [网页搜索] 添加腾讯元宝搜索作为内置提供商。
+    - [定时任务] 通过智能体对话创建和管理定时任务，并在聊天中显示交互式任务卡片。
+    - [截图] 复制截图到剪贴板，同时保持截图覆盖层开启。
+    - [选区] 选中任意文本即可自动复制并显示快速引用工具栏。
+    - [输入框] 文件和链接标记与文本行对齐，显示按类型的文件图标，编辑时加载网站图标。
+    - [RTF] 将富文本格式文件预览为格式化文档。
+    - [飞书] 配置群聊中的机器人是否仅在@提及时回复。
+    - [远程访问] 为配对邀请设置自定义主机名、IP 或端口。
+    - [助手] 记住归档时”同时归档相关话题”的选择。
 
     🐛 问题修复
-    - [启动] 修复升级后需要首次创建内置产品反馈 Agent 时 Cherry Studio 无法启动的问题。
-    - [本地模型] 修复 Windows 下 inference utility process 退出后 DLL 短暂占用导致模型清理偶发失败的问题。
-    - [知识库] 修复通过 Mistral OCR 导入的 PDF 表格丢失问题；表格内容现在以 Markdown 表格形式索引。请重新索引已有条目以获取表格内容。
-    - [Pi] 修复 OpenCode Go/Zen 请求因 MissingSessionID 失败的问题，现已保留智能体会话头部。
-    - [导出] Notion 导出现在等待页面正文写入完成，写入失败时正确报错而非显示成功。
-    - [Obsidian] 修复笔记标题包含”: “或以”#”开头时导出无效前置数据的问题，并将标签导出为正确的 YAML 列表。
-    - [提示词润色] 支持取消和 60 秒超时，卡住的请求可立即恢复为可重试状态。
-    - [对话] 显示安全可操作的错误详情，而非”400 null”等通用错误。
-    - [调试] 修复消息调试面板(Call Chain)中长输出被截断和 UI 卡死的问题。
-    - [服务商] OpenCode Go/Zen 的模型健康检查、话题命名和上下文压缩请求现在携带必需的会话头部。
-    - [对话] 删除用于上下文的回复时，现在保留其他回复，并将上下文和后续消息转移到相邻回复。
-    - [樱桃云] 不支持的客户端版本现在显示更新提示，而非让用户重试登录。
-    - [对话] 修复纯文本续写轮次错误处理残留图片附件并在响应开始前失败的问题。
-    - [樱桃云] 自定义构建现在需要配置客户端签名密钥才能登录。
+    - [笔记] 修复在已缓存的笔记之间切换时内容被覆盖的问题。
+    - [技能] 当 ZIP 或文件夹缺少 SKILL.md 时显示本地化错误提示，不再泄露临时路径。
+    - [对话] 默认展开较长的用户消息；后续消息队列独立于已读回执。
+    - [代理] 匹配 Windows 上的短通配符 IP 绕过规则（如 192.168.*）。
+    - [Claude Code] 通过内部网关路由时保持 1M 上下文预算。
+    - [标签栏] 关闭最后一个标签页时打开启动台而非退出应用。
+    - [文件预览] 刷新文件时保持阅读状态；修复 Word 文档的行间距。
+    - [侧边栏] 选中的项目在浅色和深色主题中使用中性的填充图标。
+    - [对话布局] 按窗口隔离列表组展开状态。
+    - [绘画] 限制加载网格密度以防止性能问题。
+    - [MCP] 在保存的标头和环境值中保留 # 字符。
+    - [知识库] 为 Linux x64 提供基准 sqlite-vec 构建。
+    - [语音] 为操作失败和流超时添加诊断信息。
+    - [智能体会话] 跨智能体创建时继续目标工作区；显示压缩失败。
+    - [消息] 丢弃历史工具部件中不兼容的重放输入。
+    - [虚拟列表] 在固定堆栈底部移交粘性标题。
+    - [笔记] 修复关闭“笔记已在磁盘上更改”冲突对话框后编辑会话卡住，导致后续笔记重命名、删除和移动失败并显示误导性错误的问题。
 
-    ⚡ 性能优化
-    - [知识库] 知识库页面管理对话框和条目详情面板现在按需加载，而非随页面加载。
+    🔒 安全
+    - [Electron] 升级到 44.9.3 以修复证书安全问题。
     <!--LANG:END-->

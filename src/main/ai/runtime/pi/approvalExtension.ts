@@ -9,10 +9,11 @@
  * Pipeline per `tool_call`:
  *   1. disabledTools  → block (all modes, including bypassPermissions)
  *   2. SQLite guard   → block native writes to protected user data (all modes)
- *   3. global-install → block bash that installs into shared/global locations (all modes)
- *   4. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
- *   5. bypass         → skip ordinary approvals; non-bypassable delegation still asks
- *   6. approval       → per permission mode: auto-allow, fail closed without a
+ *   3. delegation     → interactive-only, following the session permission mode
+ *   4. global-install → block bash that installs into shared/global locations (all modes)
+ *   5. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
+ *   6. bypass         → skip ordinary approvals
+ *   7. approval       → per permission mode: auto-allow, fail closed without a
  *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
  *
@@ -22,19 +23,24 @@
  * part by the time the approval request references its `toolCallId`.
  */
 import { randomUUID } from 'node:crypto'
-import { lstat, realpath } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 
 import { loggerService } from '@logger'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
+import { resolveDelegationApproval } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
@@ -53,8 +59,8 @@ const READ_ONLY_TOOLS = new Set<string>(
 const EDIT_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
 )
-/** Code Mode discovery and dispatch authorize their target separately, so their own calls never
- * participate in file-path containment or add a redundant prompt. */
+/** Code Mode gates nested effects separately; recall reads only the current session's history.
+ * Neither needs file-path containment or an additional approval. */
 const META_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
 )
@@ -73,7 +79,7 @@ export interface PiApprovalContext {
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (event: AgentRuntimeEvent) => void
   /** Resolve responder availability at tool fire-time so warm connections follow the current turn. */
-  getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
+  getInteractionState: () => ToolGuardInteractionState
   /** Live permission mode; read at fire-time so a warm-connection `reconcile` takes effect. */
   getPermissionMode: () => AgentPermissionMode | undefined
   /** Live disabled-tool predicate; read at fire-time for the same reason. */
@@ -85,8 +91,10 @@ export interface PiApprovalContext {
   autoApprovedTools: ReadonlySet<string>
   /** Runtime-neutral Cherry/Assistant tools that always require a live per-call decision. */
   approvalRequiredTools: ReadonlySet<string>
-  /** Delegation tools whose live-approval ceiling remains in Full Access. */
+  /** Tools whose explicit per-call approval remains in Full Access. */
   nonBypassableApprovalTools: ReadonlySet<string>
+  /** Cross-Session tools that cannot initiate an unattended delegation hop. */
+  delegationTools: ReadonlySet<string>
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
@@ -119,7 +127,8 @@ export type PiToolAuthorizer = (
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
   return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
     // (1) disabledTools — block regardless of permission mode.
-    if (ctx.isDisabled(toolName)) {
+    const browserPermission = resolveBrowserToolPermission(toolName)
+    if (ctx.isDisabled(toolName) || browserPermission === 'deny') {
       return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
     }
 
@@ -137,8 +146,17 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     const mode = ctx.getPermissionMode() ?? 'default'
-    const approvalRequired = ctx.approvalRequiredTools.has(toolName)
+    const delegationApproval = ctx.delegationTools.has(toolName)
+      ? resolveDelegationApproval(mode, ctx.getInteractionState())
+      : undefined
+    if (delegationApproval === 'deny') {
+      return { block: true, reason: 'Cross-Session delegation requires an interactive user turn.' }
+    }
+    if (delegationApproval === 'allow') return
+    const approvalRequired = delegationApproval === 'ask' || ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
+    // Classify what the model wrote: `rtk git …` hides the real command word from detection.
+    const modelInput = { ...input }
 
     // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
     // in every mode: shared/global installs mutate the cross-agent environment, so this is an
@@ -162,19 +180,18 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       }
     }
 
-    // (5) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
-    // exception: its one-hop live-approval ceiling must hold in every permission mode.
+    // Full Access lifts ordinary approval after the delegation boundary has been enforced.
     if (bypass) return
 
     // (6) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
     // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
     // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-    if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
+    if ((browserPermission === 'allow' || ctx.autoApprovedTools.has(toolName)) && !approvalRequired) return
     if (
       !(await requiresApproval(
         mode,
         toolName,
-        input,
+        modelInput,
         ctx.workspacePath,
         ctx.agentDataPath,
         ctx.additionalReadOnlyRoots,
@@ -230,7 +247,13 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     if (!decision.approved) {
-      return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
+      return {
+        block: true,
+        reason:
+          decision.reasonSource === 'user'
+            ? withUserDenialFeedback(decision.reason)
+            : (decision.reason ?? 'User denied permission for this tool.')
+      }
     }
     if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
     return
@@ -309,7 +332,7 @@ async function isToolPathInsideAllowedRoots(
   const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
     canonicalizeExistingPath(workspacePath),
     canonicalizeExistingPath(agentDataPath),
-    canonicalizeToolTarget(resolved, allowMissingTarget)
+    canonicalizePathForContainment(resolved, { allowMissing: allowMissingTarget })
   ])
   if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
 
@@ -328,40 +351,6 @@ async function canonicalizeExistingPath(target: string): Promise<string | undefi
     return await realpath(target)
   } catch {
     return undefined
-  }
-}
-
-async function canonicalizeToolTarget(target: string, allowMissing: boolean): Promise<string | undefined> {
-  try {
-    return await realpath(target)
-  } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    // A dangling symlink exists but cannot be canonicalized; treat it as ambiguous, not as a new file.
-    try {
-      await lstat(target)
-      return undefined
-    } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    }
-  }
-
-  let parent = path.dirname(target)
-  while (true) {
-    try {
-      const canonicalParent = await realpath(parent)
-      return path.resolve(canonicalParent, path.relative(parent, target))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      try {
-        await lstat(parent)
-        return undefined
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      }
-      const next = path.dirname(parent)
-      if (next === parent) return undefined
-      parent = next
-    }
   }
 }
 

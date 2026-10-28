@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +13,7 @@ vi.mock('node:fs', async () => {
 const mockFs = vi.mocked(fs)
 const mockRenameSync = mockFs.renameSync
 
-const CONFIG_PATH = '/mock/home/.cherrystudio/boot-config.json'
+const CONFIG_PATH = path.normalize('/mock/home/.cherrystudio/boot-config.json')
 const TEMP_PATH = `${CONFIG_PATH}.tmp`
 
 async function createService() {
