@@ -444,6 +444,7 @@ class AiStreamManager {
   streamPrompt(input: {
     streamId: string                                       // doubles as topicId
     uniqueModelId: UniqueModelId
+    resolvedModel?: { readonly provider: Provider; readonly model: Model } // trusted in-process snapshot
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
