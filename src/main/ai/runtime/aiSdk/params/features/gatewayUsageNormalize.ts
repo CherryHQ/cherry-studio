@@ -25,27 +25,49 @@ function withRawAnthropicCacheUsage(usage: LanguageModelV3Usage): LanguageModelV
 
   const { raw } = usage
   const toCount = (value: unknown) => (typeof value === 'number' ? value : undefined)
-  const cacheRead = toCount(raw.cache_read_input_tokens)
-  const cacheWrite = toCount(raw.cache_creation_input_tokens)
-  if (cacheRead === undefined && cacheWrite === undefined) return usage
+  const rawRead = toCount(raw.cache_read_input_tokens)
+  const rawWrite = toCount(raw.cache_creation_input_tokens)
+  if (rawRead === undefined && rawWrite === undefined) return usage
 
   const inputTokens = isFlatV3Usage(usage) ? normalizeFlatV3Usage(usage).inputTokens : usage.inputTokens
-  return { ...usage, inputTokens: { ...inputTokens, cacheRead, cacheWrite } }
+  // Raw buckets win when present; the flat-derived bucket is the fallback so a partial raw
+  // payload (e.g. a write without a read) never erases what the flat shape already knew.
+  const cacheRead = rawRead ?? inputTokens?.cacheRead
+  const cacheWrite = rawWrite ?? inputTokens?.cacheWrite
+  const total = inputTokens?.total
+
+  if (typeof total !== 'number') {
+    // Without a prompt total there is no sum invariant to reconcile: surface the buckets
+    // and keep the reported noCache.
+    return { ...usage, inputTokens: { ...inputTokens, cacheRead, cacheWrite } }
+  }
+  if (typeof cacheRead === 'number' && cacheRead + (cacheWrite ?? 0) > total) {
+    // The raw buckets contradict the prompt total; trusting them would overstate usage.
+    // Drop the raw augmentation and keep the provider-reported split.
+    return usage
+  }
+  // Cache reads and writes displace uncached input: reconcile noCache so the buckets keep
+  // summing to the prompt total instead of leaving the flat remainder in place.
+  const noCache =
+    typeof cacheRead === 'number' ? Math.max(0, total - cacheRead - (cacheWrite ?? 0)) : inputTokens?.noCache
+  return { ...usage, inputTokens: { ...inputTokens, noCache, cacheRead, cacheWrite } }
 }
 
 const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
   specificationVersion: 'v3',
   wrapGenerate: async ({ doGenerate }) => {
     const result = await doGenerate()
-    return isFlatV3Usage(result.usage) ? { ...result, usage: normalizeFlatV3Usage(result.usage) } : result
+    const usage = isFlatV3Usage(result.usage) ? normalizeFlatV3Usage(result.usage) : result.usage
+    return { ...result, usage: withRawAnthropicCacheUsage(usage) }
   },
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream()
     const normalized = stream.pipeThrough(
       new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
         transform(chunk, controller) {
-          if (chunk.type === 'finish' && isFlatV3Usage(chunk.usage)) {
-            controller.enqueue({ ...chunk, usage: normalizeFlatV3Usage(chunk.usage) })
+          if (chunk.type === 'finish') {
+            const usage = isFlatV3Usage(chunk.usage) ? normalizeFlatV3Usage(chunk.usage) : chunk.usage
+            controller.enqueue({ ...chunk, usage: withRawAnthropicCacheUsage(usage) })
             return
           }
           controller.enqueue(chunk)
@@ -85,25 +107,6 @@ function gatewayAnthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
           }
         }
       }
-    },
-    wrapGenerate: async ({ doGenerate }) => {
-      const result = await doGenerate()
-      return { ...result, usage: withRawAnthropicCacheUsage(result.usage) }
-    },
-    wrapStream: async ({ doStream }) => {
-      const { stream, ...rest } = await doStream()
-      const normalized = stream.pipeThrough(
-        new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
-          transform(chunk, controller) {
-            if (chunk.type === 'finish') {
-              controller.enqueue({ ...chunk, usage: withRawAnthropicCacheUsage(chunk.usage) })
-              return
-            }
-            controller.enqueue(chunk)
-          }
-        })
-      )
-      return { stream: normalized, ...rest }
     }
   }
 }
@@ -111,9 +114,11 @@ function gatewayAnthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
 function createGatewayUsageNormalizePlugin() {
   return definePlugin({
     name: 'gateway-usage-normalize',
-    // Shape adapters belong directly against the provider. `post` makes this
-    // middleware innermost, so usage capture and the application both observe
-    // the normalized AI SDK v6 shape.
+    // Shape adapters belong directly against the provider. `post` makes this middleware
+    // innermost, so it unwinds before the normal-phase usage-capture middleware: the
+    // persisted usage record and the application both observe the normalized shape with
+    // the raw Anthropic cache buckets already reconciled. Reconciliation anywhere later
+    // in the chain would leave the captured record without the cache-write bucket.
     enforce: 'post',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []

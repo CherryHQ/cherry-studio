@@ -29,7 +29,7 @@ import {
   type EndpointDialect,
   type Provider
 } from '@shared/data/types/provider'
-import { resolveEndpointDialect } from '@shared/utils/provider'
+import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
