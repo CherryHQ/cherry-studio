@@ -97,6 +97,9 @@ message. The feature preserves the assistant prompt and existing cache markers;
 ordinary requests and client function tools do not receive the identifier.
 Native fetch requires native search alongside it, so web-tool routing selects
 both server tools together when using this endpoint's fetch capability.
+The fetch tool accepts both Anthropic's `url` input and Qwen's `urls` with
+optional `goal`, preserving multiple URLs without repairing an already-executed
+server tool call.
 
 ## RequestScope
 

@@ -3,12 +3,76 @@ import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { generateText, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+
 import type { RequestScope } from '../../scope'
 import { createQwenAnthropicWebToolsMiddleware, qwenAnthropicWebToolsFeature } from '../qwenAnthropicWebTools'
 
 const marker = 'x-anthropic-billing-header: cc_entrypoint=cli;'
 
 describe('Qwen Anthropic web tools', () => {
+  it.each([
+    { url: 'https://example.com/' },
+    { urls: ['https://example.com/', 'https://example.org/'], goal: 'Read both pages' }
+  ])('consumes provider-executed fetch input %j without a repair request', async (input) => {
+    let requests = 0
+    const result = await aiCoreGenerateText(
+      'anthropic',
+      {
+        apiKey: 'test',
+        fetch: async () => {
+          requests++
+          return Response.json({
+            id: 'msg_fetch',
+            type: 'message',
+            role: 'assistant',
+            model: 'qwen3.8-max',
+            content: [
+              { type: 'server_tool_use', id: 'srvtoolu_fetch', name: 'web_fetch', input },
+              {
+                type: 'web_fetch_tool_result',
+                tool_use_id: 'srvtoolu_fetch',
+                content: {
+                  type: 'web_fetch_result',
+                  url: 'https://example.com/',
+                  retrieved_at: '2026-10-29T00:00:00Z',
+                  content: {
+                    type: 'document',
+                    title: 'Example Domain',
+                    source: { type: 'text', media_type: 'text/plain', data: 'Public page content' }
+                  }
+                }
+              },
+              { type: 'text', text: 'Grounded answer' }
+            ],
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            usage: { input_tokens: 10, output_tokens: 2 }
+          })
+        }
+      },
+      {
+        model: 'qwen3.8-max',
+        prompt: 'Read both pages',
+        experimental_repairToolCall: async () => {
+          throw new Error('Native fetch must not need AI repair')
+        }
+      },
+      [
+        providerToolPlugin('webSearch'),
+        providerToolPlugin('urlContext'),
+        ...qwenAnthropicWebToolsFeature.contributeModelAdapters!({} as RequestScope)
+      ]
+    )
+    expect(requests).toBe(1)
+    expect(result.toolCalls[0]).toMatchObject({ toolName: 'urlContext', providerExecuted: true, input })
+    expect(result.toolCalls[0]).not.toHaveProperty('invalid', true)
+    expect(result.toolResults[0]).toMatchObject({
+      toolName: 'urlContext',
+      output: { content: { source: { data: 'Public page content' } } }
+    })
+  })
   it.each(['dashscope', 'qwencloud'])(
     'limits the identifier to %s Anthropic requests, including copied presets',
     (presetProviderId) => {
