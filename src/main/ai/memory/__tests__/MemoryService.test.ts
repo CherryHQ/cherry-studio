@@ -17,7 +17,7 @@ import { assistantMemoryAuthority, type MemoryAuthority } from '../memoryAuthori
 import { MemoryService } from '../MemoryService'
 import type { MemoryApproval } from '../MemoryStore'
 
-const approve: MemoryApproval = async () => async () => undefined
+const approve: MemoryApproval = async () => () => undefined
 let fixture: string
 let service: MemoryService
 const authority = (): MemoryAuthority => ({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
@@ -103,7 +103,7 @@ describe('lifecycle memory owner', () => {
       await new Promise<void>((resolve) => {
         finishApproval = resolve
       })
-      return async () => undefined
+      return () => undefined
     })
     const outcome = result.catch((error: unknown) => error)
     await waiting
