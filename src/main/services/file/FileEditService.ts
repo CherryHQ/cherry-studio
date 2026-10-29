@@ -155,6 +155,13 @@ export class FileEditService extends BaseService {
                 .writeIfUnchanged(lease.handle.entryId, data, expected.version, expected.contentHash, lease.path)
             : await runPathMutationExclusive(async () => {
                 await this.validateTarget(lease)
+                // Re-check at the commit boundary, inside the exclusive path:
+                // a plain notes-root preference flip (no migration) landing
+                // during the awaits above must not let this write commit into
+                // the retired tree. Not atomic on its own (a flip can still
+                // land between this check and the rename) - the flip side is
+                // closed by the mutation-drain barrier in PreferenceService.
+                assertNotesPathNotRetired(lease.path)
                 return atomicWriteIfUnchanged(lease.path, data, expected.version, expected.contentHash)
               })
         return { baseline: { version, contentHash }, metadataRecoveryPending: false }

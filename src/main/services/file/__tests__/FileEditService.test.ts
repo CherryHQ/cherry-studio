@@ -20,9 +20,13 @@ import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
+import { PreferenceService } from '@main/data/PreferenceService'
+
 import { FileEditService } from '../FileEditService'
 import { FileManager } from '../FileManager'
 import { runPathMutationExclusive } from '../pathMutationLock'
+
+vi.unmock('@main/data/PreferenceService')
 
 const atomicWriteGate = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined, entered: false }))
 vi.mock('@main/utils/file', async (importOriginal) => {
@@ -419,6 +423,44 @@ describe('FileEditService persistence contract', () => {
         service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
       ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
       await expect(readFile(resource.path, 'utf-8')).resolves.toBe('base')
+    })
+
+    it('drains an in-flight notes write before committing a plain notes-root flip', async () => {
+      // No migration involved: a plain feature.notes.path preference update
+      // must wait for the mutation drain, so an in-flight write linearizes
+      // BEFORE the flip instead of committing into the retired tree after it.
+      const prefs = new PreferenceService()
+      await prefs._doInit()
+      MockApplicationUtils.setService('PreferenceService', prefs)
+      const elsewhere = await mkdtemp(path.join(tmpdir(), 'notes-flip-target-'))
+      const gate = Promise.withResolvers<void>()
+      atomicWriteGate.gate = gate.promise
+      const { resource, snapshot } = await open()
+
+      const writing = service.write(owner, {
+        editId: resource.editId,
+        expected: snapshot.baseline,
+        data: bytes('in-flight')
+      })
+      await vi.waitFor(() => expect(atomicWriteGate.entered).toBe(true))
+
+      let flipped = false
+      const flipping = prefs.set('feature.notes.path', elsewhere).then(() => {
+        flipped = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      // The flip must NOT commit while the write holds a notes mutation.
+      expect(flipped).toBe(false)
+      expect(prefs.get('feature.notes.path')).not.toBe(elsewhere)
+
+      gate.resolve()
+      await writing
+      await flipping
+      expect(flipped).toBe(true)
+      expect(prefs.get('feature.notes.path')).toBe(elsewhere)
+      // The write linearized before the flip: its bytes are on disk.
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('in-flight')
+      await prefs._doDestroy()
     })
 
     it('counts an in-flight edit write in the pre-barrier drain', async () => {

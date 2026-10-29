@@ -433,6 +433,20 @@ export class PreferenceService extends BaseService {
         return
       }
 
+      if (key === 'feature.notes.path') {
+        // Coordinate a plain notes-root flip with in-flight note edits: the
+        // write path checks the canonical root before its awaits, so a flip
+        // landing mid-write would commit into the tree being retired. Drain
+        // first (the same barrier the migration protocol uses) so every
+        // in-flight write either commits before the flip or re-checks against
+        // the new root at its commit boundary. Lazy import: the data layer
+        // must not statically depend on the notes-relocation service module.
+        const { waitForNotesFilesystemMutationsIdle } = await import(
+          '@main/services/notesRelocation/migrationSession'
+        )
+        await waitForNotesFilesystemMutationsIdle()
+      }
+
       application
         .get('DbService')
         .getDb()
@@ -537,6 +551,16 @@ export class PreferenceService extends BaseService {
           bootConfigService.set(key, oldValue)
         }
         throw error
+      }
+
+      // Plain notes-root flip: drain in-flight note edits before the commit
+      // (same reasoning as `set`). Gated on key presence; the wait is
+      // immediate when no edits are in flight.
+      if ('feature.notes.path' in updates) {
+        const { waitForNotesFilesystemMutationsIdle } = await import(
+          '@main/services/notesRelocation/migrationSession'
+        )
+        await waitForNotesFilesystemMutationsIdle()
       }
 
       // Performance optimization: filter out unchanged preference values

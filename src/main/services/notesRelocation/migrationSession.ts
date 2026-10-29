@@ -126,42 +126,37 @@ export function isNotesRootUnresolvedError(error: unknown): error is NotesRootUn
   return error instanceof NotesRootUnresolvedError
 }
 
-type ActiveRootResolution = { state: 'source-active' | 'target-active' } | { state: 'unresolved'; reason: string }
+type CanonicalRootResolution = { state: 'resolved'; root: string } | { state: 'unresolved'; reason: string }
 
 /**
- * Resolve which migration root the canonical configured notes path points at.
- * The renderer flips the preference BEFORE committing, and a commit can also
+ * Resolve the canonical configured notes root with its provenance. The
+ * renderer flips the preference BEFORE committing, and a commit can also
  * arrive from the renderer's catch path, so arrival order alone never proves
- * the flip landed - read the raw preference with its provenance instead.
+ * the flip landed - read the raw preference instead. Deliberately NOT matched
+ * against any single migration pair: chains (A->B->C) and plain settings
+ * moves to an unrelated root are settled states to classify, not failed
+ * resolutions. Only a genuinely unreadable/invalid canonical root is
+ * 'unresolved' - a transient that a Retry can actually fix.
  */
-function resolveActiveMigrationRoot(roots: { source: string; target: string }): ActiveRootResolution {
+function resolveCanonicalNotesRoot(): CanonicalRootResolution {
   try {
     const read = application.get('PreferenceService').getWithProvenance('feature.notes.path')
     if (read.provenance === 'not-ready') {
       return { state: 'unresolved', reason: 'preference cache not ready' }
     }
     const raw = typeof read.value === 'string' ? read.value.trim() : ''
-    let configuredReal: string
     if (!raw) {
       // An unset preference is an affirmative default root.
-      configuredReal = realPath(application.getPath('feature.notes.data'))
-    } else {
-      const normalized = path.resolve(raw)
-      if (!isAllowedNotesDirectory(normalized)) {
-        return {
-          state: 'unresolved',
-          reason: `configured notes path is not an allowed notes directory: ${normalized}`
-        }
+      return { state: 'resolved', root: realPath(application.getPath('feature.notes.data')) }
+    }
+    const normalized = path.resolve(raw)
+    if (!isAllowedNotesDirectory(normalized)) {
+      return {
+        state: 'unresolved',
+        reason: `configured notes path is not an allowed notes directory: ${normalized}`
       }
-      configuredReal = realPath(normalized)
     }
-    if (configuredReal === roots.target) {
-      return { state: 'target-active' }
-    }
-    if (configuredReal === roots.source) {
-      return { state: 'source-active' }
-    }
-    return { state: 'unresolved', reason: `configured notes root matches neither migration root: ${configuredReal}` }
+    return { state: 'resolved', root: realPath(normalized) }
   } catch (error) {
     return { state: 'unresolved', reason: (error as Error).message }
   }
@@ -179,28 +174,41 @@ export function assertNotesPathNotRetired(filePath: string): void {
     return
   }
   const resolved = effectiveFilesystemPath(filePath)
-  for (const pair of migrationPairs) {
+  const matching = migrationPairs.filter(
+    (pair) =>
+      pathUnderRoot(resolved, pair.source) ||
+      pathUnderRoot(pair.source, resolved) ||
+      pathUnderRoot(resolved, pair.target) ||
+      pathUnderRoot(pair.target, resolved)
+  )
+  if (matching.length === 0) {
+    return
+  }
+  // Resolve the canonical root ONCE per call and classify every recorded root
+  // against it. Pair-local resolution (configured === source|target of THIS
+  // pair) misclassifies chains (A->B->C leaves A and B 'unresolved' forever -
+  // a dead Retry) and plain settings moves to an unrelated root; those are
+  // settled retirements, so the honest moved-root UX applies. 'unresolved'
+  // is reserved for a canonical root that cannot be read at all - the only
+  // state a Retry can actually recover from.
+  const canonical = resolveCanonicalNotesRoot()
+  if (canonical.state === 'unresolved') {
+    throw new NotesRootUnresolvedError()
+  }
+  for (const pair of matching) {
     const underSource = pathUnderRoot(resolved, pair.source) || pathUnderRoot(pair.source, resolved)
-    const underTarget = pathUnderRoot(resolved, pair.target) || pathUnderRoot(pair.target, resolved)
-    if (!underSource && !underTarget) {
+    if (canonical.root === pair.source) {
+      // The flip never landed: both copies stay editable at their roots.
       continue
     }
-    const active = resolveActiveMigrationRoot(pair)
-    switch (active.state) {
-      case 'target-active':
-        // The configured root moved: the source copy is retired.
-        if (underSource) throw new NotesRetiredRootWriteError()
-        break
-      case 'source-active':
-        // The flip never landed: both copies stay editable at their roots.
-        break
-      case 'unresolved':
-        // Close loud under both roots until the canonical root resolves. This
-        // is NOT a retirement: the next edit re-reads the canonical root and
-        // goes through once it resolves, so the error carries its own code
-        // instead of claiming the folder moved.
-        throw new NotesRootUnresolvedError()
+    if (canonical.root === pair.target) {
+      // The configured root moved: the source copy is retired.
+      if (underSource) throw new NotesRetiredRootWriteError()
+      continue
     }
+    // The canonical root moved PAST this pair (a chain descendant or an
+    // unrelated configured root): neither of its roots is the live tree.
+    throw new NotesRetiredRootWriteError()
   }
 }
 
@@ -267,16 +275,20 @@ export function waitForNotesBatchMarkdownUploadsIdle(): Promise<void> {
 export function releaseNotesMigrationSession(): void {
   if (blockedRoots) {
     migrationPairs.push(blockedRoots)
-    const active = resolveActiveMigrationRoot(blockedRoots)
-    if (active.state === 'unresolved') {
+    const canonical = resolveCanonicalNotesRoot()
+    if (canonical.state === 'unresolved') {
       logger.warn(
         'Notes migration release could not resolve the configured root; writes under both roots close loud until it resolves',
-        { reason: active.reason }
+        { reason: canonical.reason }
       )
     } else {
-      logger.info(
-        `Notes migration released with ${active.state === 'target-active' ? 'target' : 'source'} root configured`
-      )
+      const which =
+        canonical.root === blockedRoots.target
+          ? 'target'
+          : canonical.root === blockedRoots.source
+            ? 'source'
+            : 'another configured'
+      logger.info(`Notes migration released with ${which} root configured`)
     }
   }
   migrationInFlight = false

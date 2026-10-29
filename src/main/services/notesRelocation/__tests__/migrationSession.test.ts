@@ -190,7 +190,10 @@ describe('notes migration session', () => {
       expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/cannot be verified/)
     })
 
-    it('closes loud under both roots when the configured root matches neither migration root', () => {
+    it('retires both roots when a plain settings move points the canonical root elsewhere', () => {
+      // A configured root matching neither migration root is a SETTLED state
+      // (the notes live at the unrelated root now), not a failed resolution:
+      // classifying it 'unresolved' made the Retry banner dead forever.
       const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
       const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
       const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-else-'))
@@ -199,9 +202,78 @@ describe('notes migration session', () => {
       setNotesMigrationBlockedRoots(source, target)
       releaseNotesMigrationSession()
 
-      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/cannot be verified/)
-      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/cannot be verified/)
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/relocated/)
       expect(() => assertNotesPathNotRetired(path.join(elsewhere, 'note.md'))).not.toThrow()
+    })
+
+    it('retires every superseded root across a migration chain (A->B->C)', () => {
+      const a = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-chain-a-'))
+      const b = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-chain-b-'))
+      const c = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-chain-c-'))
+
+      setNotesMigrationBlockedRoots(a, b)
+      releaseNotesMigrationSession()
+      setNotesMigrationBlockedRoots(b, c)
+      releaseNotesMigrationSession()
+      mockPreference({ value: c, provenance: 'cache' })
+
+      // Both intermediate roots are retired against the canonical C - never
+      // the dead 'unresolved' Retry that pair-local resolution produced.
+      expect(() => assertNotesPathNotRetired(path.join(a, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(b, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(c, 'note.md'))).not.toThrow()
+    })
+
+    it('keeps an unflipped chain target editable while its flip never landed', () => {
+      // Chain A->B->C where the canonical root still sits at B: the B->C flip
+      // never landed, so C stays editable (both roots of the unflipped pair),
+      // while A stays retired behind the landed A->B move.
+      const a = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-chain2-a-'))
+      const b = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-chain2-b-'))
+      const c = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-chain2-c-'))
+
+      setNotesMigrationBlockedRoots(a, b)
+      releaseNotesMigrationSession()
+      setNotesMigrationBlockedRoots(b, c)
+      releaseNotesMigrationSession()
+      mockPreference({ value: b, provenance: 'cache' })
+
+      expect(() => assertNotesPathNotRetired(path.join(a, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(b, 'note.md'))).not.toThrow()
+      expect(() => assertNotesPathNotRetired(path.join(c, 'note.md'))).not.toThrow()
+    })
+
+    it('retires the intermediate root after a reversal (A->B then B->A)', () => {
+      const a = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rev-a-'))
+      const b = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rev-b-'))
+
+      setNotesMigrationBlockedRoots(a, b)
+      releaseNotesMigrationSession()
+      setNotesMigrationBlockedRoots(b, a)
+      releaseNotesMigrationSession()
+      mockPreference({ value: a, provenance: 'cache' })
+
+      expect(() => assertNotesPathNotRetired(path.join(a, 'note.md'))).not.toThrow()
+      expect(() => assertNotesPathNotRetired(path.join(b, 'note.md'))).toThrow(/relocated/)
+    })
+
+    it('recovers from unresolved to resolved on a later classification', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rec-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rec-tgt-'))
+      const preference = { read: { value: '', provenance: 'not-ready' } }
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => preference.read)
+      })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/cannot be verified/)
+
+      // Once the cache is ready the very next edit classifies for real.
+      preference.read = { value: target, provenance: 'cache' }
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
     })
 
     it('treats an empty preference as the affirmative default root', () => {
