@@ -293,6 +293,22 @@ describe('SelectionAgentWindow', () => {
       expect(closeRequests()).toBe(1)
     })
 
+    it('keeps a quote-only send open while its session is being created', () => {
+      mocks.ipcRequest.mockImplementation((route: string) =>
+        route === 'ai.agent.assistant_session.create' ? new Promise(() => undefined) : Promise.resolve()
+      )
+      mocks.action = ASK_AGENT
+      render(<SelectionAgentWindow />)
+
+      // The quote alone is a message, though the instruction the window tracks stays empty.
+      act(() => mocks.composeSend?.({ text: '<blockquote>\n\nTypeError: x is undefined\n</blockquote>\n', tokens: [] }))
+      fireEvent.blur(window)
+      pressEscape()
+
+      expect(closeRequests()).toBe(0)
+      expect(lastReplaceable()).toBe(false)
+    })
+
     it('keeps a starting custom action open, and closes one that failed to start', async () => {
       vi.mocked(dataApiService.post).mockReturnValueOnce(new Promise(() => undefined))
       mocks.action = CUSTOM_AGENT_ACTION
