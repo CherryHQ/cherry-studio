@@ -2115,7 +2115,8 @@ export class ClaudeCodeStreamAdapter {
     return this.runtimeCompactionActive || this.compactionArtifactGrace
   }
 
-  private endCompactionArtifactGrace(): void {
+  private endCompactionArtifactGrace(ctx: StreamContext = this.ctx): void {
+    if (ctx !== this.ctx) return
     this.compactionArtifactGrace = false
   }
 
@@ -2686,7 +2687,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.textStreamedViaContentBlock = true
         this.appendAccumulated(ctx, pending)
         ctx.streamedTextLength += pending.length
-        this.endCompactionArtifactGrace()
+        this.endCompactionArtifactGrace(ctx)
         return
       }
     }
@@ -2736,7 +2737,7 @@ export class ClaudeCodeStreamAdapter {
     // state like filter-path emissions, or later open-line verdicts classify
     // against a state missing these lines (round-18 fence-continuity family).
     this.advanceScratchpadMaskState(visible, ctx)
-    this.endCompactionArtifactGrace()
+    this.endCompactionArtifactGrace(ctx)
   }
 
   /** Appends visible text without scratchpad probing — used when a content block ends. */
@@ -2817,7 +2818,7 @@ export class ClaudeCodeStreamAdapter {
             providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
           })
           ctx.textPartStarted = true
-          this.endCompactionArtifactGrace()
+          this.endCompactionArtifactGrace(ctx)
           watchEmittedProbe = true
         }
       }
@@ -2856,7 +2857,7 @@ export class ClaudeCodeStreamAdapter {
             providerMetadata: this.textStartProviderMetadata(ctx, providerMetadata)
           })
           ctx.textPartStarted = true
-          this.endCompactionArtifactGrace()
+          this.endCompactionArtifactGrace(ctx)
           text = classified.visible
           ctx.scratchpadTextProbe = ''
         }
@@ -3203,10 +3204,15 @@ export class ClaudeCodeStreamAdapter {
     // user, not the compaction instruction: scratchpad removal plus a sectioned
     // summary shape does not by itself establish compaction provenance, so the
     // artifact grace ends here (cherry-pr-review inv_5b861e177143056b).
-    if (!message.isSynthetic && toolResults.length === 0 && getTextContent(content).some((text) => text.trim())) {
+    if (
+      ctx === this.ctx &&
+      !message.isSynthetic &&
+      toolResults.length === 0 &&
+      getTextContent(content).some((text) => text.trim())
+    ) {
       this.hasSeenGenuineUserPrompt = true
       this.assistantAnswerSinceUserPrompt = false
-      this.endCompactionArtifactGrace()
+      this.endCompactionArtifactGrace(ctx)
     }
 
     for (const result of toolResults) {
@@ -3345,7 +3351,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
         ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: fallbackDelta })
         ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
-        this.endCompactionArtifactGrace()
+        this.endCompactionArtifactGrace(ctx)
       }
       ctx.streamedTextLength = ctx.accumulatedText.length
     }
@@ -3511,7 +3517,7 @@ export class ClaudeCodeStreamAdapter {
     // no answer, so they leave provenance untouched.
     if (message.subtype === 'task_notification' && message.skip_transcript !== true) {
       this.assistantAnswerSinceUserPrompt = false
-      this.endCompactionArtifactGrace()
+      this.endCompactionArtifactGrace(ctx)
     }
     const eventData = this.toTaskEventPartData(message)
 

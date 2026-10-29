@@ -636,10 +636,11 @@ function parseFenceContainerPrefixDetail(prefix: string): { segments: FenceConta
     if (list) {
       // List item content begins after the marker and its following spaces
       // (CommonMark 0.31.2 §5.2: one space when the run exceeds four).
-      const padding = list[3] === '' ? 1 : Math.min(list[3].length, 4)
+      const padding = list[3] === '' || list[3].length > 4 ? 1 : list[3].length
       segments.push({ type: 'list', contentCol: list[1].length + list[2].length + padding })
-      consumed += list[0].length
-      rest = rest.slice(list[0].length)
+      const prefixWidth = list[1].length + list[2].length + (list[3] === '' ? 0 : padding)
+      consumed += prefixWidth
+      rest = rest.slice(prefixWidth)
       continue
     }
     // Up to three columns of indentation may precede the fence marker itself.
