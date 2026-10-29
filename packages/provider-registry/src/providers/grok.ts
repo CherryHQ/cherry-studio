@@ -11,8 +11,7 @@ export default defineProvider({
       baseUrl: 'https://api.x.ai'
     },
     'openai-image-generation': {
-      adapterFamily: 'xai',
-      baseUrl: 'https://api.x.ai/v1'
+      adapterFamily: 'xai'
     },
     'openai-responses': {
       adapterFamily: 'xai-responses',

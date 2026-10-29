@@ -130,10 +130,10 @@ describe('Grok native image catalog', () => {
     expect([...image20.options].sort()).toEqual([...legacy.options, '21:9', '5:2'].sort())
   })
 
-  it('configures the xAI image adapter at the versioned API base URL', () => {
-    expect(loader.findProvider('grok')?.endpointConfigs?.['openai-image-generation']).toEqual({
-      adapterFamily: 'xai',
-      baseUrl: 'https://api.x.ai/v1'
-    })
+  it('configures the xAI image adapter without overriding the provider connection', () => {
+    const config = loader.findProvider('grok')?.endpointConfigs?.['openai-image-generation']
+    expect(config).toBeDefined()
+    expect(config?.adapterFamily).toBe('xai')
+    expect(config).not.toHaveProperty('baseUrl')
   })
 })
