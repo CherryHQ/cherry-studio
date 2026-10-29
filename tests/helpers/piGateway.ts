@@ -178,7 +178,20 @@ export async function createTestSession(options: TestSessionOptions) {
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
     settings: { retry: { enabled: false }, ...sessionOptions.settings },
-    ...binding
+    ...binding,
+    subagents: options.subagents && {
+      ...options.subagents,
+      async configure(child, signal) {
+        const configured = await options.subagents!.configure(child, signal)
+        if (!configured.model || child.fork || configured.modelRuntime) return configured
+        const { provider, id, ...spec } = configured.model
+        const childBinding = await createTestBinding({
+          port,
+          model: { ...spec, id: createUniqueModelId(provider, id) }
+        })
+        return { ...configured, ...childBinding }
+      }
+    }
   })
   onTestFinished(() => runtime.dispose())
   return runtime

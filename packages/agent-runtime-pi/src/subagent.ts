@@ -56,7 +56,7 @@ export interface SubagentPort {
    * continuation, which must get the same extensions. A throw fails the call. For a fork,
    * `extensionFactories` must yield the parent's tools: the same tools, in the same order.
    */
-  configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
+  configure(subagent: Subagent, signal?: AbortSignal): SubagentSessionOptions | Promise<SubagentSessionOptions>
   /**
    * Open the finished child's native storage with the same ID.
    * Without it, finished subagents cannot be continued.
@@ -452,7 +452,20 @@ export function createSubagentExtension({
         try {
           // Built before `configure`, so a missing native fork point never reaches the host.
           const forkPoint = fork ? subagentForkPoint(parentSession, toolCallId) : undefined
-          const options = await port.configure(subagent)
+          const configureSignal = background ? undefined : signal
+          if (configureSignal?.aborted) return notStarted(subagent.sessionId, fork)
+          let onAbort!: () => void
+          const cancelled = new Promise<undefined>((resolve) => {
+            onAbort = () => resolve(undefined)
+          })
+          configureSignal?.addEventListener('abort', onAbort, { once: true })
+          let options: SubagentSessionOptions | undefined
+          try {
+            options = await Promise.race([port.configure(subagent, configureSignal), cancelled])
+          } finally {
+            configureSignal?.removeEventListener('abort', onAbort)
+          }
+          if (!options) return notStarted(subagent.sessionId, fork)
           // A background subagent does not belong to the turn, so the turn's abort does not cancel it.
           if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
           const model = pickModel(subagent, options, parentModel)

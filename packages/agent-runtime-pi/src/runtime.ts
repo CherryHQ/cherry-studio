@@ -107,7 +107,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
                 onSessionCreated: (session: AgentSession) => {
                   configured.onSessionCreated?.(session)
                   const entry = attach(session)
-                  entry.parentSession = owner
+                  entry.parentSession = parent?.owner
                   entries.set(session.sessionId, Promise.resolve({ status: 'confirmed', value: entry }))
                   if (!parent)
                     childRelations.push({ child: entry, trigger: child.continuedBy ?? child.parentToolCallId })
@@ -130,7 +130,10 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       )
       parent = entry!
       parent.owner = owner
-      for (const relation of childRelations) publishChild(relation.child, relation.trigger)
+      for (const relation of childRelations) {
+        relation.child.parentSession = owner
+        publishChild(relation.child, relation.trigger)
+      }
       return { status: 'confirmed', value: parent }
     } catch (cause) {
       if (entry) {
