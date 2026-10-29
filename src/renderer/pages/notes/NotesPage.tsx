@@ -39,6 +39,8 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { NoteRenameResult, NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type DirectoryTreeOptions } from '@shared/utils/file'
 
@@ -1182,7 +1184,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                 {t(
                   fileSession.metadataRecoveryPending
                     ? 'notes.save_failure.metadata_pending'
-                    : 'notes.save_failure.description'
+                    : fileSession.saveError instanceof IpcError &&
+                        fileSession.saveError.code === fileErrorCodes.EDIT_MIGRATION_BLOCKED
+                      ? 'settings.data.notes_relocation.error.migration_in_progress'
+                      : 'notes.save_failure.description'
                 )}
               </span>
               {!fileSession.metadataRecoveryPending && (

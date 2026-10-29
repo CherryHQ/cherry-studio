@@ -4,6 +4,11 @@ import { realpath } from 'node:fs/promises'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  assertNotesPathNotMutatingDuringMigration,
+  isNotesMigrationWriteBlockedError,
+  withNotesFilesystemMutation
+} from '@main/services/notesRelocation'
 import { atomicWriteIfUnchanged, hashContent, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -69,6 +74,9 @@ export class FileEditService extends BaseService {
       }
       const path = await this.resolve(handle)
       if (handle.kind === 'path') await assertOutsideManagedStorageMutation(handle.path, path)
+      // Fail fast instead of handing out a lease whose first write the migration
+      // barrier would refuse; no-op outside the blocked notes roots.
+      assertNotesPathNotMutatingDuringMigration(path)
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
       if ([...this.leases.values()].filter((lease) => lease.owner === owner).length >= MAX_LEASES_PER_WINDOW) {
         throw new IpcError(fileErrorCodes.EDIT_LIMIT, 'Too many retained file editing sessions')
@@ -115,8 +123,12 @@ export class FileEditService extends BaseService {
     const data = new Uint8Array(input.data)
     const { expected } = input
     const contentHash = hashContent(data)
-    const task = (async (): Promise<FileEditWriteResult> => {
+    // Counted in the pre-barrier drain and refused at the write boundary once a
+    // notes migration installs its blocked roots: an unsealed window's edit must
+    // never land only in the source tree the migration is copying away from.
+    const task = withNotesFilesystemMutation(async (): Promise<FileEditWriteResult> => {
       try {
+        assertNotesPathNotMutatingDuringMigration(lease.path)
         const version =
           lease.handle.kind === 'entry'
             ? await application
@@ -135,7 +147,7 @@ export class FileEditService extends BaseService {
         logger.warn('File edit write did not commit', { editId: input.editId, code: failure.code })
         throw failure
       }
-    })()
+    })
     lease.pending.add(task)
     try {
       return await task
@@ -187,6 +199,9 @@ export class FileEditService extends BaseService {
 
   private normalize(error: unknown): IpcError {
     if (error instanceof IpcError) return error
+    if (isNotesMigrationWriteBlockedError(error)) {
+      return new IpcError(fileErrorCodes.EDIT_MIGRATION_BLOCKED, error.message)
+    }
     if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {
       return new IpcError(fileErrorCodes.STALE_VERSION, 'File changed since the editing baseline')
     }

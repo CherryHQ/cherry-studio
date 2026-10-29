@@ -9,6 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
+import {
+  releaseNotesMigrationSession,
+  setNotesMigrationBlockedRoots,
+  waitForNotesFilesystemMutationsIdle
+} from '@main/services/notesRelocation'
 import { hashContent } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -17,6 +22,19 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { FileEditService } from '../FileEditService'
 import { FileManager } from '../FileManager'
 import { runPathMutationExclusive } from '../pathMutationLock'
+
+const atomicWriteGate = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined, entered: false }))
+vi.mock('@main/utils/file', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@main/utils/file')>()
+  return {
+    ...mod,
+    atomicWriteIfUnchanged: async (...args: Parameters<typeof mod.atomicWriteIfUnchanged>) => {
+      atomicWriteGate.entered = true
+      await atomicWriteGate.gate
+      return mod.atomicWriteIfUnchanged(...args)
+    }
+  }
+})
 
 const bytes = (text: string) => new TextEncoder().encode(text)
 
@@ -41,6 +59,8 @@ describe('FileEditService persistence contract', () => {
     service = new FileEditService()
     await service._doInit()
     handles = []
+    atomicWriteGate.gate = undefined
+    atomicWriteGate.entered = false
   })
 
   afterEach(async () => {
@@ -352,5 +372,66 @@ describe('FileEditService persistence contract', () => {
     await expect(readFile(resource.path)).rejects.toMatchObject({ code: 'ENOENT' })
     await writeFile(resource.path, Buffer.alloc(8 * 1024 * 1024 + 1))
     await expect(service.read(owner, resource.editId)).rejects.toMatchObject({ code: fileErrorCodes.EDIT_UNSUPPORTED })
+  })
+
+  describe('notes migration barrier', () => {
+    let blockedTarget: string
+
+    beforeEach(async () => {
+      blockedTarget = path.join(root, 'migration-target')
+      await mkdir(blockedTarget)
+      MockApplicationUtils.setService('IpcApiService', { broadcast: vi.fn(), send: vi.fn() })
+    })
+
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('refuses to open a lease under a blocked notes root', async () => {
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      await expect(open()).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+    })
+
+    it('refuses a write at the barrier and leaves the on-disk bytes untouched', async () => {
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('base')
+    })
+
+    it('counts an in-flight edit write in the pre-barrier drain', async () => {
+      const gate = Promise.withResolvers<void>()
+      atomicWriteGate.gate = gate.promise
+      const { resource, snapshot } = await open()
+      const writing = service.write(owner, {
+        editId: resource.editId,
+        expected: snapshot.baseline,
+        data: bytes('in-flight')
+      })
+      await vi.waitFor(() => expect(atomicWriteGate.entered).toBe(true))
+      let drained = false
+      void waitForNotesFilesystemMutationsIdle().then(() => {
+        drained = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      gate.resolve()
+      await writing
+      await waitForNotesFilesystemMutationsIdle()
+      expect(drained).toBe(true)
+    })
+
+    it('writes again once the migration session releases', async () => {
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+      releaseNotesMigrationSession()
+      await service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('dirty')
+    })
   })
 })
