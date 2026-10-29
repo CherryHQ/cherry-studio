@@ -307,7 +307,7 @@ export function Sidebar({
         ))}
 
       {/* Content */}
-      <div className="min-h-0 flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
+      <div className={cn('min-h-0 flex-1 overflow-y-auto pb-1 [&::-webkit-scrollbar]:hidden', isMac && 'pt-1')}>
         <SidebarList layout={layout} {...listProps} />
         {emptyState}
       </div>

@@ -162,6 +162,22 @@ describe('app Sidebar', () => {
     mocks.reorder.mockResolvedValue(undefined)
   })
 
+  it.each([50, 170, 0])('dismisses the account menu on window blur at sidebar width %s', async (width) => {
+    mocks.sidebarWidth = width
+    const user = userEvent.setup()
+    render(<Sidebar />)
+    if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+    const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
+    await user.click(within(sidebar).getByRole('button', { name: 'User' }))
+    expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
+    fireEvent.blur(within(screen.getByLabelText('sidebar.account_menu')).getAllByRole('button')[0])
+    expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
+    fireEvent.blur(window)
+    expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument()
+    fireEvent.focus(window)
+    expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument()
+  })
+
   it('opens settings directly from the sidebar', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)

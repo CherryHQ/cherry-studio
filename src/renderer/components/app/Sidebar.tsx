@@ -123,6 +123,13 @@ export default function Sidebar({
     () => handleUserMenuOpenChange(!userMenuOpen),
     [handleUserMenuOpenChange, userMenuOpen]
   )
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const handleWindowBlur = () => handleUserMenuOpenChange(false)
+    window.addEventListener('blur', handleWindowBlur)
+    return () => window.removeEventListener('blur', handleWindowBlur)
+  }, [handleUserMenuOpenChange, userMenuOpen])
+
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
       name: userName || t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),

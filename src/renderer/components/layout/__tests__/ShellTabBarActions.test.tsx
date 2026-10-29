@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -80,7 +80,7 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
-import { AppUpdateButton, ShellTabBarActions } from '../ShellTabBarActions'
+import { AppUpdateButton, ShellTabBarActions, TabBarUserMenu } from '../ShellTabBarActions'
 
 afterEach(() => {
   cleanup()
@@ -158,8 +158,7 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Found new version',
-      'Open global search',
-      'Account menu'
+      'Open global search'
     ])
   })
 
@@ -171,11 +170,25 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
   })
 
+  it('dismisses the hidden-sidebar account menu when the window loses focus', async () => {
+    const user = userEvent.setup()
+    cacheService.setPersist('ui.sidebar.width', 0)
+    render(<TabBarUserMenu />)
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    expect(screen.getByRole('dialog', { name: 'Account menu' })).toBeVisible()
+    fireEvent.blur(within(screen.getByRole('dialog', { name: 'Account menu' })).getAllByRole('button')[0])
+    expect(screen.getByRole('dialog', { name: 'Account menu' })).toBeVisible()
+    fireEvent.blur(window)
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
+    fireEvent.focus(window)
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
+  })
+
   it('opens settings through the tab bar account menu when the sidebar is hidden', async () => {
     const user = userEvent.setup()
     cacheService.setPersist('ui.sidebar.width', 0)
 
-    render(<ShellTabBarActions />)
+    render(<TabBarUserMenu />)
 
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
@@ -207,7 +220,7 @@ describe('ShellTabBarActions', () => {
     const user = userEvent.setup()
     render(
       <SWRConfig value={{ provider: () => new Map() }}>
-        <ShellTabBarActions />
+        <TabBarUserMenu />
       </SWRConfig>
     )
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
@@ -223,7 +236,7 @@ describe('ShellTabBarActions', () => {
   it('opens feedback from the avatar menu and gives the dialog focus', async () => {
     cacheService.setPersist('ui.sidebar.width', 0)
     const user = userEvent.setup()
-    render(<ShellTabBarActions />)
+    render(<TabBarUserMenu />)
 
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.hover(screen.getByRole('button', { name: 'Help' }))
@@ -234,20 +247,5 @@ describe('ShellTabBarActions', () => {
     await waitFor(() =>
       expect(within(feedback).getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })).toHaveFocus()
     )
-  })
-
-  it('does not reopen the account menu after changing between hidden and visible sidebar layouts', async () => {
-    cacheService.setPersist('ui.sidebar.width', 0)
-    const user = userEvent.setup()
-    render(<ShellTabBarActions />)
-    await user.click(screen.getByRole('button', { name: 'Account menu' }))
-    expect(screen.getByRole('dialog', { name: 'Account menu' })).toBeVisible()
-
-    act(() => cacheService.setPersist('ui.sidebar.width', 50))
-    expect(screen.queryByRole('button', { name: 'Account menu' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
-    act(() => cacheService.setPersist('ui.sidebar.width', 0))
-    expect(screen.getByRole('button', { name: 'Account menu' })).toBeVisible()
-    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
   })
 })

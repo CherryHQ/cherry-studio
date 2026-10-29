@@ -101,6 +101,7 @@ vi.mock('../ShellTabBarActions', async () => {
   const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
   return {
     ...actual,
+    TabBarUserMenu: () => <button type="button" aria-label="sidebar.account_menu" />,
     ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
   }
 })

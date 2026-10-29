@@ -12,6 +12,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
@@ -21,8 +22,9 @@ import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
+import { getSidebarLayout } from '../Sidebar'
 import { WindowControls } from '../WindowControls'
-import { ShellTabBarActions } from './ShellTabBarActions'
+import { ShellTabBarActions, TabBarUserMenu } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
@@ -606,6 +608,8 @@ export const AppShellTabBar = ({
   openTab
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
+  const [sidebarWidth] = usePersistCache('ui.sidebar.width')
+  const showLeadingAvatar = getSidebarLayout(sidebarWidth) === 'hidden' && !isFocusedTab
   const isMacTransparentWindow = useMacTransparentWindow()
   const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const tabTone = useMemo<TabToneProps>(
@@ -924,12 +928,23 @@ export const AppShellTabBar = ({
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           'pl-0'
         )}>
+        {showLeadingAvatar && (
+          <div
+            className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center [-webkit-app-region:no-drag]"
+            style={
+              (isMac || hasLeadingWindowControls) && !isFullscreen
+                ? { marginLeft: 'env(titlebar-area-x, 0px)' }
+                : undefined
+            }>
+            <TabBarUserMenu />
+          </div>
+        )}
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           ref={stripRef}
           data-testid="app-shell-tab-strip"
           style={
-            (isMac || hasLeadingWindowControls) && !isFullscreen
+            (isMac || hasLeadingWindowControls) && !isFullscreen && !showLeadingAvatar
               ? {
                   paddingLeft: isFocusedTab
                     ? 'calc(env(titlebar-area-x, 0px) + 2px)'
