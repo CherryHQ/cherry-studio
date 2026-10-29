@@ -1,5 +1,11 @@
 # @cherrystudio/web-search
 
+## 0.5.0
+
+### Minor Changes
+
+- [#21987](https://github.com/CherryHQ/cherry-studio/pull/21987) [`a65a51f`](https://github.com/CherryHQ/cherry-studio/commit/a65a51f848eb2bc8c89aa6403524b152071a0ed7) Thanks [@Chkhikvadze](https://github.com/Chkhikvadze)! - Add the Desearch web search provider for keyword search.
+
 ## 0.4.0
 
 ### Minor Changes
