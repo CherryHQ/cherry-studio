@@ -31,7 +31,7 @@ import {
 } from '@cherrystudio/agent-runtime-pi'
 import { loadPiApiStreamSimple } from '@main/ai/runtime/pi/piSdk'
 import { type InputParamsMap, MessageConverterFactory, StreamAdapterFactory } from '@main/features/apiGateway/adapters'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 export type TestModel = Omit<Extract<ProviderModelConfig, { reasoning: boolean }>, 'id'> & { id: UniqueModelId }
 

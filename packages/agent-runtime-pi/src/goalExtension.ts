@@ -31,6 +31,7 @@ import {
   type GoalBudget,
   type GoalCounts,
   goalCounts,
+  goalForCompaction,
   GoalError,
   type GoalNotice,
   type GoalProgress,
@@ -359,9 +360,9 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       if (runtime.goal?.armed) commit({ ...runtime.goal, armed: false })
     }
     pi.on('session_tree', (_event, ctx) => restoreBranch(ctx))
-    pi.on('session_before_compact', () => {
+    pi.on('session_before_compact', (_event, ctx) => {
       pi.appendEntry(GOAL_COMPACTION_TYPE, {
-        goalId: runtime.inGoalRound && runtime.goal?.phase === 'active' ? runtime.goal.id : null
+        goalId: runtime.inSubagent ? null : goalForCompaction(ctx.sessionManager.getBranch())
       })
     })
     pi.on('session_start', (_event, ctx) => {
