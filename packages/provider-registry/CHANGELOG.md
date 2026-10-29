@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.3.1
+
+### Patch Changes
+
+- [#23050](https://github.com/CherryHQ/cherry-studio/pull/23050) [`70677d0`](https://github.com/CherryHQ/cherry-studio/commit/70677d07a720ec48d30501018a8a3605c1601954) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Declare Grok Imagine aspect-ratio controls for image generation and editing on the xAI creator, and route the native Grok image endpoint through the xAI adapter so the selected ratio reaches the wire as `aspect_ratio`.
+
 ## 0.3.0
 
 ### Minor Changes
