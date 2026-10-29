@@ -5,7 +5,6 @@ import { createActionRegistry } from '@renderer/components/chat/actions/actionRe
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   buildIconTypeActionDescriptors,
-  buildResourceEntityIconTypeActionDescriptor,
   buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
@@ -14,6 +13,7 @@ import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 
 export interface AgentGroupActionContext {
   agentId: string
+  isLocalAgent: boolean
   assistantIconType: AssistantIconType
   deleteSessionsOnly?: boolean
   deleteAgentDisabled?: boolean
@@ -95,11 +95,12 @@ agentGroupActionRegistry.registerAction(
 )
 
 agentGroupActionRegistry.registerAction(
-  buildResourceEntityIconTypeActionDescriptor({
+  buildResourceEntityMenuActionDescriptor<AgentGroupActionContext>({
     id: 'agent-group.icon-type',
     label: ({ t }) => t('agent.icon.type'),
     icon: () => <Smile size={14} />,
     order: 30,
+    availability: ({ isLocalAgent }) => ({ visible: !isLocalAgent }),
     children: buildIconTypeActionDescriptors<AgentGroupActionContext>('agent-group.set-icon-type')
   })
 )

@@ -167,6 +167,7 @@ type CreateSessionSeed = {
 
 function AgentGroupMoreMenu({
   agentId,
+  isLocalAgent,
   assistantIconType,
   deleteAgentDisabled,
   deleteSessionsOnly,
@@ -180,6 +181,7 @@ function AgentGroupMoreMenu({
   sidebarPinned
 }: {
   agentId: string
+  isLocalAgent: boolean
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
   deleteSessionsOnly?: boolean
@@ -195,6 +197,7 @@ function AgentGroupMoreMenu({
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
     agentId,
+    isLocalAgent,
     assistantIconType,
     deleteAgentDisabled,
     deleteSessionsOnly,
@@ -1871,6 +1874,7 @@ const Sessions = ({
             <Tooltip title={t('common.more')} delay={500}>
               <AgentGroupMoreMenu
                 agentId={agentGroupId}
+                isLocalAgent={!!agentById.get(agentGroupId)?.configuration?.localRuntime}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
                 deleteSessionsOnly={isProtectedBuiltinAgentRole(
@@ -2059,6 +2063,7 @@ const Sessions = ({
 
         const actionContext: AgentGroupActionContext = {
           agentId,
+          isLocalAgent: !!agentById.get(agentId)?.configuration?.localRuntime,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
           deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),

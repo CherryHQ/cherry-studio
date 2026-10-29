@@ -3846,6 +3846,30 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.icon_type', 'model'))
   })
 
+  it('hides icon settings for local agents in group menus', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'agent-a',
+          name: 'Pi',
+          configuration: { localRuntime: { protocol: 'acp', presetId: 'pi-acp', enabled: true, args: [], env: {} } }
+        }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({ sessions: [createSession({ id: 'session-a', agentId: 'agent-a', orderKey: 'a' })] })
+    render(<SessionsForTest />)
+    const group = screen.getByRole('button', { name: 'Pi' }).closest('div')!
+    fireEvent.pointerDown(within(group).getByRole('button', { name: 'More' }))
+    expect(await screen.findAllByRole('menuitem', { name: 'Edit Agent' })).not.toHaveLength(0)
+    expect(screen.queryByRole('menuitem', { name: 'Agent icon' })).not.toBeInTheDocument()
+    fireEvent.contextMenu(group)
+    expect(screen.queryByRole('menuitem', { name: 'Agent icon' })).not.toBeInTheDocument()
+  })
+
   it('pins an agent to the sidebar from the agent group menu', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     preferenceMocks.values.set('ui.sidebar_shortcut', [])
