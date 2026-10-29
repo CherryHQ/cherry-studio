@@ -6,6 +6,26 @@ import { MemoryEditor } from '../MemoryEditor'
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 vi.mock('@tanstack/react-router', () => ({ useBlocker: () => ({ status: 'idle' }) }))
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: ({
+    fileName,
+    value,
+    onChange,
+    readOnly
+  }: {
+    fileName: string
+    value: string
+    onChange(value: string): void
+    readOnly: boolean
+  }) => (
+    <textarea
+      aria-label={fileName}
+      value={value}
+      readOnly={readOnly}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  )
+}))
 
 const editor = { editorId: 'editor', maxBytes: 25000, maxLines: 200, warningBytes: 20000, warningLines: 160 }
 let disk: Map<string, string>
@@ -78,7 +98,7 @@ describe('memory editor draft and confirmation', () => {
   it('keeps an unsaved draft after a stale save and allows explicit reload confirmation', async () => {
     const user = userEvent.setup()
     render(<MemoryEditor scope={{ kind: 'shared' }} />)
-    const textarea = await screen.findByRole('textbox', { name: '记忆概览' })
+    const textarea = await screen.findByRole('textbox', { name: '记忆概览.md' })
     await user.clear(textarea)
     await user.type(textarea, 'My local draft')
     failSave = true
@@ -96,7 +116,7 @@ describe('memory editor draft and confirmation', () => {
   it('shows the exact clear file set before confirmation and keeps the original on cancel', async () => {
     const user = userEvent.setup()
     render(<MemoryEditor scope={{ kind: 'shared' }} />)
-    await screen.findByRole('textbox', { name: '记忆概览' })
+    await screen.findByRole('textbox', { name: '记忆概览.md' })
     await user.click(screen.getByRole('button', { name: '更多' }))
     await user.click(screen.getByRole('menuitem', { name: '清空共享记忆' }))
     const dialog = await screen.findByRole('dialog')
@@ -108,14 +128,14 @@ describe('memory editor draft and confirmation', () => {
     await user.click(screen.getByRole('button', { name: '更多' }))
     await user.click(screen.getByRole('menuitem', { name: '清空共享记忆' }))
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
-    await waitFor(() => expect(screen.getByRole('textbox', { name: '记忆概览' })).toHaveValue(''))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '记忆概览.md' })).toHaveValue(''))
     expect(disk.has('.memories/topic.md')).toBe(false)
     expect(screen.queryByRole('list', { name: '文件结果' })).not.toBeInTheDocument()
   })
 
   it('measures UTF-8 bytes and preserves oversized drafts instead of silently truncating', async () => {
     render(<MemoryEditor scope={{ kind: 'shared' }} />)
-    const textarea = await screen.findByRole('textbox', { name: '记忆概览' })
+    const textarea = await screen.findByRole('textbox', { name: '记忆概览.md' })
     const oversized = '记'.repeat(9000)
     fireEvent.change(textarea, { target: { value: oversized } })
     expect(textarea).toHaveValue(oversized)
@@ -127,7 +147,7 @@ describe('memory editor draft and confirmation', () => {
   it('does not offer shared clearing in a private editor', async () => {
     const user = userEvent.setup()
     render(<MemoryEditor scope={{ kind: 'private', agentId: 'a' }} />)
-    await screen.findByRole('textbox', { name: '记忆概览' })
+    await screen.findByRole('textbox', { name: '记忆概览.md' })
     await user.click(screen.getByRole('button', { name: '更多' }))
     expect(screen.queryByRole('menuitem', { name: '清空共享记忆' })).not.toBeInTheDocument()
   })
@@ -135,10 +155,10 @@ describe('memory editor draft and confirmation', () => {
   it('opens a full topic from the compact selector and confirms before discarding its draft', async () => {
     const user = userEvent.setup()
     render(<MemoryEditor scope={{ kind: 'shared' }} />)
-    await screen.findByRole('textbox', { name: '记忆概览' })
+    await screen.findByRole('textbox', { name: '记忆概览.md' })
     await user.click(screen.getByRole('combobox', { name: '记忆文件' }))
     await user.click(screen.getByRole('option', { name: 'topic' }))
-    const textarea = await screen.findByRole('textbox', { name: 'topic' })
+    const textarea = await screen.findByRole('textbox', { name: 'topic.md' })
     expect(textarea).toHaveValue('Topic')
     await user.type(textarea, ' draft')
     await user.click(screen.getByRole('combobox', { name: '记忆文件' }))
