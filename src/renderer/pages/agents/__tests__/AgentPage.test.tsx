@@ -7,6 +7,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import type * as CacheHooks from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -924,7 +925,7 @@ describe('Agent task dashboard interactions', () => {
 
   it('opens task creation over the dashboard and cancels without navigating', async () => {
     const user = userEvent.setup()
-    render(<Dashboard enabled />)
+    render(<Dashboard enabled />, { wrapper: CodeStyleProvider })
     await user.pointer({ target: screen.getByRole('button', { name: /^Scheduled tasks/ }), keys: '[MouseRight]' })
     await act(async () => {
       await user.click(screen.getByRole('menuitem', { name: 'New scheduled task' }))
