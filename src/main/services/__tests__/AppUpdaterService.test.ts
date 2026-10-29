@@ -1,4 +1,5 @@
 import type { UpdateInfo } from 'builder-util-runtime'
+import { CancellationError, HttpError } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
@@ -124,8 +125,9 @@ import { application } from '@application'
 import { regionService } from '@main/services/RegionService'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
+import { shouldReportFailure } from '@shared/utils/errorReporting'
 
-import { AppUpdaterService } from '../AppUpdaterService'
+import { AppUpdaterService, classifyUpdateFailure } from '../AppUpdaterService'
 
 describe('AppUpdaterService', () => {
   let appUpdater: AppUpdaterService
@@ -445,5 +447,26 @@ describe('AppUpdaterService', () => {
 
       expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBe(releaseInfo.releaseNotes)
     })
+  })
+})
+
+describe('update failure classification', () => {
+  it.each([
+    new CancellationError(),
+    new HttpError(429),
+    new HttpError(503),
+    Object.assign(new Error('offline'), { code: 'ENOTFOUND' })
+  ])('keeps cancellation and temporary external failures local', (error) => {
+    expect(shouldReportFailure(classifyUpdateFailure(error))).toBe(false)
+  })
+  it.each(['ERR_CHECKSUM_MISMATCH', 'ERR_UPDATER_INVALID_SIGNATURE', 'ERR_UPDATER_INVALID_VERSION'])(
+    'reports invalid update artifacts: %s',
+    (code) => {
+      expect(classifyUpdateFailure(Object.assign(new Error('private download'), { code })).kind).toBe('reliability')
+    }
+  )
+  it('retains broken feeds and implementation errors', () => {
+    expect(shouldReportFailure(classifyUpdateFailure(new HttpError(404)))).toBe(true)
+    expect(classifyUpdateFailure(new TypeError('network failed')).kind).toBe('defect')
   })
 })

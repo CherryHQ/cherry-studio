@@ -7,6 +7,7 @@
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { logFailure } from '@main/core/logger/logFailure'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
@@ -145,12 +146,17 @@ export class PersistenceListener implements StreamListener {
         status: 'failed',
         failure: toExecutionFailure(serializeError(err), this.opts.modelId, 'host')
       }
-      logger.error('Failed to persist assistant message', {
-        backend: this.opts.backend.kind,
-        topicId: this.opts.topicId,
-        status,
-        err
-      })
+      logFailure(
+        logger.withContext('PersistenceListener', {
+          backend: this.opts.backend.kind,
+          topicId: this.opts.topicId,
+          status
+        }),
+        'Failed to persist assistant message',
+        err,
+        'message.persist',
+        { source: 'application', kind: 'reliability', reason: 'persistence_failed', outcome: 'failed' }
+      )
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
       try {

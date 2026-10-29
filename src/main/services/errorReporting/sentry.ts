@@ -1,17 +1,11 @@
-import { Writable } from 'node:stream'
-
 import * as Sentry from '@sentry/electron/main'
-import winston from 'winston'
 
 import { application } from '@application'
-import { loggerService } from '@logger'
-import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { getClientId } from '@main/utils/systemInfo'
 import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
 
-import { name, version } from '../../../package.json'
+import { dependencies, devDependencies, name, version } from '../../../../package.json'
 
-const logger = loggerService.withContext('Sentry')
 const SENTRY_DSN = 'https://194ceab3bd44e686bd3ebda9de3c20fd@o4509184559218688.ingest.us.sentry.io/4509184569442304'
 
 /**
@@ -45,13 +39,7 @@ function allowedIntegrations() {
 // Read current consent without instantiating services during preboot.
 // An existing preference store may still be initializing or already stopped.
 function consentGranted(): boolean {
-  const preferenceService = application.getExisting('PreferenceService')
-  if (!preferenceService?.isReady) return false
-
-  return isDataCollectionConsented(
-    preferenceService.get('app.privacy.data_collection.enabled'),
-    preferenceService.get('app.privacy.policy_version')
-  )
+  return application.getExisting('ErrorReportingService')?.enabled === true
 }
 
 export function initSentry(): void {
@@ -67,9 +55,23 @@ export function initSentry(): void {
     sendDefaultPii: false,
     skipOpenTelemetrySetup: true,
     tracePropagationTargets: [],
-    beforeSend: (event) => {
-      if (!consentGranted()) return null
-      return sanitizeSentryEvent({ ...event, user: { ...event.user, id: getClientId() } })
+    beforeSend: (event, hint) => {
+      const filtered = application.getExisting('ErrorReportingService')?.filterEvent(event, hint)
+      if (!filtered) return null
+      const runtime = filtered.tags?.['failure.runtime']
+      const runtimeVersion =
+        runtime === 'claude-code'
+          ? dependencies['@anthropic-ai/claude-agent-sdk']
+          : runtime === 'pi'
+            ? dependencies['@earendil-works/pi-coding-agent']
+            : runtime === 'ai-sdk'
+              ? devDependencies.ai
+              : undefined
+      return sanitizeSentryEvent({
+        ...filtered,
+        tags: { ...filtered.tags, ...(runtimeVersion ? { 'runtime.version': runtimeVersion } : {}) },
+        user: { ...filtered.user, id: getClientId() }
+      })
     },
     defaultIntegrations: false,
     integrations: allowedIntegrations(),
@@ -85,32 +87,21 @@ export function initSentry(): void {
   })
 }
 
-export function attachSentryLogTransport(): () => void {
-  const baseLogger = loggerService.getBaseLogger()
-  const stream = new Writable({
-    objectMode: true,
-    write(info: Record<string, unknown>, _encoding, callback) {
-      try {
-        if (consentGranted() && !import.meta.env.DEV && info.process !== 'renderer') {
-          const context = getSentryLogContext(info)
-          if (context) {
-            const error = new Error(typeof info.errorMessage === 'string' ? info.errorMessage : 'Operation failed')
-            error.name = typeof info.name === 'string' ? info.name : 'Error'
-            error.stack = info.stack as string
-            Sentry.captureException(error, context)
-          }
-        }
-      } catch (error) {
-        logger.warn('Failed to report logged error', error instanceof Error ? error : { error })
-      }
-      callback()
-    }
-  })
-  const transport = new winston.transports.Stream({ level: 'error', stream })
-  baseLogger.add(transport)
-  return () => {
-    baseLogger.remove(transport)
-    transport.destroy()
-    stream.destroy()
+export function captureLoggedError(info: Record<string, unknown>): void {
+  const context = getSentryLogContext(info)
+  if (!context) return
+  context.tags['capture.source'] = 'log'
+  if (typeof info.stack === 'string') {
+    const error = new Error(typeof info.errorMessage === 'string' ? info.errorMessage : 'Operation failed')
+    error.name =
+      typeof info.name === 'string' ? info.name : typeof info.errorName === 'string' ? info.errorName : 'Error'
+    error.stack = info.stack
+    Sentry.captureException(error, context)
+  } else {
+    Sentry.captureEvent({
+      ...context,
+      level: 'error',
+      message: context.tags.operation ?? context.tags['failure.reason']
+    })
   }
 }

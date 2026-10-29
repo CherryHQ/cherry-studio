@@ -10,6 +10,10 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
+import { logAiFailure } from '@main/ai/errorReporting'
+
+import { classifyClaudeFailure } from './failureFacts'
+
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
@@ -26,7 +30,6 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
-import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -75,7 +78,7 @@ import {
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } from './settingsBuilder'
-import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
+import { ClaudeCodeResultError, ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
@@ -682,6 +685,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           result = this.adapter!.handleMessage(message)
         } catch (error) {
           this.settlePendingInvocations()
+          if (!(error instanceof ClaudeCodeResultError)) {
+            logAiFailure(logger, 'Claude stream adapter failed', error, 'agent.claude.adapt', {
+              source: 'application',
+              kind: 'defect',
+              reason: 'stream_adapter_failed',
+              outcome: 'failed',
+              runtime: 'claude-code'
+            })
+          }
           throw error
         }
         if (result.type === 'result') {
@@ -726,15 +738,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           : error
       const salvaged = this.adapter?.handleTruncationError(surfacedError) ?? false
       this.adapter?.finalizeOpenTextParts()
-      if (!salvaged && !this.abortController.signal.aborted) {
-        logger.error('Claude Code query loop failed', {
-          sessionId: this.input.sessionId,
-          modelId: this.adapterModelId ?? this.input.modelId,
-          err: chatErrorContext(surfacedError),
-          ...(isProcessFailure && this.processDiagnostics
-            ? { diagnosticReference: this.processDiagnostics.reference }
-            : {})
-        })
+      if (!this.abortController.signal.aborted) {
+        logAiFailure(
+          logger,
+          'Claude Code query loop failed',
+          surfacedError,
+          'agent.claude.prompt',
+          classifyClaudeFailure(error, { recovered: salvaged, process: this.processDiagnostics }),
+          {
+            sessionId: this.input.sessionId,
+            modelId: this.adapterModelId ?? this.input.modelId,
+            ...(isProcessFailure ? { diagnosticReference: this.processDiagnostics?.reference } : {})
+          }
+        )
       }
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
@@ -1343,7 +1359,12 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new ClaudeCodeRuntimeConnection(input).start()
+    try {
+      return await new ClaudeCodeRuntimeConnection(input).start()
+    } catch (error) {
+      logAiFailure(logger, 'Claude Code startup failed', error, 'agent.claude.start', classifyClaudeFailure(error))
+      throw error
+    }
   }
 
   onSessionIdle(sessionId: string): void {

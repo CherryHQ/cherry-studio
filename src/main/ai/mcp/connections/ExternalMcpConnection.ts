@@ -20,6 +20,7 @@ import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 
+import { McpConfigurationError } from '../failureFacts'
 import { buildStdioEnvironment } from '../mcpLaunch'
 import { resolveStdioLaunch } from '../mcpStdioLaunch'
 import { CallBackServer } from '../oauth/callback'
@@ -176,7 +177,7 @@ export async function createExternalMcpConnection({
     }
 
     if (!server.command) {
-      throw new Error('Either baseUrl or command must be provided')
+      throw new McpConfigurationError('Either baseUrl or command must be provided')
     }
 
     const { launch, loginShellEnv, serverEnv } = await resolveStdioLaunch({
@@ -184,7 +185,7 @@ export async function createExternalMcpConnection({
       args,
       logger: loggerService.withContext('ExternalMcpConnection', { serverId: server.id })
     })
-    if (launch.unavailableReason) throw new Error(launch.unavailableReason)
+    if (launch.unavailableReason) throw new McpConfigurationError(launch.unavailableReason)
     if (launch.resolution === 'unresolved') {
       log.warn('Could not resolve the stdio command; attempting the configured command', { command: launch.command })
     }

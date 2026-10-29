@@ -1,6 +1,19 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { net, session } from 'electron'
 
+import { classifyErrorCategory } from '@shared/utils/errorCategory'
+
+/** A transport failure identified at Electron's provider network boundary. */
+export class ProviderTransportError extends Error {
+  constructor(
+    public readonly reason: 'network' | 'stream' | 'proxy',
+    cause: Error
+  ) {
+    super(cause.message, { cause })
+    this.name = 'ProviderTransportError'
+  }
+}
+
 /**
  * Sentinel header that carries a caller-supplied `User-Agent` past Chromium's
  * network stack.
@@ -152,9 +165,19 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
   const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
-  const sendRequest = (requestTarget: string | Request, requestInit?: RequestInit) => {
+  const sendRequest = async (requestTarget: string | Request, requestInit?: RequestInit) => {
     if (finalBodySlot) finalBodySlot.body = requestInit?.body ?? null
-    return net.fetch(requestTarget, requestInit)
+    try {
+      return await net.fetch(requestTarget, requestInit)
+    } catch (error) {
+      if (error instanceof Error && error.name === 'Error' && /^net::ERR_[A-Z0-9_]+$/.test(error.message)) {
+        const reason = classifyErrorCategory({ text: error.message })
+        if (reason === 'network' || reason === 'stream' || reason === 'proxy') {
+          throw new ProviderTransportError(reason, error)
+        }
+      }
+      throw error
+    }
   }
 
   // A custom `User-Agent` in the request headers is overwritten by Chromium's net

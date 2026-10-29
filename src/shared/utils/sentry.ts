@@ -1,6 +1,7 @@
 import { prerelease } from 'semver'
 
 import type { AppEdition } from '../types/appEdition'
+import { hasReportingOwner, isCancellation, parseFailureFacts, shouldReportFailure } from './errorReporting'
 import { isSensitiveKey, REDACTED, redactSecretText } from './redaction'
 
 export function getSentryBuildContext(name: string, version: string, edition: AppEdition) {
@@ -15,18 +16,16 @@ export function getSentryBuildContext(name: string, version: string, edition: Ap
 }
 
 export function getSentryLogContext(info: Record<string, unknown>) {
-  if (info.level !== 'error' || typeof info.stack !== 'string') return
-  if (info.module === 'Sentry' || info.module === 'CrashTelemetry') return
-  if (
-    info.name === 'AbortError' ||
-    info.name === 'CanceledError' ||
-    info.code === 'ABORT_ERR' ||
-    info.code === 'ERR_CANCELED'
-  ) {
-    return
-  }
+  const data = Array.isArray(info.data) ? info.data : []
+  const failure = parseFailureFacts(info.failure ?? data.find((item) => item?.failure)?.failure)
+  if (!failure && (info.level !== 'error' || typeof info.stack !== 'string')) return
+  if (['Sentry', 'CrashTelemetry', 'ErrorReportingService'].includes(String(info.module))) return
+  if (isCancellation(info) || hasReportingOwner(info) || (failure && !shouldReportFailure(failure))) return
 
   const tags: Record<string, string> = {}
+  if (failure) {
+    for (const [key, value] of Object.entries(failure)) tags[`failure.${key}`] = value
+  }
   for (const key of ['module', 'window', 'code'] as const) {
     if (typeof info[key] === 'string') tags[key] = info[key]
   }

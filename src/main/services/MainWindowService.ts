@@ -327,7 +327,16 @@ export class MainWindowService extends BaseService {
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
-      logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      logger.error('Renderer process exited', {
+        operation: 'window.renderer.exit',
+        failure: {
+          source: 'application',
+          kind: ['clean-exit', 'killed'].includes(details.reason) ? 'expected' : 'reliability',
+          reason: details.reason,
+          outcome: 'failed'
+        },
+        exitCode: details.exitCode
+      })
       // A window being torn down can report its renderer gone after the webContents is
       // destroyed, where reload() throws and hides the real crash behind a dialog.
       if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return

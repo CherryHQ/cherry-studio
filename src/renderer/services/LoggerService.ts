@@ -1,5 +1,6 @@
 /* eslint-disable no-restricted-syntax */
 import { IpcChannel } from '@shared/IpcChannel'
+import type { ErrorObservation } from '@shared/types/errorReporting'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
 
@@ -56,7 +57,7 @@ export class LoggerService {
   private derivedWindow: string = ''
   private module: string = ''
   private context: Record<string, any> = {}
-  private errorReporter?: (error: Error, entry: Record<string, unknown>) => void
+  private errorReporter?: (observation: ErrorObservation) => void
 
   constructor() {
     this.derivedWindow = resolveWindowSourceFromMeta(typeof document === 'undefined' ? undefined : document)
@@ -128,7 +129,7 @@ export class LoggerService {
     return newLogger
   }
 
-  public setErrorReporter(reporter: (error: Error, entry: Record<string, unknown>) => void): void {
+  public setErrorReporter(reporter: (observation: ErrorObservation) => void): void {
     this.errorReporter = reporter
   }
 
@@ -214,14 +215,18 @@ export class LoggerService {
                 name: item.name,
                 errorMessage: item.message,
                 stack: item.stack,
+                ...('reportingHandled' in item && item.reportingHandled === true ? { reportingHandled: true } : {}),
                 code: 'code' in item && typeof item.code === 'string' ? item.code : undefined
               }
             : item
         )
         void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
-        if (level === LEVEL.ERROR && data[0] instanceof Error) {
+        if (level === LEVEL.ERROR) {
           try {
-            this.errorReporter?.(data[0], { ...serializedData[0], ...source, level, data: serializedData.slice(1) })
+            this.errorReporter?.({
+              error: data[0] instanceof Error ? data[0] : undefined,
+              entry: { ...serializedData[0], ...source, level, data: serializedData.slice(1) }
+            })
           } catch (error) {
             this.warn('Failed to report logged error', error instanceof Error ? error : { error })
           }

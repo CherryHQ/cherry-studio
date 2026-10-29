@@ -10,7 +10,9 @@ import type MarkdownIt from 'markdown-it'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import { t } from '@main/i18n'
+import { classifyFileFailure } from '@main/services/file'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
@@ -427,7 +429,7 @@ export class ExportService {
       logger.debug('Document exported successfully')
       return true
     } catch (error) {
-      logger.error('Export to Word failed:', error as Error)
+      logFailure(logger, 'Export to Word failed:', error, 'export.word', classifyFileFailure(error, true))
       throw error
     }
   }

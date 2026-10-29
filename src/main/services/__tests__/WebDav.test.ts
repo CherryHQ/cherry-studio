@@ -5,13 +5,10 @@ import type { AddressInfo } from 'node:net'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// WebDav only touches the logger on failures; the real service would drag the
-// whole logger pipeline into this test for no coverage gain.
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
-}))
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import WebDav from '../WebDav'
 
@@ -75,6 +72,20 @@ describe('WebDav TLS verification', () => {
     await expect(webdav.checkConnection()).rejects.toThrow(/self-signed certificate/i)
   })
 
+  it('keeps HTTP authentication failures local without swallowing the caller error', async () => {
+    const server = http.createServer((_req, res) => {
+      res.statusCode = 401
+      res.end()
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    servers.push(server)
+    const webdav = new WebDav({ webdavHost: `http://127.0.0.1:${(server.address() as AddressInfo).port}` })
+    await expect(webdav.getDirectoryContents()).rejects.toMatchObject({ status: 401, reportingHandled: true })
+    const entry = mockMainLoggerService.error.mock.calls.at(-1)![1]
+    expect(getSentryLogContext(entry)).toBeUndefined()
+    expect(entry.failure.reason).toBe('storage_remote_unavailable')
+  })
+
   it('accepts the self-signed certificate when allowSelfSignedTls is opted in', async () => {
     const { server, port } = await createTlsServer()
     servers.push(server)
@@ -136,6 +147,7 @@ describe('WebDAV upload error classification', () => {
     if (status === 413) {
       await expect(webdav.putFileContents('backup.zip', data)).rejects.toMatchObject({
         message: 'BACKUP_WEBDAV_TOO_LARGE: HTTP 413',
+        reportingHandled: true,
         cause: error
       })
     } else {

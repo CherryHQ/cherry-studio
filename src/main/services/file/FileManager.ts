@@ -132,6 +132,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -153,6 +154,7 @@ import { KeyedMutex } from '@shared/utils/async'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { danglingCache } from './danglingCache'
+import { classifyFileFailure } from './failureFacts'
 import { hash as internalHash } from './internal/content/hash'
 import { read as internalRead, readChunk as internalReadChunk } from './internal/content/read'
 import {
@@ -1131,9 +1133,21 @@ export class FileManager extends BaseService implements IFileManager {
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = this.deps.fileEntryService.getById(id)
-    const physicalPath = resolvePhysicalPath(entry)
-    const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
-    return buildPhysicalFileMetadata(physicalPath, s)
+    try {
+      const physicalPath = resolvePhysicalPath(entry)
+      const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
+      return buildPhysicalFileMetadata(physicalPath, s)
+    } catch (error) {
+      logFailure(
+        fileManagerLogger,
+        'File metadata unavailable',
+        error,
+        'file.get_metadata',
+        classifyFileFailure(error, entry.origin === 'external'),
+        'warn'
+      )
+      throw error
+    }
   }
 
   async getVersion(id: FileEntryId): Promise<FileVersion> {

@@ -10,6 +10,8 @@ import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
+import { classifyDatabaseFailure } from '@main/data/failureFacts'
 
 import { applyMigrations } from './applyMigrations'
 import { checkpointTruncateAssert } from './restore/checkpoint'
@@ -59,7 +61,14 @@ export class DbService extends BaseService {
         dbPath: application.getPath('app.database.file')
       })
     } catch (error) {
-      logger.error('Failed to initialize database connection', error as Error)
+      logFailure(
+        logger,
+        'Failed to initialize database connection',
+        error,
+        'database.open',
+        classifyDatabaseFailure(error),
+        'error'
+      )
       throw new Error('Database initialization failed')
     }
   }
@@ -166,7 +175,14 @@ export class DbService extends BaseService {
       this.pragmasConfigured = true
       logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys, busy_timeout)')
     } catch (error) {
-      logger.warn('Failed to configure database PRAGMAs', error as Error)
+      logFailure(
+        logger,
+        'Failed to configure database PRAGMAs',
+        error,
+        'database.configure',
+        classifyDatabaseFailure(error),
+        'warn'
+      )
     }
   }
 
@@ -178,7 +194,14 @@ export class DbService extends BaseService {
       applyMigrations(this.db, application.getPath('app.database.migrations'))
       logger.info('Database migration completed successfully')
     } catch (error) {
-      logger.error('Database migration failed', error as Error)
+      logFailure(
+        logger,
+        'Database migration failed',
+        error,
+        'database.migrate',
+        classifyDatabaseFailure(error),
+        'error'
+      )
       throw error
     }
   }
