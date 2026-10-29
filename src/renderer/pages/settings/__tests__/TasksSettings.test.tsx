@@ -3,16 +3,17 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
-
-import TasksSettings, {
+import {
   formStateToTrigger,
   type ScheduleFormState,
   TaskTimeSelect,
   triggerToFormState
-} from '../TasksSettings'
+} from '@renderer/components/TaskFormDialog'
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
+
+import TasksSettings from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
 

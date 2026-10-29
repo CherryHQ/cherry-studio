@@ -14,7 +14,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => translationMock
 }))
 
-import { TaskTimeSelect } from '../TasksSettings'
+import { TaskTimeSelect } from '@renderer/components/TaskFormDialog'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {

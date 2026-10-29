@@ -912,14 +912,17 @@ describe('Agent task dashboard interactions', () => {
     })
   })
 
-  it('opens the existing scheduled-task creation flow from the header context menu', async () => {
+  it('opens task creation over the dashboard and cancels without navigating', async () => {
     const user = userEvent.setup()
     render(<Dashboard enabled />)
     await user.pointer({ target: screen.getByRole('button', { name: /^Scheduled tasks/ }), keys: '[MouseRight]' })
     await user.click(screen.getByRole('menuitem', { name: 'New scheduled task' }))
-    expect(ipcMocks.request).toHaveBeenCalledWith('navigation.open_route_in_main', {
-      path: '/settings/scheduled-tasks?create=true'
-    })
+    const dialog = await screen.findByRole('dialog', { name: 'New scheduled task' })
+    expect(within(dialog).getByLabelText('Name')).toBeInTheDocument()
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('navigation.open_route_in_main', expect.anything())
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /^Scheduled tasks/ })).toBeInTheDocument()
   })
 
   it('toggles each count independently from its header context menu without collapsing the group', async () => {

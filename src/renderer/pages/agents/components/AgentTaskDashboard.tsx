@@ -10,7 +10,7 @@ import {
   OctagonAlert,
   Plus
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -27,18 +27,24 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useTaskDashboard } from '@renderer/hooks/agent/useTaskDashboard'
-import { useAllTasks } from '@renderer/hooks/agent/useTasks'
+import { useAllTasks, useCreateTask } from '@renderer/hooks/agent/useTasks'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { openRoute, openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { DashboardEntry } from '@shared/ai/agentTaskDashboard'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+
+const TaskFormDialog = lazy(() =>
+  import('@renderer/components/TaskFormDialog').then((module) => ({ default: module.TaskFormDialog }))
+)
 
 function useVisibleTime(enabled: boolean): number {
   const [now, setNow] = useState(Date.now)
@@ -91,6 +97,9 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
   const formatDuration = useMemo(() => createDurationFormatter(i18n.language), [i18n.language])
   const running = useTaskDashboard()
   const tasks = useAllTasks(enabled)
+  const { createTask } = useCreateTask()
+  const [createOpen, setCreateOpen] = useState(false)
+  const { data: agents } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT }, enabled })
   const [, setShowTaskDashboard] = usePreference('agent.task_dashboard.visible')
   const [showRunningCount, setShowRunningCount] = usePreference('agent.task_dashboard.show_running_count')
   const [showScheduledCount, setShowScheduledCount] = usePreference('agent.task_dashboard.show_scheduled_count')
@@ -223,7 +232,7 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
         <ContextMenuContent>
           {group === 'scheduled' && (
             <>
-              <ContextMenuItem onSelect={() => openRoute('/settings/scheduled-tasks', { create: 'true' })}>
+              <ContextMenuItem onSelect={() => setCreateOpen(true)}>
                 <Plus aria-hidden />
                 {t('settings.scheduledTasks.createTitle')}
               </ContextMenuItem>
@@ -306,6 +315,16 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
           )}
           <PageButtons hasPrev={tasks.hasPrev} hasNext={tasks.hasNext} prev={tasks.prevPage} next={tasks.nextPage} />
         </>
+      )}
+      {createOpen && (
+        <Suspense fallback={null}>
+          <TaskFormDialog
+            open
+            agents={agents?.items ?? []}
+            onOpenChange={setCreateOpen}
+            onCreate={async (agentId, request) => Boolean(await createTask(agentId, request))}
+          />
+        </Suspense>
       )}
     </section>
   )
