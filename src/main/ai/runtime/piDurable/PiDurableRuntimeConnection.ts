@@ -50,6 +50,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private closePromise?: Promise<void>
   private active = false
   private sending = false
+  private compacting = false
   private baseline = false
   private autonomous = false
   private failure?: unknown
@@ -173,14 +174,28 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
     const text = buildAgentUserContent(input.message)
     if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
+      this.compacting = true
       this.events.push({ type: 'compaction-start', trigger: 'manual' })
-      const compacted = await this.handle.durable.compact(text.trim().slice('/compact'.length).trim() || undefined)
-      if (compacted.status === 'confirmed')
-        this.events.push({
-          type: 'compaction-complete',
-          anchor: { status: 'done', phase: 'agent-session', trigger: 'manual', completedAt: new Date().toISOString() }
-        })
-      else this.failure = new Error(compacted.error.message)
+      try {
+        const compacted = await this.handle.durable.compact(text.trim().slice('/compact'.length).trim() || undefined)
+        if (compacted.status !== 'confirmed') throw new Error(compacted.error.message)
+        if (!this.closing)
+          this.events.push({
+            type: 'compaction-complete',
+            ...(compacted.value.compacted && {
+              anchor: {
+                status: 'done',
+                phase: 'agent-session',
+                trigger: 'manual',
+                completedAt: new Date().toISOString()
+              }
+            })
+          })
+      } catch (error) {
+        this.failure = error
+      } finally {
+        this.compacting = false
+      }
       await this.finishIfIdle()
       return
     }
@@ -297,9 +312,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async finishIfIdle() {
-    if (!this.sending || this.active || this.closing || !this.handle) return
+    if (!this.sending || this.active || this.compacting || this.closing || !this.handle) return
     await this.refreshInputs()
-    if (this.pendingInputs.size || this.active || !this.sending) return
+    if (this.pendingInputs.size || this.active || this.compacting || this.closing || !this.sending) return
     this.sending = false
     this.events.push(this.failure ? { type: 'error', error: this.failure } : { type: 'turn-complete' })
     if (this.autonomous) {

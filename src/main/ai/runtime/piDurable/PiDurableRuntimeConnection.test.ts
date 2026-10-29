@@ -194,6 +194,65 @@ describe('desktop Pi Durable connection', () => {
     events
       .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
       .join('')
+  // An idle observation during summary generation must not finish the owning desktop turn.
+  it.each(['complete', 'error', 'stop', 'close'] as const)(
+    'keeps manual compaction owned through %s',
+    async (outcome) => {
+      const summary = gate()
+      mocks.binding.mockImplementation(async () =>
+        createTestBinding({ model: { ...MODEL, contextWindow: 1_000_000 }, stream: script.model })
+      )
+      script = respondingModel((call) =>
+        call.systemPrompt.startsWith('Summarize the conversation')
+          ? summary.wait(assistantReply('Remember the original objective', outcome === 'error' ? 'error' : 'stop'))
+          : assistantReply('answer')
+      )
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Original objective') })
+      await done(events)
+      events.length = 0
+      await connection.send({ message: message('Recent context '.repeat(8000)) })
+      await done(events)
+      events.length = 0
+      const compacting = connection.send({ message: message('/compact') })
+      try {
+        await summary.reached
+        expect(events.some((event) => event.type === 'compaction-start')).toBe(true)
+        expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
+        await expect(connection.send({ message: message('overlapping input') })).rejects.toThrow('active submission')
+        if (outcome === 'stop') await connection.interrupt()
+        if (outcome === 'close') await connection.close()
+      } finally {
+        summary.open()
+        await compacting
+      }
+      if (outcome === 'close') {
+        expect(
+          events.filter((event) => event.type === 'turn-complete' || event.type === 'compaction-complete')
+        ).toEqual([])
+        return
+      }
+      await done(events)
+      if (outcome === 'error') {
+        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([
+          { type: 'compaction-complete' }
+        ])
+        expect(events.filter((event) => event.type === 'error')).toEqual([])
+        return
+      }
+      if (outcome !== 'complete') {
+        expect(
+          events.filter((event) => event.type === 'compaction-complete' || event.type === 'turn-complete')
+        ).toEqual([])
+        expect(events.filter((event) => event.type === 'error')).toHaveLength(1)
+        return
+      }
+      const terminals = events.filter((event) => event.type === 'compaction-complete' || event.type === 'turn-complete')
+      expect(terminals.map((event) => event.type)).toEqual(['compaction-complete', 'turn-complete'])
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+    }
+  )
+
   // Catches approval edits being shown in the UI but the original write still executing.
   it('executes only approved arguments and returns a question answer to the native loop', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }

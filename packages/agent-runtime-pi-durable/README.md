@@ -86,6 +86,10 @@ Without shared behavior, child access can submit further input after the parent 
 conversation input does not create a reporter task or another parent result. The
 raw adapter never delivers child results to the parent; native tasks own that behavior.
 
+`durable.compact()` waits for the native task and its summary write to settle.
+Its receipt distinguishes a committed summary from a no-op (including a declined
+summary); a failed or unplaced summary is never reported as committed.
+
 ## Shared behavior
 
 The optional `behavior` factory option installs `agent-behavior` with Cherry's

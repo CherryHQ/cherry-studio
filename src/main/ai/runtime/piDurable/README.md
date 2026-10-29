@@ -43,6 +43,11 @@ turns do not repeat a prior input's response association.
 Stop reconciles input outcomes through the retained native submission identity, which
 does not depend on optional request deduplication keys or observation delivery timing.
 
+Manual compaction remains an active desktop submission until native work settles.
+Its completion card requires a committed summary; an idle snapshot or a declined
+summary cannot report successful compaction. Stop and shutdown retain their native
+cancellation and ownership semantics.
+
 ## Stop, close and reopen
 
 - User Stop calls `interrupt()` before closing, records the shared stop policy and

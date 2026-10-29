@@ -85,7 +85,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
     behaviorToolCallId(call: CallRef): Promise<string | undefined>
     aliases(): Readonly<Record<string, string>>
     configure(change: AgentChange): Promise<void>
-    compact(instructions?: string): Promise<OperationResult<void>>
+    compact(instructions?: string): Promise<OperationResult<{ compacted: boolean }>>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
   lookupInput(query: InputQuery): Promise<OperationResult<InputLookup>>
@@ -442,9 +442,15 @@ export async function createPiDurableRuntime(
           try {
             const task = await entry.conversation.compact(instructions, context)
             const result = await native.waitForTask(task, context)
-            return result.state.outcome.status === 'completed'
-              ? { status: 'confirmed', value: undefined }
-              : rejected('compact', 'native-error')
+            const outcome = result.state.outcome
+            if (outcome.status !== 'completed') return rejected('compact', 'native-error')
+            if (outcome.result.submissionId) {
+              const submission = await native.submission(outcome.result.submissionId, context)
+              const placed = await submission?.wait(context)
+              if (placed?.status !== 'done') return rejected('compact', 'summary-not-placed')
+              return { status: 'confirmed', value: { compacted: true } }
+            }
+            return { status: 'confirmed', value: { compacted: outcome.result.entryId !== undefined } }
           } catch (cause) {
             report(cause)
             return { status: 'unknown', error: error('compact', 'native-error') }
