@@ -199,7 +199,7 @@ export const useApproveTaskGuard = () => {
         // A stale dialog (agent changed the command after render) fails closed here;
         // refresh so reopening the dialog shows the command that is actually current.
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.updateFailed', 'Failed to update task')))
-        await invalidate(taskReadKeys(agentId))
+        await invalidate(taskReadKeys(agentId)).catch(() => {})
         return undefined
       }
     },
