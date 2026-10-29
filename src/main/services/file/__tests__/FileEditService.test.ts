@@ -25,13 +25,14 @@ import { PreferenceService } from '@main/data/PreferenceService'
 
 import { FileEditService } from '../FileEditService'
 import { FileManager } from '../FileManager'
+import type * as FileUtils from '@main/utils/file'
 import { runPathMutationExclusive } from '../pathMutationLock'
 
 vi.unmock('@main/data/PreferenceService')
 
 const atomicWriteGate = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined, entered: false }))
 vi.mock('@main/utils/file', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@main/utils/file')>()
+  const mod = await importOriginal<typeof FileUtils>()
   return {
     ...mod,
     atomicWriteIfUnchanged: async (...args: Parameters<typeof mod.atomicWriteIfUnchanged>) => {
@@ -517,8 +518,8 @@ describe('FileEditService persistence contract', () => {
     })
 
     it('keeps entry-kind external refs under a retired root openable', async () => {
-      const files = application.get('FileManager') as FileManager
-      const target = path.join(root, 'external.md')
+      const files = application.get('FileManager')
+      const target = AbsoluteFilePathSchema.parse(path.join(root, 'external.md'))
       await writeFile(target, 'external')
       const entry = await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
       setNotesMigrationBlockedRoots(root, blockedTarget)
