@@ -67,8 +67,12 @@ expanded-dialog behavior. When `enableToolbar` is true, `ImageToolbar` exposes:
 - reset to absolute pan `(0, 0)` and zoom `1`;
 - expanded dialog.
 
-The layout exposes pan, zoom, copy, and download through its preview ref so
-`CodeBlockView` tools can operate on the same SVG.
+The layout exposes pan, zoom, copy, download, and the expanded dialog through
+its preview ref so `CodeBlockView` tools and the RichEditor code block toolbar
+can operate on the same SVG. The Notes editor keeps zoom and pan in the
+expanded dialog, because an inline diagram scrolls with the note.
+
+SVG, Graphviz, PlantUML, and Mermaid diagrams are centered in their host.
 
 ## Format-specific behavior
 
@@ -120,6 +124,14 @@ parser, size normalization, and Shadow DOM renderer.
 
 `GraphvizPreview` initializes one shared `@viz-js/viz` instance on demand,
 renders DOT to SVG locally, and sends the result through the shared SVG path.
+Like Mermaid, it draws on a transparent background: border, line, and text
+colours come from `resolveMermaidTheme(container)`, with Helvetica as the label
+face because Graphviz has metrics for it. These defaults are prepended to the
+graph body as `graph`/`node`/`edge` statements, because Viz ignores its default
+attribute options for parsed nodes; colours the DOT source sets still win. The
+preview re-renders when the app theme changes.
+
+PlantUML keeps a white backing: its server output has fixed light colours.
 
 ## Verification
 
