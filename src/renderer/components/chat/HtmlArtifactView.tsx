@@ -38,6 +38,7 @@ import {
 } from '@renderer/components/CodeBlockView/HtmlArtifactPreviewSurface'
 import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -418,8 +419,8 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
             <Icon icon="material-icon-theme:html" className="text-[20px]" />
           </span>
-          <span className="truncate font-medium text-[13px] text-foreground leading-5">{title}</span>
-          <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground leading-4">
+          <span className="truncate text-[13px] leading-5 font-medium text-foreground">{title}</span>
+          <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 text-[10px] leading-4 font-medium text-muted-foreground">
             HTML
           </span>
         </span>
@@ -450,6 +451,7 @@ export function HtmlArtifactPopupOutlet() {
   return (
     <Suspense fallback={null}>
       <HtmlArtifactsPopup
+        key={popupSession.artifactId}
         open
         title={popupSession.title}
         html={popupSession.html}
@@ -541,7 +543,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
     try {
       const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
       await window.api.file.write(tempPath, html)
-      await window.api.file.openPath(tempPath)
+      await ipcApi.request('system.shell.open_path', tempPath)
     } catch (error) {
       logger.error('Failed to open HTML artifact externally', error as Error)
       toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
@@ -631,7 +633,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-6 min-h-6 min-w-9 px-1 text-muted-foreground text-xs tabular-nums"
+                      className="h-6 min-h-6 min-w-9 px-1 text-xs text-muted-foreground tabular-nums"
                       aria-label={t('preview.reset')}
                       onClick={handleResetZoom}>
                       {zoom}%

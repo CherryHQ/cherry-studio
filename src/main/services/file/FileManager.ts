@@ -172,6 +172,7 @@ import {
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
   deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
+  deleteUnreferencedInternalEntry as internalDeleteUnreferencedInternalEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -615,6 +616,9 @@ export interface IFileManager {
    * "both gone".
    */
   permanentDelete(id: FileEntryId): Promise<void>
+
+  /** Delete an internal entry only when no persistent refs hold it, checked atomically with row deletion. */
+  deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean>
 
   /** Batch internal-only — external ids in the batch will fail with the same error as `trash`. */
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
@@ -1269,6 +1273,12 @@ export class FileManager extends BaseService implements IFileManager {
   async permanentDelete(id: FileEntryId): Promise<void> {
     await internalPermanentDelete(this.deps, id)
     this.notifyReadModelChange([id])
+  }
+
+  async deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean> {
+    const removed = await internalDeleteUnreferencedInternalEntry(this.deps, id)
+    if (removed) this.notifyReadModelChange([id])
+    return removed
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {

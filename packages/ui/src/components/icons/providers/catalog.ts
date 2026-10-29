@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-26T13:10:16.071Z
- * Total icons: 165
+ * Generated at: 2026-10-28T16:20:14.303Z
+ * Total icons: 167
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -47,6 +47,7 @@ import { DashscopeIcon } from './dashscope'
 import { DatabricksIcon } from './databricks'
 import { DeepcogitoIcon } from './deepcogito'
 import { DeepseekIcon } from './deepseek'
+import { DesearchIcon } from './desearch/desearch'
 import { DevvIcon } from './devv'
 import { DifyIcon } from './dify'
 import { DmxapiIcon } from './dmxapi'
@@ -133,6 +134,7 @@ import { PulseIcon } from './pulse'
 import { QiniuIcon } from './qiniu'
 import { QueritIcon } from './querit'
 import { QwenIcon } from './qwen'
+import { QwencloudIcon } from './qwencloud/qwencloud'
 import { RadeonCloudIcon } from './radeon-cloud'
 import { RecraftIcon } from './recraft'
 import { RelaceIcon } from './relace'
@@ -215,6 +217,7 @@ export const PROVIDER_ICON_CATALOG = {
   databricks: DatabricksIcon,
   deepcogito: DeepcogitoIcon,
   deepseek: DeepseekIcon,
+  desearch: DesearchIcon,
   devv: DevvIcon,
   dify: DifyIcon,
   dmxapi: DmxapiIcon,
@@ -300,14 +303,15 @@ export const PROVIDER_ICON_CATALOG = {
   qiniu: QiniuIcon,
   querit: QueritIcon,
   qwen: QwenIcon,
+  qwencloud: QwencloudIcon,
   'radeon-cloud': RadeonCloudIcon,
   recraft: RecraftIcon,
   relace: RelaceIcon,
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
-  serply: SerplyIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,

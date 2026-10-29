@@ -53,7 +53,11 @@ const emptySubscription = () => () => {}
 const emptySnapshot = () => null
 const keyOf = (handle: FileHandle) => (handle.kind === 'entry' ? `entry:${handle.entryId}` : `path:${handle.path}`)
 
-export function useFileEditSession(handle: FileHandle | undefined, ownerId: string): FileEditSession {
+export function useFileEditSession(
+  handle: FileHandle | undefined,
+  ownerId: string,
+  { autoSave = true }: { autoSave?: boolean } = {}
+): FileEditSession {
   const manager = use(FileEditSessionContext)
   if (!manager) throw new Error('File editing requires a window session provider')
   const entryId = handle?.kind === 'entry' ? handle.entryId : undefined
@@ -108,6 +112,9 @@ export function useFileEditSession(handle: FileHandle | undefined, ownerId: stri
       document.removeEventListener('visibilitychange', visible)
     }
   }, [lease])
+  useEffect(() => {
+    lease?.setAutoSave(autoSave)
+  }, [lease, autoSave])
   const epoch = snapshot?.documentEpoch
   const bindingEpoch = snapshot?.bindingEpoch
   const setDraft = useCallback(

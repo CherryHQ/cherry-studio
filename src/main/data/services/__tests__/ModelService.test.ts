@@ -582,6 +582,33 @@ describe('ModelService.update', () => {
 describe('ModelService.create', () => {
   const dbh = setupTestDatabase()
 
+  it('persists and exposes effort for a manually added StepFun preview without a catalog match', () => {
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+    dbh.db.insert(userProviderTable).values(providerRow('stepfun', 'StepFun')).run()
+
+    const [created] = modelService.create([
+      {
+        dto: { providerId: 'stepfun', modelId: 'step-5-preview', capabilities: [MODEL_CAPABILITY.REASONING] },
+        registryData
+      }
+    ])
+    const stored = dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id)).get()!
+    const controls = [{ kind: 'effort', values: ['low', 'medium', 'high'] }]
+    expect(stored.presetModelId).toBeNull()
+    expect(stored.reasoning?.controls).toEqual(controls)
+    const listed = modelService.list({ providerId: 'stepfun' }).find((model) => model.id === created.id)
+    expect(listed).toBeDefined()
+    for (const model of [created, modelService.getByKey('stepfun', 'step-5-preview'), listed!]) {
+      expect(model.reasoning?.controls).toEqual(controls)
+      expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+    }
+  })
+
   it('null DTO fields do not clobber preset during merge', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 

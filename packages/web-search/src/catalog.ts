@@ -50,6 +50,10 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     deepseek: provider('deepseek', 'DeepSeek', [
       capability('searchKeywords', 'required', 'https://api.deepseek.com'),
       capability('fetchUrls', 'required', 'https://api.deepseek.com')
+    ]),
+    desearch: provider('desearch', 'Desearch', [capability('searchKeywords', 'required', 'https://api.desearch.ai')]),
+    searchapi: provider('searchapi', 'SearchApi', [
+      capability('searchKeywords', 'required', 'https://www.searchapi.io')
     ])
   }
 )

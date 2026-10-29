@@ -46,15 +46,19 @@ describe('dashscope (Bailian) endpoint matrix', () => {
     }
   )
 
-  // These search via Chat's `enable_search` (the Responses web_search tool is Qwen3.x-only), so
-  // Chat leads — but Responses stays reachable. See `servesResponsesWebSearch` in
-  // src/main/ai/utils/websearch.ts.
+  // These Qwen aliases search via Chat's `enable_search`, so Chat leads while Responses stays selectable.
+  // See `servesResponsesWebSearch` in src/main/ai/utils/websearch.ts.
   it.each(['qwen-plus', 'qwen-flash', 'qwen-plus-character'])(
     'orders Chat Completions first for %s, whose built-in search is Chat-only',
     (modelId) => {
       expect(endpointsOf('dashscope', modelId)).toEqual(['openai-chat-completions', 'openai-responses'])
     }
   )
+
+  it.each(['glm-5-2', 'kimi-k3'])('keeps inherited endpoint selection for %s', (modelId) => {
+    expect(endpointsOf('dashscope', modelId)).toBeUndefined()
+    expect(provider('dashscope').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
 
   it('never pins any dashscope model to a single endpoint', () => {
     const singlePinned = (provider('dashscope').overrides ?? [])

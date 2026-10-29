@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -33,7 +34,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
     try {
       const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
       await window.api.file.write(tempPath, htmlContent)
-      await window.api.file.openPath(tempPath)
+      await ipcApi.request('system.shell.open_path', tempPath)
     } catch (error) {
       logger.error('Failed to open HTML artifact externally', error as Error)
       toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
