@@ -12,7 +12,7 @@
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
-import { open, readFile } from 'node:fs/promises'
+import { open, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
@@ -117,6 +117,8 @@ const undecodableImageRead = async (ctx: ToolGuardContext): Promise<GuardHit | n
   if (ext !== '' && !CLAUDE_READ_IMAGE_EXTS.has(ext)) return null
   const file = path.resolve(ctx.cwd, requestedPath)
   try {
+    // Opening a FIFO blocks a shared libuv worker until a writer appears; probe regular files only.
+    if (!(await stat(file)).isFile()) return null
     if (ext === '' && !hasClaudeReadImageSignature(await readHead(file, 16))) return null
     if (await isDecodableImage(await readFile(file))) return null
   } catch {

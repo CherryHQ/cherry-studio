@@ -184,6 +184,16 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await expect(evaluate(readCtx(file, { supportsImages: true }))).resolves.toBeUndefined()
     })
 
+    it.skipIf(process.platform === 'win32').each(['pipe', 'pipe.png'])(
+      'does not block on a named pipe with no writer (%s)',
+      async (file) => {
+        const { execFileSync } = await import('node:child_process')
+        execFileSync('mkfifo', [path.join(cwd, file)])
+        await expect(evaluate(readCtx(file, { supportsImages: true }))).resolves.toBeUndefined()
+      },
+      2000
+    )
+
     it('leaves text-only models to unsupported-image-read', async () => {
       const decision = await evaluate(readCtx('broken.png', { supportsImages: false }))
       expect(decision?.ruleId).toBe('unsupported-image-read')
