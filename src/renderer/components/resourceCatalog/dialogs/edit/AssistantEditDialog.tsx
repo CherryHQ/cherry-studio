@@ -101,6 +101,7 @@ type AssistantEditFormValues = {
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
   enableBrowser: boolean
+  enableSharedMemory: boolean
   mcpMode: AssistantFormState['mcpMode']
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
@@ -143,6 +144,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     enableBrowser: form.enableBrowser,
+    enableSharedMemory: form.enableSharedMemory,
     mcpMode: form.mcpMode,
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
@@ -184,6 +186,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
     enableBrowser: values.enableBrowser,
+    enableSharedMemory: values.enableSharedMemory,
     mcpMode: values.mcpMode,
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
@@ -419,6 +422,18 @@ function AssistantEditDialogContent({
             setEmojiPickerOpen={setEmojiPickerOpen}
             onCreateGroup={() => setCreateGroupDialogOpen(true)}
             onSettingsNavigate={closeBeforeAction}
+          />
+          <FormField
+            control={form.control}
+            name="enableSharedMemory"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between gap-3 py-4">
+                <FormLabel>{t('settings.memory.title')}</FormLabel>
+                <FormControl>
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              </FormItem>
+            )}
           />
         </TabsContent>
         <TabsContent

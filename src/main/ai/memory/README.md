@@ -1,10 +1,11 @@
 # 记忆存储底座
 
-本模块实现 [共享记忆 Spec](../../../../.agents/notes/proposed/feature/2026-10-29-shared-memory.md) 的文件提交与最近操作恢复。当前尚未接入运行时、编辑器或 Dreaming，不改变用户现有记忆。
+本模块实现 [共享记忆 Spec](../../../../.agents/notes/proposed/feature/2026-10-29-shared-memory.md) 的文件提交、访问权限、编辑和最近操作恢复。运行时和 Dreaming 尚未接入，旧 FACT/JOURNAL 尚未切换。
 
 - `MemoryStore.ts`：一个作用域由一个实例串行提交。调用方身份使用主进程持有的 `MemoryAccess` 对象，不能从模型或 IPC 输入反序列化。
 - `MemoryService.ts`：生命周期服务。按作用域复用存储实例，绑定调用方凭据，提供暂停、排空和恢复失效入口。
 - `memoryAuthority.ts`：从主进程会话、实体配置和受管理窗口确定权限。每次操作重查数据库，不接受模型提供的身份。
+- `MemoryEditorService.ts`：把编辑会话绑定到主窗口。窗口关闭后释放会话，其他窗口不能复用凭据。
 - `memoryFiles.ts`：管理文件白名单、真实路径、完整读取、容量检查和文件替换。
 - `memoryBackups.ts`：保存原始字节、预期哈希和逐项结果。备份位于活动目录之外。
 
@@ -12,7 +13,9 @@
 
 Agent 的 `configuration.shared_memory_enabled` 缺省为开启。持久助手的 `settings.enableSharedMemory` 缺省为关闭。临时、辅助和普通 headless 助手不开放记忆。渠道 Agent 只能访问所属私有范围。编辑器要求真实的主窗口身份。运行时接入后，必须在轮次结束时释放 `MemorySession`。
 
-关闭共享开关后，旧会话凭据不会因重新开启而恢复。实体数据服务只发布权限失效事件，文件操作仍归本模块。完整备份需先 `pause()` 再 `drainInFlight()`；完整恢复还需 `invalidateAll()`，下一请求建立新基准。当前尚未连接备份和运行时调用点。
+关闭共享开关后，旧会话凭据不会因重新开启而恢复。实体数据服务只发布权限失效事件，文件操作仍归本模块。完整备份已接入 `pause()` 和 `drainInFlight()`；恢复提交启动日志后调用 `invalidateAll()`，保持暂停直到重启。运行时调用点尚未接入。
+
+设置页 `/settings/memory` 编辑共享范围。Agent 设置可打开自身私有范围。文件操作使用 `memory.*` IpcApi 路由；实体开关沿用 DataApi。页面以正文和主题切换为主，维护操作收进“更多”菜单。保存冲突保留草稿，清空和恢复先展示文件集与冲突结果。只在操作未完成时显示相关文件，不常驻展示容量、路径和逐文件成功结果，不自动重试写入。
 
 渠道停用、删除或变更所属 Agent 后，原渠道会话永久失效；重新启用需重新读取。Agent 删除同样使已打开的私有编辑器失效，恢复 Agent 不恢复旧凭据。渠道更名和无关渠道变更不撤销当前会话。
 
