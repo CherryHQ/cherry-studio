@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { readMemoryEntry } from '@main/ai/memory/memoryFiles'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
@@ -225,7 +226,14 @@ ${content}
     const [soulContent, userContent, factContent] = await Promise.all([
       soulPath ? this.readCachedFile(soulPath, agentDataPath) : Promise.resolve(undefined),
       userPath ? this.readCachedFile(userPath, agentDataPath) : Promise.resolve(undefined),
-      factPath ? this.readCachedFile(factPath, agentDataPath) : Promise.resolve(undefined)
+      factPath
+        ? readMemoryEntry(agentDataPath, path.relative(agentDataPath, factPath))
+            .then(
+              ({ content, truncated }) =>
+                `${content}${truncated ? '\n[Legacy facts truncated; original retained.]' : ''}`
+            )
+            .catch(() => '[Legacy facts unavailable; original retained.]')
+        : Promise.resolve(undefined)
     ])
 
     const sections = [
