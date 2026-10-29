@@ -522,7 +522,7 @@ describe('Pi Durable runtime contract', () => {
       error: { code: 'closed' }
     })
 
-    faux.setResponses([fauxAssistantMessage('resumed answer')])
+    faux.setResponses([{ ...fauxAssistantMessage('resumed answer'), responseId: 'native-resumed-response' }])
     const reopened = confirmed(await createPiDurableRuntime(options))
     onTestFinished(async () => {
       await reopened.shutdown()
@@ -551,6 +551,8 @@ describe('Pi Durable runtime contract', () => {
       .toBe(true)
     expect(faux.state.callCount).toBe(before + 1)
     const archive = confirmed(await access.archive())
+    const owner = archive.messages.find((message) => message.id === archive.responseIds?.['native-resumed-response'])
+    expect(owner?.parts).toContainEqual({ type: 'text', text: 'resumed answer', state: 'done' })
     await reopened.shutdown()
     const restored = confirmed(await createPiDurableRuntime(options))
     onTestFinished(async () => {
@@ -559,6 +561,7 @@ describe('Pi Durable runtime contract', () => {
     const restoredAccess = confirmed(await restored.open(session.thread))
     expect(confirmed(await restoredAccess.archive())).toEqual({
       messages: archive.messages,
+      responseIds: archive.responseIds,
       legacy: archive.legacy,
       aliases: {}
     })
