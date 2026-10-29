@@ -100,10 +100,16 @@ export type RunEnd = 'completed' | 'failed' | 'truncated' | 'aborted' | 'limit_r
 export type SubagentOutcome = RunEnd | 'stopped' | 'interrupted'
 export type SubagentStopper = 'model' | 'user' | 'budget'
 /** Today's `cherry.subagent-state` data; `usage` is a display cache only, rules read `ChildFacts.runUsage` (R3). */
+export type GoalOwner = {
+  readonly goalId: string | null
+  /** A reservation is charged only after this round is admitted. */
+  readonly goalRoundId?: string
+}
 export type SubagentRunRecord = {
   readonly sessionId: ThreadId
   /** Missing only on historical records; null explicitly belongs to no goal. */
   readonly goalId?: string | null
+  readonly goalRoundId?: string
   readonly parentToolCallId: string
   readonly description: string
   readonly fork: boolean
@@ -138,7 +144,7 @@ export type PlanState = { readonly active: boolean; readonly at: number }
 /** Never enters the model context. */
 export type PolicyRecord =
   | { readonly type: 'goal'; readonly value: GoalSnapshot | GoalCleared }
-  | { readonly type: 'summary-usage'; readonly value: { readonly goalId: string | null; readonly usage: UsageFact } }
+  | { readonly type: 'summary-usage'; readonly value: GoalOwner & { readonly usage: UsageFact } }
   | { readonly type: 'goal-notice'; readonly value: GoalNotice }
   | { readonly type: 'subagent-run'; readonly value: SubagentRunRecord }
   | { readonly type: 'subagent-origin'; readonly value: SubagentOrigin }
@@ -160,6 +166,7 @@ export type PolicyRecord =
         readonly sessionId: ThreadId
         readonly run: number
         readonly goalId?: string | null
+        readonly goalRoundId?: string
         readonly digest: string
         readonly withdrawn: boolean
       }

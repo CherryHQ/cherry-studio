@@ -48,6 +48,22 @@ const spawn = (
 const job = { description: 'd', prompt: 'p' }
 
 describe('child run ownership', () => {
+  it('charges a child created before admission only once its reserved round is admitted', () => {
+    const tool = callTo('subagent', job, 'early')
+    const history = [
+      goalEntry(goal()),
+      roundEntry({ id: 'r1', goalId: 'g1', revision: 1, round: 1, kind: 'work' }),
+      assistant('spawn', { calls: [tool], usage: usage(3) })
+    ]
+    const spawned = apply(history, decideSpawn(facts(history), inputs({ args: job }), tool.callKey), ['child'])
+    const children = { child: { runUsage: [usage(9)] } }
+    expect(goalUsage(facts(spawned, { children }), 'g1').tokens).toBe(0)
+    const admitted = [...spawned, goalEntry(goal({ admittedRound: 'r1' }))]
+    expect(goalUsage(facts(JSON.parse(JSON.stringify(admitted)), { children }), 'g1').tokens).toBe(12)
+    const withdrawn = [...spawned, goalEntry(goal({ phase: 'paused', armed: false }))]
+    expect(goalUsage(facts(withdrawn, { children }), 'g1').tokens).toBe(0)
+  })
+
   it('pins the emitting request and keeps host continuations out of the goal budget', () => {
     const tool = callTo('subagent', job, 'owner')
     const history = [
@@ -74,10 +90,10 @@ describe('child run ownership', () => {
     expect(goalSubagents(continued, 'g1')).toEqual([])
   })
 
-  it('keeps the steer owner when it starts a later run after another request', () => {
+  it('keeps an unadmitted steer owner across later admission and another request', () => {
     const tool = callTo('message_subagent', {}, 'owner')
     const history = [
-      goalEntry(goal({ admittedRound: 'r1' })),
+      goalEntry(goal()),
       roundEntry({ id: 'r1', goalId: 'g1', revision: 1, round: 1, kind: 'work' }),
       assistant('steer', { calls: [tool] }),
       runEntry(run('child', { goalId: null }))
@@ -90,7 +106,7 @@ describe('child run ownership', () => {
         tool.callKey
       )
     )
-    const later = [...sent, user('new turn'), assistant('reply')]
+    const later = [...sent, goalEntry(goal({ admittedRound: 'r1' })), user('new turn'), assistant('reply')]
     const started = apply(later, decideMessageStarted(facts(later), tool.callKey, 2, 'more'))
     expect(goalUsage(facts(started, { children: { child: { runUsage: [usage(3), usage(12)] } } }), 'g1').tokens).toBe(
       12

@@ -126,6 +126,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
       ]
       const usage = f.usage
       return (f.goalId === null || typeof f.goalId === 'string') &&
+        (f.goalRoundId === undefined || typeof f.goalRoundId === 'string') &&
         isFields(usage) &&
         fields.every((key) => typeof usage[key] === 'number' && Number.isFinite(usage[key]) && usage[key] >= 0)
         ? { type: 'summary-usage', value: f as SummaryUsage }
@@ -147,6 +148,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
       return typeof f.sessionId === 'string' &&
         typeof f.run === 'number' &&
         optionalGoalId(f.goalId) &&
+        (f.goalRoundId === undefined || typeof f.goalRoundId === 'string') &&
         isMember(f.status, RUN_STATUSES) &&
         isOptionalMember(f.outcome, OUTCOMES) &&
         isOptionalMember(f.stoppedBy, STOPPERS)
@@ -175,6 +177,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
       return typeof f.sessionId === 'string' &&
         typeof f.run === 'number' &&
         optionalGoalId(f.goalId) &&
+        (f.goalRoundId === undefined || typeof f.goalRoundId === 'string') &&
         typeof f.digest === 'string' &&
         typeof f.withdrawn === 'boolean'
         ? { type: 'subagent-steer', value: f as SubagentSteer }

@@ -4,6 +4,7 @@ import type { HistoryEntry, RoundDetails } from '../../../src/core/facts'
 import {
   blockedStreak,
   goalProgress,
+  goalForRequest,
   goalSubagents,
   goalUsage,
   roundStopRequest,
@@ -20,6 +21,7 @@ import {
   marker,
   PARENT,
   result,
+  record,
   roundEntry,
   run,
   runEntry,
@@ -32,6 +34,14 @@ const admit = (n: number, id = `r${n}`) => goalEntry(goal({ roundsStarted: n, ad
 const tokens = (history: readonly HistoryEntry[], children = {}) => goalUsage(facts(history, { children }), 'g1').tokens
 
 describe('goal usage', () => {
+  it('retains summary reservation provenance until admission, including after reopening', () => {
+    const history = [goalEntry(goal()), roundEntry(round(1))]
+    const summary = record({ type: 'summary-usage', value: { ...goalForRequest(history), usage: usage(17, 0.2) } })
+    expect(tokens([...history, summary])).toBe(0)
+    expect(tokens(JSON.parse(JSON.stringify([...history, summary, admit(1)])))).toBe(17)
+    expect(tokens([...history, summary, goalEntry(goal({ phase: 'paused', armed: false }))])).toBe(0)
+  })
+
   // Catches a reader that decides admission when it reaches the marker: on Durable the admission follows the round's
   // first requests (R1), so the goal would miss them and overrun its budget.
   it('bills a round whose admission lands after its requests', () => {

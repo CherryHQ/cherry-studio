@@ -23,7 +23,7 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
       const { key, signal, history, ...summarize } = request
       try {
         return await ports.memory.remember(keys.summaryMemo(key), async () => {
-          const goalId = goalForRequest(history)
+          const owner = goalForRequest(history)
           const result = await host.summarizer.summarize({ ...summarize, thread }, signal)
           const decided = summaryDecision(typeof result === 'string' ? result : result.summary)
           if ('decline' in decided) throw new Error('The summary is empty')
@@ -34,7 +34,7 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
               : {
                   accounting: {
                     key: keys.summaryUsage(key),
-                    record: { type: 'summary-usage' as const, value: { goalId, usage: result.usage } }
+                    record: { type: 'summary-usage' as const, value: { ...owner, usage: result.usage } }
                   }
                 })
           }

@@ -133,7 +133,7 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
         boundary: background ? 'background' : 'foreground',
         ...(fork && at ? { fork: { from: facts.thread, at } } : {}),
         origin,
-        record: { ...origin, goalId: goalForCall(facts.history, call), background, run: 1, status: 'running' }
+        record: { ...origin, ...goalForCall(facts.history, call), background, run: 1, status: 'running' }
       },
       key
     }
@@ -201,7 +201,7 @@ export function decideMessage(
   if (sent)
     return facts.keysSeen.has(keys.subagentSteerWithdrawn(call, sent.run))
       ? refuse({ kind: 'refused', text: notDeliveredText(sent.sessionId) })
-      : steer(facts, call, sent.sessionId, sent.run, message, sent.goalId)
+      : steer(facts, call, sent.sessionId, sent.run, message, sent)
   if (cancelled) return refuse({ kind: 'refused', text: TURN_STOPPED })
   const target = resolveChild(readSubagents(facts.history), id)
   if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
@@ -239,7 +239,7 @@ export function decideMessage(
   const run = nextRun(facts.history, child)
   const record: SubagentRunRecord = {
     ...origin,
-    goalId: goalForCall(facts.history, call),
+    ...goalForCall(facts.history, call),
     sessionId: child,
     background: true,
     run,
@@ -276,13 +276,14 @@ function steer(
   child: ThreadId,
   run: number,
   message: string,
-  goalId: string | null | undefined
+  owner: Pick<SubagentRunRecord, 'goalId' | 'goalRoundId'>
 ): Step<MessageDecision> {
   const key = keys.subagentSteer(call, run)
   const value: SteerRecord = {
     sessionId: child,
     run,
-    ...(goalId === undefined ? {} : { goalId }),
+    ...(owner.goalId === undefined ? {} : { goalId: owner.goalId }),
+    ...(owner.goalRoundId === undefined ? {} : { goalRoundId: owner.goalRoundId }),
     digest: sha256Hex(message),
     withdrawn: false
   }
@@ -307,6 +308,7 @@ export function decideMessageStarted(facts: Facts, call: CallKey, run: number, t
     modelKey,
     sessionId: sent.sessionId,
     ...(sent.goalId === undefined ? {} : { goalId: sent.goalId }),
+    ...(sent.goalRoundId === undefined ? {} : { goalRoundId: sent.goalRoundId }),
     background: true,
     run,
     status: 'running'
