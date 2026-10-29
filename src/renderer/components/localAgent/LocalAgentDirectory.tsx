@@ -34,11 +34,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import { CLI_TOOLS } from '@renderer/components/icons/CliIcon'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useLocalAgentModelCatalog } from '@renderer/hooks/agent/useLocalAgentModelCatalog'
 import { useLocalAgentModelSelection } from '@renderer/hooks/agent/useLocalAgentModelSelection'
 import { useLocalAgentVersion } from '@renderer/hooks/agent/useLocalAgentVersion'
-import { useCurrentTabId, useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTabId, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -49,18 +50,21 @@ import { codeCliForLocalAgent } from '@renderer/utils/agent/codeCliForLocalAgent
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import { resolveAgentEntrySessionIdForAgent } from '@renderer/utils/conversationEntry'
 import { findConversationTab } from '@renderer/utils/conversationNavigation'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import {
   LOCAL_AGENT_PRESETS,
   type LocalAgentConfiguration,
   type LocalAgentCheckResult,
   type LocalAgentDetection,
+  type LocalAgentInstallResult,
   type LocalAgentPreset
 } from '@shared/ai/localAgent'
 import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { AGENTS_MAX_LIMIT, type AgentEntity } from '@shared/data/api/schemas/agents'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
+import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 
 import { AgentServiceCard } from './AgentServiceCard'
 import { LocalAgentAdvancedSettings } from './LocalAgentAdvancedSettings'
@@ -139,6 +143,10 @@ export function LocalAgentDirectory({
   const { t } = useTranslation()
   const [agentOrder, setAgentOrder] = usePreference('feature.code_cli.agent_order')
   const { agents, refetch } = useAgents({ includeDisabledLocal: true })
+  const { data: archivedAgents, refetch: refetchArchivedAgents } = useQuery('/agents', {
+    query: { inTrash: true, limit: AGENTS_MAX_LIMIT }
+  })
+  useDataChange('/agents', () => void refetchArchivedAgents())
   const [detections, setDetections] = useState<LocalAgentDetection[]>([])
   const [detecting, setDetecting] = useState(false)
   const [query, setQuery] = useState('')
@@ -151,6 +159,19 @@ export function LocalAgentDirectory({
         `cli:${search.tool}`))
   const [selected, setSelected] = useState(requestedId ?? 'claude')
   const [pendingSelection, setPendingSelection] = useState<string>()
+  const [installingAgents, setInstallingAgents] = useState<Set<string>>(() => new Set())
+  const installAgent = useCallback(async (presetId: string, targetVersion?: string) => {
+    setInstallingAgents((current) => new Set(current).add(presetId))
+    try {
+      return await ipcApi.request('ai.local_agents.install', { presetId, targetVersion })
+    } finally {
+      setInstallingAgents((current) => {
+        const next = new Set(current)
+        next.delete(presetId)
+        return next
+      })
+    }
+  }, [])
   useEffect(() => {
     if (requestedId) setPendingSelection(requestedId)
   }, [requestedId])
@@ -208,10 +229,13 @@ export function LocalAgentDirectory({
     return invalidateDetections
   }, [refresh, invalidateDetections])
   useIpcOn('binary.availability_changed', () => void refresh())
-  const localAgents = agents.filter((a) => a.type === 'local')
+  const localAgents = [
+    ...agents,
+    ...(archivedAgents?.items ?? []).filter((a) => a.deletedAt && !agents.some((agent) => agent.id === a.id))
+  ].filter((a) => a.type === 'local')
   const installedIds = new Set(detections.filter((detection) => detection.path).map((detection) => detection.presetId))
   const getPriority = (entry: { id: string; agent?: AgentEntity }) =>
-    entry.agent?.configuration?.localRuntime?.enabled
+    !entry.agent?.deletedAt && entry.agent?.configuration?.localRuntime?.enabled
       ? 2
       : Number(installedIds.has(entry.id) || !!entry.agent?.configuration?.localRuntime?.executableOverride)
   const orderIndex = new Map(agentOrder.map((id, index) => [id, index]))
@@ -336,7 +360,7 @@ export function LocalAgentDirectory({
                 }}
                 onReorderError={() => toast.error(t('common.error'))}
                 renderItem={(e, _index, { dragHandleProps }) => {
-                  const enabled = e.agent?.configuration?.localRuntime?.enabled
+                  const enabled = !e.agent?.deletedAt && e.agent?.configuration?.localRuntime?.enabled
                   const detection = detections.find((d) => d.presetId === e.id)
                   const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
                   const notInstalled = !!detection && !detection.path && !executableOverride
@@ -414,8 +438,10 @@ export function LocalAgentDirectory({
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         {renderCli && cliTool && entry?.id.startsWith('cli:') ? (
           renderCli(cliTool)
-        ) : (
+        ) : entry || selected === 'custom-new' ? (
           <LocalAgentDetails
+            installing={installingAgents.has(entry?.preset?.id ?? '')}
+            onInstall={installAgent}
             closeSettingsOnChat={destination === '/settings/local-agents'}
             cliConfigEntry={renderCliConfig?.(cliTool ?? entry?.preset?.id ?? '')}
             key={entry?.id ?? selected}
@@ -433,19 +459,21 @@ export function LocalAgentDirectory({
             agent={entry?.agent}
             detection={detections.find((d) => d.presetId === entry?.preset?.id)}
             onSaved={async (id, refreshInstallations = true) => {
-              await refetch()
+              await Promise.all([refetch(), refetchArchivedAgents()])
               setSelected(id)
               void navigate({ to: destination, search: { id }, replace: true })
               if (refreshInstallations) await refresh()
             }}
           />
-        )}
+        ) : null}
       </main>
     </div>
   )
 }
 
 function LocalAgentDetails({
+  installing,
+  onInstall,
   cliConfigEntry,
   closeSettingsOnChat,
   pendingSelection,
@@ -456,6 +484,8 @@ function LocalAgentDetails({
   detection,
   onSaved
 }: {
+  installing: boolean
+  onInstall: (presetId: string, targetVersion?: string) => Promise<LocalAgentInstallResult>
   cliConfigEntry?: ReactNode
   closeSettingsOnChat: boolean
   pendingSelection?: string
@@ -468,17 +498,16 @@ function LocalAgentDetails({
 }) {
   const { t } = useTranslation()
   const { updateAgent } = useUpdateAgent()
+  const invalidate = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
   const tabs = useOptionalTabsContext()
   const currentTabId = useCurrentTabId()
-  const initial: LocalAgentConfiguration = agent?.configuration?.localRuntime ?? {
-    protocol: preset?.protocol ?? 'acp',
-    presetId: preset?.id,
-    enabled: false,
-    args: [],
-    env: {}
-  }
+  const archived = !!agent?.deletedAt
+  const initial: LocalAgentConfiguration = agent?.configuration?.localRuntime
+    ? { ...agent.configuration.localRuntime, enabled: !archived && agent.configuration.localRuntime.enabled }
+    : { protocol: preset?.protocol ?? 'acp', presetId: preset?.id, enabled: false, args: [], env: {} }
   const [busyAction, setBusyAction] = useState<
-    'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
+    'save' | 'check' | 'toggle' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
   >()
   const {
     catalog,
@@ -493,7 +522,7 @@ function LocalAgentDetails({
   const version = useLocalAgentVersion(initial.executableOverride ? undefined : preset?.id, detection?.path)
   const [openingChat, setOpeningChat] = useState(false)
   const available = !!(detection?.path || initial.executableOverride)
-  const busy = busyAction !== undefined || openingChat
+  const busy = installing || busyAction !== undefined || openingChat
   const modelSavingClass =
     busyAction === 'model' ? '[&_button:disabled]:pointer-events-auto [&_button:disabled]:opacity-100' : undefined
   const [result, setResult] = useState<{ message?: string; ok: boolean }>({ ok: false })
@@ -514,8 +543,8 @@ function LocalAgentDetails({
   }, [connection, programHovered])
   const [editing, setEditing] = useState(!preset && !agent)
   useEffect(() => {
-    if (pendingSelection && !editing && !busy) onNavigate()
-  }, [pendingSelection, editing, busy, onNavigate])
+    if (pendingSelection && !editing && (!busy || installing)) onNavigate()
+  }, [pendingSelection, editing, busy, installing, onNavigate])
   const openTerminal = async () => {
     if (busy) return
     setBusyAction('terminal')
@@ -561,6 +590,7 @@ function LocalAgentDetails({
     </Tooltip>
   )
   const openEditor = () => {
+    if (archived) return
     setConnection(undefined)
     clearResult()
     setEditing(true)
@@ -636,7 +666,7 @@ function LocalAgentDetails({
     }
   }
   const selectModel = async (nativeModel?: string) => {
-    if (busy) return false
+    if (busy || archived) return false
     setBusyAction('model')
     clearResult()
     try {
@@ -653,10 +683,9 @@ function LocalAgentDetails({
   }
   const install = async (targetVersion?: string) => {
     if (!preset || busy) return
-    setBusyAction('install')
     clearResult()
     try {
-      const response = await ipcApi.request('ai.local_agents.install', { presetId: preset.id, targetVersion })
+      const response = await onInstall(preset.id, targetVersion)
       setResult({
         ok: response.ok,
         message: response.ok
@@ -667,8 +696,6 @@ function LocalAgentDetails({
       })
     } catch (error) {
       showError(error)
-    } finally {
-      setBusyAction(undefined)
     }
   }
   const uninstall = async () => {
@@ -728,6 +755,48 @@ function LocalAgentDetails({
     try {
       if (!savedName) throw new Error(t('local_agents.name_required'))
       const configuration = { ...initial, ...localRuntime }
+      if (initial.enabled && !configuration.enabled && agent) {
+        if (
+          !(await popup.confirm({
+            title: t('local_agents.disable_archive.title', { name: savedName }),
+            content: t('local_agents.disable_archive.description'),
+            okText: t('local_agents.disable_archive.confirm')
+          }))
+        )
+          return false
+        const response = await ipcApi.request('ai.agent.delete', { agentId: agent.id, deleteSessions: true })
+        closeConversationTabs('agents', response.deletedSessionIds ?? [])
+        const refreshResults = await Promise.allSettled([
+          invalidate([
+            '/agents',
+            `/agents/${agent.id}`,
+            '/agent-sessions',
+            '/agent-workspaces',
+            '/agent-channels',
+            '/pins'
+          ]),
+          onSaved(agent.id, false)
+        ])
+        for (const result of refreshResults) {
+          if (result.status === 'rejected')
+            logger.warn('Failed to refresh archived Agent', { agentId: agent.id, error: result.reason })
+        }
+        try {
+          const webUiId = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === configuration.presetId)
+          if (webUiId) await ipcApi.request('ai.local_agents.web_stop', { presetId: webUiId })
+          else if (configuration.presetId === 'codebuddy-code') await ipcApi.request('ai.codebuddy_web.stop')
+          else if (configuration.presetId === 'hermes') {
+            const stopped = await ipcApi.request('hermes_dashboard.stop')
+            if (!stopped.success) throw new Error(stopped.message)
+          }
+        } catch (error) {
+          logger.warn('Failed to stop disabled Agent WebUI', { presetId: configuration.presetId, error })
+          showError(t('code.web_ui.stop_failed'))
+          return false
+        }
+        toast.success(t('common.archived', { name: savedName }))
+        return true
+      }
       if (configuration.enabled || (!preset && !agent)) {
         const response = await ipcApi.request('ai.local_agents.check', configuration)
         if (!response.ok) {
@@ -735,14 +804,20 @@ function LocalAgentDetails({
           return false
         }
       }
-      const updated = await persistLocalRuntime(localRuntime, savedName)
+      const restored =
+        archived && configuration.enabled && agent
+          ? await ipcApi.request('ai.agent.restore', { agentId: agent.id })
+          : undefined
+      const updated = restored?.configuration?.localRuntime?.enabled
+        ? restored
+        : await persistLocalRuntime(localRuntime, savedName)
       if (updated) {
-        toast.success(t('common.saved'))
         await onSaved(updated.id)
+        toast.success(t('common.saved'))
       }
       return !!updated
     } catch (error) {
-      showError(error)
+      showError(formatErrorMessage(error))
       return false
     } finally {
       setBusyAction(undefined)
@@ -808,7 +883,7 @@ function LocalAgentDetails({
                       size="icon"
                       className="size-7 shrink-0 rounded-lg text-foreground-tertiary hover:text-foreground"
                       aria-label={t('common.advanced_settings')}
-                      disabled={busy}
+                      disabled={busy || archived}
                       onClick={openEditor}>
                       <Settings2 className="lucide-custom size-3.5 text-muted-foreground" />
                     </Button>
@@ -841,7 +916,7 @@ function LocalAgentDetails({
                           className="h-8 rounded-lg border-border-subtle text-xs shadow-none"
                           disabled={busy}
                           onClick={() => void install(version.latest)}>
-                          {busyAction === 'install' ? (
+                          {installing ? (
                             <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
                           ) : (
                             <ArrowUpCircle className="lucide-custom size-3.5 text-muted-foreground" />
@@ -852,17 +927,15 @@ function LocalAgentDetails({
                       )}
                       {terminalButton}
                       <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
-                      {initial.enabled && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
-                          disabled={busy || !agent}
-                          onClick={() => void goToChat()}>
-                          <MessageSquare className="lucide-custom size-3.5 text-muted-foreground" />
-                          {t('title.chat')}
-                        </Button>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
+                        disabled={busy || !agent || !initial.enabled}
+                        onClick={() => void goToChat()}>
+                        <MessageSquare className="lucide-custom size-3.5 text-muted-foreground" />
+                        {t('title.chat')}
+                      </Button>
                     </>
                   ) : preset ? (
                     <Button
@@ -870,12 +943,12 @@ function LocalAgentDetails({
                       className="h-8 shrink-0 rounded-lg border border-transparent text-xs shadow-none"
                       disabled={busy}
                       onClick={() => void install()}>
-                      {busyAction === 'install' ? (
+                      {installing ? (
                         <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
                       ) : (
                         <Download className="size-3.5" />
                       )}
-                      {t(busyAction === 'install' ? 'local_agents.installing' : 'code.install')}
+                      {t(installing ? 'local_agents.installing' : 'code.install')}
                     </Button>
                   ) : !agent ? (
                     <Button size="sm" onClick={openEditor}>
@@ -970,12 +1043,13 @@ function LocalAgentDetails({
               </div>
             </AgentServiceCard>
             {!editing && feedback}
+            {archived && <p className="text-xs text-muted-foreground">{t('local_agents.disable_archive.status')}</p>}
             {(preset || agent) && (
               <LocalAgentModelList
                 models={modelSelection.models}
                 groupFallback={agent?.name ?? preset?.name}
                 value={modelSelection.value}
-                disabled={busy || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}
+                disabled={busy || archived || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}
                 loading={modelsLoading}
                 loaded={!!catalog}
                 loadDisabled={!detection?.path && !initial.executableOverride}
@@ -993,7 +1067,7 @@ function LocalAgentDetails({
           preset={preset}
           detection={detection}
           hasAgent={!!agent}
-          busyAction={busyAction}
+          busyAction={installing ? 'install' : busyAction}
           pendingSelection={pendingSelection}
           feedback={feedback}
           onClose={closeEditor}

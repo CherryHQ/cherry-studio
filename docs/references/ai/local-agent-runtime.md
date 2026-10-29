@@ -26,7 +26,14 @@ launch; their existing web launch, stop and configuration actions remain availab
 They do not expose a Cherry chat toggle or an unsupported terminal action.
 
 Enabling a local CLI creates a persistent agent. Each preset has one stable agent ID; custom ACP configurations have
-independent IDs. Disabling preserves conversations and ordering. No Cherry model
+independent IDs. Disabling asks for confirmation, archives the agent and its active
+conversations, and stops its managed WebUI. Running tasks must stop before the
+existing archive operation can proceed. Cancelling or failing to archive leaves the
+agent active. The manager keeps archived local agents visible with their configuration
+read-only. Enabling restores the original agent ID, configuration, ordering, and
+conversations archived with it; independently archived conversations stay archived.
+Archived data follows Settings → Archive retention, so permanent removal ends this
+restore path. No Cherry model
 provider is required. “Local” refers to the CLI process, not an offline model.
 
 ## Ownership and routing

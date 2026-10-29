@@ -155,6 +155,7 @@ describe('CLI-only Agent details', () => {
     await userEvent.click(screen.getByRole('button', { name: '卸载' }))
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /卸载|删除|确认/ }))
     await waitFor(() => expect(operations).toEqual(['stop', 'remove']))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(mockPreferenceState.get('feature.code_cli.configs')[CodeCli.DEEPSEEK_HARNESS]).toMatchObject({
       current: null,
       providers: { deepseek: { modelId } }

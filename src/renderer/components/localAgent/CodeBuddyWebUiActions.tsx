@@ -57,7 +57,7 @@ export function CodeBuddyWebUiActions({ config, disabled }: { config: LocalAgent
           variant="outline"
           size="sm"
           className="h-8 rounded-lg border-border-subtle text-xs shadow-none"
-          disabled={disabled || working}
+          disabled={disabled || working || (!config.enabled && !running)}
           onClick={() => void run(running)}>
           {working ? (
             <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />

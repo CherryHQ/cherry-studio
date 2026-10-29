@@ -23,16 +23,16 @@ interface Props {
 
 export function LocalAgentWebUiActions(props: Props) {
   if (props.config.presetId === 'codebuddy-code') return <CodeBuddyWebUiActions {...props} />
-  if (props.config.presetId === 'hermes') return <HermesWebUiActions disabled={props.disabled} />
+  if (props.config.presetId === 'hermes') return <HermesWebUiActions {...props} />
   const id = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === props.config.presetId)
   return id ? <ManagedWebUiActions key={id} {...props} id={id} /> : null
 }
 
-function HermesWebUiActions({ disabled }: { disabled: boolean }) {
+function HermesWebUiActions({ config, disabled }: Props) {
   const controller = useHermesDashboardController(CodeCli.HERMES)
   return (
     <WebUiButtons
-      disabled={disabled}
+      disabled={disabled || (!config.enabled && !controller.running)}
       running={controller.running}
       pending={controller.launching || controller.starting || controller.stopping}
       onStart={controller.onLaunch}
@@ -72,7 +72,7 @@ function ManagedWebUiActions({ config, disabled, id }: Props & { id: LocalAgentW
   }
   return (
     <WebUiButtons
-      disabled={disabled}
+      disabled={disabled || (!config.enabled && status?.status !== 'running')}
       running={status?.status === 'running'}
       pending={pending || status?.status === 'starting'}
       onStart={() => void run(false)}
