@@ -22,8 +22,9 @@ Generation requests route through main's `AiStreamManager` as equal,
 **non-persisting** subscribers (alongside the renderer's `WebContentsListener`
 and the IM `ChannelAdapterListener`), and the resulting `UIMessageChunk` stream
 is translated back into the caller's dialect by the adapter system. Models,
-knowledge, and MCP routes call their owning services directly. Client tool calls with invalid
-arguments are forwarded for the client harness to validate; the gateway does not execute them.
+knowledge, and MCP routes call their owning services directly. Client tool calls rejected by input validation terminate the response through its error channel;
+the gateway neither executes them nor substitutes an empty argument object. Valid client tools
+are forwarded for execution by the client harness.
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
 

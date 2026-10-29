@@ -361,7 +361,21 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         })
         const listener: StreamListener = {
           id: sseListener.id,
-          onChunk: (chunk) => sseListener.onChunk(chunk),
+          onChunk: (chunk) => {
+            if (closed) return
+            try {
+              sseListener.onChunk(chunk)
+            } catch (error) {
+              if (startupState === 'pending') fail(error)
+              else write(buildStreamErrorFrame(outputFormat, error))
+              try {
+                onError?.(error)
+              } finally {
+                safeClose()
+                aiStreamManager.abort(streamId, 'gateway adapter rejected upstream output')
+              }
+            }
+          },
           onDone: (result) => sseListener.onDone(result),
           onPaused: (result) => {
             if (startupState === 'pending') {
@@ -437,6 +451,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   let aborted = false
+  let adapterFailed = false
   const onAbort = () => {
     aborted = true
     aiStreamManager.abort(streamId, 'gateway client disconnected')
@@ -450,7 +465,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const listener: StreamListener = {
     id: `gateway:${streamId}`,
     onChunk: (chunk) => {
-      adapter.transformChunk(chunk)
+      if (adapterFailed) return
+      try {
+        adapter.transformChunk(chunk)
+      } catch (error) {
+        adapterFailed = true
+        rejectDone(error)
+        aiStreamManager.abort(streamId, 'gateway adapter rejected upstream output')
+      }
     },
     onDone: () => resolveDone(),
     onPaused: () => {
@@ -469,7 +491,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       rejectDone(streamInterruptedError())
     },
     onError: (result) => rejectDone(result.error),
-    isAlive: () => !aborted
+    isAlive: () => !aborted && !adapterFailed
   }
 
   try {

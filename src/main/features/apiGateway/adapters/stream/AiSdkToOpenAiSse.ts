@@ -164,6 +164,8 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
 
       // === Tool Events ===
       case 'tool-input-error':
+        throw new Error(chunk.errorText)
+
       case 'tool-input-available':
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
