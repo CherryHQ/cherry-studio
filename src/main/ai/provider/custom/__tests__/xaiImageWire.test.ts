@@ -5,7 +5,7 @@ import { createXai } from '@ai-sdk/xai'
 import { describe, expect, it } from 'vitest'
 
 import { buildParamsSchema, type ImageGenerationMode } from '@cherrystudio/provider-registry'
-import { readModelRegistry } from '@cherrystudio/provider-registry/node'
+import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 
 import { splitParamValues } from '../../../utils/imageOptions'
 import { buildVendorProviderOptions } from '../wire/buildImageRequest'
@@ -13,10 +13,12 @@ import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from '../wire/wireProfi
 
 const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII='
 const BASE_URL = 'https://api.x.ai/v1'
-const { models } = readModelRegistry(join(process.cwd(), 'packages/provider-registry/data/models.json'))
+const { overrides } = readProviderModelRegistry(
+  join(process.cwd(), 'packages/provider-registry/data/provider-models.json')
+)
 
 function paramsSchema(modelId: string, mode: ImageGenerationMode) {
-  const support = models.find(({ id }) => id === modelId)?.imageGeneration
+  const support = overrides.find((row) => row.providerId === 'grok' && row.modelId === modelId)?.imageGeneration
   expect(support, `${modelId} imageGeneration declaration`).toBeDefined()
   expect(support?.modes[mode]?.supports.aspectRatio, `${modelId} ${mode} aspectRatio declaration`).toMatchObject({
     type: 'enum'

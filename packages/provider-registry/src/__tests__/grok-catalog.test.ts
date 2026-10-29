@@ -71,8 +71,14 @@ describe('Grok native image catalog', () => {
     { id: 'grok-imagine-image-2-0', aspectRatios: image20AspectRatios, maxInputImages: 5 },
     { id: 'grok-imagine-image-quality', aspectRatios: legacyAspectRatios, maxInputImages: 3 }
   ])('$id', ({ id, aspectRatios, maxInputImages }) => {
+    it('keeps the canonical model without native image generation support', () => {
+      const model = loader.findModel(id)
+      expect(model).toMatchObject({ id })
+      expect(model?.imageGeneration).toBeUndefined()
+    })
+
     it('declares generate and edit with the SKU reference image limit', () => {
-      const support = loader.findModel(id)?.imageGeneration
+      const support = loader.findOverride('grok', id)?.imageGeneration
       expect(support).toBeDefined()
       if (!support) throw new Error('Expected image generation support')
       expect(Object.keys(support.modes).sort()).toEqual(['edit', 'generate'])
@@ -80,9 +86,10 @@ describe('Grok native image catalog', () => {
     })
 
     it.each(['generate', 'edit'] as const)('offers only the SKU aspect ratio chips in %s mode', (mode) => {
-      const supports = loader.findModel(id)?.imageGeneration?.modes[mode]?.supports
+      const supports = loader.findOverride('grok', id)?.imageGeneration?.modes[mode]?.supports
       expect(supports).toBeDefined()
       if (!supports) throw new Error('Expected image mode support')
+      expect(loader.findOverride('grok', id)?.imageGeneration?.modes[mode]).not.toHaveProperty('vendorTransport')
       expect(Object.keys(supports).sort()).toEqual(['aspectRatio'])
       expect(supports.aspectRatio).toEqual({
         default: 'auto',
@@ -98,7 +105,7 @@ describe('Grok native image catalog', () => {
     })
 
     it.each(['generate', 'edit'] as const)('round-trips supported aspect ratios in %s mode', (mode) => {
-      const support = loader.findModel(id)?.imageGeneration
+      const support = loader.findOverride('grok', id)?.imageGeneration
       expect(support).toBeDefined()
       if (!support) throw new Error('Expected image generation support')
       const schema = buildParamsSchema(support, mode)
@@ -122,8 +129,9 @@ describe('Grok native image catalog', () => {
   })
 
   it.each(['generate', 'edit'] as const)('adds exactly two aspect ratios to Image 2.0 in %s mode', (mode) => {
-    const legacy = loader.findModel('grok-imagine-image')?.imageGeneration?.modes[mode]?.supports.aspectRatio
-    const image20 = loader.findModel('grok-imagine-image-2-0')?.imageGeneration?.modes[mode]?.supports.aspectRatio
+    const legacy = loader.findOverride('grok', 'grok-imagine-image')?.imageGeneration?.modes[mode]?.supports.aspectRatio
+    const image20 = loader.findOverride('grok', 'grok-imagine-image-2-0')?.imageGeneration?.modes[mode]?.supports
+      .aspectRatio
     if (legacy?.type !== 'enum' || image20?.type !== 'enum') throw new Error('Expected aspect ratio presets')
     expect(image20.options).toHaveLength(16)
     expect(legacy.options).toHaveLength(14)

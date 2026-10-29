@@ -86,62 +86,7 @@ export default defineCreator({
       family: 'grok',
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
-      outputModalities: ['image'],
-      imageGeneration: {
-        modes: {
-          edit: {
-            maxInputImages: 3,
-            supports: {
-              aspectRatio: {
-                default: 'auto',
-                options: [
-                  '1:1',
-                  '3:4',
-                  '4:3',
-                  '9:16',
-                  '16:9',
-                  '2:3',
-                  '3:2',
-                  '9:19.5',
-                  '19.5:9',
-                  '9:20',
-                  '20:9',
-                  '1:2',
-                  '2:1',
-                  'auto'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'auto',
-                options: [
-                  '1:1',
-                  '3:4',
-                  '4:3',
-                  '9:16',
-                  '16:9',
-                  '2:3',
-                  '3:2',
-                  '9:19.5',
-                  '19.5:9',
-                  '9:20',
-                  '20:9',
-                  '1:2',
-                  '2:1',
-                  'auto'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
-      }
+      outputModalities: ['image']
     },
     {
       id: 'grok-imagine-image-2-0',
@@ -149,66 +94,7 @@ export default defineCreator({
       family: 'grok',
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
-      outputModalities: ['image'],
-      imageGeneration: {
-        modes: {
-          edit: {
-            maxInputImages: 5,
-            supports: {
-              aspectRatio: {
-                default: 'auto',
-                options: [
-                  '1:1',
-                  '16:9',
-                  '9:16',
-                  '4:3',
-                  '3:4',
-                  '3:2',
-                  '2:3',
-                  '2:1',
-                  '1:2',
-                  '19.5:9',
-                  '9:19.5',
-                  '20:9',
-                  '9:20',
-                  '21:9',
-                  '5:2',
-                  'auto'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'auto',
-                options: [
-                  '1:1',
-                  '16:9',
-                  '9:16',
-                  '4:3',
-                  '3:4',
-                  '3:2',
-                  '2:3',
-                  '2:1',
-                  '1:2',
-                  '19.5:9',
-                  '9:19.5',
-                  '20:9',
-                  '9:20',
-                  '21:9',
-                  '5:2',
-                  'auto'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
-      }
+      outputModalities: ['image']
     },
     {
       id: 'grok-imagine-image-quality',
@@ -216,62 +102,7 @@ export default defineCreator({
       family: 'grok',
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
-      outputModalities: ['image'],
-      imageGeneration: {
-        modes: {
-          edit: {
-            maxInputImages: 3,
-            supports: {
-              aspectRatio: {
-                default: 'auto',
-                options: [
-                  '1:1',
-                  '3:4',
-                  '4:3',
-                  '9:16',
-                  '16:9',
-                  '2:3',
-                  '3:2',
-                  '9:19.5',
-                  '19.5:9',
-                  '9:20',
-                  '20:9',
-                  '1:2',
-                  '2:1',
-                  'auto'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'auto',
-                options: [
-                  '1:1',
-                  '3:4',
-                  '4:3',
-                  '9:16',
-                  '16:9',
-                  '2:3',
-                  '3:2',
-                  '9:19.5',
-                  '19.5:9',
-                  '9:20',
-                  '20:9',
-                  '1:2',
-                  '2:1',
-                  'auto'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
-      }
+      outputModalities: ['image']
     }
   ]
 })
