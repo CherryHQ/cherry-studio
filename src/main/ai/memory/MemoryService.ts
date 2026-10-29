@@ -47,6 +47,8 @@ export class MemoryService extends BaseService {
     result: MemoryCommitResult
   }>()
   readonly onChanged = this.changed.event
+  private readonly invalidated = new Emitter<MemoryScope | undefined>()
+  readonly onInvalidated = this.invalidated.event
 
   protected onStart(): void {
     this.stopped = false
@@ -98,15 +100,24 @@ export class MemoryService extends BaseService {
       commit: (mutations, approve, readReceipts) =>
         run(async (store) => notify(source, await store.commit(access, mutations, source, approve, { readReceipts }))),
       previewClear: () => run((store) => store.previewClear(access)),
-      clear: (token, approve) => run(async (store) => notify('clear', await store.clear(access, token, approve))),
+      clear: (token, approve) =>
+        run(async (store) => {
+          this.invalidated.fire(scope)
+          return notify('clear', await store.clear(access, token, approve))
+        }),
       previewRecovery: () => run((store) => store.previewRecovery(access)),
-      recover: (token, approve) => run(async (store) => notify('recovery', await store.recover(access, token, approve)))
+      recover: (token, approve) =>
+        run(async (store) => {
+          this.invalidated.fire(scope)
+          return notify('recovery', await store.recover(access, token, approve))
+        })
     }
   }
 
   pause(reason?: string): Disposable {
     const token = Symbol(reason)
     this.pauses.add(token)
+    this.invalidated.fire(undefined)
     return { dispose: () => void this.pauses.delete(token) }
   }
 
@@ -117,6 +128,7 @@ export class MemoryService extends BaseService {
   /** A restored filesystem/database must never reuse receipts from the previous state. */
   invalidateAll(): void {
     this.generation++
+    this.invalidated.fire(undefined)
     for (const session of this.sessions) session.dispose()
   }
 
@@ -129,6 +141,7 @@ export class MemoryService extends BaseService {
 
   protected onDestroy(): void {
     this.changed.dispose()
+    this.invalidated.dispose()
   }
 
   private async getStore(scope: MemoryScope): Promise<MemoryStore> {
