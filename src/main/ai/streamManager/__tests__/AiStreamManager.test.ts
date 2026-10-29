@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { APICallError, type UIMessageChunk } from 'ai'
+import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
