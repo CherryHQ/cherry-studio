@@ -147,21 +147,70 @@ describe('Claude native installation on Windows ARM64', () => {
     vi.spyOn(service, 'getCustomDefinitions').mockReturnValue([])
     vi.spyOn(service, 'getToolSnapshots').mockResolvedValue({ claude: { application: { status: 'broken' } } })
     vi.spyOn(service, 'setOperation').mockImplementation(() => {})
-    let installed = true
+    const installed = new Map<string, Array<{ version: string }>>([['http:claude', [{ version: '2.1.312' }]]])
     execFileAsync.mockImplementation(async (_file, args: string[]) => {
-      if (args[0] === 'unuse' && args[2] !== 'http:claude') throw new Error('Wrong unuse identity')
-      if (args[0] === 'uninstall') {
-        if (args[2] !== 'http:claude') throw new Error('Wrong uninstall identity')
-        installed = false
-      }
+      if (args[0] === 'uninstall') installed.delete(args[2]!)
       if (args[0] === 'ls') {
-        if (args[2] !== 'http:claude') throw new Error('Wrong absence identity')
-        return { stdout: JSON.stringify(installed ? { 'http:claude': [{ version: '2.1.312' }] } : {}), stderr: '' }
+        const entries = installed.get(args[2]!)
+        return { stdout: JSON.stringify(entries ? { [args[2]!]: entries } : {}), stderr: '' }
       }
       return { stdout: '', stderr: '' }
     })
     await expect(service.removeToolImpl('claude', false)).resolves.toEqual({ status: 'removed' })
-    expect(installed).toBe(false)
+    expect(installed.size).toBe(0)
+  })
+
+  it('removes a legacy plain-recipe install instead of blocking on it', async () => {
+    Object.defineProperty(process, 'arch', { value: 'arm64' })
+    const service = installer as any
+    vi.spyOn(service, 'getCustomDefinitions').mockReturnValue([])
+    vi.spyOn(service, 'getToolSnapshots').mockResolvedValue({ claude: { application: { status: 'applied' } } })
+    vi.spyOn(service, 'setOperation').mockImplementation(() => {})
+    const installed = new Map<string, Array<{ version: string }>>([['claude', [{ version: '2.0.0' }]]])
+    execFileAsync.mockImplementation(async (_file, args: string[]) => {
+      if (args[0] === 'uninstall') installed.delete(args[2]!)
+      if (args[0] === 'ls') {
+        const entries = installed.get(args[2]!)
+        return { stdout: JSON.stringify(entries ? { [args[2]!]: entries } : {}), stderr: '' }
+      }
+      return { stdout: '', stderr: '' }
+    })
+    await expect(service.removeToolImpl('claude', false)).resolves.toEqual({ status: 'removed' })
+    expect(installed.size).toBe(0)
+  })
+
+  it('keeps a legacy plain-recipe install manageable on Windows ARM64', async () => {
+    Object.defineProperty(process, 'arch', { value: 'arm64' })
+    const service = installer as any
+    vi.spyOn(service, 'getCustomDefinitions').mockReturnValue([])
+    vi.spyOn(service, 'listMiseInstalls').mockResolvedValue({ claude: [{ version: '2.0.0', active: true }] })
+    const runnable = vi
+      .spyOn(service, 'resolveRunnableShim')
+      .mockResolvedValue({ path: '/shim/claude', canonical: '/bin/claude' })
+    vi.spyOn(service, 'probeBundled').mockReturnValue({})
+    vi.spyOn(service, 'probeSystem').mockResolvedValue({})
+    const snapshots = await service.getToolSnapshots(['claude'])
+    expect(snapshots.claude.application).toEqual({ status: 'applied', version: '2.0.0' })
+    // The runnable proof must ask mise for the identity the package is installed under.
+    expect(runnable).toHaveBeenCalledWith('claude', 'claude')
+  })
+
+  it('retires the legacy identity once an update installs the HTTP recipe', async () => {
+    Object.defineProperty(process, 'arch', { value: 'arm64' })
+    const service = installer as any
+    vi.spyOn(service, 'installWithMise').mockResolvedValue('2.1.312')
+    vi.spyOn(service, 'isRecipeRunnable').mockResolvedValue(true)
+    const installed = new Map<string, Array<{ version: string }>>([['claude', [{ version: '2.0.0' }]]])
+    execFileAsync.mockImplementation(async (_file, args: string[]) => {
+      if (args[0] === 'uninstall') installed.delete(args[2]!)
+      if (args[0] === 'ls') {
+        const entries = installed.get(args[2]!)
+        return { stdout: JSON.stringify(entries ? { [args[2]!]: entries } : {}), stderr: '' }
+      }
+      return { stdout: '', stderr: '' }
+    })
+    await service.applyDefinition({ name: 'claude', tool: 'claude' }, '2.1.312', [])
+    expect(installed.has('claude')).toBe(false)
   })
 
   it.each([
