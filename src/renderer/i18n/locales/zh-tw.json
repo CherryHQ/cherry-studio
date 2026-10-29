@@ -2941,7 +2941,7 @@
   "notification.assistant": "助理回應",
   "notification.center.activation_failed": "無法開啟此通知，其關聯內容可能已不存在。",
   "notification.center.all": "全部",
-  "notification.center.dismiss": "關閉 {{title}}",
+  "notification.center.dismiss": "刪除該通知",
   "notification.center.empty": "目前沒有通知",
   "notification.center.error": "無法載入通知",
   "notification.center.load_more": "載入更多",

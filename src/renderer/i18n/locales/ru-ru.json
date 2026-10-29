@@ -2941,7 +2941,7 @@
   "notification.assistant": "Ответ ассистента",
   "notification.center.activation_failed": "Не удалось открыть это уведомление. Связанный с ним объект, возможно, больше не существует.",
   "notification.center.all": "Все",
-  "notification.center.dismiss": "Скрыть «{{title}}»",
+  "notification.center.dismiss": "Удалить это уведомление",
   "notification.center.empty": "Нет уведомлений",
   "notification.center.error": "Не удалось загрузить уведомления",
   "notification.center.load_more": "Загрузить ещё",

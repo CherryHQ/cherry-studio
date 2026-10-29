@@ -2941,7 +2941,7 @@
   "notification.assistant": "Assistant Response",
   "notification.center.activation_failed": "Could not open this notification. Its target may no longer exist.",
   "notification.center.all": "All",
-  "notification.center.dismiss": "Dismiss {{title}}",
+  "notification.center.dismiss": "Delete this notification",
   "notification.center.empty": "No notifications",
   "notification.center.error": "Could not load notifications",
   "notification.center.load_more": "Load more",

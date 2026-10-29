@@ -2941,7 +2941,7 @@
   "notification.assistant": "Assistenten-Antwort",
   "notification.center.activation_failed": "Diese Benachrichtigung konnte nicht geöffnet werden. Ihr Ziel existiert möglicherweise nicht mehr.",
   "notification.center.all": "Alle",
-  "notification.center.dismiss": "{{title}} schließen",
+  "notification.center.dismiss": "Diese Benachrichtigung löschen",
   "notification.center.empty": "Keine Benachrichtigungen",
   "notification.center.error": "Benachrichtigungen konnten nicht geladen werden",
   "notification.center.load_more": "Mehr laden",

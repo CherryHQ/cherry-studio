@@ -2941,7 +2941,7 @@
   "notification.assistant": "アシスタントの応答",
   "notification.center.activation_failed": "この通知を開けませんでした。リンク先がすでに存在しない可能性があります。",
   "notification.center.all": "すべて",
-  "notification.center.dismiss": "「{{title}}」を閉じる",
+  "notification.center.dismiss": "この通知を削除",
   "notification.center.empty": "通知はありません",
   "notification.center.error": "通知を読み込めませんでした",
   "notification.center.load_more": "さらに読み込む",

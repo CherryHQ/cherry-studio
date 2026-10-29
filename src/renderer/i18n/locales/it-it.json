@@ -2941,7 +2941,7 @@
   "notification.assistant": "Risposta dell'assistente",
   "notification.center.activation_failed": "Impossibile aprire questa notifica. La destinazione potrebbe non esistere più.",
   "notification.center.all": "Tutte",
-  "notification.center.dismiss": "Ignora {{title}}",
+  "notification.center.dismiss": "Elimina questa notifica",
   "notification.center.empty": "Nessuna notifica",
   "notification.center.error": "Impossibile caricare le notifiche",
   "notification.center.load_more": "Carica altro",

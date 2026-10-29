@@ -1,4 +1,4 @@
-import { Bell, X } from 'lucide-react'
+import { Bell, PanelLeftClose, X } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,6 +47,11 @@ function NotificationItem({
   const announcementUrl = announcement?.url
   const expandable = !!(release || announcement)
   const Icon = notificationCategoryIcons[record.category]
+  const created = new Date(record.createdAt)
+  const timeLabel = created.toLocaleString(i18n.language, {
+    ...(created.toDateString() === new Date().toDateString() ? {} : { dateStyle: 'short' as const }),
+    timeStyle: 'short'
+  })
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
 
   const activate = async () => {
@@ -74,21 +79,25 @@ function NotificationItem({
           variant="ghost"
           aria-label={record.title}
           aria-expanded={expandable ? expanded : undefined}
-          className="h-auto w-full min-w-0 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
+          className="block h-auto w-full min-w-0 whitespace-normal px-0 py-2 text-left"
           disabled={activating}
           onClick={() => void activate()}>
-          <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1">
-            <span className="mb-2 flex items-center gap-2 pr-8 font-medium">
-              {record.readAt === null && (
-                <span className="size-1.5 shrink-0 rounded-full bg-primary">
-                  <span className="sr-only">{t('notification.center.unread')}</span>
-                </span>
-              )}
+          <span className="relative mb-1 flex min-h-5 min-w-0 items-center gap-2 pr-8 font-medium">
+            {record.readAt === null && (
+              <span className="absolute -left-2.5 top-2 size-1.5 rounded-full bg-primary">
+                <span className="sr-only">{t('notification.center.unread')}</span>
+              </span>
+            )}
+            <>
+              <span className="flex size-5 shrink-0 items-center justify-center">
+                <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+              </span>
               <span className="min-w-0 flex-1 truncate">
                 <NotificationTitle record={record} />
               </span>
-            </span>
+            </>
+          </span>
+          <span className="block pl-7">
             {announcement ? (
               <NotificationAnnouncement id={record.id} announcement={announcement} expanded={expanded} />
             ) : (
@@ -97,18 +106,19 @@ function NotificationItem({
               </span>
             )}
             <time
-              dateTime={new Date(record.createdAt).toISOString()}
+              dateTime={created.toISOString()}
+              aria-label={created.toLocaleString(i18n.language, { dateStyle: 'full', timeStyle: 'long' })}
               className="mt-1 block text-xs text-muted-foreground">
-              {new Date(record.createdAt).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}
+              {timeLabel}
             </time>
           </span>
         </Button>
-        <Tooltip content={t('notification.center.dismiss', { title: record.title })} asChild>
+        <Tooltip content={t('notification.center.dismiss')} asChild>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="absolute right-1 top-3"
-            aria-label={t('notification.center.dismiss', { title: record.title })}
+            className="absolute right-0 top-3.5"
+            aria-label={t('notification.center.dismiss')}
             loading={dismissing}
             onClick={() =>
               void dismiss()
@@ -123,7 +133,7 @@ function NotificationItem({
         </Tooltip>
       </div>
       {expanded && (release || announcementUrl) && (
-        <div className="space-y-3 px-3 pb-4">
+        <div className="space-y-3 pb-4 pl-7">
           {release && (
             <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
               <ReleaseNotes content={release.releaseNotes} />
@@ -274,6 +284,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   const [open, setOpen] = useState(false)
   const [requestedId, setRequestedId] = useState<string | null>(null)
   const returnFocus = useRef(false)
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null)
   const { data: unread, refetch } = useQuery('/notifications/unread-count')
   const { trigger: markAllRead, isLoading: markingAllRead } = useMutation('POST', '/notifications/read-all', {
     refresh: ['/notifications', '/notifications/unread-count']
@@ -292,18 +303,30 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   return (
     <NotificationCenterContext value={{ open, hasUnread: (unread?.count ?? 0) > 0, toggle: () => changeOpen(!open) }}>
       {children}
+      <div
+        ref={setPortalContainer}
+        data-notification-viewport
+        className="pointer-events-none fixed z-50 overflow-hidden rounded-[12px]"
+        style={{
+          left: 'calc(var(--notification-left, 0px) + 1px)',
+          top: 'calc(max(44px, env(titlebar-area-height, 0px)) + 1px)',
+          bottom: '6px',
+          right: '6px'
+        }}
+      />
       <Drawer open={open} onOpenChange={changeOpen} direction="left" modal={false}>
         <DrawerContent
           id="notification-center"
           showOverlay={false}
+          portalContainer={portalContainer}
           style={{
-            left: 'var(--notification-left, 0px)',
-            top: 'max(44px, env(titlebar-area-height, 0px))',
+            left: 0,
+            top: 0,
             bottom: 0,
-            width: 'min(384px, calc(100vw - var(--notification-left, 0px)))',
+            width: 'min(384px, 100%)',
             maxWidth: 'none'
           }}
-          className="bg-popover text-popover-foreground shadow-lg motion-reduce:transition-none motion-reduce:animate-none"
+          className="pointer-events-auto absolute overflow-hidden rounded-[12px] border border-border bg-popover text-popover-foreground shadow-lg motion-reduce:transition-none motion-reduce:animate-none"
           onEscapeKeyDown={() => {
             returnFocus.current = true
           }}
@@ -343,10 +366,10 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
                 returnFocus.current = event.detail === 0
                 changeOpen(false)
               }}>
-              <X className="size-4" />
+              <PanelLeftClose className="size-4" />
             </Button>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-2">
+          <Scrollbar className="min-h-0 flex-1 px-4">
             <NotificationList
               requestedId={requestedId}
               onNavigate={() => changeOpen(false)}

@@ -57,12 +57,16 @@ function DrawerContent({
   className,
   children,
   showOverlay = true,
+  portalContainer,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Content> & { showOverlay?: boolean }) {
+}: React.ComponentProps<typeof DrawerPrimitive.Content> & {
+  showOverlay?: boolean
+  portalContainer?: HTMLElement | null
+}) {
   const direction = React.use(NonModalDirectionContext)
   const Content = direction ? DialogPrimitive.Content : DrawerPrimitive.Content
   return (
-    <DrawerPortal data-slot="drawer-portal">
+    <DrawerPortal data-slot="drawer-portal" container={portalContainer}>
       {showOverlay && <DrawerOverlay />}
       <Content
         data-vaul-drawer-direction={direction ?? undefined}

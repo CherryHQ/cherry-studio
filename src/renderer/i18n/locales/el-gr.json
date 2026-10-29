@@ -2941,7 +2941,7 @@
   "notification.assistant": "Απάντηση Βοηθού",
   "notification.center.activation_failed": "Δεν ήταν δυνατό το άνοιγμα αυτής της ειδοποίησης. Ο προορισμός της ενδέχεται να μην υπάρχει πλέον.",
   "notification.center.all": "Όλες",
-  "notification.center.dismiss": "Απόρριψη: {{title}}",
+  "notification.center.dismiss": "Διαγραφή αυτής της ειδοποίησης",
   "notification.center.empty": "Δεν υπάρχουν ειδοποιήσεις",
   "notification.center.error": "Δεν ήταν δυνατή η φόρτωση των ειδοποιήσεων",
   "notification.center.load_more": "Φόρτωση περισσότερων",

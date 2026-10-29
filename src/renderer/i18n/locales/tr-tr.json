@@ -2941,7 +2941,7 @@
   "notification.assistant": "Asistan Yanıtı",
   "notification.center.activation_failed": "Bu bildirim açılamadı. Bağlantılı öğe artık mevcut olmayabilir.",
   "notification.center.all": "Tümü",
-  "notification.center.dismiss": "{{title}} bildirimini kapat",
+  "notification.center.dismiss": "Bu bildirimi sil",
   "notification.center.empty": "Bildirim yok",
   "notification.center.error": "Bildirimler yüklenemedi",
   "notification.center.load_more": "Daha fazla yükle",
