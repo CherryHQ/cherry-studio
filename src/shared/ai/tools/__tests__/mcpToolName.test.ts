@@ -1321,6 +1321,32 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
     ).toEqual(['mcp__docs__getTime', `mcp__${idA}__getTime`, `mcp__${idA}__gettime`])
   })
 
+  it('keeps the denial enforceable through a takeover a partial catalog cannot fully recover', () => {
+    // Raw `RUN` persists as the alias `mcp__docs__run`, and A's cached catalog temporarily
+    // lists only the lowercase sibling `run`. A departs while B claims `docs`: the alias must
+    // step aside for the claimant, but the sibling-backed resolution emits only
+    // `mcp__<id>__run` — camelization is not injective (`RUN` and `run` both camelize to
+    // `run`), so nothing left names the raw stable id `mcp__<id>__RUN` Pi matches verbatim
+    // after the remount, and the explicitly disabled tool executes under Full Access. When a
+    // camelization-identity fragment's ownership moves, the takeover must synthesize the
+    // bounded fold-class spellings (ALL-UPPER, Title) on the owner-bound stable-id
+    // destinations: an id is never reassigned, so the variants can only over-block the
+    // owner's own same-spelling tools — the same fail-closed direction as keeping the
+    // unresolvable original.
+    const migrated = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+      oldMountedServers: [
+        { mcpId: idA, name: 'docs' },
+        { mcpId: idB, name: 'docs' }
+      ],
+      newMountedServers: [{ mcpId: idB, name: 'docs' }],
+      reservedKeys: RESERVED,
+      toolNamesByServerId: new Map([[idA, ['run']]])
+    })
+    expect(migrated).not.toContain('mcp__docs__run')
+    expect(migrated).toContain(`mcp__${idA}__RUN`)
+    expect(migrated).toContain(`mcp__${idA}__run`)
+  })
+
   it('resolves a bounded Pi alias to its raw tool against the catalog', () => {
     // Pi saves denials through `buildFunctionCallToolName`, which truncates the name past 63
     // chars and appends `_<hash(serverName)>`: raw `get_` + 90 a's persists a bounded alias

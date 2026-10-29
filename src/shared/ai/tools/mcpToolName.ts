@@ -833,6 +833,36 @@ function applyAgentKeyRewrites(
           // destinations keep the raw spelling the camelized copy cannot name.
           const { targets, rawResolved } = targetForms(matched, toolPart, serverPart)
           replacements = targets
+          // When the original steps aside for a claimant (the keepOriginal rule below) while a
+          // resolution SUCCEEDED, a partial catalog is the one state where nothing enforceable
+          // survives: the copies derive from the spellings the snapshot happens to hold, and a
+          // camelization-identity fragment folds every case spelling onto itself (`RUN`, `Run`
+          // and `run` all camelize to `run`), so snapshot-backed copies can name none of the
+          // raw spellings the alias historically represented. Synthesize the bounded fold-class
+          // spellings (ALL-UPPER, Title) on the owner-bound destinations: an id is never
+          // reassigned, so the variants can only over-block the owner's own same-spelling
+          // tools — the fail-closed direction — and they restore the form Pi matches verbatim
+          // (`mcp__<id>__RUN`) after the remount. Fragments whose camelization is not the
+          // identity fold no case variants (a raw `GetTime` registers `gettime`, not
+          // `getTime`), so the snapshot enumeration remains the only source there, and a
+          // mixed-case residual (`rUn`) stays outside the bounded set exactly like any raw
+          // spelling outside the snapshot.
+          if (
+            matched.aliasOwnershipLost === true &&
+            matched.fromIsId !== true &&
+            !idSegments.has(serverPart) &&
+            rawResolved &&
+            toCamelCase(toolPart) === toolPart
+          ) {
+            const ownerKeys = [matched.toKey, toSdkMcpServerSegment(matched.toKey)]
+            if (matched.camelToKey) ownerKeys.push(matched.camelToKey)
+            for (const ownerKey of ownerKeys) {
+              targets.push(
+                `mcp__${ownerKey}__${toolPart.toUpperCase()}`,
+                `mcp__${ownerKey}__${toolPart.charAt(0).toUpperCase() + toolPart.slice(1)}`
+              )
+            }
+          }
           // An id-keyed original is a native registered identity (Pi registers servers under
           // their id and matches `mcp__<id>__tool` verbatim at any tool length), so it must
           // survive the migration: the copies cannot regenerate a bounded long-tool identity,
@@ -880,8 +910,10 @@ function applyAgentKeyRewrites(
           // has not moved, the original stays owner-bound exactly as in the failed-resolution
           // case: it re-enforces the denial on remount and can over-block only a
           // same-camelization sibling of a tool the owner itself registered. Only when the
-          // segment changes owners does the original step aside for the claimant, on the
-          // stable-id forms that DO travel with the owner (the ownership rule above).
+          // segment changes owners does the original step aside for the claimant — on the
+          // stable-id forms that travel with the owner (the ownership rule above), completed
+          // by the bounded case-variant synthesis when the snapshot cannot prove the raw
+          // spelling (the block above).
           keepOriginal =
             matched.aliasOwnershipLost !== true ||
             matched.fromIsId === true ||
