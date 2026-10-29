@@ -246,7 +246,7 @@ export class McpServerService {
             ...(renamedStaysBrowser ? [id] : [])
           ])
           const migrated = migrateAgentDisabledToolsForServerRename(agent.disabledTools ?? [], {
-            mountedServers: mountedServers.map(({ browser: _browser, ...ref }) => ref),
+            mountedServers: mountedServers.map(({ mcpId, name }) => ({ mcpId, name })),
             renamedServerId: id,
             toName: name,
             reservedKeys: [
