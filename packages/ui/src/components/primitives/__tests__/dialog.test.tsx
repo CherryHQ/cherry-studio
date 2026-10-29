@@ -48,10 +48,11 @@ function getDialogContent(title: string) {
   return content as HTMLElement
 }
 
-function getTooltipLayer(tooltipContent: HTMLElement) {
-  const layer = tooltipContent.closest('[data-slot="dialog-tooltip-layer"]')
-  expect(layer).toBeInstanceOf(HTMLElement)
-  return layer as HTMLElement
+// The popper wrapper is the tooltip's portal root and the element that stacks against the dialog.
+function getTooltipWrapper(tooltipContent: HTMLElement) {
+  const wrapper = tooltipContent.closest('[data-radix-popper-content-wrapper]')
+  expect(wrapper).toBeInstanceOf(HTMLElement)
+  return wrapper as HTMLElement
 }
 
 function DialogWithSelect({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
@@ -108,46 +109,52 @@ describe('Dialog primitive', () => {
 
   // The content box is a transformed containing block; callers that add overflow to it would clip
   // any tooltip mounted inside, while focusable overlays must stay inside for the focus trap.
-  it('portals tooltips into a layer after the dialog content at its z-index', () => {
+  it('portals tooltips beside the dialog content at its z-index', () => {
     const pagePortalContainer = document.createElement('div')
     document.body.appendChild(pagePortalContainer)
 
-    render(
-      <DialogPortalContainerProvider container={pagePortalContainer}>
-        <Dialog open>
-          <DialogContent aria-describedby={undefined} className="overflow-hidden" style={{ zIndex: 10000 }}>
-            <DialogTitle>Custom action</DialogTitle>
-            <Tooltip isOpen content="Simple hint">
-              <span>Model</span>
-            </Tooltip>
-            <NormalTooltip open content="Compound hint">
-              <button type="button">Prompt</button>
-            </NormalTooltip>
-            <Popover open>
-              <PopoverTrigger>Icons</PopoverTrigger>
-              <PopoverContent data-testid="popover-content">Icon list</PopoverContent>
-            </Popover>
-          </DialogContent>
-        </Dialog>
-      </DialogPortalContainerProvider>
-    )
+    function CustomActionDialog({ hintsOpen }: { hintsOpen: boolean }) {
+      return (
+        <DialogPortalContainerProvider container={pagePortalContainer}>
+          <Dialog open>
+            <DialogContent aria-describedby={undefined} className="overflow-hidden" style={{ zIndex: 10000 }}>
+              <DialogTitle>Custom action</DialogTitle>
+              <Tooltip isOpen={hintsOpen} content="Simple hint">
+                <span>Model</span>
+              </Tooltip>
+              <NormalTooltip open={hintsOpen} content="Compound hint">
+                <button type="button">Prompt</button>
+              </NormalTooltip>
+              <Popover open>
+                <PopoverTrigger>Icons</PopoverTrigger>
+                <PopoverContent data-testid="popover-content">Icon list</PopoverContent>
+              </Popover>
+            </DialogContent>
+          </Dialog>
+        </DialogPortalContainerProvider>
+      )
+    }
+
+    // Tooltips open on hover or focus, after the dialog has mounted.
+    const { rerender } = render(<CustomActionDialog hintsOpen={false} />)
+    rerender(<CustomActionDialog hintsOpen />)
 
     const dialogContent = getDialogContent('Custom action')
     for (const hint of ['Simple hint', 'Compound hint']) {
       const tooltipContent = getTooltipContent(hint)
-      const layer = getTooltipLayer(tooltipContent)
+      const wrapper = getTooltipWrapper(tooltipContent)
       expect(dialogContent).not.toContainElement(tooltipContent)
-      expect(layer.parentElement).toBe(dialogContent.parentElement)
-      expect(dialogContent.compareDocumentPosition(layer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      expect(layer).toHaveStyle({ zIndex: '10000' })
+      expect(wrapper.parentElement).toBe(dialogContent.parentElement)
+      expect(dialogContent.compareDocumentPosition(wrapper) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(wrapper).toHaveStyle({ zIndex: '10000' })
     }
     expect(dialogContent).toContainElement(screen.getByTestId('popover-content'))
 
     pagePortalContainer.remove()
   })
 
-  it('keeps the tooltip layer at the dialog z-index when it changes while open', () => {
-    function FullscreenToggleDialog({ fullscreen }: { fullscreen: boolean }) {
+  it('gives tooltips opened after the dialog raises its z-index the raised value', () => {
+    function FullscreenToggleDialog({ fullscreen, hintOpen }: { fullscreen: boolean; hintOpen: boolean }) {
       return (
         <Dialog open>
           <DialogContent
@@ -155,7 +162,7 @@ describe('Dialog primitive', () => {
             className={fullscreen ? 'fullscreen' : undefined}
             style={fullscreen ? { zIndex: 10000 } : undefined}>
             <DialogTitle>Preview</DialogTitle>
-            <Tooltip isOpen content="Save hint">
+            <Tooltip isOpen={hintOpen} content="Save hint">
               <span>Save</span>
             </Tooltip>
           </DialogContent>
@@ -163,10 +170,11 @@ describe('Dialog primitive', () => {
       )
     }
 
-    const { rerender } = render(<FullscreenToggleDialog fullscreen={false} />)
-    rerender(<FullscreenToggleDialog fullscreen />)
+    const { rerender } = render(<FullscreenToggleDialog fullscreen={false} hintOpen={false} />)
+    rerender(<FullscreenToggleDialog fullscreen hintOpen={false} />)
+    rerender(<FullscreenToggleDialog fullscreen hintOpen />)
 
-    expect(getTooltipLayer(getTooltipContent('Save hint'))).toHaveStyle({ zIndex: '10000' })
+    expect(getTooltipWrapper(getTooltipContent('Save hint'))).toHaveStyle({ zIndex: '10000' })
   })
 
   // A modal dialog hides everything outside its content from assistive tech while it is open.
@@ -190,6 +198,38 @@ describe('Dialog primitive', () => {
     rerender(<ToggleDialog open={false} />)
     rerender(<ToggleDialog open />)
     expect(screen.getByRole('tooltip', { name: 'Remove prompt' })).toBeInTheDocument()
+  })
+
+  // An open Select hides everything outside its own content the same way.
+  it('keeps tooltips on the options of a select opened in a dialog exposed to assistive tech', () => {
+    function DialogWithHintedSelect({ selectOpen, hintOpen }: { selectOpen: boolean; hintOpen: boolean }) {
+      return (
+        <Dialog open>
+          <DialogContent aria-describedby={undefined}>
+            <DialogTitle>Channel</DialogTitle>
+            <Select open={selectOpen} value="ask">
+              <SelectTrigger aria-label="Permission mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ask">Ask first</SelectItem>
+                <SelectItem value="full">
+                  <Tooltip isOpen={hintOpen} content="Skips every approval">
+                    <span>Full access</span>
+                  </Tooltip>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </DialogContent>
+        </Dialog>
+      )
+    }
+
+    const { rerender } = render(<DialogWithHintedSelect selectOpen={false} hintOpen={false} />)
+    rerender(<DialogWithHintedSelect selectOpen hintOpen={false} />)
+    rerender(<DialogWithHintedSelect selectOpen hintOpen />)
+
+    expect(screen.getByRole('tooltip', { name: 'Skips every approval' })).toBeInTheDocument()
   })
 
   it('keeps tooltips in a portal scope declared inside the dialog', () => {
