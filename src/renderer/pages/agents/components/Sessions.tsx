@@ -1554,7 +1554,7 @@ const Sessions = ({
   const handleOpenWorkdirGroup = useCallback(
     async (workdirPath: string) => {
       try {
-        await window.api.file.openPath(workdirPath)
+        await ipcApi.request('system.shell.open_path', workdirPath)
       } catch (err) {
         toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
       }

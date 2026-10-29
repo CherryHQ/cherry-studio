@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-11T15:18:33.533Z
- * Total icons: 164
+ * Generated at: 2026-10-28T16:20:14.303Z
+ * Total icons: 165
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -132,6 +132,7 @@ import { PulseIcon } from './pulse'
 import { QiniuIcon } from './qiniu'
 import { QueritIcon } from './querit'
 import { QwenIcon } from './qwen'
+import { QwencloudIcon } from './qwencloud/qwencloud'
 import { RadeonCloudIcon } from './radeon-cloud'
 import { RecraftIcon } from './recraft'
 import { RelaceIcon } from './relace'
@@ -298,14 +299,15 @@ export const PROVIDER_ICON_CATALOG = {
   qiniu: QiniuIcon,
   querit: QueritIcon,
   qwen: QwenIcon,
+  qwencloud: QwencloudIcon,
   'radeon-cloud': RadeonCloudIcon,
   recraft: RecraftIcon,
   relace: RelaceIcon,
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
-  serply: SerplyIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,

@@ -6,10 +6,12 @@ import { EditProvider, File, useWorkerPool, VirtualizerContext, WorkerPoolContex
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { CHERRY_CODE_THEME } from '@cherrystudio/ui/code-highlight'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
+import { CHERRY_EDITOR_CSS } from '@renderer/utils/pierreCodeTheme'
 import { cn } from '@renderer/utils/style'
 
 const logger = loggerService.withContext('FileEditor')
@@ -152,7 +154,8 @@ export default function FileEditor({
       theme,
       themeType: isCodeThemeDark ? 'dark' : 'light',
       overflow: wrapLines ? 'wrap' : 'scroll',
-      disableLineNumbers: !showLineNumbers
+      disableLineNumbers: !showLineNumbers,
+      unsafeCSS: theme === CHERRY_CODE_THEME ? CHERRY_EDITOR_CSS : undefined
     }),
     [theme, isCodeThemeDark, showLineNumbers, wrapLines, revealSource]
   )

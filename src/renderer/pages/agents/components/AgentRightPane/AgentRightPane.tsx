@@ -98,6 +98,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -113,6 +114,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
 import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotations'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -381,6 +383,7 @@ function AgentRightPaneActionsProvider({
 }: AgentRightPaneActionsProviderProps) {
   const { t } = useTranslation()
   const [openLinksInBrowser] = usePreference('app.browser.open_links_in_browser')
+  const [autoOpenPanel] = usePreference('app.browser.auto_open_panel')
   const panelActions = useRightPanelActions()
   const panelState = useRightPanelState()
   const isAgentToolFlowActive = useCallback(
@@ -397,6 +400,10 @@ function AgentRightPaneActionsProvider({
   )
   const openExternalUrl = useCallback(
     (url: string) => {
+      if (resolveSafeExternalUrl(url)?.requiresConfirmation) {
+        void openExternalWebsite(url)
+        return
+      }
       if (openLinksInBrowser && /^https?:\/\//i.test(url) && canOpenBrowser) {
         openBrowserPanel(url)
         return
@@ -408,7 +415,7 @@ function AgentRightPaneActionsProvider({
   useIpcOn('browser.pane.open_requested', (request) => {
     if (request.sessionId !== sessionId) return
     if (request.url) openBrowserUrl(request.url)
-    panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: false })
+    if (autoOpenPanel) panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: false })
   })
 
   // Invalidate in-flight artifact-open requests when the session or workspace
@@ -477,7 +484,7 @@ function AgentRightPaneActionsProvider({
         },
         openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return
-          await window.api.file.openPath(path)
+          await ipcApi.request('system.shell.open_path', path)
           if (artifactOpenRequestRef.current !== requestId) return
           requestFileSelection(null)
         },

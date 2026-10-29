@@ -34,10 +34,13 @@ const docDescription = (filePath: string): string => {
   return typeof data.description === 'string' ? data.description.trim() : ''
 }
 
+// Mirrors gen-doc-terminology's escapeCell: a '|' in a title or description would split the table row.
+const escapeCell = (value: string): string => value.replaceAll('|', '\\|').replaceAll('\n', ' ')
+
 const tableRows = (docsDir: string, files: string[]): string[] =>
   files.map((file) => {
     const link = './' + path.relative(docsDir, file).split(path.sep).join('/')
-    return `| [${docTitle(file)}](${link}) | ${docDescription(file)} |`
+    return `| [${escapeCell(docTitle(file))}](${link}) | ${escapeCell(docDescription(file))} |`
   })
 
 const englishDocs = (dir: string): string[] =>
