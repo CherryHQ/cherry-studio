@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Unterstützt stream_options",
   "settings.provider.api.url.preview": "Vorschau: {{url}}",
   "settings.provider.api.url.reset": "Zurücksetzen",
+  "settings.provider.api.url.reset_confirm": "Möchten Sie den API-Host auf den Standardwert zurücksetzen? Dadurch wird Ihre benutzerdefinierte URL ersetzt.",
   "settings.provider.api.url.tip": "Fügen Sie am Ende ein # hinzu, um die automatisch angehängte API-Version zu deaktivieren.",
   "settings.provider.api_host": "API-Adresse",
   "settings.provider.api_host_drawer_hint": "Benutzerdefinierte API-Anfrage-URL; leer lassen, wenn der Katalogstandard gilt.",

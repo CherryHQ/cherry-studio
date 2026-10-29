@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Prise en charge des options de flux",
   "settings.provider.api.url.preview": "Aperçu : {{url}}",
   "settings.provider.api.url.reset": "Réinitialiser",
+  "settings.provider.api.url.reset_confirm": "Voulez-vous réinitialiser l’hôte API à sa valeur par défaut ? Cela remplacera votre URL personnalisée.",
   "settings.provider.api.url.tip": "Ajoutez # à la fin pour désactiver la version d'API ajoutée automatiquement.",
   "settings.provider.api_host": "Adresse API",
   "settings.provider.api_host_drawer_hint": "URL personnalisée de requête API ; laisser vide lorsque la valeur par défaut du catalogue s'applique.",

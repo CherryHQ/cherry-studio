@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Υποστήριξη stream_options",
   "settings.provider.api.url.preview": "Προεπισκόπηση: {{url}}",
   "settings.provider.api.url.reset": "Επαναφορά",
+  "settings.provider.api.url.reset_confirm": "Θέλετε να επαναφέρετε τον κεντρικό υπολογιστή API στην προεπιλεγμένη τιμή του; Αυτό θα αντικαταστήσει την προσαρμοσμένη διεύθυνση URL σας.",
   "settings.provider.api.url.tip": "Προσθέστε το σύμβολο # στο τέλος για να απενεργοποιήσετε την αυτόματα προστιθέμενη έκδοση API.",
   "settings.provider.api_host": "Διεύθυνση API",
   "settings.provider.api_host_drawer_hint": "Προσαρμοσμένο URL αιτήματος API· αφήστε το κενό όταν ισχύει ο κατάλογος προεπιλογής.",
