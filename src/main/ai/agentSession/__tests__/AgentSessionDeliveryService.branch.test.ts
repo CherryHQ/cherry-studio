@@ -49,10 +49,11 @@ describe('durable delivery native branch admission', () => {
       send: (input: Parameters<AiStreamManager['send']>[0]) => {
         const request = input.models[0].request.runtime!
         if (request.kind !== 'agent-session') throw new Error('Expected an agent session')
-        const stream = runtime.openTurnStream({ ...request, signal: new AbortController().signal })
+        const source = runtime.openTurnStream({ ...request, signal: new AbortController().signal })
+        if (source.kind !== 'chunks') throw new Error('Expected the fixture driver to produce chunks')
         completion = (async () => {
           let text = ''
-          for await (const message of readUIMessageStream({ stream }))
+          for await (const message of readUIMessageStream({ stream: source.stream }))
             text = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
           runtime.markTurnTerminal(request.sessionId, 'success')
           return text
