@@ -1,49 +1,89 @@
 {
-  "generated_at": "2026-10-28T00:00:00Z",
-  "date": "2026-10-28",
-  "health_methodology": {
-    "Active": "Updated within last 7 days",
-    "Aging": "Updated 8-30 days ago",
-    "Stale": "Updated 31-90 days ago",
-    "Zombie": "Not updated in >90 days"
-  },
-  "p1_health": {
-    "total": 102,
-    "sampled": 36,
-    "sampled_breakdown": {
-      "Active": 22,
-      "Aging": 6,
-      "Stale": 8,
-      "Zombie": 0
+  "generated_at": "2026-10-29T17:49:04.566751+00:00",
+  "health_buckets": {
+    "Active": {
+      "count": 33,
+      "pct": 100.0
     },
-    "note": "Based on a sample of 36 P1 issues. Active rate ~61% of sample indicates high engagement on critical bugs."
+    "Aging": {
+      "count": 0,
+      "pct": 0.0
+    },
+    "Stale": {
+      "count": 0,
+      "pct": 0.0
+    },
+    "Zombie": {
+      "count": 0,
+      "pct": 0.0
+    }
   },
-  "high_comment_p1_issues": [
-    {"number": 20940, "comments": 108, "title": "Responses API stream events fail client TypeValidation"},
-    {"number": 20941, "comments": 107, "title": "Work and Agent conversations terminate with empty no-response error"},
-    {"number": 19793, "comments": 65, "title": "Chat fails when response stream ends without a finish reason"},
-    {"number": 20343, "comments": 42, "title": "Configured OCR fallback fails for image input on non-vision models"},
-    {"number": 19847, "comments": 28, "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on server error"},
-    {"number": 22121, "comments": 28, "title": "[Bug]: Responses reasoning delta reaches chat consumers without initialized reasoning part"},
-    {"number": 19321, "comments": 27, "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations"},
-    {"number": 18741, "comments": 25, "title": "[Bug]: DeepSeek V4 shows No tool output found for tool call"},
-    {"number": 20692, "comments": 19, "title": "[Bug]: Agent compaction summary leaks into visible chat transcript"},
-    {"number": 19171, "comments": 13, "title": "Model connectivity check hardcodes reasoning_effort: none"}
+  "p1_issues": [
+    {
+      "number": 22850,
+      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent",
+        "claude-code",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+    }
   ],
-  "recurring_themes_in_p1": [
-    "Agent runtime startup failures on Windows (EPERM, ENAMETOOLONG, missing executable)",
-    "Responses API TypeValidation / stream parsing failures",
-    "DeepSeek-specific errors (reasoning_text drops, tool continuation 400s, Flash 400 callbacks)",
-    "Work/Agent turn termination with no-response error",
-    "Data integrity issues (SQLITE_CORRUPT, relocation stale paths, backup failures)",
-    "Context overflow / large payload crashes (38MB PDF, 8k char files, knowledge base schemas)"
+  "high_comment_issues": [
+    {
+      "number": 22909,
+      "title": "[Bug]: Work conversation request body exceeds limit (413)",
+      "comments": 17
+    },
+    {
+      "number": 22852,
+      "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay",
+      "comments": 11
+    },
+    {
+      "number": 22850,
+      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
+      "comments": 6
+    },
+    {
+      "number": 22936,
+      "title": "[Bug]: PDF translation babeldoc silently exits mid-run",
+      "comments": 4
+    },
+    {
+      "number": 23059,
+      "title": "[Bug]: Windows ARM64 Claude Code dependency conflict",
+      "comments": 2
+    },
+    {
+      "number": 23038,
+      "title": "[Bug]: Agent conversation aborts with Failed to load registry file",
+      "comments": 2
+    },
+    {
+      "number": 22998,
+      "title": "[Bug]: Attachment token counting overflows JavaScript stack",
+      "comments": 2
+    },
+    {
+      "number": 22900,
+      "title": "[Feature]: Discover embedding models from oMLX provider",
+      "comments": 2
+    },
+    {
+      "number": 22894,
+      "title": "[Bug]: Normal chat fails with HTTP 400 invalid encrypted_content",
+      "comments": 2
+    },
+    {
+      "number": 22887,
+      "title": "[Bug]: Offline version lookup makes coding CLIs show as not installed",
+      "comments": 2
+    }
   ],
-  "total_open_issues": 1529,
-  "high_activity_non_p1_today": [
-    {"number": 22909, "comments": 7, "title": "[Bug]: Work conversation request body exceeds limit (413) no size pre-check"},
-    {"number": 22775, "comments": 31, "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request"},
-    {"number": 22852, "comments": 8, "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay rejection"},
-    {"number": 22726, "comments": 15, "title": "[Bug]: Normal chat sends unsupported max reasoning effort to GPT-5.6 Luna"},
-    {"number": 22998, "comments": 2, "title": "[Bug]: Attachment token counting overflows JavaScript stack"}
-  ]
+  "unlabeled_issues": []
 }

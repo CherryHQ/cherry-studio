@@ -1,54 +1,203 @@
 {
-  "generated_at": "2026-10-28T00:00:00Z",
-  "date": "2026-10-28",
+  "generated_at": "2026-10-29T17:49:04.519733+00:00",
   "open_issues": {
-    "total": 1529,
-    "by_priority": {
-      "p1": 102,
-      "p2_estimate": 320,
-      "p3_estimate": 900,
-      "unlabeled_estimate": 207
-    },
-    "by_type_estimate": {
-      "bug": 700,
-      "feature": 650,
-      "task_discussion": 179
-    },
-    "unlabeled_pct_estimate": 13.5
+    "count": 33,
+    "total_in_repo": 1531
   },
   "open_prs": {
-    "total": 100,
-    "targeting_main": 83,
-    "targeting_v2": 0,
-    "draft": 0,
-    "age_0_7_days": 100,
-    "age_8_30_days": 0,
-    "age_31_plus_days": 0,
-    "note": "All visible open PRs were created within the last 7 days — high merge velocity on main branch."
+    "count": 100,
+    "by_base": {
+      "codex/shared-memory/runtime": 1,
+      "codex/shared-memory/editor": 1,
+      "codex/shared-memory/access": 1,
+      "main": 77,
+      "eurfelux/selection-agent-window": 1,
+      "codex/shared-memory/storage": 1,
+      "codex/shared-memory/design": 1,
+      "eurfelux/selection-agent-action-data": 1,
+      "codex/notification-center-redesign": 1,
+      "codex/notification-center-redesign-spec": 1,
+      "kangfenmao/settings-icon-help-move": 1,
+      "eurfelux/selection-agent-nav-decoupling": 1,
+      "SiinXu/cherry-cloud-subscription-quota-notice": 1,
+      "SiinXu/cherry-cloud-subscription-reminder": 1,
+      "SiinXu/cherry-cloud-subscription-selector": 1,
+      "SiinXu/cherry-cloud-subscription-editions": 1,
+      "SiinXu/cherry-cloud-subscription-spec": 1,
+      "feature/agent-runtime-claude-code": 1,
+      "docs/agent-runtime-claude-code-spec": 1,
+      "feature/agent-runtime-durable-behavior": 1,
+      "feature/agent-runtime-shared-projection": 1,
+      "DeJeune/gateway-provider-id": 1,
+      "feature/agent-runtime-child-projection": 1,
+      "feature/agent-runtime-pi-root": 1
+    }
   },
-  "v2_branch": {
-    "open_prs": 0,
-    "note": "No open PRs targeting v2 base branch as of this snapshot."
-  },
-  "p1_urgent_issues": [
-    {"number": 22850, "title": "[Bug]: Windows Work sessions cannot start Claude runtime with spawn ENAMETOOLONG", "updated_at": "2026-10-28T14:44:00Z", "labels": ["bug","p1","windows","agent","claude-code"]},
-    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error", "updated_at": "2026-10-28T16:48:02Z", "labels": ["bug","p1","v2","agent","chat"], "comment_count": 107},
-    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn", "updated_at": "2026-10-28T17:18:00Z", "labels": ["bug","p1","models","v2","chat"], "comment_count": 108},
-    {"number": 19793, "title": "Chat fails when a response stream ends without a finish reason", "updated_at": "2026-10-28T16:14:12Z", "labels": ["bug","p1","models","chat"], "comment_count": 65},
-    {"number": 20343, "title": "Configured OCR fallback fails for image input on non-vision models", "updated_at": "2026-10-28T16:11:30Z", "labels": ["bug","p1","windows","models","chat"], "comment_count": 42},
-    {"number": 21905, "title": "[Bug]: Work-mode Agent turns abort with Autocompact is thrashing and cannot recover on 2.0.14-2.1.6", "updated_at": "2026-10-28T11:03:50Z", "labels": ["bug","p1"], "comment_count": 5},
-    {"number": 18741, "title": "[Bug]: DeepSeek V4 shows No tool output found for tool call after a long conversation", "updated_at": "2026-10-28T11:10:11Z", "labels": ["bug","p1","agent","chat"], "comment_count": 25},
-    {"number": 19321, "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations", "updated_at": "2026-10-28T11:00:58Z", "labels": ["bug","p1","models","agent"], "comment_count": 27},
-    {"number": 22121, "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part", "updated_at": "2026-10-27T20:40:49Z", "labels": ["bug","p1","models","v2","chat"], "comment_count": 28},
-    {"number": 18150, "title": "[Bug]: DeepSeek V4 Flash 0731 response callback error (400)", "updated_at": "2026-10-28T04:54:57Z", "labels": ["bug","p1","models"], "comment_count": 35},
-    {"number": 19929, "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM", "updated_at": "2026-10-28T16:48:51Z", "labels": ["bug","p1","windows","v2","agent"], "comment_count": 7},
-    {"number": 19124, "title": "[Bug]: ClaudeCodeResultError - API Error 400 litellm.BadRequestError: System message must be at beginning", "updated_at": "2026-10-28T05:47:15Z", "labels": ["bug","p1","models","agent"], "comment_count": 12}
+  "closed_issues_30d": 100,
+  "closed_prs_30d": 0,
+  "label_distribution": [
+    {
+      "label": "bug",
+      "count": 30
+    },
+    {
+      "label": "p2",
+      "count": 26
+    },
+    {
+      "label": "ai:assign:coding",
+      "count": 23
+    },
+    {
+      "label": "agent",
+      "count": 9
+    },
+    {
+      "label": "models",
+      "count": 8
+    },
+    {
+      "label": "needs-review",
+      "count": 8
+    },
+    {
+      "label": "needs-info",
+      "count": 6
+    },
+    {
+      "label": "provider",
+      "count": 6
+    },
+    {
+      "label": "claude-code",
+      "count": 5
+    },
+    {
+      "label": "windows",
+      "count": 4
+    },
+    {
+      "label": "code-mate",
+      "count": 4
+    },
+    {
+      "label": "chat",
+      "count": 4
+    },
+    {
+      "label": "feature",
+      "count": 3
+    },
+    {
+      "label": "ui-ux",
+      "count": 3
+    },
+    {
+      "label": "connectivity",
+      "count": 3
+    },
+    {
+      "label": "p3",
+      "count": 2
+    },
+    {
+      "label": "data",
+      "count": 2
+    },
+    {
+      "label": "translate",
+      "count": 2
+    },
+    {
+      "label": "planned",
+      "count": 1
+    },
+    {
+      "label": "backup",
+      "count": 1
+    }
   ],
-  "top_active_areas": [
-    "Windows Agent startup failures (ENAMETOOLONG, EPERM)",
-    "Responses API stream validation failures",
-    "DeepSeek reasoning_text / tool continuation errors",
-    "Work/Agent no-response termination",
-    "OCR fallback on non-vision models"
-  ]
+  "unlabeled_pct": 0.0,
+  "p1_issues": [
+    {
+      "number": 22850,
+      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent",
+        "claude-code",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+    }
+  ],
+  "v2_prs": {
+    "open": 0,
+    "merged_30d": 0
+  },
+  "top_issues_by_comments": [
+    {
+      "number": 22909,
+      "title": "[Bug]: Work conversation request body exceeds limit (413)",
+      "comments": 17,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22909"
+    },
+    {
+      "number": 22852,
+      "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay",
+      "comments": 11,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22852"
+    },
+    {
+      "number": 22850,
+      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
+      "comments": 6,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+    },
+    {
+      "number": 22936,
+      "title": "[Bug]: PDF translation babeldoc silently exits mid-run",
+      "comments": 4,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22936"
+    },
+    {
+      "number": 23059,
+      "title": "[Bug]: Windows ARM64 Claude Code dependency conflict",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/23059"
+    },
+    {
+      "number": 23038,
+      "title": "[Bug]: Agent conversation aborts with Failed to load registry file",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/23038"
+    },
+    {
+      "number": 22998,
+      "title": "[Bug]: Attachment token counting overflows JavaScript stack",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22998"
+    },
+    {
+      "number": 22900,
+      "title": "[Feature]: Discover embedding models from oMLX provider",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22900"
+    },
+    {
+      "number": 22894,
+      "title": "[Bug]: Normal chat fails with HTTP 400 invalid encrypted_content",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22894"
+    },
+    {
+      "number": 22887,
+      "title": "[Bug]: Offline version lookup makes coding CLIs show as not installed",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22887"
+    }
+  ],
+  "_note": "Counts reflect MCP-fetched pages; total_in_repo is from GitHub totalCount"
 }
