@@ -364,7 +364,10 @@ const NormalTabButton = ({
       />
       <TabIcon tab={tab} size={iconSize} className="shrink-0" />
       <span
-        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+        className={cn(
+          'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs leading-none',
+          (isClosing ? closingWasActive : isActive) ? 'font-medium' : 'font-normal'
+        )}
         style={{
           maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
           WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
@@ -613,19 +616,20 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_0.5px_var(--border-subtle)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
+              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border-selected)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
             // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
             // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[menu-open=true]:bg-black/6 data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[menu-open=true]:bg-white/6 dark:data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]',
-            closingClass: 'bg-accent text-accent-foreground'
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_var(--border-subtle)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-black/6 data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_var(--border-subtle)] dark:data-[menu-open=true]:bg-white/6 dark:data-[menu-open=true]:text-sidebar-foreground',
+            closingClass:
+              'bg-black/6 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border-subtle)] dark:bg-white/6 dark:text-sidebar-foreground'
           }
         : {
             activeClass:
-              'bg-black/8 text-sidebar-foreground shadow-[inset_0_0_0_0.5px_var(--border-subtle)] dark:bg-white/7 dark:text-sidebar-foreground',
+              'bg-black/8 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border-selected)] dark:bg-white/7 dark:text-sidebar-foreground',
             hoverClass:
               'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/3 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/3 dark:data-[menu-open=true]:text-sidebar-foreground',
-            closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
+            closingClass: 'bg-white text-sidebar-foreground dark:bg-white/3 dark:text-sidebar-foreground'
           },
     [isMacTransparentWindow]
   )
