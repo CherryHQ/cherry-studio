@@ -49,13 +49,12 @@ export async function evaluateTaskGuard(
           windowsHide: true
         })
 
-        let timer: ReturnType<typeof setTimeout> | undefined
         // The SIGKILL escalation timer deliberately outlives settlement: it is
         // part of the bounded-termination contract, so `cleanup` never clears it.
         let settled = false
 
         const cleanup = () => {
-          if (timer) clearTimeout(timer)
+          clearTimeout(timer)
           child.removeAllListeners('error')
           child.removeAllListeners('exit')
         }
@@ -87,7 +86,7 @@ export async function evaluateTaskGuard(
 
         // Manual timeout (not spawn's `timeout` option) so the skip reason can
         // distinguish our own timeout kill from an external signal.
-        timer = setTimeout(() => {
+        const timer = setTimeout(() => {
           // Cancellation wins a timeout race deterministically.
           if (options.signal?.aborted) return settleAbort()
           // Timeout is an irreversible skip outcome: settle now rather than
