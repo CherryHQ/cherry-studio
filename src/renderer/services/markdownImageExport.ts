@@ -405,9 +405,21 @@ export async function writeImageAssets(dirPath: string, pendingWrites: PendingIm
   if (pendingWrites.length === 0) return []
   // Root directories ('/a.md' → '/', 'C:\a.md' → 'C:\') already end in the separator.
   const assetsDir = /[\\/]$/.test(dirPath) ? `${dirPath}assets` : `${dirPath}/assets`
-  // exportWrite creates the assets directory itself; a per-file failure only
-  // warns, and the already-written .md is never removed - the caller strips
-  // the failed links from it instead.
+  // The copy branch needs the assets directory to exist up front: file://
+  // sources move through file.copy, which does not create parents. exportMkdir
+  // is the export-compatible route (managed-storage and migration barriers
+  // apply; the retired-root guard does not). If the directory cannot be
+  // created, every image counts as failed - the caller strips their links and
+  // the already-written .md is never removed.
+  try {
+    await window.api.file.exportMkdir(assetsDir)
+  } catch (error) {
+    logger.warn('Failed to create the export assets directory; reporting every image as failed', {
+      assetsDir,
+      error
+    })
+    return pendingWrites.map(({ fileName }) => fileName)
+  }
   const failed: string[] = []
   for (const { fileName, ref } of pendingWrites) {
     try {

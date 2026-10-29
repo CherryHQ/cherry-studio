@@ -115,6 +115,7 @@ const api = {
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
     exportWrite: (filePath: string, data: Uint8Array | string) =>
       ipcRenderer.invoke(IpcChannel.File_ExportWrite, filePath, data),
+    exportMkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ExportMkdir, dirPath),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any): Promise<string | null> =>

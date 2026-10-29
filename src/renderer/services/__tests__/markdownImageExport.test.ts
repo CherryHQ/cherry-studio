@@ -115,6 +115,7 @@ const fileApi: Record<string, ReturnType<typeof vi.fn>> = {
   save: vi.fn(),
   write: vi.fn(),
   exportWrite: vi.fn(),
+  exportMkdir: vi.fn(),
   read: vi.fn(),
   writeWithId: vi.fn()
 }
@@ -660,6 +661,24 @@ describe('writeImageAssets', () => {
       destPath: '/tmp/exports/assets/img-a.png'
     })
     expect(fileApi.exportWrite).not.toHaveBeenCalled()
+    // The copy route cannot create parents, so the assets directory must be
+    // created through the export-compatible mkdir BEFORE the copy.
+    expect(fileApi.exportMkdir).toHaveBeenCalledWith('/tmp/exports/assets')
+    expect(fileApi.exportMkdir.mock.invocationCallOrder[0]).toBeLessThan(ipcApiRequest.mock.invocationCallOrder[0])
+  })
+
+  it('reports every image as failed when the assets directory cannot be created, without throwing', async () => {
+    fileApi.exportMkdir.mockRejectedValueOnce(new Error('managed storage'))
+    const ref = { key: 'k', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
+
+    const failed = await writeImageAssets('/tmp/exports', [
+      { fileName: 'img-a.png', ref },
+      { fileName: 'img-b.png', ref }
+    ])
+
+    expect(failed).toEqual(['img-a.png', 'img-b.png'])
+    expect(ipcApiRequest).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
   })
 
   it('writes a data-url image through the renderer path (no file to copy)', async () => {
@@ -690,10 +709,13 @@ describe('writeImageAssets', () => {
 
     expect(failed).toEqual([])
     expect(fileApi.exportWrite).not.toHaveBeenCalled()
+    expect(fileApi.exportMkdir).not.toHaveBeenCalled()
   })
 
   it('reports every image as failed when the asset writes fail, without throwing', async () => {
-    fileApi.exportWrite.mockRejectedValueOnce(new Error('permission denied')).mockRejectedValueOnce(new Error('permission denied'))
+    fileApi.exportWrite
+      .mockRejectedValueOnce(new Error('permission denied'))
+      .mockRejectedValueOnce(new Error('permission denied'))
     const ref = { key: 'k', url: PNG_1PX, mime: 'image/png' } as const
 
     const failed = await writeImageAssets('/tmp/exports', [
@@ -1019,7 +1041,9 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('strips all links when the assets cannot be written (folder)', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.exportWrite.mockRejectedValueOnce(new Error('permission denied')).mockRejectedValueOnce(new Error('permission denied'))
+    fileApi.exportWrite
+      .mockRejectedValueOnce(new Error('permission denied'))
+      .mockRejectedValueOnce(new Error('permission denied'))
     mockRepairRoutes()
     const message = view([
       imageFilePart(PNG_1PX, 'entry-a'),

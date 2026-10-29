@@ -33,6 +33,8 @@ import {
   waitForNotesFilesystemMutationsIdle,
   withNotesRootFlipBarrier
 } from '@main/services/notesRelocation/migrationSession'
+import { copyNew } from '@main/utils/file/fs'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { fileStorage } from '../FileStorage'
 
@@ -312,6 +314,66 @@ describe('FileStorage', () => {
       endNotesFilesystemMutation()
       await flipping
       expect(committed).toBe(true)
+    })
+
+    it('exportMkdir refuses managed storage', async () => {
+      const managed = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-managed-'))
+      vi.spyOn(application, 'getPath').mockImplementation((key: string) =>
+        key === 'feature.files.data' ? managed : path.join(os.tmpdir(), `notes-expm-other-${key}`)
+      )
+
+      await expect(fileStorage.exportMkdir(event, path.join(managed, 'assets'))).rejects.toThrow(
+        /overlaps FileManager-owned storage/
+      )
+    })
+
+    it('exportMkdir honors the plain notes-root flip barrier', async () => {
+      const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-flip-')), 'assets')
+      beginNotesFilesystemMutation()
+      let committed = false
+      const flipping = withNotesRootFlipBarrier(() => {
+        committed = true
+      }, 1000)
+
+      await expect(fileStorage.exportMkdir(event, dir)).rejects.toThrow(/migration is in progress/)
+      expect(committed).toBe(false)
+      endNotesFilesystemMutation()
+      await flipping
+      expect(committed).toBe(true)
+      expect(fs.existsSync(dir)).toBe(false)
+    })
+
+    it('exportMkdir allows retired and unverifiable notes roots', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-tgt-'))
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await fileStorage.exportMkdir(event, path.join(source, 'assets'))
+      expect(fs.existsSync(path.join(source, 'assets'))).toBe(true)
+
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      await fileStorage.exportMkdir(event, path.join(target, 'assets'))
+      expect(fs.existsSync(path.join(target, 'assets'))).toBe(true)
+    })
+
+    it('creates a fresh export destination that the file.copy route can land bytes in', async () => {
+      // The exact production pair from writeImageAssets: exportMkdir first,
+      // then copyNew (the file.copy handler's implementation) onto it.
+      // copyNew creates no parents, so without the mkdir this is the ENOENT
+      // the folder-export regression probe hit.
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-copy-'))
+      const source = path.join(root, 'a.png')
+      fs.writeFileSync(source, 'PNG-BYTES')
+      const assetsDir = path.join(root, 'exports', 'assets')
+
+      await fileStorage.exportMkdir(event, assetsDir)
+      await copyNew(source as AbsoluteFilePath, path.join(assetsDir, 'a.png') as AbsoluteFilePath)
+
+      expect(fs.readFileSync(path.join(assetsDir, 'a.png'), 'utf-8')).toBe('PNG-BYTES')
     })
 
     it('exportWrite still refuses managed storage', async () => {

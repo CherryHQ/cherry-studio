@@ -618,6 +618,21 @@ class FileStorage {
       await fs.promises.writeFile(filePath, data)
     })
 
+  /**
+   * Directory-creation sibling of {@link exportWrite} for export destinations
+   * (e.g. the `assets/` folder next to an exported .md). Same contract:
+   * explicit user-chosen plain-file locations skip the retired-root guard,
+   * while managed storage and the in-flight migration barrier still apply.
+   * Needed by export paths whose bytes move through `file:copy` - that route
+   * copies onto existing parents only.
+   */
+  public exportMkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      await assertOutsideManagedStorageMutation(dirPath)
+      assertNotesPathNotMutatingDuringMigration(dirPath)
+      await fs.promises.mkdir(dirPath, { recursive: true })
+    })
+
   public fileNameGuard = async (
     _: Electron.IpcMainInvokeEvent,
     dirPath: string,
