@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
+import { PreferenceService } from '@main/data/PreferenceService'
 import {
   clearNotesMigrationPairsForTests,
   releaseNotesMigrationSession,
@@ -17,15 +18,13 @@ import {
   isNotesRootFlipInFlight
 } from '@main/services/notesRelocation'
 import { hashContent } from '@main/utils/file'
+import type * as FileUtils from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { PreferenceService } from '@main/data/PreferenceService'
-
 import { FileEditService } from '../FileEditService'
 import { FileManager } from '../FileManager'
-import type * as FileUtils from '@main/utils/file'
 import { runPathMutationExclusive } from '../pathMutationLock'
 
 vi.unmock('@main/data/PreferenceService')

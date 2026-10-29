@@ -146,8 +146,7 @@ export class FileEditService extends BaseService {
     const task = withNotesFilesystemMutation(async (): Promise<FileEditWriteResult> => {
       try {
         assertNotesPathNotMutatingDuringMigration(lease.path)
-        if (lease.handle.kind === 'path' || lease.entryOrigin !== 'external')
-          assertNotesPathNotRetired(lease.path)
+        if (lease.handle.kind === 'path' || lease.entryOrigin !== 'external') assertNotesPathNotRetired(lease.path)
         const version =
           lease.handle.kind === 'entry'
             ? await application
