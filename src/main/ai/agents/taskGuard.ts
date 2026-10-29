@@ -3,7 +3,7 @@
  * `runAgentTask` return a skipped result before any session or agent turn exists.
  */
 
-import { exec } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 
 import type { TaskGuard } from '@shared/data/api/schemas/agents'
@@ -37,22 +37,47 @@ export async function evaluateTaskGuard(
     }
     case 'command':
       return await new Promise<TaskGuardOutcome>((resolve, reject) => {
-        exec(
-          guard.command,
-          { timeout: GUARD_COMMAND_TIMEOUT_MS, signal: options.signal, windowsHide: true },
-          (error) => {
-            // Cancellation is not a failed predicate: propagate it so the job
-            // finalizes as cancelled instead of recording a guard skip.
-            if (options.signal?.aborted) {
-              const reason = options.signal.reason
-              return reject(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
-            }
-            if (!error) return resolve({ proceed: true })
-            const code = (error as { code?: unknown }).code
-            const detail = error.killed ? 'timed out' : typeof code === 'number' ? `exit code ${code}` : error.message
-            resolve({ proceed: false, reason: `command failed (${detail}): ${guard.command}` })
-          }
-        )
+        // The contract is exit-code-only, so unused output is discarded at the
+        // fd level (`stdio: 'ignore'`). Buffering it (exec's default 1 MiB
+        // maxBuffer) let output VOLUME fail an otherwise successful command.
+        const child = spawn(guard.command, {
+          shell: true,
+          stdio: 'ignore',
+          signal: options.signal,
+          windowsHide: true
+        })
+        // Manual timeout (not spawn's `timeout` option) so the skip reason can
+        // distinguish our own timeout kill from an external signal.
+        let timedOut = false
+        const timer = setTimeout(() => {
+          timedOut = true
+          child.kill()
+        }, GUARD_COMMAND_TIMEOUT_MS)
+        const settleAbort = () => {
+          // Cancellation is not a failed predicate: propagate it so the job
+          // finalizes as cancelled instead of recording a guard skip.
+          const reason = options.signal?.reason
+          clearTimeout(timer)
+          reject(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+        }
+        const settleOutcome = (outcome: TaskGuardOutcome) => {
+          clearTimeout(timer)
+          resolve(outcome)
+        }
+        child.once('error', (error) => {
+          if (options.signal?.aborted) return settleAbort()
+          settleOutcome({ proceed: false, reason: `command failed (${error.message}): ${guard.command}` })
+        })
+        child.once('exit', (code, exitSignal) => {
+          if (options.signal?.aborted) return settleAbort()
+          if (code === 0) return settleOutcome({ proceed: true })
+          const detail = timedOut
+            ? 'timed out'
+            : typeof code === 'number'
+              ? `exit code ${code}`
+              : `signal ${exitSignal}`
+          settleOutcome({ proceed: false, reason: `command failed (${detail}): ${guard.command}` })
+        })
       })
   }
 }
