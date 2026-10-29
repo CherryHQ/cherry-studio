@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { Cache } from 'swr'
 import { SWRConfig, unstable_serialize } from 'swr'
@@ -242,16 +243,22 @@ describe('CitationsPanelContent', () => {
     expect(ipcRequest).not.toHaveBeenCalled()
   })
 
-  it('truncates X citation previews to 100 characters', async () => {
+  it.each([
+    ['long ASCII text', 'x'.repeat(110), `@author: ${'x'.repeat(91)}...`],
+    ['an emoji across the cutoff', `${'x'.repeat(90)}😀tail`, `@author: ${'x'.repeat(90)}...`],
+    ['exactly 100 UTF-16 units', `${'x'.repeat(89)}😀`, `@author: ${'x'.repeat(89)}😀`]
+  ])('renders and copies the bounded X preview for %s', async (_case, text, expectedPreview) => {
+    const user = userEvent.setup()
     fetchMocks.isXPostUrl.mockReturnValue(true)
-    fetchMocks.fetchXOEmbed.mockResolvedValue({ author: 'author', text: 'x'.repeat(110) })
+    fetchMocks.fetchXOEmbed.mockResolvedValue({ author: 'author', text })
     const xUrl = 'https://x.com/author/status/123'
     const citations: Citation[] = [{ number: 1, url: xUrl, title: 'X post', type: 'websearch' }]
 
     render(<CitationsPanelContent citations={citations} />, { wrapper })
 
-    expect(await screen.findByText(`@author: ${'x'.repeat(91)}...`)).toBeInTheDocument()
-    expect(screen.queryByText(`@author: ${'x'.repeat(110)}`)).not.toBeInTheDocument()
+    expect(await screen.findByText(expectedPreview)).toBeInTheDocument()
+    await user.click(screen.getByText('copy'))
+    expect(mocks.copyText).toHaveBeenCalledWith(expectedPreview, { successMessage: 'common.copied' })
   })
 
   it('copies the display-ready preview returned by main without truncating it', async () => {
