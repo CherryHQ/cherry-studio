@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "Επαναφορά δεδομένων εφαρμογής",
   "dialog.diagnostic_bundle.title": "Αποθήκευση πακέτου διαγνωστικών",
   "dialog.diagnostic_bundle.zip_filter": "Αρχείο ZIP",
+  "dialog.external_link.message": "Άνοιγμα αυτού του συνδέσμου σε εξωτερική εφαρμογή;",
+  "dialog.external_link.open": "Άνοιγμα εφαρμογής",
   "dialog.html_files": "Αρχεία HTML",
   "dialog.migration_database_unavailable.detail": "Ελέγξτε ότι η τοποθεσία δεδομένων είναι διαθέσιμη και εγγράψιμη και ότι υπάρχει αρκετός ελεύθερος χώρος στον δίσκο και, στη συνέχεια, δοκιμάστε ξανά.",
   "dialog.migration_database_unavailable.message": "Το Cherry Studio δεν μπόρεσε να αποκτήσει πρόσβαση στην τοπική βάση δεδομένων.",

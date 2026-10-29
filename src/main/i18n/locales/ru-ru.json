@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "Сброс данных приложения",
   "dialog.diagnostic_bundle.title": "Сохранение диагностического пакета",
   "dialog.diagnostic_bundle.zip_filter": "ZIP-архив",
+  "dialog.external_link.message": "Открыть эту ссылку во внешнем приложении?",
+  "dialog.external_link.open": "Открыть приложение",
   "dialog.html_files": "Файлы HTML",
   "dialog.migration_database_unavailable.detail": "Убедитесь, что расположение данных доступно для записи и на диске достаточно свободного места, затем повторите попытку.",
   "dialog.migration_database_unavailable.message": "Cherry Studio не удалось получить доступ к локальной базе данных.",

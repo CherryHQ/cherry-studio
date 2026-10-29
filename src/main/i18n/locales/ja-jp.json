@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "アプリデータをリセット",
   "dialog.diagnostic_bundle.title": "診断バンドルを保存",
   "dialog.diagnostic_bundle.zip_filter": "ZIP アーカイブ",
+  "dialog.external_link.message": "このリンクを外部アプリケーションで開きますか？",
+  "dialog.external_link.open": "アプリケーションを開く",
   "dialog.html_files": "HTMLファイル",
   "dialog.migration_database_unavailable.detail": "データの保存場所が利用可能で書き込み可能であること、およびディスクに十分な空き容量があることを確認してから、もう一度お試しください。",
   "dialog.migration_database_unavailable.message": "Cherry Studio はローカルデータベースにアクセスできませんでした。",

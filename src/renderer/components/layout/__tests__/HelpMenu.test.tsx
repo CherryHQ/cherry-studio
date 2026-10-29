@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { ThemeContext } from '@renderer/hooks/useTheme'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 const mocks = vi.hoisted(() => ({
   language: 'en-US',
@@ -43,6 +45,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { AppearanceMenu } from '../AppearanceMenu'
 import { HelpMenu } from '../HelpMenu'
 
 beforeAll(() => {
@@ -70,19 +73,86 @@ async function openMenu() {
 }
 
 describe('HelpMenu', () => {
-  it.each([
-    ['icon', false],
-    ['full', true]
-  ] as const)('renders the help entry in %s sidebar layout', (layout, hasVisibleLabel) => {
-    render(<HelpMenu layout={layout} onFeedbackClick={mocks.openFeedback} />)
+  it('opens on hover without stealing focus and lets the pointer enter the submenu', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <button type="button">Settings</button>
+        <HelpMenu onFeedbackClick={mocks.openFeedback} />
+      </>
+    )
+    const settings = screen.getByRole('button', { name: 'Settings' })
+    settings.focus()
 
+    await user.hover(screen.getByRole('button', { name: 'help.title' }))
+    const feedback = await screen.findByRole('button', { name: 'help.feedback' })
+    expect(settings).toHaveFocus()
+
+    await user.hover(feedback)
+    await user.click(feedback)
+    await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
+  })
+
+  it('closes when the pointer leaves both the trigger and the submenu', async () => {
+    const user = userEvent.setup()
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const trigger = screen.getByRole('button', { name: 'help.title' })
-    expect(trigger).toBeInTheDocument()
-    expect(trigger).toHaveTextContent(hasVisibleLabel ? 'help.title' : '')
+
+    await user.hover(trigger)
+    await screen.findByRole('button', { name: 'help.whats_new' })
+    await user.unhover(trigger)
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'help.whats_new' })).not.toBeInTheDocument())
+  })
+
+  it('opens with ArrowRight and returns focus to the trigger on Escape', async () => {
+    const user = userEvent.setup()
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
+    const trigger = screen.getByRole('button', { name: 'help.title' })
+    trigger.focus()
+
+    await user.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('button', { name: 'help.whats_new' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(screen.queryByRole('button', { name: 'help.whats_new' })).not.toBeInTheDocument()
+  })
+
+  it('keeps help usable and restores focus on Escape after a keyboard-to-hover handoff', async () => {
+    const user = userEvent.setup()
+    render(
+      <ThemeContext
+        value={{ theme: ThemeMode.dark, settedTheme: ThemeMode.dark, setTheme: vi.fn(), toggleTheme: vi.fn() }}>
+        <AppearanceMenu />
+        <HelpMenu onFeedbackClick={mocks.openFeedback} />
+      </ThemeContext>
+    )
+    screen.getByRole('button', { name: 'settings.appearance.title' }).focus()
+    await user.keyboard('{ArrowRight}')
+    const currentTheme = await screen.findByRole('button', { name: 'settings.theme.dark', pressed: true })
+    expect(currentTheme).toHaveFocus()
+
+    await user.hover(currentTheme)
+    await user.hover(screen.getByRole('button', { name: 'help.title' }))
+    const feedback = await screen.findByRole('button', { name: 'help.feedback' })
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'settings.appearance.title' })).not.toBeInTheDocument()
+    )
+    await user.hover(feedback)
+
+    expect(screen.getByRole('button', { name: 'help.feedback' })).toBeVisible()
+    await user.keyboard('{Escape}')
+    const helpTrigger = screen.getByRole('button', { name: 'help.title' })
+    await waitFor(() => expect(helpTrigger).toHaveFocus())
+    await user.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('button', { name: 'help.whats_new' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'help.feedback' }))
+    await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })
 
   it('places report a problem immediately after the guide and opens release notes', async () => {
-    render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     expect(
@@ -102,7 +172,7 @@ describe('HelpMenu', () => {
       reportEntryWasVisible = screen.queryByRole('button', { name: 'Report a problem' }) !== null
       return Promise.resolve()
     })
-    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} />)
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'Report a problem' }))
@@ -112,37 +182,13 @@ describe('HelpMenu', () => {
     expect(mocks.openFeedback).not.toHaveBeenCalled()
   })
 
-  it('opens the full help menu from the header', async () => {
-    render(<HelpMenu layout="icon" placement="bottom" onFeedbackClick={mocks.openFeedback} />)
-
-    await openMenu()
-
-    expect(screen.getByRole('button', { name: 'help.whats_new' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'help.guide' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Report a problem' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'help.feedback' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'System diagnostics' })).toBeInTheDocument()
-  })
-
-  it('reports the help overlay lifecycle to its sidebar owner', async () => {
-    const onOverlayOpenChange = vi.fn()
-    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} onOverlayOpenChange={onOverlayOpenChange} />)
-    const user = await openMenu()
-
-    expect(onOverlayOpenChange).toHaveBeenLastCalledWith(true)
-
-    await user.click(screen.getByRole('button', { name: 'help.whats_new' }))
-
-    expect(onOverlayOpenChange).toHaveBeenLastCalledWith(false)
-  })
-
   it.each([
     ['zh-CN', 'https://docs.cherryai.com.cn/'],
     ['zh-TW', 'https://docs.cherryai.com.cn/'],
     ['en-US', 'https://docs.cherryai.com.cn/docs/en-us']
   ])('opens the language-specific guide in app content for %s', async (language, expectedUrl) => {
     mocks.language = language
-    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} />)
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.guide' }))
@@ -159,7 +205,7 @@ describe('HelpMenu', () => {
   })
 
   it('requests the feedback dialog from the secondary menu action', async () => {
-    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} />)
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.feedback' }))
@@ -168,7 +214,7 @@ describe('HelpMenu', () => {
   })
 
   it('opens system diagnostics checks independently of the report action', async () => {
-    render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'System diagnostics' }))
@@ -177,7 +223,7 @@ describe('HelpMenu', () => {
   })
 
   it('supports keyboard activation from the focused first action', async () => {
-    render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
+    render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
     const firstAction = screen.getByRole('button', { name: 'help.whats_new' })
 

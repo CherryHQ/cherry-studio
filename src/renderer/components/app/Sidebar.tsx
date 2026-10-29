@@ -10,19 +10,24 @@ import {
   useLayoutEffect,
   useMemo,
   useOptimistic,
+  useRef,
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 
 import { HelpMenu } from '../layout/HelpMenu'
-import { AppUpdateButton, SidebarSettingsButton } from '../layout/ShellTabBarActions'
+import { AppUpdateButton } from '../layout/ShellTabBarActions'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
@@ -30,7 +35,6 @@ import {
   type ResolvedSidebarEntry,
   type SidebarIconPresentation,
   type SidebarUser,
-  type SidebarVisibleLayout,
   Sidebar as UISidebar
 } from '../Sidebar'
 import { UserAccountPanel } from '../UserAccountPanel'
@@ -58,6 +62,13 @@ function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
+  const { status: accountStatus } = useCherryAccountSession()
+  const accountId = accountStatus?.phase === 'signed-in' ? accountStatus.accountId : null
+  useSWR(
+    getAppEdition() === 'global' && accountId ? ['cherry-cloud/account-plans', accountId] : null,
+    () => ipcApi.request('cherry_cloud.account_plans.get'),
+    { shouldRetryOnError: false }
+  )
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
   const registry = useSidebarShortcutRegistry()
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
@@ -69,6 +80,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuOpenedByPointerRef = useRef(false)
   const [hoverVisible, setHoverVisible] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
   const layout = getSidebarLayout(activeSidebarWidth)
@@ -111,7 +123,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [avatar, handleUserMenuToggle, t, userName]
   )
   const renderSidebarUserTrigger = useCallback(
-    (trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>,
+    (trigger: ReactElement) => (
+      <PopoverTrigger
+        asChild
+        onPointerDown={() => (userMenuOpenedByPointerRef.current = true)}
+        onKeyDown={() => (userMenuOpenedByPointerRef.current = false)}>
+        {trigger}
+      </PopoverTrigger>
+    ),
     []
   )
   const renderUserMenu = () =>
@@ -122,8 +141,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         side="top"
         sideOffset={8}
         className="w-56 rounded-md p-0"
+        onOpenAutoFocus={(event) => {
+          if (userMenuOpenedByPointerRef.current) event.preventDefault()
+        }}
         onClick={(event) => event.stopPropagation()}>
-        <UserAccountPanel active={userMenuOpen} onRequestClose={() => handleUserMenuOpenChange(false)} />
+        <UserAccountPanel active={userMenuOpen} onRequestClose={() => handleUserMenuOpenChange(false)}>
+          <HelpMenu onFeedbackClick={handleOpenFeedback} onRequestClose={() => handleUserMenuOpenChange(false)} />
+        </UserAccountPanel>
       </PopoverContent>
     ) : null
 
@@ -223,16 +247,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     entries,
     emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
-    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
-      <>
-        <HelpMenu
-          layout={footerLayout}
-          onFeedbackClick={handleOpenFeedback}
-          onOverlayOpenChange={onOverlayOpenChange}
-        />
-        <SidebarSettingsButton layout={footerLayout} />
-      </>
-    ),
     userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : null,
     renderUserTrigger: renderSidebarUserTrigger,
     onEntriesReorder: handleReorder

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,8 +46,8 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
-vi.mock('../HelpMenu', () => ({
-  HelpMenu: () => <button aria-label="Help" type="button" />
+vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({
+  useOpenReleaseNotes: () => vi.fn()
 }))
 
 vi.mock('@renderer/components/UpdateDialogPopup', () => ({
@@ -56,7 +57,8 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
 }))
 
 vi.mock('@renderer/components/command', () => ({
-  CommandTooltip: ({ children }: { children: React.ReactNode }) => children
+  CommandTooltip: ({ children }: { children: React.ReactNode }) => children,
+  CommandShortcut: () => null
 }))
 
 vi.mock('@renderer/components/NotificationCenter', () => ({
@@ -69,7 +71,10 @@ vi.mock('react-i18next', () => ({
       ({
         'globalSearch.open': 'Open global search',
         'settings.about.updateAvailable': 'Found new version',
-        'settings.title': 'Settings'
+        'settings.title': 'Settings',
+        'common.settings': 'Settings',
+        'sidebar.account_menu': 'Account menu',
+        'help.title': 'Help'
       })[key] ?? key
   })
 }))
@@ -78,12 +83,13 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
-import { AppUpdateButton, ShellTabBarActions, SidebarSettingsButton } from '../ShellTabBarActions'
+import { AppUpdateButton, ShellTabBarActions } from '../ShellTabBarActions'
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   MockCacheUtils.resetMocks()
+  MockUsePreferenceUtils.resetMocks()
   updateState.available = false
   updateState.downloaded = false
   updateState.info = null
@@ -95,6 +101,7 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
   })
   beforeEach(() => {
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'User')
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: { error: vi.fn() }
@@ -158,9 +165,8 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Found new version',
-      'Help',
-      'Settings',
-      'Open global search'
+      'Open global search',
+      'Account menu'
     ])
   })
 
@@ -172,32 +178,50 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
   })
 
-  it('opens settings from the tab bar when the sidebar is hidden', async () => {
+  it('opens settings through the tab bar account menu when the sidebar is hidden', async () => {
     const user = userEvent.setup()
     cacheService.setPersist('ui.sidebar.width', 0)
 
     render(<ShellTabBarActions />)
 
-    await user.click(screen.getByRole('button', { name: /settings/i }))
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Account menu' })).getByRole('button', { name: 'Settings' })
+    )
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
   })
-})
-
-describe('SidebarSettingsButton', () => {
-  it('opens settings from the icon action', async () => {
+  it('opens feedback from the avatar menu and gives the dialog focus', async () => {
+    cacheService.setPersist('ui.sidebar.width', 0)
     const user = userEvent.setup()
-    render(<SidebarSettingsButton layout="icon" />)
+    render(<ShellTabBarActions />)
 
-    const button = screen.getByRole('button', { name: 'Settings' })
-    await user.click(button)
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.hover(screen.getByRole('button', { name: 'Help' }))
+    await user.click(await screen.findByRole('button', { name: 'help.feedback' }))
+
+    const feedback = await screen.findByRole('dialog', { name: 'settings.about.feedback.dialog.title' })
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(feedback).getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })).toHaveFocus()
+    )
   })
 
-  it('renders a labeled full-width action in the full sidebar layout', () => {
-    render(<SidebarSettingsButton layout="full" />)
+  it('does not reopen the account menu after changing between hidden and visible sidebar layouts', async () => {
+    cacheService.setPersist('ui.sidebar.width', 0)
+    const user = userEvent.setup()
+    render(<ShellTabBarActions />)
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    expect(screen.getByRole('dialog', { name: 'Account menu' })).toBeVisible()
 
-    const button = screen.getByRole('button', { name: 'Settings' })
-    expect(button).toHaveTextContent('Settings')
+    act(() => cacheService.setPersist('ui.sidebar.width', 50))
+    expect(screen.queryByRole('button', { name: 'Account menu' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
+    act(() => cacheService.setPersist('ui.sidebar.width', 0))
+    expect(screen.getByRole('button', { name: 'Account menu' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
   })
 })

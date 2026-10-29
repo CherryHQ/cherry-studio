@@ -1179,6 +1179,12 @@ IPC, host-window link interception, app menu links and external mini-app popups 
 external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
 their existing handling.
 
+`app.browser.auto_open_panel` defaults to `true` and controls tool-driven opening of the right-side browser panel
+in Agent sessions and Assistant topics. When disabled, browser tools continue operating without opening the panel
+or switching away from another selected pane. Changing this setting does not close an already-open panel.
+Manual browser opening retains its existing availability and link-routing rules; browser-control permission remains
+independent.
+
 Standalone browser tabs synchronize page titles and favicons from Electron WebView events into the
 tab model. Main-frame document navigation clears the previous site's icon; missing or failed favicon
 images fall back to a globe. Subframe navigation does not change the tab metadata.

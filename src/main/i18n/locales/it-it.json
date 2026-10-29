@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "Reimposta i dati dell'app",
   "dialog.diagnostic_bundle.title": "Salva pacchetto diagnostico",
   "dialog.diagnostic_bundle.zip_filter": "Archivio ZIP",
+  "dialog.external_link.message": "Aprire questo link in un’applicazione esterna?",
+  "dialog.external_link.open": "Apri applicazione",
   "dialog.html_files": "File HTML",
   "dialog.migration_database_unavailable.detail": "Verifica che il percorso dei dati sia disponibile e accessibile in scrittura e che il disco abbia spazio libero, quindi riprova.",
   "dialog.migration_database_unavailable.message": "Cherry Studio non è riuscito ad accedere al database locale.",

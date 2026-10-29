@@ -544,6 +544,25 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/general')
   })
 
+  it('offers network recovery for the embedded runtime connection code', () => {
+    expect(classifyError(makeError({ message: 'API Error: Unable to connect to API (ConnectionRefused)' }))).toEqual({
+      category: 'network',
+      i18nKey: 'error.diagnosis.network',
+      navTarget: '/settings/general'
+    })
+  })
+
+  it('does not infer a network failure from explanatory connection prose in provider data', () => {
+    const result = classifyError(
+      makeError({
+        responseBody: 'The provider explains how to open a connection.',
+        data: { detail: 'The guide discusses connection refused errors.' }
+      })
+    )
+
+    expect(result.category).toBe('unknown')
+  })
+
   it('classifies timeout as network', () => {
     const result = classifyError(makeError({ message: 'Request timeout after 30000ms' }))
     expect(result.category).toBe('network')
