@@ -25,9 +25,9 @@ import {
   MEMORY_ENTRY,
   MEMORY_TOPICS,
   MemoryError,
-  memoryEntryPreview,
   memoryHash,
   readMemoryBytes,
+  readMemoryEntry,
   writeMemoryBytes
 } from './memoryFiles'
 
@@ -116,7 +116,7 @@ export class MemoryStore {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
       }
-      await readMemoryBytes(this.root, MEMORY_ENTRY)
+      await readMemoryEntry(this.root)
     })
   }
 
@@ -145,11 +145,11 @@ export class MemoryStore {
     const epoch = this.accessEpochs.get(access) ?? 0
     const generation = this.generation
     await access.assertAuthorized()
-    const bytes = await readMemoryBytes(this.root, MEMORY_ENTRY)
+    const entry = await readMemoryEntry(this.root)
     await access.assertAuthorized()
     this.assertAccessEpoch(access, epoch)
     this.assertGeneration(generation)
-    return memoryEntryPreview(bytes === null ? '' : this.decode(bytes))
+    return entry
   }
 
   async read(access: MemoryAccess, target: string): Promise<MemoryRead> {
