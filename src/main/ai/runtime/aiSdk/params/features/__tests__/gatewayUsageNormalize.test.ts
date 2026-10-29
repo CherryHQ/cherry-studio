@@ -84,6 +84,35 @@ describe('raw Anthropic cache bucket reconciliation', () => {
     expect(result.usage.inputTokens).toEqual({ total: 1000, noCache: 20, cacheRead: 900, cacheWrite: 80 })
   })
 
+  it('reconciles a write-only raw bucket when read metadata is omitted', async () => {
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const usage = {
+      inputTokens: { total: 1000, noCache: 1000 },
+      outputTokens: { total: 20 },
+      raw: { input_tokens: 920, output_tokens: 20, cache_creation_input_tokens: 80 }
+    }
+
+    const result = await middleware.wrapGenerate!({ doGenerate: async () => ({ usage }) as never } as never)
+
+    // The 80 write tokens displace uncached input: left unreconciled, local cost analytics
+    // would count them on top of the reported noCache (1080 priced units for 1000 prompt tokens).
+    expect(result.usage.inputTokens).toEqual({ total: 1000, noCache: 920, cacheWrite: 80 })
+  })
+
+  it('drops a write-only raw bucket that contradicts the prompt total', async () => {
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const usage = {
+      inputTokens: { total: 1000, noCache: 1000 },
+      outputTokens: { total: 20 },
+      raw: { input_tokens: 1000, output_tokens: 20, cache_creation_input_tokens: 1200 }
+    }
+
+    const result = await middleware.wrapGenerate!({ doGenerate: async () => ({ usage }) as never } as never)
+
+    // 1200 > 1000: inconsistent raw, the provider-reported split stands.
+    expect(result.usage.inputTokens).toEqual({ total: 1000, noCache: 1000 })
+  })
+
   it('drops raw buckets that contradict the prompt total', async () => {
     const middleware = await getGatewayUsageNormalizeMiddleware()
     const usage = {
@@ -172,5 +201,26 @@ describe('raw Anthropic cache bucket reconciliation', () => {
     for await (const part of stream as unknown as AsyncIterable<{ usage: { inputTokens: unknown } }>) parts.push(part)
 
     expect(parts[0]?.usage.inputTokens).toEqual({ total: 500, noCache: 100, cacheRead: 400, cacheWrite: 0 })
+  })
+
+  it('reconciles a write-only raw bucket on the stream finish event', async () => {
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const chunk = {
+      type: 'finish',
+      finishReason: 'stop',
+      usage: {
+        inputTokens: { total: 1000, noCache: 1000 },
+        outputTokens: { total: 20 },
+        raw: { input_tokens: 920, output_tokens: 20, cache_creation_input_tokens: 80 }
+      }
+    }
+    const { stream } = await middleware.wrapStream!({
+      doStream: async () => ({ stream: new ReadableStream({ start: (c) => (c.enqueue(chunk), c.close()) }) })
+    } as never)
+
+    const parts: Array<{ usage: { inputTokens: unknown } }> = []
+    for await (const part of stream as unknown as AsyncIterable<{ usage: { inputTokens: unknown } }>) parts.push(part)
+
+    expect(parts[0]?.usage.inputTokens).toEqual({ total: 1000, noCache: 920, cacheWrite: 80 })
   })
 })

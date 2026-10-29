@@ -41,15 +41,16 @@ function withRawAnthropicCacheUsage(usage: LanguageModelV3Usage): LanguageModelV
     // and keep the reported noCache.
     return { ...usage, inputTokens: { ...inputTokens, cacheRead, cacheWrite } }
   }
-  if (typeof cacheRead === 'number' && cacheRead + (cacheWrite ?? 0) > total) {
+  if ((cacheRead ?? 0) + (cacheWrite ?? 0) > total) {
     // The raw buckets contradict the prompt total; trusting them would overstate usage.
     // Drop the raw augmentation and keep the provider-reported split.
     return usage
   }
   // Cache reads and writes displace uncached input: reconcile noCache so the buckets keep
-  // summing to the prompt total instead of leaving the flat remainder in place.
-  const noCache =
-    typeof cacheRead === 'number' ? Math.max(0, total - cacheRead - (cacheWrite ?? 0)) : inputTokens?.noCache
+  // summing to the prompt total instead of leaving the flat remainder in place. An omitted
+  // read bucket reconciles as zero, so a write-only payload cannot leave the write tokens
+  // counted on top of an unreconciled noCache in local cost analytics.
+  const noCache = Math.max(0, total - (cacheRead ?? 0) - (cacheWrite ?? 0))
   return { ...usage, inputTokens: { ...inputTokens, noCache, cacheRead, cacheWrite } }
 }
 
