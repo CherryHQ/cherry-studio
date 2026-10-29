@@ -190,7 +190,7 @@ describe('goal across sessions', () => {
       (sum, call) => sum + Math.ceil(JSON.stringify(call.prompt).length / 3.5) + 1202,
       0
     )
-    expect(lastSnapshot(host.entries).tokensUsed).toBe(requestTokens + 135 * compactions.length)
+    expect(lastSnapshot(host.entries)).toMatchObject({ tokensUsed: requestTokens + 135 * compactions.length })
     const afterCompaction = calls.find((call) => JSON.stringify(call.prompt).includes('SUMMARY-MARKER'))!
     expect(JSON.stringify(afterCompaction.prompt)).not.toContain('step 1:')
     expect(JSON.stringify(afterCompaction.prompt.at(-1))).toContain('OBJECTIVE-MARKER')
