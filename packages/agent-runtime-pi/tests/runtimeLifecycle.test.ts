@@ -38,8 +38,12 @@ async function runtime() {
 }
 function texts(events: ObservationPayload[]) {
   return events
-    .flatMap((event) => (event.type === 'snapshot' ? event.items : event.type === 'item.upsert' ? [event.item] : []))
-    .flatMap((item) => (item.type === 'message' ? item.parts.map((part) => part.text) : []))
+    .flatMap((event) =>
+      event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+    )
+    .flatMap((item) =>
+      item.parts.flatMap((part) => (part.type === 'text' || part.type === 'reasoning' ? [part.text] : []))
+    )
 }
 async function observe(access: ThreadHandle) {
   const events: ObservationPayload[] = []

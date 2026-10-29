@@ -180,7 +180,7 @@ export class PiStreamAdapter {
     })
   }
 
-  handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean): void {
+  handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean, preliminary = false): void {
     // A tool result with no preceding start (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) this.handleToolStart(toolCallId, toolName, {})
     if (isError) {
@@ -198,6 +198,7 @@ export class PiStreamAdapter {
     }
     this.sink.enqueue({
       type: 'tool-output-available',
+      preliminary,
       toolCallId,
       output: projectPiToolOutput(toolName, result),
       dynamic: true,
