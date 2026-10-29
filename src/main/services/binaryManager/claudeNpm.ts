@@ -44,6 +44,5 @@ export async function resolveClaudeNpmPackage(
   const toolOptions = Object.entries(options)
     .map(([key, value]) => `${key}=${JSON.stringify(value).replaceAll('@', '\\u0040')}`)
     .join(',')
-  // mise resolves the bare name through its aqua registry, which ignores these HTTP options.
-  return { version: resolved, toolSpec: `http:claude[${toolOptions}]@${resolved}` }
+  return { version: resolved, toolSpec: `claude[${toolOptions}]@${resolved}` }
 }
