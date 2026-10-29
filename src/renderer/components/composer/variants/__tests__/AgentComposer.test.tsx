@@ -5152,7 +5152,7 @@ describe('AgentComposer', () => {
     )
     const { rerender } = render(composer())
     mocks.insertToken.mockClear()
-    const attach = (payload: { topicId: string; path: string; kind: 'file' | 'directory' }) =>
+    const attach = (payload: { topicId: string; path: string; kind: 'file' | 'directory'; name?: string }) =>
       act(async () => {
         await EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, payload)
       })
@@ -5172,6 +5172,11 @@ describe('AgentComposer', () => {
       expect.objectContaining({ kind: 'folder', promptText: '/ws/src' })
     )
     expect(mocks.files).toHaveLength(1)
+
+    // An attachment's managed copy is labelled with the name the user sent.
+    await attach({ topicId: 'agent-session:session-1', path: '/managed/entry-1.md', kind: 'file', name: 'report.md' })
+    expect(mocks.files.at(-1)).toMatchObject({ path: '/managed/entry-1.md', origin_name: 'report.md' })
+    expect(mocks.insertToken).toHaveBeenLastCalledWith(expect.objectContaining({ label: 'report.md' }))
 
     // A folder already in the draft, e.g. from an @-mention, is not attached again.
     mocks.insertToken.mockClear()

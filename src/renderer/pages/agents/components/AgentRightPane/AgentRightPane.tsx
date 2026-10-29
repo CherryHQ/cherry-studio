@@ -810,11 +810,12 @@ function AgentRightPaneStateProvider({
       let next = selection
       if (closeActive) {
         nextTabs = activeIndex < 0 ? fileTabs : fileTabs.toSpliced(activeIndex, 1)
-        next ??= nextTabs[Math.min(activeIndex, nextTabs.length - 1)] ?? null
-      }
-      // A file not yet open gets a tab after the active one, or in the closed tab's place.
-      if (next && !nextTabs.some((tab) => isSameFileSelection(tab, next))) {
-        nextTabs = nextTabs.toSpliced(closeActive ? Math.max(activeIndex, 0) : activeIndex + 1, 0, next)
+        // Closing only moves among open tabs: a return target the user already closed stays closed.
+        if (!nextTabs.some((tab) => isSameFileSelection(tab, next))) {
+          next = nextTabs[Math.min(activeIndex, nextTabs.length - 1)] ?? null
+        }
+      } else if (next && !nextTabs.some((tab) => isSameFileSelection(tab, next))) {
+        nextTabs = nextTabs.toSpliced(activeIndex + 1, 0, next)
       }
       // Plain-text files open in the live editor; rendered previews stay read-only for now.
       setEditMode(
@@ -1051,6 +1052,21 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
   const actions = useAgentRightPaneActions()
   const meta = useAgentRightPaneMeta()
   const lastSelectableFileRef = useRef<string | null>(null)
+  // The session outlives this view, so hiding it (Activity runs this cleanup) saves, even with autosave off.
+  const fileSessionRef = useRef(state.fileSession)
+  useLayoutEffect(() => {
+    fileSessionRef.current = state.fileSession
+  })
+  useEffect(
+    () => () => {
+      const session = fileSessionRef.current
+      if (!session.isDirty) return
+      session.flush().catch(() => {
+        /* The retained session keeps the draft and reports the failure. */
+      })
+    },
+    []
+  )
   const model = useArtifactFileTreeModel({
     workspacePath: state.workspacePath,
     watchMissingRoot: meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM,
@@ -1098,12 +1114,13 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     [sessionId]
   )
   const attachPathToContext = useCallback(
-    (path: string, kind: 'file' | 'directory') => {
+    (path: string, kind: 'file' | 'directory', name?: string) => {
       if (!sessionId) return
       void EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, {
         topicId: buildAgentSessionTopicId(sessionId),
         path,
-        kind
+        kind,
+        name
       })
     },
     [sessionId]

@@ -20,6 +20,7 @@ import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSess
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
 
 import ArtifactPane, {
@@ -1275,6 +1276,39 @@ describe('ArtifactPane', () => {
     expect(screen.getByRole('tab').textContent).toBe(displayName)
   })
 
+  it('attaches an attachment preview from the managed copy it reads, labelled with its name', async () => {
+    const onAttach = vi.fn()
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/ws"
+        previewFileSelection={{
+          workspacePath: '/managed/message-files',
+          filePath: 'entry-1.md',
+          displayName: 'report.md',
+          displayPath: '/deleted-original/report.md' as AbsoluteFilePath,
+          previewType: 'file',
+          readOnly: true
+        }}
+        model={titleModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+        onAttachPathToContext={onAttach}
+      />
+    )
+    await screen.findByTestId('artifact-file-preview-overlay')
+
+    const items = commandMenuMocks.calls.findLast((c) => c.pendingExtraItems?.length)?.pendingExtraItems ?? []
+    const attach = items[0]
+    if (attach?.type !== 'item' || attach.id !== 'artifact-pane.file.attach') throw new Error('Attach must come first')
+    attach.onSelect()
+    expect(onAttach).toHaveBeenCalledWith('/managed/message-files/entry-1.md', 'file', 'report.md')
+  })
+
   // Splitting a POSIX filename on `\` shows part.mp4 for the file clip\part.mp4.
   it('keeps a literal backslash in a POSIX filename when displayName is absent', async () => {
     const fileName = `clip${BS}part.mp4`
@@ -1668,7 +1702,7 @@ describe('ArtifactPane', () => {
     const attach = items[0]
     if (attach?.type !== 'item' || attach.id !== 'artifact-pane.file.attach') throw new Error('Attach must come first')
     attach.onSelect()
-    expect(onAttach).toHaveBeenCalledWith('/tmp/workspace/src/a.ts', 'file')
+    expect(onAttach).toHaveBeenCalledWith('/tmp/workspace/src/a.ts', 'file', 'a.ts')
   })
 
   it('keeps the copy actions when open targets are unavailable', async () => {

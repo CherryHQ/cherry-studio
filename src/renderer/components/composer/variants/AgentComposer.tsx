@@ -1162,7 +1162,9 @@ const AgentComposerInner = ({
   useEffect(() => {
     if (!layerActive) return
     return EventEmitter.on(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, (payload) => {
-      const data = payload as { topicId?: string; path?: string; kind?: 'file' | 'directory' } | undefined
+      const data = payload as
+        | { topicId?: string; path?: string; kind?: 'file' | 'directory'; name?: string }
+        | undefined
       if (!data?.path || data.topicId !== sessionTopicId) return
       if (data.kind === 'directory') {
         const key = getPathComparisonKey(data.path)
@@ -1174,7 +1176,7 @@ const AgentComposerInner = ({
       }
       const parsed = AbsoluteFilePathSchema.safeParse(data.path)
       if (!parsed.success || filesRef.current.some((file) => file.path === parsed.data)) return
-      const attachment = createAttachmentFromPath(parsed.data)
+      const attachment = { ...createAttachmentFromPath(parsed.data), ...(data.name && { origin_name: data.name }) }
       actionsRef.current.insertToken(agentFileToComposerToken(attachment))
       setFiles((prev) => (prev.some((file) => file.path === attachment.path) ? prev : [...prev, attachment]))
     })

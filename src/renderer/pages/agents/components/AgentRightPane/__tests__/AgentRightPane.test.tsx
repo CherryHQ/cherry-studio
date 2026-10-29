@@ -719,10 +719,13 @@ describe('AgentRightPane', () => {
       return vi.fn()
     })
     // Leaving a dirty file saves first; the leave-dialog flows below need that save to fail, synchronously.
-    fileSessionFlushMock.mockImplementation(
-      () =>
-        ({ then: (_: unknown, onRejected: (error: Error) => void) => onRejected(new Error('save failed')) }) as never
-    )
+    fileSessionFlushMock.mockImplementation(() => {
+      const failed = {
+        then: (_: unknown, onRejected?: (error: Error) => void) => onRejected?.(new Error('save failed')),
+        catch: (onRejected: (error: Error) => void) => failed.then(undefined, onRejected)
+      }
+      return failed as never
+    })
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
@@ -3258,6 +3261,34 @@ describe('AgentRightPane', () => {
     await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts'))
   })
 
+  it('saves pending edits when the pane closes, even with autosave off', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    fileSessionFlushMock.mockResolvedValue(undefined)
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(pane())
+    expect(fileSessionFlushMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+
+    expect(fileSessionFlushMock).toHaveBeenCalledTimes(1)
+  })
+
   it('closes a clean preview directly without a leave prompt', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
@@ -3424,6 +3455,33 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
     expect(tabNames()).toEqual(['README.md'])
+  })
+
+  it('does not reopen a tab the user closed when the attachment it led to closes', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await user.click(screen.getByRole('button', { name: 'close README.md' }))
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryAllByRole('tab')).toEqual([])
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
   })
 
   it('shows the prior file after one Back when the same attachment is previewed again', async () => {

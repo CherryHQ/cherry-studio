@@ -274,8 +274,11 @@ interface ArtifactPaneViewBaseProps {
   onCloseFileTab?: (tab: ArtifactPaneFileSelection) => void
   /** Keeps only the given tab open (Close others), or none (Close all). */
   onRetainFileTab?: (tab: ArtifactPaneFileSelection | null) => void
-  /** Adds a file or folder to the composer as context; omitted where there is no composer. */
-  onAttachPathToContext?: (path: string, kind: 'file' | 'directory') => void
+  /**
+   * Adds a file or folder to the composer as context; omitted where there is no composer.
+   * `name` labels the chip when the readable file is a managed copy of an attachment.
+   */
+  onAttachPathToContext?: (path: string, kind: 'file' | 'directory', name?: string) => void
 }
 
 type ArtifactPaneViewProps = ArtifactPaneViewBaseProps &
@@ -574,7 +577,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   }, [t])
 
   const attachMenuItems = useCallback(
-    (path: string, kind: 'file' | 'directory'): CommandContextMenuExtraItem[] =>
+    (path: string, kind: 'file' | 'directory', name?: string): CommandContextMenuExtraItem[] =>
       onAttachPathToContext
         ? [
             {
@@ -582,7 +585,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               id: 'artifact-pane.file.attach',
               label: t('agent.preview_pane.attach_as_context'),
               icon: <AtSign size={14} />,
-              onSelect: () => onAttachPathToContext(path, kind)
+              onSelect: () => onAttachPathToContext(path, kind, name)
             }
           ]
         : [],
@@ -715,7 +718,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       const absolutePath = getArtifactPaneSelectionDisplayPath(selection)
       const relativePath = getArtifactPaneSelectionRelativePath(workspacePath, selection)
       return [
-        ...attachMenuItems(absolutePath, 'file'),
+        // Attach the file the preview reads; an attachment's original path may no longer exist.
+        ...attachMenuItems(getArtifactPaneSelectionPath(selection), 'file', getPreviewFileTitle(selection)),
         buildCopyMenu({
           t,
           copy: (text) => void copyPath(text),
