@@ -319,6 +319,49 @@ index df1ba637c2f7834f21f087eba7a416c802f4ac68..af6d8f20b5458b40e81c4b677f715d2c
  			gridElement.dataset.mode = next;
  			this.#inputElement.focus();
  			this.#inputElement.select();
+diff --git a/dist/editor/tokenizer.js b/dist/editor/tokenizer.js
+index e90145985e62c7cca8ac907c5f355540bbd71d55..39c4e6330016709cfa4cb74949d9953cbee2a052 100644
+--- a/dist/editor/tokenizer.js
++++ b/dist/editor/tokenizer.js
+@@ -140,16 +140,32 @@ var EditorTokenizer = class {
+ 	}
+ };
+ function renderLineTokens(tokens) {
+-	return tokens.map(([char, fg, textContent]) => {
++	let leading = true;
++	return tokens.flatMap(([char, fg, textContent]) => {
+ 		if (char === 0 && fg === "") {
+-			if (textContent === "") return h("br");
+-			return textContent;
++			if (textContent === "") return [h("br")];
++			return [textContent];
+ 		}
+-		return h("span", {
+-			dataset: { char: char.toString() },
++		const span = (start, text, marks) => h("span", {
++			dataset: {
++				char: start.toString(),
++				...marks
++			},
+ 			style: `color:${fg};`,
+-			textContent
++			textContent: text
+ 		});
++		const lead = leading ? /^\s+/.exec(textContent)?.[0] ?? "" : "";
++		if (lead === "") {
++			leading = false;
++			return [span(char, textContent, /^\s+$/.test(textContent) ? { ws: textContent.includes("\t") ? "tab" : "space" } : void 0)];
++		}
++		const marks = {
++			ws: lead.includes("\t") ? "tab" : "space",
++			indent: ""
++		};
++		if (lead.length === textContent.length) return [span(char, textContent, marks)];
++		leading = false;
++		return [span(char, lead, marks), span(char + lead.length, textContent.slice(lead.length))];
+ 	});
+ }
+ //#endregion
 diff --git a/dist/react/utils/useFileDiffInstance.js b/dist/react/utils/useFileDiffInstance.js
 index 4c31cf5025d726a55d07d4cada9d4ba5510998b4..04711616c4f9c5af0e211f4817537ad2ac5db9a4 100644
 --- a/dist/react/utils/useFileDiffInstance.js
@@ -343,3 +386,111 @@ index 462974687d8fd2cd6e03fdeabbd4551020cd8737..0a6932c3ec5e21c3c13772b9c07e8cc6
  		if (!edit && disposeEditorRef.current != null) {
  			const { current: disposeEditor } = disposeEditorRef;
  			disposeEditorRef.current = null;
+diff --git a/dist/renderers/FileRenderer.js b/dist/renderers/FileRenderer.js
+index 4c65f0554cbb6403c5e45affb33ff6e8d18adcf3..5fbfbe29c293395ee30d6361b0d4f56ff0f260e3 100644
+--- a/dist/renderers/FileRenderer.js
++++ b/dist/renderers/FileRenderer.js
+@@ -290,6 +290,7 @@ var FileRenderer = class {
+ 				const lineText = tokens.map((token) => token[2]).join("");
+ 				lineCache.lines[line] = applyLineTextWithNewline(lineCache.lines[line] ?? "", lineText);
+ 			}
++			let leading = true;
+ 			const row = {
+ 				type: "element",
+ 				tagName: "div",
+@@ -298,31 +299,44 @@ var FileRenderer = class {
+ 					"data-line-type": "context",
+ 					"data-line-index": line
+ 				},
+-				children: tokens.map(([char, fg, text]) => {
++				children: tokens.flatMap(([char, fg, text]) => {
+ 					if (char === 0 && fg === "") {
+-						if (text === "") return {
++						if (text === "") return [{
+ 							type: "element",
+ 							tagName: "br",
+ 							properties: {},
+ 							children: []
+-						};
+-						return {
++						}];
++						return [{
+ 							type: "text",
+ 							value: text
+-						};
++						}];
+ 					}
+-					return {
++					const span = (start, value, extra) => ({
+ 						type: "element",
+ 						tagName: "span",
+ 						properties: {
+-							"data-char": char,
+-							style: `color:${fg};`
++							"data-char": start,
++							style: `color:${fg};`,
++							...extra
+ 						},
+ 						children: [{
+ 							type: "text",
+-							value: text
++							value
+ 						}]
++					});
++					const lead = leading ? /^\s+/.exec(text)?.[0] ?? "" : "";
++					if (lead === "") {
++						leading = false;
++						return [span(char, text, /^\s+$/.test(text) ? { "data-ws": text.includes("\t") ? "tab" : "space" } : void 0)];
++					}
++					const marks = {
++						"data-ws": lead.includes("\t") ? "tab" : "space",
++						"data-indent": ""
+ 					};
++					if (lead.length === text.length) return [span(char, text, marks)];
++					leading = false;
++					return [span(char, lead, marks), span(char + lead.length, text.slice(lead.length))];
+ 				})
+ 			};
+ 			this.ownedRows.add(row);
+diff --git a/dist/utils/renderTokenLines.js b/dist/utils/renderTokenLines.js
+index c97c3bd848a715f930ef001261fb2e70f29dee7b..12769108a3985c17001333f7d743d446f5163adf 100644
+--- a/dist/utils/renderTokenLines.js
++++ b/dist/utils/renderTokenLines.js
+@@ -103,9 +103,15 @@ function renderTokenLines(lines, { state, lazyLineAST = false, cacheHtmlStyles =
+ }
+ function appendTokens(line, tokens, useTokenTransformer, cacheHtmlStyles) {
+ 	let column = 0;
++	let leading = true;
+ 	for (const token of tokens) {
+ 		if (token.content === "") continue;
+-		line.children.push(createTokenSpan(token, tokenStyle(token, cacheHtmlStyles), token.content, column, useTokenTransformer));
++		const span = createTokenSpan(token, tokenStyle(token, cacheHtmlStyles), token.content, column, useTokenTransformer);
++		if (useTokenTransformer && /^\s+$/.test(token.content)) {
++			span.properties["data-ws"] = token.content.includes("\t") ? "tab" : "space";
++			if (leading) span.properties["data-indent"] = "";
++		} else leading = false;
++		line.children.push(span);
+ 		column += token.content.length;
+ 	}
+ 	return column;
+diff --git a/dist/worker/worker.js b/dist/worker/worker.js
+index ecfe9f2d553817cce880d724932a584152126969..8277edc413bc69d80018a581f8f274dd4ce4629c 100644
+--- a/dist/worker/worker.js
++++ b/dist/worker/worker.js
+@@ -1435,9 +1435,15 @@ function renderTokenLines(lines, { state, lazyLineAST = false, cacheHtmlStyles =
+ }
+ function appendTokens(line, tokens, useTokenTransformer, cacheHtmlStyles) {
+ 	let column = 0;
++	let leading = true;
+ 	for (const token of tokens) {
+ 		if (token.content === "") continue;
+-		line.children.push(createTokenSpan(token, tokenStyle(token, cacheHtmlStyles), token.content, column, useTokenTransformer));
++		const span = createTokenSpan(token, tokenStyle(token, cacheHtmlStyles), token.content, column, useTokenTransformer);
++		if (useTokenTransformer && /^\s+$/.test(token.content)) {
++			span.properties["data-ws"] = token.content.includes("\t") ? "tab" : "space";
++			if (leading) span.properties["data-indent"] = "";
++		} else leading = false;
++		line.children.push(span);
+ 		column += token.content.length;
+ 	}
+ 	return column;

@@ -2,6 +2,16 @@ import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { fixedSamplingParameterSupport } from './parameterSupports'
+import {
+  effortChatWire,
+  highMaxSupport,
+  kimiK3Support,
+  qwen38ChatWire,
+  qwen38PreviewChatWire,
+  qwen38PreviewSupport,
+  qwen38Support,
+  qwenChatWire
+} from './qwenFamily'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
@@ -84,24 +94,6 @@ const qwenImage3Mode: ImageModeDef = {
 
 const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
 
-const qwenChatWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
-  auto: {
-    operations: [
-      { target: 'enable_thinking', value: { source: 'literal', value: true } },
-      { target: 'thinking_budget', value: { source: 'budget' } }
-    ],
-    budget: { missing: { type: 'omit-value' } }
-  },
-  effort: {
-    operations: [
-      { target: 'enable_thinking', value: { source: 'literal', value: true } },
-      { target: 'thinking_budget', value: { source: 'budget' } }
-    ],
-    budget: { missing: { type: 'omit-value' } }
-  }
-}
-
 const responsesEffortWire = modeWire(
   'reasoningEffort',
   { off: 'none', auto: EFFORT, effort: EFFORT },
@@ -133,45 +125,6 @@ const qwenResponsesThinkingOnlySupport: ReasoningSupport = {
   supportedEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 }
 
-const qwen38Support: ReasoningSupport = {
-  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
-  defaultEffort: 'xhigh',
-  supportedEfforts: ['none', 'low', 'medium', 'xhigh'],
-  // NOT a budget knob — Qwen3.8 has no `thinking_budget` (the parameter's model
-  // list stops at Qwen3.7), which is why `controls` carries effort only. The
-  // limits exist so the API gateway can reverse a caller-supplied `budget_tokens`
-  // into the nearest effort tier (`nearestEffortForBudget`).
-  thinkingTokenLimits: { min: 0, max: 262_144 }
-}
-
-/** `qwen3.8-max-preview` serves thinking mode only — no `'none'` tier, so reasoning cannot be disabled. */
-const qwen38PreviewSupport: ReasoningSupport = {
-  ...qwen38Support,
-  controls: [{ kind: 'effort', values: ['low', 'medium', 'xhigh'], default: 'xhigh' }],
-  supportedEfforts: ['low', 'medium', 'xhigh']
-}
-
-const highMaxSupport: ReasoningSupport = {
-  controls: [{ kind: 'effort', values: ['none', 'high', 'max'], default: 'high' }],
-  defaultEffort: 'high',
-  supportedEfforts: ['none', 'high', 'max']
-}
-
-const kimiK3Support: ReasoningSupport = {
-  controls: [{ kind: 'effort', values: ['none', 'max'], default: 'max' }],
-  defaultEffort: 'max',
-  supportedEfforts: ['none', 'max']
-}
-
-const effortChatWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
-  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
-}
-
-const qwen38ChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })
-
-// Preview variants omit the off mode entirely: thinking is always on there.
-const qwen38PreviewChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { effort: EFFORT })
 const qwen38PreviewResponsesWire: ReasoningWireProfile = modeWire(
   'reasoningEffort',
   { auto: EFFORT, effort: EFFORT },
@@ -351,22 +304,24 @@ export default defineProvider({
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
-  name: 'Bailian',
+  // Keep the 'dashscope' identity so existing credentials and saved endpoint
+  // overrides stay attached to the rebranded mainland provider (ref #18432).
+  name: 'Qwen AI Platform',
   availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic'
+      baseUrl: 'https://maas.qianwenaiapi.com/apps/anthropic'
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
     }
   },
@@ -375,20 +330,48 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
-      modelIds: ['minimax-m2-1', 'glm-5-2', 'kimi-k3']
+      modelIds: ['minimax-m2-1', 'glm-5-2', 'kimi-k3'],
+      endpointTypes: ['openai-chat-completions', 'openai-responses']
     },
     {
       id: 'url-context',
       modelScope: 'model-dependent',
-      modelIdPrefixes: webExtractorModelPrefixes
-    }
+      modelIdPrefixes: webExtractorModelPrefixes,
+      endpointTypes: ['openai-chat-completions', 'openai-responses']
+    },
+    // https://platform.qianwenai.com/docs/developer-guides/tool-calling/web-scraping
+    ...(['web-search', 'url-context'] as const).map((id) => ({
+      id,
+      modelScope: 'model-dependent' as const,
+      modelIdPrefixes: [
+        'qwen3-7-max',
+        'qwen3-7-plus',
+        'qwen3-7-flash',
+        'qwen3-6-plus',
+        'qwen3-6-flash',
+        'qwen3-5-plus',
+        'qwen3-5-flash'
+      ],
+      modelIds: [
+        'qwen3-8-max',
+        'qwen3-8-flash',
+        'qwen3-8-27b',
+        'qwen3-8-2-4t-a95b',
+        'deepseek-v4-pro',
+        'deepseek-v4-flash',
+        'deepseek-v4-1-flash',
+        'glm-5-2',
+        'kimi-k3'
+      ],
+      endpointTypes: ['anthropic-messages' as const]
+    }))
   ],
   metadata: {
     website: {
-      apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
-      docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
-      models: 'https://bailian.console.aliyun.com/?tab=model#/model-market',
-      official: 'https://www.aliyun.com/product/bailian'
+      apiKey: 'https://platform.qianwenai.com/home/api-keys',
+      docs: 'https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call',
+      models: 'https://www.qianwenai.com/models',
+      official: 'https://www.qianwenai.com/'
     }
   },
   overrides: [

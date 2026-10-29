@@ -5140,6 +5140,54 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
   })
 
+  it('attaches a file or folder from the file pane once, and only in its own session', async () => {
+    const composer = () => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const { rerender } = render(composer())
+    mocks.insertToken.mockClear()
+    const attach = (payload: { topicId: string; path: string; kind: 'file' | 'directory'; name?: string }) =>
+      act(async () => {
+        await EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, payload)
+      })
+
+    await attach({ topicId: 'agent-session:other-session', path: '/ws/a.ts', kind: 'file' })
+    expect(mocks.files).toEqual([])
+
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/a.ts', kind: 'file' })
+    // The mocked file store does not re-render; the real one does after each attachment.
+    rerender(composer())
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/a.ts', kind: 'file' })
+    expect(mocks.files).toEqual([expect.objectContaining({ path: '/ws/a.ts' })])
+    expect(mocks.insertToken).toHaveBeenCalledTimes(1)
+
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/src', kind: 'directory' })
+    expect(mocks.insertToken).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'folder', promptText: '/ws/src' })
+    )
+    expect(mocks.files).toHaveLength(1)
+
+    // An attachment's managed copy is labelled with the name the user sent.
+    await attach({ topicId: 'agent-session:session-1', path: '/managed/entry-1.md', kind: 'file', name: 'report.md' })
+    expect(mocks.files.at(-1)).toMatchObject({ path: '/managed/entry-1.md', origin_name: 'report.md' })
+    expect(mocks.insertToken).toHaveBeenLastCalledWith(expect.objectContaining({ label: 'report.md' }))
+
+    // A folder already in the draft, e.g. from an @-mention, is not attached again.
+    mocks.insertToken.mockClear()
+    mocks.getDraft.mockReturnValue({
+      text: '',
+      tokens: [{ id: 'folder-token:1', kind: 'folder', label: 'src', promptText: '/ws/src/' }]
+    })
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/src', kind: 'directory' })
+    expect(mocks.insertToken).not.toHaveBeenCalled()
+  })
+
   it('opens the agent edit dialog for a session with history', async () => {
     render(
       <AgentComposer

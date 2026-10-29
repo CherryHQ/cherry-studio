@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "afa17e5976dcef2e",
-    "count": 66,
+    "version": "e1952ef3858002a8",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -657,7 +657,11 @@
       },
       {
         "id": "dashscope",
-        "name": "Bailian"
+        "name": "Qwen AI Platform"
+      },
+      {
+        "id": "qwencloud",
+        "name": "QwenCloud"
       },
       {
         "id": "stepfun",

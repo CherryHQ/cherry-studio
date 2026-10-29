@@ -65,6 +65,7 @@ const filenameMap: Record<string, string> = {
   'LICENSE.md': 'license',
   'CHANGELOG.md': 'changelog',
   'README.md': 'readme',
+  'CLAUDE.md': 'claude',
   '.env': 'tune',
   '.env.local': 'tune',
   '.env.development': 'tune',
