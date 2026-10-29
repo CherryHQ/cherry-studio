@@ -673,8 +673,20 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
 
   const outcome = action === 'add' ? 'created' : 'updated'
   logger.info(`Cron job ${outcome} via tool`, { agentId: ctx.agentId, taskId: task.id })
+  // A command guard reaches main-process `exec`, so it stays inert until the
+  // user approves that exact command in Settings — this tool can persist the
+  // guard but can never approve it. Say so explicitly: a silent "created"
+  // would read as a working schedule while every fire skips.
+  let notice = ''
+  if (task.guard.type === 'command' && task.guardApproval === null) {
+    notice =
+      `\n\nNote: the command guard is pending user approval. Every fire will skip until the user approves this exact command in Settings > Scheduled Tasks: ${task.guard.command}` +
+      '\nIf you change the command later, the user must approve the new command again.'
+  } else if (task.guard.type === 'command') {
+    notice = '\n\nThe command guard is approved by the user and active.'
+  }
   return {
-    content: [{ type: 'text', text: `Job ${outcome}:\n${JSON.stringify(task, null, 2)}` }]
+    content: [{ type: 'text', text: `Job ${outcome}:\n${JSON.stringify(task, null, 2)}${notice}` }]
   }
 }
 

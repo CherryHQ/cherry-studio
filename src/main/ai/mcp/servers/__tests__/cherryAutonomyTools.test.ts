@@ -42,6 +42,9 @@ const mockCreateSessionWithDelivery = vi.fn()
 const mockListSessionDeliveries = vi.fn()
 const mockGetInteractionState = vi.fn()
 
+// Production saveJob reads task.guard.type; every created-task mock needs a default guard.
+const withDefaultGuard = <T extends object>(task: T) => ({ guard: { type: 'always' as const }, guardApproval: null, ...task })
+
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
 vi.mock('@data/services/AgentTaskService', () => ({
@@ -811,7 +814,7 @@ describe('cherry-tools autonomy tools', () => {
   describe('add action', () => {
     it('should create a task with cron schedule', async () => {
       const task = { id: 'task_1', name: 'test', scheduleType: 'cron', scheduleValue: '0 9 * * 1-5' }
-      mockCreateTask.mockReturnValue(task)
+      mockCreateTask.mockReturnValue(withDefaultGuard(task))
 
       const server = createServer('agent_1', WORKSPACE_PATH, null)
       const result = await callTool(server, {
@@ -834,7 +837,7 @@ describe('cherry-tools autonomy tools', () => {
 
     it('should create a task with interval schedule', async () => {
       const task = { id: 'task_2', name: 'check', trigger: { kind: 'interval', ms: 30 * 60_000 } }
-      mockCreateTask.mockReturnValue(task)
+      mockCreateTask.mockReturnValue(withDefaultGuard(task))
 
       const server = createServer('agent_2', WORKSPACE_PATH, null)
       await callTool(server, {
@@ -855,7 +858,7 @@ describe('cherry-tools autonomy tools', () => {
     })
 
     it('should parse hour+minute durations', async () => {
-      mockCreateTask.mockReturnValue({ id: 'task_3' })
+      mockCreateTask.mockReturnValue(withDefaultGuard({ id: 'task_3' }))
 
       const server = createServer('agent_test', WORKSPACE_PATH, null)
       await callTool(server, {
@@ -874,7 +877,7 @@ describe('cherry-tools autonomy tools', () => {
     })
 
     it('should create a one-time task with at', async () => {
-      mockCreateTask.mockReturnValue({ id: 'task_4' })
+      mockCreateTask.mockReturnValue(withDefaultGuard({ id: 'task_4' }))
 
       const server = createServer('agent_test', WORKSPACE_PATH, null)
       await callTool(server, {
@@ -904,6 +907,49 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
 
+    it('should append a pending-approval notice when a command guard is unapproved', async () => {
+      mockCreateTask.mockReturnValue({
+        id: 'task_guarded',
+        name: 'Nightly backup',
+        guard: { type: 'command', command: 'test -f /tmp/ok' },
+        guardApproval: null
+      })
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'Nightly backup',
+        message: 'Run backup',
+        cron: '0 2 * * *',
+        guard: { type: 'command', command: 'test -f /tmp/ok' }
+      })
+
+      expect(result.content[0].text).toContain('pending user approval')
+      expect(result.content[0].text).toContain('test -f /tmp/ok')
+      expect(result.content[0].text).toContain('must approve the new command again')
+    })
+
+    it('should confirm an approved command guard as active', async () => {
+      mockCreateTask.mockReturnValue({
+        id: 'task_guarded_ok',
+        name: 'Nightly backup',
+        guard: { type: 'command', command: 'test -f /tmp/ok' },
+        guardApproval: { command: 'test -f /tmp/ok', approvedAt: '2026-10-29T00:00:00.000Z' }
+      })
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'Nightly backup',
+        message: 'Run backup',
+        cron: '0 2 * * *',
+        guard: { type: 'command', command: 'test -f /tmp/ok' }
+      })
+
+      expect(result.content[0].text).toContain('approved by the user and active')
+      expect(result.content[0].text).not.toContain('pending user approval')
+    })
+
     it('should reject when multiple schedules are provided', async () => {
       const server = createServer()
       const result = await callTool(server, {
@@ -921,7 +967,7 @@ describe('cherry-tools autonomy tools', () => {
     it('should subscribe an explicit live channel owned by the source-session Agent', async () => {
       mockGetChannel.mockReturnValue({ id: 'ch_own', agentId: 'agent_1' })
       mockGetNotifyAdapters.mockReturnValue([{ channelId: 'ch_own', connected: true }])
-      mockCreateTask.mockReturnValue({ id: 'task_ch' })
+      mockCreateTask.mockReturnValue(withDefaultGuard({ id: 'task_ch' }))
 
       const server = createServer('agent_1')
       await callTool(server, {
@@ -952,7 +998,7 @@ describe('cherry-tools autonomy tools', () => {
     })
 
     it('treats an explicit empty channel_ids as no delivery while omission fans out', async () => {
-      mockCreateTask.mockReturnValue({ id: 'task_empty' })
+      mockCreateTask.mockReturnValue(withDefaultGuard({ id: 'task_empty' }))
 
       await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']), {
         action: 'add',
@@ -1188,7 +1234,7 @@ describe('cherry-tools autonomy tools', () => {
     })
 
     it('defaults a cron created during a task run to every configured recipient', async () => {
-      mockCreateTask.mockReturnValue({ id: 'task-fanout' })
+      mockCreateTask.mockReturnValue(withDefaultGuard({ id: 'task-fanout' }))
       await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']), {
         action: 'add',
         name: 'follow-up',

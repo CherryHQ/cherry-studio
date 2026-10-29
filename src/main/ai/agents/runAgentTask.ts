@@ -29,7 +29,9 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  readLastExecutedRunJobId,
   readLastExecutedRunStartedAt,
+  readTaskGuardApproval,
   HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
@@ -153,8 +155,16 @@ function resolveTaskSession(params: {
 function findLastExecutedRunStart(scheduleId: string, currentJobId: string): number | null {
   for (const job of jobService.list({ scheduleId })) {
     if (job.id === currentJobId || !job.startedAt) continue
-    if (job.status === 'completed' && (job.output as { skipped?: boolean } | null)?.skipped === true) continue
-    if (job.status === 'pending' || job.status === 'delayed') continue
+    // Positive execution evidence only: a completed run whose result is not a
+    // skip marker actually reached the agent. `startedAt` alone is not proof —
+    // a first attempt whose session creation fails before admission would
+    // otherwise become the baseline and skip the unprocessed file after repair.
+    if (job.status !== 'completed') continue
+    const output = job.output as { skipped?: boolean; result?: string } | null
+    if (output?.skipped === true) continue
+    // Legacy rows predate `output.skipped`: their busy/guard skips survive only
+    // as a `Skipped (…)` result marker, which is likewise not execution evidence.
+    if (typeof output?.result === 'string' && output.result.startsWith('Skipped (')) continue
     const startedMs = Date.parse(job.startedAt)
     if (Number.isFinite(startedMs)) return startedMs
   }
@@ -248,13 +258,35 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   }
 
   if (!isHeartbeat && ctx.input.guard && ctx.input.guard.type !== 'always') {
-    const lastRunStartedAt = scheduleId
-      ? (readLastExecutedRunStartedAt(scheduleSnapshot?.metadata) ?? findLastExecutedRunStart(scheduleId, ctx.jobId))
-      : null
-    const outcome = await evaluateTaskGuard(ctx.input.guard, { lastRunStartedAt, signal: ctx.signal })
-    if (!outcome.proceed) {
-      logger.debug('Task skipped by guard', { agentId, scheduleId, reason: outcome.reason })
-      return { result: `Skipped (guard: ${outcome.reason})`, skipped: true }
+    // Shell authorization gate: a command guard reaches main-process `exec`, so
+    // it runs only after the user approved that exact command string. Agent
+    // paths (MCP cron) can persist the guard but can never write the approval
+    // record — without this check an agent with Bash disabled could still
+    // execute host commands by scheduling a guard. Fail closed: the fire skips
+    // (visibly, in the run log) until approval lands.
+    if (ctx.input.guard.type === 'command') {
+      const approval = readTaskGuardApproval(scheduleSnapshot?.metadata)
+      if (approval?.command !== ctx.input.guard.command) {
+        logger.debug('Task skipped: command guard pending user approval', { agentId, scheduleId })
+        return { result: 'Skipped (guard: command pending user approval)', skipped: true }
+      }
+    }
+    // Crash recovery replays the same job under `recovery: 'retry'`. Admission
+    // was already persisted for that job (watermark + jobId are written when a
+    // run reaches the agent), so the replay must not re-face the guard against
+    // its own watermark — an unchanged file would otherwise convert recovery
+    // into a completed skip and drop the unfinished work. New scheduled fires
+    // (different jobId) still evaluate the guard normally.
+    const isRecoveryReplay = scheduleId !== null && readLastExecutedRunJobId(scheduleSnapshot?.metadata) === ctx.jobId
+    if (!isRecoveryReplay) {
+      const lastRunStartedAt = scheduleId
+        ? (readLastExecutedRunStartedAt(scheduleSnapshot?.metadata) ?? findLastExecutedRunStart(scheduleId, ctx.jobId))
+        : null
+      const outcome = await evaluateTaskGuard(ctx.input.guard, { lastRunStartedAt, signal: ctx.signal })
+      if (!outcome.proceed) {
+        logger.debug('Task skipped by guard', { agentId, scheduleId, reason: outcome.reason })
+        return { result: `Skipped (guard: ${outcome.reason})`, skipped: true }
+      }
     }
   }
 
@@ -379,7 +411,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
           const startedMs = jobSnapshot?.startedAt ? Date.parse(jobSnapshot.startedAt) : Number.NaN
           application
             .get('AgentJobsService')
-            .recordTaskExecutionStart({ scheduleId, startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now() })
+            .recordTaskExecutionStart({
+              scheduleId,
+              startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now(),
+              jobId: ctx.jobId
+            })
         }
         break
       }

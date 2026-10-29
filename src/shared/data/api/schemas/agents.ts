@@ -178,6 +178,19 @@ export const TaskGuardSchema = z.discriminatedUnion('type', [
 ])
 export type TaskGuard = z.infer<typeof TaskGuardSchema>
 
+/**
+ * User approval record for a `command` guard. Written only through the
+ * user-originated `ai.agent.task.approveGuard` command — never by agent-driven
+ * paths (MCP cron) — and bound to the exact command string it approved.
+ */
+export const TaskGuardApprovalSchema = z.strictObject({
+  /** Exact command string this approval covers; any edit requires re-approval. */
+  command: z.string(),
+  /** ISO timestamp of the user's approval. */
+  approvedAt: z.string()
+})
+export type TaskGuardApproval = z.infer<typeof TaskGuardApprovalSchema>
+
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -189,6 +202,11 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   workspace: AgentSessionWorkspaceSourceSchema,
   /** Fire-time precondition; `always` runs every tick. */
   guard: TaskGuardSchema,
+  /**
+   * User approval for a `command` guard; null while pending (fires skip until
+   * approved). Always null for non-command guards.
+   */
+  guardApproval: TaskGuardApprovalSchema.nullable(),
   /**
    * When true, every fire continues the same agent session instead of creating
    * a fresh one. Off by default — a sticky session accumulates context without

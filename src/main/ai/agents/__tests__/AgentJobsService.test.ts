@@ -263,6 +263,62 @@ describe('AgentJobsService', () => {
     })
   })
 
+  it('keeps an agent-persisted command guard pending until the user approves the exact command', () => {
+    const command = 'check-something --flag'
+    const task = service.createTask(AGENT_ID, { ...form, guard: { type: 'command', command } })
+    expect(task.guard).toEqual({ type: 'command', command })
+    expect(task.guardApproval).toBeNull()
+
+    // A stale dialog (command changed underneath) approves nothing.
+    expect(() => service.approveTaskGuardCommand(AGENT_ID, task.id, 'other-command')).toThrow(/changed/)
+
+    const approved = service.approveTaskGuardCommand(AGENT_ID, task.id, command)
+    expect(approved?.guardApproval?.command).toBe(command)
+    expect(jobScheduleService.getById(task.id)?.metadata?.guardApproval).toMatchObject({ command })
+  })
+
+  it('auto-approves a command guard saved through the user-originated settings form', () => {
+    const command = 'user-typed-command'
+    const task = service.createTask(AGENT_ID, { ...form, guard: { type: 'command', command } }, { guardApprovedByUser: true })
+    expect(task.guardApproval?.command).toBe(command)
+
+    // A user-originated edit of the command re-approves in the same save.
+    const edited = service.updateTask(
+      AGENT_ID,
+      task.id,
+      { guard: { type: 'command', command: 'user-typed-v2' } },
+      { guardApprovedByUser: true }
+    )
+    expect(edited?.guardApproval?.command).toBe('user-typed-v2')
+  })
+
+  it('drops the approval when an agent-origin edit changes the command, and keeps it otherwise', () => {
+    const command = 'original-command'
+    const task = service.createTask(AGENT_ID, { ...form, guard: { type: 'command', command } }, { guardApprovedByUser: true })
+    expect(task.guardApproval?.command).toBe(command)
+
+    // Unrelated update: approval survives.
+    const renamed = service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
+    expect(renamed?.guardApproval?.command).toBe(command)
+
+    // Agent-origin command change: approval is dropped (re-approval required).
+    const edited = service.updateTask(AGENT_ID, task.id, { guard: { type: 'command', command: 'agent-supplied-v2' } })
+    expect(edited?.guard).toEqual({ type: 'command', command: 'agent-supplied-v2' })
+    expect(edited?.guardApproval).toBeNull()
+    expect(jobScheduleService.getById(task.id)?.metadata?.guardApproval).toBeUndefined()
+
+    // Switching away from a command guard also drops the record.
+    service.approveTaskGuardCommand(AGENT_ID, task.id, 'agent-supplied-v2')
+    const switched = service.updateTask(AGENT_ID, task.id, { guard: { type: 'file_changed', path: '/tmp/a.txt' } })
+    expect(switched?.guardApproval).toBeNull()
+    expect(jobScheduleService.getById(task.id)?.metadata?.guardApproval).toBeUndefined()
+  })
+
+  it('rejects approving a guard that is not a command guard', () => {
+    const task = service.createTask(AGENT_ID, form)
+    expect(() => service.approveTaskGuardCommand(AGENT_ID, task.id, 'anything')).toThrow(/no command guard/)
+  })
+
   it('rolls back the Agent, Sessions and schedules together when archive or restore fails', async () => {
     const task = service.createTask(AGENT_ID, form)
     const session = agentSessionService.create({ agentId: AGENT_ID, name: 'Owned', workspace: { type: 'system' } })

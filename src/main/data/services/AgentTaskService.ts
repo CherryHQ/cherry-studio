@@ -22,6 +22,7 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   type ScheduledTaskEntity,
+  type TaskGuardApproval,
   type ScheduledTaskListItem,
   type TaskGuard,
   TaskGuardSchema,
@@ -176,12 +177,62 @@ export function readLastExecutedRunStartedAt(metadata: Record<string, unknown> |
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
 }
 
+const TASK_LAST_EXECUTED_JOB_ID_METADATA_KEY = 'lastExecutedRunJobId'
+
 /** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
 export function writeLastExecutedRunStartedAt(
   metadata: Record<string, unknown> | undefined,
-  startedAtMs: number
+  startedAtMs: number,
+  jobId?: string
 ): Record<string, unknown> {
-  return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_LAST_EXECUTED_METADATA_KEY]: startedAtMs }
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_LAST_EXECUTED_METADATA_KEY]: startedAtMs }
+  if (jobId !== undefined) {
+    next[TASK_LAST_EXECUTED_JOB_ID_METADATA_KEY] = jobId
+  }
+  return next
+}
+
+/**
+ * Identity of the job whose admission advanced the watermark. A crash
+ * recovery replays that same job under `recovery: 'retry'`; the replay must
+ * not re-face the guard against its own watermark, so the guard is bypassed
+ * only for an exact jobId match.
+ */
+export function readLastExecutedRunJobId(metadata: Record<string, unknown> | undefined): string | null {
+  const raw = metadata?.[TASK_LAST_EXECUTED_JOB_ID_METADATA_KEY]
+  return typeof raw === 'string' && raw.length > 0 ? raw : null
+}
+
+const TASK_GUARD_APPROVAL_METADATA_KEY = 'guardApproval'
+
+/**
+ * User approval for a `command` guard, bound to the exact approved command.
+ * Agent-driven paths (MCP cron) can persist a command guard but can never
+ * write this record — approval arrives only through the user-originated
+ * `ai.agent.task.approveGuard` command, so an agent without shell
+ * authorization cannot reach main-process `exec` by scheduling a guard.
+ */
+export function readTaskGuardApproval(metadata: Record<string, unknown> | undefined): TaskGuardApproval | null {
+  const raw = metadata?.[TASK_GUARD_APPROVAL_METADATA_KEY]
+  if (!isPlainRecord(raw)) return null
+  const { command, approvedAt } = raw as { command?: unknown; approvedAt?: unknown }
+  if (typeof command !== 'string' || command.length === 0) return null
+  if (typeof approvedAt !== 'string' || approvedAt.length === 0) return null
+  return { command, approvedAt }
+}
+
+/** Same merge discipline as writeTaskSessionReuse; `null` removes the record (re-approval required). */
+export function writeTaskGuardApproval(
+  metadata: Record<string, unknown> | undefined,
+  approval: TaskGuardApproval | null
+): Record<string, unknown> {
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}) }
+  if (approval === null) {
+    delete next[TASK_GUARD_APPROVAL_METADATA_KEY]
+  } else {
+    next[TASK_GUARD_APPROVAL_METADATA_KEY] = approval
+  }
+  return next
 }
 
 export function isMissedTask(metadata: Record<string, unknown>): boolean {
@@ -554,6 +605,7 @@ export class AgentTaskService {
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
       guard: tmpl.guard,
+      guardApproval: tmpl.guard.type === 'command' ? readTaskGuardApproval(snapshot.metadata) : null,
       reuseSession: reuse.enabled,
       reuseSessionId: reuse.enabled ? reuseSessionId : null,
       channelIds: channelRows.map((c) => c.id),

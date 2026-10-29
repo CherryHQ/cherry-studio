@@ -510,6 +510,13 @@ export const aiRequestSchemas = {
     // No caller reads the trigger result, so the route is void (see ipc-migration-guide.md).
     input: agentTaskRefSchema,
     output: z.void()
+  }),
+  'ai.agent.task.approveGuard': defineRoute({
+    input: agentTaskRefSchema.extend({
+      /** Exact command string the user saw and approved; a stale dialog approves nothing. */
+      expectedCommand: z.string().min(1)
+    }),
+    output: ScheduledTaskEntitySchema
   })
 }
 
