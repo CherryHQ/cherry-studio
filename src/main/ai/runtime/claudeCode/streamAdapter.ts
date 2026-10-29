@@ -40,6 +40,7 @@ import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import { parseLaunchReceiptText } from '@shared/ai/launchReceipt'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -85,6 +86,8 @@ function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResul
 }
 
 const MIN_TRUNCATION_LENGTH = 512
+/** Repeated task edges must not re-scan persisted message JSON for the same launch root. */
+const LAUNCH_ROOT_LOOKUP_RETRY_MS = 5_000
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
@@ -104,6 +107,12 @@ type SdkTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessag
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
 type ClaudeToolResultBlock = Extract<BetaContentBlock | BetaContentBlockParam, { tool_use_id: string }>
 
+/** The SendMessage a launch root's later content may answer, and whether delivery was confirmed. */
+type ResumeMarker = {
+  callId: string
+  delivery: 'delivered' | 'queued'
+}
+
 type ToolStreamState = {
   name: string
   lastSerializedInput?: string
@@ -111,6 +120,8 @@ type ToolStreamState = {
   inputClosed: boolean
   callEmitted: boolean
   parentToolCallId?: string | null
+  /** Frozen at input start, so a result arriving after a later send keeps its originating round. */
+  resumeMarker?: ResumeMarker | null
   sdkBlockType?: string
   serverName?: string
   serverId?: string
@@ -146,6 +157,8 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** The response id of the message currently streaming in, so its blocks share one marker. */
+  streamMessageId?: string
 }
 
 /**
@@ -188,6 +201,8 @@ export type ClaudeCodeStreamAdapterOptions = {
   statusSink: StatusSink
   onSessionId?: (sessionId: string) => void
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
+  /** Host-supplied launch-root lookup; see `AgentRuntimeConnectInput.resolveLaunchToolCallId`. */
+  resolveLaunchToolCallId?: (taskId: string) => string | undefined
 }
 
 export type ClaudeCodeStreamAdapterResult =
@@ -493,6 +508,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
+  private readonly resolveLaunchToolCallId?: (taskId: string) => string | undefined
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
@@ -503,6 +519,17 @@ export class ClaudeCodeStreamAdapter {
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  /** Task id → when its persisted launch root was last looked up, so repeated edges cannot re-scan. */
+  private readonly launchRootLookupAt = new Map<string, number>()
+  /** Resumed agent id → when a receipt last failed to recover its launch root, so repeats cannot re-scan. */
+  private readonly resumeReceiptLookupAt = new Map<string, number>()
+  /** launch root tool-call id → the SendMessage call id that last resumed it. Instance-scoped
+   *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
+   *  turn's result, so clearing would strip markers from the bulk of a continued round. */
+  private readonly resumeMarkers = new Map<string, ResumeMarker>()
+
+  /** The resume marker each observed response started under, keyed by its message id. */
+  private readonly responseResumeMarkers = new Map<string, ResumeMarker | null>()
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
    *  main agent's counters. Their sink is detached from the turn when that turn completes. */
   private readonly flowContexts: FlowContext[] = []
@@ -518,6 +545,7 @@ export class ClaudeCodeStreamAdapter {
     this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
+    this.resolveLaunchToolCallId = options.resolveLaunchToolCallId
     this.ctx = this.createTurnContext()
   }
 
@@ -793,7 +821,12 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        ctx.streamMessageId = event.message.id
+        this.observeResponse(event.message.id, message.parent_tool_use_id)
+        break
       case 'message_stop':
+        // A response without its own start must not inherit the previous response's id.
+        ctx.streamMessageId = undefined
         break
     }
   }
@@ -864,6 +897,7 @@ export class ClaudeCodeStreamAdapter {
     this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
+      this.captureToolResumeMarker(state, ctx.streamMessageId)
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
@@ -889,7 +923,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'text-start',
       id: partId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId, ctx.streamMessageId)
     })
     ctx.textStreamedViaContentBlock = true
   }
@@ -907,7 +941,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'reasoning-start',
       id: reasoningPartId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId, ctx.streamMessageId)
     })
   }
 
@@ -1035,6 +1069,8 @@ export class ClaudeCodeStreamAdapter {
       logger.warn('Assistant message was truncated by an interrupt')
     }
 
+    const messageId = message.message?.id
+    this.observeResponse(messageId, message.parent_tool_use_id)
     if (!message.message?.content) return
 
     const sdkParentToolUseId = message.parent_tool_use_id
@@ -1047,7 +1083,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     for (const tool of tools) {
-      this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
+      this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx, messageId)
     }
 
     for (const result of results) {
@@ -1057,14 +1093,15 @@ export class ClaudeCodeStreamAdapter {
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
 
     if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+      this.handleAssistantText(text, sdkParentToolUseId, ctx, messageId)
     }
   }
 
   private handleAssistantToolUse(
     tool: ClaudeToolUseBlock,
     sdkParentToolUseId: SdkParentToolUseId,
-    ctx: StreamContext
+    ctx: StreamContext,
+    messageId?: string
   ): void {
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
@@ -1089,6 +1126,7 @@ export class ClaudeCodeStreamAdapter {
     this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
+      this.captureToolResumeMarker(state, messageId)
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
@@ -1128,8 +1166,13 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
-    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+  private handleAssistantText(
+    text: string,
+    sdkParentToolUseId: SdkParentToolUseId,
+    ctx: StreamContext,
+    messageId?: string
+  ): void {
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId, messageId)
     if (ctx.hasReceivedStreamEvents) {
       const newTextStart = ctx.streamedTextLength
       const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
@@ -1222,8 +1265,54 @@ export class ClaudeCodeStreamAdapter {
     const isLocalWorkflowLaunch =
       toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
     if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
-      const taskId = getLaunchedBackgroundTaskId(normalizedResult)
-      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
+      // The current SDK prints its launch receipt as prose; its own call id is the launch root
+      // when the host look-up misses, exactly as for the structured form.
+      const taskId =
+        getLaunchedBackgroundTaskId(normalizedResult) ??
+        (typeof normalizedResult === 'string' ? parseLaunchReceiptText(normalizedResult) : undefined)
+      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id, true)
+    }
+    // A SendMessage receipt links its launch root and tags later content for round splitting
+    // (only-overwrite); a queued pin is tagged as unconfirmed, not as a consumed continuation.
+    if (!isError && toolName === 'SendMessage' && isRecord(normalizedResult)) {
+      // A still-running target's receipt has no resumedAgentId — its queued form only carries
+      // `pin.id`; only a woken target confirms that the message was actually consumed.
+      const deliveredId =
+        typeof normalizedResult.resumedAgentId === 'string' ? normalizedResult.resumedAgentId : undefined
+      const resumedAgentId =
+        deliveredId ??
+        (isRecord(normalizedResult.pin) && typeof normalizedResult.pin.id === 'string'
+          ? normalizedResult.pin.id
+          : undefined)
+      if (resumedAgentId) {
+        let launchToolCallId: string | undefined = this.backgroundTaskToolCallIds.get(resumedAgentId)
+        // The receipt is the last event some resumes ever produce (fresh adapter, queued pin);
+        // when the registration-time recovery failed or never ran, recover the launch root here
+        // rather than leaving the task permanently unmapped. A lookup that found nothing is
+        // retried no more often than the edge path: unresolvable receipts arrive per send, and
+        // each attempt scans the persisted transcript. A miss still round-splits by position.
+        const now = Date.now()
+        const lastMiss = this.resumeReceiptLookupAt.get(resumedAgentId)
+        if (!launchToolCallId && (lastMiss === undefined || now - lastMiss >= LAUNCH_ROOT_LOOKUP_RETRY_MS)) {
+          launchToolCallId = this.resolveLaunchToolCallId?.(resumedAgentId)
+          if (launchToolCallId) {
+            this.resumeReceiptLookupAt.delete(resumedAgentId)
+            this.backgroundTaskToolCallIds.set(resumedAgentId, launchToolCallId)
+            if (this.backgroundTasks.some((task) => task.id === resumedAgentId)) this.publishBackgroundTasks()
+          } else {
+            this.resumeReceiptLookupAt.set(resumedAgentId, now)
+          }
+        }
+        if (launchToolCallId) {
+          this.resumeMarkers.set(launchToolCallId, {
+            callId: result.tool_use_id,
+            delivery: deliveredId ? 'delivered' : 'queued'
+          })
+          const cherry = providerMetadata.cherry as Record<string, unknown>
+          cherry.launchToolCallId = launchToolCallId
+          if (!deliveredId) cherry.receiptQueued = true
+        }
+      }
     }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
@@ -1425,9 +1514,29 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
-    if (this.backgroundTaskToolCallIds.get(taskId) === toolCallId) return
-    this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string, allowToolCallIdFallback: boolean): void {
+    // First registration wins: resume edges carry the resuming call's id, not the launch root.
+    if (this.backgroundTaskToolCallIds.has(taskId)) return
+    // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
+    // authoritative and must win over a resume edge that arrives before the launch receipt context.
+    // Native edges repeat per task message, so only they are throttled — a launch receipt is the
+    // last chance to stamp the root and runs once per receipt. A throttled attempt reads as a miss.
+    const now = Date.now()
+    const throttled =
+      !allowToolCallIdFallback &&
+      now - (this.launchRootLookupAt.get(taskId) ?? Number.NEGATIVE_INFINITY) < LAUNCH_ROOT_LOOKUP_RETRY_MS
+    let launchToolCallId: string | undefined
+    if (!throttled) {
+      this.launchRootLookupAt.set(taskId, now)
+      launchToolCallId = this.resolveLaunchToolCallId?.(taskId)
+    }
+    if (launchToolCallId) {
+      this.backgroundTaskToolCallIds.set(taskId, launchToolCallId)
+    } else if (allowToolCallIdFallback) {
+      // The launch receipt's own call id is the launch root (miss is transient pre-persist);
+      // a task edge's id may be a resume call's and must not be pinned while the row is absent.
+      this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+    }
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 
@@ -1464,7 +1573,7 @@ export class ClaudeCodeStreamAdapter {
         eventData.taskType === 'local_workflow' ||
         eventData.subagentType)
     ) {
-      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
+      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId, false)
     }
 
     // Keep a process-scoped per-task surface for status history and stop targets.
@@ -1816,19 +1925,57 @@ export class ClaudeCodeStreamAdapter {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
-  private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
+  private buildParentProviderMetadata(
+    sdkParentToolUseId: SdkParentToolUseId,
+    messageId?: string
+  ): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
+    const marker = this.resolveResponseResumeMarker(messageId, sdkParentToolUseId)
     return {
       'claude-code': {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
-        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...this.getResumeMetadata(marker)
       }
     }
   }
 
+  /** A delivered receipt continues its round; a queued pin only says the message may be answered. */
+  private getResumeMetadata(marker: ResumeMarker | null | undefined): Record<string, string> {
+    if (!marker) return {}
+    return marker.delivery === 'delivered' ? { resumedViaCallId: marker.callId } : { queuedViaCallId: marker.callId }
+  }
+
+  /**
+   * Record the marker a response is first observed under: blocks sharing an already-observed
+   * response id keep it, so a receipt landing mid-response cannot re-tag the response's blocks.
+   */
+  private observeResponse(messageId: string | undefined, parentToolCallId: string | null | undefined): void {
+    // A parentless response never reads a marker back; retaining its null entry only grows the
+    // connection-scoped map.
+    if (!messageId || !parentToolCallId || this.responseResumeMarkers.has(messageId)) return
+    this.responseResumeMarkers.set(messageId, this.resumeMarkers.get(parentToolCallId) ?? null)
+  }
+
+  private resolveResponseResumeMarker(
+    messageId: string | undefined,
+    parentToolCallId: string | null | undefined
+  ): ResumeMarker | undefined {
+    if (!messageId) return parentToolCallId ? this.resumeMarkers.get(parentToolCallId) : undefined
+    this.observeResponse(messageId, parentToolCallId)
+    return this.responseResumeMarkers.get(messageId) ?? undefined
+  }
+
+  /** Freeze the marker a tool starts under; its result must keep the round the tool began in. */
+  private captureToolResumeMarker(state: ToolStreamState, messageId?: string): void {
+    if (state.resumeMarker !== undefined) return
+    state.resumeMarker = this.resolveResponseResumeMarker(messageId, state.parentToolCallId) ?? null
+  }
+
   private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
+    const marker = state.resumeMarker ?? undefined
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
@@ -1840,6 +1987,7 @@ export class ClaudeCodeStreamAdapter {
       'claude-code': claudeCode,
       cherry: {
         transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...this.getResumeMetadata(marker),
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),
