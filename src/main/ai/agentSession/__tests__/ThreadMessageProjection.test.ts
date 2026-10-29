@@ -39,6 +39,74 @@ const text = (value: ThreadMessageProjection) =>
   value.snapshot().messages.flatMap((entry) => entry.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
 
 describe('ThreadMessageProjection', () => {
+  it('returns only changed messages without redecorating history or mutating an earlier view', async () => {
+    let budget = Infinity
+    const value = new ThreadMessageProjection(root, (message) => {
+      if (--budget < 0) throw new Error('A live update traversed unrelated history')
+      return message
+    })
+    onTestFinished(() => value.close())
+    await value.accept(
+      snapshot(Array.from({ length: 1000 }, (_, index) => message(root, 'saved', `old-${index}`, true)))
+    )
+    const before = value.snapshot()
+    budget = 1
+    const changed = await value.accept({ type: 'message.upsert', message: message(root, 'new text', 'live') })
+    expect(changed).toEqual([
+      {
+        id: 'live',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'new text', state: 'streaming' }],
+        metadata: { status: 'pending' }
+      }
+    ])
+    expect(before.messages).toHaveLength(1000)
+    expect(value.snapshot().messages).toHaveLength(1001)
+    expect(value.snapshot().messages[0]).toBe(before.messages[0])
+    expect(
+      await value.accept({ type: 'activity.changed', activity: { scope: 'foreground', state: 'active' } })
+    ).toEqual([])
+  })
+
+  it('returns the final ordered changes of a batch and supports explicit display invalidation', async () => {
+    let title = 'before'
+    const value = new ThreadMessageProjection(root, (message) => ({
+      ...message,
+      metadata: { ...message.metadata, title }
+    }))
+    onTestFinished(() => value.close())
+    await value.accept(snapshot([message(root, 'first', 'a'), message(root, 'second', 'b')]))
+    const changed = await value.accept([
+      { type: 'message.upsert', message: message(root, 'second updated', 'b') },
+      { type: 'message.upsert', message: message(root, 'first updated', 'a') },
+      { type: 'message.upsert', message: message(root, 'second final', 'b', true) }
+    ])
+    expect(changed.map((item) => item.id)).toEqual(['a', 'b'])
+    expect(changed[1].parts).toEqual([{ type: 'text', text: 'second final', state: 'done' }])
+    title = 'after'
+    const refreshed = await value.accept([], ['a'])
+    expect(refreshed).toHaveLength(1)
+    expect(refreshed[0]).toMatchObject({ id: 'a', metadata: { title: 'after' } })
+    expect(value.snapshot().messages[1].metadata).toMatchObject({ title: 'before' })
+  })
+
+  it('keeps the last committed content when a multi-message decoration fails before any snapshot read', async () => {
+    const value = new ThreadMessageProjection(root, (message) => {
+      if (message.id === 'invalid') throw new Error('Invalid display metadata')
+      return message
+    })
+    onTestFinished(() => value.close())
+    await value.accept({ type: 'message.upsert', message: message(root, 'committed', 'kept', true) })
+    await expect(
+      value.accept(snapshot([message(root, 'uncommitted', 'kept'), message(root, 'bad', 'invalid')]))
+    ).rejects.toThrow('Invalid display metadata')
+    expect(text(value)).toEqual(['committed'])
+    expect(value.snapshot().closed).toBe('consumer-error')
+    expect(await value.accept({ type: 'message.upsert', message: message(root, 'ignored') })).toEqual([])
+    await value.accept(snapshot([message(root, 'recovered')]))
+    expect(text(value)).toEqual(['recovered'])
+  })
+
   it('continues a partial snapshot without duplicating its prefix or ending it early', async () => {
     const value = projection()
     await value.accept(snapshot([message(root, 'hel')]))
