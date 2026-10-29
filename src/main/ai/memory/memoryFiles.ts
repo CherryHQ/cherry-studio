@@ -163,8 +163,11 @@ export async function readMemoryBytes(root: string, relative: string): Promise<B
 }
 
 /** Entry injection has a bounded read and never produces an editing receipt. */
-export async function readMemoryEntry(root: string): Promise<{ content: string; truncated: boolean }> {
-  const target = await assertMemoryPath(root, MEMORY_ENTRY)
+export async function readMemoryEntry(
+  root: string,
+  relative = MEMORY_ENTRY
+): Promise<{ content: string; truncated: boolean }> {
+  const target = await assertMemoryPath(root, relative)
   const stat = await statIfPresent(target)
   if (!stat) return { content: '', truncated: false }
   if (!stat.isFile()) throw new MemoryError('invalid-path', 'Memory entry must be a regular file')
@@ -182,7 +185,7 @@ export async function readMemoryEntry(root: string): Promise<{ content: string; 
       stream: incomplete
     })
     if (incomplete) content = content.slice(0, content.lastIndexOf('\n') + 1)
-    await assertMemoryPath(root, MEMORY_ENTRY)
+    await assertMemoryPath(root, relative)
     const preview = memoryEntryPreview(content)
     return { content: preview.content, truncated: incomplete || preview.truncated }
   } finally {
