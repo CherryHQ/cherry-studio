@@ -98,6 +98,42 @@ describe('#22577 Gemini tool-call history keeps call and result names consistent
     expect(responses.map((response) => response.name)).toEqual(['kb_search'])
   })
 
+  it('recovers an empty-string toolName from cherry metadata before the sanitizer can shadow it', async () => {
+    const part = {
+      ...toolPart('c1', undefined, 'kb_search'),
+      toolName: '',
+      callProviderMetadata: { cherry: { toolName: 'kb_search' } }
+    } as UIMessage['parts'][number]
+    const { calls, responses } = expectConsistentPairs(await wire([part]))
+    expect(calls.map((call) => call.name)).toEqual(['kb_search'])
+    expect(responses.map((response) => response.name)).toEqual(['kb_search'])
+  })
+
+  it('runs the declared tool formatter for an empty-named part recovered from cherry metadata', async () => {
+    const rawImageJson = JSON.stringify({ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' })
+    const part = {
+      ...toolPart('c1', undefined),
+      toolName: '',
+      output: rawImageJson,
+      callProviderMetadata: { cherry: { toolName: 'mcp_image' } }
+    } as UIMessage['parts'][number]
+    const mcp_image = tool({
+      inputSchema: undefined as never,
+      toModelOutput: ({ output }: { output: unknown }) => [
+        { type: 'text', text: `formatted:${output}` }
+      ] as never
+    })
+
+    const model = await toModelMessages([ui('assistant', [part])], undefined, { mcp_image })
+
+    const serialized = JSON.stringify(model)
+    // The recovered declared name pairs call and result AND routes the output through the
+    // tool's `toModelOutput`; a sanitizer-shadowed name would leave the raw JSON unformatted.
+    expect(serialized).toContain('"toolName":"mcp_image"')
+    expect(serialized).toContain('formatted:')
+    expect(serialized).not.toContain('__da39a3ee')
+  })
+
   it('does not reuse a call-side name for a result whose own name is missing', async () => {
     const callSideNamed = {
       ...toolPart('c1', undefined, 'kb_search'),

@@ -341,8 +341,10 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
- * repair missing/unmatchable tool-call names so a call and its result pair up → strip media the
+ * attribute a user's denial reason to the user → repair missing/unmatchable tool-call names so a
+ * call and its result pair up (recovery first: a sanitized placeholder for an empty name would
+ * shadow the real name still carried in provider metadata, and conversion would skip the declared
+ * tool's `toModelOutput`) → make remaining undeclared dynamic names wire-legal → strip media the
  * model can't accept → drop tool calls parked on an unanswered approval → drop tool parts with
  * non-object replay inputs → restore inferable legacy step boundaries →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
@@ -356,8 +358,8 @@ export async function toModelMessages(
   tools?: ToolSet,
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
-  const named = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
-  const rendered = attributeUserDenialReasons(repairToolNames(named, tools))
+  const repaired = repairToolNames(renderPersistedToolOutputs(messages), tools)
+  const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(repaired, tools))
   const shaped = restoreLegacyToolStepBoundaries(
     deduplicateLocalToolParts(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
