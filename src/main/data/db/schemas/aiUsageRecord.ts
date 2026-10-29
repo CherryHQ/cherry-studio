@@ -34,12 +34,12 @@ const recordKindCheckValues = sqlEnumValues(AiUsageRecordKindSchema.options)
 const sourceTypeCheckValues = sqlEnumValues(AiUsageRecordSourceTypeSchema.options)
 
 /**
- * Immutable best-effort fact for one observable provider invocation.
+ * Best-effort fact with immutable amounts for one observable provider invocation.
  *
  * Historical v1 assistant-message aggregates share this table with
  * `recordKind = 'legacy-aggregate'`. All identities are request-time snapshots
  * and deliberately have no foreign keys so later rename/deletion cannot change
- * attribution.
+ * attribution. Native response correlation may fill its initially unknown message owner.
  */
 export const aiUsageRecordTable = sqliteTable(
   'ai_usage_record',
@@ -50,6 +50,7 @@ export const aiUsageRecordTable = sqliteTable(
     requestCount: integer().notNull(),
     messageKind: text().$type<AiUsageRecordMessageKind>(),
     messageId: text(),
+    agentSessionId: text(),
 
     providerId: text(),
     providerName: text(),
@@ -92,6 +93,7 @@ export const aiUsageRecordTable = sqliteTable(
   (t) => [
     uniqueIndex('ai_usage_record_request_id_idx').on(t.requestId),
     index('ai_usage_record_created_at_idx').on(t.createdAt),
+    index('ai_usage_record_session_created_idx').on(t.agentSessionId, t.createdAt),
     index('ai_usage_record_message_created_idx').on(t.messageKind, t.messageId, t.createdAt),
     index('ai_usage_record_provider_created_idx').on(t.providerId, t.createdAt),
     index('ai_usage_record_model_created_idx').on(t.modelId, t.createdAt),

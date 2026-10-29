@@ -122,6 +122,7 @@ export const AiUsageRecordEntrySchema = z.strictObject({
   requestCount: z.number().int().positive(),
   messageKind: AiUsageRecordMessageKindSchema.nullable(),
   messageId: z.string().nullable(),
+  agentSessionId: z.string().nullable().optional(),
   /** Provider id snapshot. Legacy aggregates may be unknown. */
   providerId: z.string().nullable(),
   /** Provider display name at write time */

@@ -13,7 +13,7 @@ sources:
 
 # AI Usage Records
 
-`ai_usage_record` is the immutable, best-effort fact source for observable AI
+`ai_usage_record` is the best-effort fact source with immutable amounts for observable AI
 provider invocations. One successful provider/model invocation produces one
 `invocation` row. During v1 migration, one usage-bearing historical assistant
 message produces one `legacy-aggregate` row whose `requestCount` is estimated
@@ -62,9 +62,11 @@ invoices remain authoritative.
 ## Invariants and ownership
 
 - Usage and cost have one fact source: `ai_usage_record`.
-- Records are insert-only. A duplicate `requestId` is ignored; a different
-  payload for the same id logs an integrity warning and does not mutate the
-  first row.
+- Invocation amounts and request-time snapshots are insert-only. A duplicate
+  `requestId` is ignored; a different payload logs an integrity warning.
+- Native response correlation can fill an initially unknown message link and
+  refine its session to the native child's session. It never changes tokens,
+  cost, pricing, credential, or source snapshots and never inserts another charge.
 - Message persistence owns content, status, and message-level end-to-end
   timings. It never creates or repairs usage records.
 - `MessageStats` usage, cost, request counts, and `providerPerformance` are a
@@ -163,6 +165,7 @@ interface AiUsageCaptureContext {
   reportedCostCurrency: Currency | null
   credentialReceipt: AiUsageCredentialReceipt
   source: SourceSnapshot | null
+  agentSessionId?: string | null
   messageRef: {
     kind: 'chat' | 'agent-session'
     id: string
@@ -198,7 +201,7 @@ The table stores:
 | Group | Fields |
 | --- | --- |
 | Identity | `id`, unique `requestId`, `recordKind`, `requestCount` |
-| Optional message link | `messageKind`, `messageId` |
+| Optional ownership | `agentSessionId`, `messageKind`, `messageId` |
 | Provider/model snapshot | `providerId`, `providerName`, `modelId`, `modelName` |
 | Source snapshot | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
 | Operation | `modality` |
@@ -307,7 +310,7 @@ Costs are never converted or summed across currencies.
 ## MessageStats projection
 
 For each linked message, the service rebuilds usage/cost fields in the same
-SQLite transaction as record insertion:
+SQLite transaction as record insertion or late native response association:
 
 - token fields sum per record; each row uses
   `totalTokens ?? inputTokens + outputTokens`;
@@ -411,9 +414,9 @@ model, and usage:
 - native response IDs join invocations to root or child product messages;
   ownership follows the native output after any steer boundary. Multiple child
   blocks sharing one API response ID charge its first projected block, not each block;
-- completion may precede ownership. The host retains the immutable invocation
-  until that identity arrives; unresolved invocations are saved with
-  `messageRef: null` when the connection closes;
+- completion may precede ownership. The host persists the invocation immediately
+  with session ownership and `messageRef: null`, then fills the message link
+  when the native identity arrives;
 - primary/plan/small nested models resolve independently against the frozen
   model map;
 - result-level `modelUsage`, duration, and total cost are reconciliation data,
@@ -429,14 +432,23 @@ Historical direct Claude, Pi and DSH invocation records remain available after r
 The connection carries `{ owner: 'provider-calls' }`; SDK usage events do not
 create billing records. Pi, Pi Durable and Cherry-managed Claude models use this path; native usage
 remains available for context and display. Trusted in-process gateway context supplies the frozen source to
-normal AiService language middleware. For Claude Code, the gateway creates its
-wire response ID before dispatch. Credentials and pricing freeze at request
-start; the completed invocation waits for the adapter to observe that same
-response ID and assign its root or child product message. Either arrival order
-is valid. No current-turn guess, provider response-ID rewrite, or extra
-relationship table is required. On connection close, unresolved and late
-invocations retain their captured attribution and use `messageRef: null`.
-Other runtime routes retain their existing request-time message association.
+normal AiService language middleware. The gateway creates its wire response ID
+before dispatch. Pi, Pi Durable and Claude Code preserve it through native output,
+allowing either completion or message publication to arrive first. No current-turn
+guess, provider response-ID rewrite, or extra relationship table is required.
+
+Gateway usage is written as soon as a provider invocation completes, with its
+request-time Agent session and source. A later native response ID associates it
+with the actual assistant message, including a child session. Hidden native
+auxiliary calls remain session-owned when no corresponding message is emitted;
+they are never assigned to the next active reply. Desktop-owned Pi summary and
+verification requests freeze their initiating owner before the gateway hop.
+Child summaries retain the child's session without borrowing a parent message.
+
+`GET /ai-usage-records` accepts `agentSessionId` to retrieve session-owned calls
+including auxiliary calls without a message. Existing rows gain a null session
+column on upgrade; their historical ownership is not inferred.
+
 
 ## Historical migration
 

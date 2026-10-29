@@ -389,7 +389,7 @@ behind the explicit control/lifecycle paths owned by `AiStreamManager` and
 | `MessageRuntimeTiming.startedAt/completedAt` | execution timing collector | execution start and terminal event |
 | tool spans | AI SDK tool hooks / Agent SDK hooks | exact tool execute interval |
 | approval spans | execution timing collector | request to approve, deny, abort, or error |
-| usage, cost, request count, provider performance | AI usage record projector | successful provider invocation insertion |
+| usage, cost, request count, provider performance | AI usage record projector | provider invocation insertion or late native response association |
 
 `AiStreamManager` creates and owns the timing collector for an execution.
 The context provider supplies `runtimeTimingSeed` when a continuation must

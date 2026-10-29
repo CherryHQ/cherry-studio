@@ -61,6 +61,7 @@ export const AiUsageRecordListQuerySchema = z
     to: z.number().int().nonnegative().optional(),
     messageKind: AiUsageRecordMessageKindSchema.optional(),
     messageId: z.string().min(1).optional(),
+    agentSessionId: z.string().min(1).optional(),
     /** Required when sorting monetary values so unlike currencies never compete. */
     costCurrency: CurrencySchema.optional()
   })

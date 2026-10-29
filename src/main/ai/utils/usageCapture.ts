@@ -22,6 +22,7 @@ export interface CreateAiUsageCaptureContextInput {
   credentialReceipt?: AiUsageCredentialReceipt
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
+  agentSessionId?: string | null
   capturedAt?: string
   billing?: ProviderBilling
   billingModelId?: string
@@ -78,6 +79,7 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
     trustProviderReportedCost: input.trustProviderReportedCost === true,
     reportedCostCurrency: input.reportedCostCurrency ?? null,
     credentialReceipt: cloneAndFreeze(input.credentialReceipt ?? { attribution: 'unknown' }),
+    agentSessionId: input.agentSessionId ?? null,
     source: input.source === undefined ? null : input.source === null ? null : cloneAndFreeze(input.source),
     messageRef:
       input.messageRef === undefined ? null : input.messageRef === null ? null : cloneAndFreeze(input.messageRef)
