@@ -10,6 +10,8 @@ import {
   resolveWebToolRoutes
 } from '@shared/utils/provider'
 
+import bundledProviders from '../../../../packages/provider-registry/data/providers.json'
+
 const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
   id: `provider::${apiModelId}`,
   providerId: 'provider',
@@ -24,6 +26,50 @@ const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
 
 const provider = (modelScope: 'all-chat-models' | 'model-dependent', id = 'anthropic'): Provider =>
   ({ id, serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope }] }) as Provider
+
+describe('Qwen Anthropic web tools', () => {
+  it.each(['dashscope', 'qwencloud'])('routes search and fetch together on %s', (providerId) => {
+    const host = bundledProviders.providers.find((p) => p.id === providerId)! as unknown as Provider
+    for (const apiModelId of ['qwen3.8-max', 'deepseek-v4.1-flash-1017']) {
+      const routes = resolveWebToolRoutes(model(apiModelId, { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }), host, {
+        webSearchEnabled: true,
+        modelToolsPreferred: false,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      })
+      expect(routes).toMatchObject({ webSearch: 'server', webFetch: 'server' })
+    }
+  })
+
+  it.each(['dashscope', 'qwencloud'])('withholds undocumented Anthropic variants on %s', (providerId) => {
+    const host = bundledProviders.providers.find((p) => p.id === providerId)! as unknown as Provider
+    for (const apiModelId of [
+      'qwen3.8-omni-flash',
+      'qwen3.8-max-preview',
+      'qwen-turbo',
+      'deepseek-v4.1-flash',
+      'deepseek-v4.1-flash-9999'
+    ]) {
+      expect(isBuiltinWebSearchAvailable(model(apiModelId), host, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(false)
+      expect(isBuiltinWebFetchAvailable(model(apiModelId), host, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(false)
+    }
+  })
+
+  it.each([
+    'qwen3.8-flash',
+    'qwen3.8-27b',
+    'qwen3.7-plus',
+    'deepseek-v4-pro-0813',
+    'deepseek-v4-flash-0731',
+    'glm-5.2',
+    'kimi-k3'
+  ])('serves documented mainland Anthropic tools for %s', (apiModelId) => {
+    const host = bundledProviders.providers.find((p) => p.id === 'dashscope')! as unknown as Provider
+    expect(isBuiltinWebSearchAvailable(model(apiModelId), host, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)
+    expect(isBuiltinWebFetchAvailable(model(apiModelId), host, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)
+  })
+})
 
 describe('server-tool model eligibility', () => {
   it.each([
@@ -517,7 +563,7 @@ describe('DashScope hosted search endpoint contract', () => {
       ['glm-5-2', 'glm-5.2'],
       ['kimi-k3', 'kimi/kimi-k3'],
       ['kimi-k3', 'kimi-k3']
-    ])('retains %s / %s only for Responses search', (canonicalId, wireId) => {
+    ])('retains %s / %s for Responses and Anthropic search', (canonicalId, wireId) => {
       const p = host(providerId)
       const m = model(wireId, {
         id: `${providerId}::${canonicalId}`,
@@ -527,7 +573,7 @@ describe('DashScope hosted search endpoint contract', () => {
       expect(isServerToolModelEligible(m, p, SERVER_TOOL.WEB_SEARCH)).toBe(true)
       expect(isBuiltinWebSearchAvailable(m, p, chat)).toBe(false)
       expect(isBuiltinWebSearchAvailable(m, p, responses)).toBe(true)
-      expect(isBuiltinWebSearchAvailable(m, p, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(false)
+      expect(isBuiltinWebSearchAvailable(m, p, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)
       expect(isBuiltinWebSearchAvailable(m, p)).toBe(false)
       const responseFirst = { ...m, endpointTypes: [responses, chat] }
       expect(isBuiltinWebSearchAvailable(responseFirst, p)).toBe(true)

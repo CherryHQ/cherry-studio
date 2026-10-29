@@ -273,11 +273,8 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
-  // Strategy tiers stay per model: `getWebSearchParams` narrows `search_strategy` by the same table.
-  // Two declarations split the serving scope by endpoint: qwen3.x lines search via Chat's
-  // enable_search, the DeepSeek/GLM ids via the Responses `web_search` tool only ("Responses API
-  // only" in the docs table) — pinning Chat on those models drops the server side instead of
-  // silently sending no search.
+  // Anthropic scope follows the explicit example and regional DeepSeek support in
+  // https://docs.qwencloud.com/developer-guides/tool-calling/web-scraping.
   serverTools: [
     {
       id: 'web-search',
@@ -291,7 +288,13 @@ export default defineProvider({
       modelScope: 'model-dependent',
       modelIds: responsesSearchModelIds,
       endpointTypes: ['openai-responses']
-    }
+    },
+    ...(['web-search', 'url-context'] as const).map((id) => ({
+      id,
+      modelScope: 'model-dependent' as const,
+      modelIds: ['qwen3-8-max', 'deepseek-v4-1-flash'],
+      endpointTypes: ['anthropic-messages' as const]
+    }))
   ],
   metadata: {
     website: {

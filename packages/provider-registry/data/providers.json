@@ -1759,10 +1759,22 @@
       "name": "Bailian",
       "serverTools": [
         {
+          "endpointTypes": ["openai-chat-completions", "openai-responses"],
           "id": "web-search",
           "modelScope": "model-dependent"
         },
         {
+          "endpointTypes": ["openai-chat-completions", "openai-responses"],
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
           "id": "url-context",
           "modelScope": "model-dependent"
         }
@@ -1811,6 +1823,16 @@
         {
           "endpointTypes": ["openai-responses"],
           "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "url-context",
           "modelScope": "model-dependent"
         }
       ]
@@ -2819,5 +2841,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "392c03c02bb93c42"
+  "version": "3db5816ab6a36709"
 }

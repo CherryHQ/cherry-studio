@@ -213,10 +213,9 @@ export function resolveEndpointDialect(
   }
 }
 
-// Bailian Beijing: these hosted SKUs use Responses web_search, never Chat enable_search.
-// Registry modelIds declares endpoint-independent membership; this table owns runtime endpoint/wire restrictions.
-// https://help.aliyun.com/zh/model-studio/web-search
-export const DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS = [
+// These hosted SKUs search through Responses or Anthropic, never Chat enable_search.
+// Keep their vendor wire spellings when catalog normalization collapses aliases.
+export const DASHSCOPE_HOSTED_WEB_SEARCH_MODELS = [
   { canonicalId: 'glm-5-2', wireIds: ['glm-5.2'] },
   { canonicalId: 'kimi-k3', wireIds: ['kimi-k3', 'kimi/kimi-k3'] }
 ] as const
@@ -300,15 +299,24 @@ function isBuiltinServerToolAvailable(
   if (declarations.length === 0) return false
   if (isNonChatModel(model)) return false
 
+  if (
+    endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+    (matchesPreset(provider, 'dashscope') || matchesPreset(provider, 'qwencloud'))
+  ) {
+    const rawId = getRawModelId(model)
+    const canonicalId = normalizeModelId(rawId)
+    // Catalog normalization collapses dated aliases; these tools are documented only for the named SKUs.
+    if (canonicalId === 'deepseek-v4-1-flash' && rawId !== 'deepseek-v4.1-flash-1017') return false
+    if (canonicalId === 'deepseek-v4-flash' && rawId !== 'deepseek-v4-flash-0731') return false
+  }
+
   if (toolId === SERVER_TOOL.WEB_SEARCH && matchesPreset(provider, 'dashscope')) {
     const rawId = getRawModelId(model)
-    const responsesOnly = DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.find(
-      (row) => row.canonicalId === normalizeModelId(rawId)
-    )
+    const hostedModel = DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.find((row) => row.canonicalId === normalizeModelId(rawId))
     if (
-      responsesOnly &&
-      (resolveServerToolEndpoint(model, provider, endpointType) !== ENDPOINT_TYPE.OPENAI_RESPONSES ||
-        !responsesOnly.wireIds.some((wireId) => wireId === rawId))
+      hostedModel &&
+      ((endpoint !== ENDPOINT_TYPE.OPENAI_RESPONSES && endpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) ||
+        !hostedModel.wireIds.some((wireId) => wireId === rawId))
     ) {
       return false
     }
@@ -391,6 +399,17 @@ export function resolveWebToolRoutes(
   let webSearch = selectRoute(clientSearchAvailable, serverSearchAvailable)
   let webFetch = selectRoute(clientFetchAvailable, serverFetchAvailable)
   let coordinatedGoogleConflict = false
+
+  // Qwen's Anthropic web_fetch requires native web_search in the same request.
+  if (
+    webFetch === 'server' &&
+    provider &&
+    resolveServerToolEndpoint(model, provider, options.endpointType) === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+    (matchesPreset(provider, 'dashscope') || matchesPreset(provider, 'qwencloud'))
+  ) {
+    if (serverSearchAvailable) webSearch = 'server'
+    else webFetch = clientFetchAvailable ? 'client' : 'none'
+  }
 
   if (
     googleFunctionToolMixingUnsupported &&

@@ -328,13 +328,41 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
-      modelIds: ['minimax-m2-1', 'glm-5-2', 'kimi-k3']
+      modelIds: ['minimax-m2-1', 'glm-5-2', 'kimi-k3'],
+      endpointTypes: ['openai-chat-completions', 'openai-responses']
     },
     {
       id: 'url-context',
       modelScope: 'model-dependent',
-      modelIdPrefixes: webExtractorModelPrefixes
-    }
+      modelIdPrefixes: webExtractorModelPrefixes,
+      endpointTypes: ['openai-chat-completions', 'openai-responses']
+    },
+    // https://platform.qianwenai.com/docs/developer-guides/tool-calling/web-scraping
+    ...(['web-search', 'url-context'] as const).map((id) => ({
+      id,
+      modelScope: 'model-dependent' as const,
+      modelIdPrefixes: [
+        'qwen3-7-max',
+        'qwen3-7-plus',
+        'qwen3-7-flash',
+        'qwen3-6-plus',
+        'qwen3-6-flash',
+        'qwen3-5-plus',
+        'qwen3-5-flash'
+      ],
+      modelIds: [
+        'qwen3-8-max',
+        'qwen3-8-flash',
+        'qwen3-8-27b',
+        'qwen3-8-2-4t-a95b',
+        'deepseek-v4-pro',
+        'deepseek-v4-flash',
+        'deepseek-v4-1-flash',
+        'glm-5-2',
+        'kimi-k3'
+      ],
+      endpointTypes: ['anthropic-messages' as const]
+    }))
   ],
   metadata: {
     website: {

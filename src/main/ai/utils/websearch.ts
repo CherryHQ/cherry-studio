@@ -4,7 +4,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 import {
-  DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS,
+  DASHSCOPE_HOSTED_WEB_SEARCH_MODELS,
   isBuiltinWebFetchAvailable,
   isBuiltinWebSearchAvailable,
   matchesPreset
@@ -113,15 +113,15 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
   return {}
 }
 
-// Bailian Responses search covers Qwen3.x and the hosted SKUs in the shared Responses-only declaration.
-// Qwen aliases outside Qwen3.x keep Chat search; see DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.
+// Bailian Responses search covers Qwen3.x and the hosted SKUs in the shared hosted-model declaration.
+// Qwen aliases outside Qwen3.x keep Chat search; see DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.
 function servesResponsesWebSearch(model: Model): boolean {
   // Use shared wire-id resolution: runtime Model.apiModelId is optional; reading it directly can
   // return false while the route stays `server`, leaving the request with neither server nor client tools.
   const rawId = getRawModelId(model)
   return (
     /^qwen3[.-]/.test(rawId) ||
-    DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.some((row) => row.wireIds.some((wireId) => wireId === rawId))
+    DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.some((row) => row.wireIds.some((wireId) => wireId === rawId))
   )
 }
 
