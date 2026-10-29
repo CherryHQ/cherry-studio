@@ -2163,6 +2163,9 @@
           "adapterFamily": "xai",
           "baseUrl": "https://api.x.ai"
         },
+        "openai-image-generation": {
+          "adapterFamily": "xai"
+        },
         "openai-responses": {
           "adapterFamily": "xai-responses",
           "baseUrl": "https://api.x.ai/v1",
@@ -2841,5 +2844,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5e1a39c021b56ec0"
+  "version": "e1952ef3858002a8"
 }
