@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Suportă stream_options",
   "settings.provider.api.url.preview": "Previzualizare: {{url}}",
   "settings.provider.api.url.reset": "Resetează",
+  "settings.provider.api.url.reset_confirm": "Resetezi gazda API la valoarea implicită? Aceasta va înlocui URL-ul tău personalizat.",
   "settings.provider.api.url.tip": "Adaugă # la final pentru a dezactiva versiunea API adăugată automat.",
   "settings.provider.api_host": "Gazdă API",
   "settings.provider.api_host_drawer_hint": "URL personalizat pentru cererea API; lăsați gol când se aplică valoarea implicită a catalogului.",

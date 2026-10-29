@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "stream_options をサポート",
   "settings.provider.api.url.preview": "プレビュー: {{url}}",
   "settings.provider.api.url.reset": "リセット",
+  "settings.provider.api.url.reset_confirm": "APIホストをデフォルトにリセットしますか？カスタムURLが置き換えられます。",
   "settings.provider.api.url.tip": "自動的に付加されるAPIバージョンを無効にするには、末尾に#を追加します。",
   "settings.provider.api_host": "APIホスト",
   "settings.provider.api_host_drawer_hint": "カスタムAPIリクエストURL; カタログのデフォルトが適用される場合は空のままにしてください。",

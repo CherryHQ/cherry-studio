@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Supporta stream_options",
   "settings.provider.api.url.preview": "Anteprima: {{url}}",
   "settings.provider.api.url.reset": "Reimposta",
+  "settings.provider.api.url.reset_confirm": "Vuoi reimpostare l’host API al valore predefinito? Questo sostituirà il tuo URL personalizzato.",
   "settings.provider.api.url.tip": "Aggiungi # alla fine per disattivare l'aggiunta automatica della versione API.",
   "settings.provider.api_host": "Host dell'API",
   "settings.provider.api_host_drawer_hint": "URL personalizzato per le richieste API; lascia vuoto per usare il valore predefinito del catalogo.",
