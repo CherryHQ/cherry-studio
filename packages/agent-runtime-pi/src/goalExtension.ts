@@ -21,6 +21,7 @@ import {
   currentGoal,
   editGoal,
   GOAL_COMPLETE_MESSAGE,
+  GOAL_COMPACTION_TYPE,
   GOAL_NOTICE_TYPE,
   GOAL_ROUND_TYPE,
   GOAL_STATE_TYPE,
@@ -188,14 +189,16 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     })
     if (!port.modelSupportsTools()) {
       // Spec §8.3: no tools and no command; an active goal on the branch records why nothing continues.
-      pi.on('session_start', (_event, ctx) => {
+      const blockUnsupportedGoal = (ctx: ExtensionContext) => {
         const goal = currentGoal(ctx.sessionManager.getBranch())
         if (goal?.phase === 'active')
           pi.appendEntry(
             GOAL_STATE_TYPE,
             stopGoal(goal, { code: 'unsupported_model', message: 'the current model has no tool calling' }, Date.now())
           )
-      })
+      }
+      pi.on('session_start', (_event, ctx) => blockUnsupportedGoal(ctx))
+      pi.on('session_tree', (_event, ctx) => blockUnsupportedGoal(ctx))
       return
     }
 
@@ -317,18 +320,26 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     })
 
     let unsubscribeApproval: (() => void) | undefined
-    pi.on('session_start', (_event, ctx) => {
-      const entries = ctx.sessionManager.getBranch()
-      runtime.inSubagent = isSubagentSession(entries)
-      // A fork inherits the parent's goal entries; the goal stays the parent's, so this session has none.
-      if (runtime.inSubagent) return
-      // The manager, not `ctx`: Pi invalidates `ctx` at shutdown, and the goal view stays readable.
+    const restoreBranch = (ctx: ExtensionContext) => {
       const { sessionManager } = ctx
+      const entries = sessionManager.getBranch()
       branch = () => sessionManager.getBranch()
-      runtime.goal = currentGoal(entries)
+      resetGoalRuntime()
+      runtime.withdrawn = false
       runtime.inGoalRound = false
-      // A restored goal starts disarmed, and the branch must say so for what it counts (spec §6.1).
+      runtime.inSubagent = isSubagentSession(entries)
+      runtime.goal = runtime.inSubagent ? undefined : currentGoal(entries)
       if (runtime.goal?.armed) commit({ ...runtime.goal, armed: false })
+    }
+    pi.on('session_tree', (_event, ctx) => restoreBranch(ctx))
+    pi.on('session_before_compact', () => {
+      pi.appendEntry(GOAL_COMPACTION_TYPE, {
+        goalId: runtime.inGoalRound && runtime.goal?.phase === 'active' ? runtime.goal.id : null
+      })
+    })
+    pi.on('session_start', (_event, ctx) => {
+      restoreBranch(ctx)
+      if (runtime.inSubagent) return
       unsubscribeApproval = port.onApproval?.((event) => {
         if (!runtime.goal || !runtime.inGoalRound) return
         if (event.kind === 'denied')

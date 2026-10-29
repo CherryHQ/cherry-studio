@@ -8,8 +8,10 @@ import {
   currentGoal,
   editGoal,
   GOAL_ROUND_TYPE,
+  GOAL_COMPACTION_TYPE,
   GOAL_STATE_TYPE,
   goalView,
+  goalUsage,
   hasCapacity,
   isHumanTurn,
   isProgressResult,
@@ -316,6 +318,43 @@ describe('goal branch reading', () => {
       currentGoal([stateEntry('a', goal), stateEntry('b', { id: goal.id, revision: 3, cleared: true, at: 2 })])
     ).toBeUndefined()
     expect(currentGoal([userEntry('u', 'hi')])).toBeUndefined()
+  })
+
+  it('includes stored compaction usage in the admitted goal and preserves it after pause and rebuild', () => {
+    const admitted = { ...goal, id: 'g1', admittedRound: 'r', roundsStarted: 1 }
+    const entries: SessionEntry[] = [
+      stateEntry('s', admitted),
+      roundEntry('r', 1),
+      assistantEntry('reply', 'working'),
+      { ...base('start-summary'), type: 'custom', customType: GOAL_COMPACTION_TYPE, data: { goalId: 'g1' } },
+      stateEntry('paused', stopGoal(admitted, { code: 'paused_by_user' }, 2)),
+      {
+        ...base('compact'),
+        type: 'compaction',
+        summary: 'work so far',
+        firstKeptEntryId: 'reply',
+        tokensBefore: 100,
+        usage: {
+          input: 100,
+          output: 20,
+          cacheRead: 10,
+          cacheWrite: 5,
+          totalTokens: 135,
+          cost: { input: 1, output: 0.2, cacheRead: 0.01, cacheWrite: 0.05, total: 1.26 }
+        }
+      },
+      userEntry('manual', 'new work'),
+      assistantEntry('manual-reply', 'unrelated')
+    ]
+    expect(goalUsage(entries, 'g1')).toEqual({ tokens: 137, usd: 1.26 })
+    expect(goalUsage(JSON.parse(JSON.stringify(entries)), 'g1')).toEqual({ tokens: 137, usd: 1.26 })
+    expect(goalUsage(entries, 'another-goal')).toEqual({ tokens: 0, usd: 0 })
+    const compact = entries.find((entry) => entry.type === 'compaction')!
+    entries.push(
+      { ...base('manual-summary'), type: 'custom', customType: GOAL_COMPACTION_TYPE, data: { goalId: null } },
+      { ...compact, id: 'manual-compact' }
+    )
+    expect(goalUsage(entries, 'g1')).toEqual({ tokens: 137, usd: 1.26 })
   })
 
   it('tells a human turn from a goal round by the last user-side entry', () => {

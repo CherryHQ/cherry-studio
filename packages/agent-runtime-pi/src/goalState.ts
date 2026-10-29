@@ -4,6 +4,7 @@ import type { AssistantMessage, ToolResultMessage, Usage } from '@earendil-works
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
 export const GOAL_STATE_TYPE = 'cherry.goal'
+export const GOAL_COMPACTION_TYPE = 'cherry.goal-compaction'
 export const GOAL_ROUND_TYPE = 'cherry.goal-round'
 /** Feedback of a `/goal` command for the UI; never sent to the model. */
 export const GOAL_NOTICE_TYPE = 'cherry.goal-notice'
@@ -350,12 +351,25 @@ function* countedUsage(entries: readonly SessionEntry[]): Generator<GoalUsage & 
   let round: string | undefined
   // The goal a request whose input ends at the last message entry counts toward.
   let requestGoal: string | undefined
+  let compactionGoal: string | null | undefined
   const callsFor = new Map<string, string | undefined>()
   for (const entry of entries) {
+    if (entry.type === 'custom' && entry.customType === GOAL_COMPACTION_TYPE) {
+      const data = entry.data
+      compactionGoal =
+        data && typeof data === 'object' && 'goalId' in data && typeof data.goalId === 'string' ? data.goalId : null
+      continue
+    }
     if (isGoalState(entry)) {
       const data = entry.data as GoalSnapshot | GoalCleared
       goal = 'cleared' in data ? undefined : data
       if (goal?.id !== round) round = undefined
+      continue
+    }
+    if (entry.type === 'compaction') {
+      const owner = compactionGoal === undefined ? requestGoal : compactionGoal
+      if (owner && entry.usage) yield { goalId: owner, tokens: requestTokens(entry.usage), usd: entry.usage.cost.total }
+      compactionGoal = null
       continue
     }
     if (entry.type !== 'message' && entry.type !== 'custom_message') continue

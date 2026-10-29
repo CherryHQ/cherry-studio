@@ -339,7 +339,17 @@ describe('subagent', () => {
         keepRecentTokens: 1,
         summarize: async ({ sessionId }) => {
           summarizedSessions.push(sessionId)
-          return 'Summary of earlier work.'
+          return {
+            summary: 'Summary of earlier work.',
+            usage: {
+              input: 10,
+              output: 5,
+              cacheRead: 2,
+              cacheWrite: 0,
+              totalTokens: 17,
+              cost: { input: 0.1, output: 0.05, cacheRead: 0.02, cacheWrite: 0, total: 0.17 }
+            }
+          }
         }
       }
     })
@@ -351,7 +361,7 @@ describe('subagent', () => {
     ])
     const result = toolResultOf(session, 'call_a')
     expect(result.content).toEqual([{ type: 'text', text: 'REPORT-A' }])
-    expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112)
+    expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112 + 17)
     expect(summarizedSessions).toEqual([host.subagents[0].sessionId])
     expect(summarizedSessions[0]).not.toBe(session.sessionId)
   })
