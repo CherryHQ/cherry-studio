@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { toast } from '@renderer/services/toast'
 import type { CherryCloudAccountPlans, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
@@ -76,6 +77,31 @@ describe('useCherryCloudSubscriptionReminder', () => {
     await returnFromBrowser()
     await waitFor(() => expect(plansRequests()).toBe(3))
     expect(toast.success).toHaveBeenCalledOnce()
+  })
+
+  it('refetches model availability after the plans show the new subscription', async () => {
+    status = signedIn('account-1')
+    plans = unpaid()
+    renderHook(
+      () => {
+        useCherryCloudSubscriptionReminder()
+        useCherryCloudModelAvailability()
+      },
+      { wrapper }
+    )
+    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
+
+    plans = paid('Plus')
+    await returnFromBrowser()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Plus 已生效'))
+
+    // The focus-time sync can race the plans request and see the old entitlements; a later one must follow.
+    await waitFor(() => {
+      const routes = request.mock.calls.map(([route]) => route)
+      expect(routes.lastIndexOf('cherry_cloud.models.sync')).toBeGreaterThan(
+        routes.lastIndexOf('cherry_cloud.account_plans.get')
+      )
+    })
   })
 
   it('stays quiet for an account that was already subscribed', async () => {

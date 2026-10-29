@@ -162,6 +162,7 @@ export class CherryCloudService extends BaseService {
     result: CherryCloudModelSyncResult
   } | null = null
   private sessionGeneration = 0
+  private knownActiveEntitlements: string | null = null
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private pendingExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -609,9 +610,20 @@ export class CherryCloudService extends BaseService {
   }
 
   public async getAccountPlans(): Promise<CherryCloudAccountPlans> {
-    return this.getAuthenticatedJson('/api/v1/account/plans', accountPlansSchema, {
+    const plans = await this.getAuthenticatedJson('/api/v1/account/plans', accountPlansSchema, {
       signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
     })
+    // A started or ended entitlement changes model access, so the cached model snapshot is stale.
+    const activeEntitlements = plans.entitlements
+      .filter((item) => item.state === 'active')
+      .map((item) => item.id)
+      .sort()
+      .join()
+    if (this.knownActiveEntitlements !== null && activeEntitlements !== this.knownActiveEntitlements) {
+      this.invalidateModelSync()
+    }
+    this.knownActiveEntitlements = activeEntitlements
+    return plans
   }
 
   private async syncEntitledModelsOnce(
