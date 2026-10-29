@@ -50,6 +50,25 @@ function isAnchorOnly(link: string): boolean {
   return link.startsWith('#')
 }
 
+/**
+ * Returns, per input line, whether the line sits inside a fenced code block
+ * (opened by a line of 3+ backticks or tildes and closed by a matching line).
+ * Lines inside fences are not real Markdown link syntax and must be ignored.
+ */
+function computeFenced(lines: string[]): boolean[] {
+  const fenced: boolean[] = new Array(lines.length).fill(false)
+  const fenceRe = /^\s*(`{3,}|~{3,})/
+  let inFence = false
+  for (let i = 0; i < lines.length; i++) {
+    if (fenceRe.test(lines[i])) {
+      inFence = !inFence
+      continue
+    }
+    fenced[i] = inFence
+  }
+  return fenced
+}
+
 function recordIfBroken(rawLink: string, dir: string, filePath: string, line: number, broken: BrokenLink[]): void {
   // Skip external links, anchors, special protocols, and placeholder links
   if (isExternalLink(rawLink) || isAnchorOnly(rawLink)) return
@@ -77,20 +96,28 @@ export function checkFile(filePath: string): BrokenLink[] {
   const lines = content.split('\n')
   const dir = path.dirname(filePath)
 
+  // Lines inside fenced code blocks (``` or ~~~) are not real Markdown link
+  // syntax and must be ignored for both definition collection and usage checks.
+  const fenced = computeFenced(lines)
+
   // First pass: collect reference-style definitions (`[label]: target`). Markdown link
   // labels are case-insensitive, so key the map by the lower-cased label.
   const refDefs = new Map<string, { target: string; line: number }>()
   for (let i = 0; i < lines.length; i++) {
+    if (fenced[i]) continue
     const def = DEF_RE.exec(lines[i])
     if (!def) continue
     const label = def[1].trim().toLowerCase()
     const target = (def[2] ?? def[3] ?? '').trim()
-    if (target) refDefs.set(label, { target, line: i + 1 })
+    // CommonMark uses the first definition when a label is declared more than once,
+    // so only the first occurrence is recorded.
+    if (target && !refDefs.has(label)) refDefs.set(label, { target, line: i + 1 })
   }
 
   const usedLabels = new Set<string>()
 
   for (let i = 0; i < lines.length; i++) {
+    if (fenced[i]) continue
     const line = lines[i]
     let match: RegExpExecArray | null
 

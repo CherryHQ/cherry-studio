@@ -55,4 +55,37 @@ describe('check-doc-links reference-style links', () => {
     expect(broken.every((b) => b.link !== '[1-9][0-9]')).toBe(true)
     fs.rmSync(dir2, { recursive: true, force: true })
   })
+
+  it('ignores reference definitions that only appear inside a fenced code block', () => {
+    const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'check-doc-links-fence-'))
+    fs.writeFileSync(
+      path.join(dir2, 'd.md'),
+      ['# Title', '', '```md', '[arch]: ./example-only.md', '```', ''].join('\n')
+    )
+    const broken = checkFile(path.join(dir2, 'd.md'))
+    // The definition inside the fence renders as code, so it must not be treated as a broken link.
+    expect(broken).toHaveLength(0)
+    fs.rmSync(dir2, { recursive: true, force: true })
+  })
+
+  it('resolves duplicate labels against the first definition (CommonMark)', () => {
+    const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'check-doc-links-dup-'))
+    fs.writeFileSync(path.join(dir2, 'exists.md'), '# exists\n')
+    fs.writeFileSync(
+      path.join(dir2, 'd.md'),
+      [
+        '# Title',
+        '',
+        'See [architecture][arch] for details.',
+        '',
+        '[arch]: ./missing-first.md',
+        '[arch]: ./exists.md',
+        ''
+      ].join('\n')
+    )
+    const broken = checkFile(path.join(dir2, 'd.md'))
+    // The first definition (./missing-first.md) wins, so the usage is broken and must be reported.
+    expect(broken.some((b) => b.link === './missing-first.md')).toBe(true)
+    fs.rmSync(dir2, { recursive: true, force: true })
+  })
 })
