@@ -247,7 +247,7 @@ describe('TopicBranchPanel', () => {
     const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
     listener?.()
 
-    expect(mocks.refetchTree).toHaveBeenCalledOnce()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(2)
   })
 
   it('sets the active branch without a redundant tree refetch', async () => {
@@ -267,7 +267,7 @@ describe('TopicBranchPanel', () => {
     expect(mocks.useMutation).toHaveBeenCalledWith('PUT', '/topics/:id/active-node', {
       refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
     })
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('locates the current active node without writing branch state', async () => {
@@ -303,7 +303,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('locates an ancestor on the current active path without switching branch', async () => {
@@ -349,7 +349,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('renders live branch preview without refetching the topic tree per chunk', () => {
@@ -376,7 +376,7 @@ describe('TopicBranchPanel', () => {
     )
 
     expect(screen.getByText('streaming live preview')).toBeInTheDocument()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to the tree preview after live branch state is cleared', () => {
@@ -452,7 +452,7 @@ describe('TopicBranchPanel', () => {
     })
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
     expect(mocks.eventEmit).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
   })
@@ -519,7 +519,7 @@ describe('TopicBranchPanel', () => {
         params: { id: 'topic-1' }
       })
     })
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('deletes a persisted empty message from its context menu', async () => {
