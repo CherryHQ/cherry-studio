@@ -18,7 +18,7 @@ import {
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
-import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isConversationRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('TabsProvider')
@@ -104,11 +104,8 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: bo
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
-  // Chat / agent tabs are page-titled (topic / session name + assistant / agent
-  // emoji set by their page) — never auto-localize, or the route title clobbers
-  // the page title even for the bare `/app/chat` default tab.
-  if (isPageTitledRoute(tab.url)) {
-    return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
+  if (isConversationRoute(tab.url)) {
+    return { ...tab, title: getDefaultRouteTitle(tab.url), icon: undefined }
   }
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
@@ -385,12 +382,14 @@ export function TabsProvider({
   )
 
   const addTab = useCallback(
-    (tab: Tab) => {
-      const exists = projectedTabsRef.current.some((item) => item.id === tab.id)
+    (tab: Tab, position: OpenTabOptions['position'] = 'after-active') => {
+      const currentTabs = projectedTabsRef.current
+      const exists = currentTabs.some((item) => item.id === tab.id)
+      const activeIndex = position === 'end' ? -1 : currentTabs.findIndex((item) => item.id === activeTabIdRef.current)
       const refreshed = { ...tab, lastAccessTime: Date.now(), isDormant: false }
       const next = exists
-        ? projectedTabsRef.current.map((item) => (item.id === tab.id ? refreshed : item))
-        : [...projectedTabsRef.current, refreshed]
+        ? currentTabs.map((item) => (item.id === tab.id ? refreshed : item))
+        : currentTabs.toSpliced(activeIndex < 0 ? currentTabs.length : activeIndex + 1, 0, refreshed)
       commitTabs(next, tab.id)
     },
     [commitTabs]
@@ -454,7 +453,7 @@ export function TabsProvider({
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned, position } = options
 
       if (!forceNew) {
         const existingTab = projectedTabsRef.current.find((t) => t.type === type && t.url === url)
@@ -476,7 +475,7 @@ export function TabsProvider({
         isDormant: false
       }
 
-      addTab(newTab)
+      addTab(newTab, position)
       return newTab.id
     },
     [addTab]

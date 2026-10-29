@@ -270,6 +270,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   })
   let topicId = buildAgentSessionTopicId(session.id)
   let accumulatedText = ''
+  let pausedStatus: 'cancelled' | 'interrupted' | undefined
   let completionActive = true
   const complete = (settle: () => void) => {
     if (!completionActive) return
@@ -282,6 +283,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   }
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
+    ownsTaskResult: true,
     onChunk(chunk) {
       // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`) — the
       // previous `as { text }` cast silently never accumulated, so the persisted
@@ -293,13 +295,23 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     onDone() {
       complete(() => resolveExecution(accumulatedText.trim()))
     },
-    onPaused() {
+    onPaused(result) {
       if (runSignal.aborted) {
         const reason = runSignal.reason
         complete(() => rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))))
         return
       }
-      complete(() => resolveExecution(accumulatedText.trim()))
+      pausedStatus =
+        result.reason === 'user-requested' || result.reason === 'remote-cancel' ? 'cancelled' : 'interrupted'
+      complete(() => rejectExecution(new Error('Task interrupted')))
+      if (pausedStatus === 'cancelled') {
+        void application
+          .get('JobManager')
+          .cancel(ctx.jobId, result.reason)
+          .catch((error) => {
+            logger.warn('Failed to settle stopped task as cancelled', { jobId: ctx.jobId, error })
+          })
+      }
     },
     onError(result) {
       complete(() => rejectExecution(new Error(result.error.message ?? 'Execution failed')))
@@ -371,7 +383,8 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     resultText = await executionDone
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
-    if (!runSignal.aborted && subscribedChannels.length > 0) {
+    if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
+    if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {
       await notifyTaskError(
         { id: scheduleId, name: taskName, durationMs: Date.now() - startTimeMs },
         runError.message,

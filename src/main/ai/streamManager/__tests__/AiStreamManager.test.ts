@@ -17,6 +17,7 @@ import type {
   AiStreamManagerConfig,
   CherryUIMessage,
   ConversationCompletedEvent,
+  ConversationUnsuccessfulEvent,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -1854,6 +1855,73 @@ describe('AiStreamManager', () => {
 
       expect(l.errorResults[0].finalMessage?.id).toBe('assistant-1')
       expect(mgr.inspect('a')!.executions[0].finalMessage?.id).toBe('assistant-1')
+    })
+  })
+
+  describe('unsuccessful conversation outcomes', () => {
+    it.each([
+      ['user-requested', 'cancelled'],
+      ['remote-cancel', 'cancelled'],
+      ['no-subscribers', 'interrupted'],
+      ['agent-policy-update-failed', 'interrupted']
+    ] as const)('classifies settled abort %s', async (reason, status) => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [],
+        isPersistentConversation: true
+      })
+      mgr.abort('a', reason)
+      await mgr.onExecutionPaused('a', 'provider-a::model-a')
+      expect(outcomes[0]).toMatchObject({ topicId: 'a', status, finishedAt: expect.any(Number) })
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('emits a sibling failure without waiting for a still-running model', async () => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      mgr.send({
+        topicId: 'a',
+        isPersistentConversation: true,
+        listeners: [],
+        models: [
+          { modelId: 'provider-a::model-a', request: req('a') },
+          { modelId: 'provider-b::model-b', request: req('a') }
+        ]
+      })
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('403 用户额度不足'))
+      expect(outcomes).toHaveLength(1)
+      expect(outcomes[0]).toMatchObject({ status: 'failed', errorSummary: expect.stringContaining('用户额度不足') })
+      expect(mgr.hasLiveStream('a')).toBe(true)
+      await mgr.onExecutionDone('a', 'provider-b::model-b')
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it.each([false, true])('leaves scheduled outcomes to their durable owner: persistent=%s', async (persistent) => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      const owner = Object.assign(new FakeListener('job-owner'), { ownsTaskResult: true })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [owner],
+        isPersistentConversation: persistent
+      })
+      mgr.removeListener('a', owner.id)
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('quota exceeded'))
+      expect(outcomes).toEqual([])
+    })
+
+    it('does not publish failures for temporary model checks', async () => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [] })
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('quota exceeded'))
+      expect(outcomes).toEqual([])
     })
   })
 

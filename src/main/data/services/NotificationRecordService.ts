@@ -10,10 +10,15 @@ import {
   type ListNotificationsQuery,
   type NotificationPage
 } from '@shared/data/api/schemas/notifications'
-import type { CreateNotificationRecordInput, NotificationRecord } from '@shared/data/types/notification'
+import type { NotificationRecord, NotificationTarget } from '@shared/data/types/notification'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+
+export type CreateNotificationRecordInput = Pick<
+  NotificationRecord,
+  'eventKey' | 'category' | 'kind' | 'title' | 'message' | 'createdAt'
+> & { target?: NotificationTarget | null; readAt?: number | null }
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const visible = () => and(isNull(table.dismissedAt), gt(table.createdAt, Date.now() - RETENTION_MS))

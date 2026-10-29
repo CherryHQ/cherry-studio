@@ -24,3 +24,6 @@ export const notificationRecordTable = sqliteTable(
     index('notification_record_category_time_idx').on(t.category, t.createdAt, t.id)
   ]
 )
+
+export type NotificationRecordRow = typeof notificationRecordTable.$inferSelect
+export type InsertNotificationRecordRow = typeof notificationRecordTable.$inferInsert

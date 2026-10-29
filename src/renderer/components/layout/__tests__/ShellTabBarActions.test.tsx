@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { cacheState, mocks, updateState } = vi.hoisted(() => ({
-  cacheState: { sidebarWidth: 50 },
+import { cacheService } from '@data/CacheService'
+
+const { mocks, updateState } = vi.hoisted(() => ({
   mocks: {
     openSettingsTab: vi.fn(),
     showSearchPopup: vi.fn(),
@@ -26,29 +29,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    type = 'button',
-    ...props
-  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => {
-    const { variant, size, ...buttonProps } = props
-    void variant
-    void size
-
-    return (
-      <button data-slot="button" type={type} {...buttonProps}>
-        {children}
-      </button>
-    )
-  },
-  Tooltip: ({ children }: { children: React.ReactNode }) => children,
-  Kbd: ({ children }: { children?: React.ReactNode }) => children
-}))
-
-vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [cacheState.sidebarWidth, vi.fn()]
-}))
+vi.unmock('@cherrystudio/ui')
+vi.unmock('@data/hooks/useCache')
 
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
   useAppUpdateState: () => ({ appUpdateState: updateState, updateAppUpdateState: vi.fn() })
@@ -64,8 +46,8 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
-vi.mock('../HelpMenu', () => ({
-  HelpMenu: () => <button aria-label="Help" type="button" />
+vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({
+  useOpenReleaseNotes: () => vi.fn()
 }))
 
 vi.mock('@renderer/components/UpdateDialogPopup', () => ({
@@ -75,7 +57,8 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
 }))
 
 vi.mock('@renderer/components/command', () => ({
-  CommandTooltip: ({ children }: { children: React.ReactNode }) => children
+  CommandTooltip: ({ children }: { children: React.ReactNode }) => children,
+  CommandShortcut: () => null
 }))
 
 vi.mock('@renderer/components/NotificationCenter', () => ({
@@ -88,7 +71,10 @@ vi.mock('react-i18next', () => ({
       ({
         'globalSearch.open': 'Open global search',
         'settings.about.updateAvailable': 'Found new version',
-        'settings.title': 'Settings'
+        'settings.title': 'Settings',
+        'common.settings': 'Settings',
+        'sidebar.account_menu': 'Account menu',
+        'help.title': 'Help'
       })[key] ?? key
   })
 }))
@@ -97,12 +83,13 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
-import { AppUpdateButton, ShellTabBarActions, SidebarSettingsButton } from '../ShellTabBarActions'
+import { AppUpdateButton, ShellTabBarActions } from '../ShellTabBarActions'
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  cacheState.sidebarWidth = 50
+  MockCacheUtils.resetMocks()
+  MockUsePreferenceUtils.resetMocks()
   updateState.available = false
   updateState.downloaded = false
   updateState.info = null
@@ -114,6 +101,7 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
   })
   beforeEach(() => {
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'User')
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: { error: vi.fn() }
@@ -127,11 +115,6 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
-    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveClass(
-      'text-muted-foreground',
-      'dark:text-muted-foreground'
-    )
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
@@ -144,7 +127,6 @@ describe('ShellTabBarActions', () => {
     render(<AppUpdateButton />)
 
     const updateButton = screen.getByRole('button', { name: 'Found new version' })
-    expect(updateButton.querySelector('svg')).toHaveClass('text-success')
 
     await user.click(updateButton)
 
@@ -163,7 +145,7 @@ describe('ShellTabBarActions', () => {
   })
 
   it('keeps the ready update out of the tab bar when the full sidebar owns it', () => {
-    cacheState.sidebarWidth = 180
+    cacheService.setPersist('ui.sidebar.width', 180)
     updateState.available = true
     updateState.downloaded = true
     updateState.info = { version: '2.0.0' }
@@ -174,7 +156,7 @@ describe('ShellTabBarActions', () => {
   })
 
   it('keeps the update action at the left of the hidden-sidebar action group', () => {
-    cacheState.sidebarWidth = 0
+    cacheService.setPersist('ui.sidebar.width', 0)
     updateState.available = true
     updateState.downloaded = true
     updateState.info = { version: '2.0.0' }
@@ -183,19 +165,9 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Found new version',
-      'Help',
-      'Settings',
-      'Open global search'
+      'Open global search',
+      'Account menu'
     ])
-  })
-
-  it('uses its natural width in the header flex layout with one right padding', () => {
-    const { container } = render(<ShellTabBarActions />)
-    const actionArea = container.firstElementChild
-
-    expect(actionArea).toHaveClass('shrink-0')
-    expect(actionArea).not.toHaveClass('absolute')
-    expect(actionArea?.firstElementChild).toHaveClass('pr-2')
   })
 
   it('keeps theme and settings actions out of the tab bar while the sidebar is visible', () => {
@@ -206,36 +178,50 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
   })
 
-  it('opens settings from the tab bar when the sidebar is hidden', async () => {
+  it('opens settings through the tab bar account menu when the sidebar is hidden', async () => {
     const user = userEvent.setup()
-    cacheState.sidebarWidth = 0
+    cacheService.setPersist('ui.sidebar.width', 0)
 
     render(<ShellTabBarActions />)
 
-    await user.click(screen.getByRole('button', { name: /settings/i }))
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Account menu' })).getByRole('button', { name: 'Settings' })
+    )
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
   })
-})
-
-describe('SidebarSettingsButton', () => {
-  it('opens settings without a circular hover disc', async () => {
+  it('opens feedback from the avatar menu and gives the dialog focus', async () => {
+    cacheService.setPersist('ui.sidebar.width', 0)
     const user = userEvent.setup()
-    render(<SidebarSettingsButton layout="icon" />)
+    render(<ShellTabBarActions />)
 
-    const button = screen.getByRole('button', { name: 'Settings' })
-    expect(button).toHaveClass('hover:bg-transparent', 'hover:opacity-100', 'hover:text-foreground')
-    expect(button).not.toHaveClass('rounded-full')
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.hover(screen.getByRole('button', { name: 'Help' }))
+    await user.click(await screen.findByRole('button', { name: 'help.feedback' }))
 
-    await user.click(button)
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+    const feedback = await screen.findByRole('dialog', { name: 'settings.about.feedback.dialog.title' })
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(feedback).getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })).toHaveFocus()
+    )
   })
 
-  it('renders a labeled full-width action in the full sidebar layout', () => {
-    render(<SidebarSettingsButton layout="full" />)
+  it('does not reopen the account menu after changing between hidden and visible sidebar layouts', async () => {
+    cacheService.setPersist('ui.sidebar.width', 0)
+    const user = userEvent.setup()
+    render(<ShellTabBarActions />)
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    expect(screen.getByRole('dialog', { name: 'Account menu' })).toBeVisible()
 
-    const button = screen.getByRole('button', { name: 'Settings' })
-    expect(button).toHaveTextContent('Settings')
-    expect(button).toHaveClass('w-full', 'justify-start')
+    act(() => cacheService.setPersist('ui.sidebar.width', 50))
+    expect(screen.queryByRole('button', { name: 'Account menu' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
+    act(() => cacheService.setPersist('ui.sidebar.width', 0))
+    expect(screen.getByRole('button', { name: 'Account menu' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
   })
 })

@@ -41,7 +41,7 @@ export type TaskResultNotificationInput = NotificationTaskResult & {
   target: Extract<NotificationTarget, { kind: 'conversation' | 'scheduled-task' }>
 }
 
-export const NotificationRecordSchema = z.object({
+export const NotificationRecordSchema = z.strictObject({
   id: z.uuid(),
   eventKey: z.string().min(1),
   category: NotificationCategorySchema,
@@ -54,8 +54,3 @@ export const NotificationRecordSchema = z.object({
   target: NotificationTargetSchema.nullable()
 })
 export type NotificationRecord = z.infer<typeof NotificationRecordSchema>
-
-export type CreateNotificationRecordInput = Pick<
-  NotificationRecord,
-  'eventKey' | 'category' | 'kind' | 'title' | 'message' | 'createdAt'
-> & { target?: NotificationTarget | null; readAt?: number | null }

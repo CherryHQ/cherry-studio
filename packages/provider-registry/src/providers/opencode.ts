@@ -67,6 +67,7 @@ const chatEffortModels: Array<{
   },
   { modelId: 'hy3', values: ['none', 'low', 'high'] },
   { modelId: 'kimi-k3', values: ['max'] },
+  { modelId: 'minimax-m3-1-flash', values: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'max' },
   // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
   // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
   { modelId: 'ox-alpha', values: ['low', 'high', 'max'] },

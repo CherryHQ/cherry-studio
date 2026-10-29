@@ -21,12 +21,12 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { NotificationCategory, NotificationRecord } from '@shared/data/types/notification'
 
+import NotificationAnnouncement from './NotificationAnnouncement'
 import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
 import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('NotificationCenter')
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
-const NotificationAnnouncement = lazy(() => import('./NotificationAnnouncement'))
 const categories = ['all', 'system', 'usage', 'official'] as const
 type Filter = 'all' | NotificationCategory
 
@@ -44,7 +44,10 @@ function NotificationItem({
   const { t, i18n } = useTranslation()
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [activating, setActivating] = useState(false)
-  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
+  const { appUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
+    const { default: UpdateDialogPopup } = await import('./UpdateDialogPopup')
+    return UpdateDialogPopup.show({ releaseInfo })
+  })
   const { trigger: markRead } = useMutation('PATCH', '/notifications/:id', {
     refresh: ['/notifications', '/notifications/unread-count']
   })
@@ -53,6 +56,7 @@ function NotificationItem({
   })
   const release = record.target?.kind === 'release' ? record.target : null
   const announcement = record.target?.kind === 'announcement' ? record.target : null
+  const announcementUrl = announcement?.url
   const expandable = !!(release || announcement)
   const Icon = notificationCategoryIcons[record.category]
   const isError = record.target?.result?.status === 'failed' || record.target?.result?.status === 'interrupted'
@@ -62,7 +66,7 @@ function NotificationItem({
     setActivating(true)
     try {
       if (expandable) {
-        await markRead({ params: { id: record.id }, body: { read: true } })
+        if (record.readAt === null) await markRead({ params: { id: record.id }, body: { read: true } })
         setExpanded(!expanded)
       } else {
         await ipcApi.request('notification.activate', { id: record.id })
@@ -76,33 +80,14 @@ function NotificationItem({
     }
   }
 
-  const update = async () => {
-    if (!canUpdate || appUpdateState.checking || appUpdateState.downloading) return
-    try {
-      if (appUpdateState.downloaded) {
-        const { default: UpdateDialogPopup } = await import('./UpdateDialogPopup')
-        await UpdateDialogPopup.show({ releaseInfo: appUpdateState.info })
-      } else {
-        updateAppUpdateState({ checking: true, manualCheck: true, lastErrorKey: null })
-        await ipcApi.request('app.updater.check_for_update')
-      }
-    } catch (error) {
-      logger.error('Failed to start update from notification', error as Error)
-      updateAppUpdateState({ manualCheck: false })
-      toast.error(t('settings.about.updateError'))
-    } finally {
-      updateAppUpdateState({ checking: false })
-    }
-  }
-
   return (
     <li className="border-b border-border-subtle last:border-0">
-      <div className="flex items-start gap-1 py-2">
+      <div className="relative py-2">
         <Button
           variant="ghost"
           aria-label={record.title}
           aria-expanded={expandable ? expanded : undefined}
-          className="h-auto min-w-0 flex-1 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
+          className="h-auto w-full min-w-0 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
           disabled={activating}
           onClick={() => void activate()}>
           <Icon
@@ -110,7 +95,7 @@ function NotificationItem({
             className={`mt-0.5 size-4 shrink-0 ${isError ? 'text-error' : 'text-muted-foreground'}`}
           />
           <span className="min-w-0 flex-1">
-            <span className="mb-2 flex items-center gap-2 font-medium">
+            <span className="mb-2 flex items-center gap-2 pr-8 font-medium">
               {record.readAt === null && (
                 <span className="size-1.5 shrink-0 rounded-full bg-primary">
                   <span className="sr-only">{t('notification.center.unread')}</span>
@@ -120,10 +105,14 @@ function NotificationItem({
                 <NotificationTitle record={record} />
               </span>
             </span>
-            <span
-              className={`block max-h-[2lh] overflow-hidden break-words text-sm ${isError ? 'text-error' : 'text-muted-foreground'}`}>
-              {notificationPreview(record.message)}
-            </span>
+            {announcement ? (
+              <NotificationAnnouncement id={record.id} announcement={announcement} expanded={expanded} />
+            ) : (
+              <span
+                className={`block max-h-[2lh] overflow-hidden break-words text-sm ${isError ? 'text-error' : 'text-muted-foreground'}`}>
+                {notificationPreview(record.message)}
+              </span>
+            )}
             <time
               dateTime={new Date(record.createdAt).toISOString()}
               className="mt-1 block text-xs text-muted-foreground">
@@ -142,11 +131,11 @@ function NotificationItem({
             </time>
           </span>
         </Button>
-        <Tooltip content={t('notification.center.dismiss', { title: record.title })}>
+        <Tooltip content={t('notification.center.dismiss', { title: record.title })} asChild>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="mt-1 shrink-0"
+            className="absolute right-1 top-3"
             aria-label={t('notification.center.dismiss', { title: record.title })}
             loading={dismissing}
             onClick={() =>
@@ -161,22 +150,33 @@ function NotificationItem({
           </Button>
         </Tooltip>
       </div>
-      {expandable && expanded && (
+      {expanded && (release || announcementUrl) && (
         <div className="space-y-3 px-3 pb-4">
-          <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
-            {release ? (
+          {release && (
+            <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
               <ReleaseNotes content={release.releaseNotes} />
-            ) : announcement ? (
-              <NotificationAnnouncement id={record.id} announcement={announcement} />
-            ) : null}
-          </Suspense>
+            </Suspense>
+          )}
+          {announcementUrl && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                void ipcApi
+                  .request('system.shell.open_website', announcementUrl)
+                  .catch((error) => logger.error('Failed to open announcement link', error as Error))
+              }>
+              {t('common.open')}
+            </Button>
+          )}
           {canUpdate && appUpdateState.lastErrorKey && (
             <p role="alert" className="text-sm text-destructive">
               {t(appUpdateState.lastErrorKey)}
             </p>
           )}
           {canUpdate && (
-            <Button onClick={() => void update()} disabled={appUpdateState.checking || appUpdateState.downloading}>
+            <Button
+              onClick={() => void checkForUpdate()}
+              disabled={appUpdateState.checking || appUpdateState.downloading}>
               {appUpdateState.downloading
                 ? `${t('settings.about.downloading')} ${Math.round(appUpdateState.downloadProgress)}%`
                 : appUpdateState.downloaded

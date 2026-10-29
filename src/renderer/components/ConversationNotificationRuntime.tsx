@@ -86,8 +86,7 @@ export function ConversationNotificationRuntime(): null {
   useIpcOn('notification.conversation', (notification) => {
     if (activeTab && findConversationTab([activeTab], notification.meta)) return
 
-    const showToast = notification.kind === 'task-completion' ? toast.success : toast.warning
-    showToast({
+    toast.warning({
       key: notification.id,
       title: notificationPreview(notification.title, true),
       description: notificationPreview(notification.message),

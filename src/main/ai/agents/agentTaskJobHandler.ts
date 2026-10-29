@@ -79,6 +79,9 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
     if (event.scheduleId) {
       agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
     }
+    if (event.scheduleId && event.status !== 'completed') {
+      await application.get('NotificationService').publishScheduledTaskResult(event.jobId)
+    }
     if (event.status !== 'failed' || !event.scheduleId) return
     // Captured once — closure capture would lose the narrowing above.
     const scheduleId = event.scheduleId

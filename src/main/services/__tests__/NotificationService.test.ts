@@ -1,22 +1,18 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { notificationHandlers } from '@data/api/handlers/notifications'
-import { messageTable } from '@data/db/schemas/message'
-import { topicTable } from '@data/db/schemas/topic'
-import { userModelTable } from '@data/db/schemas/userModel'
-import { userProviderTable } from '@data/db/schemas/userProvider'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { notificationRecordService } from '@data/services/NotificationRecordService'
-import type { ConversationCompletedEvent } from '@main/ai/streamManager'
-import { AiStreamManager } from '@main/ai/streamManager'
-import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
-import { MessageServiceBackend } from '@main/ai/streamManager/persistence/backends/MessageServiceBackend'
+import { agentTaskJobHandler } from '@main/ai/agents/agentTaskJobHandler'
+import { AiStreamManager, type ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
+import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { NotificationRecordSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
@@ -41,6 +37,8 @@ const mocks = vi.hoisted(() => ({
     click?: () => void
     show: ReturnType<typeof vi.fn<() => void>>
   }>,
+  edition: vi.fn(() => 'global'),
+  fetch: vi.fn<typeof fetch>(),
   focusOrOpen: vi.fn(() => Promise.resolve()),
   isActiveInFocusedWindow: vi.fn(async () => false),
   getWindowInfosByType: vi.fn(),
@@ -86,6 +84,7 @@ vi.mock('@main/i18n', () => ({
   )
 }))
 vi.mock('electron', () => ({
+  net: { fetch: mocks.fetch },
   app: {
     setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
   },
@@ -107,8 +106,10 @@ vi.mock('electron', () => ({
     }
   }
 }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: mocks.edition }))
 
 const { NotificationService } = await import('../NotificationService')
+const { OfficialAnnouncementService } = await import('../OfficialAnnouncementService')
 
 const mainWindowInfo = (overrides: Partial<WindowInfo> = {}): WindowInfo => ({
   id: 'main-1',
@@ -208,6 +209,7 @@ describe('NotificationService', () => {
             mocks.streamApprovalListener = listener
             return { dispose: vi.fn() }
           },
+          onConversationUnsuccessful: () => ({ dispose: vi.fn() }),
           onConversationCompleted: (listener: (event: ConversationCompletedEvent) => void) => {
             mocks.completionListener = listener
             return { dispose: vi.fn() }
@@ -243,6 +245,254 @@ describe('NotificationService', () => {
     await service._doStop()
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  describe('official announcement polling', () => {
+    let announcements: InstanceType<typeof OfficialAnnouncementService>
+    let scheduler: SchedulerService
+    let preferenceChanged: () => void
+    const interval = 30 * 60 * 1000
+    const announcement = (id: string, published_at = '2026-10-28T01:00:00.000001Z') => ({
+      id,
+      published_at,
+      title: `Announcement ${id}`,
+      content: '**中文** 😀\n<b>plain text</b>',
+      platforms: ['desktop'],
+      products: ['global', 'cn']
+    })
+    const respond = (items = [announcement('one')], total = items.length) => Response.json({ items, total })
+    const enable = (enabled: boolean) => {
+      mocks.preferenceValues['app.notification.center.official.enabled'] = enabled
+      preferenceChanged()
+    }
+
+    beforeEach(async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-10-28T02:00:00Z'))
+      mocks.edition.mockReturnValue('global')
+      mocks.fetch.mockReset().mockImplementation(async () => respond())
+      scheduler = new SchedulerService()
+      const get = vi.mocked(application.get).getMockImplementation()!
+      vi.mocked(application.get).mockImplementation(((name: string) => {
+        if (name === 'SchedulerService') return scheduler
+        if (name === 'NotificationService') return service
+        if (name === 'PreferenceService')
+          return {
+            ...get(name),
+            subscribeChange: (_key: string, listener: () => void) => {
+              preferenceChanged = listener
+              return () => {
+                preferenceChanged = () => {}
+              }
+            }
+          }
+        return get(name as never)
+      }) as typeof application.get)
+      announcements = new OfficialAnnouncementService()
+      await announcements._doInit()
+    })
+
+    afterEach(async () => {
+      await announcements._doStop()
+      await scheduler._doStop()
+      vi.clearAllTimers()
+    })
+
+    it.each(['global', 'cn'])(
+      'requests the %s desktop feed after all-ready and polls after completion',
+      async (edition) => {
+        mocks.edition.mockReturnValue(edition)
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(mocks.fetch).not.toHaveBeenCalled()
+        await announcements._doAllReady()
+        await vi.advanceTimersByTimeAsync(4999)
+        expect(notificationRecordService.unreadCount()).toBe(0)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(mocks.fetch.mock.calls[0][0]).toBe(
+          `https://api.cherry-ai.com/api/announcements?platform=desktop&product=${edition}&limit=100&offset=0`
+        )
+        expect(notificationRecordService.list({}).items[0]).toMatchObject({
+          createdAt: Date.parse('2026-10-28T01:00:00Z'),
+          readAt: null,
+          message: '**中文** 😀 <b>plain text</b>',
+          target: { content: announcement('one').content }
+        })
+        await vi.advanceTimersByTimeAsync(interval - 1)
+        expect(mocks.fetch).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(mocks.fetch).toHaveBeenCalledTimes(2)
+        expect(notificationRecordService.unreadCount()).toBe(1)
+        expect(mocks.electronNotifications).toHaveLength(0)
+      }
+    )
+
+    it('preserves read and dismissed versions across restart and distinguishes fractional republication', async () => {
+      mocks.fetch.mockImplementation(async () => respond([announcement('read'), announcement('dismissed')]))
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      const records = notificationRecordService.list({}).items
+      const read = records.find((record) => record.title === 'Announcement read')!
+      notificationRecordService.markRead(read.id)
+      notificationRecordService.dismiss(records.find((record) => record.id !== read.id)!.id)
+      await announcements._doStop()
+      await announcements._doInit()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.list({}).items).toHaveLength(1)
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      mocks.fetch.mockImplementation(async () => respond([announcement('read', '2026-10-28T01:00:00.000002Z')]))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.list({}).items).toHaveLength(2)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+    })
+
+    it('continues past duplicates and recovers offset shifts on the next complete poll', async () => {
+      const first = Array.from({ length: 100 }, (_, index) => announcement(String(index)))
+      mocks.fetch
+        .mockImplementationOnce(async () => respond(first, 102))
+        .mockImplementationOnce(async () => respond([first[99], announcement('tail')], 102))
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.unreadCount()).toBe(101)
+      expect(new URL(String(mocks.fetch.mock.calls[1][0])).searchParams.get('offset')).toBe('100')
+      mocks.fetch
+        .mockImplementationOnce(async () => respond(first, 102))
+        .mockImplementationOnce(async () => respond([announcement('missing'), announcement('tail')], 102))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(102)
+      mocks.fetch.mockImplementation(async () => respond([], 102))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(102)
+    })
+
+    it('stops at the 30-day boundary and truncates summaries by code point without changing content', async () => {
+      const cutoff = new Date(Date.now() + 5000 - 30 * 24 * 60 * 60 * 1000).toISOString()
+      const content = `${'中'.repeat(239)}😀\n  **end**`
+      mocks.fetch.mockImplementation(async () =>
+        respond(
+          [
+            { ...announcement('recent'), content },
+            announcement('boundary', cutoff),
+            announcement('old', '2026-01-01T00:00:00Z')
+          ],
+          500
+        )
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.list({}).items).toEqual([
+        expect.objectContaining({
+          message: `${'中'.repeat(239)}😀`,
+          target: { kind: 'announcement', content }
+        })
+      ])
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      [
+        'network error',
+        () => {
+          throw new TypeError('Network request failed')
+        }
+      ],
+      ['503', () => new Response('unavailable', { status: 503 })],
+      ['invalid JSON', () => new Response('{')],
+      ['null items', () => Response.json({ items: null, total: 1 })],
+      ['invalid total', () => Response.json({ items: [], total: -1 })],
+      ['invalid timestamp', () => respond([announcement('bad', '2026-02-30T00:00:00Z')])]
+    ] as const)('retains history after %s and retries next round', async (_name, response) => {
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      mocks.fetch.mockImplementationOnce(async () => response())
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      mocks.fetch.mockImplementationOnce(async () => respond([announcement('new')]))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(2)
+    })
+
+    it('retries unwritten records after a partial persistence failure', async () => {
+      const create = notificationRecordService.create.bind(notificationRecordService)
+      vi.spyOn(notificationRecordService, 'create')
+        .mockImplementationOnce(create)
+        .mockImplementationOnce(() => {
+          throw new Error('disk full')
+        })
+      mocks.fetch.mockImplementation(async () =>
+        respond([announcement('one'), announcement('two'), announcement('three')])
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(3)
+    })
+
+    it('stays idle while disabled and leaves history untouched on an empty feed', async () => {
+      enable(false)
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(mocks.fetch).not.toHaveBeenCalled()
+      enable(true)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      mocks.fetch.mockImplementation(async () => respond([], 0))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      enable(false)
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(['disable', 'stop'])('discards late responses after %s and keeps the new poll schedule', async (action) => {
+      let resolve!: (response: Response) => void
+      mocks.fetch.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done
+          })
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      const signal = mocks.fetch.mock.calls[0][1]!.signal!
+      if (action === 'stop') await announcements._doStop()
+      else enable(false)
+      expect(signal.aborted).toBe(true)
+      if (action === 'stop') await announcements._doInit()
+      else enable(true)
+      resolve(respond([announcement('stale')]))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.list({}).items.map((record) => record.title)).toEqual(['Announcement one'])
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(mocks.fetch).toHaveBeenCalledTimes(3)
+    })
+
+    it('times out a stalled response body and waits 30 minutes after failure before retrying', async () => {
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+        const controller = new AbortController()
+        setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), ms)
+        return controller.signal
+      })
+      mocks.fetch.mockImplementationOnce(
+        async (_url, options) =>
+          ({
+            ok: true,
+            json: () =>
+              new Promise((_resolve, reject) =>
+                options!.signal!.addEventListener('abort', () => reject(options!.signal!.reason))
+              )
+          }) as Response
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000 + 14_999)
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(1 + interval - 1)
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(notificationRecordService.unreadCount()).toBe(1)
+    })
   })
 
   it('persists completions with OS delivery off and never resurrects a dismissed duplicate', () => {
@@ -569,18 +819,25 @@ describe('NotificationService', () => {
     expect(mocks.electronNotifications).toHaveLength(0)
   })
 
-  it('retries context history after a transient write failure and reports committed delivery separately', async () => {
+  it('retries failed history writes and preserves committed notifications when delivery fails', async () => {
     dbh.sqlite.exec(
       "CREATE TRIGGER fail_notification BEFORE INSERT ON notification_record BEGIN SELECT RAISE(ABORT, 'write failed'); END"
     )
-    const usage = { topicId: 'topic-1', model: 'p::a', used: 900, max: 1000 }
+    const input = {
+      eventKey: 'budget-retry',
+      category: 'usage' as const,
+      kind: 'daily-budget',
+      title: 'Daily budget',
+      message: '80% used',
+      createdAt: Date.now()
+    }
     try {
-      await service.observeContextUsage(usage)
+      await expect(service.publish(input)).resolves.toBe(false)
       expect(notificationRecordService.unreadCount()).toBe(0)
     } finally {
       dbh.sqlite.exec('DROP TRIGGER fail_notification')
     }
-    await service.observeContextUsage(usage)
+    await expect(service.publish(input)).resolves.toBe(true)
     expect(notificationRecordService.unreadCount()).toBe(1)
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
@@ -601,141 +858,156 @@ describe('NotificationService', () => {
     expect(notificationRecordService.unreadCount()).toBe(2)
   })
 
-  it('warns once per context stage and model, persisting dedup across service restarts', async () => {
-    const usage = { topicId: 'topic-1', model: 'p::m', used: 900, max: 1000, stage: 'initial' }
-    await service.observeContextUsage(usage)
-    await service.observeContextUsage(usage)
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
-    await service._doStop()
-    BaseService.resetInstances()
-    await initService()
-    await service.observeContextUsage(usage)
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
-    await service.observeContextUsage({ ...usage, stage: 'compacted' })
-    await service.observeContextUsage({ ...usage, model: 'p::new', stage: 'compacted' })
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(3)
-  })
-
-  it('does not re-alert alternating models in the same multi-model context stage', async () => {
-    for (const model of ['p::a', 'p::b', 'p::a', 'p::b']) {
-      await service.observeContextUsage({ topicId: 'topic-1', model, used: 900, max: 1000, stage: 'shared-stage' })
-    }
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
-    service.resetContextUsage('topic-1')
-    await service.observeContextUsage({ topicId: 'topic-1', model: 'p::a', used: 900, max: 1000 })
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(3)
-  })
-
-  it('retains a queued chat context warning when the following turn compacts below the threshold', async () => {
-    const topicId = 'queued-context'
-    const modelId = 'context-provider::model'
-    dbh.db.insert(userProviderTable).values({ providerId: 'context-provider', name: 'Provider', orderKey: 'a0' }).run()
-    dbh.db
-      .insert(userModelTable)
-      .values({
-        id: modelId,
-        providerId: 'context-provider',
-        modelId: 'model',
-        name: 'Model',
-        capabilities: [],
-        supportsStreaming: true,
-        contextWindow: 1000,
-        orderKey: 'a0'
-      })
-      .run()
-    dbh.db.insert(topicTable).values({ id: topicId, name: 'Queued context', orderKey: 'a0' }).run()
-    dbh.db
-      .insert(messageTable)
-      .values(
-        withRoot(topicId, [
-          { id: 'context-user', topicId, role: 'user', status: 'success', data: { parts: [] } },
-          {
-            id: 'context-first',
-            parentId: 'context-user',
-            topicId,
-            role: 'assistant',
-            status: 'pending',
-            modelId,
-            data: { parts: [] }
-          },
-          {
-            id: 'context-next',
-            parentId: 'context-first',
-            topicId,
-            role: 'assistant',
-            status: 'pending',
-            modelId,
-            data: { parts: [] },
-            compactionSummary: 'Compacted context'
-          }
-        ])
+  it.each(['read', 'dismissed'] as const)(
+    'retains a %s budget reminder across restart without replay',
+    async (state) => {
+      mocks.preferenceValues['app.notification.daily_budget.tokens'] = 100_000
+      recordUsage('crossing', 80_000)
+      await vi.waitFor(() => expect(notificationRecordService.unreadCount()).toBe(1))
+      const [record] = notificationRecordService.list({ category: 'usage' }).items
+      notificationRecordService.markRead(record.id)
+      const readAt = notificationRecordService.getById(record.id)!.readAt
+      if (state === 'dismissed') notificationRecordService.dismiss(record.id)
+      await service._doStop()
+      BaseService.resetInstances()
+      await initService()
+      mocks.electronNotifications.length = 0
+      recordUsage('after-restart', 1_000)
+      await Promise.resolve()
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      expect(notificationRecordService.list({ category: 'usage' }).items).toEqual(
+        state === 'dismissed' ? [] : [{ ...record, readAt }]
       )
-      .run()
-    const tokens = [950, 100]
+      expect(mocks.electronNotifications).toHaveLength(0)
+    }
+  )
+
+  it.each([
+    ['topic-failure', '403 用户额度不足', false],
+    ['agent-session:quota-failure', '403 用户额度不足', false],
+    ['agent-session:foreground-failure', '403 用户额度不足', true],
+    ['topic-auth', '401 Invalid API key', false],
+    ['topic-rate-limit', '429 Too many requests', false],
+    ['topic-network', 'ECONNRESET connection lost', false],
+    ['topic-context', 'maximum context length exceeded', false],
+    ['topic-server', '503 Service unavailable', false]
+  ])('records a terminal failure from the real stream manager: %s', async (topicId, message, active) => {
+    mocks.isActiveInFocusedWindow.mockResolvedValue(active)
+    mocks.getWindowInfosByType.mockReturnValue(active ? [mainWindowInfo({ isFocused: true })] : [])
+    const manager = new AiStreamManager({ gracePeriodMs: 1 })
     const originalGet = vi.mocked(application.get).getMockImplementation()!
-    vi.mocked(application.get).mockImplementation(((name: string) =>
-      name === 'AiService'
-        ? {
-            streamText: async () =>
-              new ReadableStream({
-                start(controller) {
-                  controller.enqueue({ type: 'start', messageMetadata: { stats: { contextTokens: tokens.shift() } } })
-                  controller.enqueue({ type: 'text-start', id: 'text' })
-                  controller.enqueue({ type: 'text-delta', id: 'text', delta: 'Completed' })
-                  controller.enqueue({ type: 'text-end', id: 'text' })
-                  controller.enqueue({ type: 'finish' })
-                  controller.close()
-                }
-              })
+    vi.mocked(application.get).mockImplementation(((name: string) => {
+      if (name === 'AiStreamManager') return manager
+      if (name === 'AiService')
+        return {
+          streamText: async () => {
+            throw new Error(message)
           }
-        : originalGet(name as never)) as typeof application.get)
-    vi.spyOn(application, 'getExisting').mockImplementation((name: string) =>
-      name === 'NotificationService' ? service : application.getContainer().getInstance(name)
-    )
-    const manager = new AiStreamManager()
-    const completed: ConversationCompletedEvent[] = []
-    manager.onConversationCompleted((event) => completed.push(event))
-    const start = (messageId: string) =>
+        }
+      return originalGet(name as never)
+    }) as typeof application.get)
+    await initService()
+    try {
       manager.send({
         topicId,
         isPersistentConversation: true,
         models: [
-          { modelId, request: { conversation: { id: topicId, topicId }, trigger: 'submit-message', messageId } }
+          {
+            modelId: 'provider::model',
+            request: {
+              conversation: { id: topicId, topicId },
+              trigger: 'submit-message',
+              messageId: 'failed-answer'
+            }
+          }
         ],
-        listeners: [
-          new PersistenceListener({
-            topicId,
-            modelId,
-            backend: new MessageServiceBackend({ assistantMessageId: messageId }),
-            onPersistFailed: vi.fn()
-          })
-        ]
+        listeners: []
       })
-    let warningsBeforeContinuation = 0
-    vi.spyOn(manager, 'dispatch').mockImplementation(async () => {
-      warningsBeforeContinuation = notificationRecordService.list({ category: 'usage' }).items.length
-      start('context-next')
-      return { mode: 'started' }
-    })
-    try {
-      start('context-first')
-      manager.enqueuePendingSteer(topicId, 'queued-user')
-      await vi.waitFor(() => {
-        expect(mocks.loggerError.mock.calls).toEqual([])
-        expect(completed).toHaveLength(1)
+      await vi.waitFor(() => expect(notificationRecordService.list({}).items).toHaveLength(1))
+      expect(notificationRecordService.list({}).items[0]).toMatchObject({
+        kind: 'task-result',
+        readAt: active ? expect.any(Number) : null,
+        target: {
+          kind: 'conversation',
+          messageId: 'failed-answer',
+          result: {
+            status: 'failed',
+            errorSummary: expect.any(String)
+          }
+        }
       })
-      expect(warningsBeforeContinuation).toBe(1)
-      expect(notificationRecordService.list({ category: 'usage' }).items).toEqual([
-        expect.objectContaining({
-          kind: 'context-warning',
-          target: { kind: 'conversation', conversationType: 'assistant', conversationId: topicId }
-        })
-      ])
     } finally {
       await manager._doStop()
       await manager._doDestroy()
     }
   })
+
+  it.each([
+    ['failed', false, {}, 'failed'],
+    ['cancelled', true, {}, 'cancelled'],
+    ['cancelled', false, {}, 'interrupted'],
+    ['failed', false, { taskResultStatus: 'interrupted' }, 'interrupted'],
+    ['failed', false, { taskResultStatus: 'cancelled' }, 'cancelled']
+  ] as const)(
+    'records settled scheduled jobs once: %s / %j / %j',
+    async (status, cancelRequested, metadata, expected) => {
+      const now = Date.now()
+      dbh.db
+        .insert(jobScheduleTable)
+        .values({
+          id: 'schedule-result',
+          type: 'agent.task',
+          name: 'Daily check',
+          trigger: { kind: 'interval', ms: 60000 },
+          jobInputTemplate: {},
+          catchUpPolicy: { kind: 'skip-missed' }
+        })
+        .run()
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: 'job-result',
+          type: 'agent.task',
+          status,
+          queue: 'agent:a',
+          scheduleId: 'schedule-result',
+          scheduledAt: now - 1000,
+          finishedAt: now,
+          input: {},
+          cancelRequested,
+          metadata,
+          error: { code: 'JOB_HANDLER_THREW', message: '403 用户额度不足', retryable: false }
+        })
+        .run()
+      const originalGet = vi.mocked(application.get).getMockImplementation()!
+      vi.mocked(application.get).mockImplementation((name) =>
+        name === 'NotificationService' ? service : originalGet(name)
+      )
+      const event = {
+        jobId: 'job-result',
+        scheduleId: 'schedule-result',
+        type: 'agent.task',
+        status,
+        parentId: null,
+        attempt: 0,
+        input: { agentId: 'a', prompt: 'test', timeoutMinutes: 1, reuseRevision: 0 },
+        error: null,
+        metadata
+      }
+      await agentTaskJobHandler.onSettled?.(event)
+      await agentTaskJobHandler.onSettled?.(event)
+      expect(notificationRecordService.list({}).items).toHaveLength(1)
+      expect(notificationRecordService.list({}).items[0]).toMatchObject({
+        readAt: expected === 'cancelled' ? expect.any(Number) : null,
+        target: {
+          kind: 'scheduled-task',
+          taskId: 'schedule-result',
+          result: { source: 'scheduled-task', status: expected }
+        }
+      })
+      expect(notificationRecordService.list({}).items[0].target?.result).not.toHaveProperty('durationMs')
+    }
+  )
 
   it('warns when committed usage crosses 80 percent once per local day without double-counting cache tokens', async () => {
     await service._doStop()
@@ -1087,7 +1359,7 @@ describe('NotificationService', () => {
 
 // Results must coexist with old history using only the prerequisite's production schema.
 describe('notification result storage compatibility', () => {
-  const dbh = setupTestDatabase({ migrationsThrough: '0028_wet_lila_cheney' })
+  const dbh = setupTestDatabase({ migrationsThrough: '0030_notification_record' })
   it.each([
     null,
     { kind: 'conversation' as const, conversationType: 'assistant' as const, conversationId: 'old-topic' }

@@ -18,7 +18,7 @@ import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fi
 import { createDashScopeProvider } from '../../../../provider/custom/dashscope/dashscopeProvider'
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
-import { createBrowserToolEntries } from '../../../../tools/adapters/aiSdk/builtin/BrowserTools'
+import { createAutomationReplToolEntries } from '../../../../tools/adapters/aiSdk/builtin/AutomationReplTools'
 import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
@@ -26,7 +26,6 @@ import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
-import { getDeferredToolsSystemPrompt } from '../../prompts/deferredTools'
 
 const { preferenceGetMock, resolveProviderAiSdkConfigMock, listMcpServers, listMcpTools, getMcpInstructions } =
   vi.hoisted(() => ({
@@ -2581,19 +2580,19 @@ describe('resolveTools fs_read gating', () => {
   })
 })
 
-describe('assistant browser tool selection', () => {
+describe('assistant automation tool selection', () => {
   beforeEach(() => {
-    for (const entry of createBrowserToolEntries()) registry.register(entry)
-    preferenceGetMock.mockImplementation((key) => (key === 'app.browser.agent_control.enabled' ? true : null))
+    for (const entry of createAutomationReplToolEntries()) registry.register(entry)
+    preferenceGetMock.mockImplementation((key) => key === 'app.browser.agent_control.enabled')
   })
   afterEach(() => {
-    for (const entry of createBrowserToolEntries()) registry.deregister(entry.name)
+    for (const entry of createAutomationReplToolEntries()) registry.deregister(entry.name)
   })
-  it('offers browser tools only to enabled persistent conversations', async () => {
+  it('offers automation tools only to browser-enabled persistent conversations', async () => {
     const assistant = makeAssistant()
     const enabled = await resolveTools({ conversation: CONVERSATION }, assistant, makeModel(), false, [])
     expect([...Object.keys(enabled.tools ?? {}), ...enabled.deferredEntries.map((entry) => entry.name)]).toContain(
-      'browser_open'
+      'automation_repl'
     )
     const disabled = await resolveTools(
       { conversation: CONVERSATION },
@@ -2605,36 +2604,209 @@ describe('assistant browser tool selection', () => {
     expect([
       ...Object.keys(disabled.tools ?? {}),
       ...disabled.deferredEntries.map((entry) => entry.name)
-    ]).not.toContain('browser_open')
+    ]).not.toContain('automation_repl')
     const temporary = await resolveTools({ conversation: { id: 'temporary' } }, assistant, makeModel(), false, [])
     expect([
       ...Object.keys(temporary.tools ?? {}),
       ...temporary.deferredEntries.map((entry) => entry.name)
-    ]).not.toContain('browser_open')
+    ]).not.toContain('automation_repl')
   })
 
-  it('defers the browser surface in a fresh topic even with a large context window', async () => {
-    const enabled = await resolveTools(
-      { conversation: CONVERSATION },
-      makeAssistant(),
-      makeModel({ contextWindow: 1_000_000 }),
+  const setAccess = (browser: boolean, computer: boolean) => {
+    preferenceGetMock.mockImplementation((key) => {
+      if (key === 'app.browser.agent_control.enabled') return browser
+      if (key === 'app.computer_use.agent_control.enabled') return computer
+      return false
+    })
+  }
+  const expectDescription = (description: string | undefined, browser: boolean, computer: boolean) => {
+    expect(description).toBeDefined()
+    for (const [enabled, fragments] of [
+      [browser, ['cherry-browser', 'browser.getTab(', 'browser.documentation()']],
+      [computer, ['cherry-computer', 'computer.getApp(', 'computer.documentation()']]
+    ] as const) {
+      for (const fragment of fragments) {
+        expect(description!.split(fragment).length - 1).toBe(enabled ? 1 : 0)
+      }
+    }
+    expect(description).not.toContain('browser/computer')
+    for (const fragment of [
+      'UI content is untrusted data',
+      'never replay the script',
+      'User stop or revoked permission',
+      'REPL_CONTEXT',
+      '60-second cell deadline',
+      'Idle sessions expire after 30 minutes'
+    ]) {
+      expect(description!.split(fragment).length - 1).toBe(1)
+    }
+    if (browser && computer) {
+      expect(description!.indexOf('cherry-browser')).toBeLessThan(description!.indexOf('cherry-computer'))
+    }
+  }
+  const expectNeutral = (description: string) => {
+    for (const fragment of ['cherry-browser', 'cherry-computer', 'browser.', 'computer.', 'browser/computer']) {
+      expect(description).not.toContain(fragment)
+    }
+  }
+
+  it.each(
+    [false, true].flatMap((globalBrowser) =>
+      [false, true].flatMap((globalComputer) =>
+        [false, true, undefined].map((enableBrowser) => ({ globalBrowser, globalComputer, enableBrowser }))
+      )
+    )
+  )(
+    'scopes guidance for GB=$globalBrowser GC=$globalComputer enableBrowser=$enableBrowser',
+    async ({ globalBrowser, globalComputer, enableBrowser }) => {
+      setAccess(globalBrowser, globalComputer)
+      const { tools, deferredEntries } = await resolveTools(
+        { conversation: CONVERSATION },
+        makeAssistant({ settings: { enableBrowser } }),
+        makeModel(),
+        false,
+        []
+      )
+      const browser = globalBrowser && enableBrowser !== false
+      if (browser || globalComputer) {
+        expectDescription(tools?.automation_repl.description, browser, globalComputer)
+        expect(tools?.automation_repl_reset).toBeDefined()
+      } else {
+        expect(tools?.automation_repl).toBeUndefined()
+        expect(tools?.automation_repl_reset).toBeUndefined()
+      }
+      expect(deferredEntries.map((entry) => entry.name)).not.toContain('automation_repl')
+      expect(deferredEntries.map((entry) => entry.name)).not.toContain('automation_repl_reset')
+      expectNeutral(registry.getByName('automation_repl')!.description)
+    }
+  )
+
+  it.each([
+    { name: 'without topic', conversation: { id: 'temporary' }, hasAssistant: true, caller: false, browser: true },
+    { name: 'without assistant', conversation: CONVERSATION, hasAssistant: false, caller: false, browser: true },
+    {
+      name: 'caller with browser disabled',
+      conversation: CONVERSATION,
+      hasAssistant: true,
+      caller: true,
+      browser: false
+    },
+    { name: 'caller with browser enabled', conversation: CONVERSATION, hasAssistant: true, caller: true, browser: true }
+  ])('preserves admission gates: $name', async ({ conversation, hasAssistant, caller, browser }) => {
+    setAccess(true, true)
+    const { tools, deferredEntries } = await resolveTools(
+      { conversation, ...(caller ? { contextOwner: 'caller' as const } : {}) },
+      hasAssistant ? makeAssistant({ settings: { enableBrowser: browser } }) : undefined,
+      makeModel(),
       false,
       []
     )
-    expect(Object.keys(enabled.tools ?? {}).filter((name) => name.startsWith('browser_'))).toEqual([])
-    expect(enabled.tools).toHaveProperty('tool_search')
-    expect(enabled.tools).toHaveProperty('tool_inspect')
-    expect(enabled.tools).toHaveProperty('tool_invoke')
-    expect(
-      enabled.deferredEntries
-        .filter((entry) => entry.namespace === 'browser')
-        .map((entry) => entry.name)
-        .sort()
-    ).toEqual(
-      createBrowserToolEntries()
-        .map((entry) => entry.name)
-        .sort()
-    )
-    expect(getDeferredToolsSystemPrompt(enabled.deferredEntries)).toMatch(/<namespace name="browser" count="\d+"\/>/)
+    if (caller && browser) {
+      expectDescription(tools?.automation_repl.description, true, false)
+      expect(tools?.automation_repl_reset).toBeDefined()
+    } else {
+      expect(tools?.automation_repl).toBeUndefined()
+      expect(tools?.automation_repl_reset).toBeUndefined()
+    }
+    expect(deferredEntries.map((entry) => entry.name)).not.toContain('automation_repl')
+    expect(deferredEntries.map((entry) => entry.name)).not.toContain('automation_repl_reset')
+  })
+
+  it('keeps catalog and meta-tool signatures neutral while automation stays inline', async () => {
+    setAccess(false, true)
+    const deferredName = 'test-deferred-automation-catalog'
+    registry.register({
+      name: deferredName,
+      namespace: 'test',
+      description: 'Deferred test utility',
+      defer: 'always',
+      tool: { inputSchema: z.object({}) }
+    })
+    try {
+      const resolve = () => resolveTools({ conversation: CONVERSATION }, makeAssistant(), makeModel(), false, [])
+      const { tools } = await resolve()
+      const options = { toolCallId: 'meta-test', messages: [] }
+      const stub = await tools!.tool_inspect.execute!({ name: 'automation_repl' }, options)
+      expect(String(stub)).toContain('function automation_repl')
+      expectNeutral(String(stub))
+      expectNeutral(registry.getByName('automation_repl')!.description)
+      const search = await tools!.tool_search.execute!({}, options)
+      expect(JSON.stringify(search)).toContain(deferredName)
+      expect(JSON.stringify(search)).not.toContain('automation_repl')
+
+      const fresh = await resolve()
+      const invoke = Promise.resolve(fresh.tools!.tool_invoke.execute!({ name: 'automation_repl' }, options))
+      await expect(invoke).rejects.toThrow("hasn't been inspected yet")
+      const feedback = await invoke.catch((error: Error) => error.message)
+      expect(String(feedback)).toContain('function automation_repl')
+      expectNeutral(String(feedback))
+    } finally {
+      registry.deregister(deferredName)
+    }
+  })
+
+  it('isolates materialized descriptions across requests and preserves the static fallback', async () => {
+    const entry = registry.getByName('automation_repl')!
+    const fallback = entry.tool
+    const fallbackDescription = fallback.description
+    const catalogDescription = entry.description
+    const requests: ToolSet[] = []
+    for (const [browser, computer] of [
+      [false, true],
+      [true, false],
+      [true, true],
+      [false, true]
+    ]) {
+      setAccess(browser, computer)
+      const { tools } = await resolveTools({ conversation: CONVERSATION }, makeAssistant(), makeModel(), false, [])
+      expectDescription(tools?.automation_repl.description, browser, computer)
+      requests.push(tools!)
+    }
+    expectDescription(requests[0].automation_repl.description, false, true)
+    expect(requests[0].automation_repl.description).toBe(requests[3].automation_repl.description)
+    expect(requests[0].automation_repl).not.toBe(requests[3].automation_repl)
+    expect(entry.tool).toBe(fallback)
+    expect(fallback.description).toBe(fallbackDescription)
+    expect(entry.description).toBe(catalogDescription)
+    expectNeutral(entry.description)
+  })
+
+  it('sends only computer guidance in the OpenAI-compatible automation tool description', async () => {
+    setAccess(true, true)
+    const requests: { tools: { function: { name: string; description: string } }[] }[] = []
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai-compatible',
+        providerSettings: {
+          name: 'automation-test',
+          baseURL: 'https://automation.test/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            requests.push(JSON.parse(String(init?.body)))
+            return Response.json({
+              id: 'r1',
+              created: 0,
+              model: 'model',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const params = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      assistant: makeAssistant({ settings: { enableBrowser: false } }),
+      signal: undefined,
+      provider: makeProvider(),
+      model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL], apiModelId: 'model' })
+    })
+    await aiCoreGenerateText<AppProviderSettingsMap>(params.sdkConfig.providerId, params.sdkConfig.providerSettings, {
+      model: params.sdkConfig.modelId,
+      prompt: 'Question',
+      tools: params.tools
+    })
+    expect(requests).toHaveLength(1)
+    const automation = requests[0].tools.find((entry) => entry.function.name === 'automation_repl')
+    expectDescription(automation?.function.description, false, true)
   })
 })

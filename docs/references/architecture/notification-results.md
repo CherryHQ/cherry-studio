@@ -2,6 +2,9 @@
 description: Task result notification publication, durable consumption, delivery policy and navigation boundaries
 sources:
   - src/main/services/NotificationService.ts
+  - src/main/ai/streamManager/AiStreamManager.ts
+  - src/main/ai/agents/agentTaskJobHandler.ts
+  - src/main/ai/agents/runAgentTask.ts
   - src/main/data/services/NotificationRecordService.ts
   - src/shared/data/types/notification.ts
   - src/main/services/ConversationNavigationService.ts
@@ -10,9 +13,16 @@ sources:
 
 # Task result notifications
 
-`NotificationService.publishTaskResult()` is an internal capability for an authoritative runtime adapter.
-It does not subscribe to task terminal events. The existing successful conversation/batch producer remains
-unchanged. A future adapter must coordinate that producer before publishing the same success here.
+`NotificationService.publishTaskResult()` persists authoritative runtime outcomes. `AiStreamManager`
+emits unsuccessful persistent-conversation outcomes after terminal listeners settle, including quota,
+provider, network and persistence failures. A failed model can notify while another model is still running.
+Successful conversation/batch notifications retain their existing producer; approval waits do not emit failures.
+
+Scheduled runs publish from `agentTaskJobHandler.onSettled`, using the committed job row. This covers
+errors before session creation, execution failures, timeouts and confirmed cancellation. Their stream
+listener declares result ownership so stream failure/abort events cannot duplicate the job notification.
+A paused scheduled stream rejects incomplete output instead of marking the job successful. Confirmed
+local/remote user stops also cancel the job; the existing job metadata retains the interruption classification.
 
 ## Input contract
 
@@ -70,7 +80,13 @@ in the inbox and never create placeholder conversations.
 The notification layer does not depend on the task dashboard stack, its running cache, sidebar visibility,
 or its 60-second display threshold. Native tests with controlled final inputs verify this capability,
 not real provider completion, continuous-run identity, cancellation settlement, or crash recovery.
-Those facts and end-to-end coverage belong to the future runtime integration.
+The runtime adapters have focused coverage for errors, cancellation, persistence ordering and multi-model
+outcomes. Stream notification identity includes the topic, turn, model and attempt; repeated delivery of
+that outcome deduplicates, while a new execution attempt is distinct. Scheduled identity is the persisted
+job ID, so repeated finalization does not alert again. These adapters do not replay old conversation errors
+or reconstruct terminal events after a process crash. Initial admission failures and queued continuation
+failures before a new execution exists remain outside the stream adapter; scheduled pre-start failures
+are covered by job settlement. Native macOS/Linux delivery and crash recovery remain unverified.
 
 ## Release and recovery
 
@@ -86,4 +102,4 @@ notification titles, messages and targets remain. After publication, older targe
 the new scheduled-task target. Do not downgrade that database in place; use a verified pre-upgrade backup
 through the existing backup/restore flow, with explicit acceptance of losing changes since that backup.
 Do not drop or rewrite user tables. Native application downgrade and recovery after an interrupted write
-remain unverified; this PR does not activate a runtime producer.
+remain unverified; runtime failures are now published by the stream and job adapters.
