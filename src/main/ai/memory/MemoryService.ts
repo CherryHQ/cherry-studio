@@ -79,11 +79,16 @@ export class MemoryService extends BaseService {
         return authority.assertAuthorized()
       }
     }
-    const run = <T>(operation: (store: MemoryStore) => Promise<T>): Promise<T> =>
+    const run = <T>(operation: (store: MemoryStore) => Promise<T>, recovery = false): Promise<T> =>
       this.work.track(
         (async () => {
           access.assertAuthorized()
-          if (scope.kind === 'private' && source !== 'migration' && !(await this.prepareAgent(scope.agentId)))
+          if (
+            !recovery &&
+            scope.kind === 'private' &&
+            source !== 'migration' &&
+            !(await this.prepareAgent(scope.agentId))
+          )
             throw new Error('Private memory migration is incomplete; original FACT content is retained')
           const store = await this.getStore(scope)
           access.assertAuthorized()
@@ -110,12 +115,12 @@ export class MemoryService extends BaseService {
           this.invalidated.fire(scope)
           return notify('clear', await store.clear(access, token, approve))
         }),
-      previewRecovery: () => run((store) => store.previewRecovery(access)),
+      previewRecovery: () => run((store) => store.previewRecovery(access), true),
       recover: (token, approve) =>
         run(async (store) => {
           this.invalidated.fire(scope)
           return notify('recovery', await store.recover(access, token, approve))
-        })
+        }, true)
     }
   }
 

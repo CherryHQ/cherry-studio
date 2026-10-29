@@ -52,6 +52,11 @@ export class MemoryMigrationService extends BaseService {
   protected onStart(): void {
     this.stopped = false
     this.failed.clear()
+    this.registerDisposable(
+      application.get('MemoryService').onChanged(({ scope, source }) => {
+        if (scope.kind === 'private' && source === 'recovery') this.failed.delete(scope.agentId)
+      })
+    )
   }
 
   retryFromEditor(agentId: string): void {
