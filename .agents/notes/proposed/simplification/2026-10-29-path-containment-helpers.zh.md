@@ -37,13 +37,13 @@ Status: proposed
 包含判断分两类：路径在根目录内时，要么因此**放行**某件事，要么因此**拒绝**某件事。两类需要不同的大小写处理，所以每个调用点按自己的类别选择比较方式：
 
 - **在内就拒绝**的守卫（不把备份放进 userData、不删除包含 userData 的目录、不把数据迁到源目录里）在 macOS 和 Windows 上做大小写折叠。把大小写变体当作同一目录，只会让它们拒绝得更多。
-- **在内就放行**的守卫（发送方页面属于应用包、文件操作不越出允许基目录、二进制属于 Cherry 的安装、产物属于 fork）做精确比较。在大小写敏感的卷上，名字只差大小写的同级目录是另一个目录，这次重构不能开始信任它。
+- **在内就放行**的守卫（发送方页面属于应用包、文件操作不越出允许基目录、二进制属于 Cherry 的安装、产物属于 fork）在 macOS 和 Linux 上做精确比较。在大小写敏感的卷上，名字只差大小写的同级目录是另一个目录，这次重构不能开始信任它。
 
 两类都使用 `@main/utils/file` 已经导出的原语。它们都只把 `..` 作为完整路径段匹配，且容器都是第二个参数（`path.relative` 按 Node 自身的签名把容器放在第一个）：
 
 - `isPathInside(child, parent)`：严格后代，做大小写折叠。
 - `isSameOrInside(candidate, container)`：相等或后代，做大小写折叠。
-- `!isOutsidePath(path.relative(container, candidate))`：相等或后代，精确比较。`path.relative` 会解析两个路径；在 Windows 上 `path.win32.relative` 本身就忽略大小写，所以那里的行为不变。
+- `!isOutsidePath(path.relative(container, candidate))`：相等或后代。`path.relative` 会解析两个路径，并在 macOS 和 Linux 上精确比较。在 Windows 上 `path.win32.relative` 忽略大小写。这与默认的 NTFS 一致，在那里大小写变体指向同一个目录；这些守卫现在也是这样判断的，所以 Windows 上的行为不变。
 
 删除这些副本，调用方按下表迁移：
 
@@ -97,7 +97,7 @@ Status: proposed
 - AC1 — `src/main` 中除 `@main/utils/file` 的 `isPathInside`、`isSameOrInside`、`isOutsidePath` 以及提案中列出的三个局部函数外，不再定义路径包含判断函数；每个迁移过的调用点都使用其类别要求的比较方式，见提案中的表格。 (verification: typecheck + review)
 - AC2 — `isPathInside` 和 `isSameOrInside` 把 `<root>/..x` 视为在内，二者只在路径相等时结果不同（分别为 `false` 和 `true`），并且在 macOS 和 Windows 上把根目录的大小写变体视为根目录本身。 (verification: unit)
 - AC3 — 无论是设置页经由 `App_IsPathInside`，还是自动备份校验，当本地备份目录等于应用数据目录或安装目录、位于其内（包括 `..x` 子项）、或在 macOS 和 Windows 上是其大小写变体时，都会被拒绝。 (verification: unit)
-- AC4 — 发送方 URL 校验在所有主机上都拒绝位于「名字与应用根目录只差大小写」的同级目录下的 `file:` URL，并接受位于应用根目录 `..x` 子项下的 URL。 (verification: unit)
+- AC4 — 在 macOS 和 Linux 上，发送方 URL 校验拒绝位于「名字与应用根目录只差大小写」的同级目录下的 `file:` URL；在所有主机上，它都接受位于应用根目录 `..x` 子项下的 URL，且 Windows 上的大小写处理不变。 (verification: unit)
 - AC5 — 对普通的在内、在外和相等输入，数据迁移校验、发送方 URL 校验、二进制归属、Python 运行时查找、缓存清理和 agents 文件系统迁移的判断结果与之前相同，由它们已有的测试断言。 (verification: unit)
 - AC6 — fork 发布会拒绝来源位于 fork 产物目录之外的产物，并发布位于其内的产物。 (verification: unit)
 - AC7 — `moveToTrash` 会拒绝经由 `..` 前缀路径段落在受保护目录下的目标（`/usr/..x/foo`、`~/.ssh/..x`），并在 darwin 上拒绝受保护目录的大小写变体（`/USR/bin`、`~/LIBRARY/x`）；普通工作区目标仍然允许，win32 上不含 `..` 前缀路径段的路径结果不变。 (verification: unit)
@@ -106,5 +106,6 @@ Status: proposed
 
 - 放行类调用点保持精确比较，所以在默认大小写不敏感的卷上，它们仍会拒绝一个确实在内、但拼写的大小写不同的路径。这是现有行为，属于失败时关闭；调用方传入的是 realpath 或由根目录拼出的路径，拼写与根目录一致。
 - `binaryEnv` 的调用点和 fork 检查的参数顺序会变：精确形式里容器是 `path.relative` 的第一个参数。所有参数都是 `string`，类型检查抓不到写反的调用。`BinaryManager` 和 `pythonRuntime` 的测试覆盖了前者；fork 归属目前没有测试，所以 AC6 新增一条。
+- 在 Windows 上，如果某个目录开启了按目录区分大小写（例如与 WSL 共享的目录），放行类守卫仍会信任只差大小写的同级目录。现有代码的行为相同，而默认的 NTFS 卷不区分大小写。
 - 每个调用点都要按类别归类，归错会放宽或收紧那一个守卫。提案中的表格记录了每处的归类，方便评审逐项核对。
 - 第 1 层大约改动十六个文件，大部分是 import 和调用点变更。第 2 层只涉及 `moveToTrash.ts` 及其测试。

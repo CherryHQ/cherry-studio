@@ -37,13 +37,13 @@ The remaining divergences fail closed: they reject paths that are actually insid
 A containment check either grants something when the path is inside a root, or withholds something when it is. The two kinds need different case handling, so each call site uses the comparison that matches its kind:
 
 - **Refuse-if-inside** guards (do not back up into userData, do not delete a directory holding userData, do not relocate into the source) fold case on macOS and Windows. Treating a case variant as the same directory can only make them refuse more.
-- **Allow-if-inside** guards (a sender page belongs to the app bundle, a file operation stays under its allowed base, a binary belongs to Cherry's install, an artifact belongs to the fork) compare exactly. On a case-sensitive volume, a sibling whose name differs only in case is a different directory, and this refactor must not start trusting it.
+- **Allow-if-inside** guards (a sender page belongs to the app bundle, a file operation stays under its allowed base, a binary belongs to Cherry's install, an artifact belongs to the fork) compare exactly on macOS and Linux. On a case-sensitive volume, a sibling whose name differs only in case is a different directory, and this refactor must not start trusting it.
 
 Both kinds use primitives already exported from `@main/utils/file`. All of them match `..` only as a whole segment, and all of them take the container as the second argument (`path.relative` takes it first by Node's own signature):
 
 - `isPathInside(child, parent)`: strict descendant, with case folding.
 - `isSameOrInside(candidate, container)`: equal or descendant, with case folding.
-- `!isOutsidePath(path.relative(container, candidate))`: equal or descendant, compared exactly. `path.relative` resolves both paths. On Windows, `path.win32.relative` already ignores case, so behavior there is unchanged.
+- `!isOutsidePath(path.relative(container, candidate))`: equal or descendant. `path.relative` resolves both paths and compares them exactly on macOS and Linux. On Windows, `path.win32.relative` ignores case. That matches default NTFS, where a case variant names the same directory, and it is what these guards do today, so Windows behavior is unchanged.
 
 The duplicates are removed and their callers are migrated as follows:
 
@@ -97,7 +97,7 @@ Out of scope:
 - AC1 — `src/main` defines no path containment predicate other than `isPathInside`, `isSameOrInside`, and `isOutsidePath` in `@main/utils/file` and the three local predicates named in the Proposal; every migrated call site uses the comparison its kind requires, as listed in the Proposal table. (verification: typecheck + review)
 - AC2 — `isPathInside` and `isSameOrInside` treat `<root>/..x` as inside, disagree only on equal paths (`false` and `true`), and treat a case variant of the root as the root on macOS and Windows. (verification: unit)
 - AC3 — A local backup directory is refused, both from the settings page through `App_IsPathInside` and in automatic backup validation, when it equals the app data or install directory, lies inside it (including a `..x` child), or is a case variant of it on macOS or Windows. (verification: unit)
-- AC4 — Sender URL validation rejects a `file:` URL under a sibling directory whose name differs from the app root only in case, on every host, and accepts one under a `..x` child of the app root. (verification: unit)
+- AC4 — On macOS and Linux, sender URL validation rejects a `file:` URL under a sibling directory whose name differs from the app root only in case; on every host it accepts one under a `..x` child of the app root, and Windows case handling is unchanged. (verification: unit)
 - AC5 — For ordinary inside, outside, and equal inputs, data relocation validation, sender URL validation, binary ownership, Python runtime lookup, cache cleanup, and the agents filesystem migration make the same decision as before, as asserted by their existing tests. (verification: unit)
 - AC6 — Fork publication refuses an artifact whose source is outside the fork artifact directory and publishes one inside it. (verification: unit)
 - AC7 — `moveToTrash` refuses a target reached through a `..`-prefixed segment under a protected directory (`/usr/..x/foo`, `~/.ssh/..x`) and, on darwin, a case variant of a protected directory (`/USR/bin`, `~/LIBRARY/x`), while ordinary workspace targets are still allowed and win32 results for paths without a `..`-prefixed segment are unchanged. (verification: unit)
@@ -106,5 +106,6 @@ Out of scope:
 
 - Allow-kind sites keep exact comparison, so on a default case-insensitive volume they still reject a case-variant spelling of a path that really is inside. That is today's behavior and fails closed. Callers pass realpaths or paths built from the root, which already share its spelling.
 - The argument order changes at the `binaryEnv` call sites and the fork check. In the exact form, the container is the first argument of `path.relative`. Every argument is a `string`, so the type checker cannot catch a reversed call. `BinaryManager` and `pythonRuntime` tests cover the first; fork ownership has no test today, which is why AC6 adds one.
+- On Windows, a directory with per-directory case sensitivity enabled (for example, one shared with WSL) still lets an allow-kind guard trust a case-variant sibling. Today's code behaves the same way, and default NTFS volumes are case-insensitive.
 - Each call site has to be classified by kind, and a wrong classification widens or narrows that one guard. The Proposal table records each classification so review can check it.
 - Layer 1 touches about sixteen files, mostly import and call-site changes. Layer 2 is limited to `moveToTrash.ts` and its test.
