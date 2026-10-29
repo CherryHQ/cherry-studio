@@ -74,11 +74,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
-  // The notes root the active selection belongs to, recorded while the
-  // selection resolves under the live root. Pairwise-valid migration chains
-  // can contain overlapping roots (A -> B -> A/nested -> C), so the owning
-  // root cannot be recovered from the path alone - persist it with the
-  // selection instead of inferring it later.
+  // The notes root the active selection belongs to, remembered alongside the
+  // selection (per-window memory, same tier as the selection itself) while it
+  // resolves under the live root. Pairwise-valid migration chains can contain
+  // overlapping roots (A -> B -> A/nested -> C), so the owning root cannot be
+  // recovered from the path alone - remember it with the selection instead of
+  // inferring it later.
   const [activeFileRoot, setActiveFileRoot] = useCache('notes.active_file_root')
   const voiceNoteId = useMemo(() => (activeFilePath ? crypto.randomUUID() : undefined), [activeFilePath])
   const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()

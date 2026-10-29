@@ -917,9 +917,9 @@ describe('NotesPage print payloads', () => {
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
   })
 
-  it('maps a persisted selection from its recorded root on a live-root mount when both candidate notes exist', async () => {
+  it('maps a remembered selection from its recorded root on a live-root mount when both candidate notes exist', async () => {
     // Settings migration ran while this page was unmounted: the window mounts
-    // already at the live root, with only the persisted selection + its
+    // already at the live root, with only the remembered selection + its
     // recorded owning root to go on. Both candidate notes exist, so a
     // prefix guess would silently open the wrong one.
     cacheService.setShared('notes.directory_root_transition', {
@@ -940,7 +940,7 @@ describe('NotesPage print payloads', () => {
   })
 
   it('clears rather than guess when historical roots overlap and no owning root is recorded', async () => {
-    // Legacy persisted selection without a recorded root, mounting at the
+    // Legacy remembered selection without a recorded root, mounting at the
     // live root: two chain roots contain the path and both candidate notes
     // exist, so no mapping is safe - the selection must clear, not follow a
     // guess.
@@ -954,7 +954,7 @@ describe('NotesPage print payloads', () => {
       { ...mocks.noteNode, id: '/c/note.md', externalPath: '/c/note.md', treePath: '/note' },
       { ...mocks.noteNode, id: '/c/nested/note.md', externalPath: '/c/nested/note.md', treePath: '/nested/note' }
     ]
-    // No node resolves the persisted selection, so the editor never loads -
+    // No node resolves the remembered selection, so the editor never loads -
     // render directly instead of waiting for readiness.
     render(<NotesPage />)
 

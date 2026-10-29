@@ -155,6 +155,7 @@ export type UseCacheSchema = {
 
   // Notes page state
   'notes.active_file_path': AbsoluteFilePath | undefined
+  'notes.active_file_root': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.detected_region': MiniAppRegion | null
@@ -250,6 +251,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
+  'notes.active_file_root': undefined,
 
   // MiniApp management
   'mini_app.detected_region': null,
