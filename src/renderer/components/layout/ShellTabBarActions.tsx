@@ -74,7 +74,7 @@ function TabBarUserMenu({ onFeedbackClick }: { onFeedbackClick: () => void }) {
             variant="ghost"
             size="icon"
             aria-label={t('sidebar.account_menu')}
-            className="ml-0.5 flex size-8 items-center justify-center rounded-md">
+            className="ml-0.5 flex size-8 items-center justify-center rounded-md data-[state=open]:bg-accent">
             <UserAvatar user={{ name: userName || t('chat.user'), avatar }} className="size-5.5" />
           </Button>
         </PopoverTrigger>
@@ -88,7 +88,7 @@ function TabBarUserMenu({ onFeedbackClick }: { onFeedbackClick: () => void }) {
         onOpenAutoFocus={(event) => {
           if (openedByPointerRef.current) event.preventDefault()
         }}>
-        <UserAccountPanel active={open} onRequestClose={closeMenu}>
+        <UserAccountPanel onRequestClose={closeMenu}>
           <HelpMenu onFeedbackClick={onFeedbackClick} onRequestClose={closeMenu} />
         </UserAccountPanel>
       </PopoverContent>

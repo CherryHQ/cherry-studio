@@ -12,9 +12,11 @@ Closing the avatar menu unmounts its account panel. Reopening reset both account
 
 Account status uses the renderer's in-memory SWR cache. Status events and completed login actions update that cache; SWR mutation ordering prevents an older status read from replacing a newer event. A known status remains ready during background refresh.
 
+Account queries follow the panel's mounted lifetime, including the popover's exit animation. Closing the menu does not clear its query keys before the content unmounts.
+
 The sidebar keeps the status observer mounted and prepares subscription data before the menu opens. The panel and subscription settings share the existing account-plans key, which includes the account ID. Changing accounts selects another cache entry, even when display names match; a previous account's late response cannot populate the new entry. Known plans remain visible during refresh. Initial failures without cached data remain retryable.
 
-The subscription row keeps its functional label on the left and displays the paid plan or subscription action on the right. Cache entries contain display data, not credentials, and do not persist across renderer restarts.
+For an active paid plan, the header subtitle displays the plan name and the menu row displays usage with the lowest remaining percentage across its quota windows. Overlapping limits are not added together; a missing quota shows the existing no-quota message. The row opens the complete usage details. Accounts without an active paid plan retain the subscribe action. Cache entries contain display data, not credentials, and do not persist across renderer restarts.
 
 ## Alternatives considered
 
@@ -30,4 +32,5 @@ Cached data can remain visible while a refresh is pending or fails. Status event
 
 - Regression — `src/renderer/hooks/__tests__/useCherryAccountSession.test.ts`: remount and pending refresh preserve a known session; an older request cannot replace a newer status event.
 - Regression — `src/renderer/components/__tests__/UserAccountPanel.test.tsx`: reopening preserves cached identity and plan until refresh completes; account changes clear the previous plan, including matching display names and late responses; initial failures remain retryable.
+- Regression — `src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx`: closing the account menu preserves the subscription action throughout the exit animation.
 - Consumers — focused renderer tests for Sidebar, SubscriptionSettings and OnboardingPage pass with the cached session hook.

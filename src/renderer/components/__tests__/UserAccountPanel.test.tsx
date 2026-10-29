@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type PropsWithChildren, type ReactElement, useState } from 'react'
 import { SWRConfig } from 'swr'
@@ -56,7 +56,24 @@ function paidPlans(name: string): CherryCloudAccountPlans {
         },
         state: 'active',
         starts_at: '2026-09-01T00:00:00Z',
-        quota_pools: []
+        quota_pools: [
+          {
+            allocation_id: '55555555-5555-4555-8555-555555555555',
+            display_name: 'Plan quota',
+            measurement_kind: 'requests',
+            model_ids: ['test-model'],
+            windows: [
+              {
+                window_type: 'rolling',
+                duration_seconds: 604800,
+                limit_units: 100,
+                used_units: 21,
+                active_reserved_units: 0,
+                remaining_units: 79
+              }
+            ]
+          }
+        ]
       }
     ]
   }
@@ -87,6 +104,51 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe('UserAccountPanel', () => {
+  it('keeps the account entry label while loading and after signing out', async () => {
+    const pendingStatus = deferred<{ ok: true; data: CherryCloudStatus }>()
+    request.mockImplementation(() => pendingStatus.promise)
+    renderAccount(<UserAccountPanel />)
+
+    const header = screen.getByRole('button', { name: '用户名' })
+    expect(within(header).getByText('个人信息')).toBeVisible()
+    await act(async () =>
+      pendingStatus.resolve({ ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } })
+    )
+
+    expect(await screen.findByRole('button', { name: /去订阅/ })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+    expect(within(header).getByText('个人信息')).toBeVisible()
+    expect(within(header).queryByText('Cherry Cloud')).not.toBeInTheDocument()
+  })
+
+  it('keeps account status errors separate from the account entry label', async () => {
+    request.mockResolvedValue({ ok: false, error: { code: 'INTERNAL', message: 'failed' } })
+    renderAccount(<UserAccountPanel />)
+
+    await screen.findByRole('button', { name: '重试' })
+    const header = screen.getByRole('button', { name: '用户名' })
+    expect(within(header).getByText('个人信息')).toBeVisible()
+    expect(within(header).getByRole('alert')).toBeVisible()
+  })
+
+  it('uses the account entry label when the signed-in account has no display name', async () => {
+    session = { ...session, displayName: null }
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByText('已登录')).toBeVisible()
+    expect(within(screen.getByRole('button', { name: '用户名' })).getByText('个人信息')).toBeVisible()
+  })
+
+  it('prefers the local nickname and shows the cloud identity separately', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Local nickname')
+    renderAccount(<UserAccountPanel />)
+
+    await screen.findByText(session.displayName!)
+    const header = screen.getByRole('button', { name: '用户名' })
+    expect(within(header).getByText('Local nickname')).toBeVisible()
+    expect(within(header).getByText(session.displayName!)).toBeVisible()
+  })
+
   it('places help below appearance and keeps settings as the last menu action', () => {
     renderAccount(
       <UserAccountPanel>
@@ -129,6 +191,7 @@ describe('UserAccountPanel', () => {
 
     expect(await screen.findByText('c***@cherry-ai.com')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent('c***@cherry-ai.com')
+    expect(within(screen.getByRole('button', { name: '用户名' })).getByText('个人信息')).toBeVisible()
     expect(screen.getAllByText('c***@cherry-ai.com')).toHaveLength(1)
     expect(screen.queryByText('输入您的姓名')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '退出登录' })).not.toBeInTheDocument()
@@ -173,6 +236,7 @@ describe('UserAccountPanel', () => {
 
     renderAccount(<UserAccountPanel />)
 
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: /去订阅/ }))
 
     expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
@@ -211,13 +275,16 @@ describe('UserAccountPanel', () => {
     )
   })
 
-  it('shows the server plan name and opens in-app usage for a paid plan', async () => {
+  it('shows the plan below the nickname and opens in-app usage with the remaining quota', async () => {
     plans = paidPlans('API Plan 2026')
     const user = userEvent.setup()
 
     renderAccount(<UserAccountPanel />)
 
-    await user.click(await screen.findByRole('button', { name: /订阅.*API Plan 2026/ }))
+    const usage = await screen.findByRole('button', { name: '用量 剩余 79%' })
+    expect(within(screen.getByRole('button', { name: '用户名' })).getByText('API Plan 2026')).toBeVisible()
+    expect(screen.queryByText(session.displayName!)).not.toBeInTheDocument()
+    await user.click(usage)
 
     expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
     expect(request).not.toHaveBeenCalledWith(
@@ -226,10 +293,41 @@ describe('UserAccountPanel', () => {
     )
   })
 
+  it('shows the tightest remaining limit instead of adding overlapping quota windows', async () => {
+    plans = paidPlans('Pro')
+    plans.entitlements[0].quota_pools[0].windows.push({
+      window_type: 'calendar_day',
+      duration_seconds: 86400,
+      limit_units: 20,
+      used_units: 13,
+      active_reserved_units: 2,
+      remaining_units: 5
+    })
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByRole('button', { name: '用量 剩余 25%' })).toBeEnabled()
+  })
+
+  it('shows zero remaining when a quota window is exhausted', async () => {
+    plans = paidPlans('Pro')
+    plans.entitlements[0].quota_pools[0].windows[0].remaining_units = 0
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByRole('button', { name: '用量 剩余 0%' })).toBeEnabled()
+  })
+
+  it('keeps usage details accessible without inventing a percentage when no quota is configured', async () => {
+    plans = paidPlans('Pro')
+    plans.entitlements[0].quota_pools = []
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByRole('button', { name: '用量 未配置额度' })).toBeEnabled()
+  })
+
   it('keeps cached account and plan details visible while reopening refreshes them', async () => {
     plans = paidPlans('Flash')
     const first = renderAccount(<UserAccountPanel />)
-    expect(await screen.findByRole('button', { name: /订阅.*Flash/ })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '用量 剩余 79%' })).toBeEnabled()
     first.unmount()
 
     const pendingStatus = deferred<{ ok: true; data: CherryCloudStatus }>()
@@ -241,8 +339,8 @@ describe('UserAccountPanel', () => {
     })
     renderAccount(<UserAccountPanel />)
 
-    expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent(session.displayName!)
-    expect(screen.getByRole('button', { name: /订阅.*Flash/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent('Flash')
+    expect(screen.getByRole('button', { name: '用量 剩余 79%' })).toBeEnabled()
     expect(screen.queryByText('加载中...')).not.toBeInTheDocument()
     await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
     await act(async () => {
@@ -250,7 +348,7 @@ describe('UserAccountPanel', () => {
       pendingPlans.resolve({ ok: true, data: paidPlans('Flash Plus') })
     })
 
-    expect(await screen.findByRole('button', { name: /订阅.*Flash Plus/ })).toBeEnabled()
+    expect(await screen.findByText('Flash Plus')).toBeVisible()
   })
 
   it('drops a previous account plan immediately and ignores its late response after switching accounts', async () => {
@@ -275,13 +373,13 @@ describe('UserAccountPanel', () => {
     await act(async () => previousPlans.resolve({ ok: true, data: paidPlans('Old Plan') }))
     expect(screen.queryByText('Old Plan')).not.toBeInTheDocument()
     await act(async () => nextPlans.resolve({ ok: true, data: paidPlans('New Plan') }))
-    expect(await screen.findByRole('button', { name: /订阅.*New Plan/ })).toBeEnabled()
+    expect(await screen.findByText('New Plan')).toBeVisible()
   })
 
   it('does not reuse a cached plan for another account with the same display name', async () => {
     plans = paidPlans('Old Plan')
     renderAccount(<UserAccountPanel />)
-    await screen.findByRole('button', { name: /订阅.*Old Plan/ })
+    await screen.findByText('Old Plan')
     const pendingPlans = deferred<{ ok: true; data: CherryCloudAccountPlans }>()
     request.mockImplementation(() => pendingPlans.promise)
     const listener = vi
@@ -292,7 +390,7 @@ describe('UserAccountPanel', () => {
     expect(screen.queryByText('Old Plan')).not.toBeInTheDocument()
     await act(async () => pendingPlans.resolve({ ok: true, data: paidPlans('New Plan') }))
 
-    expect(await screen.findByRole('button', { name: /订阅.*New Plan/ })).toBeEnabled()
+    expect(await screen.findByText('New Plan')).toBeVisible()
   })
 
   it('does not label a failed plan lookup as unsubscribed and lets the user retry', async () => {

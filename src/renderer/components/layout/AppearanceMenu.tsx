@@ -31,8 +31,10 @@ export function AppearanceMenu({ onRequestClose }: { onRequestClose?: () => void
           className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5">
           <CurrentThemeIcon className="!text-muted-foreground size-4" aria-hidden />
           <span className="min-w-0 flex-1 truncate text-left">{t('settings.appearance.title')}</span>
-          <span className="shrink-0 text-muted-foreground">{labels[settedTheme]}</span>
-          <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+          <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+            <span>{labels[settedTheme]}</span>
+            <ChevronRight className="size-4" aria-hidden />
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent

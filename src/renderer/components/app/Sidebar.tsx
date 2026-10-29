@@ -145,7 +145,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           if (userMenuOpenedByPointerRef.current) event.preventDefault()
         }}
         onClick={(event) => event.stopPropagation()}>
-        <UserAccountPanel active={userMenuOpen} onRequestClose={() => handleUserMenuOpenChange(false)}>
+        <UserAccountPanel onRequestClose={() => handleUserMenuOpenChange(false)}>
           <HelpMenu onFeedbackClick={handleOpenFeedback} onRequestClose={() => handleUserMenuOpenChange(false)} />
         </UserAccountPanel>
       </PopoverContent>

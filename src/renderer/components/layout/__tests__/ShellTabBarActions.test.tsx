@@ -4,7 +4,8 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SWRConfig } from 'swr'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 
@@ -185,6 +186,39 @@ describe('ShellTabBarActions', () => {
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
     expect(screen.queryByRole('dialog', { name: 'Account menu' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the subscription action visible throughout the account menu exit animation', async () => {
+    const getComputedStyle = window.getComputedStyle
+    const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+      const style = getComputedStyle(element, pseudo)
+      if (element.getAttribute('role') !== 'dialog') return style
+      // jsdom needs animation metadata for Radix Presence to retain closing content.
+      return Object.defineProperty(style, 'animationName', {
+        get: () => (element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter')
+      })
+    })
+    onTestFinished(() => styleSpy.mockRestore())
+    vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+      ok: true,
+      data: { phase: 'signed-out', accountId: null, displayName: null }
+    })
+    cacheService.setPersist('ui.sidebar.width', 0)
+    const user = userEvent.setup()
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ShellTabBarActions />
+      </SWRConfig>
+    )
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    const menu = screen.getByRole('dialog', { name: 'Account menu' })
+    const subscription = await within(menu).findByRole('button', { name: /settings.subscription.go_to_subscribe/ })
+
+    await user.keyboard('{Escape}')
+
+    expect(menu).toHaveAttribute('data-state', 'closed')
+    expect(subscription).toHaveTextContent('settings.subscription.go_to_subscribe')
+    expect(subscription).toBeEnabled()
   })
   it('opens feedback from the avatar menu and gives the dialog focus', async () => {
     cacheService.setPersist('ui.sidebar.width', 0)

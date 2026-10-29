@@ -68,7 +68,7 @@ export function HelpMenu({
       className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5">
       <CircleQuestionMark className="!text-muted-foreground size-4" aria-hidden />
       <span className="min-w-0 flex-1 truncate text-left">{t('help.title')}</span>
-      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+      <ChevronRight className="!text-muted-foreground size-4" aria-hidden />
     </Button>
   )
 
