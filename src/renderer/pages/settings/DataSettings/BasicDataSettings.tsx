@@ -318,6 +318,12 @@ const BasicDataSettings: React.FC = () => {
               <FolderOpen size={14} />
               {t('settings.general.restore.button')}
             </Button>
+            <Button
+              data-ui="settings.data.action.export-configuration"
+              onClick={() => BackupPopup.show({ scope: 'configuration' })}
+              variant="outline">
+              {t('settings.data.backup.configuration.button')}
+            </Button>
           </RowFlex>
         </SettingRow>
         <SettingDivider />

@@ -3,6 +3,9 @@ import { formatFileSize } from '@renderer/utils/file'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
+  BACKUP_CONFIGURATION_CONFLICT,
+  BACKUP_CONFIGURATION_INCOMPATIBLE,
+  BACKUP_CONFIGURATION_INVALID,
   BACKUP_DISK_FULL_ERROR_CODE,
   BACKUP_NEWER_VERSION_ERROR_CODE,
   BACKUP_OPERATION_BUSY_ERROR_CODE,
@@ -42,12 +45,19 @@ type BackupMessageKey =
   | 'backup.error.disk_full'
   | 'backup.error.newer_version'
   | 'backup.error.operation_busy'
+  | 'backup.error.configuration_invalid'
+  | 'backup.error.configuration_incompatible'
+  | 'backup.error.configuration_conflict'
+  | 'backup.error.webdav_too_large'
   | 'backup.error.webdav_tls_certificate'
 
-function resolveBackupErrorKey(error: unknown): string | null {
+function resolveBackupErrorKey(error: unknown): BackupMessageKey | null {
   if (!(error instanceof Error)) {
     return null
   }
+  if (error.message.includes(BACKUP_CONFIGURATION_INVALID)) return 'backup.error.configuration_invalid'
+  if (error.message.includes(BACKUP_CONFIGURATION_INCOMPATIBLE)) return 'backup.error.configuration_incompatible'
+  if (error.message.includes(BACKUP_CONFIGURATION_CONFLICT)) return 'backup.error.configuration_conflict'
   if (error.message.includes(BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE)) {
     return 'backup.error.webdav_too_large'
   }

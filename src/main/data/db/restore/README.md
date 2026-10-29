@@ -1,7 +1,13 @@
 # DB Restore Promotion
 
 Offline-merge + preboot-promotion primitives for the backup restore flow.
-The backup pipeline imports backup rows into a detached `work.sqlite` (a `VACUUM INTO` copy of live), stages file resources, writes a `staged` journal, and relaunches; the preboot promotion gate then swaps `work.sqlite` in by atomic rename during the zero-connection window. The live DB is never written during a restore.
+For full/slim restore, the backup pipeline imports backup rows into a detached `work.sqlite`
+(a `VACUUM INTO` copy of live), stages file resources, writes a `staged` journal, and relaunches;
+the preboot promotion gate then swaps `work.sqlite` in by atomic rename during the
+zero-connection window. The live DB is never written during a full/slim restore.
+Configuration restore validates a JSON payload and applies additive upserts to the live DB
+inside one `DbService.withWriteTx` transaction, creating no journal, `work.sqlite`, staging
+tree, or aside file.
 
 Before Sentry initialization or asynchronous preboot work, active restores redirect Chromium's `sessionData` to a temporary directory under `feature.backup.restore.session`. This prevents session initialization from opening `Local Storage` while promotion replaces it. The isolated launch consumes the terminal journal and relaunches without bootstrapping; the next normal launch cleans up the temporary session and opens the restored profile. An unresolved journal stops the isolated launch rather than triggering an automatic relaunch loop.
 
@@ -16,6 +22,7 @@ Before Sentry initialization or asynchronous preboot work, active restores redir
 | `hashDbFile.ts` | `hashDbFile` | Streaming sha256 of the DB main file — shared by both fingerprint sides |
 | `snapshot.ts` | `snapshotTo` | `VACUUM INTO` snapshot (produces the merge base `work.sqlite`) |
 | `appliedChain.ts` | `readAppliedChain` | The only legitimate source of a journal's `chain` |
+| `configurationBackup.ts` | `captureConfiguration`, `validateConfigurationPayload`, `applyConfigurationTx` | Configuration payload capture, validation, and additive merge |
 
 `DbService.createSnapshot` / `DbService.checkpointTruncate` are readiness guards delegating to `snapshotTo` / `checkpointTruncateAssert` on the live connection.
 
@@ -44,6 +51,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 | Terminal-journal deletion (after the stranded-DB check) | Preboot gate shell |
 | Quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) GC | BackupService (kept for forensics, alongside terminal journals) |
 | Undo-aside retention/GC | BackupService |
+| Configuration payload validation / additive merge | `configurationBackup.ts` |
 
 ## Writer requirements (staging side)
 
