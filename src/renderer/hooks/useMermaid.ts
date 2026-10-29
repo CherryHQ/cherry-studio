@@ -50,7 +50,8 @@ export const useMermaid = () => {
 
         mermaid.initialize({
           startOnLoad: false, // 禁用自动启动
-          theme: theme === ThemeMode.dark ? 'dark' : 'default'
+          theme: theme === ThemeMode.dark ? 'dark' : 'default',
+          htmlLabels: false
         })
 
         setForceRenderKey((prev) => prev + 1)
