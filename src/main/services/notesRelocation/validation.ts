@@ -66,6 +66,18 @@ export function resolveExistingAncestor(value: string): { path: string; effectiv
   return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
 }
 
+/**
+ * The canonical default notes directory - the root an UNSET preference means.
+ * Reset to Default persists this path explicitly, and custom-target
+ * validation rejects it as protected, so callers need this identity check
+ * before applying custom-target rules to an explicit value.
+ */
+export function isDefaultNotesDirectory(dirPath: string): boolean {
+  const physical = normalizeForCompare(realPath(dirPath))
+  const defaultNotesDir = normalizeForCompare(realPath(application.getPath('feature.notes.data')))
+  return physical === defaultNotesDir
+}
+
 export function isAllowedNotesDirectory(dirPath: string): boolean {
   try {
     assertNotesTargetDirectory(dirPath)

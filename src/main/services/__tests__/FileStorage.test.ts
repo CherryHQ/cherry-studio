@@ -181,11 +181,34 @@ describe('FileStorage', () => {
 
     afterEach(() => {
       fs.rmSync(tmpFile, { force: true })
+      releaseNotesMigrationSession()
+      clearNotesMigrationPairsForTests()
+      MockApplicationUtils.resetServices()
     })
 
     it('writes the given content', async () => {
       await fileStorage.writeFile(event, tmpFile, 'content')
       expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
+    })
+
+    it('rejects a stale write settling under a retired notes root', async () => {
+      // The renderer's legacy browser-File import awaits file.text() between
+      // admission and this write; a migration A->B can complete in that gap.
+      // The late write must fail loudly (truthful failedFiles) instead of
+      // landing only in the retired tree while the import reports success.
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-ret-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-ret-tgt-'))
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: target, provenance: 'cache' }))
+      })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await expect(fileStorage.writeFile(event, path.join(source, 'note.md'), 'content')).rejects.toThrow(/relocated/)
+      expect(fs.existsSync(path.join(source, 'note.md'))).toBe(false)
+      await fileStorage.writeFile(event, path.join(target, 'note.md'), 'content')
+      expect(fs.readFileSync(path.join(target, 'note.md'), 'utf-8')).toBe('content')
     })
   })
 

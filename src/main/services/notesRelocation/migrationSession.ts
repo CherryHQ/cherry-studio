@@ -7,7 +7,7 @@ import { isMac, isWin } from '@main/core/platform'
 import type { WindowId } from '@shared/ipc/types'
 
 import { clearRendererMigrationLockBroadcast } from './rendererEditFlush'
-import { isAllowedNotesDirectory, realPath, resolveExistingAncestor } from './validation'
+import { isAllowedNotesDirectory, isDefaultNotesDirectory, realPath, resolveExistingAncestor } from './validation'
 
 const logger = loggerService.withContext('NotesRelocation:Session')
 
@@ -150,6 +150,15 @@ function resolveCanonicalNotesRoot(): CanonicalRootResolution {
       return { state: 'resolved', root: realPath(application.getPath('feature.notes.data')) }
     }
     const normalized = path.resolve(raw)
+    // Reset to Default persists the default path EXPLICITLY rather than
+    // clearing the preference. Custom-target validation rejects the default
+    // directory as protected, so without this equivalence an explicit default
+    // classified 'unresolved' and default notes failed path-backed open/write
+    // until restart. Canonicalize it exactly like the unset preference; every
+    // other value still faces the full custom-target rules.
+    if (isDefaultNotesDirectory(normalized)) {
+      return { state: 'resolved', root: realPath(normalized) }
+    }
     if (!isAllowedNotesDirectory(normalized)) {
       return {
         state: 'unresolved',

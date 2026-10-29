@@ -576,6 +576,12 @@ class FileStorage {
     withNotesFilesystemMutation(async () => {
       await assertOutsideManagedStorageMutation(filePath)
       assertNotesPathNotMutatingDuringMigration(filePath)
+      // A raw write admitted before a migration can SETTLE after it (the
+      // renderer's legacy import awaits file.text() between admission and
+      // this call): revalidate against live canonical provenance so a stale
+      // destination in the retired tree fails loudly instead of reporting
+      // success for a note the active library will never see.
+      assertNotesPathNotRetired(filePath)
       await fs.promises.writeFile(filePath, data)
     })
 

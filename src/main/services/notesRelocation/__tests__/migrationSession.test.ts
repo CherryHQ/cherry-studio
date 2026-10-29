@@ -373,6 +373,41 @@ describe('notes migration session', () => {
       expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
     })
 
+    it('canonicalizes an explicit default preference like the affirmative default root', () => {
+      // Reset to Default persists the default path EXPLICITLY instead of
+      // clearing the preference. Custom-target validation rejects the default
+      // directory as protected, so without this equivalence an explicit
+      // default classified 'unresolved' and default notes failed path-backed
+      // open/write until restart.
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      vi.spyOn(application, 'getPath').mockReturnValue(source)
+      mockPreference({ value: source, provenance: 'cache' })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).not.toThrow()
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
+    })
+
+    it('still closes loud for a genuinely invalid custom root under reset equivalence', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-appdata-'))
+      vi.spyOn(application, 'getPath').mockImplementation((key: string) =>
+        key === 'feature.notes.data' ? source : appData
+      )
+      // A protected directory that is NOT the default notes dir stays rejected.
+      mockPreference({ value: appData, provenance: 'cache' })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/cannot be verified/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/cannot be verified/)
+    })
+
     it('retires the source on the write after a late preference flip', () => {
       const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
       const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
