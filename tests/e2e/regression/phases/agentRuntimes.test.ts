@@ -15,10 +15,12 @@ import { scheduledTaskConversation } from '../scenarios/scheduledTaskConversatio
 async function ensureAgentModel(
   app: Parameters<typeof ensureCustomChatProvider>[0],
   page: Parameters<typeof ensureCustomChatProvider>[1]
-): Promise<string> {
-  await ensureCustomChatProvider(app, page)
+): Promise<{ model: string; providerId: string }> {
+  // The provider id scopes every model picker: another enabled provider exposing
+  // the same raw model id must never be selected instead of the configured one.
+  const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
-  return app.config.customProvider.chatModel
+  return { model: app.config.customProvider.chatModel, providerId }
 }
 import { agentMemoryContext } from '../scenarios/agentMemoryContext'
 import { agentPermissionDecisions } from '../scenarios/agentPermissionDecisions'
@@ -32,7 +34,7 @@ import { workspaceLifecycle } from '../scenarios/workspaceLifecycle'
 
 test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   test.setTimeout(10 * 60_000)
-  const modelName = await ensureAgentModel(app, page)
+  const { model: modelName, providerId } = await ensureAgentModel(app, page)
   const assistant = await builtinAssistantAgent(page)
   await startNewAgentTask(page, assistant.name)
 
@@ -43,7 +45,7 @@ test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
     .first()
   await expect(model).toBeVisible()
   await model.click()
-  await selectVisibleModel(page, modelName)
+  await selectVisibleModel(page, modelName, providerId)
   await selectAgentWorkspace(app, page)
 
   const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
@@ -55,9 +57,9 @@ test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
 
 test(...caseDefinition('A-03'), async ({ app, mainWindow: page }) => {
   test.setTimeout(15 * 60_000)
-  const model = await ensureAgentModel(app, page)
+  const { model, providerId } = await ensureAgentModel(app, page)
   const name = 'Cherry Regression Claude Agent 31415'
-  await createAgent(page, { name, permission: 'Full Access', runtime: 'Claude Agent', model })
+  await createAgent(page, { name, permission: 'Full Access', runtime: 'Claude Agent', model, providerId })
   await selectAgentWorkspace(app, page)
   const marker = 'CLAUDE_AGENT_RUNTIME_PASS'
   const agentView = page.locator('[data-ui~="agent.view"]:visible').first()
@@ -75,12 +77,13 @@ test(...caseDefinition('A-03'), async ({ app, mainWindow: page }) => {
 
 test(...caseDefinition('A-04'), async ({ app, mainWindow: page }) => {
   test.setTimeout(15 * 60_000)
-  const model = await ensureAgentModel(app, page)
+  const { model, providerId } = await ensureAgentModel(app, page)
   await createAgent(page, {
     name: 'Pi Regression Agent',
     permission: 'Ask Before Acting',
     runtime: 'Pi',
-    model
+    model,
+    providerId
   })
   await selectAgentWorkspace(app, page)
   await runAgentFileTask(app, page, 'pi-agent-result.txt', true)
@@ -128,8 +131,8 @@ test(...caseDefinition('MP-55'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-56'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(5 * 60_000)
-  const model = await ensureAgentModel(app, page)
-  await interruptAgentTask(app, page, testInfo, model)
+  const { model, providerId } = await ensureAgentModel(app, page)
+  await interruptAgentTask(app, page, testInfo, model, providerId)
 })
 
 test(...caseDefinition('MP-57'), async ({ app, mainWindow }, testInfo) => {

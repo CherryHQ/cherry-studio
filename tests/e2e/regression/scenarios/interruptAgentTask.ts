@@ -16,7 +16,8 @@ export async function interruptAgentTask(
   app: RegressionApp,
   page: Page,
   testInfo: TestInfo,
-  model: string
+  model: string,
+  providerId: string
 ): Promise<void> {
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
@@ -42,7 +43,7 @@ export async function interruptAgentTask(
     .or(view.locator('button:has(span[title*=" | "])'))
     .first()
     .click()
-  await selectVisibleModel(page, model)
+  await selectVisibleModel(page, model, providerId)
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   await composer.press(app.record.platform === 'macos' ? 'Meta+A' : 'Control+A')
   await composer.press('Backspace')
