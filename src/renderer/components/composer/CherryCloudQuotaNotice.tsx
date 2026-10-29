@@ -7,10 +7,6 @@ import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQ
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
-export function getCherryCloudQuotaMessage(exhaustion: CherryCloudQuotaExhaustion, t: (key: string) => string) {
-  return t(exhaustion.isFreeModel ? 'models.detail.free_quota_exhausted' : 'models.detail.quota_exhausted')
-}
-
 /** Sits above the composer input while the current Cherry Cloud model is out of quota. */
 export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloudQuotaExhaustion }) {
   const { t, i18n } = useTranslation()
@@ -25,7 +21,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
       style={{ borderRadius: 16, backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
       <Clock className="size-3.5 shrink-0 text-warning" aria-hidden />
       <div className="min-w-0 flex-1 truncate text-xs text-foreground">
-        {getCherryCloudQuotaMessage(exhaustion, t)}
+        {t(exhaustion.isFreeModel ? 'models.detail.free_quota_exhausted' : 'models.detail.quota_exhausted')}
         {exhaustion.recoversAt ? (
           <span className="ml-1.5 text-muted-foreground">
             {t('settings.subscription.next_recovery', {
