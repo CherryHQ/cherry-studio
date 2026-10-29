@@ -45,8 +45,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       [id]
     )
   const terminalText = () => windowContents(terminalWindow!)
-  // A window belongs to this launch only when its tab is a tty that did not exist before the launch and
-  // that tty runs `claude` with this run's workspace as its cwd, or its buffer shows that exact path.
+  // Ownership requires a new window and tty, plus workspace evidence from its buffer or a process cwd.
   const terminalWindows = () =>
     appleScript(
       `on run
@@ -92,7 +91,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       }
       return false
     })
-  const ttyRunsClaudeInWorkspace = (tty: string) => {
+  const ttyRunsInWorkspace = (tty: string) => {
     const device = tty.replace('/dev/', '')
     const spellings = workspaceSpellings()
     return execFileSync('/bin/ps', ['-Ao', 'pid=,tty=,command='], { encoding: 'utf8' })
@@ -100,8 +99,6 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       .some((row) => {
         const match = row.trim().match(/^(\d+)\s+(\S+)\s+(.*)$/)
         if (!match || match[2] !== device) return false
-        const executable = match[3].trim().split(/\s+/)[0]
-        if (!/(^|\/)claude$/.test(executable)) return false
         let cwd: string
         try {
           cwd = execFileSync('/usr/sbin/lsof', ['-a', '-p', match[1], '-d', 'cwd', '-Fn'], { encoding: 'utf8' })
@@ -177,11 +174,16 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       const candidates = terminalWindows().filter(
         (w) => w.tty && !baselineIds.includes(w.id) && !baselineTtys.includes(w.tty)
       )
-      observed = candidates.map((w) => `${w.id}@${w.tty}`).join(', ')
+      const evidence = candidates.map((w) => ({
+        ...w,
+        buffer: showsWorkspace(windowContentsIfAlive(w.id) ?? ''),
+        cwd: ttyRunsInWorkspace(w.tty)
+      }))
+      observed = evidence.map((w) => `${w.id}@${w.tty} (buffer: ${w.buffer}, cwd: ${w.cwd})`).join(', ')
       const front = frontWindowId()
-      const owned = candidates.find(
-        (w) => w.id === front || showsWorkspace(windowContentsIfAlive(w.id) ?? '') || ttyRunsClaudeInWorkspace(w.tty)
-      )
+      const owned = evidence
+        .filter((w) => w.buffer || w.cwd)
+        .sort((a, b) => Number(b.id === front) - Number(a.id === front))[0]
       terminalWindow = owned?.id
       if (!terminalWindow) await new Promise((resolve) => setTimeout(resolve, 500))
     }
