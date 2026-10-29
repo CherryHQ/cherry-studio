@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-28-heif-chat-images.md
+2026-10-28-heif-chat-images.md: d05e7fedf67ba49837dc39dc951f46907052f4b4
+2026-10-28-heif-chat-images.zh.md: 64078e86c8830fe41e802e9fac4967a613e70ff2

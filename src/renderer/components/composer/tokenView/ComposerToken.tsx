@@ -24,11 +24,13 @@ import {
 } from '@renderer/components/composer/quoteToken'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { useHeifRendition } from '@renderer/hooks/useHeifRendition'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
+import { isHeifImage } from '@renderer/utils/heif'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
@@ -463,8 +465,12 @@ function FileTokenPreviewCard({
   label,
   presentation,
   readOnlyFilePreview,
-  secondaryAction
+  secondaryAction,
+  imageError,
+  imageLoading
 }: {
+  imageError?: string
+  imageLoading?: boolean
   file: ComposerAttachment | undefined
   label: string
   presentation: FileTokenPresentation
@@ -501,12 +507,14 @@ function FileTokenPreviewCard({
     )
   }
 
-  if (hasFailedPreview) {
+  if (imageLoading) return <div role="status">{t('file_preview.loading')}</div>
+
+  if (imageError || hasFailedPreview) {
     return (
       <div
         className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
         data-file-token-image-preview-error="">
-        {t('chat.input.image_preview_failed')}
+        {t(imageError ?? 'chat.input.image_preview_failed')}
       </div>
     )
   }
@@ -827,20 +835,25 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const [blobPreview, setBlobPreview] = useState<{ blob: Blob; url: string }>()
   const blob = file?.blob
   useEffect(() => {
-    if (!blob) return
+    if (!blob || isHeifImage({ source: blob, filename: label })) return
     const url = URL.createObjectURL(blob)
     setBlobPreview({ blob, url })
     return () => URL.revokeObjectURL(url)
-  }, [blob])
-  const presentation = getFileTokenPresentation(
+  }, [blob, label])
+  const rawPresentation = getFileTokenPresentation(
     file,
     label,
     imagePreviewUrl ?? (blobPreview?.blob === blob ? blobPreview?.url : undefined)
   )
+  const heifSource = blob ?? rawPresentation.previewUrl ?? ''
+  const mediaType = readOnlyFilePreview?.mediaType
+  const heif = isHeifImage({ source: heifSource, mediaType, filename: label })
+  const rendition = useHeifRendition(heifSource, mediaType, label)
+  const presentation = heif ? { ...rawPresentation, previewUrl: rendition.url } : rawPresentation
   const openImagePreview = useCallback(() => {
     if (!presentation.previewUrl) return
-    void ImagePreviewService.show(blob ?? presentation.previewUrl)
-  }, [blob, presentation.previewUrl])
+    void ImagePreviewService.show(heif ? presentation.previewUrl : (blob ?? presentation.previewUrl))
+  }, [blob, heif, presentation.previewUrl])
   const activateReadOnlyFilePreview = useCallback(() => {
     if (!readOnlyFilePreview || !onReadOnlyFilePreviewActivate) return
     return onReadOnlyFilePreviewActivate(readOnlyFilePreview, token)
@@ -984,6 +997,8 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           file={file}
           label={label}
           presentation={presentation}
+          imageError={heif ? rendition.error : undefined}
+          imageLoading={heif && rendition.loading}
           readOnlyFilePreview={readOnlyFilePreview}
           secondaryAction={tooltipActions}
         />

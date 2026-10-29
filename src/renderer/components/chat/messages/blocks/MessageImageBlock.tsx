@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { useHeifRenditions } from '@renderer/hooks/useHeifRendition'
 import { ipcApi } from '@renderer/ipc'
 import type { FileHandle } from '@shared/data/types/file'
 import { isFileEntryHandle, toFileUrl } from '@shared/utils/file'
@@ -10,6 +12,8 @@ import ImageBlock from './ImageBlock'
 export interface MessageImageSource {
   handle?: FileHandle
   url: string
+  mediaType?: string
+  filename?: string
 }
 
 interface Props {
@@ -62,8 +66,32 @@ function useImageSourceUrls(sources: readonly MessageImageSource[]): string[] {
 }
 
 const MessageImageBlock: React.FC<Props> = ({ sources, isSingle, thumbnail, className }) => {
-  const images = useImageSourceUrls(sources)
-  return <ImageBlock images={images} isSingle={isSingle} thumbnail={thumbnail} className={className} />
+  const { t } = useTranslation()
+  const urls = useImageSourceUrls(sources)
+  const inputs = useMemo(
+    () => sources.map((item, index) => ({ source: urls[index], mediaType: item.mediaType, filename: item.filename })),
+    [sources, urls]
+  )
+  const states = useHeifRenditions(inputs)
+  const gallery = states.flatMap((state, index) =>
+    state.url ? [{ id: `message-image-${index}`, src: state.url }] : []
+  )
+  return (
+    <>
+      {states.map((state, index) =>
+        state.error ? (
+          <div role="alert" key={index}>
+            {t(state.error)}
+          </div>
+        ) : state.loading ? (
+          <div role="status" key={index}>
+            {t('file_preview.loading')}
+          </div>
+        ) : null
+      )}
+      <ImageBlock images={gallery} isSingle={isSingle} thumbnail={thumbnail} className={className} />
+    </>
+  )
 }
 
 export default React.memo(MessageImageBlock)

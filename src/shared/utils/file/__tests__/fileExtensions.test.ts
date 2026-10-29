@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { documentExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../fileExtensions'
+import { documentExts, imageExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../fileExtensions'
 
 // These three lists are easy to let drift apart (the original bug: artifact reservation keyed
 // off a different list than routing did, so `.xls`'s processed `.md` artifact was never
@@ -44,4 +44,8 @@ describe('knowledge file-extension source-of-truth invariants', () => {
     // attachment path, which does not handle the legacy binary PowerPoint format.
     expect(document.has('.ppt')).toBe(false)
   })
+})
+
+it('admits HEIC and HEIF alongside the existing image formats only', () => {
+  expect(imageExts).toEqual(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.heif'])
 })

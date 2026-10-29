@@ -42,6 +42,7 @@ import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
+import { HeifAttachmentError } from './HeifAttachmentError'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
 
@@ -129,7 +130,7 @@ export interface PrepareChatContext {
   budget?: AttachmentBudget
   /**
    * Path-forwarding caller (agent runtime): keep a first-party part whose extension is
-   * unlisted (`FILE_TYPE.OTHER` — e.g. an AVIF/HEIC image) as a file part instead of
+   * unlisted (`FILE_TYPE.OTHER` — e.g. an AVIF image) as a file part instead of
    * replacing it with an unsupported-type note, so the caller's local-path fallback still
    * has the file reference.
    */
@@ -219,7 +220,7 @@ async function prepareChatMessage<T extends UIMessage>(
   const kept: UIMessage['parts'] = []
   const composerFileTokenIds = collectComposerFileTokenIds(message)
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
-    const inlined = await materializeNativeFilePart(part)
+    const inlined = await materializeNativeFilePart(part, ctx.signal)
     if (!inlined) return false
     kept.push(inlined)
     return true
@@ -236,7 +237,7 @@ async function prepareChatMessage<T extends UIMessage>(
       // Legacy / gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
-      const inlined = await materializeNativeFilePart(part)
+      const inlined = await materializeNativeFilePart(part, ctx.signal)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
         kept.push(noteOf(name))
@@ -287,6 +288,7 @@ async function prepareChatMessage<T extends UIMessage>(
       // provider request, carrying why the fallback produced nothing. Gateway-
       // backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
+        if (/^\.?hei[cf]$/i.test(bareExt)) throw new HeifAttachmentError(undefined, true)
         const outcome = await ocrNonVisionImage(fileEntryId, ctx.signal)
         if (outcome.kind !== 'text') {
           logger.warn('Non-vision image OCR produced no readable text', {
@@ -314,7 +316,7 @@ async function prepareChatMessage<T extends UIMessage>(
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
-      if (error instanceof NonVisionImageOcrError) throw error
+      if (error instanceof NonVisionImageOcrError || error instanceof HeifAttachmentError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))
     }

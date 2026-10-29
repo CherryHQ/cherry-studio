@@ -6,6 +6,7 @@ import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { imageExts } from '@shared/utils/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -16,7 +17,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
+const captured = {
+  surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  extensions: undefined as string[] | undefined
+}
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
 const mockMaterializeInputs = vi.hoisted(() => vi.fn())
 const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
@@ -65,7 +69,10 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ComposerToolDerivedStateProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ComposerToolDerivedStateProvider: ({ children, extensions }: { children: React.ReactNode; extensions: string[] }) => {
+    captured.extensions = extensions
+    return <>{children}</>
+  },
   ComposerToolRuntimeHost: () => null,
   useComposerToolState: () => ({ files: composerState.files, isExpanded: false }),
   useComposerToolDispatch: () => ({ setFiles: vi.fn(), setIsExpanded: vi.fn() }),
@@ -207,6 +214,7 @@ describe('PaintingComposer params entry point', () => {
 describe('PaintingComposer', () => {
   beforeEach(() => {
     captured.surfaceProps = undefined
+    captured.extensions = undefined
     composerState.files = []
     mockUseImageGenerationSupport.mockReset()
     mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
@@ -214,6 +222,16 @@ describe('PaintingComposer', () => {
     mockMaterializeInputs.mockResolvedValue({ entries: [], complete: true })
     mockIsEditImageModel.mockReset()
     mockIsEditImageModel.mockReturnValue(false)
+  })
+
+  it('offers only the image formats edit-image providers accept as painting references', () => {
+    renderComposer()
+
+    expect(captured.extensions).toEqual(['.jpg', '.jpeg', '.png', '.webp'])
+    expect(captured.extensions).not.toContain('.heic')
+    expect(captured.extensions).not.toContain('.heif')
+    expect(imageExts).toContain('.heic')
+    expect(imageExts).toContain('.heif')
   })
 
   it('renders the top image strip + add button and drops file pills for edit-image models', () => {

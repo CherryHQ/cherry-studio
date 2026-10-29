@@ -158,6 +158,7 @@
     "grammy": "^1.36.3",
     "gray-matter": "4.0.3",
     "jsdom": "26.1.0",
+    "libheif-js": "1.23.5",
     "mediabunny": "1.58.0",
     "node-screenshots": "^0.2.8",
     "node-stream-zip": "1.15.0",

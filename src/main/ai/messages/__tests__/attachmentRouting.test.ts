@@ -1,8 +1,15 @@
+import { readFileSync } from 'node:fs'
+
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import { assertQuadrants } from '@main/utils/__tests__/heifFixture'
+import { transcodeHeifToPng } from '@main/utils/image'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+
+import type * as FileProcessorModule from '../fileProcessor'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -12,11 +19,13 @@ const { getByIdMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: { getById: getByIdMock },
+    FileProcessingService: { ocrImage: ocrMock }
+  } as never)
+})
 
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
@@ -28,6 +37,7 @@ vi.mock('../attachmentTextExtraction', () => ({
 }))
 
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { HeifAttachmentError } from '../HeifAttachmentError'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -87,7 +97,10 @@ const run = (
 const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
-afterEach(() => vi.clearAllMocks())
+afterEach(() => {
+  vi.clearAllMocks()
+  MockApplicationUtils.resetServices()
+})
 
 describe('prepareChatMessages — routing', () => {
   it('keeps a native image inline (no extraction)', async () => {
@@ -462,4 +475,45 @@ describe('collectFileAttachments', () => {
       { fileEntryId: 'legacy', handle: 'legacy.png', displayName: 'legacy.png' }
     ])
   })
+})
+
+describe('HEIF routing', () => {
+  it('rejects a non-vision HEIF before any OCR request', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: '.HEIC' })
+    await expect(run([fileWithEntry('heif-entry', 'photo.heic', 'image/heic')], NONE)).rejects.toMatchObject({
+      name: 'HeifAttachmentError',
+      i18nKey: 'heif_non_vision_unsupported',
+      detailI18nKey: 'heif_detail_non_vision'
+    })
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+  it('lets a conversion failure stop vision dispatch rather than becoming a generic note', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: '.heif' })
+    resolveMock.mockRejectedValueOnce(new HeifAttachmentError())
+    await expect(run([fileWithEntry('heif-entry', 'photo.heif', 'image/heif')], ALL)).rejects.toBeInstanceOf(
+      HeifAttachmentError
+    )
+  })
+  it('preserves ordinary materialization failures as the existing generic note', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: '.png' })
+    resolveMock.mockRejectedValueOnce(new Error('ordinary failure'))
+    const [out] = await run([fileWithEntry('entry', 'photo.png', 'image/png')], ALL)
+    expect(out.parts.some((part) => part.type === 'file')).toBe(false)
+    expect(textOf(out.parts).join('')).toContain('could not read')
+  })
+})
+
+it('delivers only the decoded PNG part to a vision model through the real materializer', async () => {
+  const { materializeNativeFilePart } = await vi.importActual<typeof FileProcessorModule>('../fileProcessor')
+  const bytes = readFileSync('tests/fixtures/heif/quadrants.heic')
+  MockApplicationUtils.setService('HeifRenditionService', { getRendition: async () => transcodeHeifToPng(bytes) })
+  getByIdMock.mockResolvedValueOnce({ ext: '.heic' }).mockResolvedValueOnce({ ext: '.heic' })
+  resolveMock.mockImplementationOnce(materializeNativeFilePart)
+  const [out] = await run([fileWithEntry('heif-vision', 'photo.heic', 'image/heic')], ALL)
+  const file = out.parts.find((part) => part.type === 'file')
+  expect(file).toMatchObject({ mediaType: 'image/png', filename: 'photo.png' })
+  await assertQuadrants(Buffer.from(file!.url.split(',')[1], 'base64'))
+  expect(file?.url.startsWith('data:image/png;base64,')).toBe(true)
+  expect(Buffer.from(file!.url.split(',')[1], 'base64').subarray(0, 4).toString('hex')).toBe('89504e47')
+  expect(ocrMock).not.toHaveBeenCalled()
 })

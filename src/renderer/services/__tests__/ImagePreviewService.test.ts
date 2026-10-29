@@ -61,3 +61,16 @@ describe('ImagePreviewService', () => {
     })
   })
 })
+
+it('releases the popup-owned URL after dismissal, including popup errors', async () => {
+  const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+  mocks.imageInputToPreviewUrl.mockResolvedValueOnce('blob:popup-copy')
+  mocks.popupShow.mockRejectedValueOnce(new Error('popup dismissed unexpectedly'))
+  try {
+    await expect(ImagePreviewService.show('blob:thumbnail-owner')).rejects.toThrow('popup dismissed unexpectedly')
+    expect(revoke).toHaveBeenCalledWith('blob:popup-copy')
+    expect(revoke).not.toHaveBeenCalledWith('blob:thumbnail-owner')
+  } finally {
+    revoke.mockRestore()
+  }
+})

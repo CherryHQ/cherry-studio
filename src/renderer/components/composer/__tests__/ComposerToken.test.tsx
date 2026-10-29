@@ -1911,3 +1911,105 @@ describe('ComposerToken', () => {
     }
   )
 })
+
+describe('HEIF token previews', () => {
+  const png = { content: new Uint8Array([137, 80, 78, 71]) }
+  const token = {
+    id: 'file:heif',
+    kind: 'file' as const,
+    label: 'photo.heic',
+    payload: {
+      fileTokenSourceId: 'heif',
+      name: 'photo.heic',
+      origin_name: 'photo.heic',
+      path: '/tmp/photo.heic',
+      ext: '.heic',
+      type: FILE_TYPE.IMAGE,
+      size: 674
+    }
+  }
+
+  it('uses decoded PNG for hover and activation while preserving the original token', async () => {
+    const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:token-png')
+    const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    ipcRequestMock.mockResolvedValueOnce(png)
+    try {
+      const view = render(<FileComposerToken token={token} />)
+      await openFileTokenPopover(view.container)
+      expect(await screen.findByRole('img', { name: 'photo.heic' })).toHaveAttribute('src', 'blob:token-png')
+      await userEvent.setup().click(getFileTokenTrigger(view.container))
+      expect(imagePreviewShowMock).toHaveBeenCalledWith('blob:token-png')
+      expect(token.payload.path).toBe('/tmp/photo.heic')
+      view.unmount()
+      expect(revokeUrl).toHaveBeenCalledWith('blob:token-png')
+    } finally {
+      createUrl.mockRestore()
+      revokeUrl.mockRestore()
+    }
+  })
+
+  it('shows a HEIF conversion message and never the raw source after decode fails', async () => {
+    ipcRequestMock.mockRejectedValueOnce(new Error('invalid heif'))
+    const view = render(<FileComposerToken token={token} />)
+    await openFileTokenPopover(view.container)
+    expect(await screen.findByText('error.heif_detail_convert')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'photo.heic' })).toBeNull()
+  })
+
+  it('does not create a URL for a token removed before conversion completes', async () => {
+    let complete!: (value: typeof png) => void
+    ipcRequestMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        complete = resolve
+      })
+    )
+    const createUrl = vi.spyOn(URL, 'createObjectURL')
+    try {
+      const view = render(<FileComposerToken token={token} />)
+      view.unmount()
+      await act(async () => complete(png))
+      expect(createUrl).not.toHaveBeenCalled()
+    } finally {
+      createUrl.mockRestore()
+    }
+  })
+})
+
+it('converts a pasted HEIF Blob before hover and passes only its PNG URL to the popup', async () => {
+  const blob = new Blob(['heif'], { type: 'image/heic' })
+  Object.defineProperty(blob, 'arrayBuffer', { value: async () => new Uint8Array([1, 2]).buffer })
+  ipcRequestMock.mockResolvedValueOnce({ content: new Uint8Array([137, 80, 78, 71]) })
+  const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:pasted-png')
+  const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+  try {
+    const view = render(
+      <FileComposerToken
+        token={{
+          id: 'file:heif-blob',
+          kind: 'file',
+          label: 'pasted.heic',
+          payload: {
+            fileTokenSourceId: 'heif-blob',
+            name: 'pasted.heic',
+            origin_name: 'pasted.heic',
+            blob,
+            ext: '.heic',
+            type: FILE_TYPE.IMAGE,
+            size: blob.size
+          }
+        }}
+      />
+    )
+    await openFileTokenPopover(view.container)
+    expect(await screen.findByRole('img', { name: 'pasted.heic' })).toHaveAttribute('src', 'blob:pasted-png')
+    expect(createUrl.mock.calls[0][0]).not.toBe(blob)
+    expect(createUrl.mock.calls[0][0]).toMatchObject({ type: 'image/png' })
+    await userEvent.setup().click(getFileTokenTrigger(view.container))
+    expect(imagePreviewShowMock).toHaveBeenCalledWith('blob:pasted-png')
+    view.unmount()
+    expect(revokeUrl).toHaveBeenCalledWith('blob:pasted-png')
+  } finally {
+    createUrl.mockRestore()
+    revokeUrl.mockRestore()
+  }
+})

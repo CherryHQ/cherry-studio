@@ -49,7 +49,7 @@ import type { TranslateHistory } from '@shared/data/types/translate'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
-import { documentExts, imageExts, textExts } from '@shared/utils/file'
+import { documentExts, heifImageExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 
 import TranslateHistoryList from './components/TranslateHistory'
@@ -72,6 +72,9 @@ const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
+// Translate's image_to_text OCR processors have no HEIF decoder; prepareDocumentPayload rejects it.
+// Restore HEIF here once OCR inputs are transcoded.
+const TRANSLATE_FILE_EXTS = [...imageExts.filter((ext) => !heifImageExts.includes(ext)), ...textExts, ...documentExts]
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -216,7 +219,7 @@ const TranslatePage: FC = () => {
     update: { showErrorToast: false, rethrowError: false }
   })
   const { notesPath } = useNotesSettings()
-  const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
+  const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: TRANSLATE_FILE_EXTS })
   const { setTimeoutTimer } = useTimer()
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')

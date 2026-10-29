@@ -188,3 +188,7 @@ describe('file preview registry', () => {
     expect(canProduceSelectionReference('/tmp/no-extension')).toBe(false)
   })
 })
+
+it.each(['heic', 'heif', 'HEIC'])('routes %s to the desktop HEIF plugin', (extension) => {
+  expect(resolveExtensionPlugin(`/tmp/photo.${extension}`, filePreviewRegistry)?.id).toBe('heif')
+})
