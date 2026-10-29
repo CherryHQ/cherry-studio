@@ -48,7 +48,7 @@ const MissingAgentHomeComposerInner = ({
   const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
-  const { railGutterPx } = useChatLayoutMode()
+  const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -118,6 +118,7 @@ const MissingAgentHomeComposerInner = ({
         fontSize={fontSize}
         narrowMode={narrowMode}
         railGutterPx={railGutterPx}
+        sidePaddingPx={sidePaddingPx}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}

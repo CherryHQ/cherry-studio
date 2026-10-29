@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -984,6 +985,22 @@ describe('AgentComposer', () => {
       deliveryId: 'agent-capture',
       accepted: true
     })
+  })
+
+  it('keeps the composer aligned with a message column a compact window narrows', () => {
+    render(
+      <ChatSidePaddingProvider sidePaddingPx={12}>
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      </ChatSidePaddingProvider>
+    )
+
+    expect(mocks.surfaceProps?.sidePaddingPx).toBe(12)
   })
 
   it('uses the page-resolved model', () => {
