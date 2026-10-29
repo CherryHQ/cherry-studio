@@ -169,6 +169,29 @@ describe('Dialog primitive', () => {
     expect(getTooltipLayer(getTooltipContent('Save hint'))).toHaveStyle({ zIndex: '10000' })
   })
 
+  // A modal dialog hides everything outside its content from assistive tech while it is open.
+  it('keeps tooltips exposed to assistive tech each time a modal dialog opens', () => {
+    function ToggleDialog({ open }: { open: boolean }) {
+      return (
+        <Dialog open={open}>
+          <DialogContent aria-describedby={undefined}>
+            <DialogTitle>Agent prompts</DialogTitle>
+            <Tooltip isOpen content="Remove prompt">
+              <button type="button">Remove</button>
+            </Tooltip>
+          </DialogContent>
+        </Dialog>
+      )
+    }
+
+    const { rerender } = render(<ToggleDialog open />)
+    expect(screen.getByRole('tooltip', { name: 'Remove prompt' })).toBeInTheDocument()
+
+    rerender(<ToggleDialog open={false} />)
+    rerender(<ToggleDialog open />)
+    expect(screen.getByRole('tooltip', { name: 'Remove prompt' })).toBeInTheDocument()
+  })
+
   it('keeps tooltips in a portal scope declared inside the dialog', () => {
     function ScopedSurface() {
       const [scope, setScope] = useState<HTMLDivElement | null>(null)

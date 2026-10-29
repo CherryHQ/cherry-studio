@@ -160,7 +160,9 @@ function DialogContent({
           )}
         </PortalContainerProvider>
       </DialogPrimitive.Content>
-      <div ref={setTooltipLayer} data-slot="dialog-tooltip-layer" className="fixed" />
+      {/* Modal Content marks every node outside it aria-hidden once, on mount; mounting the layer
+          afterwards keeps tooltips exposed to assistive tech. */}
+      {contentElement && <div ref={setTooltipLayer} data-slot="dialog-tooltip-layer" className="fixed" />}
     </DialogPortal>
   )
 }
