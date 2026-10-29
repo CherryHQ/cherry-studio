@@ -58,6 +58,10 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
+export function scrollAgentMessageListToEnd(topicId: string): void {
+  agentMessageListRuntimes.get(topicId)?.scrollToBottom()
+}
+
 function withTerminalErrorFallback(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,

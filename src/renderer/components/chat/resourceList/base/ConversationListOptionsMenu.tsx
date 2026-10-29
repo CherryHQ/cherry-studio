@@ -1,8 +1,7 @@
 import { ChevronsDownUp, ChevronsUpDown, ListFilter } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 
 import { ResourceList } from './ResourceList'
 
@@ -32,7 +31,9 @@ type ConversationListOptionsMenuProps<TMode extends string> = {
   onChange: (mode: TMode) => void
   options: readonly ConversationListOption<TMode>[]
   sectionToggle?: ConversationListSectionToggle
+  visibilityAction?: ConversationListMenuAction
   title: string
+  triggerHint?: { content: string; open: boolean; onDismiss: () => void }
 }
 
 export function ConversationListOptionsMenu<TMode extends string>({
@@ -42,7 +43,9 @@ export function ConversationListOptionsMenu<TMode extends string>({
   onChange,
   options,
   sectionToggle,
-  title
+  visibilityAction,
+  title,
+  triggerHint
 }: ConversationListOptionsMenuProps<TMode>) {
   const [open, setOpen] = useState(false)
   const runAfterMenuClose = (action: () => void) => {
@@ -64,12 +67,24 @@ export function ConversationListOptionsMenu<TMode extends string>({
   )
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <ResourceList.HeaderActionButton type="button" aria-label={title}>
-          <ListFilter className="block" />
-        </ResourceList.HeaderActionButton>
-      </PopoverTrigger>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) triggerHint?.onDismiss()
+        setOpen(nextOpen)
+      }}>
+      <Tooltip
+        asChild
+        content={triggerHint?.content}
+        isOpen={!!triggerHint?.open && !open}
+        onOpenChange={(nextOpen) => !nextOpen && triggerHint?.onDismiss()}
+        placement="right">
+        <PopoverTrigger asChild>
+          <ResourceList.HeaderActionButton type="button" aria-label={title}>
+            <ListFilter className="block" />
+          </ResourceList.HeaderActionButton>
+        </PopoverTrigger>
+      </Tooltip>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
         <MenuList>
           <div className="px-2.5 py-1 font-normal text-muted-foreground text-xs">{title}</div>
@@ -97,17 +112,14 @@ export function ConversationListOptionsMenu<TMode extends string>({
               />
             </>
           )}
-          {historyAction && (
-            <>
-              <MenuDivider />
-              {renderAction(historyAction)}
-            </>
-          )}
-          {manageAction && (
-            <>
-              <MenuDivider />
-              {renderAction(manageAction)}
-            </>
+          {Object.entries({ visibility: visibilityAction, history: historyAction, manage: manageAction }).map(
+            ([key, action]) =>
+              action && (
+                <Fragment key={key}>
+                  <MenuDivider />
+                  {renderAction(action)}
+                </Fragment>
+              )
           )}
         </MenuList>
       </PopoverContent>

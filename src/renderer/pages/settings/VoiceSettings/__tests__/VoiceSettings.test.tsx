@@ -827,7 +827,7 @@ describe('VoiceSettings', () => {
     await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/download/i))
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
-    expect(language).toHaveTextContent('Chinese')
+    await waitFor(() => expect(language).toHaveTextContent('Chinese'))
     expect(voice.install).toHaveBeenCalledTimes(1)
     await user.click(language)
     await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))

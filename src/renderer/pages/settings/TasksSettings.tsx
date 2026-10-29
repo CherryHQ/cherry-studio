@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
@@ -544,6 +544,7 @@ const TasksSettings: FC = () => {
   const { theme } = useTheme()
   const navigate = useNavigate()
   const params = useParams({ strict: false })
+  const { create: createRequested } = useSearch({ strict: false })
   const taskId = params.taskId
   const { createTask } = useCreateTask()
   const { updateTask } = useUpdateTask()
@@ -583,6 +584,12 @@ const TasksSettings: FC = () => {
   const [agentFilter, setAgentFilter] = useState(ALL_TASKS_FILTER)
   const [statusFilter, setStatusFilter] = useState(ALL_TASKS_FILTER)
   const taskUpdateTailsRef = useRef<Map<string, Promise<boolean>> | null>(null)
+
+  useEffect(() => {
+    if (!createRequested || taskId || loading) return
+    if (agents.length > 0) setCreateOpen(true)
+    void navigate({ to: '/settings/scheduled-tasks', search: {}, replace: true })
+  }, [agents.length, createRequested, loading, navigate, taskId])
 
   const filteredTasks = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase()

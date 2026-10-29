@@ -106,6 +106,7 @@ const navigationMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openConversation: vi.fn(),
   openRoute: vi.fn(),
+  search: {} as { create?: boolean },
   taskId: 'task-1' as string | undefined
 }))
 
@@ -272,6 +273,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useNavigate: () => navigationMocks.navigate,
+  useSearch: () => navigationMocks.search,
   useParams: () => ({ taskId: navigationMocks.taskId })
 }))
 
@@ -908,6 +910,7 @@ describe('TasksSettings routing and creation', () => {
     vi.clearAllMocks()
     translationMock.t = (key: string) => key
     navigationMocks.taskId = 'task-1'
+    navigationMocks.search = {}
     navigationMocks.navigate.mockResolvedValue(undefined)
     agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
     taskDataMock.task = { ...taskDataMock.defaultTask }
@@ -1345,16 +1348,22 @@ describe('TasksSettings routing and creation', () => {
     expect(navigationMocks.navigate).not.toHaveBeenCalled()
   })
 
-  it('closes the Dialog and navigates to the new detail after a successful create', async () => {
+  it('opens the existing create form from the sidebar intent and navigates to the saved task', async () => {
     navigationMocks.taskId = undefined
+    navigationMocks.search = { create: true }
     const created = { ...taskDataMock.defaultTask, id: 'task-new', name: 'Review code' }
     taskMutationMocks.createTask.mockResolvedValue(created)
 
     render(<TasksSettings />)
 
     await screen.findByRole('link', { name: /Daily task/ })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(navigationMocks.navigate).toHaveBeenCalledWith({
+      to: '/settings/scheduled-tasks',
+      search: {},
+      replace: true
+    })
+    navigationMocks.search = {}
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'agent.channels.bindAgent' })).toHaveTextContent('Agent One')
     )

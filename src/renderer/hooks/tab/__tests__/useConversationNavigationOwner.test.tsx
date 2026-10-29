@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useConversationNavigationOwner } from '../useConversationNavigationOwner'
@@ -92,6 +93,38 @@ describe('useConversationNavigationOwner', () => {
       requestId: 'request-1',
       ownsTarget: true
     })
+  })
+
+  it('routes an anchored navigation to the selected tab only', () => {
+    const owner = {
+      tabs: [{ id: 'anchor-tab', type: 'route' as const, url: '/app/agents?sessionId=session-1', title: 'Task' }],
+      openTab: vi.fn(),
+      setActiveTab: vi.fn()
+    }
+    renderHook(() => useConversationNavigationOwner(owner))
+    const selected = renderHook(() =>
+      useConversationLocateRequest({
+        navigationTabId: 'anchor-tab',
+        activeConversationId: 'session-1',
+        visibleConversationId: 'session-1'
+      })
+    )
+    const other = renderHook(() =>
+      useConversationLocateRequest({
+        navigationTabId: 'other-tab',
+        activeConversationId: 'session-1',
+        visibleConversationId: 'session-1'
+      })
+    )
+    emit('navigation.conversation_focus_or_open_requested', {
+      requestId: 'anchor-request',
+      target,
+      title: 'Task',
+      messageId: 'result-message'
+    })
+    expect(selected.result.current.locateMessageId).toBe('result-message')
+    expect(other.result.current.locateMessageId).toBeUndefined()
+    expect(owner.openTab).not.toHaveBeenCalled()
   })
 
   it('confirms a missing target only after the new tab is committed', async () => {

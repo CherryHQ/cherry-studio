@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
@@ -58,7 +59,7 @@ function compareWindowPriority(left: WindowInfo, right: WindowInfo): number {
 export class ConversationNavigationService extends BaseService {
   private readonly pendingQueries = new Map<string, PendingOwnershipQuery>()
   private readonly pendingCommands = new Map<string, PendingNavigationCommand>()
-  private readonly inFlightTargets = new Map<string, Promise<void>>()
+  private readonly inFlightTargets = new Map<string, { messageId?: string | null; promise: Promise<void> }>()
   private nextRequestId = 0
   private isStopping = false
 
@@ -69,18 +70,20 @@ export class ConversationNavigationService extends BaseService {
   public focusOrOpen(
     target: ConversationNavigationTarget,
     title: string,
-    requestingWindowId: WindowId | null = null
+    requestingWindowId: WindowId | null = null,
+    messageId?: string | null
   ): Promise<void> {
     if (this.isStopping) return Promise.resolve()
 
     const targetKey = conversationTargetKey(target)
     const existing = this.inFlightTargets.get(targetKey)
-    if (existing) return existing
+    if (existing && existing.messageId === messageId) return existing.promise
 
-    const operation = this.focusOrOpenDirect(target, title, requestingWindowId).finally(() => {
-      if (this.inFlightTargets.get(targetKey) === operation) this.inFlightTargets.delete(targetKey)
+    const navigate = () => this.focusOrOpenDirect(target, title, requestingWindowId, messageId)
+    const operation = (existing ? existing.promise.then(navigate, navigate) : navigate()).finally(() => {
+      if (this.inFlightTargets.get(targetKey)?.promise === operation) this.inFlightTargets.delete(targetKey)
     })
-    this.inFlightTargets.set(targetKey, operation)
+    this.inFlightTargets.set(targetKey, { messageId, promise: operation })
     return operation
   }
 
@@ -112,8 +115,10 @@ export class ConversationNavigationService extends BaseService {
   private async focusOrOpenDirect(
     target: ConversationNavigationTarget,
     title: string,
-    requestingWindowId: WindowId | null
+    requestingWindowId: WindowId | null,
+    messageId?: string | null
   ): Promise<void> {
+    if (target.conversationType === 'agent') agentSessionService.getById(target.conversationId)
     const discoveryDeadline = Date.now() + NAVIGATION_DISCOVERY_TIMEOUT_MS
     let coldRouteOpened = false
 
@@ -151,14 +156,14 @@ export class ConversationNavigationService extends BaseService {
       // `openRouteInMainWindow` used durable init data because no Main window existed. Wait until
       // that new Main renderer reports the target as committed; sending another force-open command
       // while its init-data route is still mounting could create a duplicate.
-      if (coldRouteOpened) {
-        const mainOwner = owners.find((window) => window.type === WindowType.Main)
-        if (mainOwner) {
-          this.focusWindow(mainOwner)
-          return
-        }
+      const coldMainOwner = coldRouteOpened ? owners.find((window) => window.type === WindowType.Main) : undefined
+      if (coldRouteOpened && !coldMainOwner) {
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
         continue
+      }
+      if (coldMainOwner && messageId === undefined) {
+        this.focusWindow(coldMainOwner)
+        return
       }
 
       const owner = owners[0]
@@ -169,7 +174,7 @@ export class ConversationNavigationService extends BaseService {
       const respondingMainWindow = liveWindows
         .filter((window) => window.type === WindowType.Main && respondingWindowIds.has(window.id))
         .sort(compareWindowPriority)[0]
-      const destination = owner ?? requester ?? respondingMainWindow
+      const destination = coldMainOwner ?? owner ?? requester ?? respondingMainWindow
 
       if (!destination) {
         openRouteInMainWindow(conversationRouteUrl(target))
@@ -178,7 +183,7 @@ export class ConversationNavigationService extends BaseService {
         continue
       }
 
-      const completed = await this.sendFocusOrOpenCommand(destination, query.requestId, target, title)
+      const completed = await this.sendFocusOrOpenCommand(destination, query.requestId, target, title, messageId)
       if (!completed && !this.isStopping) {
         throw new Error(`Conversation navigation was not completed: ${conversationTargetKey(target)}`)
       }
@@ -190,7 +195,8 @@ export class ConversationNavigationService extends BaseService {
     destination: WindowInfo,
     requestId: string,
     target: ConversationNavigationTarget,
-    title: string
+    title: string,
+    messageId?: string | null
   ): Promise<boolean> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => this.settleNavigationCommand(requestId, false), NAVIGATION_COMMAND_TIMEOUT_MS)
@@ -200,7 +206,8 @@ export class ConversationNavigationService extends BaseService {
       application.get('IpcApiService').send(destination.id, 'navigation.conversation_focus_or_open_requested', {
         requestId,
         target,
-        title
+        title,
+        ...(messageId !== undefined ? { messageId } : {})
       })
       this.focusWindow(destination)
     })

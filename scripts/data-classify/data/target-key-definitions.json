@@ -465,6 +465,27 @@
       "description": "Agent session resource pane position (left/right), independent of the Home topic pane"
     },
     {
+      "targetKey": "agent.task_dashboard.visible",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show the Agent sidebar task dashboard"
+    },
+    {
+      "targetKey": "agent.task_dashboard.show_running_count",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show the running task count in the task dashboard"
+    },
+    {
+      "targetKey": "agent.task_dashboard.show_scheduled_count",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show the scheduled task count in the task dashboard"
+    },
+    {
       "targetKey": "feature.quick_assistant.model_id",
       "type": "string",
       "defaultValue": null,

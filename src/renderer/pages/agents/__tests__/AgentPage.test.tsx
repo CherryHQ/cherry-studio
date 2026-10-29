@@ -1,17 +1,29 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUsePaginatedQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
+import type * as CacheHooks from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { requestConversationLocate } from '@renderer/hooks/useConversationLocateRequest'
+import enUS from '@renderer/i18n/locales/en-us.json'
+import { AGENT_TASK_DASHBOARD_CACHE_KEY, type DashboardEntry } from '@shared/ai/agentTaskDashboard'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
+vi.unmock('@cherrystudio/ui')
+vi.mock('../components/AgentTaskDashboard', () => ({
+  AgentTaskDashboard: () => <section aria-label="Task dashboard" />
+}))
 
 const agentPageMocks = vi.hoisted(() => ({
   workspace: {
@@ -168,7 +180,7 @@ vi.mock('@data/hooks/usePreference', async () => {
             ? agentPageMocks.sessionDisplayMode
             : key === 'agent.session.position'
               ? agentPageMocks.sessionPanePosition
-              : undefined
+              : DefaultPreferences.default[key as keyof typeof DefaultPreferences.default]
       )
       const setPreference = vi.fn(async (nextValue: unknown) => {
         if (key === 'topic.tab.show') {
@@ -189,13 +201,17 @@ vi.mock('@data/hooks/usePreference', async () => {
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
   const React = await import('react')
+  const { useSharedCacheValue } = await vi.importActual<typeof CacheHooks>('@renderer/data/hooks/useCache')
 
   return {
     useCache: () => [undefined, vi.fn()],
     useSharedCache: () => [null, vi.fn()],
+    useSharedCacheValue,
     usePersistCache: (key: string) => {
       const initialValue = (() => {
         switch (key) {
+          case 'ui.agent.task_dashboard.collapsed_groups':
+            return []
           case 'ui.agent.last_used_agent_id':
             return agentPageMocks.lastUsedAgentId
           case 'ui.agent.last_used_session_id':
@@ -209,6 +225,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         }
       })()
       const [value, setValue] = React.useState(initialValue)
+      if (key === 'ui.agent.task_dashboard.collapsed_groups') return [value, setValue]
       if (
         key !== 'ui.agent.last_used_agent_id' &&
         key !== 'ui.agent.last_used_session_id' &&
@@ -358,20 +375,25 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 vi.mock('react-i18next', () => {
-  const t = (key: string, options?: { name?: string }) =>
+  const t = (key: string, options?: { name?: string; count?: number }) =>
     ({
       'agent.manage.title': '管理智能体',
       'agent.session.list.title': '任务',
       'settings.about.feedback.agent.description': '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。',
       'settings.skills.intentInvalid': 'Skill unavailable',
       'settings.skills.launchDraft': `Use ${options?.name ?? ''} Skill to help me.`
-    })[key] ?? key
+    })[key] ??
+    (
+      (key.startsWith('agent.task_dashboard.') ||
+      key.startsWith('agent.tasks.') ||
+      key.startsWith('settings.scheduledTasks.') ||
+      key.startsWith('common.')
+        ? enUS[key as keyof typeof enUS]
+        : undefined) ?? key
+    ).replace(/{{(name|count)}}/g, (_, variable: 'name' | 'count') => String(options?.[variable] ?? ''))
   return {
-    initReactI18next: {
-      init: vi.fn(),
-      type: '3rdParty'
-    },
-    useTranslation: () => ({ t })
+    initReactI18next: { init: vi.fn(), type: '3rdParty' },
+    useTranslation: () => ({ t, i18n: { language: 'en-us' } })
   }
 })
 
@@ -722,9 +744,233 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 
 import AgentPage from '../AgentPage'
+import type { AgentTaskDashboard as DashboardComponent } from '../components/AgentTaskDashboard'
+
+describe('Agent task dashboard interactions', () => {
+  let Dashboard: typeof DashboardComponent
+  beforeAll(async () => {
+    Dashboard = (
+      await vi.importActual<{ AgentTaskDashboard: typeof DashboardComponent }>('../components/AgentTaskDashboard')
+    ).AgentTaskDashboard
+  })
+  const run = (id: string): DashboardEntry => ({
+    id,
+    source: 'agent',
+    taskId: null,
+    sessionId: 'session',
+    agentId: 'agent',
+    nameSnapshot: id,
+    agentNameSnapshot: 'Agent A',
+    messageAnchor: 'anchor',
+    startedAt: 1000,
+    blockedOn: null,
+    runIds: [id],
+    runCount: 1
+  })
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
+    MockCacheUtils.setInitialState({ shared: [[AGENT_TASK_DASHBOARD_CACHE_KEY, []]] })
+    MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [
+      { id: 'scheduled', name: 'Daily summary', status: 'active', runSummary: { status: 'queued' } } as any
+    ])
+    ipcMocks.request.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('waits for the main projection without writing a default, then shows a loaded empty result', () => {
+    MockCacheUtils.setInitialState({})
+    render(<Dashboard enabled />)
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(screen.queryByText('No active tasks')).not.toBeInTheDocument()
+    expect(cacheService.setShared).not.toHaveBeenCalled()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, null))
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, []))
+    expect(screen.getByText('No active tasks')).toBeInTheDocument()
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
+  })
+
+  it('keeps scheduled-task retry available independently of the running projection', async () => {
+    const user = userEvent.setup()
+    const refresh = vi.fn(async () => {})
+    const query = mockUsePaginatedQuery.getMockImplementation()!
+    mockUsePaginatedQuery.mockImplementation((...args) => ({
+      ...query(...args),
+      error: new Error('Offline'),
+      refresh
+    }))
+    render(<Dashboard enabled />)
+    expect(screen.getByText('No active tasks')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('pages 50 runs with exact totals, clamps a shrinking list and stays on that page when it grows', async () => {
+    const user = userEvent.setup()
+    const entries = Array.from({ length: 2001 }, (_, index) => run(`Run ${index + 1}`))
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, entries)
+    render(<Dashboard enabled />)
+    expect(screen.getByRole('button', { name: 'Running 2001' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: /Awaiting review/ })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Running' })).getAllByRole('listitem')).toHaveLength(50)
+    expect(screen.getByText('Run 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('Run 51')).toBeInTheDocument()
+    expect(screen.queryByText('Run 1')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Running 2001' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByText('Run 1')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, entries.slice(0, 51)))
+    expect(within(screen.getByRole('list', { name: 'Running' })).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('Run 51')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [run('Surviving run')]))
+    expect(screen.getByText('Surviving run')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Running 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, entries))
+    expect(screen.getByText('Run 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Running 2001' }))
+    expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
+  })
+
+  it('captures the clicked runs, exposes Stopping, and reports one partial-failure toast', async () => {
+    const user = userEvent.setup()
+    const active = {
+      ...run('Research'),
+      runIds: ['old-1', 'old-2'],
+      runCount: 2,
+      blockedOn: 'approval' as const
+    }
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [active])
+    let settle!: (results: unknown) => void
+    ipcMocks.request.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve
+        })
+    )
+    render(<Dashboard enabled />)
+    expect(screen.getByText('Needs approval')).toBeInTheDocument()
+    const stop = screen.getByRole('button', { name: 'Stop Research' })
+    stop.focus()
+    await user.keyboard('{Enter}')
+    expect(stop).toBeDisabled()
+    expect(screen.getByText('Stopping…')).toBeInTheDocument()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [{ ...active, runIds: ['newer-run'] }]))
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.task_dashboard.stop', { runIds: ['old-1', 'old-2'] })
+    await act(async () =>
+      settle([
+        { id: 'old-1', result: 'cancelled' },
+        { id: 'old-2', result: 'failed' }
+      ])
+    )
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+  })
+
+  it('stops every captured run without exceeding the IPC limit of 500 IDs per request', async () => {
+    const user = userEvent.setup()
+    const runIds = Array.from({ length: 501 }, (_, index) => `run-${index}`)
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [{ ...run('Research'), runIds, runCount: runIds.length }])
+    ipcMocks.request.mockResolvedValue([])
+    render(<Dashboard enabled />)
+
+    await user.click(screen.getByRole('button', { name: 'Stop Research' }))
+
+    const batches = ipcMocks.request.mock.calls
+      .filter(([method]) => method === 'ai.agent.task_dashboard.stop')
+      .map(([, input]) => input.runIds)
+    expect(batches.map((ids) => ids.length)).toEqual([500, 1])
+    expect(batches.flat()).toEqual(runIds)
+    expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+  })
+
+  it('opens running tasks at their anchor and disables navigation when the session was deleted', async () => {
+    const user = userEvent.setup()
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [run('Research')])
+    render(<Dashboard enabled />)
+    await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
+    expect(ipcMocks.request).toHaveBeenCalledWith('navigation.focus_or_open_conversation', {
+      target: { conversationType: 'agent', conversationId: 'session' },
+      title: 'Research',
+      messageId: 'anchor'
+    })
+    ipcMocks.request.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Deleted'))
+    await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
+    expect(screen.getByRole('button', { name: /Research Agent A No longer available/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+  })
+
+  it('opens a scheduled run without a session through its task and disables a targetless run', async () => {
+    const user = userEvent.setup()
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [
+      { ...run('Scheduled run'), source: 'scheduled', sessionId: null, taskId: 'scheduled' },
+      { ...run('Removed task'), source: 'scheduled', sessionId: null }
+    ])
+    agentPageMocks.dataApiGet.mockResolvedValueOnce({ id: 'scheduled' })
+    render(<Dashboard enabled />)
+    expect(screen.getByRole('button', { name: /Removed task Agent A No longer available/ })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: /Scheduled run Agent A Running/ }))
+    expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-tasks/scheduled')
+    expect(ipcMocks.request).toHaveBeenCalledWith('navigation.open_route_in_main', {
+      path: '/settings/scheduled-tasks/scheduled'
+    })
+  })
+
+  it('opens task creation over the dashboard and cancels without navigating', async () => {
+    const user = userEvent.setup()
+    const query = mockUseQuery.getMockImplementation()!
+    const emptyAgents = { items: [], total: 0, page: 1 }
+    const emptyResources: never[] = []
+    mockUseQuery.mockImplementation((path, options) => {
+      const result = query(path, options)
+      if (path === '/agents') return { ...result, data: emptyAgents }
+      if (path === '/agent-workspaces' || path === '/agent-channels') return { ...result, data: emptyResources }
+      return result
+    })
+    render(<Dashboard enabled />, { wrapper: CodeStyleProvider })
+    await user.pointer({ target: screen.getByRole('button', { name: /^Scheduled tasks/ }), keys: '[MouseRight]' })
+    await act(async () => {
+      await user.click(screen.getByRole('menuitem', { name: 'New scheduled task' }))
+      await vi.dynamicImportSettled()
+    })
+    const dialog = await screen.findByRole('dialog', { name: 'New scheduled task' })
+    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeInTheDocument()
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('navigation.open_route_in_main', expect.anything())
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /^Scheduled tasks/ })).toBeInTheDocument()
+  })
+
+  it('toggles each count independently from its header context menu without collapsing the group', async () => {
+    const user = userEvent.setup()
+    render(<Dashboard enabled />)
+    const scheduled = screen.getByRole('button', { name: /^Scheduled tasks/ })
+    const scheduledName = scheduled.textContent
+    await user.pointer({ target: screen.getByRole('button', { name: 'Running 0' }), keys: '[MouseRight]' })
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' }))
+    expect(screen.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-expanded', 'true')
+    expect(scheduled).toHaveTextContent(scheduledName)
+    await user.pointer({ target: scheduled, keys: '[MouseRight]' })
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' })).toBeChecked()
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' }))
+    expect(screen.getByRole('button', { name: 'Scheduled tasks' })).toHaveAttribute('aria-expanded', 'true')
+    await user.pointer({ target: screen.getByRole('button', { name: 'Running' }), keys: '[MouseRight]' })
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' }))
+    expect(screen.getByRole('button', { name: 'Running 0' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Scheduled tasks' })).toBeInTheDocument()
+  })
+})
 
 describe('AgentPage', () => {
   beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
@@ -904,7 +1150,7 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-task-chat')
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-      initialDraft: { text: 'settings.scheduledTasks.chatDraft', tokens: [] }
+      initialDraft: { text: enUS['settings.scheduledTasks.chatDraft'], tokens: [] }
     })
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
 
@@ -2301,6 +2547,24 @@ describe('AgentPage', () => {
     expect(agentPageMocks.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
     expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Open history records', 'history-records-view', 'message-target'],
+    ['Open history records', 'history-records-view', null],
+    ['agent.manage.title', 'resource-catalog-agent', 'message-target'],
+    ['agent.manage.title', 'resource-catalog-agent', null]
+  ])('reveals the conversation for dashboard navigation from %s (%s, %s)', async (button, surface, messageId) => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-initial', agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: button }))
+    expect(screen.getByTestId(surface)).toBeInTheDocument()
+
+    act(() => requestConversationLocate('agent-tab', 'session-initial', messageId))
+
+    await waitFor(() => expect(screen.queryByTestId(surface)).not.toBeInTheDocument())
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-initial')
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {
