@@ -14,36 +14,44 @@ const unquote = (family: string) => family.trim().replace(/^["']|["']$/g, '')
 export function collectFontFaces(fontFamily: string): FontFaceSource[] {
   const families = new Set(fontFamily.split(',').map(unquote))
   const faces: FontFaceSource[] = []
-  for (const sheet of document.styleSheets) {
-    let rules: CSSRuleList
-    try {
-      rules = sheet.cssRules
-    } catch {
-      continue // Cross-origin sheets are unreadable; the app ships its fonts locally.
-    }
-    const base = sheet.href ?? document.baseURI
+  // Production bundles wrap rules in `@layer`, so walk grouping rules and imported sheets, not just the top level.
+  const collect = (sheet: CSSStyleSheet, rules: CSSRuleList) => {
     for (const rule of rules) {
-      if (!(rule instanceof CSSFontFaceRule)) continue
-      const family = unquote(rule.style.getPropertyValue('font-family'))
-      if (!families.has(family)) continue
-      const source = rule.style
-        .getPropertyValue('src')
-        .replace(
-          /url\((["']?)([^"')]+)\1\)/g,
-          (_, quote: string, url: string) => `url(${quote}${new URL(url, base).href}${quote})`
-        )
-      faces.push({
-        family,
-        source,
-        descriptors: {
-          style: rule.style.getPropertyValue('font-style') || 'normal',
-          weight: rule.style.getPropertyValue('font-weight') || 'normal',
-          unicodeRange: rule.style.getPropertyValue('unicode-range') || 'U+0-10FFFF'
-        }
-      })
+      if (rule instanceof CSSImportRule && rule.styleSheet) visit(rule.styleSheet)
+      else if (rule instanceof CSSGroupingRule) collect(sheet, rule.cssRules)
+      else if (rule instanceof CSSFontFaceRule) {
+        const family = unquote(rule.style.getPropertyValue('font-family'))
+        if (families.has(family)) faces.push(toSource(rule, family, sheet.href ?? document.baseURI))
+      }
     }
   }
+  const visit = (sheet: CSSStyleSheet) => {
+    try {
+      collect(sheet, sheet.cssRules)
+    } catch {
+      // Cross-origin sheets are unreadable; the app ships its fonts locally.
+    }
+  }
+  for (const sheet of document.styleSheets) visit(sheet)
   return faces
+}
+
+function toSource(rule: CSSFontFaceRule, family: string, base: string): FontFaceSource {
+  const source = rule.style
+    .getPropertyValue('src')
+    .replace(
+      /url\((["']?)([^"')]+)\1\)/g,
+      (_, quote: string, url: string) => `url(${quote}${new URL(url, base).href}${quote})`
+    )
+  return {
+    family,
+    source,
+    descriptors: {
+      style: rule.style.getPropertyValue('font-style') || 'normal',
+      weight: rule.style.getPropertyValue('font-weight') || 'normal',
+      unicodeRange: rule.style.getPropertyValue('unicode-range') || 'U+0-10FFFF'
+    }
+  }
 }
 
 const registered = new Map<string, Promise<unknown>>()
