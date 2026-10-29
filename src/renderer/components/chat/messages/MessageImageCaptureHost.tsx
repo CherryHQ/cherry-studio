@@ -22,7 +22,7 @@ const MessageImageCaptureHost = ({
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed top-0 -left-[10000px] h-px w-[960px] overflow-hidden bg-background text-foreground"
+      className="pointer-events-none fixed top-0 -left-[10000px] h-px w-[960px] overflow-hidden bg-chat-message-well-solid text-foreground"
       data-testid={testId}
       inert
       {...{ [captureHostAttribute]: '' }}>

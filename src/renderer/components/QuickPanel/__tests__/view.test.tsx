@@ -547,6 +547,36 @@ describe('QuickPanelView', () => {
     expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
   })
 
+  it('keeps pinyin matches for every row when descriptions repeat across items', async () => {
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => '',
+      getCursorOffset: () => 0,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'pdf', label: 'PDF skill', description: '知识库中的技术资料', icon: 'file' },
+            { id: 'research', label: 'Research skill', description: '知识库', icon: 'search' }
+          ]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          initialSearchText="zsk"
+        />
+      </QuickPanelProvider>
+    )
+
+    expect(await screen.findByText('PDF skill')).toBeInTheDocument()
+    expect(screen.getByText('Research skill')).toBeInTheDocument()
+  })
+
   it('closes with Escape even when the key event does not come from the input adapter', async () => {
     const captureDispatch = vi.fn()
     const onClose = vi.fn()
@@ -743,6 +773,59 @@ describe('QuickPanelView', () => {
 
     expect(childAction).toHaveBeenCalledTimes(1)
     expect(deleteTriggerRange).toHaveBeenCalledOnce()
+  })
+
+  it('opens Permission Mode from /permission without inheriting the parent query', async () => {
+    const user = userEvent.setup()
+    let text = '/permission'
+    let cursorOffset = text.length
+    let selectedMode: string | undefined
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange: ({ from, to }) => {
+        text = text.slice(0, from) + text.slice(to)
+        cursorOffset = from
+      },
+      focus: vi.fn()
+    }
+    const menuAction: QuickPanelListItem['action'] = ({ context, parentPanel }) => {
+      context.open({
+        title: 'Permission Mode',
+        symbol: 'permission-mode',
+        parentPanel,
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
+        list: [
+          { id: 'plan', label: 'Plan Only', icon: 'plan', action: () => (selectedMode = 'plan') },
+          { id: 'auto', label: 'Approve for Me', icon: 'auto', action: () => (selectedMode = 'auto') }
+        ]
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'permission-mode', label: 'Permission Mode', icon: 'shield', isMenu: true, action: menuAction }
+          ]}
+          queryAnchor={0}
+        />
+      </QuickPanelProvider>
+    )
+
+    const permissionMode = await screen.findByRole('button', { name: /Permission Mode/ })
+    await user.hover(screen.getByTestId('quick-panel-body'))
+    await user.click(permissionMode)
+
+    expect(text).toBe('')
+    expect(await screen.findByRole('button', { name: /Plan Only/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /Approve for Me/ })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Plan Only/ }))
+    expect(selectedMode).toBe('plan')
   })
 
   it('keeps a multi-select filter through picks and consumes it when dismissed', async () => {

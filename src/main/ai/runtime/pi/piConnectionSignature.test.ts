@@ -157,6 +157,23 @@ describe('capturePiConnectionSnapshot', () => {
     }
   })
 
+  it('rebuilds a warm connection when only Responses summary permission changes', async () => {
+    const provider = {
+      id: 'provider',
+      updatedAt: 1,
+      endpointConfigs: { 'openai-responses': { dialect: { reasoningSummary: false } } }
+    }
+    mocks.getProvider.mockReturnValue(provider)
+    const before = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getProvider.mockReturnValue({
+      ...provider,
+      endpointConfigs: { 'openai-responses': { dialect: { reasoningSummary: true } } }
+    })
+    const after = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+
+    expect(after.signature).not.toBe(before.signature)
+  })
+
   it('returns the exact provider, model, skills, MCP, and channel facts signed by the snapshot', async () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
     mocks.listLocalSkillPaths.mockResolvedValue(['/workspace/.agents/skills/review'])
@@ -237,6 +254,13 @@ describe('capturePiConnectionSnapshot', () => {
     mocks.gatewayFingerprint = 'gateway-2'
 
     expect((await captureCloud()).signature).not.toBe(initialSignature)
+  })
+  it('rebuilds a gateway fallback connection when its local credential changes', async () => {
+    mocks.usesPiGateway.mockReturnValue(true)
+    const initial = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.gatewayFingerprint = 'rotated-local-key'
+    const rotated = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(rotated.signature).not.toBe(initial.signature)
   })
   it('invalidates cached tools when Agent browser control changes', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)

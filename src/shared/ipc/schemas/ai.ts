@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -25,7 +26,11 @@ import {
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
-import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  AgentSessionWorkspaceSourceSchema,
+  AgentWorkspaceEntitySchema,
+  AgentWorkspaceNameSchema
+} from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -36,7 +41,7 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import { FileVersionSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -153,6 +158,16 @@ const aiImagePayloadSchema = z.strictObject({
    * in the renderer's `buildParamsSchema`; this is the value-type gate.
    */
   paramValues: imageParamsSchema,
+  /**
+   * Per-attempt request timeout (ms) for the provider submit call. Omitted
+   * means the transport default; bounded by the image job's 30-minute budget.
+   */
+  requestTimeoutMs: z
+    .number()
+    .int()
+    .min(10_000)
+    .max(30 * 60_000)
+    .optional(),
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
   mask: z.string().optional(),
@@ -184,6 +199,9 @@ const mentionedModelIdsSchema = z
   .optional()
 
 export const aiRequestSchemas = {
+  'ai.claude_code.binary.status': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.ensure': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.retry': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
   'ai.agent.attachment_selections.list': defineRoute({
     input: z.object({ sessionId: z.string() }),
     output: z.custom<AgentAttachmentSelection[]>()
@@ -354,6 +372,10 @@ export const aiRequestSchemas = {
     input: z.void(),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
+  'ai.agent.assistant_session.create': defineRoute({
+    input: z.void(),
+    output: z.strictObject({ sessionId: z.string().min(1) })
+  }),
   'ai.agent.skill_session.create': defineRoute({
     input: z.strictObject({ skillId: z.string().min(1) }),
     output: z.strictObject({ sessionId: z.string().min(1) })
@@ -410,6 +432,13 @@ export const aiRequestSchemas = {
   'ai.agent.session.reuse_or_create': defineRoute({
     input: ReuseOrCreateAgentSessionSchema,
     output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
+  }),
+  'ai.agent.workspace.register': defineRoute({
+    input: z.strictObject({
+      path: z.string().trim().pipe(AbsoluteFilePathSchema),
+      name: AgentWorkspaceNameSchema.optional()
+    }),
+    output: AgentWorkspaceEntitySchema
   }),
   'ai.agent.workspace.delete': defineRoute({
     input: z.strictObject({ workspaceId: z.string().min(1) }),
@@ -488,6 +517,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload

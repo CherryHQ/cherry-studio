@@ -2,6 +2,7 @@ import { application } from '@application'
 import type { UploadChunk } from '@cherrystudio/remote-protocol'
 import {
   agentUploadLimits,
+  type AgentUploadComplete,
   type AgentUploadMetadata,
   type AgentUploadReference,
   type AgentUploadResume
@@ -64,7 +65,7 @@ export class RemoteUploads {
   write(owner: UploadOwner, input: UploadChunk) {
     return this.run(owner, (scope) => application.get('FileIntakeService').write(scope, input))
   }
-  complete(owner: UploadOwner, input: { uploadId: string; writerEpoch: string }) {
+  complete(owner: UploadOwner, input: AgentUploadComplete) {
     return this.run(owner, (scope) => application.get('FileIntakeService').complete(scope, input))
   }
   cancel(owner: UploadOwner, id: string) {

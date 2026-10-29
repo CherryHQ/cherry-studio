@@ -32,6 +32,8 @@
  * shared logging surface lands.
  */
 
+import { clampSurrogateBoundary } from '@shared/utils/text'
+
 export type ValidateFileNameResult = { valid: true } | { valid: false; error: string }
 
 /**
@@ -170,6 +172,9 @@ export function validateFileName(
   }
 
   if (platform === 'win32') {
+    if (WINDOWS_CONTROL_CHARS.test(fileName)) {
+      return { valid: false, error: 'File name cannot contain ASCII control characters.' }
+    }
     if (WINDOWS_INVALID_CHARS.test(fileName)) {
       return { valid: false, error: 'File name contains characters not supported by Windows: < > : " / \\ | ? *' }
     }
@@ -205,8 +210,9 @@ export function validateFileName(
  * 1. Replace `< > : " / \ | ? *` and ASCII control chars (0x00-0x1f) with `replacement`.
  * 2. Replace Windows-reserved prefixes (CON / PRN / AUX / NUL / COM1-9 /
  *    LPT1-9) — preserves the trailing `.<ext>` or end-of-string.
- * 3. Trim trailing whitespace and dots (Windows convention).
- * 4. Truncate to 255 characters (filesystem limit).
+ * 3. Truncate to 255 characters (filesystem limit).
+ * 4. Trim trailing whitespace and dots (Windows convention) — runs after
+ *    truncation so a cut cannot leave an exposed interior space/dot at the end.
  */
 export function sanitizeFilename(fileName: string, replacement = '_'): string {
   if (!fileName) return ''
@@ -217,8 +223,10 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
     // oxlint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement)
     .replace(WINDOWS_RESERVED_NAMES, `${replacement}$2`)
-    .replace(/[\s.]+$/, '')
-    .substring(0, FILE_NAME_MAX_LENGTH)
+
+  // 255 is a UTF-16 budget; cutting between a surrogate pair would leave a lone
+  // half that Node writes as U+FFFD, so the on-disk name stops matching.
+  sanitized = sanitized.slice(0, clampSurrogateBoundary(sanitized, FILE_NAME_MAX_LENGTH)).replace(/[\s.]+$/, '')
 
   if (!sanitized) {
     sanitized = 'untitled'

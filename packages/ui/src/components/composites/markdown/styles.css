@@ -4,3 +4,10 @@
 @import 'katex/dist/katex.min.css' layer(app);
 @import 'remark-github-blockquote-alert/alert.css' layer(app);
 @import 'streamdown/styles.css' layer(app);
+
+@layer app {
+  /* Opacity returns to 1 naturally; forwards fill retains completed word animations and their compositor resources. */
+  .markdown-fade-in [data-sd-animate] {
+    animation-fill-mode: backwards;
+  }
+}

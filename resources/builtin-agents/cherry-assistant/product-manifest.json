@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.5",
+    "version": "2.1.8",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -66,6 +66,7 @@
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
+      "/settings/computer-use",
       "/settings/data",
       "/settings/dependencies",
       "/settings/device-connections",
@@ -76,6 +77,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/profile",
       "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
@@ -85,8 +87,10 @@
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
+      "/settings/subscription",
       "/settings/system",
       "/settings/usage",
+      "/settings/voice",
       "/settings/websearch",
       "/app/mini-app/$appId",
       "/app/paintings/$",
@@ -496,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "a97aae2405a78d18",
-    "count": 65,
+    "version": "e1952ef3858002a8",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -592,6 +596,10 @@
         "name": "LM Studio"
       },
       {
+        "id": "litellm",
+        "name": "LiteLLM"
+      },
+      {
         "id": "anthropic",
         "name": "Anthropic"
       },
@@ -649,7 +657,11 @@
       },
       {
         "id": "dashscope",
-        "name": "Bailian"
+        "name": "Qwen AI Platform"
+      },
+      {
+        "id": "qwencloud",
+        "name": "QwenCloud"
       },
       {
         "id": "stepfun",
@@ -818,6 +830,11 @@
       "label": "Română"
     },
     {
+      "value": "th-TH",
+      "flag": "🇹🇭",
+      "label": "ภาษาไทย"
+    },
+    {
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
@@ -826,6 +843,11 @@
       "value": "tr-TR",
       "flag": "🇹🇷",
       "label": "Türkçe"
+    },
+    {
+      "value": "it-IT",
+      "flag": "🇮🇹",
+      "label": "Italiano"
     }
   ],
   "agents": {

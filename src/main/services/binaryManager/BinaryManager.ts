@@ -46,6 +46,7 @@ import type {
 } from '@shared/types/binary'
 
 import { sanitizedCommandError } from './commandError'
+import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
 
 const logger = loggerService.withContext('BinaryManager')
@@ -224,8 +225,13 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type FixedToolDefinition = { name: string; tool: string; npmAllowBuilds?: readonly string[] }
-type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds'>
+type FixedToolDefinition = {
+  name: string
+  tool: string
+  npmAllowBuilds?: readonly string[]
+  pipDependencies?: readonly string[]
+}
+type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -264,7 +270,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     {
       name: preset.name,
       tool: preset.tool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
+      ...(preset.pipDependencies?.length ? { pipDependencies: preset.pipDependencies } : {})
     }
   ]),
   ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => [
@@ -632,13 +639,12 @@ export class BinaryManager extends BaseService {
             ? { source: 'system', path: system[name] }
             : { source: 'none' }
       const operation = operations[name]
-      // A failed install is stale only when the exact recipe is proven absent
-      // and an out-of-band executable now satisfies the tool. Unknown/broken
-      // application still needs the failure row to explain why Retry made no
-      // change, even if system/bundled availability keeps execution possible.
+      // External availability satisfies only untargeted failures; targeted
+      // failures must remain visible so Retry repeats the requested version.
       const staleFailedInstall =
         operation?.status === 'failed' &&
         operation.action === 'install' &&
+        operation.targetVersion === undefined &&
         (!derivedTool.application || derivedTool.application.status === 'absent') &&
         (availability.source === 'system' || availability.source === 'bundled')
       const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
@@ -1308,6 +1314,33 @@ export class BinaryManager extends BaseService {
     throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
   }
 
+  private async enforcePipDependencies(
+    definition: InstallableToolDefinition,
+    dependencies: readonly string[]
+  ): Promise<void> {
+    const { stdout } = await this.runMise(['ls', '--json', definition.tool])
+    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const installPath = entries.find((entry) => entry.active)?.install_path
+    if (!installPath) throw new Error(`mise did not report an active install path for ${definition.name}`)
+
+    const snapshot = await this.getIsolatedEnv()
+    if (!snapshot.usesDefaultChinaPipIndex) {
+      await installToolDependencies({ installPath, dependencies, env: snapshot.env })
+      return
+    }
+
+    const failures: string[] = []
+    for (const index of [...CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX]) {
+      try {
+        await installToolDependencies({ installPath, dependencies, env: { ...snapshot.env, ...pipIndexEnv(index) } })
+        return
+      } catch (error) {
+        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
+      }
+    }
+    throw new Error(`No PyPI index could install the pinned dependencies of ${definition.name}\n${failures.join('\n')}`)
+  }
+
   /**
    * Drop the global Python selection older Cherry versions wrote for the pipx
    * backend. Cherry provisions the interpreter itself now, so its own leftover
@@ -1378,6 +1411,9 @@ export class BinaryManager extends BaseService {
     if (pythonPath) {
       await this.installPipxTool(useArgs, pythonPath, includePrerelease)
       await this.releaseMisePythonSelection()
+      if (definition.pipDependencies?.length) {
+        await this.enforcePipDependencies(definition, definition.pipDependencies)
+      }
     } else {
       await this.runMise(useArgs, {
         timeoutMs: MISE_INSTALL_TIMEOUT_MS,
@@ -1601,8 +1637,9 @@ export class BinaryManager extends BaseService {
    * recipe was already persisted by Custom Add). An unknown name, a foreign
    * conflict, or an unreadable backend reject without mutating; an already-applied
    * tool is a no-op (or a one-shot version update when a target is given); an
-   * externally satisfied tool (bundled/system) is a logged no-op so a race
-   * converges. A backend failure records a failed operation and rejects.
+   * external copy is a logged no-op without a target or with an exact bundled
+   * semver match. Unmet/unprovable targets and backend failures record a failed
+   * operation and reject.
    */
   installByName(request: BinaryInstallByNameRequest): Promise<void> {
     const { name, targetVersion } = request
@@ -1657,7 +1694,8 @@ export class BinaryManager extends BaseService {
           await refreshShellEnv()
           const snapshot = (await this.getToolSnapshots([name]))[name]
           const status = snapshot.application?.status
-          const source = snapshot.availability.source
+          const availability = snapshot.availability
+          const source = availability.source
 
           // Unproven ownership must not authorize installing over an existing tool.
           if (status === 'conflict')
@@ -1667,9 +1705,24 @@ export class BinaryManager extends BaseService {
             return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
           }
           if (status === 'applied' && !targetVersion) return { kind: 'done' }
-          // absent + an external copy: a race already satisfied it — never lay down a
-          // managed shadow copy over a bundled/system binary.
+          // External copies must satisfy explicit targets without creating a managed shadow.
           if (status === 'absent' && (source === 'bundled' || source === 'system')) {
+            if (targetVersion) {
+              if (source === 'system') {
+                return {
+                  kind: 'failed',
+                  error: `Cannot satisfy ${name}@${targetVersion}: source=system; installed version cannot be verified. Cherry Studio cannot update or replace this system installation. Manage it outside Cherry Studio, or omit the version target (requestedVersion in cli_install) to use the available executable.`
+                }
+              }
+              const version = availability.version
+              const requested = semverValid(targetVersion)
+              if (requested === null || !version || requested !== semverValid(version)) {
+                return {
+                  kind: 'failed',
+                  error: `Cannot satisfy ${name}@${targetVersion}: source=bundled; bundled version=${version ?? 'unknown (version marker missing or empty)'}. The requested version could not be verified as an exact semantic-version match. Omit the version target (requestedVersion in cli_install) to use the bundled copy, or update/reinstall Cherry Studio; bundled tools cannot be updated independently.`
+                }
+              }
+            }
             logger.info('Skipping managed install; tool already available from an external source', { name, source })
             return { kind: 'done' }
           }
@@ -1692,9 +1745,8 @@ export class BinaryManager extends BaseService {
       return
     }
     if (outcome.kind === 'failed') {
-      // Retain the update target so a Retry repeats the same targeted install; a
-      // name-only retry of a failed update would hit the applied no-op and falsely
-      // clear the failure without repeating the update.
+      // Retain the target so Retry cannot silently clear an unmet version
+      // through an applied or external name-only no-op.
       this.setOperation(name, {
         status: 'failed',
         action: 'install',

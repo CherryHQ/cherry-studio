@@ -48,6 +48,7 @@
  */
 
 export { createContentHasher, hashContent, parseContentHash } from './contentHash'
+export { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from './pathIdentity'
 export {
   assertPathVersionUnchanged,
   atomicWriteFile,

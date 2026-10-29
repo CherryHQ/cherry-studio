@@ -10,7 +10,7 @@ import {
   interactionSchema,
   interactionResponseSchema,
   workspaceSelectionSchema,
-  messageSchema,
+  messageListItemSchema,
   modelSummarySchema,
   partSchema,
   sessionSchema
@@ -21,7 +21,7 @@ import {
   uploadReferencesSchema,
   uploadStateSchema,
   uploadResumeSchema,
-  uploadWriterSchema
+  uploadCompleteSchema
 } from './uploads'
 
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
@@ -73,8 +73,8 @@ export const agentMethods = {
     commandReceiptSchema
   ),
   'agent.messages.list': method(
-    z.strictObject({ ...session, historyRevision: decimal, ...pageParams }),
-    pageOf(messageSchema)
+    z.strictObject({ ...session, historyRevision: decimal, partsMode: z.literal('paged').optional(), ...pageParams }),
+    pageOf(messageListItemSchema)
   ),
   'agent.parts.list': method(
     z.strictObject({ ...session, messageId: opaqueId, messageRevision: decimal, ...pageParams }),
@@ -102,7 +102,7 @@ export const agentMethods = {
   'agent.uploads.prepare': method(uploadMetadataSchema, uploadStateSchema),
   'agent.uploads.get': method(uploadReferenceSchema, uploadStateSchema),
   'agent.uploads.resume': method(uploadResumeSchema, uploadStateSchema),
-  'agent.uploads.complete': method(uploadWriterSchema, uploadStateSchema),
+  'agent.uploads.complete': method(uploadCompleteSchema, uploadStateSchema),
   'agent.uploads.cancel': method(uploadReferenceSchema, z.looseObject({ cancelled: z.literal(true) })),
   'agent.messages.send': method(
     z

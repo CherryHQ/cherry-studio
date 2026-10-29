@@ -6,6 +6,8 @@ export {
   agentCursorSchema,
   sessionSchema,
   messageSchema,
+  messageSummarySchema,
+  messageListItemSchema,
   messageUsageSchema,
   modelSummarySchema,
   partSchema,
@@ -21,6 +23,8 @@ export type {
   AgentCursor,
   AgentSession,
   AgentMessage,
+  AgentMessageSummary,
+  AgentMessageListItem,
   AgentMessageUsage,
   AgentPart,
   AgentExecution,
@@ -43,7 +47,13 @@ export { applyAgentEvents, installAgentCheckpoint, textByteLength } from './agen
 export type { MaterializedContent, ApplyAgentEventsResult, InstallAgentCheckpointResult } from './agent/reducer'
 
 export { agentUploadLimits, uploadMetadataSchema, uploadReferenceSchema, uploadReferencesSchema } from './agent/uploads'
-export type { AgentUploadMetadata, AgentUploadReference, AgentUploadState, AgentUploadResume } from './agent/uploads'
+export type {
+  AgentUploadComplete,
+  AgentUploadMetadata,
+  AgentUploadReference,
+  AgentUploadState,
+  AgentUploadResume
+} from './agent/uploads'
 
 export {
   attachmentSelectionSchema,

@@ -18,11 +18,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import {
-  appendAgentAttachmentPaths,
-  buildAgentUserContent,
-  wrapAgentSessionDeliveryContent
-} from '@main/ai/runtime/agentUserContent'
+import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -43,12 +39,11 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -277,51 +272,9 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   }
 }
 
-// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
-export { buildAgentUserContent }
-
-class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
-  private readonly messages: SDKUserMessage[] = []
-  private waitResolve?: (value: IteratorResult<SDKUserMessage>) => void
-  private closed = false
-
-  push(message: SDKUserMessage): void {
-    if (this.closed) return
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: message, done: false })
-      return
-    }
-    this.messages.push(message)
-  }
-
-  close(): void {
-    this.closed = true
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: undefined, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    return {
-      next: () => {
-        const next = this.messages.shift()
-        if (next) return Promise.resolve({ value: next, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true })
-        return new Promise<IteratorResult<SDKUserMessage>>((resolve) => {
-          this.waitResolve = resolve
-        })
-      }
-    }
-  }
-}
-
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
-  private sdkInputQueue = new SdkInputQueue()
+  private readonly sdkInputQueue = new AsyncEventQueue<SDKUserMessage>()
   private readonly abortController = new AbortController()
   private query?: Query
   private closePromise?: Promise<void>
@@ -363,8 +316,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async start(): Promise<this> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
-    // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
-    // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
@@ -372,12 +323,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds
-    ).catch((error) => {
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-      }
-      throw error
-    })
+    )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
@@ -1155,7 +1101,8 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * current local paths so the Agent decides how to inspect them with its tools. Images
  * keep the capability-aware path: supported formats become native Anthropic image
  * blocks, while first-party images use shared OCR/native-fallback routing when vision
- * is unavailable. Assistant attachment handles remain an additional compatibility
+ * is unavailable, and unlisted-extension images survive routing as file parts for the
+ * path fallback. Assistant attachment handles remain an additional compatibility
  * interface; external files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
@@ -1196,7 +1143,10 @@ async function materializeUserContent(
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: supportsAttachmentReads
+      isToolCapable: supportsAttachmentReads,
+      // An unlisted-extension image (AVIF/HEIC — accepted wildcard on the agent surface) must
+      // stay a file part so the local-path fallback below still holds its file reference.
+      keepUnroutableFileParts: true
     })
     preparedParts = prepared.parts
   }
@@ -1208,6 +1158,15 @@ async function materializeUserContent(
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
+  // A part that cannot become an image block still reaches the agent through its own path;
+  // only one with nowhere to point is unavailable.
+  const routeWithoutImage = (originalPart: FileUIPart): void => {
+    const target =
+      readCherryMeta(originalPart)?.fileEntryId || originalPart.url?.startsWith('file://')
+        ? fallbackParts
+        : unavailableParts
+    target.push(originalPart)
+  }
 
   for (const part of [
     ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
@@ -1217,8 +1176,7 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
-      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
-      target.push(originalPart)
+      routeWithoutImage(originalPart)
       continue
     }
 
@@ -1227,14 +1185,15 @@ async function materializeUserContent(
     if (!parsed) {
       const materialized = await materializeNativeFilePart(part)
       if (!materialized) {
-        unavailableParts.push(originalPart)
+        // Conversion found nothing sendable — the file itself may still be readable at its path.
+        routeWithoutImage(originalPart)
         continue
       }
       parsed = materialized.url ? parseDataUrl(materialized.url) : null
     }
 
     if (!parsed?.isBase64 || parsed.data.length === 0) {
-      unavailableParts.push(originalPart)
+      routeWithoutImage(originalPart)
       continue
     }
 
@@ -1252,11 +1211,8 @@ async function materializeUserContent(
       continue
     }
 
-    if (originalPart.url?.startsWith('file://')) {
-      fallbackParts.push(originalPart)
-    } else {
-      unavailableParts.push(originalPart)
-    }
+    // Converted, but into a type the image blocks cannot carry (BMP, TIFF …).
+    routeWithoutImage(originalPart)
   }
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
@@ -1338,9 +1294,16 @@ function isImageFilePart(part: FileUIPart): boolean {
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
+/**
+ * Whether the part can become one of Claude's image blocks at all. A declared image type the
+ * blocks cannot carry (TIFF, AVIF, HEIC …) answers here, before its bytes are converted: the
+ * conversion can only fail, and the local-path fallback delivers the file either way.
+ */
 function canBeClaudeImage(part: FileUIPart): boolean {
-  const mediaType = part.mediaType?.toLowerCase()
-  if (!mediaType || mediaType === 'application/octet-stream' || mediaType.startsWith('image/')) return true
+  const inlineType = part.url?.startsWith('data:') ? parseDataUrl(part.url)?.mediaType : undefined
+  const mediaType = (inlineType ?? part.mediaType)?.toLowerCase()
+  if (!mediaType || mediaType === 'application/octet-stream') return true
+  if (mediaType.startsWith('image/')) return toClaudeImageMediaType(mediaType) !== null
 
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
@@ -1371,6 +1334,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly capabilities = ['agent-session'] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
+    await application.get('ClaudeCodeBinaryService').ensureExecutable()
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)

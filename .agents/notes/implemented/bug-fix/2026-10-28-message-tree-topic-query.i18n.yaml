@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-message-tree-topic-query.md
+2026-10-28-message-tree-topic-query.md: d7fe1fd5b1df7682e74a326b158ae09e898960a3
+2026-10-28-message-tree-topic-query.zh.md: 2f14ee9e35a2cf103fde819c8eb53265931d6075

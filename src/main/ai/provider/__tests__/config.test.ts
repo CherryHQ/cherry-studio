@@ -1,7 +1,10 @@
+import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { mergePresetModel } from '@data/services/ProviderRegistryService'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -22,6 +25,12 @@ import type { AuthConfig } from '@shared/data/types/provider'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
+import { splitParamValues } from '../../utils/imageOptions'
+import { resolveImageTransport } from '../custom/imageTransportRegistry'
+import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
+import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
+import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
+import { resolveWireModelId } from '../endpoint'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -1017,6 +1026,143 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
   })
 
+  describe('QwenCloud wire IDs and native image routing', () => {
+    const textEndpoints = [
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    ]
+    const qwencloudEndpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
+        adapterFamily: 'openai-compatible'
+      },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+        baseUrl: 'https://responses.example.com/v1/',
+        adapterFamily: 'openai'
+      },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+        baseUrl: 'https://anthropic.example.com/apps/anthropic',
+        adapterFamily: 'anthropic'
+      }
+    }
+
+    it('keeps the documented DeepSeek V4.1 Flash API ID through preset merge and wire resolution', () => {
+      const loader = new RegistryLoader({
+        models: 'packages/provider-registry/data/models.json',
+        providers: 'packages/provider-registry/data/providers.json',
+        providerModels: 'packages/provider-registry/data/provider-models.json'
+      })
+      const preset = loader.findModel('deepseek-v4-1-flash')!
+      const override = loader.findOverride('qwencloud', preset.id)
+      const model = mergePresetModel(preset, override, 'qwencloud')
+
+      expect(resolveWireModelId(model, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('deepseek-v4.1-flash')
+    })
+
+    it.each(textEndpoints)(
+      'submits native images independently of the %s text default',
+      async (defaultChatEndpoint) => {
+        const provider = makeProvider({
+          id: 'qwencloud',
+          defaultChatEndpoint,
+          endpointConfigs: qwencloudEndpointConfigs
+        })
+        const model = makeModel({
+          id: 'qwencloud::qwen-image-3-0',
+          providerId: 'qwencloud',
+          apiModelId: 'qwen-image-3.0',
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe('qwencloud')
+        expect(settings.imageBaseURL).toBe('https://ap-southeast-1.maas.qwencloudapi.com')
+        vi.mocked(net.fetch).mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              output: { choices: [{ message: { content: [{ image: 'https://image.example/result.png' }] } }] }
+            })
+          )
+        )
+        const transport = resolveImageTransport(config.providerId, 'qwen-image-3.0', settings)
+        expect(transport).not.toBeNull()
+        const result = await transport!.submit({
+          modelId: 'qwen-image-3.0',
+          prompt: 'a red circle',
+          n: 1,
+          size: undefined,
+          seed: undefined,
+          files: undefined,
+          mask: undefined,
+          modelDescriptor: {
+            id: 'qwen-image-3.0',
+            endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+            isSync: true,
+            mode: 'generate'
+          },
+          providerParams: {}
+        })
+        expect(result.imageUrls).toEqual(['https://image.example/result.png'])
+        const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+        expect(String(url)).toBe(
+          'https://ap-southeast-1.maas.qwencloudapi.com/api/v1/services/aigc/multimodal-generation/generation'
+        )
+        expect(JSON.parse(String(request?.body)).model).toBe('qwen-image-3.0')
+      }
+    )
+
+    it.each(textEndpoints)('preserves the proxy AIGC path with a %s text default', async (defaultChatEndpoint) => {
+      const provider = makeProvider({
+        id: 'qwencloud-proxy',
+        presetProviderId: 'qwencloud',
+        defaultChatEndpoint,
+        endpointConfigs: {
+          ...qwencloudEndpointConfigs,
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://proxy.example.com/ds/compatible-mode/v1/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'qwencloud-proxy::qwen-image-3-0',
+        providerId: 'qwencloud-proxy',
+        apiModelId: 'qwen-image-3.0',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+    })
+
+    it.each([
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai'],
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic']
+    ] as const)('keeps text models on the selected %s adapter', async (defaultChatEndpoint, expectedProviderId) => {
+      const provider = makeProvider({
+        id: 'qwencloud',
+        defaultChatEndpoint,
+        endpointConfigs: qwencloudEndpointConfigs
+      })
+      const model = makeModel({
+        id: 'qwencloud::qwen3-8-max',
+        providerId: 'qwencloud',
+        apiModelId: 'qwen3.8-max',
+        capabilities: []
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe(expectedProviderId)
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBeUndefined()
+    })
+  })
+
   describe('CherryAI routing', () => {
     it('uses custom fetch to sign chat completions requests', async () => {
       resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
@@ -1766,6 +1912,155 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('NewAPI builder', () => {
+    const imageEndpoints = [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]
+
+    it.each(
+      imageEndpoints.flatMap((endpointType) =>
+        [
+          ['https://relay.example.com', 'https://relay.example.com/v1'],
+          ['https://relay.example.com/v1', 'https://relay.example.com/v1'],
+          ['https://relay.example.com/v1beta', 'https://relay.example.com/v1'],
+          ['https://relay.example.com/gateway/v1', 'https://relay.example.com/gateway/v1'],
+          ['https://relay.example.com/custom#', 'https://relay.example.com/custom'],
+          ['https://relay.example.com/v1', 'https://relay.example.com/v1', 'my-newapi', 'qwen-image'],
+          ['https://relay.example.com/v1', 'https://relay.example.com/v1', 'openai-compatible', 'qwen-image']
+        ].map(([baseUrl, expected, providerId = 'my-newapi', modelId = 'gpt-image-2.5-flare']) => ({
+          endpointType,
+          baseUrl,
+          expected,
+          providerId,
+          modelId
+        }))
+      )
+    )(
+      'preserves $modelId parameters on $endpointType for New API instance $providerId at $baseUrl',
+      async ({ endpointType, baseUrl, expected, providerId, modelId }) => {
+        const preset = readProviderRegistry('packages/provider-registry/data/providers.json').providers.find(
+          (provider) => provider.id === 'new-api'
+        )
+        const provider = makeProvider({
+          id: providerId,
+          presetProviderId: 'new-api',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            ...preset?.endpointConfigs,
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              ...preset?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+              baseUrl
+            }
+          }
+        })
+        const model = makeModel({
+          apiModelId: modelId,
+          endpointTypes: [endpointType],
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+        const config = await providerToAiSdkConfig(provider, model)
+
+        expect(config.providerId).toBe('newapi')
+        vi.mocked(net.fetch).mockResolvedValue(
+          new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+            headers: { 'content-type': 'application/json' }
+          })
+        )
+        const paramValues =
+          modelId === 'qwen-image'
+            ? {
+                negativePrompt: 'blurry',
+                numInferenceSteps: 25,
+                seed: 0,
+                guidanceScale: 0,
+                cfg: 0,
+                promptEnhancement: false
+              }
+            : { quality: 'high', background: 'transparent', moderation: 'low' }
+        const expectedParameters =
+          modelId === 'qwen-image'
+            ? {
+                negative_prompt: 'blurry',
+                num_inference_steps: 25,
+                seed: 0,
+                guidance_scale: 0,
+                cfg: 0,
+                prompt_enhancement: false
+              }
+            : { quality: 'high', background: 'transparent', moderation: 'low' }
+        const { structured, vendorBag } = splitParamValues(paramValues)
+        const options: ImageModelV3CallOptions = {
+          prompt: 'a red circle',
+          n: 1,
+          size: undefined,
+          aspectRatio: undefined,
+          seed: structured.seed,
+          files:
+            endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+              ? [{ type: 'file', data: new Uint8Array([137, 80, 78, 71]), mediaType: 'image/png' }]
+              : undefined,
+          mask: undefined,
+          providerOptions: buildVendorProviderOptions(
+            config.providerId,
+            paramValues,
+            WIRE_REGISTRY[config.providerId],
+            vendorBag
+          ),
+          headers: undefined,
+          abortSignal: undefined
+        }
+        const result = await createNewApi(config.providerSettings as NewApiProviderSettings)
+          .imageModel(modelId)
+          .doGenerate(options)
+
+        const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+        expect(String(url)).toBe(
+          `${expected}/images/${endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT ? 'edits' : 'generations'}`
+        )
+        expect(request?.method).toBe('POST')
+        if (endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) {
+          const body = request?.body
+          if (!(body instanceof FormData)) throw new Error('Image edits must send multipart form data')
+          expect(body.get('model')).toBe(modelId)
+          for (const [key, value] of Object.entries(expectedParameters)) expect(body.get(key)).toBe(String(value))
+          expect(body.has('negativePrompt')).toBe(false)
+          expect(body.has('numInferenceSteps')).toBe(false)
+        } else {
+          expect(JSON.parse(String(request?.body))).toEqual({
+            model: modelId,
+            prompt: 'a red circle',
+            n: 1,
+            ...(modelId === 'qwen-image' ? { response_format: 'b64_json' } : {}),
+            ...expectedParameters
+          })
+        }
+        expect(result.images).toEqual(['QUJD'])
+      }
+    )
+
+    it.each(imageEndpoints)('preserves an explicit %s host on a New API provider instance', async (endpointType) => {
+      const preset = readProviderRegistry('packages/provider-registry/data/providers.json').providers.find(
+        (provider) => provider.id === 'new-api'
+      )
+      const provider = makeProvider({
+        id: 'my-newapi',
+        presetProviderId: 'new-api',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          ...preset?.endpointConfigs,
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            ...preset?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            baseUrl: 'https://relay.example.com'
+          },
+          [endpointType]: {
+            ...preset?.endpointConfigs?.[endpointType],
+            baseUrl: 'https://images.example.com/gateway/v1'
+          }
+        }
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel({ endpointTypes: [endpointType] }))
+
+      expect(config.providerId).toBe('newapi')
+      expect((config.providerSettings as NewApiProviderSettings).baseURL).toBe('https://images.example.com/gateway/v1')
+    })
+
     it('uses the provider default anthropic endpoint when the model has no endpoint types', async () => {
       const provider = makeProvider({
         id: 'my-newapi',
@@ -1813,7 +2108,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it.each([
       ['https://api.newapi.com', 'https://api.newapi.com/v1'],
       ['https://api.newapi.com/v1', 'https://api.newapi.com/v1'],
-      ['https://api.newapi.com/v1beta', 'https://api.newapi.com/v1']
+      ['https://api.newapi.com/v1beta', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/custom#', 'https://api.newapi.com/custom']
     ])('re-derives the chat baseURL of %s as %s', async (baseUrl, expected) => {
       const provider = makeProvider({
         id: 'my-newapi',

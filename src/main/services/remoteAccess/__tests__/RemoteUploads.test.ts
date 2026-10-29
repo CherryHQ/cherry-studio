@@ -80,6 +80,109 @@ describe('durable remote uploads', () => {
       requestId: randomUUID(),
       bytes
     })
+  it.each([true, false])('binds the source digest and publishes only matching bytes (match=%s)', async (match) => {
+    const bytes = Buffer.from('independent phone bytes')
+    const metadata = {
+      uploadId: randomUUID(),
+      filename: 'verified.txt',
+      mediaType: 'text/plain',
+      byteLength: bytes.length,
+      checksumAlgorithm: 'sha256' as const
+    }
+    await uploads.prepare(owner, metadata)
+    await expect(uploads.prepare(owner, { ...metadata, checksumAlgorithm: undefined })).rejects.toMatchObject({
+      data: { reason: 'IDEMPOTENCY_CONFLICT' }
+    })
+    await write(metadata.uploadId, bytes)
+    const input = {
+      uploadId: metadata.uploadId,
+      writerEpoch: '0',
+      expectedSha256: digest(match ? bytes : Buffer.from('other source'))
+    }
+    await expect(uploads.complete(owner, { ...input, expectedSha256: undefined })).rejects.toMatchObject({
+      data: { reason: 'CONFLICT' }
+    })
+    await uploads.complete(owner, input)
+    await expect.poll(async () => (await uploads.get(owner, metadata.uploadId)).state).toBe(match ? 'ready' : 'failed')
+    const state = await uploads.complete(owner, input)
+    expect(state).toMatchObject(
+      match ? { checksumAlgorithm: 'sha256', sha256: digest(bytes) } : { failureCode: 'CHECKSUM_MISMATCH' }
+    )
+    if (!match) {
+      expect(state.sha256).toBeUndefined()
+      expect(await readdir(path.join(root, 'files'))).toEqual([])
+      await expect(uploads.withFiles(owner, [{ uploadId: metadata.uploadId }], async () => {})).rejects.toMatchObject({
+        data: { reason: 'CONFLICT' }
+      })
+    }
+    await expect(uploads.complete(owner, { ...input, expectedSha256: '0'.repeat(64) })).rejects.toMatchObject({
+      data: { reason: 'IDEMPOTENCY_CONFLICT' }
+    })
+  })
+
+  it('rehashes checkpoint bytes after restart instead of trusting a cached digest', async () => {
+    const bytes = Buffer.from('before')
+    const metadata = {
+      uploadId: randomUUID(),
+      filename: 'restart.txt',
+      mediaType: 'text/plain',
+      byteLength: bytes.length,
+      checksumAlgorithm: 'sha256' as const
+    }
+    await uploads.prepare(owner, metadata)
+    await write(metadata.uploadId, bytes)
+    const store = application.get('FileManager').intakes
+    const upload = [...store.uploads.values()][0]
+    await store.save({ ...upload, state: 'verifying', sha256: digest(bytes), expectedSha256: digest(bytes) })
+    await intake.drain()
+    const { writeFile } = await import('node:fs/promises')
+    await writeFile(store.file(upload), 'mutate')
+    BaseService.resetInstances()
+    intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    await expect.poll(async () => (await uploads.get(owner, metadata.uploadId)).state).toBe('failed')
+    expect(await uploads.get(owner, metadata.uploadId)).toMatchObject({ failureCode: 'CHECKSUM_MISMATCH' })
+    expect(await readdir(path.join(root, 'files'))).toEqual([])
+  })
+
+  it.each([false, true])(
+    'recovers publication without staging and rechecks surviving managed bytes (corrupt=%s)',
+    async (corrupt) => {
+      const bytes = Buffer.from('source bytes')
+      const metadata = {
+        uploadId: randomUUID(),
+        filename: 'published.txt',
+        mediaType: 'text/plain',
+        byteLength: bytes.length,
+        checksumAlgorithm: 'sha256' as const
+      }
+      await uploads.prepare(owner, metadata)
+      await write(metadata.uploadId, bytes)
+      await uploads.complete(owner, { uploadId: metadata.uploadId, writerEpoch: '0', expectedSha256: digest(bytes) })
+      await expect.poll(async () => (await uploads.get(owner, metadata.uploadId)).state).toBe('ready')
+      const store = application.get('FileManager').intakes
+      const upload = [...store.uploads.values()][0]
+      await store.save({ ...upload, state: 'verifying' })
+      await rm(store.file(upload))
+      const [filename] = await readdir(path.join(root, 'files'))
+      if (corrupt) {
+        const { writeFile } = await import('node:fs/promises')
+        await writeFile(path.join(root, 'files', filename), 'mutant bytes')
+      }
+      await intake.drain()
+      BaseService.resetInstances()
+      intake = new FileIntakeService()
+      MockFileIntakeUtils.setImplementation(intake)
+      const recovered = new FileManager()
+      Object.assign(application.get('FileManager'), { intakes: recovered.intakes })
+      await expect
+        .poll(async () => (await uploads.get(owner, metadata.uploadId)).state)
+        .toBe(corrupt ? 'failed' : 'ready')
+      expect(await readdir(path.join(root, 'files'))).toEqual([filename])
+      if (!corrupt) expect([...recovered.intakes.uploads.values()][0].entryId).toBe(upload.entryId)
+    }
+  )
+
   it('recovers only the committed prefix after restart and fences the old writer', async () => {
     const bytes = Buffer.from('first second')
     const { metadata, started } = prepare(bytes)

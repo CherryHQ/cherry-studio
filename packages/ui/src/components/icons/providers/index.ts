@@ -3,11 +3,11 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 163
+ * Generated at: 2026-10-28T16:20:14.177Z
+ * Total icons: 166
  */
-export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
+export { MinTop3Icon as MinTop3 } from './3min-top'
 export { AbacusIcon as Abacus } from './abacus'
 export { AiOnlyIcon as AiOnly } from './ai-only'
 export { AiStudioIcon as AiStudio } from './ai-studio'
@@ -45,6 +45,7 @@ export { DashscopeIcon as Dashscope } from './dashscope'
 export { DatabricksIcon as Databricks } from './databricks'
 export { DeepcogitoIcon as Deepcogito } from './deepcogito'
 export { DeepseekIcon as Deepseek } from './deepseek'
+export { DesearchIcon as Desearch } from './desearch/desearch'
 export { DevvIcon as Devv } from './devv'
 export { DifyIcon as Dify } from './dify'
 export { DmxapiIcon as Dmxapi } from './dmxapi'
@@ -88,6 +89,7 @@ export { LanyunIcon as Lanyun } from './lanyun'
 export { LeptonIcon as Lepton } from './lepton'
 export { LingxiIcon as Lingxi } from './lingxi'
 export { LiquidIcon as Liquid } from './liquid'
+export { LitellmIcon as Litellm } from './litellm/litellm'
 export { LmstudioIcon as Lmstudio } from './lmstudio'
 export { LongcatIcon as Longcat } from './longcat'
 export { MacosIcon as Macos } from './macos'
@@ -128,6 +130,7 @@ export { PulseIcon as Pulse } from './pulse'
 export { QiniuIcon as Qiniu } from './qiniu'
 export { QueritIcon as Querit } from './querit'
 export { QwenIcon as Qwen } from './qwen'
+export { QwencloudIcon as Qwencloud } from './qwencloud/qwencloud'
 export { RadeonCloudIcon as RadeonCloud } from './radeon-cloud'
 export { RecraftIcon as Recraft } from './recraft'
 export { RelaceIcon as Relace } from './relace'

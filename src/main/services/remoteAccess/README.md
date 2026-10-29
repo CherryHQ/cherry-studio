@@ -27,9 +27,17 @@ listener flushes pending text while the session still exists.
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |
+| `agentPagination.ts` | Page byte budget: projected DTO sizing, offset prefixes and keyset query retries |
 | `agentQueries.ts` | Persisted sessions/messages/parts/interactions projected onto wire DTOs |
 | `agentJournal.ts` | Shared per-session journal: stream listener → protocol events, checkpoints, epoch |
 | `agentSubscriptions.ts` | Connection-private subscriptions: prepare, activate, ack credit, reset |
+
+Historical message lists support the advertised `partsMode: 'paged'` extension:
+metadata-only summaries avoid an oversized `partIds` array while existing
+`agent.parts.list` pages retain complete content. The default list mode, live
+events and checkpoints keep full message snapshots. Single-item budget failures
+include terminal size details; consuming those details is a client responsibility.
+See [the protocol contract](../../../../packages/remote-protocol/README.md#paged-message-summaries).
 
 Deviations from the design doc, kept deliberately small:
 
@@ -141,3 +149,9 @@ entry IDs. The phone reads images for thumbnails and ordinary documents on deman
 Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running the
 `RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
 This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.
+
+[Upload Integrity](../../../../docs/references/file/upload-integrity.md) describes the optional
+`agentUploadChecksum: sha256` capability. Prepare fixes checksum mode; complete binds the phone's
+expected SHA-256. Intake checkpoints retain verification failures and rehash bytes on restart.
+Legacy absent-mode clients keep their existing behavior. Shared release and native-device
+acceptance are tracked separately in that document.

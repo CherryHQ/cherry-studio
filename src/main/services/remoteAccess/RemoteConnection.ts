@@ -66,7 +66,9 @@ export class RemoteConnection {
       return {
         protocolVersion: channel.protocolVersion,
         agentFailureVersion: 1,
+        agentMessageSummariesVersion: 1,
         agentUploadsVersion: 1,
+        agentUploadChecksum: 'sha256' as const,
         agentAttachmentSelections: true,
         connectionEndpointsVersion: 1,
         limits: {
@@ -233,7 +235,12 @@ export class RemoteConnection {
       this.checkAuthorization(false)
       return this.channel.write(value)
     })
-    this.writes = write
+    // Keep the chain resolved: a rejected link would make every later send skip
+    // `channel.write` and silently drop the rest of the connection's traffic.
+    this.writes = write.then(
+      () => undefined,
+      () => undefined
+    )
     void write.catch(() => {})
     return write
   }

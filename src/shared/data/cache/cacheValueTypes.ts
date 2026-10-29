@@ -13,7 +13,6 @@ import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
-import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
@@ -34,7 +33,6 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
-export type CacheMiniAppType = MiniApp
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
@@ -150,6 +148,8 @@ export interface CacheComposerSerializedToken {
 
 export interface CacheComposerAttachment {
   fileTokenSourceId: string
+  /** In-memory attachment; shared by drafts, undo history and queued sends. */
+  blob?: Blob
   path?: AbsoluteFilePath
   name: string
   origin_name: string

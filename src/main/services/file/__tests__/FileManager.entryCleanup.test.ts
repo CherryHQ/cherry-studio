@@ -206,10 +206,7 @@ describe('FileManager entry-cleanup wiring', () => {
       expect(fileSweepMock).toHaveBeenCalledTimes(1)
     })
 
-    it('spends the window on a safety-threshold abort', async () => {
-      // Unlike a stand-aside, the threshold verdict comes *after* the tree was
-      // enumerated — the cost was paid, and the state it read will not have
-      // changed by the next tick.
+    it('spends the weekly window after a safety-threshold abort', async () => {
       fileSweepMock.mockResolvedValue({ outcome: 'aborted', abortReason: 'count-fraction' })
       const tick = tickOf(fm)
 
