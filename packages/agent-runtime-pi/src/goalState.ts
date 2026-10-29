@@ -382,6 +382,7 @@ function stoppedRun(result: ToolResultMessage): Extract<SubagentStopDetails, { s
 }
 
 interface GoalBranch {
+  requestGoal: string | null
   /** Usage the branch shows, each piece with the goal it counts toward. */
   counted: Array<GoalUsage & { goalId: string }>
   /** Background runs, by `runKey`, started by a call that counted toward a goal, with that goal's id. */
@@ -404,7 +405,13 @@ interface GoalBranch {
  * that made its call, and so does the background run that call starts: it is G's.
  */
 function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
-  const branch: GoalBranch = { counted: [], owners: new Map(), latestRuns: new Map(), deliveries: new Map() }
+  const branch: GoalBranch = {
+    requestGoal: null,
+    counted: [],
+    owners: new Map(),
+    latestRuns: new Map(),
+    deliveries: new Map()
+  }
   const deliver = (sessionId: string, run: number, usage: Usage) => {
     const key = runKey(sessionId, run)
     if (!branch.deliveries.has(key)) branch.deliveries.set(key, usage)
@@ -424,12 +431,14 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
   for (const entry of entries) {
     if (entry.type === 'custom' && entry.customType === GOAL_COMPACTION_TYPE) {
       const data = entry.data
-      compactionGoal = data && typeof data === 'object' && 'goalId' in data && typeof data.goalId === 'string' ? data.goalId : null
+      compactionGoal =
+        data && typeof data === 'object' && 'goalId' in data && typeof data.goalId === 'string' ? data.goalId : null
       continue
     }
     if (entry.type === 'compaction') {
       const owner = compactionGoal === undefined ? requestGoal : compactionGoal
-      if (owner && entry.usage) branch.counted.push({ goalId: owner, tokens: requestTokens(entry.usage), usd: entry.usage.cost.total })
+      if (owner && entry.usage)
+        branch.counted.push({ goalId: owner, tokens: requestTokens(entry.usage), usd: entry.usage.cost.total })
       compactionGoal = null
       continue
     }
@@ -489,7 +498,15 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
         ? goal.id
         : undefined
   }
+  branch.requestGoal =
+    goal?.phase === 'active' && ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
+      ? goal.id
+      : null
   return branch
+}
+
+export function goalForCompaction(entries: readonly SessionEntry[]): string | null {
+  return readGoalBranch(entries).requestGoal
 }
 
 /** What goal `goalId` has used, from the branch alone (spec §6.1). */

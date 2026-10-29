@@ -12,6 +12,7 @@ import {
   GOAL_STATE_TYPE,
   goalView,
   goalUsage,
+  goalForCompaction,
   hasCapacity,
   isHumanTurn,
   isProgressResult,
@@ -327,6 +328,17 @@ describe('goal branch reading', () => {
       currentGoal([stateEntry('a', goal), stateEntry('b', { id: goal.id, revision: 3, cleared: true, at: 2 })])
     ).toBeUndefined()
     expect(currentGoal([userEntry('u', 'hi')])).toBeUndefined()
+  })
+
+  it('captures summary ownership for armed notification work, but not paused or human work', () => {
+    const entries = [stateEntry('goal', goal), notificationEntry('notice')]
+    expect(goalForCompaction(entries)).toBe(goal.id)
+    expect(
+      goalForCompaction([...entries, stateEntry('pause', stopGoal(goal, { code: 'paused_by_user' }, 2))])
+    ).toBeNull()
+    expect(
+      goalForCompaction([stateEntry('goal', goal), userEntry('person', 'hi'), notificationEntry('notice')])
+    ).toBeNull()
   })
 
   it('includes stored compaction usage in the admitted goal and preserves it after pause and rebuild', () => {
