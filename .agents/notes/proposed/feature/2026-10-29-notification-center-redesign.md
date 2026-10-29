@@ -34,9 +34,9 @@ The account-menu behavior remains owned by [Account menu cache and interaction](
 
 Use the existing [Drawer primitive](../../../../packages/ui/src/components/primitives/drawer.tsx). Add an optional overlay control with the existing behavior as its default. The notification drawer uses non-modal behavior without a dark overlay; other consumers keep their current behavior.
 
-The drawer slides in from the left and overlays content without changing the chat layout width. With a visible sidebar, its left boundary follows the sidebar's right edge. With a hidden sidebar, it starts at the window's left edge. Keep the window's top controls accessible. Default width is 384px, capped by the available content width. The header and footer stay visible while the list scrolls independently.
+The drawer slides in from the left and overlays content without changing the chat layout width. With a visible sidebar, its left boundary follows the sidebar's right edge. With a hidden sidebar, it starts at the window's left edge. Keep the window's top controls accessible. Default width is 384px, capped by the available content width. Clip the slide animation at the sidebar boundary so it never covers the sidebar. Use the adjacent content panel’s 12px corner radius. The header and footer stay visible while the list scrolls independently.
 
-The header contains the notification title, mark-all-read action and close button. The footer retains the 30-day history notice. Clicking the bell again, clicking outside, pressing Esc or using the close button closes the drawer. An outside click can continue to its underlying control; there is no invisible modal barrier. Opening moves focus into the drawer. Keyboard dismissal returns focus to the currently visible bell, including after a sidebar layout change. Honor reduced-motion preferences.
+The header contains the notification title, mark-all-read action and a collapse-panel icon distinct from the per-row X delete icon. Row deletion uses the fixed tooltip and accessible label “Delete this notification”. The footer retains the 30-day history notice. Clicking the bell again, clicking outside, pressing Esc or using the close button closes the drawer. An outside click can continue to its underlying control; there is no invisible modal barrier. Opening moves focus into the drawer. Keyboard dismissal returns focus to the currently visible bell, including after a sidebar layout change. Honor reduced-motion preferences.
 
 Each main window owns one drawer and one open/requested-notification state. Sidebar and top-bar triggers share that state. A `notification.open` event opens the same drawer and reveals its requested record without duplicating it or breaking time order. Layout changes while open reposition the drawer instead of resetting its list. Opening the account menu dismisses the drawer through the normal outside interaction.
 
@@ -44,7 +44,7 @@ Each main window owns one drawer and one open/requested-notification state. Side
 
 Remove the All, System, Usage and Official tabs and their filter state. Fetch the existing paginated list without a category parameter and retain descending creation-time order. Do not add replacement grouping headings or category chips. Internal categories and category preference switches remain available for delivery policy.
 
-Retain pagination, load more, mark all read, per-row dismissal, loading, empty state, failed-load retry and unavailable-target feedback. Opening the drawer alone does not mark rows read. Keep the current activation rules: content rows mark read when opened; task rows mark read through activation and navigate to their target. Dismissing a row must not also activate or expand it. Place dismissal beside the row's information, without reserving a separate full-height column.
+Retain pagination, load more, mark all read, per-row dismissal, loading, empty state, failed-load retry and unavailable-target feedback. Opening the drawer alone does not mark rows read. Keep the current activation rules: content rows mark read when opened; task rows mark read through activation and navigate to their target. Dismissing a row must not also activate or expand it. Place dismissal beside the row's information, without reserving a separate full-height column. Use a fixed-width icon column and align each row’s primary name, body and time. Unread dots must not shift these columns.
 
 Official announcements remain literal plain text with line breaks. A faded collapsed preview expands inside the same row; do not insert a second copy. Existing optional HTTPS source links appear only when expanded. API announcements do not fabricate a URL. Release notes keep Markdown and the existing update action. Backup and usage notices retain their meaningful content.
 
@@ -54,13 +54,13 @@ Apply the same compact layout to Agent, Assistant and scheduled-task rows, inclu
 
 | Row | Icon | Primary name | Result |
 |---|---|---|---|
-| Agent | Agent avatar | Agent name | Completed, Failed, Cancelled or Interrupted |
-| Assistant | Assistant avatar | Assistant name | Completed, Failed, Cancelled or Interrupted |
+| Agent | Agent avatar | Agent name | Brief reply preview on success; otherwise Completed, Failed, Cancelled or Interrupted |
+| Assistant | Assistant avatar | Assistant name | Brief reply preview on success; otherwise Completed, Failed, Cancelled or Interrupted |
 | Scheduled task | Task icon | Scheduled-task name | Completed, Failed, Cancelled or Interrupted |
 
 Show the icon, primary name, result and time. Use one identity icon rather than adding a second generic category icon. Resolve identity through the existing entity APIs; if unavailable, use an existing saved identity/name where valid, then the default source name and icon. A deleted source must not make the row disappear. Do not parse display text to recover identity.
 
-Hide conversation titles, reply excerpts, detailed errors, elapsed duration and successful-batch counts in these rows. Keep those stored values unchanged for target pages and other delivery surfaces. Long names truncate with their full value available on hover or focus. Show local time for today's records and a short local date plus time for older records; expose the full timestamp on hover or focus. Status text remains visible so color is not the only signal. Failure/interruption can use the existing error color, without coloring the entire card.
+Successful Agent and Assistant rows show the existing brief reply preview, excluding the conversation-name prefix. Keep the existing preview length and fade; fall back to Completed when no reply is available. Scheduled-task rows retain status text. Hide conversation titles, detailed errors, elapsed duration and successful-batch counts. Keep those stored values unchanged for target pages and other delivery surfaces. Long names truncate with their full value available on hover or focus. Show local time for today's records and a short local date plus time for older records; do not show a timestamp tooltip. Keep a full timestamp accessible to assistive technology. Failed, cancelled and interrupted outcomes retain status text so color is not the only signal. Failure/interruption can use the existing error color, without coloring the entire card.
 
 Clicking a task row keeps the existing navigation contract: a message anchor locates that message, an explicit end target opens the end, and a missing anchor falls back to the end after history loads. Scheduled results open task details with the saved error summary. A missing or deleted target reports that it is unavailable instead of creating a replacement conversation.
 
@@ -91,7 +91,7 @@ The Spec PR runs documentation, translation-pairing and scoped formatting checks
 - Keep the toolbar popover and numeric badge: retains the separated entry and visual noise this design removes.
 - Use a right drawer, a dark modal overlay or a layout-pushing panel: conflicts with the selected left-side, non-modal interaction.
 - Keep category tabs or replace them with groups: makes users choose a bucket instead of scanning one ordered inbox.
-- Retain task excerpts, errors and duration in every row: obscures the source and outcome; details remain available at the destination.
+- Retain detailed task errors and duration in every row: obscures the source and outcome; details remain available at the destination.
 - Simplify toasts and OS notifications at the same time: expands beyond the selected drawer-only change.
 - Fetch from every renderer focus event or add a second announcement cache: duplicates ownership and weakens cancellation/deduplication guarantees.
 - Combine all implementation into one PR: loses the requested separation between notification-center behavior and task-result integration.
@@ -108,7 +108,7 @@ The Spec PR runs documentation, translation-pairing and scoped formatting checks
 - AC8 — Startup checks after five seconds and subsequent checks thirty minutes after completion continue in the background; a true foreground transition requests one immediate check, while internal window/tab changes do not. (verification: main with controlled scheduler/focus events; owner: notification center)
 - AC9 — Overlapping timer/focus triggers share one poll; disable/stop/re-enable and request failures cannot allow stale writes, duplicate timers or queued duplicate polls. (verification: main with controlled in-flight requests; owner: notification center)
 - AC10 — Edition mapping, pagination, 30-day retention, timeout, raw fractional publication-time deduplication, partial-write retry and retained local history keep their existing contracts. (verification: main and real SQLite; owner: notification center)
-- AC11 — Agent, Assistant and scheduled-task drawer rows show only their source icon/name, result and time; long names and missing/deleted sources remain usable, while toast and OS presentation are unchanged. (verification: renderer and Windows; owner: task results)
+- AC11 — Agent and Assistant drawer rows show their source icon/name, brief successful reply without a conversation-name prefix (or status fallback), and time; scheduled-task rows retain status; long names and missing/deleted sources remain usable, while toast and OS presentation are unchanged. (verification: renderer and Windows; owner: task results)
 - AC12 — Task activation preserves message/end navigation, waits for history, falls back for missing anchors and reports deleted targets; scheduled details can show saved errors omitted from the compact row. (verification: renderer and main navigation tests; owner: task results)
 - AC13 — Runtime failures/cancellations/interruptions publish once from authoritative final outcomes, scheduled stream/job ownership prevents duplicates, and approval waits or paused output cannot be misreported as successful completion. (verification: main and real SQLite; owner: task results)
 - AC14 — Existing foreground silence, initial read state, background delivery and sound preferences remain valid, and consumed outcomes do not reappear after dismissal, expiry or restart. (verification: main and real SQLite; owner: task results)
