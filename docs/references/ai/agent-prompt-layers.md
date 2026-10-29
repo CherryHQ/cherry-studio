@@ -90,6 +90,22 @@ and replaces changed content. Neither path rebuilds a connection solely because
 an identity file changed. Changes made during an active turn are picked up at the
 next turn boundary; workspace prompt files retain their existing lifecycle.
 
+The shared-memory layer adds a separate `<cherry_memory>` reference through
+`memoryPrompt.ts`. Main derives scope from the live session and entity settings.
+It reads only the eligible shared and Agent-private `MEMORY.md` entries, labels
+truncation, and does not follow topic links. Pi replaces the named `cherry_memory`
+section in `context_with_system` before each model call, including calls after
+compaction. Claude Code includes the reference in the existing prompt-submit and
+session-start hooks. An empty reference withdraws earlier memory guidance; data
+already sent to a provider cannot be retracted.
+
+Persistent Assistant chat creates a main-only `memoryContext`; temporary chat,
+auxiliary requests, and headless prompt streams do not. Opted-in Assistants reload
+the shared entry in `prepareStep`, after the context-compaction hooks. For
+Responses endpoints, Cherry's generated `instructions` mirror is refreshed too.
+The reference does not grant controlled file tools or confirm a save. Legacy
+FACT/JOURNAL loading and tools remain until the coordinated migration layer.
+
 ## Update and variable lifecycle
 
 Saving `agent.instructions` invalidates the connection rebuild signature. Changes to `app.user.name` and the Agent's resolved primary model name also invalidate it because they affect `{{username}}` and `{{model_name}}`. An idle stale connection closes eagerly; a live response finishes with its captured prompt; the next fresh model turn rebuilds and sees the saved value.

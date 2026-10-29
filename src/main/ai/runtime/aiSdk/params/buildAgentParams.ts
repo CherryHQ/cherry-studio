@@ -9,6 +9,7 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
+import { assistantMemoryReference } from '@main/ai/memory/memoryPrompt'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AutomationRun } from '@main/services/automation'
@@ -362,6 +363,48 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
 
   const hookParts = [...contributions.hookParts]
+  const memoryContext = request.memoryContext
+  if (
+    memoryContext &&
+    assistant?.settings.enableSharedMemory === true &&
+    memoryContext.assistantId === assistant.id &&
+    memoryContext.topicId === request.conversation.topicId
+  ) {
+    let finished = false
+    const namespace = options.providerOptions?.[sdkConfig.providerOptionsKey]
+    const mirrorInstructions =
+      endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+      namespace?.instructions === system &&
+      namespace?.systemMessageMode === 'remove'
+    hookParts.push({
+      prepareStep: async () => {
+        const memory = await assistantMemoryReference(memoryContext, {
+          assertActive: () => {
+            signal?.throwIfAborted()
+            if (finished) throw new Error('Memory turn has ended')
+            return undefined
+          },
+          isHeadless: () => false
+        })
+        const currentSystem = [system, memory].filter(Boolean).join('\n\n')
+        return {
+          system: currentSystem,
+          ...(mirrorInstructions && {
+            providerOptions: {
+              ...options.providerOptions,
+              [sdkConfig.providerOptionsKey]: { ...namespace, instructions: currentSystem }
+            }
+          })
+        }
+      },
+      onFinish: async () => {
+        finished = true
+      },
+      onAbort: async () => {
+        finished = true
+      }
+    })
+  }
   if (getAutomationRun) {
     const finish = async () => {
       automationFinished = true
