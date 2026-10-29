@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "ファイルツリーの位置",
   "agent.preview_pane.settings.tree_right": "右",
   "agent.preview_pane.settings.word_wrap": "折り返し",
+  "agent.preview_pane.settings.word_wrap_unavailable": "このファイルではオフ：折り返すには長すぎる行があります",
   "agent.preview_pane.tabs.close": "ファイルを閉じる",
   "agent.preview_pane.tabs.close_all": "すべてのファイルを閉じる",
   "agent.preview_pane.tabs.close_others": "他のファイルを閉じる",

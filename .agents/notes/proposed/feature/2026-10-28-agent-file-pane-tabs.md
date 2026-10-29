@@ -53,7 +53,7 @@ A ⋯ menu in the pane header, next to the pane actions, holds settings that app
 | File tree position | `tree_position` | `left` | `left` or `right`; moves the tree column in a wide pane. A narrow pane is unaffected. |
 | Autosave | `auto_save` | on | Off: edits are no longer saved while typing. While the file has unsaved edits, **Cancel** (discard) and **Save** buttons appear at the right of the breadcrumb row, and ⌘S / Ctrl+S saves. Switching to another file or closing its tab asks *Discard unsaved changes?* with **Keep editing** and **Discard**. Other exits (switching agent session, closing the pane) still save, so edits are never lost silently. |
 | Tab to indent | `tab_indent` | on | Off: Tab moves focus instead of indenting. |
-| Word wrap | `word_wrap` | on | Wraps long lines in the editor. |
+| Word wrap | `word_wrap` | on | Wraps long lines in the editor. A file with a line over 256 KB (minified bundles, source maps) is never wrapped, and the option is greyed out with the reason while it is open: wrapping one such line froze the window for 0.6–5 s in testing, against under 0.5 s unwrapped. |
 | Indent guides | `indent_guides` | on | Draws a guide at every indentation stop of a line's leading whitespace. |
 | Show whitespace | `show_whitespace` | off | Marks spaces and tabs inside whitespace runs. |
 | Scroll past end | `scroll_past_end` | off | Lets the last line scroll to the top of the editor. |

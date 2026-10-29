@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Posizione dell'albero dei file",
   "agent.preview_pane.settings.tree_right": "Destra",
   "agent.preview_pane.settings.word_wrap": "A capo automatico",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Disattivato per questo file: una riga è troppo lunga per andare a capo",
   "agent.preview_pane.tabs.close": "Chiudi file",
   "agent.preview_pane.tabs.close_all": "Chiudi tutti i file",
   "agent.preview_pane.tabs.close_others": "Chiudi gli altri file",

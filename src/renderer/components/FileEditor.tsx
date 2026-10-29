@@ -11,6 +11,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { CHERRY_EDITOR_CSS } from '@renderer/utils/pierreCodeTheme'
+import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import { cn } from '@renderer/utils/style'
 
 const logger = loggerService.withContext('FileEditor')
@@ -141,6 +142,8 @@ export default function FileEditor({
     () => editorModule && ((type, options, key) => new editorModule.Editor(type, options, key)),
     [editorModule]
   )
+  // Wrapping a multi-megabyte line (minified bundles, source maps) freezes layout for seconds.
+  const canWrap = useMemo(() => !hasUnwrappableLine(value), [value])
   const options = useMemo<FileOptions<undefined, undefined>>(
     () => ({
       disableFileHeader: true,
@@ -148,13 +151,13 @@ export default function FileEditor({
       useTokenTransformer: true,
       theme,
       themeType: isCodeThemeDark ? 'dark' : 'light',
-      overflow: wrapLines ? 'wrap' : 'scroll',
+      overflow: wrapLines && canWrap ? 'wrap' : 'scroll',
       disableLineNumbers: !showLineNumbers,
       unsafeCSS:
         (theme === CHERRY_CODE_THEME ? CHERRY_EDITOR_CSS : '') + whitespaceCss(indentGuides, showWhitespace) ||
         undefined
     }),
-    [theme, isCodeThemeDark, showLineNumbers, wrapLines, indentGuides, showWhitespace]
+    [theme, isCodeThemeDark, showLineNumbers, wrapLines, canWrap, indentGuides, showWhitespace]
   )
   const editorOptions = useMemo<EditorOptions<'file', undefined, undefined>>(
     () => ({

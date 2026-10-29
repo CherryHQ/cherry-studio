@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "文件树位置",
   "agent.preview_pane.settings.tree_right": "右侧",
   "agent.preview_pane.settings.word_wrap": "自动换行",
+  "agent.preview_pane.settings.word_wrap_unavailable": "此文件有超长行，不换行",
   "agent.preview_pane.tabs.close": "关闭文件",
   "agent.preview_pane.tabs.close_all": "关闭所有文件",
   "agent.preview_pane.tabs.close_others": "关闭其他文件",

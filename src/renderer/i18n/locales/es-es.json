@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Posición del árbol de archivos",
   "agent.preview_pane.settings.tree_right": "Derecha",
   "agent.preview_pane.settings.word_wrap": "Ajuste de línea",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Desactivado en este archivo: una línea es demasiado larga para ajustarla",
   "agent.preview_pane.tabs.close": "Cerrar archivo",
   "agent.preview_pane.tabs.close_all": "Cerrar todos los archivos",
   "agent.preview_pane.tabs.close_others": "Cerrar los demás archivos",

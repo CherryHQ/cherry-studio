@@ -50,7 +50,14 @@ export function useFilePaneSettings() {
   return useMultiplePreferences(FILE_PANE_SETTING_KEYS)
 }
 
-export function ArtifactPaneSettingsMenu({ buttonClassName }: { buttonClassName?: string }) {
+export function ArtifactPaneSettingsMenu({
+  buttonClassName,
+  wordWrapUnavailable = false
+}: {
+  buttonClassName?: string
+  /** The open file has a line too long to wrap, so the editor shows it unwrapped regardless. */
+  wordWrapUnavailable?: boolean
+}) {
   const { t } = useTranslation()
   const [settings, setSettings] = useFilePaneSettings()
 
@@ -87,16 +94,27 @@ export function ArtifactPaneSettingsMenu({ buttonClassName }: { buttonClassName?
         {TOGGLE_GROUPS.map((group, index) => (
           <Fragment key={index}>
             <DropdownMenuSeparator />
-            {group.map(({ key, label }) => (
-              <DropdownMenuCheckboxItem
-                key={key}
-                checked={settings[key]}
-                onCheckedChange={(checked) => void setSettings({ [key]: checked === true })}
-                // Keep the menu open so several options can be flipped in a row.
-                onSelect={(event) => event.preventDefault()}>
-                {t(label)}
-              </DropdownMenuCheckboxItem>
-            ))}
+            {group.map(({ key, label }) => {
+              const unavailable = key === 'wordWrap' && wordWrapUnavailable
+              return (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={unavailable ? false : settings[key]}
+                  disabled={unavailable}
+                  onCheckedChange={(checked) => void setSettings({ [key]: checked === true })}
+                  // Keep the menu open so several options can be flipped in a row.
+                  onSelect={(event) => event.preventDefault()}>
+                  <span className="flex flex-col">
+                    {t(label)}
+                    {unavailable ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t('agent.preview_pane.settings.word_wrap_unavailable')}
+                      </span>
+                    ) : null}
+                  </span>
+                </DropdownMenuCheckboxItem>
+              )
+            })}
           </Fragment>
         ))}
         <DropdownMenuSub>

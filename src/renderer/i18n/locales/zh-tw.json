@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "檔案樹位置",
   "agent.preview_pane.settings.tree_right": "右側",
   "agent.preview_pane.settings.word_wrap": "自動換行",
+  "agent.preview_pane.settings.word_wrap_unavailable": "此檔案有超長行，不換行",
   "agent.preview_pane.tabs.close": "關閉檔案",
   "agent.preview_pane.tabs.close_all": "關閉所有檔案",
   "agent.preview_pane.tabs.close_others": "關閉其他檔案",

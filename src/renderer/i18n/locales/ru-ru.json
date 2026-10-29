@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Расположение дерева файлов",
   "agent.preview_pane.settings.tree_right": "Справа",
   "agent.preview_pane.settings.word_wrap": "Перенос строк",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Отключено для этого файла: строка слишком длинная для переноса",
   "agent.preview_pane.tabs.close": "Закрыть файл",
   "agent.preview_pane.tabs.close_all": "Закрыть все файлы",
   "agent.preview_pane.tabs.close_others": "Закрыть другие файлы",

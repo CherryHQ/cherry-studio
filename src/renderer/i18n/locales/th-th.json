@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "ตำแหน่งแผนผังไฟล์",
   "agent.preview_pane.settings.tree_right": "ขวา",
   "agent.preview_pane.settings.word_wrap": "ตัดคำอัตโนมัติ",
+  "agent.preview_pane.settings.word_wrap_unavailable": "ปิดสำหรับไฟล์นี้: มีบรรทัดที่ยาวเกินกว่าจะตัดคำได้",
   "agent.preview_pane.tabs.close": "ปิดไฟล์",
   "agent.preview_pane.tabs.close_all": "ปิดไฟล์ทั้งหมด",
   "agent.preview_pane.tabs.close_others": "ปิดไฟล์อื่น",

@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Posição da árvore de ficheiros",
   "agent.preview_pane.settings.tree_right": "Direita",
   "agent.preview_pane.settings.word_wrap": "Quebra de linha",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Desativado neste ficheiro: uma linha é demasiado longa para quebrar",
   "agent.preview_pane.tabs.close": "Fechar ficheiro",
   "agent.preview_pane.tabs.close_all": "Fechar todos os ficheiros",
   "agent.preview_pane.tabs.close_others": "Fechar os outros ficheiros",

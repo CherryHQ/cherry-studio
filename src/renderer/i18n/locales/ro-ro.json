@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Poziția arborelui de fișiere",
   "agent.preview_pane.settings.tree_right": "Dreapta",
   "agent.preview_pane.settings.word_wrap": "Încadrare text",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Dezactivat pentru acest fișier: o linie este prea lungă pentru încadrare",
   "agent.preview_pane.tabs.close": "Închide fișierul",
   "agent.preview_pane.tabs.close_all": "Închide toate fișierele",
   "agent.preview_pane.tabs.close_others": "Închide celelalte fișiere",

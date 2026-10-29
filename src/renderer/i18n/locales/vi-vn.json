@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Vị trí cây tệp",
   "agent.preview_pane.settings.tree_right": "Phải",
   "agent.preview_pane.settings.word_wrap": "Tự động xuống dòng",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Tắt cho tệp này: có một dòng quá dài để ngắt dòng",
   "agent.preview_pane.tabs.close": "Đóng tệp",
   "agent.preview_pane.tabs.close_all": "Đóng tất cả tệp",
   "agent.preview_pane.tabs.close_others": "Đóng các tệp khác",

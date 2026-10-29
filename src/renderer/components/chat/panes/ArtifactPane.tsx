@@ -56,6 +56,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
+import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -422,6 +423,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
   const canCopyPreviewContent = canCopyFileContent(previewFilePath ?? null, isText, fileSize)
   const isEditDirty = fileSession?.isDirty ?? false
+  const editorDraft = editMode === 'edit' && fileSession?.status === 'ready' ? fileSession.draft : ''
+  const wordWrapUnavailable = useMemo(() => hasUnwrappableLine(editorDraft), [editorDraft])
 
   useEffect(() => {
     if (previousPreviewKeyRef.current === previewKey) return
@@ -835,7 +838,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {treeToggleOnRight ? treeToggle : null}
-          <ArtifactPaneSettingsMenu buttonClassName={TOOLBAR_BUTTON_CLASS} />
+          <ArtifactPaneSettingsMenu buttonClassName={TOOLBAR_BUTTON_CLASS} wordWrapUnavailable={wordWrapUnavailable} />
           {props.paneActions}
         </div>
       </div>

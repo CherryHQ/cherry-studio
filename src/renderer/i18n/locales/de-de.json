@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Position des Dateibaums",
   "agent.preview_pane.settings.tree_right": "Rechts",
   "agent.preview_pane.settings.word_wrap": "Zeilenumbruch",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Für diese Datei aus: Eine Zeile ist zu lang zum Umbrechen",
   "agent.preview_pane.tabs.close": "Datei schließen",
   "agent.preview_pane.tabs.close_all": "Alle Dateien schließen",
   "agent.preview_pane.tabs.close_others": "Andere Dateien schließen",

@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Dosya ağacı konumu",
   "agent.preview_pane.settings.tree_right": "Sağ",
   "agent.preview_pane.settings.word_wrap": "Sözcük kaydırma",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Bu dosya için kapalı: bir satır kaydırılamayacak kadar uzun",
   "agent.preview_pane.tabs.close": "Dosyayı kapat",
   "agent.preview_pane.tabs.close_all": "Tüm dosyaları kapat",
   "agent.preview_pane.tabs.close_others": "Diğer dosyaları kapat",

@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Position de l'arborescence",
   "agent.preview_pane.settings.tree_right": "Droite",
   "agent.preview_pane.settings.word_wrap": "Retour à la ligne",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Désactivé pour ce fichier : une ligne est trop longue pour être renvoyée à la ligne",
   "agent.preview_pane.tabs.close": "Fermer le fichier",
   "agent.preview_pane.tabs.close_all": "Fermer tous les fichiers",
   "agent.preview_pane.tabs.close_others": "Fermer les autres fichiers",

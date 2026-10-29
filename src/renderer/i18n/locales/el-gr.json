@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "Θέση δέντρου αρχείων",
   "agent.preview_pane.settings.tree_right": "Δεξιά",
   "agent.preview_pane.settings.word_wrap": "Αναδίπλωση λέξεων",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Απενεργοποιημένο για αυτό το αρχείο: μια γραμμή είναι πολύ μεγάλη για αναδίπλωση",
   "agent.preview_pane.tabs.close": "Κλείσιμο αρχείου",
   "agent.preview_pane.tabs.close_all": "Κλείσιμο όλων των αρχείων",
   "agent.preview_pane.tabs.close_others": "Κλείσιμο άλλων αρχείων",

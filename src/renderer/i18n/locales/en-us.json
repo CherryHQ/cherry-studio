@@ -212,6 +212,7 @@
   "agent.preview_pane.settings.tree_position": "File tree position",
   "agent.preview_pane.settings.tree_right": "Right",
   "agent.preview_pane.settings.word_wrap": "Word wrap",
+  "agent.preview_pane.settings.word_wrap_unavailable": "Off for this file: a line is too long to wrap",
   "agent.preview_pane.tabs.close": "Close file",
   "agent.preview_pane.tabs.close_all": "Close all files",
   "agent.preview_pane.tabs.close_others": "Close other files",
