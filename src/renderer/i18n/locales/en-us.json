@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Support stream_options",
   "settings.provider.api.url.preview": "Preview: {{url}}",
   "settings.provider.api.url.reset": "Reset",
+  "settings.provider.api.url.reset_confirm": "Reset the API host to its default? This will replace your custom URL.",
   "settings.provider.api.url.tip": "Add # at the end to disable the automatically appended API version.",
   "settings.provider.api_host": "API Host",
   "settings.provider.api_host_drawer_hint": "Custom API request URL; leave empty when the catalog default applies.",
