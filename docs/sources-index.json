@@ -199,7 +199,7 @@
     },
     {
       "path": "docs/references/components/code-block-view.md",
-      "sources": ["src/renderer/components/CodeBlockView","src/renderer/components/chat/messages/markdown"]
+      "sources": ["packages/ui/src/lib/code-block","src/renderer/components/CodeBlockView","src/renderer/components/CodeStyleProvider.tsx","src/renderer/components/CodeViewer.tsx","src/renderer/components/LazyCodeEditor.tsx","src/renderer/components/PromptEditorField.tsx","src/renderer/components/RichEditor","src/renderer/components/chat/messages/markdown","src/renderer/components/markdown/useMarkdownCode.ts","src/renderer/utils/markdown.ts","src/renderer/workers/codeHighlight.worker.ts"]
     },
     {
       "path": "docs/references/components/code-execution.md",

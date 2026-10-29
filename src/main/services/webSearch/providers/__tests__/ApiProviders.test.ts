@@ -1907,6 +1907,32 @@ describe('main web search API providers', () => {
     }
   )
 
+  it.each([
+    ['failed page with empty content', [{ id: '1', url: 'https://example.com', content: '' }]],
+    ['failed crawl omitted from results', []]
+  ])('preserves the Querit page failure through the real adapter: %s', async (_reason, results) => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({ error_code: 200, error_msg: '', results, statuses: [{ id: '1', status: 'failed' }] })
+    )
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }]
+      })
+    )
+
+    await expect(provider.fetchUrls('https://example.com', runtimeConfig)).rejects.toMatchObject({
+      kind: 'provider',
+      code: 'page_fetch_failed',
+      message: 'Querit could not fetch page content for https://example.com',
+      providerId: 'querit',
+      capability: 'fetchUrls'
+    })
+  })
+
   it('accepts Querit responses whose error_code is a numeric string', async () => {
     fetchMock.mockResolvedValue(
       createJsonResponse({

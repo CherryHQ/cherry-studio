@@ -2,14 +2,13 @@ import './jobTypes'
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { JobContext, JobHandler } from '@main/core/job/types'
-import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
+import type { JobHandler } from '@main/core/job/types'
 import {
   type FileProcessingJobPayload,
   getFileProcessingFailureMessage,
   getFileProcessingMarkdownArtifactPath
 } from '@main/features/fileProcessing'
-import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
@@ -20,25 +19,14 @@ import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
-// Remote document processors can be slow, but a stale paid job should not poll forever.
-const FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000
 const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processing-item-unavailable'
 // Every job type `FileProcessingService.startJob` can enqueue. Keep in sync with
-// its routing — a missing type here makes the poll below never recognise its own
-// child job, parking the item at `waiting` until the max-wait timer fires.
+// its routing — a missing type here fails every item that processor handles.
 const FILE_PROCESSING_JOB_TYPES: ReadonlySet<string> = new Set([
   'file-processing.background',
   'file-processing.background-local',
   'file-processing.remote-poll'
 ])
-// Mirrored progress outlives the 5s poll cadence (see FILE_PROCESSING_CHECK_DELAY_MS) but
-// self-collects if polling ever stops without a terminal round deleting it first.
-// Single writer: only the check chain writes this key, so no epoch guard is needed.
-const FILE_PROCESSING_PROGRESS_TTL_MS = 60_000
-
-function fileProcessingProgressCacheKey(itemId: string): `knowledge.item.file_processing_progress.${string}` {
-  return `knowledge.item.file_processing_progress.${itemId}`
-}
 
 export function createCheckFileProcessingResultJobHandler(
   knowledgeLockManager: KeyedMutex,
@@ -60,7 +48,6 @@ export function createCheckFileProcessingResultJobHandler(
 
     async execute(ctx) {
       const { baseId, itemId, fileProcessingJobId } = ctx.input
-      const firstScheduledAt = ctx.input.firstScheduledAt
       const workflowParentJobId = ctx.parentId ?? ctx.jobId
       ctx.signal.throwIfAborted()
 
@@ -77,7 +64,7 @@ export function createCheckFileProcessingResultJobHandler(
       // indexing at an `undefined` path. Cancel the linked file-processing job first
       // (recovery: 'retry', so it is live again after restart and keeps polling/paying);
       // this handler is its only consumer, and the cancel helpers can't reap it either
-      // (jobInput.ts rejects the legacy payload, so getLinkedFileProcessingJobIds drops it).
+      // (no in-memory wait tracks a job started before the restart).
       if (typeof ctx.input.processedRelativePath !== 'string' || ctx.input.processedRelativePath.length === 0) {
         await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-legacy-payload')
         markItemFailed(
@@ -100,30 +87,6 @@ export function createCheckFileProcessingResultJobHandler(
       if (!isExpectedFileProcessingJob(snapshot, itemId)) {
         markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
-        return
-      }
-
-      if (!isTerminalStatus(snapshot.status)) {
-        if (Date.now() - firstScheduledAt >= FILE_PROCESSING_MAX_WAIT_MS) {
-          await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-timeout')
-          markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
-          reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
-          return
-        }
-
-        const nextPollRound = ctx.input.pollRound + 1
-        await ingestionService.scheduleFileProcessingCheck(
-          toKnowledgeBaseId(baseId),
-          toKnowledgeItemId(itemId),
-          fileProcessingJobId,
-          {
-            pollRound: nextPollRound,
-            firstScheduledAt,
-            parentJobId: workflowParentJobId,
-            processedRelativePath: ctx.input.processedRelativePath
-          }
-        )
-        reportWaitingProgress(ctx, fileProcessingJobId, nextPollRound)
         return
       }
 
@@ -159,9 +122,6 @@ export function createCheckFileProcessingResultJobHandler(
       if (!canContinue) {
         return
       }
-      // Blank the mirrored percentage now — the row keeps showing 'processing' until its next
-      // poll observes the indexing job's 'reading' flip, and a lingering number would be stale.
-      application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(itemId))
       reportKnowledgeProgress(ctx, 100, { stage: 'done' })
     },
 
@@ -171,36 +131,8 @@ export function createCheckFileProcessingResultJobHandler(
         logger,
         'Failed to flip knowledge file-processing check target to failed in onSettled'
       )
-      if (event.status !== 'completed') {
-        application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(event.input.itemId))
-      }
     }
   }
-}
-
-function reportWaitingProgress(
-  ctx: JobContext<KnowledgeCheckFileProcessingResultPayload>,
-  fileProcessingJobId: string,
-  pollRound: number
-): void {
-  const cacheService = application.get('CacheService')
-  const childProgress = cacheService.getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
-  if (!childProgress) {
-    reportKnowledgeProgress(ctx, 0, { stage: 'waiting', pollRound })
-    return
-  }
-
-  cacheService.setShared(
-    fileProcessingProgressCacheKey(ctx.input.itemId),
-    childProgress.progress,
-    FILE_PROCESSING_PROGRESS_TTL_MS
-  )
-  reportKnowledgeProgress(ctx, childProgress.progress, {
-    stage: 'waiting',
-    pollRound,
-    fileProcessingJobId,
-    fileProcessing: childProgress
-  })
 }
 
 function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boolean {
@@ -240,9 +172,6 @@ function markItemFailed(itemId: string, error: string): void {
     }
     return
   }
-  // A failed item can be reindexed into a fresh chain that restarts at 0 — a
-  // lingering percentage from this run would read as the new run's progress.
-  application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(itemId))
   knowledgeItemService.updateStatus(itemId, 'failed', { error })
 }
 

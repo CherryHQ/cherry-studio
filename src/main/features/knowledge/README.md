@@ -17,7 +17,7 @@ pipeline/  │   sources/   │ ───> │    readers/    │ ──> │   
            │ url/note     │      │ (pdf, docx, …) │     │ rerank        │     │ (per base)    │
            │ snapshots    │      └────────────────┘     └───────────────┘     └───────────────┘
            └──────────────┘        heavy conversions (MinerU/PaddleOCR/…) run out-of-process
-                                   via FileProcessingService, polled by a knowledge job
+                                   via FileProcessingService, then checked by a knowledge job
 ```
 
 Jobs in `tasks/` drive the stages; `ingestion/` decides which jobs to enqueue; `query/` reads the
@@ -49,7 +49,7 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | `knowledge.copy-sources` | Copy an added item's source bytes into its reserved `raw/` names off the lock, commit them under it, then schedule the item. | `ingestion` (add of a file, or a url with a snapshot) |
 | `knowledge.prepare-root` | Pin a directory root's `raw/` prefix, copy the tree off the lock, create child items, then enqueue leaf indexing. | `ingestion` (add), reindex handler |
 | `knowledge.index-documents` | Read → chunk → embed → `rebuildMaterial` in one store transaction. | `ingestion`, prepare-root, fp-check |
-| `knowledge.check-file-processing-result` | Poll a FileProcessingService job (5s delay per round); on success enqueue indexing. | `ingestion` (files needing conversion) |
+| `knowledge.check-file-processing-result` | Read a settled FileProcessingService job's result; on success enqueue indexing. | `ingestion`, once the file-processing job it waits on settles |
 | `knowledge.delete-subtree` | Cancel active jobs → delete vectors → delete files → delete rows. | `ingestion` (delete), boot recovery |
 | `knowledge.reindex-subtree` | Verify source → re-acquire it → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
 

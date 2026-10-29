@@ -28,6 +28,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 }))
 
 const { cancelActiveKnowledgeJobs } = await import('../cancel')
+const { FileProcessingWaitManager } = await import('../../../ingestion/FileProcessingWaitManager')
 
 type JobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
 
@@ -72,7 +73,10 @@ function createItem(id: string): KnowledgeItem {
 }
 
 describe('cancelActiveKnowledgeJobs', () => {
+  let fileProcessingWaits = new FileProcessingWaitManager()
+
   beforeEach(() => {
+    fileProcessingWaits = new FileProcessingWaitManager()
     cancelMock.mockReset().mockResolvedValue({ outcome: 'cancelled' })
     listMock.mockReset().mockResolvedValue([])
     knowledgeItemGetSubtreeItemsMock.mockReset()
@@ -84,26 +88,17 @@ describe('cancelActiveKnowledgeJobs', () => {
         id: 'prepare-job',
         type: 'knowledge.prepare-root',
         input: { baseId: 'kb-1', itemId: 'dir-1' }
-      }),
-      createJobSnapshot({
-        id: 'check-job',
-        type: 'knowledge.check-file-processing-result',
-        input: {
-          baseId: 'kb-1',
-          itemId: 'file-1',
-          fileProcessingJobId: 'fp-job-1',
-          pollRound: 0,
-          firstScheduledAt: 1779811200000,
-          processedRelativePath: 'source.md'
-        }
       })
     ])
+    fileProcessingWaits.add('kb-1', 'file-1', 'fp-job-1')
+    fileProcessingWaits.add('kb-2', 'file-9', 'fp-job-other-base')
 
-    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed' })
+    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed', fileProcessingWaits })
 
     expect(knowledgeItemGetSubtreeItemsMock).not.toHaveBeenCalled()
     expect(cancelMock).toHaveBeenCalledWith('prepare-job', 'delete-base')
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'delete-base')
+    expect(cancelMock).not.toHaveBeenCalledWith('fp-job-other-base', expect.anything())
   })
 
   it('cancels the copy of an item that is deleted while its bytes are still copying', async () => {
@@ -118,11 +113,38 @@ describe('cancelActiveKnowledgeJobs', () => {
 
     await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
       rootItemIds: ['file-1'],
-      onCancelTimeout: 'proceed'
+      onCancelTimeout: 'proceed',
+      fileProcessingWaits
     })
 
     expect(cancelMock).toHaveBeenCalledTimes(1)
     expect(cancelMock).toHaveBeenCalledWith('copy-file-1', 'knowledge-delete-subtree')
+  })
+
+  it('cancels the file processing a copy job starts while it is being cancelled', async () => {
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('file-1')])
+    listMock.mockResolvedValue([
+      createJobSnapshot({
+        id: 'copy-file-1',
+        type: 'knowledge.copy-sources',
+        input: { baseId: 'kb-1', itemId: 'file-1', copies: [{ from: '/docs/file-1.pdf', relativePath: 'file-1.pdf' }] }
+      })
+    ])
+    // The copy had already committed, so it hands the file to processing before it stops.
+    cancelMock.mockImplementation(async (jobId: string) => {
+      if (jobId === 'copy-file-1') {
+        fileProcessingWaits.add('kb-1', 'file-1', 'fp-job-1')
+      }
+      return { outcome: 'cancelled' }
+    })
+
+    await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
+      rootItemIds: ['file-1'],
+      onCancelTimeout: 'throw',
+      fileProcessingWaits
+    })
+
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
   })
 
   it('returns without listing jobs when the requested subtree resolves empty', async () => {
@@ -130,7 +152,8 @@ describe('cancelActiveKnowledgeJobs', () => {
 
     await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
       rootItemIds: ['missing-root'],
-      onCancelTimeout: 'throw'
+      onCancelTimeout: 'throw',
+      fileProcessingWaits
     })
 
     expect(listMock).not.toHaveBeenCalled()
@@ -160,7 +183,8 @@ describe('cancelActiveKnowledgeJobs', () => {
     await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
       rootItemIds: ['dir-1'],
       excludeJobId: 'current-job',
-      onCancelTimeout: 'throw'
+      onCancelTimeout: 'throw',
+      fileProcessingWaits
     })
 
     expect(cancelMock).toHaveBeenCalledTimes(1)
@@ -191,7 +215,8 @@ describe('cancelActiveKnowledgeJobs', () => {
 
     await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
       rootItemIds: ['target'],
-      onCancelTimeout: 'throw'
+      onCancelTimeout: 'throw',
+      fileProcessingWaits
     })
 
     expect(listMock).toHaveBeenCalledTimes(1)
@@ -213,7 +238,8 @@ describe('cancelActiveKnowledgeJobs', () => {
     await expect(
       cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
         rootItemIds: ['note-1'],
-        onCancelTimeout: 'throw'
+        onCancelTimeout: 'throw',
+        fileProcessingWaits
       })
     ).rejects.toThrow('Job cancel timed out: index-job')
   })
@@ -229,7 +255,7 @@ describe('cancelActiveKnowledgeJobs', () => {
     cancelMock.mockResolvedValue({ outcome: 'timed-out' })
 
     await expect(
-      cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed' })
+      cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed', fileProcessingWaits })
     ).resolves.toBeUndefined()
   })
 
@@ -243,7 +269,7 @@ describe('cancelActiveKnowledgeJobs', () => {
     )
     listMock.mockResolvedValueOnce(fullPage).mockResolvedValueOnce([])
 
-    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed' })
+    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed', fileProcessingWaits })
 
     expect(listMock).toHaveBeenCalledTimes(2)
     expect(cancelMock).toHaveBeenCalledTimes(KNOWLEDGE_ACTIVE_JOB_LIMIT)
@@ -265,7 +291,8 @@ describe('cancelActiveKnowledgeJobs', () => {
 
     await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
       rootItemIds: ['target'],
-      onCancelTimeout: 'throw'
+      onCancelTimeout: 'throw',
+      fileProcessingWaits
     })
 
     expect(listMock).toHaveBeenCalledTimes(1)
@@ -276,7 +303,7 @@ describe('cancelActiveKnowledgeJobs', () => {
   it('stops after a single empty page without cancelling anything', async () => {
     listMock.mockResolvedValueOnce([])
 
-    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed' })
+    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed', fileProcessingWaits })
 
     expect(listMock).toHaveBeenCalledTimes(1)
     expect(cancelMock).not.toHaveBeenCalled()

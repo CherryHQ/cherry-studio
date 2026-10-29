@@ -33,8 +33,6 @@ declare module '@main/core/job/jobRegistry' {
       baseId: string
       itemId: string
       fileProcessingJobId: string
-      pollRound: number
-      firstScheduledAt: number
       processedRelativePath: string
     }
     'knowledge.delete-subtree': {

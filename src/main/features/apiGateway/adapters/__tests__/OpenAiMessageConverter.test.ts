@@ -26,4 +26,30 @@ describe('OpenAiMessageConverter', () => {
     expect(converter.extractStreamOptions(params({ max_tokens: 50 })).maxOutputTokens).toBe(50)
     expect(converter.extractStreamOptions(params({})).maxOutputTokens).toBeUndefined()
   })
+
+  it.each(['', null])('replays a zero-arg tool call with arguments %j as an empty input object', (args) => {
+    const messages = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            tool_calls: [
+              { id: 'c1', type: 'function', function: { name: 'get_time', arguments: args as unknown as string } }
+            ]
+          },
+          { role: 'tool', tool_call_id: 'c1', content: '12:00' }
+        ]
+      })
+    )
+    expect(messages[0].parts).toEqual([
+      {
+        type: 'dynamic-tool',
+        toolName: 'get_time',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: {},
+        output: '12:00'
+      }
+    ])
+  })
 })
