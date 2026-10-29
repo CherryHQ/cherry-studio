@@ -6,7 +6,6 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
   fauxProvider,
-  fauxToolCall,
   InMemoryCredentialStore,
   Type,
   type FauxResponseStep
@@ -724,9 +723,9 @@ it('binds a child launched during session initialization to its ready parent', a
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   expect(JSON.stringify(snapshot.messages)).toContain('child report')
   expect(JSON.stringify(snapshot.messages)).not.toContain('before initialization')
-  expect(snapshot.delegations).toHaveLength(1)
-  const delegation = snapshot.delegations?.[0]
-  if (!delegation) throw new Error('Missing child delegation')
+  expect(snapshot.subagents).toHaveLength(1)
+  const delegation = snapshot.subagents?.[0]
+  if (!delegation?.child) throw new Error('Missing child thread')
   const child = confirmed(await runtime.open(delegation.child))
   expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
 })

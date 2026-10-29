@@ -194,8 +194,8 @@ export async function createTestSession(options: TestSessionOptions) {
     ...binding,
     subagents: options.subagents && {
       ...options.subagents,
-      async configure(child) {
-        const configured = await options.subagents!.configure(child)
+      async configure(child, configureSignal) {
+        const configured = await options.subagents!.configure(child, configureSignal)
         if (!configured.model || child.fork || configured.modelRuntime) return configured
         return { ...configured, ...(await createTestBinding({ stream, model: configured.model, signal })) }
       }

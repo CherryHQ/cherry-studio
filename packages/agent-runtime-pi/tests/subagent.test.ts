@@ -62,8 +62,16 @@ describe('subagent', () => {
   })
 
   it.each(['resolve', 'reject'] as const)('aborts while configuring a child and ignores late %s', async (settle) => {
-    const configured = Promise.withResolvers<void>()
-    const configuration = Promise.withResolvers<SubagentSessionOptions>()
+    let markConfigured!: () => void
+    const configured = new Promise<void>((resolve) => {
+      markConfigured = resolve
+    })
+    let resolveConfiguration!: (value: SubagentSessionOptions) => void
+    let rejectConfiguration!: (error: Error) => void
+    const configuration = new Promise<SubagentSessionOptions>((resolve, reject) => {
+      resolveConfiguration = resolve
+      rejectConfiguration = reject
+    })
     const { model, calls } = delegateOnce()
     let childCreated = false
     let configureSignal: AbortSignal | undefined
@@ -72,25 +80,25 @@ describe('subagent', () => {
       subagents: {
         configure(_child, signal) {
           configureSignal = signal
-          configured.resolve()
-          return configuration.promise
+          markConfigured()
+          return configuration
         }
       }
     })
     const turn = session.prompt(DELEGATE_A)
-    await configured.promise
+    await configured
     await session.abort()
     await turn
     expect(configureSignal?.aborted).toBe(true)
     expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
     if (settle === 'resolve')
-      configuration.resolve({
+      resolveConfiguration({
         onSessionCreated: () => {
           childCreated = true
         }
       })
-    else configuration.reject(new Error('late configuration failure'))
-    await configuration.promise.catch(() => undefined)
+    else rejectConfiguration(new Error('late configuration failure'))
+    await configuration.catch(() => undefined)
     await Promise.resolve()
     expect(childCreated).toBe(false)
     expect(calls.filter((call) => call.userText.includes('TASK-A'))).toEqual([])
@@ -374,7 +382,7 @@ describe('subagent', () => {
     await session.prompt(DELEGATE_A)
 
     expect(host.events.get(host.subagents[0].sessionId)!.filter((event) => event.type === 'compaction-end')).toEqual([
-      { type: 'compaction-end', reason: 'threshold', entryId: expect.any(String) }
+      { type: 'compaction-end', reason: 'threshold', entryId: expect.any(String), aborted: false }
     ])
     const result = toolResultOf(session, 'call_a')
     expect(result.content).toEqual([{ type: 'text', text: expect.stringMatching(/^REPORT-A\n\n\(id: /) }])
