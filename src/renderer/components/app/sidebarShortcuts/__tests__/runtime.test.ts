@@ -341,16 +341,26 @@ describe('sidebar conversation navigation', () => {
     MockDataApiUtils.resetMocks()
   })
 
-  it('focuses an open code tool tab matched by param rather than by string equality', async () => {
-    const { context, state } = statefulTabContext([
-      { id: 'current', type: 'route', url: '/app/files', title: 'Files' },
-      { id: 'code', type: 'route', url: '/app/code?foo=1&tool=pi', title: 'Code' }
-    ])
-
-    await activateShortcut(context, 'core.code-cli', 'pi')
-
-    expect(state.activeTabId).toBe('code')
-    expect(state.tabs).toHaveLength(2)
+  it.each([
+    ['core.app', 'code_tools', '/settings/local-agents'],
+    ['core.code-cli', 'pi', '/settings/local-agents?tool=pi'],
+    ['core.local-agent', 'cursor', '/settings/local-agents?id=cursor']
+  ])('opens %s in settings without replacing the current workspace', async (providerId, resourceId, expectedUrl) => {
+    const { context, state } = statefulTabContext([{ id: 'current', type: 'route', url: '/app/files', title: 'Files' }])
+    const routes: string[] = []
+    const onRoute = (event: Event) => {
+      event.preventDefault()
+      routes.push((event as CustomEvent<{ path: string }>).detail.path)
+    }
+    window.addEventListener('cherry:open-main-route', onRoute)
+    try {
+      await activateShortcut(context, providerId, resourceId)
+      expect(routes).toEqual([expectedUrl])
+      expect(state.activeTabId).toBe('current')
+      expect(state.tabs).toEqual([{ id: 'current', type: 'route', url: '/app/files', title: 'Files' }])
+    } finally {
+      window.removeEventListener('cherry:open-main-route', onRoute)
+    }
   })
 
   it.each([

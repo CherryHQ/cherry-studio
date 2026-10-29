@@ -17,9 +17,10 @@ Code Mate manages local Agent installation, models and advanced
 configuration. One model list combines native Agent models with compatible Cherry
 provider models. Selecting a model applies its connection and native default for
 both chat and terminal use; there is no separate provider configuration panel.
-Settings → Agent Services reuses the complete Code Mate page, including installation,
-model selection and CLI configuration. Both entrances share the same
-Agent list and configuration; selecting an Agent stays within the current entrance.
+The Code Mate launchpad and sidebar shortcuts open Settings → Agent Services,
+the sole manager for installation, model selection and CLI configuration.
+Legacy `/app/code` links and saved tabs redirect to settings, preserve the selected
+Agent, and reuse the existing settings tab.
 CLI-only tools (OpenClaw and DeepSeek Harness) use the same grouped model list and
 program layout. Selecting a model saves its provider and model for the next managed
 launch; their existing web launch, stop and configuration actions remain available.

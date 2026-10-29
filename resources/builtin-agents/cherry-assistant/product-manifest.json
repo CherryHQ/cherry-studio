@@ -38,7 +38,7 @@
       },
       {
         "id": "code_tools",
-        "path": "/app/code"
+        "path": "/settings/local-agents"
       },
       {
         "id": "notes",
@@ -868,7 +868,7 @@
       "once"
     ],
     "codeCli": {
-      "route": "/app/code",
+      "route": "/settings/local-agents",
       "tools": [
         "claude-code",
         "openai-codex",

@@ -93,7 +93,7 @@ const SIDEBAR_APP_DEFINITIONS = [
   },
   {
     id: 'code_tools',
-    routePrefix: '/app/code'
+    routePrefix: '/settings/local-agents'
   },
   {
     id: 'notes',

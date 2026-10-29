@@ -644,7 +644,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.detect') return (++calls === 1 ? oldDetection : newDetection) as never
       return Promise.resolve({}) as never
     })
-    render(<LocalAgentDirectory destination="/app/code" renderCli={() => null} />)
+    render(<LocalAgentDirectory renderCli={() => null} />)
     const handler = vi
       .mocked(useIpcOn)
       .mock.calls.find(([name]) => name === 'binary.availability_changed')![1] as () => void

@@ -37,13 +37,14 @@ describe('core sidebar shortcut providers', () => {
 
   it.each([
     ['core.app', 'files', 'workspace', '/app/files'],
+    ['core.app', 'code_tools', 'workspace', '/settings/local-agents'],
     ['core.mini-app', 'mini app/one', 'workspace', '/app/mini-app/mini%20app%2Fone'],
     ['core.agent', 'agent/one', 'workspace', '/app/agents?agentId=agent%2Fone'],
     ['core.assistant', 'assistant/one', 'workspace', '/app/chat?assistantId=assistant%2Fone'],
     ['core.knowledge-base', 'base/one', 'workspace', '/app/knowledge?baseId=base%2Fone'],
     ['core.topic', 'topic/one', 'workspace', '/app/chat?topicId=topic%2Fone'],
     ['core.agent-session', 'session/one', 'workspace', '/app/agents?sessionId=session%2Fone'],
-    ['core.code-cli', CodeCli.OPENAI_CODEX, 'workspace', '/app/code?tool=openai-codex'],
+    ['core.code-cli', CodeCli.OPENAI_CODEX, 'workspace', '/settings/local-agents?tool=openai-codex'],
     [
       'core.file-entry',
       '018f47d2-e657-7b4c-a7c1-8b52cbb9d114',
@@ -121,12 +122,12 @@ describe('core sidebar shortcut providers', () => {
     await shortcutProvider.activate(target, gateway)
     expect(openWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: '/app/code?id=cortex-code',
+        url: '/settings/local-agents?id=cortex-code',
         title: 'Cortex Code'
       })
     )
     expect(mocks.dataGet).not.toHaveBeenCalled()
-    expect(shortcutProvider.isActive?.(target, { url: '/app/code?id=cortex-code' })).toBe(true)
+    expect(shortcutProvider.isActive?.(target, { url: '/settings/local-agents?id=cortex-code' })).toBe(true)
   })
 
   it('resolves custom local Agents and does not navigate to deleted entries', async () => {
@@ -136,7 +137,7 @@ describe('core sidebar shortcut providers', () => {
     await shortcutProvider.activate(target, gateway)
     expect(openWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: '/app/code?id=custom-id',
+        url: '/settings/local-agents?id=custom-id',
         title: 'Custom ACP'
       })
     )
@@ -165,7 +166,7 @@ describe('core sidebar shortcut providers', () => {
       'code.cli_tools.claude_code',
       'code.cli_tools.openai_codex'
     ])
-    expect([...result.values()].every((item) => item.supportsNewTab)).toBe(true)
+    expect([...result.values()].every((item) => item.supportsNewTab === false)).toBe(true)
     expect(mocks.dataGet).not.toHaveBeenCalled()
   })
 
@@ -255,7 +256,7 @@ describe('core sidebar shortcut providers', () => {
     ['core.knowledge-base', 'base-1', '/app/knowledge?baseId=base-1'],
     ['core.topic', 'topic-1', '/app/chat?topicId=topic-1'],
     ['core.agent-session', 'session-1', '/app/agents?sessionId=session-1'],
-    ['core.code-cli', CodeCli.CLAUDE_CODE, '/app/code?tool=claude-code'],
+    ['core.code-cli', CodeCli.CLAUDE_CODE, '/settings/local-agents?tool=claude-code'],
     [
       'core.file-entry',
       '018f47d2-e657-7b4c-a7c1-8b52cbb9d114',

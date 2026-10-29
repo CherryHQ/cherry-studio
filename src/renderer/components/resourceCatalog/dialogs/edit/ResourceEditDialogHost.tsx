@@ -65,7 +65,7 @@ export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDia
       setOpen(false)
       // Navigation hides this host and cancels its delayed dialog cleanup.
       onOpenChange(false)
-      openRoute('/app/code', { id })
+      openRoute('/settings/local-agents', { id })
     },
     [clearCloseTimer, onOpenChange]
   )

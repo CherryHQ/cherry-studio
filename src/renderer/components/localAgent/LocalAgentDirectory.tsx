@@ -130,12 +130,10 @@ const DEFAULT_AGENT_ORDER = new Map(
 const logger = loggerService.withContext('LocalAgentDirectory')
 
 export function LocalAgentDirectory({
-  destination = '/settings/local-agents',
   renderCli,
   renderCliConfig,
   renderContextMenu
 }: {
-  destination?: '/app/code' | '/settings/local-agents'
   renderContextMenu?: (id: string, tool: CodeCli | undefined, name: string, row: ReactNode) => ReactNode
   renderCliConfig?: (tool: string) => ReactNode
   renderCli?: (tool: CodeCli) => ReactNode
@@ -178,14 +176,14 @@ export function LocalAgentDirectory({
   const navigateToSelection = useCallback(() => {
     if (pendingSelection) {
       setSelected(pendingSelection)
-      void navigate({ to: destination, search: { id: pendingSelection }, replace: true })
+      void navigate({ to: '/settings/local-agents', search: { id: pendingSelection }, replace: true })
     }
     setPendingSelection(undefined)
-  }, [navigate, pendingSelection, destination])
+  }, [navigate, pendingSelection])
   const cancelNavigation = useCallback(() => {
     setPendingSelection(undefined)
-    void navigate({ to: destination, search: { id: selected }, replace: true })
-  }, [navigate, selected, destination])
+    void navigate({ to: '/settings/local-agents', search: { id: selected }, replace: true })
+  }, [navigate, selected])
   const includeCli = !!renderCli
   const detectionRequest = useRef(0)
   const refresh = useCallback(
@@ -442,7 +440,6 @@ export function LocalAgentDirectory({
           <LocalAgentDetails
             installing={installingAgents.has(entry?.preset?.id ?? '')}
             onInstall={installAgent}
-            closeSettingsOnChat={destination === '/settings/local-agents'}
             cliConfigEntry={renderCliConfig?.(cliTool ?? entry?.preset?.id ?? '')}
             key={entry?.id ?? selected}
             pendingSelection={
@@ -461,7 +458,7 @@ export function LocalAgentDirectory({
             onSaved={async (id, refreshInstallations = true) => {
               await Promise.all([refetch(), refetchArchivedAgents()])
               setSelected(id)
-              void navigate({ to: destination, search: { id }, replace: true })
+              void navigate({ to: '/settings/local-agents', search: { id }, replace: true })
               if (refreshInstallations) await refresh()
             }}
           />
@@ -475,7 +472,6 @@ function LocalAgentDetails({
   installing,
   onInstall,
   cliConfigEntry,
-  closeSettingsOnChat,
   pendingSelection,
   onNavigate,
   onCancelNavigation,
@@ -487,7 +483,6 @@ function LocalAgentDetails({
   installing: boolean
   onInstall: (presetId: string, targetVersion?: string) => Promise<LocalAgentInstallResult>
   cliConfigEntry?: ReactNode
-  closeSettingsOnChat: boolean
   pendingSelection?: string
   onNavigate: () => void
   onCancelNavigation: () => void
@@ -614,7 +609,7 @@ function LocalAgentDetails({
         )
   const goToChat = async () => {
     if (busy || !agent || !initial.enabled) return
-    if (!closeSettingsOnChat || !tabs || !currentTabId) {
+    if (!tabs || !currentTabId) {
       openRoute('/app/agents', { agentId: agent.id })
       return
     }

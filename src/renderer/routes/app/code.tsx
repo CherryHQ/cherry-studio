@@ -1,15 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import * as z from 'zod'
 
-import CodeCliPage from '@renderer/pages/code/CodeCliPage'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const Route = createFileRoute('/app/code')({
   validateSearch: (search) =>
     z.object({ tool: z.enum(CodeCli).optional().catch(undefined), id: z.string().optional() }).parse(search),
-  component: CodeCliRoute
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/settings/local-agents', search, replace: true })
+  }
 })
-
-function CodeCliRoute() {
-  return <CodeCliPage />
-}

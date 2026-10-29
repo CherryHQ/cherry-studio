@@ -124,7 +124,7 @@ const appProvider: SidebarShortcutProvider = {
         renderIcon: ({ glyphSize, active }) => (
           <SidebarIcon icon={id} active={active} size={glyphSize} strokeWidth={1.6} />
         ),
-        supportsNewTab: true
+        supportsNewTab: id !== 'code_tools'
       })
     }
     return result
@@ -401,7 +401,7 @@ const codeCliProvider: SidebarShortcutProvider = {
         renderIcon: ({ slotSize, glyphSize }) => (
           <CliIcon id={tool.value} size={tool.value === CodeCli.PI ? glyphSize : slotSize} />
         ),
-        supportsNewTab: true
+        supportsNewTab: false
       })
     )
   },
@@ -410,15 +410,16 @@ const codeCliProvider: SidebarShortcutProvider = {
     if (!this.validate(target)) return
     const tool = CODE_CLI_TOOL_BY_ID.get(target.locator.resourceId)
     if (!tool) return
-    const isActiveToolUrl = (url: string) => isActiveResourceUrl(url, '/app/code', 'tool', tool.value)
+    const isActiveToolUrl = (url: string) => isActiveResourceUrl(url, '/settings/local-agents', 'tool', tool.value)
     gateway.openWorkspace({
-      url: `/app/code?tool=${encodeURIComponent(tool.value)}`,
+      url: `/settings/local-agents?tool=${encodeURIComponent(tool.value)}`,
       title: i18n.t(tool.label),
       matchesCurrent: isActiveToolUrl,
       matchesTab: isActiveToolUrl
     })
   },
-  isActive: (target, navigation) => isActiveResourceUrl(navigation.url, '/app/code', 'tool', target.locator.resourceId)
+  isActive: (target, navigation) =>
+    isActiveResourceUrl(navigation.url, '/settings/local-agents', 'tool', target.locator.resourceId)
 }
 
 const localAgentProvider: SidebarShortcutProvider = {
@@ -432,7 +433,7 @@ const localAgentProvider: SidebarShortcutProvider = {
       (preset) => ({
         label: preset.name,
         renderIcon: ({ slotSize }) => <LocalAgentIcon presetId={preset.id} size={slotSize} />,
-        supportsNewTab: true
+        supportsNewTab: false
       })
     )
     const customTargets = targets.filter((target) => !presets.has(createSidebarShortcutId(target)))
@@ -446,7 +447,7 @@ const localAgentProvider: SidebarShortcutProvider = {
         renderIcon: ({ slotSize }) => (
           <LocalAgentIcon presetId={agent.configuration?.localRuntime?.presetId} size={slotSize} />
         ),
-        supportsNewTab: true
+        supportsNewTab: false
       })
     )
     return new Map([...presets, ...custom])
@@ -463,15 +464,16 @@ const localAgentProvider: SidebarShortcutProvider = {
     if (!this.validate(target)) return
     const resource = (await this.resolveMany([target])).get(createSidebarShortcutId(target))
     if (!resource) return
-    const matches = (url: string) => isActiveResourceUrl(url, '/app/code', 'id', target.locator.resourceId)
+    const matches = (url: string) => isActiveResourceUrl(url, '/settings/local-agents', 'id', target.locator.resourceId)
     gateway.openWorkspace({
-      url: `/app/code?id=${encodeURIComponent(target.locator.resourceId)}`,
+      url: `/settings/local-agents?id=${encodeURIComponent(target.locator.resourceId)}`,
       title: resource.label,
       matchesCurrent: matches,
       matchesTab: matches
     })
   },
-  isActive: (target, navigation) => isActiveResourceUrl(navigation.url, '/app/code', 'id', target.locator.resourceId)
+  isActive: (target, navigation) =>
+    isActiveResourceUrl(navigation.url, '/settings/local-agents', 'id', target.locator.resourceId)
 }
 
 export const CORE_SIDEBAR_SHORTCUT_PROVIDERS: readonly SidebarShortcutProvider[] = [

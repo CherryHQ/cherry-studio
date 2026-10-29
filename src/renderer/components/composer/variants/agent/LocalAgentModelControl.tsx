@@ -76,7 +76,7 @@ export function LocalAgentModelControl({
       loading={loading}
       loaded={!!freshCatalog || !!info?.models?.length}
       error={refreshError}
-      onOpenSettings={() => openRoute('/app/code', { id: config.presetId ?? agent.id })}
+      onOpenSettings={() => openRoute('/settings/local-agents', { id: config.presetId ?? agent.id })}
       side={side}
       onLoad={loadModels}
       onSelect={selectModel}
