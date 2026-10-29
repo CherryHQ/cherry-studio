@@ -925,6 +925,15 @@ describe('Agent task dashboard interactions', () => {
 
   it('opens task creation over the dashboard and cancels without navigating', async () => {
     const user = userEvent.setup()
+    const query = mockUseQuery.getMockImplementation()!
+    const emptyAgents = { items: [], total: 0, page: 1 }
+    const emptyResources: never[] = []
+    mockUseQuery.mockImplementation((path, options) => {
+      const result = query(path, options)
+      if (path === '/agents') return { ...result, data: emptyAgents }
+      if (path === '/agent-workspaces' || path === '/agent-channels') return { ...result, data: emptyResources }
+      return result
+    })
     render(<Dashboard enabled />, { wrapper: CodeStyleProvider })
     await user.pointer({ target: screen.getByRole('button', { name: /^Scheduled tasks/ }), keys: '[MouseRight]' })
     await act(async () => {
@@ -932,7 +941,7 @@ describe('Agent task dashboard interactions', () => {
       await vi.dynamicImportSettled()
     })
     const dialog = await screen.findByRole('dialog', { name: 'New scheduled task' })
-    expect(within(dialog).getByLabelText('Name')).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeInTheDocument()
     expect(ipcMocks.request).not.toHaveBeenCalledWith('navigation.open_route_in_main', expect.anything())
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
