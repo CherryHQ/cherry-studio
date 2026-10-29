@@ -39,8 +39,10 @@ async function runtime() {
 }
 function texts(events: ObservationPayload[]) {
   return events
-    .flatMap((event) => (event.type === 'snapshot' ? event.items : event.type === 'item.upsert' ? [event.item] : []))
-    .flatMap((item) => (item.type === 'message' ? item.parts.map((part) => part.text) : []))
+    .flatMap((event) =>
+      event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+    )
+    .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
 }
 async function observe(access: ThreadHandle) {
   const events: ObservationPayload[] = []
@@ -69,11 +71,15 @@ describe('Pi runtime contract', () => {
     expect(left).toHaveLength(leftCount)
     const ids = (events: ObservationPayload[]) =>
       events.flatMap((event) =>
-        event.type === 'item.upsert' && event.item.type === 'message' && event.item.role === 'assistant'
-          ? [event.item.ref.id]
-          : []
+        event.type === 'message.upsert' && event.message.role === 'assistant' ? [event.message.id] : []
       )
-    expect(new Set(ids(right)).size).toBe(1)
+    const visible = new Set<string>()
+    for (const event of right) {
+      if (event.type !== 'message.upsert' || event.message.role !== 'assistant') continue
+      for (const replaced of event.replaces ?? []) visible.delete(replaced.id)
+      visible.add(event.message.id)
+    }
+    expect(visible.size).toBe(1)
     expect(ids(left)[0]).toBe(ids(right)[0])
     expect(await first.submit(draft('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     expect(await owner.shutdown()).toEqual({ status: 'confirmed', value: { effect: 'closed' } })
