@@ -142,6 +142,45 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('undecodable-image-read', () => {
+    let cwd: string
+
+    beforeAll(async () => {
+      const sharp = (await import('sharp')).default
+      const fsp = await import('node:fs/promises')
+      cwd = await mkdtemp(path.join(os.tmpdir(), 'guard-image-'))
+      const png = await sharp({ create: { width: 120, height: 50, channels: 3, background: '#0c8' } })
+        .png()
+        .toBuffer()
+      await fsp.writeFile(path.join(cwd, 'ok.png'), png)
+      // Keeps the signature and IHDR, so the CLI's header fallback would embed it raw.
+      await fsp.writeFile(path.join(cwd, 'broken.png'), png.subarray(0, Math.floor(png.length / 2)))
+    })
+
+    afterAll(async () => {
+      await rm(cwd, { recursive: true, force: true })
+    })
+
+    const readCtx = (file: string, overrides: Partial<ToolGuardContext> = {}) =>
+      makeCtx({ toolName: 'Read', cwd, agentDataPath: cwd, input: { file_path: path.join(cwd, file) }, ...overrides })
+
+    it.each(['default', 'bypassPermissions'] as const)('denies a truncated image under %s', async (mode) => {
+      const decision = await evaluate(readCtx('broken.png', { permissionMode: mode, supportsImages: true }))
+      expect(decision?.ruleId).toBe('undecodable-image-read')
+      expect(decision?.effect).toBe('deny')
+    })
+
+    it('allows a valid image and a missing file', async () => {
+      await expect(evaluate(readCtx('ok.png', { supportsImages: true }))).resolves.toBeUndefined()
+      await expect(evaluate(readCtx('missing.png', { supportsImages: true }))).resolves.toBeUndefined()
+    })
+
+    it('leaves text-only models to unsupported-image-read', async () => {
+      const decision = await evaluate(readCtx('broken.png', { supportsImages: false }))
+      expect(decision?.ruleId).toBe('unsupported-image-read')
+    })
+  })
+
   describe('builtin-destructive', () => {
     it('denies destructive Bash for protected built-in agents in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {

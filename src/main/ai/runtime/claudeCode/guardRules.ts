@@ -12,6 +12,7 @@
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
@@ -25,6 +26,7 @@ import {
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { isDecodableImage } from '@main/utils/image'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
@@ -98,6 +100,19 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
   return { evidence: requestedPath }
 }
 
+// The CLI's own Read image set; when its resize fails it embeds the raw bytes, which then replay every turn.
+const CLAUDE_READ_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
+
+const undecodableImageRead = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  if (ctx.supportsImages === false) return null
+  const requestedPath = ctx.input?.file_path
+  if (typeof requestedPath !== 'string' || !CLAUDE_READ_IMAGE_EXTS.has(path.extname(requestedPath).toLowerCase()))
+    return null
+  const bytes = await readFile(path.resolve(ctx.cwd, requestedPath)).catch(() => undefined)
+  if (!bytes || (await isDecodableImage(bytes))) return null
+  return { evidence: requestedPath }
+}
+
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
   if (!pathField) return null
@@ -162,6 +177,14 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `The selected model does not support image input, so Read cannot open ${hit.evidence}. Use a vision-capable model or inspect the file through a text-only alternative.`
+  },
+  {
+    id: 'undecodable-image-read',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: undecodableImageRead },
+    effect: 'deny',
+    reason: (hit) =>
+      `Read cannot open ${hit.evidence}: the file is not a decodable image (it may be truncated or corrupt). Regenerate it or inspect it without loading it as an image.`
   },
   {
     // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this
