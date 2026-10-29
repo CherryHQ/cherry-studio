@@ -112,3 +112,16 @@ diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
      if (model.baseUrl) {
          httpOptions.baseUrl = model.baseUrl;
          httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 022faa1969490ca91d67fffa20dab7c41c4384bd..1bf5e6e1bdde065ca292bcd8d5ed7858542eb4d8 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -417,6 +417,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
+     toolName: string;
+     content: (TextContent | ImageContent)[];
+     details?: JsonRepresentation<TDetails>;
++    /** Structured tool output retained for session replay and tool consumers. */
++    structuredContent?: JsonValue;
+     /** Usage from the tool execution itself, if available. Not part of main LLM context accounting. */
+     usage?: Usage;
+     /** Calls this tool made to other tools. Kept for the session record; not sent to the model. */

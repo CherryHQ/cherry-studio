@@ -51,7 +51,7 @@ export function submit(adapter: Adapter, conv: Conversation, key: string, input:
 }
 
 export function drain(adapter: Adapter, conv: Conversation): void {
-  if (conv.active || !piIdle(conv)) return
+  if (!adapter.accepting() || conv.active || !piIdle(conv)) return
   const key = conv.inbox.shift()
   if (key !== undefined) startRun(adapter, conv, key)
 }

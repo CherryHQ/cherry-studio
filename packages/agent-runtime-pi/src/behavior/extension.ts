@@ -19,6 +19,7 @@ import type {
 import {
   type CompactionRequest,
   ENTRY_KINDS,
+  encodeEntry,
   type GateCall,
   type GateFacts,
   type RequestAllowance,
@@ -30,7 +31,18 @@ import type { JsonValue } from '@cherrystudio/agent-runtime'
 
 import type { CompactionSummarizer } from '../compaction'
 import { zeroUsage } from '../subagentRun'
-import { BLOCKED_PREFIX, callKeyFor, historyOf, latestPlan, omittedMarkers, textOf, withoutMarkers } from './history'
+import {
+  addUsage,
+  keysOf,
+  ZERO_USAGE,
+  BLOCKED_PREFIX,
+  callKeyFor,
+  historyOf,
+  latestPlan,
+  omittedMarkers,
+  textOf,
+  withoutMarkers
+} from './history'
 import { readFacts } from './ledger'
 import { endingOf, finishRun, noteMessage, offerSteer } from './runs'
 import type { Adapter, Conversation } from './state'
@@ -57,13 +69,8 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       // Pi drops an abort made before it started the run (a prompt's input handlers); repeat it now.
       if (run.stopRequested) ctx.abort()
     })
-    // H12: after the summarizer extension's handler; a compaction that bypassed the adapter's summarizer never asked
-    // `onCompacting` (the host left out `compaction.summarize` or passed its own), so it is cancelled.
     pi.on('session_before_compact', () => {
-      if (conv.summarized) {
-        conv.summarized = false
-        return undefined
-      }
+      if (conv.native?.compactionSummarizer === conv.summarize && conv.summarize) return undefined
       adapter.report(new Error(`${UNWIRED_SUMMARIZER} (${conv.thread})`))
       return { cancel: true }
     })
@@ -113,12 +120,6 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       reporting(adapter, async (event: ToolResultEvent) => {
         const gate = adapter.installation.gate
         if (!gate) return undefined
-        const result: ToolResultFact = {
-          text: textOf(event.content),
-          isError: event.isError,
-          ...(event.details === undefined ? {} : { details: event.details as JsonValue })
-        }
-        // The call `before` saw, with the arguments it ran with (GateHandlers.after).
         const gated: GateCall = {
           key: callKeyFor(conv.thread, event.toolCallId),
           thread: conv.thread,
@@ -126,14 +127,34 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
           args: event.input as JsonValue,
           nested: event.parentToolCallId !== undefined
         }
-        const replaced = await gate.after(gated, result, adapter.gatePorts)
-        if (!replaced) return undefined
-        // A result fact is text and details: images pass through; Pi drops the replaced content's structured content.
-        return {
-          content: [{ type: 'text', text: replaced.text }, ...event.content.filter((part) => part.type === 'image')],
-          isError: replaced.isError,
-          details: replaced.details
+        const content: ToolResultEvent['content'] = []
+        let changed = false
+        let isError = event.isError
+        let details = event.details
+        for (let i = 0; i < event.content.length;) {
+          const part = event.content[i]
+          if (part.type !== 'text') {
+            content.push(part)
+            i++
+            continue
+          }
+          const span = []
+          while (i < event.content.length && event.content[i].type === 'text') span.push(event.content[i++])
+          const result: ToolResultFact = {
+            text: textOf(span),
+            isError,
+            ...(details === undefined ? {} : { details: details as JsonValue })
+          }
+          const replaced = await gate.after(gated, result, adapter.gatePorts)
+          if (!replaced) content.push(...span)
+          else {
+            changed = true
+            content.push({ type: 'text', text: replaced.text })
+            isError = replaced.isError
+            details = replaced.details
+          }
         }
+        return changed ? { content, isError, details, structuredContent: event.structuredContent } : undefined
       })
     )
     pi.on(
@@ -224,7 +245,6 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
     throw new Error(reason)
   }
   return async (request) => {
-    conv.summarized = true
     conv.declined = false
     const run = conv.active
     if (run) {
@@ -237,6 +257,7 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
     const compaction: CompactionRequest = {
       // The entry the compaction will follow: Pi appends it after the branch's last entry.
       key: `${conv.thread}:${conv.manager.getLeafId()}`,
+      history: historyOf(conv.manager.getBranch(), conv.thread),
       reason: request.reason,
       messages: JSON.parse(JSON.stringify(request.messages)) as JsonValue[],
       ...(request.previousSummary === undefined ? {} : { previousSummary: request.previousSummary }),
@@ -248,7 +269,15 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
       if (conv.hostCompacts === 0) adapter.report(error)
       throw error
     })
-    return 'decline' in verdict ? decline(verdict.reason) : verdict.summary
+    if ('decline' in verdict) return decline(verdict.reason)
+    const accounting = verdict.accounting
+    if (accounting && !keysOf(historyOf(conv.manager.getBranch(), conv.thread)).has(accounting.key)) {
+      const encoded = encodeEntry(accounting.record, accounting.key)
+      conv.manager.appendCustomEntry(encoded.kind, encoded.data)
+      if (run)
+        conv.runUsage[run.run - 1] = addUsage(conv.runUsage[run.run - 1] ?? ZERO_USAGE, accounting.record.value.usage)
+    }
+    return verdict.summary
   }
 }
 

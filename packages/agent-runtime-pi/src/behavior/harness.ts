@@ -136,36 +136,50 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     return memo.get(name) as T
   }
 
+  function accepting(): void {
+    if (closing || closed) throw new Error('The coding-agent harness is closed')
+  }
+
   function bound(scope: Scope): BoundPorts {
     return {
       ledger: {
         read: (thread) => enter(scope, () => readFacts(adapter, thread)),
         transact: (thread, decide) =>
           enter(scope, async () => {
-            const { step, applied } = commit(adapter, thread, decide, scope.owner)
+            const { step, applied } = commit(
+              adapter,
+              thread,
+              (facts) => {
+                const next = decide(facts)
+                if (next.ops.some((op) => op.type === 'spawn-child')) accepting()
+                return next
+              },
+              scope.owner
+            )
             if (scope.opening) scope.opening.push(...applied.jobs)
-            try {
-              // H1 coding-agent: the commit reserved the children; their sessions are built right after it.
-              await Promise.all(
-                applied.children.map((child) =>
-                  launch(openNative(child)).catch((error: unknown) => {
-                    // Never launched: drop it so it is no pending launch forever (D3).
-                    conversations.delete(child.thread)
-                    throw error
-                  })
-                )
+            const launched = await Promise.allSettled(
+              applied.children.map((child) =>
+                launch(openNative(child)).catch((error: unknown) => {
+                  conversations.delete(child.thread)
+                  throw error
+                })
               )
-            } finally {
-              // A job may message the commit's children, so it starts once they are open (failing if one never
-              // launched); none starts once close() began, which drops it.
-              if (!scope.opening && !closing) for (const job of applied.jobs) startJob(job)
-            }
+            )
+            if (!scope.opening && !closing) for (const job of applied.jobs) startJob(job)
+            const failures = launched.flatMap((result) =>
+              result.status === 'rejected' ? [result.reason as unknown] : []
+            )
+            if (failures.length) throw failures.length === 1 ? failures[0] : new AggregateError(failures)
             return { result: step.result, effects: step.effects, spawned: applied.spawned }
           }),
         modelContext: (thread) => enter(scope, () => modelContext(adapter, thread))
       },
       turns: {
-        start: (thread, input, key) => enter(scope, () => startTurn(adapter, conversation(thread), input, key)),
+        start: (thread, input, key) =>
+          enter(scope, () => {
+            accepting()
+            return startTurn(adapter, conversation(thread), input, key)
+          }),
         retract: (thread, key) => enter(scope, () => retract(conversation(thread), key)),
         // H2: with `turn`, only while the latest run began with it, so a repeated stop never reaches a later run.
         stop: (thread, _cause, turn) =>
@@ -177,6 +191,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       helpers: {
         message: (child, input, key, reservedRun) =>
           enter(scope, async () => {
+            accepting()
             const conv = conversation(child)
             const accepted = messageChild(adapter, conv, input, key, scope.signal?.aborted === true, reservedRun)
             if (accepted.status !== 'queued') return accepted
@@ -247,6 +262,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     const scope: Scope = { ended: false }
     const run = async () => {
       try {
+        if (closing || closed) return
         await installation.jobs.get(job.spec.kind)!(bound(scope), job.spec)
         job.state = 'done'
       } catch (error) {
@@ -279,6 +295,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     }
     const opening: JobRecord[] = []
     try {
+      accepting()
       // After Pi's session_start: `onOpen` may stop or start turns, which need the session.
       await lifecycle((handlers, ports) => handlers.onOpen(conv.thread, { reopened: conv.reopened }, ports), opening)
     } finally {
@@ -294,10 +311,11 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   async function openNative(conv: Conversation): Promise<void> {
     const child =
       conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
+    conv.summarize = compactionSummarizer(adapter, conv)
     const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),
-      summarize: compactionSummarizer(adapter, conv),
+      summarize: conv.summarize,
       ...(child && { child })
     })
     if (closing) {
@@ -331,6 +349,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
 
   const adapter: Adapter = {
     conversations,
+    accepting: () => !closing && !closed,
     jobs,
     installation,
     gatePorts: { memory: { remember: (name, produce) => enter(installScope, () => remember(name, produce)) }, clock },
@@ -377,7 +396,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
 
   return {
     async openConversation(sessionManager) {
-      if (closed) throw new Error('The coding-agent harness is closed')
+      accepting()
       const thread = runtimeId<'thread'>(sessionManager.getSessionId())
       if (conversations.has(thread)) throw new Error(`Conversation ${thread} is already open`)
       // [plan choice] A stored session holds entries before it opens; a new one is empty.
@@ -394,12 +413,13 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     },
     withCall: (_thread, use) => withScope({}, use),
     async submitUser(thread, text) {
-      if (closed) throw new Error('The coding-agent harness is closed')
+      accepting()
       users += 1
       // A person's submissions get adapter-local keys; rules never see them.
       submit(adapter, conversation(thread), `user:${users}`, text)
     },
     async compact(thread) {
+      accepting()
       const conv = conversation(thread)
       if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
       conv.hostCompacts += 1
