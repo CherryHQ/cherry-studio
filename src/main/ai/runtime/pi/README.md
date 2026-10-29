@@ -23,6 +23,9 @@ native binding. The desktop binding receives only an internal gateway credential
 OAuth refresh and provider request patches stay in Cherry's provider execution. There is no desktop
 direct-provider route or Pi-specific OAuth stream wrapper.
 
+Executable child candidates require both the model and its provider to be enabled. The gateway
+still validates availability for each request after selection.
+
 The binding preserves the model's native protocol when the gateway supports it. The model route
 uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. Internal usage
 headers associate provider calls with the active Agent input. The internal listener works independently
@@ -50,6 +53,8 @@ existing message parts; pending questions do not resume after restart. No new da
 
 Compaction calls the host summarizer once through the native gateway binding; goal completion calls
 the verifier through the same path without a tool loop. Empty or failed summaries cancel compaction.
+The summarizer returns the native response usage for goal and child-run accounting; the gateway
+remains the sole writer of provider billing records.
 `agent-behavior` provides `vcc_recall`; the old pi-vcc extension and build artifact are removed.
 Large tool output is saved under `feature.agents.outputs`, which read tools may access.
 

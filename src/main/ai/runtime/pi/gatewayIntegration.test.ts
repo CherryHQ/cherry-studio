@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { runtimeId } from '@cherrystudio/agent-runtime'
 import { createAgentRuntimeSession, type AgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -25,6 +26,7 @@ import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { lastAssistant, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
+import { createPiBehaviorHost } from './piBehaviorHost'
 
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
@@ -172,6 +174,91 @@ describe('native Pi through the production gateway', () => {
     vi.restoreAllMocks()
   })
 
+  async function behaviorHost() {
+    const model = modelService.getByKey('port', 'wire-model')
+    const input = { sessionId: 'session', agentId: 'agent', modelId: model.id }
+    const binding = await createPiGatewayModelBinding(input, providerService.getByProviderId('port'), model)
+    return createPiBehaviorHost({
+      input,
+      root: runtimeId('root'),
+      binding,
+      model,
+      approval: {
+        sessionId: input.sessionId,
+        workspacePath: '/tmp',
+        agentDataPath: '/tmp',
+        additionalReadOnlyRoots: [],
+        getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+        getPermissionMode: () => 'default',
+        isDisabled: () => false,
+        autoApprovedTools: new Set(),
+        approvalRequiredTools: new Set(),
+        nonBypassableApprovalTools: new Set(),
+        delegationTools: new Set()
+      },
+      toolCallId: async (call) => call.key,
+      emit: () => {},
+      observe: () => {}
+    })
+  }
+
+  it('excludes a disabled provider with the same model name and preserves the inherited model', async () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'disabled', name: 'Disabled', orderKey: 'a1', isEnabled: false })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'disabled::wire-model',
+        providerId: 'disabled',
+        modelId: 'wire-model',
+        name: 'Logical model',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a0'
+      })
+      .run()
+    const { host } = await behaviorHost()
+    const candidates = await host.models.find('wire-model')
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0].provider).toBe('port')
+    expect(await host.models.current(runtimeId('root'))).toMatchObject({
+      parentModelKey: candidates[0].key,
+      defaultChildModelKey: candidates[0].key,
+      supportsTools: true
+    })
+    dbh.db.update(userProviderTable).set({ isEnabled: false }).where(eq(userProviderTable.providerId, 'port')).run()
+    expect(await host.models.find('wire-model')).toEqual([])
+    await expect(
+      host.summarizer.summarize(
+        { thread: runtimeId('root'), reason: 'manual', messages: ['conversation'] },
+        new AbortController().signal
+      )
+    ).rejects.toThrow()
+    expect(requests).toEqual([])
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+  })
+
+  it('returns actual summary usage while the gateway records exactly one provider charge', async () => {
+    const { host } = await behaviorHost()
+    call = () => ({ content: 'Preserved objective and pending work' })
+    const result = await host.summarizer.summarize(
+      { thread: runtimeId('root'), reason: 'manual', messages: ['conversation'] },
+      new AbortController().signal
+    )
+    expect(result).toMatchObject({
+      summary: 'Preserved objective and pending work',
+      usage: { input: 100, output: 25, totalTokens: 125 }
+    })
+    const charges = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(charges).toHaveLength(1)
+    expect(charges[0]).toMatchObject({ inputTokens: 100, outputTokens: 25, messageId: 'original-answer' })
+    expect(charges[0].cost).toBeCloseTo(0.0003)
+    expect(requests).toHaveLength(1)
+  })
+
   it('uses Cherry provider configuration for each native step, with one tool executor and one billing owner', async () => {
     const usages: unknown[] = []
     const toolInputs: string[] = []
@@ -229,13 +316,38 @@ describe('native Pi through the production gateway', () => {
 
   it.each(['null', '{}'])('executes only valid optional tool input through the gateway: %s', async (input) => {
     const executed: unknown[] = []
-    call = () => requests.length === 1 ? { tool_calls: [{ index: 0, id: 'optional-call', type: 'function', function: { name: 'optional_tool', arguments: input } }] } : { content: 'complete' }
-    const binding = await createPiGatewayModelBinding({ sessionId: 'session' }, providerService.getByProviderId('port'), modelService.getByKey('port', 'wire-model'))
+    call = () =>
+      requests.length === 1
+        ? {
+            tool_calls: [
+              { index: 0, id: 'optional-call', type: 'function', function: { name: 'optional_tool', arguments: input } }
+            ]
+          }
+        : { content: 'complete' }
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
     const directory = tempDir('gateway-invalid-tool')
-    session = await createAgentRuntimeSession({ ...binding, cwd: directory, agentDir: directory, settings: { retry: { enabled: false } }, tools: [defineTool({
-      name: 'optional_tool', label: 'Optional', description: 'Optional input', parameters: Type.Object({ path: Type.Optional(Type.String()) }),
-      async execute(_id, args) { executed.push(args); return { content: [{ type: 'text', text: 'done' }], details: undefined } }
-    })] })
+    session = await createAgentRuntimeSession({
+      ...binding,
+      cwd: directory,
+      agentDir: directory,
+      settings: { retry: { enabled: false } },
+      tools: [
+        defineTool({
+          name: 'optional_tool',
+          label: 'Optional',
+          description: 'Optional input',
+          parameters: Type.Object({ path: Type.Optional(Type.String()) }),
+          async execute(_id, args) {
+            executed.push(args)
+            return { content: [{ type: 'text', text: 'done' }], details: undefined }
+          }
+        })
+      ]
+    })
     await session.prompt('use the optional tool')
     if (input === 'null') {
       expect(executed).toEqual([])
