@@ -68,21 +68,39 @@ export function toolOutputOffloadExtension({ store, thresholdChars }: ToolOutput
       // Errors stay readable; nested calls reach the model only through their caller; `read`
       // results are exempt so reading an offloaded output back cannot offload it again.
       if (event.isError || event.parentToolCallId !== undefined || event.toolName === READ_TOOL) return undefined
-      // Joined as the bridge sends text parts, so the saved output reads like the result it replaces.
-      const text = event.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
-      if (text.length <= Math.max(thresholdChars, MIN_OFFLOAD_CHARS)) return undefined
-      const name = `tool-output-${createHash('sha256').update(text).digest('hex').slice(0, 16)}.txt`
-      const note = await saveNote(store, {
-        name,
-        content: text,
-        toolCallId: event.toolCallId,
-        toolName: event.toolName
-      })
+      const content: typeof event.content = []
+      let changed = false
+      for (let index = 0; index < event.content.length;) {
+        const part = event.content[index]
+        if (part.type !== 'text') {
+          content.push(part)
+          index++
+          continue
+        }
+        const start = index
+        const texts: string[] = []
+        while (event.content[index]?.type === 'text') {
+          const textPart = event.content[index++]
+          if (textPart.type === 'text') texts.push(textPart.text)
+        }
+        const text = texts.join('\n')
+        if (text.length <= Math.max(thresholdChars, MIN_OFFLOAD_CHARS)) {
+          content.push(...event.content.slice(start, index))
+          continue
+        }
+        const name = `tool-output-${createHash('sha256').update(text).digest('hex').slice(0, 16)}.txt`
+        const note = await saveNote(store, {
+          name,
+          content: text,
+          toolCallId: event.toolCallId,
+          toolName: event.toolName
+        })
+        content.push({ type: 'text', text: offloadMarker(text, note) })
+        changed = true
+      }
+      if (!changed) return undefined
       return {
-        content: [
-          { type: 'text', text: offloadMarker(text, note) },
-          ...event.content.filter((part) => part.type === 'image')
-        ],
+        content,
         ...(event.structuredContent === undefined ? {} : { structuredContent: event.structuredContent })
       }
     })

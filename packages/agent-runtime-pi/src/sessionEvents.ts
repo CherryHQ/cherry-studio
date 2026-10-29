@@ -18,6 +18,8 @@ export type AgentRuntimeEvent =
 /** Observes native entries; the session manager remains the only persistence writer. */
 export class SessionEvents {
   private cursor: number
+  private compacting = false
+  private compactionEntryId: string | undefined
   private baseTools: Set<string> | undefined
   activatedTools: string[] = []
   summaryFailure: string | undefined
@@ -41,14 +43,18 @@ export class SessionEvents {
   }
 
   handle(event: AgentSessionEvent): void {
-    const entries = this.flush()
+    this.flush()
     switch (event.type) {
       case 'compaction_start':
+        this.compacting = true
+        this.compactionEntryId = undefined
         this.summaryFailure = undefined
         this.listener({ type: 'compaction-start', reason: event.reason })
         break
       case 'compaction_end': {
-        const entryId = entries.findLast((entry) => entry.type === 'compaction')?.id
+        const entryId = this.compactionEntryId
+        this.compacting = false
+        this.compactionEntryId = undefined
         const error = event.errorMessage ?? this.summaryFailure
         this.summaryFailure = undefined
         this.listener({
@@ -79,6 +85,9 @@ export class SessionEvents {
     const appended = this.manager.getEntries().slice(start)
     this.cursor = this.manager.getEntryCount()
     const copied: SessionEntry[] = JSON.parse(JSON.stringify(appended))
+    if (this.compacting) {
+      this.compactionEntryId = copied.findLast((entry) => entry.type === 'compaction')?.id ?? this.compactionEntryId
+    }
     this.listener({ type: 'session-append', entries: copied })
     return copied
   }

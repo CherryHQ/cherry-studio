@@ -84,13 +84,13 @@ the error.
 ## Tool output offload
 
 `offload: { store, thresholdChars }` keeps one oversized tool result from overflowing the context.
-A `tool_result` hook, after every other extension's, saves text output longer than
+A `tool_result` hook, after every other extension's, saves each contiguous text span longer than
 `thresholdChars` (and than 3,000 characters, so the marker is always shorter than the output)
 through the host's `ToolOutputStore` and gives the model its head and tail around a
 `<persisted-output>` note with the saved path, to read back with Pi's `read` tool. If the store
 throws, the note gives its error instead and the model keeps only the head and tail. Names are
 content addressed (`tool-output-<first 16 hex digits of its sha256>.txt`), so the same output gives
-the same marker and prompt caches hold. Images and `structuredContent` are kept. Not offloaded:
+the same marker and prompt caches hold. Images retain their positions between text spans, and `structuredContent` is kept. Not offloaded:
 errors, `read` results (reading an offloaded file back must not offload it again) and nested tool
 calls, which reach the model only through their caller. Pi persists the marker, which is what the
 model saw.

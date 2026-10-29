@@ -122,6 +122,47 @@ describe('tool output offload', () => {
     expect(structured).toEqual([{ rows: 800 }])
   })
 
+  it('preserves image/text ordering and readable full text for each offloaded span', async () => {
+    const image = { type: 'image' as const, data: 'aW1hZ2U=', mimeType: 'image/png' }
+    const blocks = [
+      image,
+      { type: 'text' as const, text: OUTPUT },
+      image,
+      { type: 'text' as const, text: `SECOND ${OUTPUT}` }
+    ]
+    const tool = defineTool({
+      name: 'illustrated',
+      label: 'Illustrated',
+      description: 'Images with descriptions',
+      parameters: Type.Object({}),
+      async execute() {
+        return { content: blocks, details: undefined, structuredContent: { figures: 2 } }
+      }
+    })
+    const { model } = windowedModel(100_000, (_prompt, call) =>
+      call === 1
+        ? [toolCall('figures', 'illustrated', {}), finish('tool-calls')]
+        : [...textParts('t', 'Done.'), finish('stop')]
+    )
+    const host = hostStore()
+    const { session } = await createTestSession({
+      port: gatewayModel(model).upstream,
+      tools: [tool],
+      onEvent: host.onEvent,
+      offload: { store: fileStore(tempDir('offload')), thresholdChars: 20_000 }
+    })
+    await session.prompt('Read both figures')
+    const [stored] = toolEntries(host.entries)
+    expect(stored.content.map((part) => part.type)).toEqual(['image', 'text', 'image', 'text'])
+    expect(stored.content[0]).toEqual(image)
+    expect(stored.content[2]).toEqual(image)
+    const texts = stored.content.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+    expect(texts.map((text) => readFileSync(/Full output saved to: (.+)/.exec(text)![1], 'utf8'))).toEqual([
+      OUTPUT,
+      `SECOND ${OUTPUT}`
+    ])
+  })
+
   it('reuses one file and marker for the same output, and leaves errors and read results whole', async () => {
     const failing = defineTool({
       name: 'fail_loudly',

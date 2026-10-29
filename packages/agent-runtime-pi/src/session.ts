@@ -84,7 +84,6 @@ export async function createAgentRuntimeSession(
   ]
   const settingsManager = SettingsManager.inMemory({
     ...options.settings,
-    ...required?.settings,
     ...(compaction && {
       compaction: {
         enabled: compaction.enabled ?? true,
