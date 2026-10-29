@@ -1044,6 +1044,65 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       })
     ).toEqual(['mcp__Docs_MCP__run', 'mcp__github__run'])
   })
+
+  it('derives browser eligibility per allocation, not from the pre-rename snapshot', () => {
+    // B is the in-memory browser mounted before S (`_cherry_browser`), so the runtime never
+    // registered B and S owns the key all along. The PATCH renames B to `@cherry/fetch`, which
+    // makes B a POST-change candidate claiming `_cherry_fetch`. Counting B as a pre-change
+    // candidate too would hand it a phantom `_cherry_browser` claim, displace S onto its id in
+    // the old allocation, and rewrite S's denial onto B's new key — denying B's new tool in
+    // S's place. Eligibility is therefore derived separately for each allocation.
+    const migrated = migrateAgentDisabledToolsForServerRename(['mcp___cherry_browser__run'], {
+      mountedServers: [
+        { mcpId: 'srv-browser', name: '@cherry/browser' },
+        { mcpId: 'srv-named', name: '_cherry_browser' }
+      ],
+      renamedServerId: 'srv-browser',
+      toName: '@cherry/fetch',
+      reservedKeys: RESERVED,
+      nonCandidateIdsBefore: new Set(['srv-browser']),
+      nonCandidateIdsAfter: new Set()
+    })
+    expect(migrated).toBeUndefined()
+  })
+
+  it('migrates the sibling a renamed browser displaces when it becomes a candidate', () => {
+    // The browser holds no pre-change key, so `_cherry_fetch` belongs to the sibling A. The
+    // rename to `@cherry/fetch` makes B a candidate that claims `_cherry_fetch`, displacing A
+    // onto its id — A's denial must follow even though the RENAMED server itself has no old
+    // key to rewrite.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp___cherry_fetch__run'], {
+        mountedServers: [
+          { mcpId: 'srv-browser', name: '@cherry/browser' },
+          { mcpId: 'srv-named', name: '_cherry_fetch' }
+        ],
+        renamedServerId: 'srv-browser',
+        toName: '@cherry/fetch',
+        reservedKeys: RESERVED,
+        nonCandidateIdsBefore: new Set(['srv-browser']),
+        nonCandidateIdsAfter: new Set()
+      })
+    ).toContain('mcp__srv-named__run')
+  })
+
+  it('moves the renamed server onto its id when the rename lands on the browser name', () => {
+    // Renaming onto the in-memory browser's name (`@cherry/browser`) removes the server from
+    // the post-change allocation: the runtime never registers it. Its name-keyed denial would
+    // sit on a key the next claimant inherits — denying the claimant's tool in the departed
+    // server's place — so the restriction moves onto the stable id before the release, the
+    // same departing semantics a mount removal applies.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp___cherry_fetch__run'], {
+        mountedServers: [{ mcpId: 'srv-1', name: '_cherry_fetch' }],
+        renamedServerId: 'srv-1',
+        toName: '@cherry/browser',
+        reservedKeys: RESERVED,
+        nonCandidateIdsBefore: new Set(),
+        nonCandidateIdsAfter: new Set(['srv-1'])
+      })
+    ).toContain('mcp__srv-1__run')
+  })
 })
 
 describe('migrateAgentDisabledToolsForAllocationChange', () => {
@@ -1323,16 +1382,15 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
 
   it('keeps the denial enforceable through a takeover a partial catalog cannot fully recover', () => {
     // Raw `RUN` persists as the alias `mcp__docs__run`, and A's cached catalog temporarily
-    // lists only the lowercase sibling `run`. A departs while B claims `docs`: the alias must
-    // step aside for the claimant, but the sibling-backed resolution emits only
-    // `mcp__<id>__run` — camelization is not injective (`RUN` and `run` both camelize to
-    // `run`), so nothing left names the raw stable id `mcp__<id>__RUN` Pi matches verbatim
-    // after the remount, and the explicitly disabled tool executes under Full Access. When a
-    // camelization-identity fragment's ownership moves, the takeover must synthesize the
-    // bounded fold-class spellings (ALL-UPPER, Title) on the owner-bound stable-id
-    // destinations: an id is never reassigned, so the variants can only over-block the
-    // owner's own same-spelling tools — the same fail-closed direction as keeping the
-    // unresolvable original.
+    // lists only the lowercase sibling `run`. A departs while B claims `docs`: the
+    // sibling-backed resolution emits `mcp__<id>__run` plus the bounded fold-class spellings
+    // (`RUN`/`Run`) on the owner-bound stable-id destinations — an id is never reassigned, so
+    // the variants can only over-block the owner's own same-spelling tools. The original
+    // survives the takeover too: camelization is not injective, so the snapshot match proves
+    // nothing about the spellings it does not hold (`rUn` among them), and the kept string is
+    // the one restriction the remount re-enforces through the configured-name alias — its
+    // over-block of the claimant's same-camelization tool is the accepted fail-closed
+    // direction.
     const migrated = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
       oldMountedServers: [
         { mcpId: idA, name: 'docs' },
@@ -1342,7 +1400,32 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
       reservedKeys: RESERVED,
       toolNamesByServerId: new Map([[idA, ['run']]])
     })
-    expect(migrated).not.toContain('mcp__docs__run')
+    expect(migrated).toContain('mcp__docs__run')
+    expect(migrated).toContain(`mcp__${idA}__RUN`)
+    expect(migrated).toContain(`mcp__${idA}__run`)
+  })
+
+  it('keeps the original through a takeover when the catalog cannot prove the raw spelling', () => {
+    // Raw `rUn` persists as the alias `mcp__docs__run` — every case spelling of the letters
+    // camelizes to `run`, so the snapshot listing only the lowercase sibling RESOLVES the
+    // fragment while proving nothing about the spellings it does not hold (`rUn` among them).
+    // The bounded fold-class synthesis covers `RUN`/`Run` on the stable-id destinations but
+    // never `rUn`, so stepping the original aside leaves no rule the remount re-enforces: Pi
+    // derives the configured-name alias from raw `rUn` (`mcp__docs__run`) and matches the raw
+    // stable id `mcp__<id>__rUn` verbatim, and neither surviving form names either. The
+    // original survives every takeover — resolution is always partial (camelization is not
+    // injective), and the kept string's over-block of the claimant's same-camelization tool is
+    // the accepted fail-closed direction against permitting the explicitly disabled tool.
+    const migrated = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+      oldMountedServers: [
+        { mcpId: idA, name: 'docs' },
+        { mcpId: idB, name: 'docs' }
+      ],
+      newMountedServers: [{ mcpId: idB, name: 'docs' }],
+      reservedKeys: RESERVED,
+      toolNamesByServerId: new Map([[idA, ['run']]])
+    })
+    expect(migrated).toContain('mcp__docs__run')
     expect(migrated).toContain(`mcp__${idA}__RUN`)
     expect(migrated).toContain(`mcp__${idA}__run`)
   })
@@ -1426,8 +1509,12 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
 
   it('resolves the camelized denial onto the raw stable id when a mount change displaces the owner', () => {
     // The displacement path builds its rewrites at the same engine, so the same contract
-    // applies: mounting a server whose id claims `docs` displaces A onto its id and drops the
-    // name-keyed alias — the raw stable-id form is then the only identity Pi still matches.
+    // applies: mounting a server whose id claims `docs` displaces A onto its id, and the raw
+    // stable-id forms travel with A. The name-keyed original survives as well — the catalog's
+    // `get_time` entry proves nothing about other spellings that fold onto `getTime`
+    // (`GET_TIME` among them), and the kept string is the only rule that binds those through
+    // the configured-name alias. It can over-block only a same-camelization tool of the
+    // newcomer whose id the segment spells — the accepted fail-closed direction.
     expect(
       migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
         oldMountedServers: [{ mcpId: idA, name: 'docs' }],
@@ -1438,7 +1525,7 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
           ['docs', ['search']]
         ])
       })
-    ).toEqual([`mcp__${idA}__getTime`, `mcp__${idA}__gettime`, `mcp__${idA}__get_time`])
+    ).toEqual(['mcp__docs__getTime', `mcp__${idA}__getTime`, `mcp__${idA}__gettime`, `mcp__${idA}__get_time`])
   })
 })
 

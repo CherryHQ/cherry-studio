@@ -347,6 +347,40 @@ describe('McpServerService', () => {
       expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-s__run'])
     })
 
+    it('migrates the sibling displaced when a browser rename claims its configured name', async () => {
+      // The in-memory browser (`@cherry/browser`) is never registered, so it holds no
+      // allocation key and `_cherry_fetch` belongs to the sibling named that. The PATCH
+      // renames the browser to `@cherry/fetch`, which makes it a candidate: it claims
+      // `_cherry_fetch` and displaces the sibling onto its UUID. Filtering the browser out by
+      // its PRE-rename name in both allocations hides the displacement entirely and leaves the
+      // sibling's denial on a key that has become the renamed server's registered identity —
+      // the explicitly disabled tool executes under the sibling's UUID after reconnect.
+      await seedServer({ id: 'srv-browser', name: '@cherry/browser', type: 'inMemory' })
+      await seedServer({ id: 'srv-named', name: '_cherry_fetch' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp___cherry_fetch__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-browser' },
+        { agentId: 'agent-1', mcpServerId: 'srv-named' }
+      ])
+
+      mcpServerService.update('srv-browser', { name: '@cherry/fetch' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The sibling's denial follows onto its UUID identity. The cold catalog cannot prove the
+      // identity fragment's raw spelling, so the name-keyed original also survives — it spells
+      // the renamed server's identity and over-blocks its same-named tool, the accepted
+      // fail-closed direction.
+      expect(agent.disabledTools).toEqual(['mcp___cherry_fetch__run', 'mcp__srv-named__run'])
+    })
+
     it('copies lossy-hashed rules onto the new lossy base when a normalized name is renamed', async () => {
       // `Old server` registers lossy (`mcp__oldServer__run_<hash>`); the hash binds the old
       // name, so the rename copies the entry onto the new lossy base and keeps the original.

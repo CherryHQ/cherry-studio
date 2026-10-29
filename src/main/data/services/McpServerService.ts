@@ -212,11 +212,13 @@ export class McpServerService {
           // Pre-rename mount list with configured names: allocation order decides who owns a
           // duplicated name, mirroring resolveMountedAgentMcpServers. Ties break by mcpServerId
           // — the same total order the runtime readers apply, since rows replaced in one
-          // statement can share a createdAt millisecond. The browser stays out of the
-          // allocation candidates (the runtime never registers it), but its id joins the
-          // reservations: the runtime reserves every mounted id BEFORE skipping the browser,
-          // so a configured name equal to the browser's id falls back to the server's own id
-          // there, and this allocation must predict the same key.
+          // statement can share a createdAt millisecond. These rows still read the PRE-rename
+          // name of the renamed server (the UPDATE below runs last in the transaction), and
+          // browser eligibility must be derived SEPARATELY for each allocation: the runtime
+          // skips the in-memory browser by name, so a browser renamed onto a normal name
+          // enters the post-change allocation (displacing the sibling holding that name onto
+          // its id) and a server renamed onto the browser's name leaves it.
+          let renamedServerType: string | undefined
           const mountedServers = tx
             .select({ mcpServerId: agentMcpServerTable.mcpServerId })
             .from(agentMcpServerTable)
@@ -230,21 +232,29 @@ export class McpServerService {
                 .where(eq(mcpServerTable.id, mcpServerId))
                 .limit(1)
                 .all()
-              // The runtime never mounts the in-memory browser (agentMcpServers skips it), so
-              // it must not claim an allocation key here either — counting it displaces a
-              // server NAMED after its folded segment onto a UUID the runtime never registers.
+              if (mcpServerId === id) renamedServerType = mountedRow?.type ?? undefined
               if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
                 return { mcpId: mcpServerId, name: mountedRow.name, browser: true }
               return mountedRow ? { mcpId: mcpServerId, name: mountedRow.name } : { mcpId: mcpServerId }
             })
+          const nonCandidateIdsBefore = new Set(
+            mountedServers.flatMap(({ browser, mcpId }) => (browser ? [mcpId] : []))
+          )
+          const renamedStaysBrowser = renamedServerType === 'inMemory' && name === BuiltinMcpServerNames.browser
+          const nonCandidateIdsAfter = new Set([
+            ...mountedServers.flatMap(({ browser, mcpId }) => (mcpId !== id && browser ? [mcpId] : [])),
+            ...(renamedStaysBrowser ? [id] : [])
+          ])
           const migrated = migrateAgentDisabledToolsForServerRename(agent.disabledTools ?? [], {
-            mountedServers: mountedServers.flatMap(({ browser, ...ref }) => (browser ? [] : [ref])),
+            mountedServers: mountedServers.map(({ browser: _browser, ...ref }) => ref),
             renamedServerId: id,
             toName: name,
             reservedKeys: [
               ...Object.values(CHERRY_MCP_SERVER),
               ...mountedServers.map(({ mcpId }) => sanitizeAgentServerKey(mcpId))
             ],
+            nonCandidateIdsBefore,
+            nonCandidateIdsAfter,
             // Raw tool spellings let the migration resolve Pi's camelized saved denials onto
             // the identities that keep the raw tool fragment.
             toolNamesByServerId: mountedServerToolNames(mountedServers.map(({ mcpId }) => mcpId))

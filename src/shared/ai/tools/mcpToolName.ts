@@ -461,6 +461,20 @@ export interface AgentServerRenameMigrationInput {
   /** Keys no user server may claim (built-in server names plus the sanitized mounted ids). */
   reservedKeys: readonly string[]
   /**
+   * Mounted ids that held no allocation key BEFORE the change — the runtime reserves every
+   * mounted id and then skips the in-memory browser, so a browser-named server owns nothing
+   * yet still displaces nobody. Counting it as a pre-change candidate would hand it a phantom
+   * key that steals the rewrite of the sibling actually named after that segment.
+   */
+  nonCandidateIdsBefore?: ReadonlySet<string>
+  /**
+   * The same exclusions applied to the post-change allocation. Eligibility is derived
+   * separately per set because the rename itself can flip it: a browser renamed onto a normal
+   * name ENTERS the allocation (displacing the sibling holding that name onto its id), and a
+   * server renamed onto the browser's name LEAVES it like a departure.
+   */
+  nonCandidateIdsAfter?: ReadonlySet<string>
+  /**
    * Raw tool names per mounted server id, from the server's tool catalog at migration time.
    * Without a server's entry (or with an empty one) its camelized fragments cannot be
    * reverse-mapped, and the migration keeps their camelized spellings — fail-closed — rather
@@ -493,11 +507,10 @@ interface AgentKeyRewrite {
    * server's post-change key takes the segment over (a rename claim, a displacement, a
    * reorder), or the owner is departing and the configured-name key is released to the next
    * claimant. The saved strings spelled under the segment become the new owner's registered
-   * identity the moment the change lands, so keeping a display-name alias would deny the new
-   * owner's tool in this server's place — this server's restriction travels through its
-   * stable-id forms instead. With a cold catalog the stable-id forms are unenforceable, so the
-   * original ALSO survives the takeover (fail-closed over-block of the claimant beats permitting
-   * the explicitly disabled tool — see the keepOriginal reasoning in {@link applyAgentKeyRewrites}).
+   * identity the moment the change lands. The original survives the takeover regardless (the
+   * fail-closed over-block of the claimant beats permitting the explicitly disabled tool — see
+   * the original-preservation reasoning in {@link applyAgentKeyRewrites}); this flag drives the
+   * bounded fold-class synthesis that restores the stable-id forms Pi matches verbatim.
    */
   aliasOwnershipLost?: boolean
   /**
@@ -536,18 +549,21 @@ export function migrateAgentDisabledToolsForServerRename(
   disabledTools: readonly string[],
   input: AgentServerRenameMigrationInput
 ): string[] | undefined {
-  const oldKeys = allocateMountedServerKeys(input.mountedServers, input.reservedKeys)
-  // Not mounted here: nothing of this server's is owned by the agent.
-  const fromKey = oldKeys.get(input.renamedServerId)
-  if (fromKey === undefined) return undefined
+  // An agent that does not mount the renamed server keeps its rules untouched: duplicate
+  // names are accepted, so a blanket name match would steal a rule owned by a different server
+  // — including one still exposing the tool the rule was written for. Mounting alone is the
+  // gate, not holding an old key: a pre-change browser owns nothing, yet its new claim can
+  // still displace a sibling whose denial must follow.
+  if (!input.mountedServers.some(({ mcpId }) => mcpId === input.renamedServerId)) return undefined
+  const candidates = (skip?: ReadonlySet<string>): ReadonlyArray<MountedServerRef> =>
+    skip ? input.mountedServers.filter(({ mcpId }) => !skip.has(mcpId)) : input.mountedServers
+  const oldKeys = allocateMountedServerKeys(candidates(input.nonCandidateIdsBefore), input.reservedKeys)
   const newKeys = allocateMountedServerKeys(
-    input.mountedServers.map((server) =>
+    candidates(input.nonCandidateIdsAfter).map((server) =>
       server.mcpId === input.renamedServerId ? { ...server, name: input.toName } : server
     ),
     input.reservedKeys
   )
-  const toKey = newKeys.get(input.renamedServerId)
-  if (toKey === undefined || toKey === fromKey) return undefined
 
   // The rename can displace more than the renamed server: a sibling whose claimed key is taken
   // by the renamed server's new name falls back to its id, orphaning its own denials. Compare
@@ -555,7 +571,25 @@ export function migrateAgentDisabledToolsForServerRename(
   const rewrites: AgentKeyRewrite[] = []
   for (const [mcpId, oldKey] of oldKeys) {
     const newKey = newKeys.get(mcpId)
-    if (newKey === undefined || newKey === oldKey) continue
+    if (newKey === undefined) {
+      // The rename can also remove a server from the allocation entirely (a rename onto the
+      // in-memory browser's name): its configured-name key is released to the next claimant,
+      // and the same departing semantics a mount removal applies hold here — move the denial
+      // onto the stable id BEFORE the release, so it travels with its owner instead of
+      // denying the claimant in its place.
+      const stableKey = sanitizeAgentServerKey(mcpId)
+      if (oldKey !== stableKey) {
+        rewrites.push({
+          fromKey: oldKey,
+          toKey: stableKey,
+          fromIsId: false,
+          aliasOwnershipLost: keyClaimedByOtherServer(newKeys, mcpId, oldKey),
+          toolNames: input.toolNamesByServerId?.get(mcpId)
+        })
+      }
+      continue
+    }
+    if (newKey === oldKey) continue
     // Pi's camelized alias derives from the configured name, so the extra form is only
     // meaningful for the renamed server itself, when its new name actually won its allocation
     // (and camelizes differently). Displaced siblings fall back to their id, which Pi already
@@ -686,10 +720,10 @@ export function migrateAgentDisabledToolsForAllocationChange(
  * Computed from the PRE-change mount set only: a server entering in the new set has no denial
  * written before it existed, so a segment spelling its id is purely the displaced owner's old
  * configured-name rule and its copies must move off it (blocking the newcomer's tool in its
- * place would be exactly the mis-attribution the allocation migration exists to fix). With a
- * cold catalog the unresolvable original also survives the move (fail-closed — see the
- * keepOriginal reasoning in {@link applyAgentKeyRewrites}); it can then over-block only a
- * newcomer tool whose raw spelling the fragment literally names.
+ * place would be exactly the mis-attribution the allocation migration exists to fix). The
+ * unresolvable original survives the move regardless (fail-closed — every original does; see
+ * the original-preservation reasoning in {@link applyAgentKeyRewrites}); it can then over-block
+ * only a newcomer tool whose raw spelling the fragment literally names.
  */
 function collectMountedIdSegments(servers: ReadonlyArray<MountedServerRef>): Set<string> {
   const segments = new Set<string>()
@@ -767,8 +801,8 @@ function applyAgentKeyRewrites(
   // truncates long names and appends the server hash) is resolved by replaying that build against
   // every raw tool (see {@link isBoundedAliasToolFragment}). No catalog entry means no
   // resolution — `rawResolved` stays false — and even a resolution only ever covers the
-  // spellings the snapshot holds, so the caller keeps the original string on any non-takeover
-  // path (fail-closed) rather than trusting a partial recovery.
+  // spellings the snapshot holds, so the caller always keeps the original string (fail-closed)
+  // rather than trusting a partial recovery.
   const targetForms = (
     rewrite: AgentKeyRewrite,
     toolPart: string,
@@ -788,9 +822,40 @@ function applyAgentKeyRewrites(
     return { targets: [...targets], rawResolved }
   }
 
+  // A camelization-identity fragment folds every case spelling onto itself (`RUN`, `Run` and
+  // `run` all camelize to `run`), so snapshot-backed copies can name none of the raw spellings
+  // the alias historically represented. When a resolution SUCCEEDED against a partial snapshot
+  // and the segment's ownership moved to a claimant, synthesize the bounded fold-class
+  // spellings (ALL-UPPER, Title) on the owner-bound destinations: an id is never reassigned, so
+  // the variants can only over-block the owner's own same-spelling tools — the fail-closed
+  // direction — and they restore the form Pi matches verbatim (`mcp__<id>__RUN`) after the
+  // remount. Fragments whose camelization is not the identity fold no case variants (a raw
+  // `GetTime` registers `gettime`, not `getTime`), so the snapshot enumeration remains the only
+  // source there.
+  const foldClassTargets = (
+    rewrite: AgentKeyRewrite,
+    toolPart: string,
+    serverPart: string,
+    rawResolved: boolean
+  ): string[] => {
+    if (
+      rewrite.aliasOwnershipLost !== true ||
+      rewrite.fromIsId === true ||
+      idSegments.has(serverPart) ||
+      !rawResolved ||
+      toCamelCase(toolPart) !== toolPart
+    )
+      return []
+    const ownerKeys = [rewrite.toKey, toSdkMcpServerSegment(rewrite.toKey)]
+    if (rewrite.camelToKey) ownerKeys.push(rewrite.camelToKey)
+    return ownerKeys.flatMap((ownerKey) => [
+      `mcp__${ownerKey}__${toolPart.toUpperCase()}`,
+      `mcp__${ownerKey}__${toolPart.charAt(0).toUpperCase() + toolPart.slice(1)}`
+    ])
+  }
+
   const planned = disabledTools.map((entry) => {
     let replacements: string[] | undefined
-    let keepOriginal = false
     if (entry.startsWith('mcp__')) {
       const rest = entry.slice('mcp__'.length)
       const delimiterIndex = rest.indexOf('__')
@@ -818,7 +883,6 @@ function applyAgentKeyRewrites(
             ...rewriteHashed(toolPart, matched.toKey),
             ...targetForms(matched, toolPart, serverPart).targets
           ]
-          keepOriginal = true
         } else if (matched) {
           // Pi resolves denials through `buildFunctionCallToolName`, which camelizes BOTH
           // segments (`GitHub` + `get_time` registers `mcp__github__getTime`): copying the raw
@@ -832,37 +896,6 @@ function applyAgentKeyRewrites(
           // against the server's raw tool list (see `targetForms`): the stable-id and SDK
           // destinations keep the raw spelling the camelized copy cannot name.
           const { targets, rawResolved } = targetForms(matched, toolPart, serverPart)
-          replacements = targets
-          // When the original steps aside for a claimant (the keepOriginal rule below) while a
-          // resolution SUCCEEDED, a partial catalog is the one state where nothing enforceable
-          // survives: the copies derive from the spellings the snapshot happens to hold, and a
-          // camelization-identity fragment folds every case spelling onto itself (`RUN`, `Run`
-          // and `run` all camelize to `run`), so snapshot-backed copies can name none of the
-          // raw spellings the alias historically represented. Synthesize the bounded fold-class
-          // spellings (ALL-UPPER, Title) on the owner-bound destinations: an id is never
-          // reassigned, so the variants can only over-block the owner's own same-spelling
-          // tools — the fail-closed direction — and they restore the form Pi matches verbatim
-          // (`mcp__<id>__RUN`) after the remount. Fragments whose camelization is not the
-          // identity fold no case variants (a raw `GetTime` registers `gettime`, not
-          // `getTime`), so the snapshot enumeration remains the only source there, and a
-          // mixed-case residual (`rUn`) stays outside the bounded set exactly like any raw
-          // spelling outside the snapshot.
-          if (
-            matched.aliasOwnershipLost === true &&
-            matched.fromIsId !== true &&
-            !idSegments.has(serverPart) &&
-            rawResolved &&
-            toCamelCase(toolPart) === toolPart
-          ) {
-            const ownerKeys = [matched.toKey, toSdkMcpServerSegment(matched.toKey)]
-            if (matched.camelToKey) ownerKeys.push(matched.camelToKey)
-            for (const ownerKey of ownerKeys) {
-              targets.push(
-                `mcp__${ownerKey}__${toolPart.toUpperCase()}`,
-                `mcp__${ownerKey}__${toolPart.charAt(0).toUpperCase() + toolPart.slice(1)}`
-              )
-            }
-          }
           // An id-keyed original is a native registered identity (Pi registers servers under
           // their id and matches `mcp__<id>__tool` verbatim at any tool length), so it must
           // survive the migration: the copies cannot regenerate a bounded long-tool identity,
@@ -870,55 +903,23 @@ function applyAgentKeyRewrites(
           // entry whose segment merely SPELLS another server's old configured-name key — it is
           // still that other server's native id form, and an id is never reassigned to a
           // different server, so the kept original cannot over-block.
-          // A segment spelling a CURRENT configured name (camelized) is a Pi display-name
-          // alias only while its ownership stays valid: a displaced server keeps its
-          // configured name, so when the released key is NOT claimed by anyone the alias
-          // still resolves its own denial and must survive ("docs" stays unclaimed while its
-          // key moves to the id). When another server's post-change key takes the segment
-          // over — or the owner departs and releases the key to the next claimant — the
-          // string names that OTHER server's registered identity, and keeping it would deny
-          // the new owner in this server's place; the restriction travels through the
-          // stable-id forms instead.
-          // When the catalog could NOT resolve the fragment to any raw tool (a cold cache, a
-          // stale list, or a bounded/foreign spelling no entry reproduces), none of the
-          // replacements is an identity any runtime registers. A fragment unchanged by
-          // camelization proves nothing about its raw spelling — camelization is not injective
-          // (`RUN` and `run` both camelize to `run`), so the id-keyed copy `mcp__<id>__run`
-          // matches neither Pi's verbatim raw stable id `mcp__<id>__RUN` nor an alias whose
-          // fragment derives from the raw tool. Dropping the original then removes the last
-          // enforceable restriction and the explicitly disabled tool executes on remount, so
-          // the original survives every failed resolution: it is owner-bound while no mounted
-          // server registers under the segment, and it re-enforces the denial the moment the
-          // owner remounts under the same configured name (Pi derives its alias from that
-          // name) — including a remount onto the owner's id while a duplicate holds the name.
-          // Under a namespace takeover (aliasOwnershipLost) the kept string spells the
-          // claimant's registered identity and can deny the claimant's same-camelization tool
-          // in this server's place. That over-block is the accepted direction of the two
-          // conflicting invariants: keeping may deny an allowed tool (fail-closed), while
-          // dropping permits the explicitly disabled one — the permission invariant this
-          // migration exists to preserve — so a failed resolution keeps the original even when
-          // the segment changes owners (the same fail-closed trade every ambiguous resolution
-          // in this engine already takes).
-          // A catalog resolution is not a complete recovery, only a partial one: every
-          // replacement derives from the spellings the snapshot happens to hold, and a
-          // snapshot match on ONE spelling proves nothing about the other spellings the saved
-          // alias historically represented. The same lossy alias `mcp__docs__run` persists a
-          // denial of raw `RUN`, while a snapshot listing only the lowercase sibling `run`
-          // resolves against it and emits nothing that names `RUN` — after the unmount/remount
-          // transition registers `mcp__<id>__RUN`, neither surviving form matches it and the
-          // Full Access gate executes the explicitly disabled tool. While the alias ownership
-          // has not moved, the original stays owner-bound exactly as in the failed-resolution
-          // case: it re-enforces the denial on remount and can over-block only a
-          // same-camelization sibling of a tool the owner itself registered. Only when the
-          // segment changes owners does the original step aside for the claimant — on the
-          // stable-id forms that travel with the owner (the ownership rule above), completed
-          // by the bounded case-variant synthesis when the snapshot cannot prove the raw
-          // spelling (the block above).
-          keepOriginal =
-            matched.aliasOwnershipLost !== true ||
-            matched.fromIsId === true ||
-            idSegments.has(serverPart) ||
-            !rawResolved
+          // The original survives EVERY migration, takeover included. A catalog resolution is
+          // never a complete recovery: every replacement derives from the spellings the
+          // snapshot happens to hold, and camelization is not injective (`RUN`, `Run`, `rUn`
+          // and `run` all fold to `run`), so a snapshot match on one spelling proves nothing
+          // about the others the saved alias historically represented — the bounded
+          // fold-class synthesis above covers only the conventional spellings. Dropping the
+          // original on a takeover then removes the last rule the remount re-enforces (Pi
+          // derives the configured-name alias from the raw tool, so the kept string binds
+          // again the moment the owner remounts under its name, including onto its id while a
+          // duplicate holds the name), and the explicitly disabled tool executes. The kept
+          // string under a takeover spells the claimant's registered identity and can deny the
+          // claimant's same-camelization tool in this server's place — that over-block is the
+          // accepted direction of the two conflicting invariants: keeping may deny an allowed
+          // tool (fail-closed), while dropping permits the explicitly disabled one — the
+          // permission invariant this migration exists to preserve (the same fail-closed trade
+          // every ambiguous resolution in this engine already takes).
+          replacements = [...targets, ...foldClassTargets(matched, toolPart, serverPart, rawResolved)]
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = [
             ...rewriteHashed(toolPart, lossyMatched.toKey),
@@ -926,7 +927,6 @@ function applyAgentKeyRewrites(
             // above: the truncated copies alone can clip a real literal tool name.
             ...targetForms(lossyMatched, toolPart, serverPart).targets
           ]
-          keepOriginal = true
         }
       } else if (/_[0-9a-f]{12}$/.test(rest) && rest.length > 13) {
         // Truncated before the server/tool delimiter: the fused prefix is all that survives of
@@ -948,17 +948,16 @@ function applyAgentKeyRewrites(
         }
         if (targets.size > 0) {
           replacements = [...targets].map((target) => `mcp__${target.slice(0, fragment.length)}${tail}`)
-          keepOriginal = true
         }
       }
     }
-    return { entry, replacements: replacements?.filter((replacement) => replacement !== entry) ?? [], keepOriginal }
+    return { entry, replacements: replacements?.filter((replacement) => replacement !== entry) ?? [] }
   })
 
   let changed = false
   const migrated: string[] = []
   const emitted = new Set<string>()
-  for (const { entry, replacements, keepOriginal } of planned) {
+  for (const { entry, replacements } of planned) {
     const push = (value: string) => {
       if (emitted.has(value)) return
       emitted.add(value)
@@ -969,7 +968,10 @@ function applyAgentKeyRewrites(
       continue
     }
     changed = true
-    if (keepOriginal) push(entry)
+    // The original always leads: it is the one restriction a partial catalog cannot replace
+    // (see the matched branch above), and it can simultaneously be another server's exact
+    // denial.
+    push(entry)
     for (const replacement of replacements) push(replacement)
   }
   return changed ? migrated : undefined

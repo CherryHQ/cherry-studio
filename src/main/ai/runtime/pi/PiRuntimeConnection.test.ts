@@ -2315,6 +2315,53 @@ describe('PiRuntimeConnection', () => {
       }
     })
 
+    it('enforces a partial-catalog takeover denial for a mixed-case raw tool', async () => {
+      // Raw `rUn` persists as the alias `mcp__docs__run`; the snapshot lists only the lowercase
+      // sibling `run`, which resolves the fragment without proving the spellings it does not
+      // hold. A departs and B claims `docs`. The sibling-backed copies name only the
+      // conventional fold-class spellings on the stable id (`RUN`/`Run`), so stepping the
+      // original aside leaves neither of the remounted raw's two identities blocked: the
+      // configured-name alias Pi derives from `rUn` (`mcp__docs__run`) was dropped, and no
+      // stable-id copy spells `rUn`. The migration keeps the original — resolution is always
+      // partial — and its over-block of the claimant's same-camelization tool is the accepted
+      // fail-closed direction.
+      const serverIdA = '12345678-1234-4234-8234-123456789abc'
+      const serverIdB = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
+      const serverName = 'docs'
+      const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+        oldMountedServers: [
+          { mcpId: serverIdA, name: serverName },
+          { mcpId: serverIdB, name: serverName }
+        ],
+        newMountedServers: [{ mcpId: serverIdB, name: serverName }],
+        reservedKeys: ['skills', 'assistant', 'agent-memory'],
+        toolNamesByServerId: new Map([[serverIdA, ['run']]])
+      })
+      expect(persisted).toContain('mcp__docs__run')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: persisted ?? []
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'rUn' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverIdA, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverIdA, 'rUn')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+
     it('preserves a migrated built-in MCP prohibition', async () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
