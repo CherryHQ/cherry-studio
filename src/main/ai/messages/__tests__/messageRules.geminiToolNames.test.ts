@@ -119,9 +119,7 @@ describe('#22577 Gemini tool-call history keeps call and result names consistent
     } as UIMessage['parts'][number]
     const mcp_image = tool({
       inputSchema: undefined as never,
-      toModelOutput: ({ output }: { output: unknown }) => [
-        { type: 'text', text: `formatted:${output}` }
-      ] as never
+      toModelOutput: ({ output }: { output: unknown }) => [{ type: 'text', text: `formatted:${output}` }] as never
     })
 
     const model = await toModelMessages([ui('assistant', [part])], undefined, { mcp_image })
