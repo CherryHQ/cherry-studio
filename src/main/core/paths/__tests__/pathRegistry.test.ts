@@ -57,6 +57,15 @@ describe('buildPathRegistry', () => {
     }
   )
 
+  it('keeps memory recovery data separate and leaves materialization to the memory owner', () => {
+    const registry = buildPathRegistry()
+    const dataRoot = path.join('/mock/userData', 'Data')
+    expect(registry['feature.memory.data']).toBe(path.join(dataRoot, 'Memory'))
+    expect(registry['feature.memory.backups']).toBe(path.join(dataRoot, 'MemoryBackups'))
+    expect(shouldAutoEnsure('feature.memory.data')).toBe(false)
+    expect(shouldAutoEnsure('feature.memory.backups')).toBe(false)
+  })
+
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {
       getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
