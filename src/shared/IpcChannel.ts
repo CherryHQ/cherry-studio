@@ -11,7 +11,6 @@ export enum IpcChannel {
   App_IsPathInside = 'app:is-path-inside',
   Application_PreventQuit = 'application:prevent-quit',
   Application_AllowQuit = 'application:allow-quit',
-  Application_Relaunch = 'application:relaunch',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
@@ -44,7 +43,6 @@ export enum IpcChannel {
 
   //file
   File_Open = 'file:open',
-  File_OpenPath = 'file:openPath',
   File_Save = 'file:save',
   File_Select = 'file:select',
   File_ReadExternal = 'file:readExternal',
@@ -68,7 +66,6 @@ export enum IpcChannel {
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
-  File_ShowInFolder = 'file:showInFolder',
   // FileManager v2 surface (Phase 2)
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',

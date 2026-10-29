@@ -1,4 +1,8 @@
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { preferenceService } from '@data/PreferenceService'
+import i18n from '@renderer/i18n/resolver'
 
 import { fetchGenerate, fetchMessagesSummary, fetchNoteSummary } from '../aiGeneration'
 
@@ -31,11 +35,9 @@ vi.mock('@renderer/utils/model', () => ({
   readDefaultModel: () => readDefaultModelMock()
 }))
 
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => key }
-}))
-
-beforeEach(() => {
+beforeEach(async () => {
+  mockPreferenceService._resetMockState()
+  await i18n.changeLanguage('en-US')
   vi.clearAllMocks()
   generateTextMock.mockResolvedValue({ text: 'A title' })
   ipcRequestMock.mockImplementation((route: string, input: any) => {
@@ -124,5 +126,52 @@ describe('fetchGenerate cancellation', () => {
 
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('requestId')
     expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.text.abort', expect.anything())
+  })
+})
+
+// Catch unbounded/Markdown output and cross-talk from the conversation preference.
+describe('note naming boundary', () => {
+  it.each([
+    ['a'.repeat(3000), 'a'.repeat(37)],
+    ['# **Roadmap** [Plan](https://example.test/a/b)\n\nLater paragraph', 'Roadmap Plan'],
+    ['| A | B |\n| --- | --- |\n| x | y |', null],
+    ['', null]
+  ])('normalizes the model response %j', async (text, expected) => {
+    generateTextMock.mockResolvedValue({ text })
+    expect(await fetchNoteSummary({ content: '# Note\n' + 'body '.repeat(600) })).toBe(expected)
+  })
+
+  it('resolves the translated note prompt and substitutes the actual language independently of topic preferences', async () => {
+    await preferenceService.set('app.language', 'zh-CN')
+    await preferenceService.set('topic.naming_prompt', 'Distinct conversation instruction {{language}}')
+    await i18n.changeLanguage('zh-CN')
+    const translated = i18n.t('prompts.note_title')
+    expect(translated).toContain('{{language}}')
+    expect(translated).toContain('37')
+    expect(translated).toContain('笔记')
+
+    await fetchNoteSummary({ content: 'note body' })
+    expect(generateTextMock.mock.calls[0][0].system).toBe(translated.replace('{{language}}', 'zh-CN'))
+    expect(generateTextMock.mock.calls[0][0].system).not.toContain('Distinct conversation')
+    expect(generateTextMock.mock.calls[0][0].system).not.toContain('{{language}}')
+
+    await fetchMessagesSummary({ messages: [{ role: 'user', parts: [] } as never] })
+    expect(generateTextMock.mock.calls[1][0].system).toBe('Distinct conversation instruction zh-CN')
+  })
+
+  it('preserves long conversation names while bounding only note names', async () => {
+    generateTextMock.mockResolvedValue({ text: 'a'.repeat(80) })
+    expect(await fetchMessagesSummary({ messages: [] })).toEqual({ text: 'a'.repeat(80) })
+    expect(await fetchNoteSummary({ content: 'note' })).toBe('a'.repeat(37))
+  })
+
+  it('does not invent a title without a model or on generation failure', async () => {
+    readQuickModelMock.mockResolvedValue(null)
+    readDefaultModelMock.mockResolvedValue(null)
+    expect(await fetchNoteSummary({ content: 'note' })).toBeNull()
+    expect(generateTextMock).not.toHaveBeenCalled()
+    readDefaultModelMock.mockResolvedValue(TEST_MODEL)
+    generateTextMock.mockRejectedValue(new Error('offline'))
+    expect(await fetchNoteSummary({ content: 'note' })).toBeNull()
   })
 })

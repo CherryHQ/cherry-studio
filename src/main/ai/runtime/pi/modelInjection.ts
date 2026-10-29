@@ -45,7 +45,8 @@ import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import { projectPiReasoningCompat } from './piReasoningCompat'
-import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
+import { withReasoningSummarySuppressed } from './piResponsesReasoning'
+import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple, loadPiOpenAiResponsesApi } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
 
 type PiChatModelConfig = Extract<ProviderModelConfig, { reasoning: boolean }>
@@ -101,6 +102,8 @@ interface PiProviderInjectionBase {
    * from this adapter; `apiKey` is then only the placeholder (no real app-side key).
    */
   transportAdapter?: ProviderTransportAdapter
+  /** This Responses host rejects `reasoning.summary` (#22480); pi is made to omit it. */
+  suppressReasoningSummary: boolean
   /** Provider-specific environment consumed by pi-ai's request implementation. */
   requestEnvironment?: Record<string, string>
 }
@@ -126,7 +129,9 @@ export async function materializePiProviderStream(injection: PiProviderInjection
     ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
     : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
       ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
-      : injection.providerConfig
+      : injection.suppressReasoningSummary
+        ? withReasoningSummarySuppressed(injection.providerConfig, (await loadPiOpenAiResponsesApi()).streamSimple)
+        : injection.providerConfig
   return {
     providerConfig,
     streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
@@ -173,9 +178,14 @@ export function buildPiProviderInjection(
   const transportAdapter = getProviderTransportAdapter(provider.id)
   if (!transportAdapter && !apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
 
+  const suppressReasoningSummary =
+    api === 'openai-responses' &&
+    !transportAdapter &&
+    !resolveEndpointDialect(provider, resolvedEndpoint.endpointType).reasoningSummary
+
   const baseUrl = isCodexProviderId(provider.id)
     ? formatApiHost(resolvedEndpoint.baseUrl, false)
-    : formatPiBaseUrl(resolvedEndpoint.baseUrl, api)
+    : projectPiGatewayBaseUrl(provider, api, formatPiBaseUrl(resolvedEndpoint.baseUrl, api))
   const modelId = getRawModelId(model)
   const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
 
@@ -190,6 +200,7 @@ export function buildPiProviderInjection(
 
   return {
     providerName: provider.id,
+    suppressReasoningSummary,
     api,
     providerConfig,
     apiKey,
@@ -270,6 +281,7 @@ export function buildPiGatewayInjection(
   return {
     providerName: provider.id,
     api: gatewayApi,
+    suppressReasoningSummary: false,
     providerConfig: {
       name: provider.name,
       baseUrl: formatPiBaseUrl(gateway.baseUrl, gatewayApi),
@@ -282,6 +294,14 @@ export function buildPiGatewayInjection(
     modelId,
     usageCapture: { owner: 'provider-calls' }
   }
+}
+
+// Gateway stores its native `/v1/ai` base; Pi's OpenAI drivers need `/v1` (#22785).
+// Mirrors OpenClawService.formatOpenAIUrl, bounded to Gateway presets and OpenAI APIs.
+function projectPiGatewayBaseUrl(provider: Provider, api: PiApi, formattedBaseUrl: string): string {
+  if (!matchesPreset(provider, SystemProviderIds.gateway)) return formattedBaseUrl
+  if (api !== 'openai-completions' && api !== 'openai-responses') return formattedBaseUrl
+  return formattedBaseUrl.replace(/\/v1\/ai$/, '/v1')
 }
 
 function formatPiBaseUrl(baseUrl: string, api: PiApi): string {

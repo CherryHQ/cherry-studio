@@ -43,12 +43,13 @@ import {
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
+  SESSION_RENAME_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
@@ -170,7 +171,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
   },
   feishu: {
     required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
-    optional: ['allowed_chat_ids'],
+    optional: ['allowed_chat_ids', 'mention_only'],
     description:
       'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, provide all required fields and set domain to "feishu" or "lark".'
   },
@@ -289,6 +290,16 @@ const SessionDeliveriesInputSchema = z.object({
   limit: z.number().optional().describe('Maximum deliveries to return (default 20, max 100).')
 })
 
+const SessionRenameInputSchema = z.strictObject({
+  title: z.string().trim().min(1).max(255).describe('New Session title (1–255 characters).'),
+  session_id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Target Agent Session id, including another Agent’s Session. Omit to rename the current Session.')
+})
+
 const SessionCreateInputSchema = z.object({
   message: z.string().describe('First message for the new Session.'),
   title: z.string().max(255).optional().describe('Optional Session title.'),
@@ -370,6 +381,14 @@ function listAgents(): CallToolResult {
     modelConfigured: agent.model !== null
   }))
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
+}
+
+function renameSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionRenameInputSchema>): CallToolResult {
+  const sessionId = args.session_id ?? ctx.sessionId
+  const updated = agentSessionService.update(sessionId, { name: args.title })
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ sessionId: updated.id, sessionName: updated.name }) }]
+  }
 }
 
 function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionSearchInputSchema>): CallToolResult {
@@ -481,6 +500,19 @@ function listSessionDeliveries(
   return { content: [{ type: 'text', text: JSON.stringify({ deliveries }) }] }
 }
 
+function resolveWorkspaceForNewSession(
+  ctx: AutonomyToolsContext,
+  targetAgentId: string | undefined
+): AgentSessionWorkspaceSource {
+  if (!targetAgentId || targetAgentId === ctx.agentId) return ctx.workspaceSource
+  // Match a human opening the target Agent: continue that Agent's own last workspace.
+  const latest = agentSessionService.getLatestActive({ agentId: targetAgentId })
+  if (!latest) return ctx.workspaceSource
+  return latest.workspace.type === AGENT_WORKSPACE_TYPE.USER
+    ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: latest.workspaceId }
+    : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+}
+
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
   const content = args.message.trim()
   const title = args.title?.trim() ?? ''
@@ -499,7 +531,7 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
     sessionName: title,
-    workspace: ctx.workspaceSource,
+    workspace: resolveWorkspaceForNewSession(ctx, targetAgentId),
     content,
     ...(targetAgentId ? { targetAgentId } : {})
   })
@@ -1084,7 +1116,17 @@ function configSetBootstrap(ctx: AutonomyToolsContext, completed: boolean): Call
   return { content: [{ type: 'text', text }] }
 }
 
+function assertConfigMutationAuthorized(ctx: AutonomyToolsContext): void {
+  const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
+  if (interaction.currentTurn === 'headless') {
+    throw new Error(
+      'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
+    )
+  }
+}
+
 async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput): Promise<CallToolResult> {
+  if (args.action !== 'status') assertConfigMutationAuthorized(ctx)
   switch (args.action) {
     case 'status':
       return configStatus(ctx)
@@ -1156,10 +1198,19 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     (args) => runSessionTool(ctx, () => readSession(args))
   )
   server.registerTool(
+    SESSION_RENAME_TOOL_NAME,
+    {
+      description:
+        'Rename the current Agent Session, or another Agent Session by id. The title is protected from automatic renaming.',
+      inputSchema: SessionRenameInputSchema
+    },
+    (args) => runSessionTool(ctx, () => renameSession(ctx, args))
+  )
+  server.registerTool(
     SESSION_CREATE_TOOL_NAME,
     {
       description:
-        'Create a Session and send its first message. Omit target_agent_id for this Agent; it inherits the workspace policy.',
+        "Create a Session and send its first message. Omit target_agent_id for this Agent; it inherits the current workspace. With target_agent_id, the Session uses that Agent's own most recent workspace, falling back to the current workspace when the Agent has no Session.",
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))

@@ -475,7 +475,15 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
 })
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [undefined, vi.fn()],
+  // Mirrors the real seeding: a window-scoped key falls back to the initValue
+  // (the persisted value) until an explicit write lands in the local tier.
+  useCache: (key: string, initValue?: unknown) => [
+    cacheMocks.values.has(key) ? cacheMocks.values.get(key) : initValue,
+    (value: unknown) => {
+      cacheMocks.values.set(key, value)
+      cacheMocks.setCache(key, value)
+    }
+  ],
   usePersistCache: (key: string) => [
     cacheMocks.values.get(key),
     (value: unknown) => {
@@ -944,13 +952,6 @@ describe('Sessions', () => {
     sessionDataMocks.deleteSession.mockResolvedValue(true)
     sessionDataMocks.deleteSessions.mockResolvedValue({ deletedIds: [] })
     sessionDataMocks.restoreSession.mockResolvedValue(undefined)
-    Object.assign(window, {
-      api: {
-        file: {
-          openPath: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
     cacheMocks.state.activeSessionId = 'session-a'
     fileNavigationMocks.request = null
     setupSessions()
@@ -3560,7 +3561,9 @@ describe('Sessions', () => {
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Files' }))
 
-    await vi.waitFor(() => expect(window.api.file.openPath).toHaveBeenCalledWith('/Users/jd/project-a'))
+    await vi.waitFor(() =>
+      expect(dataApiMocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_path', '/Users/jd/project-a')
+    )
   })
 
   it('collapses workspace groups from the display options menu', async () => {
