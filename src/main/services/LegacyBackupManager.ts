@@ -357,7 +357,9 @@ class BackupManager {
         return filePath
       } catch (error) {
         archive.abort()
-        await output.abort()
+        if (output && !output.destroyed) {
+          await output.abort()
+        }
         throw await this.withAvailableDiskSpace(error, destinationPath)
       }
     })

@@ -269,6 +269,31 @@ describe('real configuration archives', () => {
     expect(holds.every((hold) => hold.dispose.mock.calls.length === 1)).toBe(true)
   })
 
+  it('releases the backup mutex when the destination rejects the archive output', async () => {
+    seed()
+    const unwritable = path.join(root, 'unwritable')
+    const writable = path.join(root, 'writable')
+    await fs.mkdir(unwritable)
+    await fs.mkdir(writable)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await fs.chmod(unwritable, 0o500)
+      const deadline = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('configuration export did not settle after an output failure'))
+        }, 15000)
+      })
+      await expect(Promise.race([manager.exportConfiguration(unwritable), deadline])).rejects.toThrow(/^EACCES:/)
+      expect((await fs.readdir(root, { recursive: true })).sort()).toEqual(['unwritable', 'writable'])
+      const output = await manager.exportConfiguration(writable)
+      expect((await fs.stat(output)).isFile()).toBe(true)
+      expect(await fs.readdir(unwritable)).toEqual([])
+    } finally {
+      clearTimeout(timer)
+      await fs.chmod(unwritable, 0o700)
+    }
+  })
+
   it('restores into the same live DB, preserving history, search, attachment hashes and local-only definitions', async () => {
     seed()
     const output = await manager.exportConfiguration(root)
