@@ -12,9 +12,11 @@ import { firecrawl } from '../providers/firecrawl'
 import { getJinaHostCandidates, jina } from '../providers/jina'
 import { parallel } from '../providers/parallel'
 import { querit } from '../providers/querit'
+import { searchapi } from '../providers/searchapi'
 import { discoverSearxngEngines, searxng } from '../providers/searxng'
 import { serply } from '../providers/serply'
 import { tavily } from '../providers/tavily'
+import { yuanbao } from '../providers/yuanbao'
 import { zhipu } from '../providers/zhipu'
 import type { WebSearchCall, WebSearchHttpRequest, WebSearchProviderModule, WebSearchTransport } from '../types'
 import { WebSearchTransportError } from '../WebSearchError'
@@ -103,6 +105,26 @@ describe('portable provider contracts', () => {
     expect(requests[0].body).toBeUndefined()
     expect(new Headers(requests[0].headers).get('x-api-key')).toBe('test-key')
     expect(result.results[0].content).toBe('Serply Description')
+  })
+
+  it('sends SearchApi keys as a bearer header and keeps only the requested organic results', async () => {
+    const { client, requests } = setup(searchapi, fixture('searchapi-response.json'))
+    const result = await client.execute({
+      ...search('searchapi'),
+      capability: 'searchKeywords',
+      input: 'a&b',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 1 }
+    })
+    expect(requests[0].url).toBe('https://service.example/proxy/api/v1/search?engine=google&q=a%26b')
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'SearchApi Title',
+        content: 'SearchApi Snippet',
+        url: 'https://searchapi.example/result',
+        sourceInput: 'a&b'
+      }
+    ])
   })
 
   it('posts DeepSeek search calls and prefers the model-facing summary', async () => {
@@ -271,6 +293,141 @@ describe('portable provider contracts', () => {
   })
 })
 
+describe('Querit single-URL crawl outcomes', () => {
+  const url = 'https://example.com'
+  const call: WebSearchCall = {
+    providerId: 'querit',
+    capability: 'fetchUrls',
+    input: url,
+    config: {},
+    credentials: { apiKey: 'test-key' }
+  }
+  const page = { id: '1', url, content: 'Body' }
+  const failed = { id: '1', status: 'failed' }
+  const success = { id: '1', status: 'success' }
+
+  it.each([
+    ['matching empty page', { results: [{ ...page, content: '' }], statuses: [failed] }],
+    ['failure overrides readable content', { results: [page], statuses: [failed] }],
+    ['empty results', { results: [], statuses: [failed] }],
+    ['omitted results and status id', { statuses: [{ status: 'failed' }] }],
+    ['missing result id', { results: [{ url, content: 'Body' }], statuses: [failed] }],
+    ['missing status id', { results: [page], statuses: [{ status: 'failed' }] }],
+    ['matching failure last', { results: [page], statuses: [{ id: '2', status: 'success' }, failed] }],
+    ['matching failure first', { results: [page], statuses: [failed, { id: '2', status: 'success' }] }]
+  ])('reports PAGE instead of empty content or false success: %s', async (_reason, evidence) => {
+    const { client } = setup(querit, JSON.stringify({ error_code: 200, error_msg: '', ...evidence }))
+    const error = await client.execute(call).catch((error) => error)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.toJSON()).toEqual({
+      kind: 'provider',
+      code: 'page_fetch_failed',
+      message: 'Querit could not fetch page content for https://example.com',
+      providerId: 'querit',
+      capability: 'fetchUrls'
+    })
+  })
+
+  it.each([
+    ['matching success', { results: [page], statuses: [success] }],
+    ['success without ids', { results: [{ url, content: 'Body' }], statuses: [{ status: 'success' }] }],
+    ['unrelated failure first', { results: [page], statuses: [{ id: '2', status: 'failed' }, success] }],
+    ['unrelated failure last', { results: [page], statuses: [success, { id: '2', status: 'failed' }] }],
+    ['sole conflicting id', { results: [page], statuses: [{ id: '2', status: 'failed' }] }],
+    [
+      'multiple unattributable statuses',
+      { results: [{ url, content: 'Body' }], statuses: [failed, { id: '2', status: 'success' }] }
+    ],
+    ...[200, '200'].flatMap<[string, Record<string, unknown>]>((error_code) => [
+      [`absent statuses, code ${typeof error_code}`, { error_code, results: [page] }],
+      [`empty statuses, code ${typeof error_code}`, { error_code, results: [page], statuses: [] }]
+    ])
+  ])('keeps readable content without attributable failure: %s', async (_reason, evidence) => {
+    const { client } = setup(querit, JSON.stringify({ error_code: 200, error_msg: '', ...evidence }))
+    const result = await client.execute(call)
+    expect(result.results).toEqual([{ title: url, url, content: 'Body', sourceInput: url }])
+  })
+
+  it.each<[string, Record<string, unknown>]>([
+    ...['', '  \n ', undefined].map<[string, Record<string, unknown>]>((content) => [
+      `matching success with ${JSON.stringify(content)}`,
+      { results: [{ id: '1', url, content }], statuses: [success] }
+    ]),
+    ...[undefined, []].flatMap<[string, Record<string, unknown>]>((statuses) => [
+      [`${JSON.stringify(statuses)} statuses, blank content`, { results: [{ ...page, content: '' }], statuses }],
+      [
+        `${JSON.stringify(statuses)} statuses, whitespace content`,
+        { results: [{ ...page, content: '  \n ' }], statuses }
+      ],
+      [`${JSON.stringify(statuses)} statuses, empty results`, { results: [], statuses }],
+      [`${JSON.stringify(statuses)} statuses, omitted results`, { statuses }]
+    ]),
+    ['sole conflicting failure', { results: [{ ...page, content: '' }], statuses: [{ id: '2', status: 'failed' }] }],
+    [
+      'multiple unattributable statuses',
+      { results: [{ url, content: '' }], statuses: [failed, { id: '2', status: 'success' }] }
+    ]
+  ])('still requires usable content: %s', async (_reason, evidence) => {
+    const { client } = setup(querit, JSON.stringify({ error_code: 200, error_msg: '', ...evidence }))
+    await expect(client.execute(call)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'empty_content',
+      message: 'Querit contents returned empty content',
+      providerId: 'querit',
+      capability: 'fetchUrls'
+    })
+  })
+
+  it.each([
+    ['null statuses', { statuses: null }],
+    ['non-array statuses', { statuses: {} }],
+    ['unknown status', { statuses: [{ status: 'pending' }] }],
+    ['missing status', { statuses: [{ id: '1' }] }],
+    ['numeric status id', { statuses: [{ id: 1, status: 'failed' }] }],
+    ['null status id', { statuses: [{ id: null, status: 'failed' }] }],
+    ['numeric result id', { results: [{ ...page, id: 1 }] }],
+    ['null result id', { results: [{ ...page, id: null }] }]
+  ])('rejects malformed page evidence rather than guessing: %s', async (_reason, evidence) => {
+    const { client } = setup(querit, JSON.stringify({ error_code: 200, error_msg: '', results: [page], ...evidence }))
+    await expect(client.execute(call)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'schema_mismatch',
+      providerId: 'querit',
+      capability: 'fetchUrls'
+    })
+  })
+
+  it.each([401, '401'])('keeps request error %s ahead of failed or malformed page evidence', async (error_code) => {
+    for (const statuses of [[failed], null]) {
+      const { client } = setup(querit, JSON.stringify({ error_code, error_msg: 'Invalid credential', statuses }))
+      await expect(client.execute(call)).rejects.toMatchObject({
+        kind: 'provider',
+        code: 'provider_error',
+        message: 'Invalid credential',
+        providerCode: '401'
+      })
+    }
+  })
+
+  it.each([
+    [401, JSON.stringify({ error_msg: 'Invalid credential', statuses: [failed] }), 'http', 'http_error'],
+    [200, 'invalid JSON', 'invalid_response', 'invalid_json']
+  ])('keeps HTTP/JSON errors ahead of page interpretation (%s)', async (status, body, kind, code) => {
+    const { client } = setup(querit, body, status)
+    await expect(client.execute(call)).rejects.toMatchObject({ kind, code })
+  })
+
+  it('trims the requested URL in the request and PAGE diagnostic', async () => {
+    const { client, requests } = setup(querit, JSON.stringify({ error_code: 200, error_msg: '', statuses: [failed] }))
+    await expect(client.execute({ ...call, input: `  ${url}  ` })).rejects.toMatchObject({
+      kind: 'provider',
+      code: 'page_fetch_failed',
+      message: 'Querit could not fetch page content for https://example.com'
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ urls: [url], format: 'markdown', extrasMeta: true })
+  })
+})
+
 describe('Querit and Crawl4AI deployment contracts', () => {
   it.each(['https://api.querit.ai/v1', 'https://api.querit.ai/v1/'])(
     'accepts string success codes and an already versioned Querit API host %s',
@@ -322,6 +479,35 @@ describe('Querit and Crawl4AI deployment contracts', () => {
       ).rejects.toMatchObject({ kind: 'provider', providerCode: '401', message: 'Invalid credential' })
     }
   )
+
+  it('defaults an omitted Crawl4AI host to the authenticated Cloud scrape protocol', async () => {
+    const { client, requests } = setup(crawl4ai, JSON.stringify({ ok: true, markdown: '  # Example Domain  ' }))
+    const url = 'https://example.com'
+    const result = await client.execute({
+      providerId: 'crawl4ai',
+      capability: 'fetchUrls',
+      input: url,
+      config: {},
+      credentials: { apiKey: 'cloud-key' }
+    })
+    expect(requests[0].url).toBe('https://api.crawl4ai.com/scrape')
+    expect(JSON.parse(requests[0].body!)).toEqual({ url, format: 'md' })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer cloud-key')
+    expect(result.results).toEqual([{ title: url, content: '# Example Domain', url, sourceInput: url }])
+  })
+
+  it('rejects an omitted Crawl4AI host without a key before making a network request', async () => {
+    const { client, requests } = setup(crawl4ai, '{}')
+    await expect(
+      client.execute({
+        providerId: 'crawl4ai',
+        capability: 'fetchUrls',
+        input: 'https://example.com',
+        config: {}
+      })
+    ).rejects.toMatchObject({ kind: 'configuration', code: 'api_key_missing' })
+    expect(requests).toEqual([])
+  })
 
   it.each(['https://crawl4ai.com', 'https://api.crawl4ai.com'])(
     'uses the authenticated Cloud scrape protocol for %s',
@@ -597,5 +783,164 @@ describe('failure and capability contracts', () => {
       }
     })
     await expect(client.execute(search('tavily'))).rejects.toMatchObject({ kind: 'timeout', name: 'TimeoutError' })
+  })
+})
+
+describe('Yuanbao Search', () => {
+  it('requests a supported count and decodes ranked pages with summary fallbacks and a local limit', async () => {
+    const pages = [
+      { title: 'Dynamic', url: 'https://example.com/1', content: 'Dynamic summary', passage: 'Standard summary' },
+      { title: 'Standard', url: 'https://example.com/2', content: '', passage: 'Standard summary' },
+      { title: 'No summary', url: 'https://example.com/3' },
+      { title: 'Beyond limit', url: 'https://example.com/4' }
+    ]
+    const { client, requests } = setup(
+      yuanbao,
+      JSON.stringify({ Response: { Pages: pages.map((page) => JSON.stringify(page)) } })
+    )
+    const result = await client.execute({
+      providerId: 'yuanbao',
+      capability: 'searchKeywords',
+      input: '元宝 & search',
+      config: { maxResults: 3 },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(requests[0]).toMatchObject({ url: 'https://api.wsa.cloud.tencent.com/SearchPro', method: 'POST' })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: '元宝 & search', Cnt: 10 })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      { title: 'Dynamic', url: 'https://example.com/1', content: 'Dynamic summary', sourceInput: '元宝 & search' },
+      { title: 'Standard', url: 'https://example.com/2', content: 'Standard summary', sourceInput: '元宝 & search' },
+      { title: 'No summary', url: 'https://example.com/3', content: '', sourceInput: '元宝 & search' }
+    ])
+  })
+
+  it.each([
+    [1, 10],
+    [10, 10],
+    [11, 20],
+    [21, 30],
+    [31, 40],
+    [41, 50],
+    [50, 50],
+    [100, 50]
+  ])('maps a result limit of %i to the supported Cnt %i', async (maxResults, count) => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await client.execute({ ...search('yuanbao'), capability: 'searchKeywords', config: { maxResults } })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: 'hello', Cnt: count })
+  })
+
+  it('sends at most five distinct valid exclusion domains', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await client.execute({
+      ...search('yuanbao'),
+      capability: 'searchKeywords',
+      config: {
+        maxResults: 12,
+        excludeDomains: [
+          ' QQ.COM ',
+          'qq.com',
+          'https://example.com/path',
+          '/regex/',
+          'qq.com|other.com',
+          'sohu.com',
+          'a.example',
+          'b.example',
+          'c.example',
+          'd.example'
+        ]
+      }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({
+      Query: 'hello',
+      Cnt: 20,
+      Site: 'exclude:qq.com|sohu.com|a.example|b.example|c.example'
+    })
+  })
+
+  it('can omit Cnt while retaining Site and the local result limit', async () => {
+    const pages = [1, 2, 3].map((n) => JSON.stringify({ title: String(n), url: `https://example.com/${n}` }))
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: pages } }))
+    const result = await client.execute({
+      ...search('yuanbao'),
+      capability: 'searchKeywords',
+      config: { maxResults: 2, useDefaultResultCount: true, excludeDomains: ['qq.com'] }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: 'hello', Site: 'exclude:qq.com' })
+    expect(result.results.map((item) => item.url)).toEqual(['https://example.com/1', 'https://example.com/2'])
+  })
+
+  it('omits Site when no exclusions can be represented as domains', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await client.execute({
+      ...search('yuanbao'),
+      capability: 'searchKeywords',
+      config: { maxResults: 5, excludeDomains: ['*://*.qq.com/*', '/qq/'] }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: 'hello', Cnt: 10 })
+  })
+
+  it('rejects Yuanbao-only count options for other providers before transport', async () => {
+    const { client, requests } = setup(tavily, '{}')
+    await expect(
+      client.execute({
+        ...search('tavily'),
+        capability: 'searchKeywords',
+        config: { maxResults: 5, useDefaultResultCount: true }
+      })
+    ).rejects.toMatchObject({ kind: 'configuration', code: 'option_unsupported' })
+    expect(requests).toEqual([])
+  })
+
+  it.each(['UnauthorizedOperation', 'ResourceNotFound', 'ResourceUnavailable', 'RequestLimitExceeded'])(
+    'surfaces %s without requiring Pages and redacts credentials',
+    async (code) => {
+      const { client } = setup(
+        yuanbao,
+        JSON.stringify({
+          Response: { Error: { Code: code, Message: 'Failure for test-key' }, RequestId: 'req-test-key' }
+        })
+      )
+      await expect(client.execute(search('yuanbao'))).rejects.toMatchObject({
+        kind: 'provider',
+        providerCode: code,
+        requestId: 'req-[redacted]',
+        message: 'Yuanbao search failed: ' + code + ': Failure for [redacted]'
+      })
+    }
+  )
+
+  it.each([
+    ['{', 'invalid_json'],
+    [JSON.stringify({ Response: {} }), 'schema_mismatch'],
+    [JSON.stringify({ Response: { Pages: ['{'] } }), 'invalid_json'],
+    [JSON.stringify({ Response: { Pages: [JSON.stringify({ title: 'No URL' })] } }), 'schema_mismatch']
+  ])('rejects malformed responses: %s', async (body, code) => {
+    await expect(setup(yuanbao, body).client.execute(search('yuanbao'))).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code
+    })
+  })
+
+  it('accepts explicit empty results and preserves proxy paths', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    expect((await client.execute(search('yuanbao'))).results).toEqual([])
+    expect(requests[0].url).toBe('https://service.example/proxy/SearchPro')
+  })
+
+  it('rejects missing credentials before sending a request', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await expect(client.execute({ ...search('yuanbao'), credentials: {} })).rejects.toMatchObject({
+      kind: 'configuration',
+      code: 'api_key_missing'
+    })
+    expect(requests).toEqual([])
+  })
+
+  it('keeps HTTP failures distinct from empty results', async () => {
+    await expect(setup(yuanbao, '{}', 429).client.execute(search('yuanbao'))).rejects.toMatchObject({
+      kind: 'http',
+      status: 429
+    })
   })
 })

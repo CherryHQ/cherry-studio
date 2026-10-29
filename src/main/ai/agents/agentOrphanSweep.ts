@@ -168,6 +168,32 @@ async function reclaimRuntimeSessions(
   return { runtimeSessions, failedDrivers }
 }
 
+export async function reclaimPurgedRuntimeSessions(purgedResumeTokens: ReadonlySet<string>): Promise<void> {
+  if (purgedResumeTokens.size === 0) return
+
+  let claimedResumeTokens: ReadonlySet<string>
+  try {
+    claimedResumeTokens = application.get('AgentSessionRuntimeService').listClaimedResumeTokens()
+  } catch (error) {
+    logger.warn('Could not read active runtime claims — purged session artifacts left for sweep', { error })
+    return
+  }
+  const tokensToReclaim = new Set([...purgedResumeTokens].filter((token) => !claimedResumeTokens.has(token)))
+  if (tokensToReclaim.size === 0) return
+
+  const removed: string[] = []
+  for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
+    if (!driver.reclaimPurgedSessions) continue
+    try {
+      const result = await driver.reclaimPurgedSessions(tokensToReclaim)
+      removed.push(...result.removed)
+    } catch (error) {
+      logger.warn('Purged runtime session reclaim failed — residue retried next sweep', { runtime: driver.type, error })
+    }
+  }
+  logger.info('agent-purge-reclaim', { tokens: tokensToReclaim.size, removed })
+}
+
 async function reclaim(dirPath: string, removed: string[], options: OrphanSessionReclaimOptions): Promise<boolean> {
   if (!(await reclaimStale(dirPath, options))) return false
   removed.push(dirPath)

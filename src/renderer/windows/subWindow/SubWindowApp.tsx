@@ -5,6 +5,7 @@ import { CommandContextKeyProvider, CommandProvider } from '@renderer/components
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -16,6 +17,7 @@ import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreference
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
+import { WindowFileEditRecovery } from '@renderer/windows/WindowFileEditRecovery'
 
 // Headless behavior leaf inside the providers: the shared window runtime (same route
 // tree as main, so it needs the same window-level side effects). It renders nothing;
@@ -43,20 +45,23 @@ function SubWindowApp(): React.ReactElement {
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
       <ThemeProvider>
         <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <SubWindowAppShell />
-                <SubWindowRuntime />
-                <ConversationNotificationRuntime />
-                <McpInteractionHost />
-                <PopupHost />
-                <ToastHost />
-                <DictationShortcutHost />
-                <VoicePlaybackHost />
-              </TabsProvider>
-            </CommandProvider>
-          </CommandContextKeyProvider>
+          <FileEditSessionProvider>
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                  <SubWindowAppShell />
+                  <SubWindowRuntime />
+                  <ConversationNotificationRuntime />
+                  <McpInteractionHost />
+                  <PopupHost />
+                  <ToastHost />
+                  <WindowFileEditRecovery />
+                  <DictationShortcutHost />
+                  <VoicePlaybackHost />
+                </TabsProvider>
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </FileEditSessionProvider>
         </CodeStyleProvider>
       </ThemeProvider>
     </ErrorBoundary>

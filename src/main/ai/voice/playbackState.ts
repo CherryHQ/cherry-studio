@@ -18,14 +18,18 @@ export function createPlaybackState(): PlaybackState {
 }
 
 export function beginPlaybackSynthesis(state: PlaybackState): PlaybackState {
-  return { ...state, synthesis: 'generating', observed: 'empty', failure: undefined }
+  if (state.synthesis === 'generating') return state
+  return { ...state, attemptId: state.attemptId + 1, synthesis: 'generating', observed: 'empty', failure: undefined }
 }
 
 export function completePlaybackSynthesis(state: PlaybackState): PlaybackState {
+  return { ...readyPlaybackOutput(state), synthesis: 'completed' }
+}
+
+export function readyPlaybackOutput(state: PlaybackState): PlaybackState {
+  if (state.observed !== 'empty') return state
   return {
     ...state,
-    attemptId: state.attemptId + 1,
-    synthesis: 'completed',
     observed: 'ready',
     pendingCommand: state.desired === 'paused' ? 'pause' : 'resume'
   }

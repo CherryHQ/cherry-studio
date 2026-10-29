@@ -1,9 +1,13 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { Agent } from 'undici'
+
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportDescriptor
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport,
+  type ImageTransportDescriptor
 } from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
@@ -27,6 +31,14 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
  */
 
 export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://dashscope.aliyuncs.com'
+
+// undici abandons response headers after 300s, below a sync image model's submit budget;
+// an injected fetch has no such bound, so this only backs the global-fetch fallback.
+const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+const longRunningDispatcher = new Agent({
+  headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
+  bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
+})
 
 export class DashScopeApiError extends Error {
   constructor(
@@ -110,6 +122,8 @@ export interface DashScopeProviderParams {
 export interface DashScopeTransportSettings {
   apiKey: string
   imageBaseURL?: string
+  /** Proxy-aware fetch from provider settings; falls back to global `fetch` when unset. */
+  fetch?: FetchFunction
 }
 
 type ResponseFamily = 'choices' | 'results' | 'image_url'
@@ -370,11 +384,13 @@ function buildRequestBody(
 class DashScopeTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private fetch?: FetchFunction
   private pendingDescriptors = new Map<string, DashScopeModelDescriptor>()
 
   constructor(settings: DashScopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
+    this.fetch = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -387,7 +403,7 @@ class DashScopeTransport implements ImageGenerationTransport {
     const extraHeaders: Record<string, string> = descriptor.isSync ? {} : { 'X-DashScope-Async': 'enable' }
 
     const response = await this.request<DashScopeTaskResult>(descriptor.endpoint, 'POST', body, {
-      timeout: 120000,
+      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal,
       extraHeaders
     })
@@ -519,7 +535,7 @@ class DashScopeTransport implements ImageGenerationTransport {
       externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: RequestInit & { dispatcher?: Agent } = {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
@@ -531,9 +547,10 @@ class DashScopeTransport implements ImageGenerationTransport {
     if (method === 'POST' && body !== undefined) {
       fetchOptions.body = JSON.stringify(body)
     }
+    if (!this.fetch) fetchOptions.dispatcher = longRunningDispatcher
 
     try {
-      const response = await fetch(`${this.baseURL}${path}`, fetchOptions)
+      const response = await (this.fetch ?? fetch)(`${this.baseURL}${path}`, fetchOptions)
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new DashScopeApiError(`DashScope API error: ${response.status} - ${errorText}`, response.status)

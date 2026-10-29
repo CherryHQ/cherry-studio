@@ -5,6 +5,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
@@ -16,6 +17,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
+import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
@@ -132,7 +134,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) =>
-    name === 'DbService' ? get(name) : mocks.applicationGet(name)
+    name === 'DbService' || name === 'RuntimeActivityService' ? get(name) : mocks.applicationGet(name)
   )
   result.application.getPath.mockImplementation(forkRecoveryMocks.getPath)
   return result
@@ -558,6 +560,105 @@ describe('AgentSessionRuntimeService', () => {
     expect(() => service.assertSessionEditable('session-2')).not.toThrow()
     await settled
     expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+  })
+
+  describe('runtime activity for detached work', () => {
+    const activities = new Set<symbol>()
+    let registration: MockInstance
+
+    beforeEach(() => {
+      activities.clear()
+      registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+        const token = Symbol()
+        activities.add(token)
+        return {
+          dispose: () => {
+            activities.delete(token)
+          }
+        }
+      })
+    })
+
+    afterEach(() => registration.mockRestore())
+
+    it.each(['success', 'failure', 'cancellation'] as const)(
+      'holds activity until an idle-source fork settles with %s',
+      async (outcome) => {
+        const service = new AgentSessionRuntimeService()
+        const gate = createDeferred<string>()
+        const run = vi.spyOn(service['forks'] as any, 'run').mockReturnValue(gate.promise)
+        try {
+          const fork = service.forkSession('session-1', 'assistant-1')
+          const settled = fork.catch(() => undefined)
+          expect(service.isSessionBusy('session-1')).toBe(false)
+          expect(activities.size).toBe(1)
+          await Promise.resolve()
+          const cancellation = outcome === 'cancellation' ? service.cancelSessionForks('session-1') : undefined
+          expect(activities.size).toBe(1)
+          if (outcome === 'success') gate.resolve('forked-session')
+          else gate.reject(new Error(outcome))
+          await settled
+          await cancellation
+          expect(activities.size).toBe(0)
+        } finally {
+          run.mockRestore()
+        }
+      }
+    )
+
+    it('keeps the hold until concurrent forks have all settled', async () => {
+      const service = new AgentSessionRuntimeService()
+      const first = createDeferred<string>()
+      const second = createDeferred<string>()
+      const run = vi
+        .spyOn(service['forks'] as any, 'run')
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise)
+      try {
+        const a = service.forkSession('session-1', 'assistant-1')
+        const b = service.forkSession('session-2', 'assistant-2')
+        expect(activities.size).toBe(1)
+        first.resolve('fork-a')
+        await a
+        expect(activities.size).toBe(1)
+        second.resolve('fork-b')
+        await b
+        expect(activities.size).toBe(0)
+      } finally {
+        run.mockRestore()
+      }
+    })
+
+    it('keeps detached background work active without making the session busy, then releases on completion', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(activities.size).toBe(1)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => expect(activities.size).toBe(0))
+      await service.closeSession('session-1')
+      expect(activities.size).toBe(0)
+    })
+
+    it('retains detached activity through session teardown until the connection closes', async () => {
+      const service = new AgentSessionRuntimeService()
+      const gate = createDeferred<void>()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: () => gate.promise, send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(activities.size).toBe(1)
+      const closing = service.closeSession('session-1')
+      expect(activities.size).toBe(1)
+      gate.resolve()
+      await closing
+      expect(activities.size).toBe(0)
+    })
   })
 
   describe('respondToolApproval', () => {
@@ -2347,6 +2448,81 @@ describe('AgentSessionRuntimeService', () => {
       })
       return { stale, rebuilt, connect }
     }
+    it('sends a changed per-turn max override after an idle warm default without an Agent write', async () => {
+      const sent: Array<{ effort: AgentRuntimeConnectInput['reasoningEffort']; messageId: string }> = []
+      const connectionFor = (effort: AgentRuntimeConnectInput['reasoningEffort']) => ({
+        events: createAsyncQueue<never>().iterable,
+        send: (input: AgentRuntimeUserInput) => {
+          sent.push({ effort, messageId: input.message.id })
+        },
+        close: vi.fn(),
+        reconcile: async (target: { reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort'] }) =>
+          target.reasoningEffort === effort ? ('current' as const) : ('rebuild' as const)
+      })
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async (input) => connectionFor(input.reasoningEffort),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      getEntry(service).connection = connectionFor('default')
+      service.markTurnTerminal('session-1', 'success')
+      const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-2') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(sent).toEqual([{ effort: 'max', messageId: 'user-2' }]))
+      expect(mocks.getAgent()).not.toHaveProperty('configuration')
+      await reader.cancel()
+    })
+
+    it('queues low behind streaming max and sends the fresh follow-up at low without changing the running effort', async () => {
+      const sent: Array<AgentRuntimeConnectInput['reasoningEffort']> = []
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async (input) => ({
+          events: createAsyncQueue<never>().iterable,
+          send: () => {
+            sent.push(input.reasoningEffort)
+          },
+          close: vi.fn(),
+          redirect: vi.fn(() => true),
+          reconcile: async (target) => (target.reasoningEffort === input.reasoningEffort ? 'current' : 'rebuild')
+        }),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(sent).toEqual(['max']))
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { reasoningEffort: 'low' })
+      const entry = getEntry(service)
+      expect(entry.pendingTurns).toMatchObject([{ reasoningEffort: 'low', message: { id: 'user-2' } }])
+      expect(entry.currentTurn.reasoningEffort).toBe('max')
+      expect(sent).toEqual(['max'])
+      await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn.mock.lastCall?.[0].request.reasoningEffort).toBe('low'))
+      const followUpReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: entry.currentTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await followUpReader.read()
+      await vi.waitFor(() => expect(sent).toEqual(['max', 'low']))
+      await followUpReader.cancel()
+      await reader.cancel()
+    })
 
     it('rebuilds a stale warm connection before the next turn — no event required', async () => {
       const firstConnection = {
@@ -4227,6 +4403,33 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.listClaimedResumeTokens()).toEqual(new Set())
   })
 
+  it('keeps a resume token claimed after the close deadline until native teardown completes', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const teardown = createDeferred<void>()
+      const entry = getEntry(service)
+      entry.lastResumeToken = 'resume-timeout'
+      entry.connection = { close: () => teardown.promise, send: vi.fn(), events: [] }
+
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_001)
+      await closing
+
+      expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-timeout']))
+      expect(service.hasBusySessions()).toBe(true)
+
+      teardown.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(service.listClaimedResumeTokens()).toEqual(new Set())
+      expect((service as any).failedClosures.has('session-1')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('waits for a pending connection attempt when synchronous close cleanup falls back', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
@@ -4322,6 +4525,16 @@ describe('AgentSessionRuntimeService', () => {
 
   it('blocks history rewrites after the close deadline and allows them once native teardown completes', async () => {
     vi.useFakeTimers()
+    const activities = new Set<symbol>()
+    const registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+      const token = Symbol()
+      activities.add(token)
+      return {
+        dispose: () => {
+          activities.delete(token)
+        }
+      }
+    })
     try {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -4331,13 +4544,49 @@ describe('AgentSessionRuntimeService', () => {
       await vi.advanceTimersByTimeAsync(20_001)
       await closing
       expect(() => service.assertSessionEditable('session-1')).toThrow('close_failed')
+      expect(activities.size).toBe(1)
       teardown.resolve()
       await vi.advanceTimersByTimeAsync(0)
+      expect(activities.size).toBe(0)
       expect(() => service.assertSessionEditable('session-1')).not.toThrow()
     } finally {
+      registration.mockRestore()
       vi.useRealTimers()
     }
   })
+
+  it.each(['resolve', 'reject'] as const)(
+    'releases runtime activity when an idle session edit ends with %s',
+    async (outcome) => {
+      const service = new AgentSessionRuntimeService()
+      const editing = createDeferred<void>()
+      const runEdit = vi.spyOn(service['forks'] as any, 'runEdit').mockReturnValue(editing.promise)
+      const activities = new Set<symbol>()
+      const registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+        const token = Symbol()
+        activities.add(token)
+        return {
+          dispose: () => {
+            activities.delete(token)
+          }
+        }
+      })
+      try {
+        const operation = service.editSession('session-1', { messageId: 'user-1', version: 'v1' }, () => undefined)
+        const settled = operation.catch(() => undefined)
+        expect(service.hasBusySessions()).toBe(true)
+        expect(activities.size).toBe(1)
+        if (outcome === 'resolve') editing.resolve()
+        else editing.reject(new Error('edit failed'))
+        await settled
+        expect(service.hasBusySessions()).toBe(false)
+        expect(activities.size).toBe(0)
+      } finally {
+        runEdit.mockRestore()
+        registration.mockRestore()
+      }
+    }
+  )
 
   it('persists assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()
