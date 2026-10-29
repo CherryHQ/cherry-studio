@@ -395,7 +395,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       // selection was never made in.
       const root = normalizePathValue(notesPath)
       if (normalizePathValue(activeFilePath).startsWith(`${root}/`) && activeFileRoot !== root) {
-        setActiveFileRoot(root)
+        // normalizePathValue returns a plain string; the cache setter takes
+        // the branded AbsoluteFilePath, same parse as the selection remap.
+        setActiveFileRoot(AbsoluteFilePathSchema.parse(root))
       }
     }
   }, [activeFilePath, activeFileRoot, activeNode, notesPath, setActiveFileRoot])
