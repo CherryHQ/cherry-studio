@@ -2146,6 +2146,36 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).not.toHaveBeenCalled()
   })
 
+  it('keeps a same-runtime reassignment from killing the execution during a steer transition', async () => {
+    // Between the steer boundary (source row settled) and the continuation row opening, no turn is
+    // live — but the same SDK query is still streaming. A rename of the frozen agent in that gap
+    // pushes a reconcile; without the transition in the ownership scope Pi reports stale-owner and
+    // the close path aborts the native execution mid-steer.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'pi', model: baseTurnInput.modelId })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      agentId: 'agent-1',
+      reconcile: vi.fn().mockResolvedValue('stale-owner')
+    }
+    entry.connection = connection
+    setSteerTransition(entry)
+
+    await (service as any).handleAgentUpdated('agent-1', { name: 'Renamed' }, { id: 'agent-1' })
+
+    // The transition's accepted execution keeps ownership protection in the scope…
+    expect(connection.reconcile).toHaveBeenCalledWith(
+      expect.objectContaining({ servesAcceptedTurn: true })
+    )
+    // …and even a racing stale-owner verdict must not close a connection that is still streaming.
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBeDefined()
+  })
+
   it('pushes a reconcile for configuration-only updates', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

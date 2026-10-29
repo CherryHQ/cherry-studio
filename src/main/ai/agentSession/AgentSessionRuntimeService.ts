@@ -958,9 +958,13 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       case 'stale-owner':
         // A live turn froze this connection to its own agent: keep it until the boundary, where
-        // adoption picks up the session's new agent. With no live turn there is nothing to carry,
-        // so replace the connection instead of serving a stale owner.
-        if (this.liveTurn(entry)) return
+        // adoption picks up the session's new agent. A steer transition is the same accepted
+        // execution — the SDK query is still streaming between its rows, and closing here would
+        // abort it (the acceptedTurnScope above should have suppressed this verdict; guard the
+        // handling too so a racing transition cannot turn an ownership-only report into a kill).
+        // With no live turn and no transition there is nothing to carry, so replace the
+        // connection instead of serving a stale owner.
+        if (this.liveTurn(entry) || isAgentSessionRuntimeTransitioning(entry.runtimeState)) return
         this.closeConnectionAsync(entry)
         return
       case 'invalid':
@@ -2009,10 +2013,15 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * A live turn is frozen to `entry.agentId` (adoption never runs mid-turn), so a connect or
    * reconcile serving it validates the frozen agent itself instead of the session row, which a
-   * top-bar switch may have re-pointed meanwhile.
+   * top-bar switch may have re-pointed meanwhile. A steer transition counts: at the boundary the
+   * source turn is already terminal and the continuation row is not open yet, but the same SDK
+   * query is still streaming on this connection — dropping ownership protection here would make a
+   * push reconcile during the gap return `stale-owner` and close a connection mid-execution.
    */
   private acceptedTurnScope(entry: AgentSessionRuntimeEntry): { servesAcceptedTurn?: boolean } {
-    return this.liveTurn(entry) ? { servesAcceptedTurn: true } : {}
+    return this.liveTurn(entry) || isAgentSessionRuntimeTransitioning(entry.runtimeState)
+      ? { servesAcceptedTurn: true }
+      : {}
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
@@ -2118,9 +2127,12 @@ export class AgentSessionRuntimeService extends BaseService {
             continue
           case 'stale-owner': {
             // The turn already accepted under the frozen agent outranks the reassignment until its
-            // boundary: keep the connection and let adoption take over there. Without a live turn
-            // the connection is simply the stale fact — replace it and reconnect under the row.
-            if (this.liveTurn(entry)) return true
+            // boundary: keep the connection and let adoption take over there. A steer transition
+            // carries the same accepted execution between its rows — the guard mirrors the push
+            // path, and closing in that gap would abort the still-streaming SDK query. Without a
+            // live turn or transition the connection is simply the stale fact — replace it and
+            // reconnect under the row.
+            if (this.liveTurn(entry) || isAgentSessionRuntimeTransitioning(entry.runtimeState)) return true
             this.closeConnectionAsync(entry)
             continue
           }
