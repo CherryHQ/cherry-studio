@@ -24,10 +24,6 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { MemoryScope } from '@shared/types/memory'
 
 const logger = loggerService.withContext('MemoryEditor')
-const outcomeKeys = {
-  conflict: 'settings.memory.outcome.conflict',
-  pending: 'settings.memory.outcome.pending'
-} as const
 type MemoryRead = OutputFor<'memory.file.read'>
 type Pending =
   | { kind: 'select'; path: string }
@@ -52,7 +48,12 @@ export function MemoryEditor({ scope }: { scope: MemoryScope }) {
   const lines = draft ? draft.split('\n').length - Number(draft.endsWith('\n')) : 0
   const isEntry = file?.path === 'MEMORY.md'
   const overLimit = !!editor && (bytes > editor.maxBytes || (isEntry && lines > editor.maxLines))
-  const unfinished = results?.files.filter((item) => item.outcome === 'conflict' || item.outcome === 'pending')
+  const unfinished = results?.files.filter(
+    (item) =>
+      item.outcome === 'conflict' ||
+      item.outcome === 'pending' ||
+      (results.error !== undefined && item.outcome === 'unchanged')
+  )
   const fileLabel = (path: string) =>
     path === 'MEMORY.md' ? t('settings.memory.overview') : path.replace(/^\.memories\//, '').replace(/\.md$/, '')
   const blocker = useBlocker({
@@ -276,7 +277,8 @@ export function MemoryEditor({ scope }: { scope: MemoryScope }) {
         <ul aria-label={t('settings.memory.result')} className="text-sm text-muted-foreground">
           {unfinished.map((item) => (
             <li key={item.path}>
-              {item.path}: {t(outcomeKeys[item.outcome as keyof typeof outcomeKeys])}
+              {item.path}:{' '}
+              {t(item.outcome === 'conflict' ? 'settings.memory.outcome.conflict' : 'settings.memory.outcome.pending')}
             </li>
           ))}
         </ul>
