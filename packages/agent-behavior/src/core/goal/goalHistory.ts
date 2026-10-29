@@ -5,6 +5,7 @@ import type {
   CallKey,
   ConversationFacts,
   GoalCleared,
+  GoalOwner,
   GoalSnapshot,
   GoalStopCode,
   HistoryEntry,
@@ -94,8 +95,8 @@ const armedAfter = (history: readonly HistoryEntry[], goalId: string, at: number
   armSeq(history, goalId) > armSeq(history.slice(0, at + 1), goalId)
 
 type Branch = {
-  readonly calls: Map<CallKey, string | null>
-  requestGoal: string | null
+  readonly calls: Map<CallKey, GoalOwner>
+  requestGoal: GoalOwner
   readonly counted: { readonly goalId: string; readonly tokens: number; readonly usd: number }[]
   /**
    * By `<child>:<run>`: the goal whose request started that run (the request before the run's first record), fixed at
@@ -113,29 +114,43 @@ const runKey = (child: ThreadId, run: number) => `${child}:${run}`
  * run counts toward the goal of the request whose call started it (the last request before its first record).
  */
 function readBranch(history: readonly HistoryEntry[]): Branch {
-  const branch: Branch = { calls: new Map(), requestGoal: null, counted: [], owners: new Map(), latestRuns: new Map() }
+  const branch: Branch = {
+    calls: new Map(),
+    requestGoal: { goalId: null },
+    counted: [],
+    owners: new Map(),
+    latestRuns: new Map()
+  }
   const admitted = admittedRounds(history)
   let goal: GoalSnapshot | undefined
   let turn: Turn = 'human'
-  let round: string | undefined
+  let round: RoundDetails | undefined
   let starting = false
-  let requestGoal: string | undefined
-  let callerGoal: string | undefined
+  let requestOwner: GoalOwner = { goalId: null }
+  let callerGoal: string | null = null
+  const ownerOf = (owner: GoalOwner): string | null =>
+    owner.goalRoundId && !admitted.has(owner.goalRoundId) ? null : owner.goalId
+  const pendingOwner = (): GoalOwner => {
+    if (goal?.phase !== 'active') return { goalId: null }
+    if (turn === 'round' && round?.goalId === goal.id) return { goalId: goal.id, goalRoundId: round.id }
+    return { goalId: turn === 'notification' && goal.armed ? goal.id : null }
+  }
   for (const entry of history) {
     const record = goalOf(entry)
     if (record !== undefined) {
       goal = snapshotOf(record)
-      if (goal?.id !== round) round = undefined
+      if (goal?.id !== round?.goalId) round = undefined
       continue
     }
     if (entry.kind === 'record') {
       if (entry.record.type === 'summary-usage') {
-        const { goalId, usage } = entry.record.value
+        const { usage } = entry.record.value
+        const goalId = ownerOf(entry.record.value)
         if (goalId) branch.counted.push({ goalId, tokens: usage.totalTokens, usd: usage.costUsd })
       }
       if (entry.record.type !== 'subagent-run') continue
       const { sessionId, run, background, goalId } = entry.record.value
-      const owner = goalId === undefined ? callerGoal : goalId
+      const owner = goalId === undefined ? callerGoal : ownerOf({ ...entry.record.value, goalId })
       const key = runKey(sessionId, run)
       if (!branch.owners.has(key))
         branch.owners.set(key, { child: sessionId, run, ...(owner ? { goalId: owner } : {}) })
@@ -145,8 +160,9 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
     if (entry.kind === 'compaction') continue
     if (entry.kind === 'assistant') {
       starting = false
+      const requestGoal = ownerOf(requestOwner)
       callerGoal = requestGoal
-      for (const call of entry.toolCalls) branch.calls.set(call.callKey, requestGoal ?? null)
+      for (const call of entry.toolCalls) branch.calls.set(call.callKey, requestOwner)
       const { input, output, cacheRead, cacheWrite, costUsd } = entry.usage
       if (requestGoal)
         branch.counted.push({ goalId: requestGoal, tokens: input + output + cacheRead + cacheWrite, usd: costUsd })
@@ -156,7 +172,7 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
     const details = roundOf(entry)
     if (kind === 'round' && details) {
       turn = 'round'
-      round = admitted.has(details.id) ? details.goalId : undefined
+      round = details
       starting = true
     } else if (kind === 'notification') {
       if (!starting) {
@@ -169,25 +185,19 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
       round = undefined
       starting = true
     } else if (entry.kind === 'tool-result') starting = false
-    requestGoal =
-      goal?.phase === 'active' && ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
-        ? goal.id
-        : undefined
+    requestOwner = pendingOwner()
   }
-  branch.requestGoal =
-    goal?.phase === 'active' && ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
-      ? goal.id
-      : null
+  branch.requestGoal = pendingOwner()
   return branch
 }
 
 /** The request that emitted this exact call owns its child run; host commands have no model call. */
-export function goalForCall(history: readonly HistoryEntry[], call: CallKey): string | null {
-  return readBranch(history).calls.get(call) ?? null
+export function goalForCall(history: readonly HistoryEntry[], call: CallKey): GoalOwner {
+  return readBranch(history).calls.get(call) ?? { goalId: null }
 }
 
 /** Captured before the summarizer runs, so a later pause cannot reassign its cost. */
-export function goalForRequest(history: readonly HistoryEntry[]): string | null {
+export function goalForRequest(history: readonly HistoryEntry[]): GoalOwner {
   return readBranch(history).requestGoal
 }
 

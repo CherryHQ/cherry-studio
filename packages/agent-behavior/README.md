@@ -199,7 +199,7 @@ above. It does not throw and does not validate fields beyond those checks. A rec
 `{ kind: 'record', id, key?, record }`, with `key` lifted out of `data`; a marker to
 `{ kind: 'marker', id, key?, marker, text }`, with `text` as stored or `''`. A decoded notification keeps `sessionId`,
 `run`, `outcome` and `stoppedBy` of each run, drops the per-run `usage` that older entries carry, and reads any `quiet`
-other than `true` as `false`. New child run and steer records carry `goalId` (`null` means no goal); only historical records without that field use preceding-request inference. Host continuations never inherit a previous model call's goal. The adapter maps the other history entries (user, assistant, tool result, compaction) to
+other than `true` as `false`. New child run and steer records carry `goalId` (`null` means no goal); only historical records without that field use preceding-request inference. Host continuations never inherit a previous model call's goal. A child run, steer or summary started in a reserved round also retains `goalRoundId`; its cost counts only when that round is admitted, even if admission follows execution. A withdrawn reservation never counts. The adapter maps the other history entries (user, assistant, tool result, compaction) to
 `HistoryEntry` itself, as [History projection](#history-projection) describes.
 
 ## Applying a step
