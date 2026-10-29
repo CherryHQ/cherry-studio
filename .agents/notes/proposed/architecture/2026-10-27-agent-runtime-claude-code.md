@@ -10,6 +10,8 @@ Claude Code still enters Cherry through [ClaudeCodeRuntimeDriver](../../../../sr
 
 The [runtime contract](2026-10-17-agent-runtime-contract.md) already separates access, input, observation, and ownership. Pi and Pi Durable now use it from the desktop and have independent child projections. Claude Code needs an adapter to that boundary while preserving its native session, tools, task lifecycle, permissions, and model routing. Moving the existing driver into a package would retain the coupling and carry Cherry's database and UI policy into the adapter.
 
+The [SDK content protocol proposal](../simplification/2026-10-29-agent-runtime-content-protocol.md) owns the follow-up removal of Claude's `ContentItem` conversion and the associated desktop content reconstruction. The paths below describe the current migration; native controls, input correlation, gateway routing, and billing evidence remain requirements for the content cutover.
+
 ## Proposal
 
 ### Target SDK and native evidence

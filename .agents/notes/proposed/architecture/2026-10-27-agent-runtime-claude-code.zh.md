@@ -10,6 +10,8 @@ Claude Code 目前仍通过 [ClaudeCodeRuntimeDriver](../../../../src/main/ai/ru
 
 [Runtime 契约](2026-10-17-agent-runtime-contract.md) 已经区分访问、输入、观察和所有权。Pi 与 Pi Durable 现在已在桌面端使用该契约，并拥有独立的子投影。Claude Code 需要适配这条边界，同时保留原生会话、工具、任务生命周期、权限和模型路由。直接把现有 driver 移进包，会保留这些耦合，并把 Cherry 的数据库和 UI 策略一起带入适配器。
 
+[SDK 内容协议方案](../simplification/2026-10-29-agent-runtime-content-protocol.md)维护后续删除 Claude 的 `ContentItem` 转换及桌面端内容重建的设计。下文路径描述当前迁移；原生控制、输入关联、网关路由和计费证据仍是内容切换必须满足的要求。
+
 ## 方案
 
 ### 目标 SDK 与原生证据
