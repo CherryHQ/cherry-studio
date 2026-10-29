@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { createComposerUserMessageParts } from '@renderer/components/composer/composerDraft'
+import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import {
   getAgentDraftCacheKey,
   toConversationDraft
@@ -18,12 +20,13 @@ import { ipcApi } from '@renderer/ipc'
 import AgentComposerSlot from '@renderer/pages/agents/AgentComposerSlot'
 import AgentSessionMessages from '@renderer/pages/agents/components/AgentSessionMessages'
 import { useAgentChatRuntimeState } from '@renderer/pages/agents/useAgentChatRuntimeState'
+import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSelectionAgentIssue } from '@renderer/utils/selectionAction'
 import { classifyTurn } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useSelectionAgentWindowRules } from '../useSelectionAgentWindowRules'
 import { SelectionAgentHeader } from './SelectionAgentHeader'
@@ -36,15 +39,9 @@ const SIDE_PADDING_PX = 12
 // Ends message text at the composer's send button, balancing the avatar column on the left.
 const MESSAGE_END_INSET_PX = 12
 
-export interface SelectionAgentFirstMessage {
-  text: string
-  /** Composer-built parts that keep the quote token; plain prompts send as text. */
-  userMessageParts?: CherryMessagePart[]
-}
-
 interface SelectionAgentConversationProps {
   sessionId: string
-  firstMessage: SelectionAgentFirstMessage
+  firstMessage: ComposerSerializedDraft
   isPinned: boolean
   onTogglePin: () => void
   opacity: number
@@ -79,10 +76,10 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   useEffect(() => {
     if (firstMessageSentRef.current || !session || !agent || !model) return
     firstMessageSentRef.current = true
-    const { text, userMessageParts } = firstMessage
-    void sendMessage(
-      { text },
-      userMessageParts ? { body: { agentId: agent.id, sessionId, userMessageParts } } : undefined
+    const userMessageParts = createComposerUserMessageParts(firstMessage)
+    void sendMessage({ text: firstMessage.text }, { body: { agentId: agent.id, sessionId, userMessageParts } }).then(
+      // A rejected send saved nothing, so the composer gets the message back to retry.
+      (sent) => sent || handOffAgentDraft(sessionId, { ...firstMessage, files: [], knowledgeBaseIds: [] })
     )
   }, [agent, firstMessage, model, sendMessage, session, sessionId])
 
