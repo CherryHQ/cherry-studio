@@ -50,19 +50,14 @@ export async function evaluateTaskGuard(
         })
 
         // The SIGKILL escalation timer deliberately outlives settlement: it is
-        // part of the bounded-termination contract, so `cleanup` never clears it.
+        // part of the bounded-termination contract, so settling never clears it.
         let settled = false
 
-        const cleanup = () => {
-          clearTimeout(timer)
-          child.removeAllListeners('error')
-          child.removeAllListeners('exit')
-        }
         const settleAbort = () => {
           if (settled) return
           settled = true
+          clearTimeout(timer)
           const reason = options.signal?.reason
-          cleanup()
           // Cancellation is not a failed predicate: propagate it so the job
           // finalizes as cancelled instead of recording a guard skip.
           reject(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
@@ -70,7 +65,7 @@ export async function evaluateTaskGuard(
         const settleOutcome = (outcome: TaskGuardOutcome) => {
           if (settled) return
           settled = true
-          cleanup()
+          clearTimeout(timer)
           resolve(outcome)
         }
         const escalateKill = () => {
@@ -104,17 +99,30 @@ export async function evaluateTaskGuard(
           escalateKill()
         }, GUARD_COMMAND_TIMEOUT_MS)
 
-        child.once('error', (error) => {
+        // Listeners stay attached while the child is live: after a timeout
+        // settle the shell may still be inside its SIGKILL grace, and an
+        // AbortSignal landing there makes Node emit an AbortError 'error'
+        // event - with no listener that is an uncaught exception. Settled
+        // guards make late events no-ops; `close` (which also follows spawn
+        // failures) is where listeners come off.
+        const onError = (error: Error) => {
+          if (settled) return
           if (options.signal?.aborted) return settleAbort()
           settleOutcome({ proceed: false, reason: `command failed (${error.message}): ${guard.command}` })
-        })
-        child.once('exit', (code, exitSignal) => {
+        }
+        const onExit = (code: number | null, exitSignal: NodeJS.Signals | null) => {
           if (options.signal?.aborted) return settleAbort()
           // A timeout already settled the skip; nothing here may reopen it.
           if (settled) return
           if (code === 0) return settleOutcome({ proceed: true })
           const detail = typeof code === 'number' ? `exit code ${code}` : `signal ${exitSignal}`
           settleOutcome({ proceed: false, reason: `command failed (${detail}): ${guard.command}` })
+        }
+        child.on('error', onError)
+        child.on('exit', onExit)
+        child.once('close', () => {
+          child.removeListener('error', onError)
+          child.removeListener('exit', onExit)
         })
       })
   }
