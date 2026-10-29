@@ -27,9 +27,8 @@ export type ConversationTabKind = keyof typeof CONVERSATION_PARAM
  *
  * Chat / Work tab labels come from the owning page, which only runs while its tab
  * is awake — a conversation renamed from another tab's list would leave this tab's
- * label stale until it is activated. Rename writers call this so the label follows
- * the data immediately, wherever the rename was made. No-op outside a TabsProvider,
- * and for a blank name (the page's own assistant/agent fallback owns that case).
+ * label stale until it is activated. No-op outside a TabsProvider, and for a blank
+ * name (the page's own assistant/agent fallback owns that case).
  */
 export function useConversationTabTitleWriter() {
   const context = useOptionalTabsContext()
@@ -69,17 +68,20 @@ const CONVERSATION_ENDPOINT = {
 } as const
 
 /**
- * Follow a rename made in **another** window.
+ * Relabel bound tabs after any rename — manual or automatic, from this window or another.
  *
- * The manual and automatic rename paths relabel tabs in the window that made the
- * change. A rename made in a detached window only reaches this one as a DataApi
- * change notification, which refreshes lists but carries no name — so read the row
- * back for the conversations this window has bound to a tab and relabel those.
+ * Every committed rename reaches every window as a DataApi change notification, which
+ * carries no name — so read the row back for the conversations this window has bound
+ * to a tab and relabel those. Reading back (rather than trusting a rename's requested
+ * name) keeps overlapping renames from landing an older name over a newer one.
  */
 export function useConversationTabTitleChangeSync() {
   const writeConversationTabTitle = useConversationTabTitleWriter()
   const context = useOptionalTabsContext()
   const tabs = context?.tabs
+  // Read-backs for one conversation may resolve out of order; only the latest-issued
+  // one is guaranteed to see the newest committed name.
+  const latestReadRef = useRef(new Map<string, number>())
 
   useDataChange([CONVERSATION_ENDPOINT.topic, CONVERSATION_ENDPOINT.session], (effects) => {
     if (!tabs) return
@@ -91,21 +93,18 @@ export function useConversationTabTitleChangeSync() {
       const kind = effect.endpoint === CONVERSATION_ENDPOINT.topic ? 'topic' : 'session'
       for (const id of effect.entityIds ?? []) {
         if (!id || !bound[kind].has(id)) continue
-        if (kind === 'topic') {
-          void dataApiService
-            .get(`/topics/${id}`)
-            .then((row) => writeConversationTabTitle('topic', id, row.name))
-            .catch(() => {
-              // A row that vanished under the change needs no label.
-            })
-        } else {
-          void dataApiService
-            .get(`/agent-sessions/${id}`)
-            .then((row) => writeConversationTabTitle('session', id, row.name))
-            .catch(() => {
-              // A row that vanished under the change needs no label.
-            })
-        }
+        const key = `${kind}:${id}`
+        const seq = (latestReadRef.current.get(key) ?? 0) + 1
+        latestReadRef.current.set(key, seq)
+        const read: Promise<{ name?: string | null }> =
+          kind === 'topic' ? dataApiService.get(`/topics/${id}`) : dataApiService.get(`/agent-sessions/${id}`)
+        void read
+          .then((row) => {
+            if (latestReadRef.current.get(key) === seq) writeConversationTabTitle(kind, id, row.name)
+          })
+          .catch(() => {
+            // A row that vanished under the change needs no label.
+          })
       }
     }
   })

@@ -2,15 +2,12 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import type * as DataApiModule from '@renderer/data/hooks/useDataApi'
-import { useAgentSessionAutoRenameSync, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useConversationTabTitleChangeSync, useTabsContext } from '@renderer/hooks/tab'
-import { useTopicAutoRenameSync, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 let normalTabsValue: Tab[] = []
@@ -23,23 +20,9 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   }
 }))
 
-vi.mock('react-i18next', async (importOriginal) => {
-  const actual = await importOriginal<typeof ReactI18next>()
-  return {
-    ...actual,
-    useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } })
-  }
-})
-
-const { ipcHandlers } = vi.hoisted(() => ({
-  ipcHandlers: new Map<string, (payload: { topicId?: string; sessionId?: string; name?: string }) => void>()
-}))
-
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn() },
-  useIpcOn: (event: string, handler: (payload: { topicId?: string; sessionId?: string; name?: string }) => void) => {
-    ipcHandlers.set(event, handler)
-  }
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useWindowInitData', () => ({
@@ -91,39 +74,6 @@ function TabLabels() {
   return <div data-testid="labels">{tabs.map((tab) => `${tab.id}=${tab.title}`).join(',')}</div>
 }
 
-function RenameTopicButton() {
-  const { updateTopic } = useTopicMutations()
-  return (
-    <button type="button" onClick={() => void act(() => updateTopic('topic-a', { name: 'Renamed A' }))}>
-      Rename topic
-    </button>
-  )
-}
-
-function RenameSessionButton() {
-  const { updateSession } = useUpdateSession()
-  return (
-    <button type="button" onClick={() => void act(() => updateSession({ id: 'session-a', name: 'Renamed S' }))}>
-      Rename session
-    </button>
-  )
-}
-
-function ClearTopicNameButton() {
-  const { updateTopic } = useTopicMutations()
-  return (
-    <button type="button" onClick={() => void act(() => updateTopic('topic-a', { name: '' }))}>
-      Clear topic name
-    </button>
-  )
-}
-
-function AutoRenameSync() {
-  useTopicAutoRenameSync()
-  useAgentSessionAutoRenameSync()
-  return null
-}
-
 function CrossWindowRenameSync() {
   useConversationTabTitleChangeSync()
   return null
@@ -161,7 +111,6 @@ function renderShell(extra: React.ReactNode) {
 
 beforeEach(() => {
   normalTabsValue = []
-  ipcHandlers.clear()
   changeListeners.clear()
 })
 
@@ -170,56 +119,6 @@ afterEach(() => {
 })
 
 describe('useConversationTabTitleWriter', () => {
-  it('renames an inactive Chat tab when its conversation is renamed elsewhere', async () => {
-    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Original A', 'topic-a'), chatTab('tab-b', 'Other B', 'topic-b')]
-    renderShell(<RenameTopicButton />)
-
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Original A'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Rename topic' }))
-
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Renamed A'))
-    // Only the bound tab moves, and it stayed inactive (home is active).
-    expect(screen.getByTestId('labels')).toHaveTextContent('tab-b=Other B')
-    expect(screen.getByTestId('labels')).toHaveTextContent('home=Chat')
-  })
-
-  it('renames an inactive Work tab when its session is renamed elsewhere', async () => {
-    normalTabsValue = [HOME_TAB, workTab('tab-w', 'Original Session', 'session-a')]
-    renderShell(<RenameSessionButton />)
-
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-w=Original Session'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Rename session' }))
-
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-w=Renamed S'))
-  })
-
-  it('leaves the label alone when the new name is blank', async () => {
-    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Original A', 'topic-a')]
-    renderShell(<ClearTopicNameButton />)
-
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Original A'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Clear topic name' }))
-
-    // An untitled conversation falls back to its assistant name, owned by the page.
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Original A'))
-  })
-
-  it('relabels a background Chat tab when its conversation is named automatically', async () => {
-    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Temporary A', 'topic-a'), chatTab('tab-b', 'Other B', 'topic-b')]
-    renderShell(<AutoRenameSync />)
-
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Temporary A'))
-
-    // The naming job runs in main while tab-a is dormant; its page is not mounted.
-    act(() => ipcHandlers.get('ai.topic.auto_renamed')?.({ topicId: 'topic-a', name: 'Auto A' }))
-
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Auto A'))
-    expect(screen.getByTestId('labels')).toHaveTextContent('tab-b=Other B')
-  })
-
   it('relabels a tab when another window renames its conversation', async () => {
     // A rename in another window only reaches this one as a DataApi change notification, which
     // carries no name — the label has to follow the row it points at.
@@ -301,14 +200,46 @@ describe('useConversationTabTitleWriter', () => {
     get.mockRestore()
   })
 
-  it('relabels a background Work tab when its session is named automatically', async () => {
-    normalTabsValue = [HOME_TAB, workTab('tab-w', 'Temporary S', 'session-a')]
-    renderShell(<AutoRenameSync />)
+  it('leaves the label alone when the committed name is blank', async () => {
+    // An untitled conversation falls back to its assistant name, owned by the page.
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Original A', 'topic-a')]
+    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: '' })
+    renderShell(<CrossWindowRenameSync />)
 
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-w=Temporary S'))
+    await act(async () => {
+      changeListeners.get('/topics/:id')?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+    })
 
-    act(() => ipcHandlers.get('ai.agent.session.auto_renamed')?.({ sessionId: 'session-a', name: 'Auto S' }))
+    await waitFor(() => expect(get).toHaveBeenCalled())
+    expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Original A')
+    get.mockRestore()
+  })
 
-    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-w=Auto S'))
+  it.each([
+    { kind: 'Chat', endpoint: '/topics/:id', tab: chatTab('tab-a', 'Old', 'conv-a') },
+    { kind: 'Work', endpoint: '/agent-sessions/:sessionId', tab: workTab('tab-a', 'Old', 'conv-a') }
+  ])('keeps the newest name when overlapping $kind renames resolve out of order', async ({ endpoint, tab }) => {
+    // Rename to X, then another window commits Y: the read-back for X lands last
+    // and must not restore the older name over the newer one.
+    normalTabsValue = [HOME_TAB, tab]
+    const resolvers: Array<(row: unknown) => void> = []
+    const get = vi
+      .spyOn(dataApiService, 'get')
+      .mockImplementation(() => new Promise((resolve) => resolvers.push(resolve)))
+    renderShell(<CrossWindowRenameSync />)
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old'))
+
+    await act(async () => {
+      changeListeners.get(endpoint)?.([{ endpoint, entityIds: ['conv-a'] }])
+      changeListeners.get(endpoint)?.([{ endpoint, entityIds: ['conv-a'] }])
+    })
+    expect(resolvers).toHaveLength(2)
+
+    await act(async () => resolvers[1]({ id: 'conv-a', name: 'Y' }))
+    await act(async () => resolvers[0]({ id: 'conv-a', name: 'X' }))
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Y'))
+    get.mockRestore()
   })
 })

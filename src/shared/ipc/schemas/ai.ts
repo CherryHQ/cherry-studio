@@ -523,9 +523,9 @@ export type AiEventSchemas = {
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
   // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
-  // window showing it should invalidate its cache and relabel its bound tab.
-  'ai.topic.auto_renamed': { topicId: string; name: string }
-  'ai.agent.session.auto_renamed': { sessionId: string; name: string }
+  // window showing it should invalidate its cache.
+  'ai.topic.auto_renamed': { topicId: string }
+  'ai.agent.session.auto_renamed': { sessionId: string }
   // Auto-rename failure (broadcastToType Main): a background naming job's summarization call
   // failed (e.g. the naming model returned an auth error). Delivered to the main window only
   // — the job has no origin window — which surfaces it as a toast so the failure isn't silent.

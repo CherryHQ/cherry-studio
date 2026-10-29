@@ -22,7 +22,7 @@ import {
   useWriteCache
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
-import { useCloseConversationTabs, useConversationTabTitleWriter } from '@renderer/hooks/tab'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
@@ -488,7 +488,6 @@ export const useSessions = (
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
-  const writeConversationTabTitle = useConversationTabTitleWriter()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agent-sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
     // The non-null assertion mirrors useTopic.ts and crashes loud
@@ -507,7 +506,6 @@ export const useUpdateSession = () => {
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { sessionId: id }, body: patch })
-        if (patch.name !== undefined) writeConversationTabTitle('session', id, patch.name)
         if (options?.showSuccessToast ?? true) {
           toast.success(t('common.update_success'))
         }
@@ -517,7 +515,7 @@ export const useUpdateSession = () => {
         return undefined
       }
     },
-    [updateTrigger, t, writeConversationTabTitle]
+    [updateTrigger, t]
   )
 
   /**
@@ -542,16 +540,13 @@ export const useUpdateSession = () => {
 
 /**
  * Listens for `ai.agent.session.auto_renamed` and invalidates the
- * renamed session's SWR cache so the new name appears without manual refetch,
- * and mirrors the name into every tab bound to it — a background tab's page is
- * not running, so nothing else would relabel it.
+ * renamed session's SWR cache so the new name appears without manual refetch.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
-  const writeConversationTabTitle = useConversationTabTitleWriter()
 
-  useIpcOn('ai.agent.session.auto_renamed', ({ sessionId, name }) => {
-    void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
-    writeConversationTabTitle('session', sessionId, name)
-  })
+  useIpcOn(
+    'ai.agent.session.auto_renamed',
+    ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
+  )
 }

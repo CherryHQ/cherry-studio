@@ -144,10 +144,7 @@ describe('TopicNamingService', () => {
       name: 'Generated Title',
       isNameManuallyEdited: false
     })
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic.auto_renamed', {
-      topicId: 'topic-1',
-      name: 'Generated Title'
-    })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic.auto_renamed', { topicId: 'topic-1' })
   })
 
   it('requests a title in the language selected in system settings', async () => {
@@ -295,10 +292,6 @@ describe('TopicNamingService', () => {
       name: 'Generated Title',
       isNameManuallyEdited: false
     })
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent.session.auto_renamed', {
-      sessionId: 'session-1',
-      name: 'Generated Title'
-    })
   })
 
   it('renames default unnamed agent sessions from the first user message without generating a summary', async () => {
@@ -320,10 +313,7 @@ describe('TopicNamingService', () => {
       name: 'Please inspect the renderer startup path and sugge',
       isNameManuallyEdited: false
     })
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent.session.auto_renamed', {
-      sessionId: 'session-1',
-      name: 'Please inspect the renderer startup path and sugge'
-    })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent.session.auto_renamed', { sessionId: 'session-1' })
   })
 
   it('names a topic from the first user message when conversation auto naming is disabled', () => {

@@ -104,7 +104,7 @@ export function useWindowRuntime(): void {
   // Each BrowserWindow has its own SWR cache, so both keep their own invalidation.
   useTopicAutoRenameSync()
   useAgentSessionAutoRenameSync()
-  // A rename made in another window reaches this one as a DataApi change only.
+  // Relabels tabs bound to a renamed conversation, whichever window renamed it.
   useConversationTabTitleChangeSync()
 
   // Launcher-list convergence after IPC-side writes: exactly once per window,
