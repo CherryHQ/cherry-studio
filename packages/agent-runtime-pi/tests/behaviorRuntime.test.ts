@@ -192,6 +192,10 @@ it('correlates a steer placed in an already running child', async () => {
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child')
   const child = confirmed(await runtime.open(relation.subagent.child))
   const events = await observe(child)
+  const initial = events[0]
+  if (initial?.type !== 'snapshot') throw new Error('No child snapshot')
+  const task = initial.messages.find((message) => message.role === 'user')
+  expect(task?.parts).toEqual([{ type: 'text', text: expect.stringContaining('task'), state: 'done' }])
   const submitted = child.input.submit(draft('steer child', 'steer'))
   await expect
     .poll(() =>
@@ -261,9 +265,7 @@ it('continues the discovered child in place, streams to shared handles and deliv
   expect(childRequests[1]).toContain('first child result')
   expect(childRequests[1]).toContain('continue child')
   expect(
-    secondEvents.some(
-      (event) => event.type === 'item.upsert' && event.item.type === 'message' && event.item.completeness === 'partial'
-    )
+    secondEvents.some((event) => event.type === 'message.upsert' && event.message.metadata?.completeness === 'partial')
   ).toBe(true)
   await expect
     .poll(

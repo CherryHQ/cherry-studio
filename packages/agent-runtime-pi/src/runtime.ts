@@ -23,7 +23,6 @@ import {
   type BackendId,
   type InputFact,
   type InputId,
-  type ItemRef,
   type InterruptReceipt,
   type Observation,
   type OperationResult,
@@ -67,7 +66,7 @@ export interface PiThreadHandle extends ThreadHandle {
     contextUsage(): ContextUsage | undefined
     history(): readonly SessionEntry[]
     toolDefinition(name: string): ToolDefinition | undefined
-    toolCallId(ref: ItemRef | CallRef): string | undefined
+    toolCallId(ref: CallRef): string | undefined
     cancelQueuedInputs(): OperationResult<readonly InputId[]>
     compact(instructions?: string): Promise<OperationResult<void>>
     permissionModeChanged(): Promise<OperationResult<void>>
@@ -277,7 +276,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
     } catch (cause) {
       await harness.close().catch(report)
       for (const entry of owned) {
-        entry.projection.close()
+        await entry.projection.close()
         entries.delete(entry.ref.id)
         live.delete(entry)
       }
@@ -296,13 +295,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
         toolDefinition: (name) => (unavailable() ? undefined : entry.session.getToolDefinition(name)),
         toolCallId: (ref) =>
-          unavailable()
-            ? undefined
-            : 'key' in ref
-              ? ref.thread === entry.ref.id
-                ? entry.behavior?.harness.toolCallId(ref)
-                : undefined
-              : entry.projection.toolCallId(ref),
+          unavailable() || ref.thread !== entry.ref.id ? undefined : entry.behavior?.harness.toolCallId(ref),
         cancelQueuedInputs() {
           if (unavailable()) return rejected('cancel-queued-inputs', 'closed')
           if (!entry.owner) return rejected('cancel-queued-inputs', 'not-owner')

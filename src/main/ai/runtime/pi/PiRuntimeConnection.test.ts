@@ -175,6 +175,7 @@ describe('desktop Pi root connection', () => {
       const stream = createAssistantMessageEventStream()
       const message = { ...assistantReply(text), model: model.id, api: model.api, provider: model.provider }
       stream.push({ type: 'start', partial: message })
+      stream.push({ type: 'text_start', contentIndex: 0, partial: message })
       stream.push({ type: 'text_delta', contentIndex: 0, delta: text, partial: message })
       const abort = () => {
         message.stopReason = 'aborted'

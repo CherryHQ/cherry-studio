@@ -173,32 +173,33 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   )
   private readonly projection = new ThreadProjection(
     (chunk) => this.eventQueue.push({ type: 'chunk', chunk }),
-    (item) => {
-      const ref = item.type === 'tool-call' ? item.ref : item.call
-      const id = ref && this.handle?.pi.toolCallId(ref)
-      if (!id) throw new Error('Pi tool result has no matching call identity')
-      if (item.type === 'tool-call') {
+    (part) => {
+      const id = part.toolCallId
+      if (!this.toolNames.has(id)) {
         const span = startAgentRuntimeChildSpan(this.input.trace, 'pi.execute_tool', SpanKind.INTERNAL, {
           'gen_ai.operation.name': 'execute_tool',
-          'gen_ai.tool.name': item.name,
+          'gen_ai.tool.name': part.toolName,
           'gen_ai.tool.call.id': id
         })
         if (span) this.toolSpans.set(id, span)
-        this.toolNames.set(id, item.name)
-        this.adapter.handleToolStart(id, item.name, JSON.parse(item.argumentsText))
-      } else {
-        this.adapter.handleToolEnd(id, this.toolNames.get(id) ?? '', item.data, item.outcome === 'error')
-        if (this.toolNames.get(id) === 'subagent') {
-          const result = childResultSchema.safeParse(item.data)
-          if (result.success)
-            this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))
-        }
-        const span = this.toolSpans.get(id)
-        if (span)
-          endAgentRuntimeSpan(span, { code: item.outcome === 'error' ? SpanStatusCode.ERROR : SpanStatusCode.OK })
-        this.toolSpans.delete(id)
-        this.toolNames.delete(id)
+        this.toolNames.set(id, part.toolName)
+        this.adapter.handleToolStart(id, part.toolName, part.input)
       }
+      if (part.state !== 'output-available' && part.state !== 'output-error') return
+      const failed = part.state === 'output-error'
+      const output = failed ? (part.resultProviderMetadata?.pi?.result ?? part.errorText) : part.output
+      const preliminary = part.state === 'output-available' && part.preliminary === true
+      this.adapter.handleToolEnd(id, part.toolName, output, failed, preliminary)
+      if (preliminary) return
+      if (part.toolName === 'subagent') {
+        const result = childResultSchema.safeParse(output)
+        if (result.success)
+          this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))
+      }
+      const span = this.toolSpans.get(id)
+      if (span) endAgentRuntimeSpan(span, { code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK })
+      this.toolSpans.delete(id)
+      this.toolNames.delete(id)
     }
   )
 
@@ -611,18 +612,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         const adapter = new PiStreamAdapter({ enqueue: emit }, (name) =>
           resolvePiMcpToolMetadata(handle.pi.toolDefinition(name), this.mcpServerSnapshots)
         )
-        const names = new Map<string, string>()
-        const projection = new ThreadProjection(emit, (item) => {
-          const ref = item.type === 'tool-call' ? item.ref : item.call
-          const callId = ref && handle.pi.toolCallId(ref)
-          if (!callId) throw new Error('Child tool has no call identity')
-          if (item.type === 'tool-call') {
-            names.set(callId, item.name)
-            adapter.handleToolStart(callId, item.name, JSON.parse(item.argumentsText))
-          } else {
-            adapter.handleToolEnd(callId, names.get(callId) ?? '', item.data, item.outcome === 'error')
-            names.delete(callId)
-          }
+        const projection = new ThreadProjection(emit, (part) => {
+          adapter.handleToolStart(part.toolCallId, part.toolName, part.input)
+          if (part.state === 'output-available')
+            adapter.handleToolEnd(part.toolCallId, part.toolName, part.output, false, part.preliminary)
+          else if (part.state === 'output-error')
+            adapter.handleToolEnd(
+              part.toolCallId,
+              part.toolName,
+              part.resultProviderMetadata?.pi?.result ?? part.errorText,
+              true
+            )
         })
         const observed = await handle.observe((event) => {
           projection.accept(event)
