@@ -98,8 +98,8 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           sessionManager: config.sessionManager,
           subagents: subagents && {
             ...subagents,
-            configure: async (child) => {
-              const configured = await subagents.configure(child)
+            configure: async (child, signal) => {
+              const configured = await subagents.configure(child, signal)
               return {
                 ...configured,
                 onSessionCreated: (session: AgentSession) => {

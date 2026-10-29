@@ -162,7 +162,9 @@ the same session directory, with a native parent-session link; in-memory parents
 children. Each child records a `cherry.subagent-origin` entry (`{ parentToolCallId, fork }`, never
 sent to the model) before its extensions start; it marks a subagent's session.
 
-The call blocks until the subagent's run settles. Its result is the subagent's final message, with
+The call blocks until the subagent's run settles. Aborting during `configure` releases the caller
+immediately; the host receives its abort signal for cooperative cleanup. Late configuration results
+do not create a child session. Its result is the subagent's final message, with
 `details` `{ sessionId, fork, outcome }` and `usage`, the sum of the subagent's replies. A run that
 fails, is cut off by its output limit, is aborted with the parent's turn or would make a 201st
 request returns an `isError` result with the reason and its last partial output (`outcome`

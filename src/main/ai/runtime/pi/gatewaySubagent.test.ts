@@ -2,7 +2,12 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { type AskUserPort, createAskUserExtension, type ToolOutputStore } from '@cherrystudio/agent-runtime-pi'
+import {
+  type AskUserPort,
+  createAskUserExtension,
+  type SubagentSessionOptions,
+  type ToolOutputStore
+} from '@cherrystudio/agent-runtime-pi'
 
 import {
   noteTool,
@@ -57,6 +62,41 @@ describe('subagent', () => {
     // Two replies: 100 + 20 + 2 cached and 200 + 40 + 2 cached tokens.
     expect(result.usage?.totalTokens).toBe(364)
     expect(result.usage?.cost.total).toBeCloseTo(0.0004204, 10)
+  })
+
+  it.each(['resolve', 'reject'] as const)('aborts while configuring a child and ignores late %s', async (settle) => {
+    const configured = Promise.withResolvers<void>()
+    const configuration = Promise.withResolvers<SubagentSessionOptions>()
+    const { model, calls } = delegateOnce()
+    let childCreated = false
+    let configureSignal: AbortSignal | undefined
+    const { session } = await createTestSession({
+      port: gatewayModel(model).upstream,
+      subagents: {
+        configure(_child, signal) {
+          configureSignal = signal
+          configured.resolve()
+          return configuration.promise
+        }
+      }
+    })
+    const turn = session.prompt(DELEGATE_A)
+    await configured.promise
+    await session.abort()
+    await turn
+    expect(configureSignal?.aborted).toBe(true)
+    expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
+    if (settle === 'resolve')
+      configuration.resolve({
+        onSessionCreated: () => {
+          childCreated = true
+        }
+      })
+    else configuration.reject(new Error('late configuration failure'))
+    await configuration.promise.catch(() => undefined)
+    await Promise.resolve()
+    expect(childCreated).toBe(false)
+    expect(calls.filter((call) => call.userText.includes('TASK-A'))).toEqual([])
   })
 
   it('offers subagent only when the host passes a subagent port', async () => {
