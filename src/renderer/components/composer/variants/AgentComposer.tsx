@@ -91,7 +91,7 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
-import { CherryCloudQuotaNotice, getCherryCloudQuotaMessage } from '../CherryCloudQuotaNotice'
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
@@ -1909,9 +1909,7 @@ const AgentComposerInner = ({
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
-            sendDisabled || isDirectSending || hasPendingReference
-              ? t('common.loading')
-              : (missingModelMessage ?? (quotaExhaustion ? getCherryCloudQuotaMessage(quotaExhaustion, t) : undefined))
+            sendDisabled || isDirectSending || hasPendingReference ? t('common.loading') : missingModelMessage
           }
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}

@@ -78,7 +78,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { CherryCloudQuotaNotice, getCherryCloudQuotaMessage } from '../CherryCloudQuotaNotice'
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -1014,7 +1014,6 @@ const ChatComposerInner = ({
       ? t('code.model_required')
       : undefined
   const quotaExhaustion = useCherryCloudQuotaExhaustion(runtimeModel)
-  const quotaBlockedMessage = quotaExhaustion ? getCherryCloudQuotaMessage(quotaExhaustion, t) : undefined
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -2026,12 +2025,12 @@ const ChatComposerInner = ({
             !!missingAssistantMessage ||
             !!missingModelMessage ||
             !!missingSelectedModelMessage ||
-            !!quotaBlockedMessage
+            !!quotaExhaustion
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
-              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage ?? quotaBlockedMessage)
+              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }
           isLoading={loading}
           onSendDraft={handleSendDraft}
