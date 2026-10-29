@@ -25,7 +25,8 @@ export interface MemorySession extends Disposable {
     mutations: readonly MemoryMutation[],
     approve: MemoryApproval,
     readReceipts?: readonly string[],
-    legacy?: MemoryLegacyOriginal
+    legacy?: MemoryLegacyOriginal,
+    managedTargets?: readonly string[]
   ): ReturnType<MemoryStore['commit']>
   previewClear(): ReturnType<MemoryStore['previewClear']>
   clear(token: string, approve: MemoryApproval): ReturnType<MemoryStore['clear']>
@@ -105,9 +106,16 @@ export class MemoryService extends BaseService {
       list: () => run((store) => store.list(access)),
       entry: () => run((store) => store.entry(access)),
       read: (target) => run((store) => store.read(access, target)),
-      commit: (mutations, approve, readReceipts, legacy) =>
+      commit: (mutations, approve, readReceipts, legacy, managedTargets) =>
         run(async (store) =>
-          notify(source, await store.commit(access, mutations, source, approve, { readReceipts, legacy }))
+          notify(
+            source,
+            await store.commit(access, mutations, source, approve, {
+              readReceipts,
+              legacy,
+              clearTargets: managedTargets
+            })
+          )
         ),
       previewClear: () => run((store) => store.previewClear(access)),
       clear: (token, approve) =>

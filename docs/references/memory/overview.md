@@ -41,7 +41,19 @@ If you relied on Global Memory in v1:
 
 Legacy FACT migration preserves complete Markdown sections and original bytes, then checks every new private file before activation. Oversized indivisible sections or conflicts leave migration incomplete and retain readonly legacy facts. JOURNAL is unchanged and stops receiving events. Neither the old Agent Memory MCP nor ordinary file tools write these historical files. No dual-writing or alternating old/new app version compatibility is promised.
 
-The current implementation is a Draft stack. Dreaming organization is a subsequent layer; platform, runtime, and migration acceptance remains unverified. See [the module contract](../../../src/main/ai/memory/README.md) for the implementation boundary.
+### Organization (Dreaming)
+
+Automatic organization defaults on and uses the application default model. Shared settings expose the automatic switch, a manual action, and the last run or an actionable failure. The manual action remains available when automatic organization is off; no separate model selector is added.
+
+One global queue runs only while conversations are idle. A batch includes at most ten complete memory files and 50,000 UTF-8 bytes, then reduces inputs further to fit the model's declared limits. It makes one model call with tools disabled. Unknown or insufficient model capacity pauses work. No chat history, JOURNAL, identity files, other scopes, or network retrieval is supplied.
+
+Eligible changes are ten controlled content edits to a file, seven days since its first pending change, changed/unprocessed content reaching the size warning, or a manual request. Metadata, failed/no-op saves, organization, and recovery do not add controlled counts. External changes start a pending observation without inventing edit counts. Unchanged checked files do not trigger again merely because they are large.
+
+Durable progress lives in module-owned `app_state`; JobManager history can be removed independently. Each unchanged input is included in the commit baseline. Failures allow at most two attempts per unchanged input with a ten-minute delay; a manual request or new input creates another opportunity. Cancellation, shutdown, clearing, recovery, and deleted owners fence uncommitted output. A foreground conversation interrupts active organization.
+
+Topic deletion is conservative: all active files must have been supplied, source text must remain verbatim in a written topic destination, and remaining Markdown/wiki links must no longer target the source. HTML links require manual review. Destinations and link edits save before removal. Partial saves remain recoverable. This does not prove semantic equivalence of model rewrites.
+
+The implementation remains a Draft stack. Platform, runtime, migration, and model acceptance are unverified; tests were skipped at the user's request. See [the module contract](../../../src/main/ai/memory/README.md) for boundaries.
 
 ### Knowledge Base (Assistant + Agent)
 

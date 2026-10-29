@@ -145,7 +145,7 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 
 ### Code Organization
 
-- `src/main/ai/memory/` owns memory-file storage, caller authority, target classification, request-time entry loading, lifecycle admission, editor sessions, backups, and recovery. `src/main/ai/runtime/pi/memoryTools.ts` owns Pi's controlled native file adapter.
+- `src/main/ai/memory/` owns memory-file storage, caller authority, target classification, request-time entry loading, lifecycle admission, editor sessions, backups, recovery, legacy migration, and Dreaming organization. `memoryDreamingState.ts` owns durable progress; JobManager owns execution history. `src/main/ai/runtime/pi/memoryTools.ts` owns Pi's controlled native file adapter.
 - `src/renderer/components/memory/` owns shared-memory controls; `src/renderer/pages/settings/MemorySettings.tsx` exposes shared-scope settings without a file preview or Agent-private entry point.
 - `src/main/core/paths/` registers the shared memory and backup roots.
 

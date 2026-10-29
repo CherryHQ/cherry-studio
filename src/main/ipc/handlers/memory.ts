@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { editorMemoryAuthority } from '@main/ai/memory/memoryAuthority'
 import {
   MEMORY_MAX_BYTES,
   MEMORY_MAX_LINES,
@@ -26,6 +27,21 @@ async function operation<T>(run: () => T | Promise<T>): Promise<T> {
 }
 
 export const memoryHandlers: IpcHandlersFor<typeof memoryRequestSchemas> = {
+  'memory.dreaming.status': (scope, { senderId }) =>
+    operation(() => {
+      editorMemoryAuthority(senderId, scope).assertAuthorized()
+      return application.get('MemoryDreamingService').status(scope)
+    }),
+  'memory.dreaming.request': (scope, { senderId }) =>
+    operation(() => {
+      editorMemoryAuthority(senderId, scope).assertAuthorized()
+      application.get('MemoryDreamingService').request(scope)
+    }),
+  'memory.dreaming.cancel': (scope, { senderId }) =>
+    operation(() => {
+      editorMemoryAuthority(senderId, scope).assertAuthorized()
+      application.get('MemoryDreamingService').cancel(scope)
+    }),
   'memory.editor.open': (scope, { senderId }) =>
     operation(() => ({
       editorId: owner().open(senderId, scope),

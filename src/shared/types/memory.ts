@@ -6,3 +6,10 @@ export const MemoryScopeSchema = z.discriminatedUnion('kind', [
 ])
 
 export type MemoryScope = z.infer<typeof MemoryScopeSchema>
+
+export const MemoryDreamingStatusSchema = z.object({
+  pending: z.boolean(),
+  status: z.enum(['idle', 'queued', 'running', 'failed', 'cancelled']),
+  reason: z.enum(['model', 'budget', 'migration', 'conflict', 'backup', 'output', 'unavailable']).optional(),
+  lastRunAt: z.number().optional()
+})
