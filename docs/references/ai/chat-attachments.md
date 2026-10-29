@@ -64,9 +64,10 @@ Decided per file part in `prepareChatMessages`
   cap below). The internal `fileEntryId` is never written into the prompt.
 
 Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
-external file parts (no `fileEntryId`) are still eagerly materialized, but
-image/audio/video parts are omitted when native support is false. Other
-gateway/external file types keep their existing behavior.
+external file parts (no `fileEntryId`) are still eagerly materialized. Text/code
+files with locally materialized bytes are decoded and inlined with a page-size
+cap, without `read_file` paging; image/audio/video parts are omitted when native
+support is false. Other gateway/external file types keep their existing behavior.
 
 ## Supported extensions (upload allowlist)
 
