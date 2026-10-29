@@ -3230,6 +3230,7 @@
   "provider.silicon": "SiliconFlow",
   "provider.sophnet": "SophNet",
   "provider.stepfun": "StepFun",
+  "provider.superbot": "superbot",
   "provider.system": "OCR de sistem",
   "provider.tencent-cloud-ti": "Tencent Cloud TI",
   "provider.tesseract": "Tesseract",

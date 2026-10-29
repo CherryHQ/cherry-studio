@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "afa17e5976dcef2e",
-    "count": 66,
+    "version": "a93b443b6544c90a",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -598,6 +598,10 @@
       {
         "id": "litellm",
         "name": "LiteLLM"
+      },
+      {
+        "id": "superbot",
+        "name": "superbot"
       },
       {
         "id": "anthropic",
