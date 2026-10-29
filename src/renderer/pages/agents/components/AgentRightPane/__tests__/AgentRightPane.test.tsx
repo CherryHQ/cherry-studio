@@ -3494,6 +3494,39 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
   })
 
+  it('drops every attachment tab when the session changes and keeps workspace files open', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    const pane = (sessionId: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <PreviewInputButton path="/workspace/report.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.queryAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+    const { rerender } = render(pane('session-a'))
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    const [previewNotes, previewReport] = screen.getAllByRole('button', { name: 'Preview attachment' })
+    await user.click(previewNotes)
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await user.click(previewReport)
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md'))
+    expect(tabNames()).toHaveLength(3)
+
+    rerender(pane('session-b'))
+
+    expect(tabNames()).toEqual(['README.md'])
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+  })
+
   it('does not reopen a tab the user closed when the attachment it led to closes', async () => {
     const user = userEvent.setup()
     fileTreeModelState.hasLoaded = true

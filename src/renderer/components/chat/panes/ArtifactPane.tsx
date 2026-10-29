@@ -758,7 +758,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     const active = key === activeTabKey
     const openItems = active
       ? activeOpenItems
-      : await loadOpenTargetMenuItems({ targetPath: getArtifactPaneSelectionDisplayPath(tab), pathKind: 'file', t })
+      : await loadOpenTargetMenuItems({ targetPath: getArtifactPaneSelectionPath(tab), pathKind: 'file', t })
     const closeItem = (id: string, label: string, onSelect: () => void): CommandContextMenuExtraItem => ({
       type: 'item',
       id: `artifact-pane.tab.${id}`,

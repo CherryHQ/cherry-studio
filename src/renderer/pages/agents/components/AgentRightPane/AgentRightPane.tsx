@@ -798,13 +798,25 @@ function AgentRightPaneStateProvider({
     return () => onFileNavigationRequestChange?.(null)
   }, [onFileNavigationRequestChange, requestFileTransition])
 
+  const showFileTabs = useCallback(
+    (nextTabs: ArtifactPaneFileSelection[], next: ArtifactPaneFileSelection | null) => {
+      artifactOpenRequestRef.current += 1
+      // Plain-text files open in the live editor; rendered previews stay read-only for now.
+      setEditMode(
+        next && !next.readOnly && !hasRenderedFilePreview(getArtifactPaneSelectionPath(next)) ? 'edit' : 'preview'
+      )
+      setFileTabs(nextTabs)
+      setPreviewFileSelection(next)
+      setSelectedFile(next && next.workspacePath === fileWorkspace.path ? next.filePath : null)
+    },
+    [artifactOpenRequestRef, fileWorkspace.path]
+  )
   const applyFileSelection = useCallback<RequestFileSelection>(
     (selection, onAccepted, closeActive = !selection) => {
       if (!closeActive && isSameFileSelection(previewFileSelection, selection)) {
         onAccepted?.()
         return
       }
-      artifactOpenRequestRef.current += 1
       const activeIndex = fileTabs.findIndex((tab) => isSameFileSelection(tab, previewFileSelection))
       let nextTabs = fileTabs
       let next = selection
@@ -817,16 +829,10 @@ function AgentRightPaneStateProvider({
       } else if (next && !nextTabs.some((tab) => isSameFileSelection(tab, next))) {
         nextTabs = nextTabs.toSpliced(activeIndex + 1, 0, next)
       }
-      // Plain-text files open in the live editor; rendered previews stay read-only for now.
-      setEditMode(
-        next && !next.readOnly && !hasRenderedFilePreview(getArtifactPaneSelectionPath(next)) ? 'edit' : 'preview'
-      )
-      setFileTabs(nextTabs)
-      setPreviewFileSelection(next)
-      setSelectedFile(next && next.workspacePath === fileWorkspace.path ? next.filePath : null)
+      showFileTabs(nextTabs, next)
       onAccepted?.()
     },
-    [fileTabs, fileWorkspace.path, previewFileSelection]
+    [fileTabs, previewFileSelection, showFileTabs]
   )
   // Without autosave, leaving a file with unsaved edits asks first; other exits still flush on release.
   const requestFileSelection = useCallback<RequestFileSelection>(
@@ -865,11 +871,15 @@ function AgentRightPaneStateProvider({
     [requestFileSelection]
   )
 
+  // Attachment tabs preview the previous session's messages; workspace files stay open.
   useLayoutEffect(() => {
     const sessionChanged = previousSessionIdRef.current !== sessionId
     previousSessionIdRef.current = sessionId
-    if (sessionChanged && previewFileSelection?.previewType === 'file') applyFileSelection(null)
-  }, [previewFileSelection?.previewType, applyFileSelection, sessionId])
+    if (!sessionChanged) return
+    const kept = fileTabs.filter((tab) => tab.previewType !== 'file')
+    if (kept.length === fileTabs.length) return
+    showFileTabs(kept, previewFileSelection?.previewType === 'file' ? (kept[0] ?? null) : previewFileSelection)
+  }, [fileTabs, previewFileSelection, sessionId, showFileTabs])
 
   const requestFileEditMode = useCallback((mode: AgentFileEditorMode) => {
     setEditMode(mode)

@@ -1309,6 +1309,43 @@ describe('ArtifactPane', () => {
     expect(onAttach).toHaveBeenCalledWith('/managed/message-files/entry-1.md', 'file', 'report.md')
   })
 
+  it('opens an inactive attachment tab from the managed copy it reads', async () => {
+    mocks.openTargetListCalls.length = 0
+    const active = { workspacePath: '/ws', filePath: 'a.ts' }
+    const attachment = {
+      workspacePath: '/managed/message-files',
+      filePath: 'entry-1.md',
+      displayName: 'report.md',
+      displayPath: '/deleted-original/report.md' as AbsoluteFilePath,
+      previewType: 'file' as const,
+      readOnly: true as const
+    }
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/ws"
+        previewFileSelection={active}
+        fileTabs={[active, attachment]}
+        model={titleModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+    await screen.findByTestId('artifact-file-preview-overlay')
+
+    // The tab strip renders its menus in order, so the last resolver belongs to the attachment tab.
+    const getItems = commandMenuMocks.calls.findLast((c) => c.getExtraItems)?.getExtraItems
+    await getItems?.(undefined)
+    expect(mocks.openTargetListCalls.at(-1)).toEqual({
+      pathKind: 'file',
+      targetPath: '/managed/message-files/entry-1.md'
+    })
+  })
+
   // Splitting a POSIX filename on `\` shows part.mp4 for the file clip\part.mp4.
   it('keeps a literal backslash in a POSIX filename when displayName is absent', async () => {
     const fileName = `clip${BS}part.mp4`
