@@ -662,6 +662,14 @@ describe('NotificationService', () => {
     expect(mocks.electronNotifications).toHaveLength(1)
   })
 
+  it('preserves native sound when no renderer can play the chime', () => {
+    mocks.preferenceValues['app.notification.completion_sound.enabled'] = true
+    mocks.getWindowInfosByType.mockReturnValue([])
+    emitCompletion()
+    expect(mocks.electronNotifications).toHaveLength(1)
+    expect(mocks.electronNotifications[0].options).not.toHaveProperty('silent', true)
+  })
+
   it('marks a deleted target read but never opens a replacement conversation', async () => {
     emitCompletion()
     const [record] = notificationRecordService.list({}).items
@@ -686,7 +694,7 @@ describe('NotificationService', () => {
     }
   )
 
-  it('records a focused backup result without duplicating its existing foreground feedback', async () => {
+  it.each(['backup', 'update'] as const)('preserves enabled %s OS delivery while focused', async (source) => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
     )
@@ -699,11 +707,11 @@ describe('NotificationService', () => {
         message: '',
         createdAt: Date.now()
       },
-      { source: 'backup' }
+      { source }
     )
     expect(notificationRecordService.unreadCount()).toBe(1)
     expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.electronNotifications).toHaveLength(0)
+    expect(mocks.electronNotifications).toHaveLength(1)
   })
 
   it('retries failed history writes and preserves committed notifications when delivery fails', async () => {

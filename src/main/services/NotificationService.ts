@@ -121,10 +121,11 @@ export class NotificationService extends BaseService {
       const windows = getFullChromeWindowInfos()
       const focused = windows.find((window) => window.isFocused)
       const owner = focused ?? windows.find((window) => window.type === WindowType.Main) ?? windows[0]
-      const sound = options.completion && preferences.get('app.notification.completion_sound.enabled')
-      if (sound && owner) {
+      let sound = false
+      if (options.completion && preferences.get('app.notification.completion_sound.enabled') && owner) {
         try {
           application.get('IpcApiService').send(owner.id, 'notification.completion_sound', { id: record.id })
+          sound = true
         } catch (error) {
           logger.warn('Failed to play completion sound', { error })
         }
@@ -133,7 +134,7 @@ export class NotificationService extends BaseService {
         if (options.completion || input.category === 'usage') {
           application.get('IpcApiService').send(focused.id, 'notification.present', record)
         }
-        return true
+        if (options.source !== 'update' && options.source !== 'backup') return true
       }
       const osKey =
         input.category === 'usage'

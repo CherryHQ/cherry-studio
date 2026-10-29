@@ -69,7 +69,7 @@ function DrawerContent({
     <DrawerPortal data-slot="drawer-portal" container={portalContainer}>
       {showOverlay && <DrawerOverlay />}
       <Content
-        data-vaul-drawer-direction={direction ?? undefined}
+        {...(direction ? { 'data-vaul-drawer-direction': direction } : {})}
         data-slot="drawer-content"
         className={cn(
           'group/drawer-content fixed z-50 flex h-auto flex-col bg-background',
