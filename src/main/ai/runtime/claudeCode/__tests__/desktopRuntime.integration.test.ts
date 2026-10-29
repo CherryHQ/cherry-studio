@@ -15,7 +15,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
-import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '../../types'
@@ -86,11 +86,13 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
       message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
     })
   })
-  const connect = async () => {
+  const connect = async (nativeSessionId?: string, branchHead?: string) => {
     connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId,
       agentId: randomUUID(),
-      modelId: 'native-test::claude-sonnet-4-6'
+      modelId: 'native-test::claude-sonnet-4-6',
+      nativeSessionId,
+      branchHead
     })
     const current = connection
     const reading = (async () => {
@@ -364,46 +366,6 @@ it('binds the native session after clear and keeps the previous context', async 
   expect(contexts.context(latest.projection.contextId).nativeThreadId).not.toBe(context.nativeThreadId)
 }, 30000)
 
-// Switching input ownership to the package must retain native images and tool-readable attachment paths.
-it('submits native image blocks and local document paths through the common owner', async () => {
-  const test = await desktop()
-  const attachment = `${test.options.cwd}/details.txt`
-  await writeFile(attachment, 'Local attachment')
-  const image = (
-    await sharp({ create: { width: 20, height: 20, channels: 3, background: '#123456' } })
-      .png()
-      .toBuffer()
-  ).toString('base64')
-  const input = {
-    message: messages.saveMessage({
-      sessionId: test.sessionId,
-      message: {
-        role: 'user',
-        status: 'success',
-        data: {
-          parts: [
-            { type: 'text', text: 'Inspect these attachments' },
-            { type: 'file', mediaType: 'image/png', url: `data:image/png;base64,${image}` },
-            { type: 'file', mediaType: 'text/plain', filename: 'details.txt', url: pathToFileURL(attachment).href }
-          ]
-        }
-      }
-    })
-  }
-  const connection = await test.connect()
-  await connection.send(input)
-  const request = await test.request()
-  const sent = JSON.stringify(request.body.messages)
-  expect(sent).toContain(attachment)
-  expect(sent).toContain(image)
-  expect(sent).toContain('Inspect these attachments')
-  request.reply.block({ type: 'text', text: 'Attachments received' })
-  request.reply.finish()
-  await test.wait('turn-complete')
-  const saved = dbh.db.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, input.message.id)).get()
-  expect(saved?.submission?.outcome).toBe('completed')
-}, 30000)
-
 it.each(['managed', 'external', 'failure'])(
   'dispatches real %s image bytes through the native owner',
   async (kind) => {
@@ -475,3 +437,80 @@ it.each(['managed', 'external', 'failure'])(
   },
   30000
 )
+
+// Switching input ownership to the package must retain native images and tool-readable attachment paths.
+it('submits native image blocks and local document paths through the common owner', async () => {
+  const test = await desktop()
+  const attachment = `${test.options.cwd}/details.txt`
+  await writeFile(attachment, 'Local attachment')
+  const image = (
+    await sharp({ create: { width: 20, height: 20, channels: 3, background: '#123456' } })
+      .png()
+      .toBuffer()
+  ).toString('base64')
+  const input = {
+    message: messages.saveMessage({
+      sessionId: test.sessionId,
+      message: {
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'Inspect these attachments' },
+            { type: 'file', mediaType: 'image/png', url: `data:image/png;base64,${image}` },
+            { type: 'file', mediaType: 'text/plain', filename: 'details.txt', url: pathToFileURL(attachment).href }
+          ]
+        }
+      }
+    })
+  }
+  const connection = await test.connect()
+  await connection.send(input)
+  const request = await test.request()
+  const sent = JSON.stringify(request.body.messages)
+  expect(sent).toContain(attachment)
+  expect(sent).toContain(image)
+  expect(sent).toContain('Inspect these attachments')
+  request.reply.block({ type: 'text', text: 'Attachments received' })
+  request.reply.finish()
+  await test.wait('turn-complete')
+  const saved = dbh.db.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, input.message.id)).get()
+  expect(saved?.submission?.outcome).toBe('completed')
+}, 30000)
+
+// Editing the first user turn reserves a new native identity, without creating an archive to resume.
+it('creates a reserved empty Claude branch and reopens it after its first answer', async () => {
+  const test = await desktop()
+  const original = prepareClaudeBranch(test.sessionId, test.configDir)
+  contexts.bindContext(original.id, original.intendedThreadId!)
+  const edited = test.input('Edited first request')
+  const nativeId = randomUUID()
+  dbh.db.transaction((tx) => {
+    reserveClaudeBranchTx(tx, test.sessionId, edited.message.id, nativeId)
+    messages.setEditRuntimeTx(tx, test.sessionId, edited.message.id, nativeId)
+  })
+  const request = await ports.build()
+  ports.build.mockImplementation(async (_sessionId: string, resume?: string | null) => ({
+    ...request,
+    options: { ...request.options, resume: resume ?? undefined }
+  }))
+  const connection = await test.connect(nativeId, edited.message.id)
+  await connection.send(edited)
+  const response = await test.request()
+  response.reply.block({ type: 'text', text: 'Edited branch answer' })
+  response.reply.finish()
+  await test.wait('turn-complete')
+  await connection.closeForEdit!()
+  expect(messages.getLastRuntimeResumeToken(test.sessionId, edited.message.id)).toBe(nativeId)
+  const selected = prepareClaudeBranch(test.sessionId, test.configDir)
+  expect(selected).toMatchObject({ intendedThreadId: nativeId, nativeThreadId: nativeId })
+  expect(contexts.context(original.id).nativeThreadId).toBe(original.intendedThreadId)
+  test.events.length = 0
+  const reopened = await test.connect(nativeId, edited.message.id)
+  await reopened.send(test.input('Continue edited branch'))
+  const continuation = await test.request()
+  expect(JSON.stringify(continuation.body.messages)).toContain('Edited branch answer')
+  continuation.reply.block({ type: 'text', text: 'Restored edited branch' })
+  continuation.reply.finish()
+  await test.wait('turn-complete')
+}, 30000)

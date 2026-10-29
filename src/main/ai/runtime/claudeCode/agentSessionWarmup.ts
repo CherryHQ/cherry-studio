@@ -451,7 +451,7 @@ function captureMcpServerSnapshots(mcpIds: string[] | null | undefined): McpServ
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
-  effectiveResume?: string,
+  effectiveResume?: string | null,
   /** Connection-scoped model override: a live turn runs on the model captured at its creation,
    *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
    *  agent's current model (prewarm and turn-less connections). */
@@ -504,7 +504,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     }
   )
   const resumeSessionId =
-    effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+    (effectiveResume === undefined
+      ? agentSessionMessageService.getLastRuntimeResumeToken(session.id)
+      : effectiveResume) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
