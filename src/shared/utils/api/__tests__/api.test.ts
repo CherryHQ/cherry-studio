@@ -416,13 +416,25 @@ describe('api', () => {
       expect(formatOllamaApiHost('http://models')).toBe('http://models/api')
     })
 
-    it.each([
-      'http://localhost:11434/v1',
-      'http://localhost:11434/chat',
-      'http://localhost:11434/api/chat',
-      'http://localhost:11434/v1/chat/completions'
-    ])('appends /api to non-/api endpoint paths (%s)', (host) => {
-      expect(formatOllamaApiHost(host)).toBe(`${host}/api`)
+    it.each(['http://localhost:11434/v1', 'http://localhost:11434/chat'])(
+      'normalises a legacy /v1 or /chat suffix to /api (%s)',
+      (host) => {
+        expect(formatOllamaApiHost(host)).toBe('http://localhost:11434/api')
+      }
+    )
+
+    it('collapses a trailing /api/chat into /api', () => {
+      expect(formatOllamaApiHost('http://localhost:11434/api/chat')).toBe('http://localhost:11434/api')
+    })
+
+    it('keeps a mid-path /v1 prefix and appends /api', () => {
+      expect(formatOllamaApiHost('http://localhost:11434/v1/chat/completions')).toBe(
+        'http://localhost:11434/v1/chat/completions/api'
+      )
+    })
+
+    it('keeps a single-label hostname named after an endpoint word', () => {
+      expect(formatOllamaApiHost('http://api/api')).toBe('http://api/api')
     })
   })
 })

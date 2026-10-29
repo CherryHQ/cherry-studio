@@ -201,5 +201,16 @@ describe('api', () => {
     it('keeps a single-label hostname that spells an endpoint word', () => {
       expect(formatOllamaApiHost('http://models')).toBe('http://models/api')
     })
+
+    it.each(['http://localhost:11434/v1', 'http://localhost:11434/chat'])(
+      'normalises a legacy /v1 or /chat suffix to /api (%s)',
+      (host) => {
+        expect(formatOllamaApiHost(host)).toBe('http://localhost:11434/api')
+      }
+    )
+
+    it('keeps a single-label hostname named after an endpoint word', () => {
+      expect(formatOllamaApiHost('http://api/api')).toBe('http://api/api')
+    })
   })
 })

@@ -16,14 +16,42 @@ export {
 } from '@shared/utils/api'
 
 /**
- * Matches one or more trailing `/api` segments so a pasted base URL that already
- * carries the Ollama suffix does not double up, e.g. `/api`, `/api/api`.
+ * Normalise an Ollama base URL to exactly one `/api` suffix.
+ *
+ * The Ollama API is served under `/api`. A pasted base that already carries the
+ * suffix — or a run of them such as `/api/api` — must collapse to a single
+ * `/api`; legacy `/v1` and `/chat` suffixes are equivalent and normalise to
+ * `/api` as well. Proxy mounts (e.g. `/api/ollama`, `/models/api`) are left
+ * intact: only the trailing endpoint suffix is touched, and the authority (which
+ * may itself end in an endpoint word, e.g. a single-label host named `api`) is
+ * never consumed.
+ *
+ * @example
+ * formatOllamaApiHost('http://localhost:11434/api') // 'http://localhost:11434/api'
+ * formatOllamaApiHost('http://localhost:11434/api/api') // 'http://localhost:11434/api'
+ * formatOllamaApiHost('http://localhost:11434/v1') // 'http://localhost:11434/api'
+ * formatOllamaApiHost('https://proxy.example.com/api/ollama') // 'https://proxy.example.com/api/ollama/api'
  */
-const TRAILING_API_SEGMENTS_REGEX = /(?:\/api)+$/
-
 export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host).replace(TRAILING_API_SEGMENTS_REGEX, '')
-  return formatApiHost(normalizedHost + '/api', false)
+  const trimmed = withoutTrailingSlash(trim(host))
+  // Keep the authority (scheme://host[:port]) separate so a `/api` that is part
+  // of the hostname (e.g. a single-label host named `api`) is never stripped.
+  const match = trimmed.match(/^([a-zA-Z][\w+.-]*:\/\/[^/]+)?(.*)$/)
+  const authority = match?.[1] ?? ''
+  let path = match?.[2] ?? trimmed
+
+  // Drop a legacy trailing /v1 or /chat suffix (case-insensitive).
+  path = path.replace(/\/(?:v1|chat)\/?$/i, '')
+
+  // Collapse a trailing run of /api segments into exactly one /api; otherwise
+  // append /api so the result always ends with the Ollama endpoint.
+  if (/(?:\/api)+\/?$/.test(path)) {
+    path = path.replace(/(?:\/api)+\/?$/, '/api')
+  } else {
+    path = `${path}/api`
+  }
+
+  return formatApiHost(authority + path, false)
 }
 
 /**
