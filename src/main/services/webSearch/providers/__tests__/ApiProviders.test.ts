@@ -46,6 +46,7 @@ import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
 import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
 import { DeepSeekProvider } from '../api/DeepSeekProvider'
+import { DesearchProvider } from '../api/DesearchProvider'
 import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
@@ -679,6 +680,43 @@ describe('main web search API providers', () => {
     await expect(provider.searchKeywords('Cherry Studio', runtimeConfig)).rejects.toThrow(
       /deepseek request failed: HTTP 402 Not Enough Credits/
     )
+  })
+
+  it('matches the Desearch web search request and normalizes fixture results', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('desearch-response.json')))
+
+    const provider = createProviderDriver(
+      DesearchProvider,
+      createProvider({
+        id: 'desearch',
+        name: 'Desearch',
+        apiKeys: ['desearch-key'],
+        apiHost: 'https://api.desearch.ai'
+      })
+    )
+
+    const result = await provider.searchKeywords('latest web research', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: null,
+      headers: {
+        accept: 'application/json',
+        authorization: 'desearch-key',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'GET',
+      url: 'https://api.desearch.ai/web?query=latest%20web%20research'
+    })
+    expect(result.results).toEqual([
+      {
+        content: 'Desearch Snippet',
+        sourceInput: 'latest web research',
+        title: 'Desearch Title',
+        url: 'https://desearch.example/result'
+      },
+      { content: '', sourceInput: 'latest web research', title: '', url: 'https://desearch.example/second' }
+    ])
   })
 
   it('fetches a URL without API key or API host', async () => {

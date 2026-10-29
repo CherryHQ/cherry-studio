@@ -42,7 +42,7 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       variant="ghost"
       aria-label={user.name}
       size="icon"
-      className="sidebar-action rounded-full transition-colors duration-150"
+      className="shell-navigation-item rounded-full"
       onClick={user.onClick}>
       <UserAvatar user={user} className="size-6" />
     </Button>
@@ -58,7 +58,7 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
             aria-label={extensionsLabel}
             onClick={onExtensionsClick}
             size="icon"
-            className="sidebar-action size-9 rounded-full transition-colors duration-150">
+            className="shell-navigation-item size-9 rounded-full">
             <Columns2 className="size-4.5" strokeWidth={1.6} />
           </Button>
         </SidebarTooltip>
@@ -78,7 +78,7 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       type="button"
       variant="ghost"
       aria-label={user.name}
-      className="sidebar-action min-w-0 flex-1 justify-start gap-2 rounded-full py-1.5 pr-1 pl-2 text-left"
+      className="shell-navigation-item min-w-0 flex-1 justify-start gap-2 rounded-full py-1.5 pr-1 pl-2 text-left"
       onClick={user.onClick}>
       <UserAvatar user={user} className="size-6 shrink-0" />
       <span className="min-w-0 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
@@ -93,7 +93,7 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
           variant="ghost"
           aria-label={extensionsLabel}
           onClick={onExtensionsClick}
-          className="sidebar-action flex w-full items-center gap-2.5 rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
+          className="shell-navigation-item flex w-full items-center gap-2.5 rounded-full px-2.5 py-1.75 text-[13px]">
           <Columns2 size={16} strokeWidth={1.6} />
           <span>{extensionsLabel}</span>
         </Button>

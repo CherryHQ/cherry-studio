@@ -533,10 +533,12 @@
   position: absolute;
   top: 4px;
   right: 6px;
+  z-index: 1;
   opacity: 0;
   transition: opacity 0.2s;
 }
 
-.code-block-wrapper:hover .code-block-header {
+.code-block-wrapper:hover .code-block-header,
+.code-block-wrapper:focus-within .code-block-header {
   opacity: 1;
 }

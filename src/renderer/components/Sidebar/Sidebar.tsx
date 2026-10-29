@@ -1,4 +1,4 @@
-import './Sidebar.css'
+import '../layout/ShellNavigation.css'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -145,7 +145,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
+            'shell-navigation slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
             windowDragClassName,
             (isMac || hasLeadingWindowControls) && 'pt-[env(titlebar-area-height)]'
           )}
@@ -226,7 +226,7 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col',
+        'shell-navigation group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col',
         windowDragClassName,
         isWin && 'pt-1',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'

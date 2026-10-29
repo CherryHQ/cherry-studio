@@ -81,7 +81,7 @@ export function HelpMenu({
         className={
           isHeader
             ? 'flex size-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground'
-            : 'sidebar-action size-9 rounded-full transition-colors duration-150'
+            : 'shell-navigation-item size-9 rounded-full'
         }>
         <CircleQuestionMark className={isHeader ? 'size-4' : 'size-4.5'} strokeWidth={isHeader ? 1.8 : 1.6} />
       </Button>
@@ -90,7 +90,7 @@ export function HelpMenu({
         type="button"
         variant="ghost"
         aria-label={t('help.title')}
-        className="sidebar-action flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
+        className="shell-navigation-item flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px]">
         <CircleQuestionMark size={16} strokeWidth={1.6} />
         <span className="min-w-0 truncate">{t('help.title')}</span>
       </Button>

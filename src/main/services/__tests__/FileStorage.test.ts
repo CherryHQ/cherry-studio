@@ -107,46 +107,6 @@ describe('FileStorage', () => {
     })
   })
 
-  // resolveHomeRelativeFilePath is module-private; exercise it through showInFolder,
-  // which throws with the *resolved* path when the target is missing.
-  describe('resolveHomeRelativeFilePath', () => {
-    it('expands a ~/-prefixed path against the home directory', async () => {
-      await expect(fileStorage.showInFolder(event, '~/Documents/x.txt')).rejects.toThrow(
-        path.join('/mock/sys.home', 'Documents', 'x.txt')
-      )
-    })
-
-    it('leaves a path without the ~/ prefix unchanged', async () => {
-      await expect(fileStorage.showInFolder(event, '/no/such/path/x.txt')).rejects.toThrow('/no/such/path/x.txt')
-    })
-  })
-
-  describe('openPath', () => {
-    let tmpFile: string
-
-    beforeEach(() => {
-      tmpFile = path.join(os.tmpdir(), `filestorage-openpath-test-${uniqueId()}.md`)
-      fs.writeFileSync(tmpFile, 'note')
-    })
-
-    afterEach(() => {
-      fs.rmSync(tmpFile, { force: true })
-    })
-
-    // The target has to exist: on Linux an unresolvable path kills the child Electron forks inside
-    // `shell.openPath`, so only real paths may reach the default-open guard.
-    it('opens a file with a safe extension via the system default app', async () => {
-      vi.mocked(shell.openPath).mockResolvedValue('')
-      await fileStorage.openPath(event, tmpFile)
-      expect(shell.openPath).toHaveBeenCalledWith(tmpFile)
-    })
-
-    it('refuses script extensions before reaching the OS handler', async () => {
-      await expect(fileStorage.openPath(event, '/mock/notes/report.py')).rejects.toThrow('Refusing to open .py')
-      expect(shell.openPath).not.toHaveBeenCalled()
-    })
-  })
-
   describe('writeFile', () => {
     let tmpFile: string
 

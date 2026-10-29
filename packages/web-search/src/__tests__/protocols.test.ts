@@ -6,6 +6,7 @@ import { createWebSearchClient } from '../createWebSearchClient'
 import { bocha } from '../providers/bocha'
 import { crawl4ai } from '../providers/crawl4ai'
 import { deepseek } from '../providers/deepseek'
+import { desearch } from '../providers/desearch'
 import { exa } from '../providers/exa'
 import { exaMcp } from '../providers/exaMcp'
 import { firecrawl } from '../providers/firecrawl'
@@ -200,6 +201,43 @@ describe('portable provider contracts', () => {
       credentials: { apiKey: 'test-key' }
     })
     expect(untitledResult.results[0].title).toBe('https://example.com/article')
+  })
+
+  it('sends the raw Desearch key and encodes the query exactly once', async () => {
+    const { client, requests } = setup(desearch, fixture('desearch-response.json'))
+    const result = await client.execute({ ...search('desearch'), input: 'a&b c' })
+    expect(requests[0].url).toBe('https://service.example/proxy/web?query=a%26b%20c')
+    expect(requests[0].method).toBe('GET')
+    expect(requests[0].body).toBeUndefined()
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'Desearch Title',
+        content: 'Desearch Snippet',
+        url: 'https://desearch.example/result',
+        sourceInput: 'a&b c'
+      },
+      { title: '', content: '', url: 'https://desearch.example/second', sourceInput: 'a&b c' }
+    ])
+  })
+
+  it('caps Desearch results at maxResults', async () => {
+    const { client } = setup(desearch, fixture('desearch-response.json'))
+    const result = await client.execute({
+      providerId: 'desearch',
+      capability: 'searchKeywords',
+      input: 'hello',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 1 },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(result.results.map((item) => item.url)).toEqual(['https://desearch.example/result'])
+  })
+
+  it('reports a rejected Desearch key as an HTTP error without echoing the key', async () => {
+    const { client } = setup(desearch, JSON.stringify({ detail: 'Forbidden' }), 403)
+    const error = await client.execute(search('desearch')).catch((caught: unknown) => caught)
+    expect(error).toMatchObject({ kind: 'http', status: 403 })
+    expect(JSON.stringify(error)).not.toContain('test-key')
   })
 
   it('keeps SearXNG search separate from discovery and retains hits needing host enrichment', async () => {
