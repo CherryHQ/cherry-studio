@@ -260,16 +260,16 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'https://dashscope-intl.aliyuncs.com/apps/anthropic'
+      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/apps/anthropic'
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
     }
   },

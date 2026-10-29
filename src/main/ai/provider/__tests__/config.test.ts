@@ -1034,7 +1034,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     ]
     const qwencloudEndpointConfigs = {
       [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-        baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/',
+        baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
         adapterFamily: 'openai-compatible'
       },
       [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
@@ -1079,7 +1079,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         const settings = config.providerSettings as Record<string, unknown>
 
         expect(config.providerId).toBe('qwencloud')
-        expect(settings.imageBaseURL).toBe('https://dashscope-intl.aliyuncs.com')
+        expect(settings.imageBaseURL).toBe('https://ap-southeast-1.maas.qwencloudapi.com')
         vi.mocked(net.fetch).mockResolvedValue(
           new Response(
             JSON.stringify({
@@ -1108,7 +1108,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         expect(result.imageUrls).toEqual(['https://image.example/result.png'])
         const [url, request] = vi.mocked(net.fetch).mock.calls[0]
         expect(String(url)).toBe(
-          'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
+          'https://ap-southeast-1.maas.qwencloudapi.com/api/v1/services/aigc/multimodal-generation/generation'
         )
         expect(JSON.parse(String(request?.body)).model).toBe('qwen-image-3.0')
       }
