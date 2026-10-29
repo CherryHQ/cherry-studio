@@ -531,9 +531,9 @@ describe('runAgentTask', () => {
       })
       mockAbortAndDrain.mockRejectedValueOnce(new Error('drain failed'))
 
-      await expect(
-        runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))
-      ).rejects.toThrow('admission store down')
+      await expect(runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))).rejects.toThrow(
+        'admission store down'
+      )
     })
 
     it('derives the history fallback from positive execution evidence only', async () => {
