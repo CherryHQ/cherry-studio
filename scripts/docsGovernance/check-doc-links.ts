@@ -12,6 +12,13 @@ const ROOT = path.resolve(__dirname, '../..')
 // Markdown link pattern: [text](url) — exclude external URLs and anchors-only
 const LINK_RE = /\[(?:[^\]]*)\]\(([^)]+)\)/g
 
+// Reference-style link definition: `[label]: <target>` or `[label]: target` (optional title ignored).
+// The bare-target branch is restricted to path-like starts so prose/code such as a JS object
+// literal `[key]: {` is not mistaken for a link definition.
+const DEF_RE = /^\[([^\]]+)\]:\s*(?:<([^>]+)>|([\w./#~-][^\s]*))/
+// Reference-style link usage: `[text][label]` (label may be empty for the collapsed `[text][]` form)
+const REF_USE_RE = /\[([^\]]+)\]\[([^\]]*)\]/g
+
 interface BrokenLink {
   file: string
   line: number
@@ -43,11 +50,45 @@ function isAnchorOnly(link: string): boolean {
   return link.startsWith('#')
 }
 
-function checkFile(filePath: string): BrokenLink[] {
+function recordIfBroken(rawLink: string, dir: string, filePath: string, line: number, broken: BrokenLink[]): void {
+  // Skip external links, anchors, special protocols, and placeholder links
+  if (isExternalLink(rawLink) || isAnchorOnly(rawLink)) return
+  if (rawLink.includes('<') || rawLink.includes('>')) return
+
+  // Strip anchor fragment from link
+  const linkPath = rawLink.split('#')[0]
+  if (!linkPath) return // Was just an anchor
+
+  const resolved = path.resolve(dir, linkPath)
+
+  if (!fs.existsSync(resolved)) {
+    broken.push({
+      file: path.relative(ROOT, filePath),
+      line,
+      link: rawLink,
+      resolvedPath: path.relative(ROOT, resolved)
+    })
+  }
+}
+
+export function checkFile(filePath: string): BrokenLink[] {
   const broken: BrokenLink[] = []
   const content = fs.readFileSync(filePath, 'utf-8')
   const lines = content.split('\n')
   const dir = path.dirname(filePath)
+
+  // First pass: collect reference-style definitions (`[label]: target`). Markdown link
+  // labels are case-insensitive, so key the map by the lower-cased label.
+  const refDefs = new Map<string, { target: string; line: number }>()
+  for (let i = 0; i < lines.length; i++) {
+    const def = DEF_RE.exec(lines[i])
+    if (!def) continue
+    const label = def[1].trim().toLowerCase()
+    const target = (def[2] ?? def[3] ?? '').trim()
+    if (target) refDefs.set(label, { target, line: i + 1 })
+  }
+
+  const usedLabels = new Set<string>()
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -55,27 +96,27 @@ function checkFile(filePath: string): BrokenLink[] {
 
     LINK_RE.lastIndex = 0
     while ((match = LINK_RE.exec(line)) !== null) {
-      const rawLink = match[1]
-
-      // Skip external links, anchors, special protocols, and placeholder links
-      if (isExternalLink(rawLink) || isAnchorOnly(rawLink)) continue
-      if (rawLink.includes('<') || rawLink.includes('>')) continue
-
-      // Strip anchor fragment from link
-      const linkPath = rawLink.split('#')[0]
-      if (!linkPath) continue // Was just an anchor
-
-      const resolved = path.resolve(dir, linkPath)
-
-      if (!fs.existsSync(resolved)) {
-        broken.push({
-          file: path.relative(ROOT, filePath),
-          line: i + 1,
-          link: rawLink,
-          resolvedPath: path.relative(ROOT, resolved)
-        })
-      }
+      recordIfBroken(match[1], dir, filePath, i + 1, broken)
     }
+
+    REF_USE_RE.lastIndex = 0
+    while ((match = REF_USE_RE.exec(line)) !== null) {
+      // A reference usage only matters when a matching definition exists; otherwise it is
+      // ambiguous (e.g. a regex character class like `[1-9][0-9]` in prose/code) and must not
+      // be reported as a broken link.
+      const label = (match[2] || match[1]).trim().toLowerCase()
+      const def = refDefs.get(label)
+      if (!def) continue
+      usedLabels.add(label)
+      // Report the broken target at the usage line (where the link is written).
+      recordIfBroken(def.target, dir, filePath, i + 1, broken)
+    }
+  }
+
+  // Validate the targets of definitions that were never used (a missing definition target is itself a broken link).
+  for (const [label, { target, line }] of refDefs) {
+    if (usedLabels.has(label)) continue
+    recordIfBroken(target, dir, filePath, line, broken)
   }
 
   return broken
@@ -118,4 +159,4 @@ function main() {
   process.exit(1)
 }
 
-main()
+if (require.main === module) main()
