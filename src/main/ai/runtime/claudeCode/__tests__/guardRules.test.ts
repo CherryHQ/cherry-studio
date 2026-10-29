@@ -156,6 +156,10 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await fsp.writeFile(path.join(cwd, 'ok.png'), png)
       // Keeps the signature and IHDR, so the CLI's header fallback would embed it raw.
       await fsp.writeFile(path.join(cwd, 'broken.png'), png.subarray(0, Math.floor(png.length / 2)))
+      // The CLI sniffs extensionless files by signature, so these reach the same image path.
+      await fsp.writeFile(path.join(cwd, 'ok'), png)
+      await fsp.writeFile(path.join(cwd, 'broken'), png.subarray(0, Math.floor(png.length / 2)))
+      await fsp.writeFile(path.join(cwd, 'Makefile'), 'all:\n\techo ok\n')
     })
 
     afterAll(async () => {
@@ -171,9 +175,13 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       expect(decision?.effect).toBe('deny')
     })
 
-    it('allows a valid image and a missing file', async () => {
-      await expect(evaluate(readCtx('ok.png', { supportsImages: true }))).resolves.toBeUndefined()
-      await expect(evaluate(readCtx('missing.png', { supportsImages: true }))).resolves.toBeUndefined()
+    it('denies a truncated extensionless image', async () => {
+      const decision = await evaluate(readCtx('broken', { supportsImages: true }))
+      expect(decision?.ruleId).toBe('undecodable-image-read')
+    })
+
+    it.each(['ok.png', 'ok', 'Makefile', 'missing.png', 'missing'])('allows %s', async (file) => {
+      await expect(evaluate(readCtx(file, { supportsImages: true }))).resolves.toBeUndefined()
     })
 
     it('leaves text-only models to unsupported-image-read', async () => {

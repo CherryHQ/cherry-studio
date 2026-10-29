@@ -12,7 +12,7 @@
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
-import { readFile } from 'node:fs/promises'
+import { open, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
@@ -90,13 +90,38 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
 // The CLI's own Read image set; when its resize fails it embeds the raw bytes, which then replay every turn.
 const CLAUDE_READ_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
 
+/** Same magic bytes the CLI sniffs to treat an extensionless file as an image. */
+function hasClaudeReadImageSignature(b: Uint8Array): boolean {
+  if (b.length < 4) return false
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return true
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return true
+  const ascii = Buffer.from(b).toString('latin1')
+  return /^GIF8[79]a/.test(ascii) || (ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP')
+}
+
+async function readHead(file: string, length: number): Promise<Uint8Array> {
+  const handle = await open(file, 'r')
+  try {
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(length), 0, length, 0)
+    return buffer.subarray(0, bytesRead)
+  } finally {
+    await handle.close()
+  }
+}
+
 const undecodableImageRead = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   if (ctx.supportsImages === false) return null
   const requestedPath = ctx.input?.file_path
-  if (typeof requestedPath !== 'string' || !CLAUDE_READ_IMAGE_EXTS.has(path.extname(requestedPath).toLowerCase()))
+  if (typeof requestedPath !== 'string') return null
+  const ext = path.extname(requestedPath).toLowerCase()
+  if (ext !== '' && !CLAUDE_READ_IMAGE_EXTS.has(ext)) return null
+  const file = path.resolve(ctx.cwd, requestedPath)
+  try {
+    if (ext === '' && !hasClaudeReadImageSignature(await readHead(file, 16))) return null
+    if (await isDecodableImage(await readFile(file))) return null
+  } catch {
     return null
-  const bytes = await readFile(path.resolve(ctx.cwd, requestedPath)).catch(() => undefined)
-  if (!bytes || (await isDecodableImage(bytes))) return null
+  }
   return { evidence: requestedPath }
 }
 
