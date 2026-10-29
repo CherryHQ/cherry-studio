@@ -5,7 +5,6 @@ export class ThreadFeed {
   private observers = new Set<{
     send(event: ObservationPayload): void
     stop(): void
-    close(reason: 'shutdown' | 'source-lost'): void
   }>()
   private ended = false
 
@@ -27,16 +26,16 @@ export class ThreadFeed {
       case 'snapshot':
         this.value = next
         break
-      case 'item.upsert': {
-        const replaced = new Set([next.item.ref.id, ...(next.replaces ?? []).map((ref) => ref.id)])
-        const items = this.value.items.filter((item) => !replaced.has(item.ref.id))
-        const at = this.value.items.findIndex((item) => replaced.has(item.ref.id))
-        items.splice(at < 0 ? items.length : at, 0, next.item)
-        this.value = { ...this.value, items }
+      case 'message.upsert': {
+        const replaced = new Set([next.message.id, ...(next.replaces ?? []).map((ref) => ref.id)])
+        const messages = this.value.messages.filter((item) => !replaced.has(item.id))
+        const at = this.value.messages.findIndex((item) => replaced.has(item.id))
+        messages.splice(at < 0 ? messages.length : at, 0, next.message)
+        this.value = { ...this.value, messages }
         break
       }
-      case 'item.remove':
-        this.value = { ...this.value, items: this.value.items.filter((item) => item.ref.id !== next.ref.id) }
+      case 'message.remove':
+        this.value = { ...this.value, messages: this.value.messages.filter((item) => item.id !== next.ref.id) }
         break
       case 'input.changed':
         this.value = {
@@ -92,7 +91,9 @@ export class ThreadFeed {
         try {
           while (!stopped && pending.length) {
             started = true
-            await sink(pending.shift()!)
+            const event = pending.shift()!
+            await sink(event)
+            if (event.type === 'closed') stop()
           }
         } catch (error) {
           stop()
@@ -107,21 +108,15 @@ export class ThreadFeed {
         if (stopped) return
         pending.push(structuredClone(event))
         if (pending.length > 100)
-          pending = [...(started ? [] : [pending[0]]), { type: 'gap', reason: 'overflow' }, this.snapshot]
+          pending = [
+            ...(started ? [] : [pending[0]]),
+            { type: 'gap', reason: 'overflow' },
+            this.snapshot,
+            ...(event.type === 'closed' ? [event] : [])
+          ]
         schedule()
       },
-      stop,
-      close: (reason: 'shutdown' | 'source-lost') => {
-        const canNotify = !running
-        stop()
-        if (canNotify) {
-          try {
-            Promise.resolve(sink({ type: 'closed', reason })).catch(report)
-          } catch (error) {
-            report(error)
-          }
-        }
-      }
+      stop
     }
     this.observers.add(observer)
     schedule()
@@ -129,7 +124,8 @@ export class ThreadFeed {
   }
 
   close(reason: 'shutdown' | 'source-lost'): void {
+    if (this.ended) return
+    this.publish({ type: 'closed', reason })
     this.ended = true
-    for (const observer of [...this.observers]) observer.close(reason)
   }
 }

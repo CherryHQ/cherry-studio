@@ -1,3 +1,5 @@
+import type { UIMessage } from 'ai'
+
 declare const identity: unique symbol
 export type RuntimeId<K extends string> = string & { readonly [identity]: K }
 export type BackendId = RuntimeId<'backend'>
@@ -78,35 +80,12 @@ export interface ShutdownReceipt {
   readonly effect: 'closed'
 }
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue }
-export interface ContentPart {
-  readonly type: 'text' | 'reasoning'
-  readonly text: string
-}
 export type Completeness = 'partial' | 'complete' | 'unknown'
-export interface MessageItem {
-  readonly ref: ItemRef
-  readonly type: 'message'
-  readonly role: 'user' | 'assistant' | 'system'
-  readonly parts: readonly ContentPart[]
-  readonly completeness: Completeness
-  readonly inputId?: InputId
-}
-export interface ToolCallItem {
-  readonly ref: ItemRef
-  readonly type: 'tool-call'
-  readonly name: string
-  readonly argumentsText: string
-  readonly completeness: Completeness
-}
-export interface ToolResultItem {
-  readonly ref: ItemRef
-  readonly type: 'tool-result'
-  readonly call?: ItemRef
-  readonly parts: readonly ContentPart[]
-  readonly data?: JsonValue
-  readonly outcome: 'success' | 'error' | 'unknown'
-}
-export type ContentItem = MessageItem | ToolCallItem | ToolResultItem
+/** One native conversation message; tools and their results remain in its ordered parts. */
+export type RuntimeMessage = UIMessage<{
+  completeness: Completeness
+  inputId?: InputId
+}>
 export interface Delegation {
   readonly ref: DelegationRef
   readonly parent: Thread
@@ -121,15 +100,15 @@ export interface Activity {
 export interface ThreadSnapshot {
   readonly type: 'snapshot'
   readonly coverage: 'live-only' | 'current-view' | 'retained-view'
-  readonly items: readonly ContentItem[]
+  readonly messages: readonly RuntimeMessage[]
   readonly inputs: readonly InputState[]
   readonly delegations?: readonly Delegation[]
   readonly activity: Activity
 }
 export type ObservationPayload =
   | ThreadSnapshot
-  | { readonly type: 'item.upsert'; readonly item: ContentItem; readonly replaces?: readonly ItemRef[] }
-  | { readonly type: 'item.remove'; readonly ref: ItemRef }
+  | { readonly type: 'message.upsert'; readonly message: RuntimeMessage; readonly replaces?: readonly ItemRef[] }
+  | { readonly type: 'message.remove'; readonly ref: ItemRef }
   | { readonly type: 'input.changed'; readonly input: InputState }
   | { readonly type: 'activity.changed'; readonly activity: Activity }
   | { readonly type: 'delegation.upsert'; readonly delegation: Delegation }

@@ -245,7 +245,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           await Promise.all(owners.map((entry) => entry.session.abort()))
           await Promise.all(owners.flatMap((entry) => [...entry.pending]))
           await Promise.all(owners.map((entry) => entry.owner!.dispose()))
-          for (const entry of live) entry.projection.close()
+          for (const entry of live) await entry.projection.close()
           return { status: 'confirmed' as const, value: { effect: 'closed' as const } }
         } catch (cause) {
           report(cause)

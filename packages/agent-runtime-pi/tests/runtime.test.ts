@@ -60,7 +60,7 @@ async function observe(handle: ThreadHandle) {
   return events
 }
 
-it('shares streamed item identities across handles while releasing only one observation', async () => {
+it('shares streamed message identities across handles while releasing only one observation', async () => {
   const { runtime, options, faux } = await setup()
   faux.setResponses([fauxAssistantMessage('native output for both handles')])
   const first = confirmed(await runtime.create(options))
@@ -70,18 +70,18 @@ it('shares streamed item identities across handles while releasing only one obse
   expect(await first.submit(input('question'))).toMatchObject({ status: 'acknowledged', facts: ['dispatch-started'] })
   const messages = (events: ObservationPayload[]) =>
     events.filter(
-      (event): event is Extract<ObservationPayload, { type: 'item.upsert' }> =>
-        event.type === 'item.upsert' && event.item.type === 'message' && event.item.role === 'assistant'
+      (event): event is Extract<ObservationPayload, { type: 'message.upsert' }> =>
+        event.type === 'message.upsert' && event.message.role === 'assistant'
     )
   await expect.poll(() => messages(right).length).toBeGreaterThan(0)
-  expect(messages(left).map((event) => event.item.ref)).toEqual(messages(right).map((event) => event.item.ref))
+  expect(messages(left).map((event) => event.message.id)).toEqual(messages(right).map((event) => event.message.id))
   await first.release()
   const count = left.length
   await expect
-    .poll(() => messages(right).at(-1)?.item)
+    .poll(() => messages(right).at(-1)?.message)
     .toMatchObject({
-      completeness: 'complete',
-      parts: [{ type: 'text', text: 'native output for both handles' }]
+      metadata: { completeness: 'complete' },
+      parts: [{ type: 'text', text: 'native output for both handles', state: 'done' }]
     })
   expect(left).toHaveLength(count)
   expect(await first.submit(input('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
@@ -162,9 +162,9 @@ it('reopens native files after shutdown without requiring the Cherry model bridg
   await expect.poll(() => frames[0]).toMatchObject({ type: 'snapshot', activity: { state: 'idle' } })
   const snapshot = frames[0]
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
-  expect(snapshot.items).toEqual(
+  expect(snapshot.messages).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ role: 'assistant', parts: [{ type: 'text', text: 'saved answer' }] })
+      expect.objectContaining({ role: 'assistant', parts: [{ type: 'text', text: 'saved answer', state: 'done' }] })
     ])
   )
   expect(await handle.submit(input('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })

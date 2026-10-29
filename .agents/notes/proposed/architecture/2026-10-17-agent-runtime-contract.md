@@ -12,6 +12,8 @@ This note replaces the stack's runtime ownership and behavior design. It records
 
 Implementation facts in this note refer to the cumulative runtime stack inspected at `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766`. Behavior supplied by later layers remains a target at this layer; the note does not claim those features are already present here. Source links use that fixed snapshot, and notes not yet introduced link to their owning PR.
 
+The [SDK content protocol proposal](../simplification/2026-10-29-agent-runtime-content-protocol.md) now owns the planned replacement of `ContentItem` and the move of SDK content accumulation to the shared observation source. The item events and Main readers described below remain the current implementation until that migration; access, input admission, lifecycle, native recovery, and product ownership remain governed here.
+
 ## Proposal
 
 ### Keep the common entry small

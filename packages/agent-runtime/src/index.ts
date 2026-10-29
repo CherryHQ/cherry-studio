@@ -24,12 +24,8 @@ export type {
   ResumeReceipt,
   ShutdownReceipt,
   JsonValue,
-  ContentPart,
   Completeness,
-  MessageItem,
-  ToolCallItem,
-  ToolResultItem,
-  ContentItem,
+  RuntimeMessage,
   Delegation,
   Activity,
   ThreadSnapshot,
@@ -41,3 +37,4 @@ export type {
 } from './contracts'
 export { runtimeId } from './contracts'
 export { ThreadFeed } from './observation'
+export { RuntimeMessageStream } from './messageStream'

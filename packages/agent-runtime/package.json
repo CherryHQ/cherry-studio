@@ -16,6 +16,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "ai": "6.0.185"
+  },
   "devDependencies": {
     "@types/node": "^24.10.4",
     "tsdown": "^0.22.14",

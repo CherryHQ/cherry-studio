@@ -7,7 +7,7 @@ shutdown aborts owned sessions and disposes their resources without deleting nat
 
 The caller supplies a borrowed native `ModelRuntime` and `Model`, a working directory and an agent
 directory. Credentials and provider registration remain with the caller. Closing the runtime leaves
-the supplied model runtime usable. This package has no AI SDK or Cherry application dependency.
+the supplied model runtime usable. Content uses the common AI SDK message protocol; this package has no Cherry application dependency.
 
 `createAgentRuntimeSession` constructs native sessions with explicit tools and extension factories.
 Resource discovery is disabled; workspace context and skill paths are opt-in. Native retry settings
@@ -18,7 +18,8 @@ storage. The host selects paths and records product-session associations. Native
 accepts a missing path as a new session, so the host must check file existence when reopening saved
 associations; the adapter rejects a returned session ID that differs from the requested thread.
 
-Common observations normalize current native messages, live output and foreground activity. They
+Common observations retain native block order within SDK messages, accumulate native deltas once,
+and update tool parts with preliminary/final results. Foreground activity stays separate. They
 are projections, not an archive or a storage replay source. Cherry model binding and execution
 extensions are added by subsequent layers; this adapter is not wired into the desktop runtime yet.
 

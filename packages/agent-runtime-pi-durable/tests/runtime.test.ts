@@ -89,27 +89,24 @@ describe('Pi Durable runtime contract', () => {
     expect(receipt).toMatchObject({ status: 'acknowledged', nativeInput: { session: first.thread } })
     await expect
       .poll(() =>
-        current(right)?.items.some(
-          (item) => item.type === 'message' && item.role === 'assistant' && item.completeness === 'partial'
-        )
+        current(right)?.messages.some((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')
       )
       .toBe(true)
-    expect(current(left)?.items.map((item) => item.ref)).toEqual(current(right)?.items.map((item) => item.ref))
+    expect(current(left)?.messages.map((item) => item.id)).toEqual(current(right)?.messages.map((item) => item.id))
     await first.release()
     const releasedCount = left.length
     await expect
       .poll(() =>
-        current(right)?.items.some(
+        current(right)?.messages.some(
           (item) =>
-            item.type === 'message' &&
             item.role === 'assistant' &&
-            item.completeness === 'complete' &&
-            item.parts[0]?.text === 'a sufficiently long streaming answer'
+            item.metadata?.completeness === 'complete' &&
+            (item.parts[0]?.type === 'text' ? item.parts[0].text : undefined) === 'a sufficiently long streaming answer'
         )
       )
       .toBe(true)
     expect(left).toHaveLength(releasedCount)
-    expect(current(right)?.items.filter((item) => item.type === 'message' && item.role === 'assistant')).toHaveLength(1)
+    expect(current(right)?.messages.filter((item) => item.role === 'assistant')).toHaveLength(1)
     if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('No native receipt')
     await expect
       .poll(async () => confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
@@ -209,11 +206,10 @@ describe('Pi Durable runtime contract', () => {
     await expect
       .poll(
         () =>
-          current(events)?.items.some(
+          current(events)?.messages.some(
             (item) =>
-              item.type === 'message' &&
-              item.parts[0]?.text === 'independent child output' &&
-              item.completeness === 'complete'
+              (item.parts[0]?.type === 'text' ? item.parts[0].text : undefined) === 'independent child output' &&
+              item.metadata?.completeness === 'complete'
           ),
         { timeout: 5000 }
       )
@@ -254,9 +250,10 @@ describe('Pi Durable runtime contract', () => {
     })
     await expect
       .poll(() =>
-        current(events)?.items.some(
+        current(events)?.messages.some(
           (item) =>
-            item.type === 'message' && item.parts[0]?.text === 'resumed answer' && item.completeness === 'complete'
+            (item.parts[0]?.type === 'text' ? item.parts[0].text : undefined) === 'resumed answer' &&
+            item.metadata?.completeness === 'complete'
         )
       )
       .toBe(true)

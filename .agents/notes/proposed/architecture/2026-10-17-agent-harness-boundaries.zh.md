@@ -12,6 +12,9 @@ Cherry 需要以统一方式访问不同智能体 harness，同时保留各自�
 
 本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
 
+[SDK 内容协议方案](../simplification/2026-10-29-agent-runtime-content-protocol.md)调整了内容依赖边界：允许依赖标准 AI SDK 消息协议，同时不向公共包引入原生 SDK 或 Cherry 产品类型。这取代之前一律排除 AI SDK 的约束；执行和原生存储的所有权仍属于 harness。
+
+
 ## Proposal
 
 ### 按行为定义 harness
@@ -100,7 +103,7 @@ Pi Durable 是独立执行系统，不是 coding-agent 的持久化开关。两�
 
 已有包边界是源码证据，不代表剩余宿主接入完成。以下标准定义该接入必须保持的行为。
 
-- AC1 — 公共包保持独立于原生 SDK、Electron、AI SDK 和产品实体；两个适配器互不依赖。 (verification: unit — 包类型检查与依赖边界检查)
+- AC1 — 公共包保持独立于原生 SDK、Electron 和产品实体；允许方案提出的标准 AI SDK 内容依赖，适配器之间互不依赖。 (verification: unit — 包类型检查与依赖边界检查)
 - AC2 — 释放窗口访问不会停止其他观察者或保留的 child；父消息结束后仍可定位 child 输出。 (verification: Electron — 宿主投影与多窗口集成)
 - AC3 — 重新打开原生上下文使用原生存储和显式产品关联，不从展示历史重建，也不把存储缺失当作新建上下文。 (verification: unit — 适配器存储与宿主关联测试)
 - AC4 — 原生委派与宿主委派各有唯一的结果交付所有者，观察到完成不会引发重复交付。 (verification: unit — 适配器与宿主编排测试)

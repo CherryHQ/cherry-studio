@@ -40,8 +40,8 @@ partials, tool calls/results, and retained live tool output. Coverage is
 `current-view`, not a history archive. Persistent entries use native entry IDs;
 live previews use an internal source namespace. Where preview-to-entry association
 is not proven, the adapter emits `gap: mapping-reset` and a replacing snapshot.
-Consumers must not merge these by text. Images and nested-tool progress are not
-represented by the current common text/reasoning protocol.
+Consumers must not merge these by text. SDK messages retain native text/reasoning/tool order and
+images. Live tool output updates its owning tool part with `preliminary: true`; final results clear it.
 
 Native ownership records and live task graph edges expose child SessionRefs. Open
 and observe a child separately; parent output does not recursively contain it. On

@@ -12,6 +12,8 @@ Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次�
 
 本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
 
+[SDK 内容协议方案](../simplification/2026-10-29-agent-runtime-content-protocol.md)现在维护替换 `ContentItem`、将 SDK 内容累积迁入共享观察来源的后续设计。下文的 item 事件和 Main reader 在迁移完成前仍是当前实现；访问、输入接纳、生命周期、原生恢复和产品所有权继续由本文维护。
+
 ## Proposal
 
 ### 保持公共入口精简

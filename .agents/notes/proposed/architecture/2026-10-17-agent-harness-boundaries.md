@@ -12,6 +12,9 @@ This note replaces the harness-definition document from the runtime stack. The t
 
 Implementation facts in this note refer to the cumulative runtime stack inspected at `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766`. Behavior supplied by later layers remains a target at this layer; the note does not claim those features are already present here. Source links use that fixed snapshot, and notes not yet introduced link to their owning PR.
 
+The [SDK content protocol proposal](../simplification/2026-10-29-agent-runtime-content-protocol.md) revises the content dependency boundary: a standard AI SDK message protocol dependency is permitted without importing native SDKs or Cherry product types into the common package. This supersedes the earlier blanket AI SDK exclusion; execution and native storage ownership stay with the harness.
+
+
 ## Proposal
 
 ### Define the harness by its behavior
@@ -100,7 +103,7 @@ The desktop services still use their existing runtime path. The [runtime contrac
 
 Existing package boundaries are source evidence, not completion of the remaining host integration. These criteria define what that integration must preserve.
 
-- AC1 — The common package remains independent of native SDKs, Electron, AI SDK, and product entities; the adapters have no dependency on each other. (verification: unit — package typechecks and dependency-boundary checks)
+- AC1 — The common package remains independent of native SDKs, Electron, and product entities; the proposed standard AI SDK content dependency is permitted, and the adapters have no dependency on each other. (verification: unit — package typechecks and dependency-boundary checks)
 - AC2 — Releasing a window access does not stop another observer or a retained child; child output remains addressable after the parent message ends. (verification: Electron — host projection and multi-window integration)
 - AC3 — Reopening native context uses its native storage and explicit product relationship, without recreating it from display history or treating missing storage as a new context. (verification: unit — adapter storage and host relationship tests)
 - AC4 — Native and host-owned delegations each have one result-delivery owner, with no duplicate delivery caused by observing completion. (verification: unit — adapter and host orchestration tests)
