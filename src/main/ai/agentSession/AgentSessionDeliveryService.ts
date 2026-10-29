@@ -303,6 +303,27 @@ export class AgentSessionDeliveryService extends BaseService {
         return
       }
 
+      try {
+        await runtime.prepareBranch(current.sessionId, current.id)
+      } catch (error) {
+        if (runtime.isSessionBusy(message.sessionId)) {
+          outcome = 'blocked'
+          return
+        }
+        this.failBeforeStart(current, error)
+        outcome = 'settled'
+        return
+      }
+      if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
+        this.suppressedSessionIds.add(message.sessionId)
+        outcome = 'blocked'
+        return
+      }
+      if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
+        outcome = 'blocked'
+        return
+      }
+
       let persisted
       try {
         persisted = application.get('DbService').withWriteTx((tx) => {
