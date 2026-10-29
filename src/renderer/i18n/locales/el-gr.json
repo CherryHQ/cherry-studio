@@ -5695,6 +5695,7 @@
   "settings.skills.viewSource": "Προβολή Πηγής",
   "settings.subscription.activated": "Το {{plan}} είναι ενεργό",
   "settings.subscription.card_label": "Συνδρομή",
+  "settings.subscription.faq": "Συχνές ερωτήσεις & βοήθεια",
   "settings.subscription.go_to_subscribe": "Εγγραφή σε συνδρομή",
   "settings.subscription.limit_daily": "Ημερήσιο όριο",
   "settings.subscription.limit_days": "Όριο {{count}} ημερών",

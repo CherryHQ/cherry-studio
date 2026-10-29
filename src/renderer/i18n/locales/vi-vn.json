@@ -5695,6 +5695,7 @@
   "settings.skills.viewSource": "Xem mã nguồn",
   "settings.subscription.activated": "{{plan}} đã được kích hoạt",
   "settings.subscription.card_label": "Gói đăng ký",
+  "settings.subscription.faq": "Câu hỏi thường gặp & trợ giúp",
   "settings.subscription.go_to_subscribe": "Đăng ký ngay",
   "settings.subscription.limit_daily": "Giới hạn hằng ngày",
   "settings.subscription.limit_days": "Giới hạn {{count}} ngày",

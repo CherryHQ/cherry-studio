@@ -5695,6 +5695,7 @@
   "settings.skills.viewSource": "Посмотреть исходный код",
   "settings.subscription.activated": "{{plan}} активирован",
   "settings.subscription.card_label": "Подписка",
+  "settings.subscription.faq": "Вопросы и помощь",
   "settings.subscription.go_to_subscribe": "Оформить подписку",
   "settings.subscription.limit_daily": "Дневной лимит",
   "settings.subscription.limit_days": "Лимит на {{count}} дн.",

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsage'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
-import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
+import { openCherryCloudAccountPortal, openCherryCloudFaq } from '@renderer/services/cherryCloudAccountPortal'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 
 export function SubscriptionSettings() {
@@ -19,12 +19,24 @@ export function SubscriptionSettings() {
 
   const availablePlan = useMemo(() => plans?.available_plans.find((item) => !item.is_free), [plans])
 
+  const header = (
+    <div className="flex items-center justify-between gap-4">
+      <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
+      <button
+        type="button"
+        className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-link hover:underline"
+        onClick={() => void openCherryCloudFaq()}>
+        {t('settings.subscription.faq')}
+      </button>
+    </div>
+  )
+
   if (status?.phase !== 'signed-in') {
     // Placeholders until the first status arrives, so a signed-in user never sees the sign-in prompt flash.
     const statusPending = !status && loadState === 'loading'
     return (
       <div className="space-y-6">
-        <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
+        {header}
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-4">
             {statusPending ? (
@@ -75,7 +87,7 @@ export function SubscriptionSettings() {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
+      {header}
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">

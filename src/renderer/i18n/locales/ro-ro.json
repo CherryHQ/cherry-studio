@@ -5695,6 +5695,7 @@
   "settings.skills.viewSource": "Vezi sursa",
   "settings.subscription.activated": "{{plan}} este activ",
   "settings.subscription.card_label": "Abonament",
+  "settings.subscription.faq": "Întrebări frecvente și ajutor",
   "settings.subscription.go_to_subscribe": "Abonează-te",
   "settings.subscription.limit_daily": "Limită zilnică",
   "settings.subscription.limit_days": "Limită de {{count}} zile",

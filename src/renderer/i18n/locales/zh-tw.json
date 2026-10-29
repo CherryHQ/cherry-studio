@@ -5695,6 +5695,7 @@
   "settings.skills.viewSource": "檢視原始碼",
   "settings.subscription.activated": "{{plan}} 已生效",
   "settings.subscription.card_label": "訂閱",
+  "settings.subscription.faq": "FAQ 與說明",
   "settings.subscription.go_to_subscribe": "前往訂閱",
   "settings.subscription.limit_daily": "每日額度",
   "settings.subscription.limit_days": "{{count}} 天額度",

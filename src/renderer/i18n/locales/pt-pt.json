@@ -5695,6 +5695,7 @@
   "settings.skills.viewSource": "Ver Fonte",
   "settings.subscription.activated": "{{plan}} está ativo",
   "settings.subscription.card_label": "Subscrição",
+  "settings.subscription.faq": "Perguntas frequentes e ajuda",
   "settings.subscription.go_to_subscribe": "Subscrever",
   "settings.subscription.limit_daily": "Limite diário",
   "settings.subscription.limit_days": "Limite de {{count}} dias",

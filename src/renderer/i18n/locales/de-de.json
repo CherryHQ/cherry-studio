@@ -5695,6 +5695,7 @@
   "settings.skills.viewSource": "Quelltext anzeigen",
   "settings.subscription.activated": "{{plan}} ist aktiv",
   "settings.subscription.card_label": "Abonnement",
+  "settings.subscription.faq": "FAQ & Hilfe",
   "settings.subscription.go_to_subscribe": "Jetzt abonnieren",
   "settings.subscription.limit_daily": "Tägliches Limit",
   "settings.subscription.limit_days": "{{count}}-Tage-Limit",
