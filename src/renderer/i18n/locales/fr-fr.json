@@ -2850,6 +2850,7 @@
   "notes.save_failure.metadata_pending": "La note a été enregistrée, mais ses métadonnées de fichier sont encore en cours de récupération. Ne réessayez pas cet enregistrement.",
   "notes.save_failure.retired_root": "Le dossier de cette note a été déplacé vers un nouvel emplacement. Vos modifications ne peuvent pas être enregistrées dans l'ancienne copie. Enregistrez une copie de vos modifications, puis rouvrez la note.",
   "notes.save_copy": "Enregistrer une copie",
+  "notes.save_failure.root_unresolved": "Le dossier de notes actuel ne peut pas être vérifié pour le moment. Vos modifications sont conservées dans l'éditeur. Réessayez ou enregistrez une copie par précaution.",
   "notes.search.both": "Nom + Contenu",
   "notes.search.content": "contenu",
   "notes.search.found_results": "{{count}} résultat(s) trouvé(s) (nom : {{nameCount}}, contenu : {{contentCount}})",

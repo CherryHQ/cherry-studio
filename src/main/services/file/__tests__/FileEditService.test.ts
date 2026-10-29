@@ -514,7 +514,7 @@ describe('FileEditService persistence contract', () => {
       releaseNotesMigrationSession()
       await expect(
         service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
-      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_ROOT_UNRESOLVED })
 
       // Recovery by reopen once the canonical root resolves: the draft was
       // never silently written and the root accepts edits again.
@@ -533,11 +533,12 @@ describe('FileEditService persistence contract', () => {
         getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
       })
       releaseNotesMigrationSession()
+      // Unresolved is NOT a retirement: its own honest code, no "moved" claim.
       await expect(
         service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
-      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_ROOT_UNRESOLVED })
       await expect(open({ kind: 'path', path: AbsoluteFilePathSchema.parse(orphanPath) })).rejects.toMatchObject({
-        code: fileErrorCodes.EDIT_RETIRED_ROOT
+        code: fileErrorCodes.EDIT_ROOT_UNRESOLVED
       })
     })
   })

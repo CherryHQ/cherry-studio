@@ -2850,6 +2850,7 @@
   "notes.save_failure.metadata_pending": "Notița a fost salvată, dar metadatele fișierului sunt încă în curs de recuperare. Nu încerca din nou această salvare.",
   "notes.save_failure.retired_root": "Dosarul acestei note a fost mutat într-o locație nouă. Modificările nu pot fi salvate în copia veche. Salvați o copie a modificărilor, apoi redeschideți nota.",
   "notes.save_copy": "Salvează o copie",
+  "notes.save_failure.root_unresolved": "Dosarul curent al notelor nu poate fi verificat momentan. Modificările rămân în editor. Încercați din nou sau salvați o copie pentru siguranță.",
   "notes.search.both": "Nume+Conținut",
   "notes.search.content": "Conținut",
   "notes.search.found_results": "S-au găsit {{count}} rezultate (Nume: {{nameCount}}, Conținut: {{contentCount}})",

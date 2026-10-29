@@ -479,6 +479,31 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(mocks.discardSession).toHaveBeenCalled())
   })
 
+  it('offers both retry and Save a copy for an unresolved-root save error', async () => {
+    mocks.sessionSaveError = new IpcError(fileErrorCodes.EDIT_ROOT_UNRESOLVED, 'unresolved')
+    await renderReadyNotesPage()
+
+    expect(screen.getByText('notes.save_failure.root_unresolved')).toBeInTheDocument()
+    expect(screen.queryByText('notes.save_failure.retired_root')).not.toBeInTheDocument()
+
+    // Retry stays meaningful: a later canonical read may resolve the root.
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    await waitFor(() => expect(mocks.flushSession).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save_copy' }))
+    await waitFor(() => expect(window.api.file.save).toHaveBeenCalledWith('note.md', mocks.sessionDraft))
+  })
+
+  it('reports only the export when a copy succeeded but the session discard failed', async () => {
+    mocks.sessionSaveError = new IpcError(fileErrorCodes.EDIT_RETIRED_ROOT, 'retired root')
+    mocks.discardSession.mockRejectedValueOnce(new Error('lease stuck'))
+    await renderReadyNotesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save_copy' }))
+    await waitFor(() => expect(mocks.discardSession).toHaveBeenCalled())
+    expect(window.api.file.save).toHaveBeenCalledWith('note.md', mocks.sessionDraft)
+  })
+
   it('keeps the draft when the retired-root copy export is cancelled', async () => {
     mocks.sessionSaveError = new IpcError(fileErrorCodes.EDIT_RETIRED_ROOT, 'retired root')
     ;(window.api.file.save as ReturnType<typeof vi.fn>).mockResolvedValue(null)

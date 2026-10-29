@@ -9,10 +9,11 @@ import {
   assertNotesPathNotRetired,
   isNotesMigrationWriteBlockedError,
   isNotesRetiredRootWriteError,
+  isNotesRootUnresolvedError,
   withNotesFilesystemMutation
 } from '@main/services/notesRelocation'
 import { atomicWriteIfUnchanged, hashContent, PathStaleVersionError } from '@main/utils/file'
-import type { FileHandle } from '@shared/data/types/file'
+import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import {
@@ -36,6 +37,8 @@ interface EditLease {
   resource: FileEditResource
   path: AbsoluteFilePath
   handle: FileHandle
+  /** Captured at open so writes key the retired-root guard on the same identity. */
+  entryOrigin?: FileEntry['origin']
   pending: Set<Promise<unknown>>
   retention?: Disposable
   closing?: Promise<void>
@@ -68,9 +71,11 @@ export class FileEditService extends BaseService {
     let retention: Disposable | undefined
     try {
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
+      let entryOrigin: FileEntry['origin'] | undefined
       if (handle.kind === 'entry') {
         const files = application.get('FileManager')
         const entry = await files.getById(handle.entryId)
+        entryOrigin = entry.origin
         if (entry.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced')
           retention = files.retainTemporaryEntry(entry.id)
       }
@@ -80,9 +85,14 @@ export class FileEditService extends BaseService {
       // barrier would refuse; no-op outside the blocked notes roots.
       assertNotesPathNotMutatingDuringMigration(path)
       // A path-kind handle under a retired (migrated-away) notes root would
-      // silently write the old tree; library entries (external refs) under that
-      // root stay openable, keyed on the recorded migration source identity.
-      if (handle.kind === 'path') assertNotesPathNotRetired(path)
+      // silently write the old tree. External entries are user-referenced
+      // absolute paths (ensureExternalEntry is a pure upsert keyed by
+      // externalPath; Cherry never owns their bytes) and stay openable under a
+      // retired root. A non-external identity under a notes root cannot exist
+      // by storage layout - internal entries live in managed storage, which
+      // isAllowedNotesDirectory rejects as a notes root - so refuse loudly
+      // rather than diverge.
+      if (handle.kind === 'path' || entryOrigin !== 'external') assertNotesPathNotRetired(path)
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
       if ([...this.leases.values()].filter((lease) => lease.owner === owner).length >= MAX_LEASES_PER_WINDOW) {
         throw new IpcError(fileErrorCodes.EDIT_LIMIT, 'Too many retained file editing sessions')
@@ -93,6 +103,7 @@ export class FileEditService extends BaseService {
         resource,
         path,
         handle: { ...handle },
+        entryOrigin,
         pending: new Set(),
         retention
       })
@@ -135,7 +146,8 @@ export class FileEditService extends BaseService {
     const task = withNotesFilesystemMutation(async (): Promise<FileEditWriteResult> => {
       try {
         assertNotesPathNotMutatingDuringMigration(lease.path)
-        if (lease.handle.kind === 'path') assertNotesPathNotRetired(lease.path)
+        if (lease.handle.kind === 'path' || lease.entryOrigin !== 'external')
+          assertNotesPathNotRetired(lease.path)
         const version =
           lease.handle.kind === 'entry'
             ? await application
@@ -211,6 +223,9 @@ export class FileEditService extends BaseService {
     }
     if (isNotesRetiredRootWriteError(error)) {
       return new IpcError(fileErrorCodes.EDIT_RETIRED_ROOT, error.message)
+    }
+    if (isNotesRootUnresolvedError(error)) {
+      return new IpcError(fileErrorCodes.EDIT_ROOT_UNRESOLVED, error.message)
     }
     if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {
       return new IpcError(fileErrorCodes.STALE_VERSION, 'File changed since the editing baseline')

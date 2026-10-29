@@ -2850,6 +2850,7 @@
   "notes.save_failure.metadata_pending": "La nota se guardó, pero sus metadatos de archivo aún se están recuperando. No vuelva a intentar este guardado.",
   "notes.save_failure.retired_root": "La carpeta de esta nota se ha movido a una nueva ubicación. Tus cambios no se pueden guardar en la copia antigua. Guarda una copia de tus cambios y vuelve a abrir la nota.",
   "notes.save_copy": "Guardar una copia",
+  "notes.save_failure.root_unresolved": "No se puede verificar la carpeta de notas actual en este momento. Tus cambios se conservan en el editor. Inténtalo de nuevo o guarda una copia por seguridad.",
   "notes.search.both": "Nombre + Contenido",
   "notes.search.content": "contenido",
   "notes.search.found_results": "Se encontraron {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",

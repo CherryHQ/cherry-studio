@@ -115,6 +115,17 @@ export function isNotesRetiredRootWriteError(error: unknown): error is NotesReti
   return error instanceof NotesRetiredRootWriteError
 }
 
+export class NotesRootUnresolvedError extends Error {
+  constructor() {
+    super('The configured notes root cannot be verified right now')
+    this.name = 'NotesRootUnresolvedError'
+  }
+}
+
+export function isNotesRootUnresolvedError(error: unknown): error is NotesRootUnresolvedError {
+  return error instanceof NotesRootUnresolvedError
+}
+
 type ActiveRootResolution = { state: 'source-active' | 'target-active' } | { state: 'unresolved'; reason: string }
 
 /**
@@ -184,8 +195,11 @@ export function assertNotesPathNotRetired(filePath: string): void {
         // The flip never landed: both copies stay editable at their roots.
         break
       case 'unresolved':
-        // Close loud under both roots until the canonical root resolves.
-        throw new NotesRetiredRootWriteError()
+        // Close loud under both roots until the canonical root resolves. This
+        // is NOT a retirement: the next edit re-reads the canonical root and
+        // goes through once it resolves, so the error carries its own code
+        // instead of claiming the folder moved.
+        throw new NotesRootUnresolvedError()
     }
   }
 }

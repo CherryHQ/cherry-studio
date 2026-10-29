@@ -2850,6 +2850,7 @@
   "notes.save_failure.metadata_pending": "Ghi chú đã được lưu, nhưng siêu dữ liệu tệp của nó vẫn đang được khôi phục. Không thử lại việc lưu này.",
   "notes.save_failure.retired_root": "Thư mục của ghi chú này đã được di chuyển sang vị trí mới. Không thể lưu các thay đổi vào bản sao cũ. Hãy lưu một bản sao các thay đổi, rồi mở lại ghi chú.",
   "notes.save_copy": "Lưu bản sao",
+  "notes.save_failure.root_unresolved": "Hiện không thể xác minh thư mục ghi chú hiện tại. Các thay đổi của bạn vẫn được giữ trong trình soạn thảo. Hãy thử lại hoặc lưu một bản sao để đảm bảo.",
   "notes.search.both": "Tên+Nội dung",
   "notes.search.content": "Nội dung",
   "notes.search.found_results": "Tìm thấy {{count}} kết quả (Tên: {{nameCount}}, Nội dung: {{contentCount}})",

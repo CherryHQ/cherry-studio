@@ -186,8 +186,8 @@ describe('notes migration session', () => {
       setNotesMigrationBlockedRoots(source, target)
       releaseNotesMigrationSession()
 
-      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
-      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/cannot be verified/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/cannot be verified/)
     })
 
     it('closes loud under both roots when the configured root matches neither migration root', () => {
@@ -199,8 +199,8 @@ describe('notes migration session', () => {
       setNotesMigrationBlockedRoots(source, target)
       releaseNotesMigrationSession()
 
-      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
-      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/cannot be verified/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/cannot be verified/)
       expect(() => assertNotesPathNotRetired(path.join(elsewhere, 'note.md'))).not.toThrow()
     })
 

@@ -272,19 +272,29 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
   const isRetiredRootSaveError =
     fileSession.saveError instanceof IpcError && fileSession.saveError.code === fileErrorCodes.EDIT_RETIRED_ROOT
+  const isRootUnresolvedSaveError =
+    fileSession.saveError instanceof IpcError && fileSession.saveError.code === fileErrorCodes.EDIT_ROOT_UNRESOLVED
 
   // The retired root never accepts this draft again: export is the honest,
   // user-directed recovery. Discarding only after a completed export keeps the
-  // draft (and the banner) when the dialog is cancelled or the write fails.
+  // draft (and the banner) when the dialog is cancelled or the write fails,
+  // and a failed discard never reports the completed export as failed.
   const handleSaveDraftCopy = useCallback(async () => {
     const fileName = activeFilePath?.split(/[\\/]/).pop() ?? 'note.md'
+    let savedPath: string | null
     try {
-      const savedPath = await window.api.file.save(fileName, fileSession.draft)
-      if (!savedPath) return
-      await fileSession.discard()
+      savedPath = await window.api.file.save(fileName, fileSession.draft)
     } catch (error) {
       logger.error('Failed to export note draft copy:', error as Error)
       toast.error(t('notes.save_failed'))
+      return
+    }
+    if (!savedPath) return
+    try {
+      await fileSession.discard()
+    } catch (error) {
+      // The copy exists; the stale session stays visible for a manual close.
+      logger.error('Draft copy exported but the session could not be discarded:', error as Error)
     }
   }, [activeFilePath, fileSession, t])
 
@@ -1207,18 +1217,34 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                       ? 'settings.data.notes_relocation.error.migration_in_progress'
                       : isRetiredRootSaveError
                         ? 'notes.save_failure.retired_root'
-                        : 'notes.save_failure.description'
+                        : isRootUnresolvedSaveError
+                          ? 'notes.save_failure.root_unresolved'
+                          : 'notes.save_failure.description'
                 )}
               </span>
               {!fileSession.metadataRecoveryPending && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={fileSession.isSaving}
-                  onClick={() => void (isRetiredRootSaveError ? handleSaveDraftCopy() : handleRetrySave())}>
-                  {t(isRetiredRootSaveError ? 'notes.save_copy' : 'common.retry')}
-                </Button>
+                <>
+                  {(isRetiredRootSaveError || isRootUnresolvedSaveError) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={fileSession.isSaving}
+                      onClick={() => void handleSaveDraftCopy()}>
+                      {t('notes.save_copy')}
+                    </Button>
+                  )}
+                  {!isRetiredRootSaveError && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={fileSession.isSaving}
+                      onClick={() => void handleRetrySave()}>
+                      {t('common.retry')}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}

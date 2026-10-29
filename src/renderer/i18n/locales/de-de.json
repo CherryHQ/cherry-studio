@@ -2850,6 +2850,7 @@
   "notes.save_failure.metadata_pending": "Die Notiz wurde gespeichert, aber ihre Dateimetadaten werden noch wiederhergestellt. Wiederholen Sie diesen Speichervorgang nicht.",
   "notes.save_failure.retired_root": "Der Ordner dieser Notiz wurde an einen neuen Ort verschoben. Ihre Änderungen können nicht in der alten Kopie gespeichert werden. Speichern Sie eine Kopie Ihrer Änderungen und öffnen Sie die Notiz erneut.",
   "notes.save_copy": "Kopie speichern",
+  "notes.save_failure.root_unresolved": "Der aktuelle Notizordner kann gerade nicht überprüft werden. Ihre Änderungen bleiben im Editor erhalten. Versuchen Sie es erneut oder speichern Sie zur Sicherheit eine Kopie.",
   "notes.search.both": "Name + Inhalt",
   "notes.search.content": "Inhalt",
   "notes.search.found_results": "{{count}} Ergebnisse gefunden (Name: {{nameCount}}, Inhalt: {{contentCount}})",
