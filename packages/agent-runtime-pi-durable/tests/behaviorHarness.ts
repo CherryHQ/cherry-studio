@@ -12,7 +12,7 @@ import {
   type FauxProviderHandle,
   type AssistantMessage
 } from '@earendil-works/pi-ai'
-import { configure, createRegistry, Harness } from '@earendil-works/pi-durable'
+import { configure, createRegistry, Harness, type Extension } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { onTestFinished } from 'vitest'
 
@@ -24,7 +24,8 @@ import { conversationId, pages, threadId } from '../src/behavior/history'
 import { meteredModels } from '../src/behavior/models'
 
 export async function openDurableHarness(
-  install: (ports: HarnessPorts) => void
+  install: (ports: HarnessPorts) => void,
+  extensions: readonly Extension[] = []
 ): Promise<{ harness: ContractHarness; errors: unknown[]; native(): Harness; behavior(): PiDurableBehavior }> {
   const directory = await mkdtemp(join(tmpdir(), 'durable-behavior-'))
   const path = join(directory, 'store.sqlite')
@@ -88,6 +89,7 @@ export async function openDurableHarness(
   }
   async function open() {
     const registry = createRegistry()
+    for (const extension of extensions) registry.install(extension)
     behavior = createPiDurableBehavior({
       install,
       configureChild: (child) => ({ model: modelOf(child) }),
