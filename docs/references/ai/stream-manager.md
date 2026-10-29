@@ -143,6 +143,9 @@ Choose by **consumer / producer fanout**:
   `sequence`; `attach` returns `replayFrom[attemptId]` and
   `replayThrough[attemptId]` with the compact replay. Merged payloads retain
   their first source sequence so eviction does not overstate replay coverage.
+  Coalesced live payloads carry that same range. If queued live output covers the
+  replay but its opening text/reasoning event was evicted, the subscription opens
+  that part before its first retained live delta.
   Main flushes the previous window listener's pending deltas before replacing
   it, so a coalesced payload cannot cross that cutoff. `TopicStreamSubscription`
   uses queued live output when it covers the entire retained replay interval;

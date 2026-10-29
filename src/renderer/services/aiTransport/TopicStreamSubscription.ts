@@ -34,6 +34,7 @@ interface Branch {
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   closed: boolean
+  openedParts: Set<string>
 }
 
 function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
@@ -49,7 +50,8 @@ function createBranch(executionId: UniqueModelId, anchorMessageId: string | unde
     anchorMessageId,
     stream: undefined as never,
     controller: null,
-    closed: false
+    closed: false,
+    openedParts: new Set()
   }
   branch.stream = new ReadableStream<UIMessageChunk>({
     start(controller) {
@@ -77,6 +79,7 @@ export class TopicStreamSubscription {
   #terminalAttemptWatermark: number | undefined
   #pendingEvents: Array<() => void> = []
   #pendingCoverage = new Map<number, { first: number; last: number }>()
+  #liveReplayAttempts = new Set<number>()
   #replayThrough: Record<number, number> = {}
 
   constructor(topicId: string) {
@@ -248,7 +251,23 @@ export class TopicStreamSubscription {
     if (live && payload.sequence !== undefined && payload.sequence <= (this.#replayThrough[attemptId] ?? 0)) return
     if (this.#isBranchSettled(executionId, payload.anchorMessageId, attemptId)) return
     const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId)
-    if (!branch.closed) branch.controller?.enqueue(payload.chunk)
+    if (branch.closed) return
+    const chunk = payload.chunk
+    if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
+      branch.openedParts.add(`${chunk.type}:${chunk.id}`)
+    } else if (
+      live &&
+      this.#liveReplayAttempts.has(attemptId) &&
+      (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta')
+    ) {
+      const type = chunk.type === 'text-delta' ? 'text-start' : 'reasoning-start'
+      const key = `${type}:${chunk.id}`
+      if (!branch.openedParts.has(key)) {
+        branch.openedParts.add(key)
+        branch.controller?.enqueue({ type, id: chunk.id })
+      }
+    }
+    branch.controller?.enqueue(chunk)
   }
 
   /** Mirror PersistenceListener's stored error part into the live branch before it closes. */
@@ -411,7 +430,10 @@ export class TopicStreamSubscription {
         if (data.topicId !== this.#topicId) return
         if (!this.#attached && data.attemptId !== undefined && data.sequence !== undefined) {
           const previous = this.#pendingCoverage.get(data.attemptId)
-          this.#pendingCoverage.set(data.attemptId, { first: previous?.first ?? data.sequence, last: data.sequence })
+          this.#pendingCoverage.set(data.attemptId, {
+            first: previous?.first ?? data.firstSequence ?? data.sequence,
+            last: data.sequence
+          })
         }
         if (data.executionId && data.attemptId !== undefined) {
           this.#getOrCreateBranch(data.executionId, data.anchorMessageId, data.attemptId)
@@ -520,7 +542,9 @@ export class TopicStreamSubscription {
             for (const payload of res.bufferedChunks) {
               if (payload.attemptId === undefined || !liveAttempts.has(payload.attemptId)) this.#routeChunk(payload)
             }
+            this.#liveReplayAttempts = liveAttempts
             this.#drainPendingEvents()
+            this.#liveReplayAttempts.clear()
             this.#replayThrough = res.replayThrough
             break
           }

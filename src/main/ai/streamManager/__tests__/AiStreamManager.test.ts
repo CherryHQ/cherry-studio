@@ -167,12 +167,29 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
+const replayIpc = vi.hoisted(
+  (): { request(route: string, input: unknown): Promise<unknown>; chunk(payload: StreamChunkPayload): void } => ({
+    request: () => Promise.resolve(undefined),
+    chunk: () => {}
+  })
+)
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => replayIpc.request(route, input),
+    on: (event: string, callback: (payload: StreamChunkPayload) => void) => {
+      if (event === 'ai.stream.chunk') replayIpc.chunk = callback
+      return () => {}
+    }
+  }
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
+const { TopicStreamSubscription } = await import('@renderer/services/aiTransport/TopicStreamSubscription')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -2063,6 +2080,41 @@ describe('AiStreamManager', () => {
           }
         ]
       })
+    })
+
+    it('renders a complete coalesced live answer after its replay prefix and opening were evicted', async () => {
+      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
+      const sender = {
+        id: 1,
+        isDestroyed: () => false,
+        send: (_channel: string, event: string, payload: StreamChunkPayload) => {
+          if (event === 'ai.stream.chunk') replayIpc.chunk(payload)
+        }
+      }
+      const wc = sender as unknown as Electron.WebContents
+      const {
+        executions: [{ attemptId }]
+      } = startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new WebContentsListener(wc, 'a')]
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
+      const subscription = new TopicStreamSubscription('a')
+      subscription.listen()
+      for (const delta of ['AA', 'BB', 'CC', 'DD', 'EE'])
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta })
+      replayIpc.request = async (route) =>
+        route === 'ai.stream.attach' ? ringMgr.attach(wc, { topicId: 'a' }) : undefined
+      const stream = subscription.register('provider-a::model-a', undefined, attemptId)
+      await Promise.resolve()
+      await Promise.resolve()
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p' })
+      subscription.dispose()
+      let message
+      for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
+      expect(message?.parts).toEqual([{ type: 'text', text: 'AABBCCDDEE', state: 'done' }])
     })
 
     it('reports the start of retained source coverage after evicting a merged or split prefix', () => {

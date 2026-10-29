@@ -44,7 +44,7 @@ export interface StreamChunkPayload {
   attemptId?: number
   /** Last source chunk covered by this payload, monotonic within a managed execution attempt. */
   sequence?: number
-  /** First source chunk in a compact replay payload, including a partially retained split delta. */
+  /** First source chunk in a coalesced live or replay payload, including a partially retained split delta. */
   firstSequence?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string

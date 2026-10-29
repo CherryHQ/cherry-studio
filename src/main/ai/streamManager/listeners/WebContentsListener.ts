@@ -34,6 +34,7 @@ interface PendingDelta {
   anchorMessageId: string | undefined
   attemptId: number | undefined
   sequence: number | undefined
+  firstSequence: number | undefined
   text: string
 }
 
@@ -174,7 +175,7 @@ export class WebContentsListener implements StreamListener {
     const p = this.pending
     if (!p) return
     this.pending = null
-    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId, p.sequence)
+    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId, p.sequence, p.firstSequence)
   }
 
   private discardPending(): void {
@@ -190,7 +191,8 @@ export class WebContentsListener implements StreamListener {
     sourceModelId?: UniqueModelId,
     anchorMessageId?: string,
     attemptId?: number,
-    sequence?: number
+    sequence?: number,
+    firstSequence?: number
   ): void {
     if (this.wc.isDestroyed()) return
     this.emit('ai.stream.chunk', {
@@ -198,6 +200,7 @@ export class WebContentsListener implements StreamListener {
       executionId: sourceModelId,
       ...(attemptId !== undefined ? { attemptId } : {}),
       ...(sequence !== undefined ? { sequence } : {}),
+      ...(firstSequence !== undefined ? { firstSequence } : {}),
       anchorMessageId,
       chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
     })
@@ -240,6 +243,7 @@ function normalizePending(
       anchorMessageId,
       attemptId,
       sequence,
+      firstSequence: sequence,
       text: chunk.inputTextDelta
     }
   }
@@ -250,6 +254,7 @@ function normalizePending(
     anchorMessageId,
     attemptId,
     sequence,
+    firstSequence: sequence,
     text: chunk.delta
   }
 }

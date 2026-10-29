@@ -110,9 +110,11 @@ function createMockAiApi() {
       chunk: UIMessageChunk,
       anchorMessageId?: string,
       attemptId = 1,
-      sequence?: number
+      sequence?: number,
+      firstSequence?: number
     ) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, chunk, sequence })
+      for (const cb of [...listeners.chunk])
+        cb({ topicId, executionId, attemptId, anchorMessageId, chunk, sequence, firstSequence })
     },
     emitDone: (
       topicId: string,
@@ -557,6 +559,33 @@ describe('TopicStreamSubscription', () => {
     expect(message?.parts).toEqual([{ type: 'text', text: 'prefix-suffix', state: 'done' }])
     sub.dispose()
   })
+
+  it.each(['text', 'reasoning'] as const)(
+    'preserves the coalesced live prefix and opens an evicted %s part',
+    async (kind) => {
+      const attach = Promise.withResolvers<unknown>()
+      mock.mockApi.streamAttach.mockReturnValueOnce(attach.promise)
+      const sub = new TopicStreamSubscription(TOPIC)
+      const stream = sub.register(A, 'answer', 1)
+      mock.emitChunk(TOPIC, A, { type: `${kind}-delta`, id: 'p', delta: 'AABBCCDDEE' }, 'answer', 1, 7, 3)
+      attach.resolve({
+        status: 'attached',
+        replayFrom: { 1: 5 },
+        replayThrough: { 1: 7 },
+        bufferedChunks: [
+          { type: `${kind}-start`, id: 'p' },
+          { type: `${kind}-delta`, id: 'p', delta: 'CCDDEE' }
+        ].map((chunk) => ({ topicId: TOPIC, executionId: A, attemptId: 1, anchorMessageId: 'answer', chunk }))
+      })
+      await tick()
+      mock.emitChunk(TOPIC, A, { type: `${kind}-end`, id: 'p' }, 'answer', 1, 8)
+      mock.emitDone(TOPIC, A, 'success', true, 'answer')
+      let message
+      for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
+      expect(message?.parts).toEqual([{ type: kind, text: 'AABBCCDDEE', state: 'done' }])
+      sub.dispose()
+    }
+  )
 
   it('retires covered sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({

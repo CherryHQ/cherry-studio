@@ -41,6 +41,21 @@ afterEach(() => {
 })
 
 describe('WebContentsListener coalescing', () => {
+  it('reports the complete source range of coalesced live output', () => {
+    const wc = fakeWc()
+    const listener = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    for (const [index, delta] of ['AA', 'BB', 'CC', 'DD', 'EE'].entries())
+      listener.onChunk({ type: 'text-delta', id: 'p', delta }, undefined, 'answer', 1, index + 3)
+    listener.flushPending()
+    expect(wc.send.mock.calls.map((call) => call[2])).toEqual([
+      expect.objectContaining({
+        firstSequence: 3,
+        sequence: 7,
+        chunk: { type: 'text-delta', id: 'p', delta: 'AABBCCDDEE' }
+      })
+    ])
+  })
+
   it('merges consecutive text-deltas with same id into one send', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
