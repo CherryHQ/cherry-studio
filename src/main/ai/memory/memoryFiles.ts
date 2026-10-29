@@ -1,7 +1,9 @@
+import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, readdir, realpath, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
+import { promisify } from 'node:util'
 
 export const MEMORY_ENTRY = 'MEMORY.md'
 export const MEMORY_TOPICS = '.memories'
@@ -10,6 +12,22 @@ export const MEMORY_MAX_LINES = 200
 export const MEMORY_WARNING_BYTES = 20_000
 export const MEMORY_WARNING_LINES = 160
 const COMPLETE_READ_BYTES = 20 * 1024 * 1024
+
+export async function initializeMemoryFiles(root: string): Promise<void> {
+  await mkdir(root, { recursive: true, mode: 0o700 })
+  await assertMemoryPath(root, '')
+  await ensureMemoryDirectory(root, MEMORY_TOPICS)
+  if (process.platform === 'win32')
+    await promisify(execFile)('attrib.exe', ['+H', path.join(root, MEMORY_TOPICS)], { windowsHide: true })
+  const entry = await assertMemoryPath(root, MEMORY_ENTRY)
+  try {
+    const handle = await open(entry, 'wx', 0o600)
+    await handle.close()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+  }
+  await readMemoryEntry(root)
+}
 
 export class MemoryError extends Error {
   constructor(
