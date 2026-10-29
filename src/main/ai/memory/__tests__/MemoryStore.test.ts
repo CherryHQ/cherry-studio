@@ -9,7 +9,7 @@ import * as memoryFiles from '../memoryFiles'
 import { type MemoryAccess, type MemoryApproval, MemoryStore } from '../MemoryStore'
 
 const approve: MemoryApproval = async () => async () => undefined
-const access = (): MemoryAccess => ({ assertAuthorized: async () => undefined })
+const access = (): MemoryAccess => ({ assertAuthorized: () => undefined })
 let fixture: string
 let root: string
 let backups: string
@@ -210,6 +210,25 @@ describe('memory save contract', () => {
 })
 
 describe('limits, access, and recovery', () => {
+  it('rechecks live authority before replacement even without a revocation event', async () => {
+    let allowed = true
+    caller = {
+      assertAuthorized: () => {
+        if (!allowed) throw new Error('Shared memory disabled')
+        return undefined
+      }
+    }
+    const originalWrite = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes, assertCurrent) => {
+      if (directory === root) allowed = false
+      await originalWrite(directory, relative, bytes, assertCurrent)
+    })
+    const result = await save('MEMORY.md', 'Must remain uncommitted')
+    expect(result.files[0].outcome).toBe('unchanged')
+    expect(result.error).toBe('Shared memory disabled')
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
   it('bounds entry injection when an external editor creates an oversized file', async () => {
     const oversized = Buffer.concat([Buffer.from('Visible fact\n'), Buffer.alloc(MEMORY_BACKUP_BYTES + 1, 65)])
     await writeFile(path.join(root, 'MEMORY.md'), oversized)
@@ -314,7 +333,7 @@ describe('limits, access, and recovery', () => {
 
   it('does not expose names when the caller is unauthorized', async () => {
     const denied: MemoryAccess = {
-      assertAuthorized: async () => {
+      assertAuthorized: () => {
         throw new Error('Unauthorized')
       }
     }
