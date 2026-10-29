@@ -196,6 +196,8 @@ type ResolvedPreferenceKey =
  * - Batch operations support
  * - Unified change notification broadcasting
  */
+export type PreferenceReadProvenance = 'bootConfig' | 'cache' | 'default' | 'not-ready'
+
 @Injectable('PreferenceService')
 @ServicePhase(Phase.BeforeReady)
 @DependsOn(['DbService'])
@@ -352,6 +354,40 @@ export class PreferenceService extends BaseService {
     }
 
     return (this.cache[route.key] ?? DefaultPreferences.default[route.key]) as UnifiedPreferenceType[K]
+  }
+
+  /**
+   * Get a preference value with the provenance of the result.
+   *
+   * Callers whose correctness depends on WHY a value came back (for example a
+   * migration classifier deciding which notes root is configured) use this
+   * instead of {@link get}: a ready read of an unset key is an affirmative
+   * default, while a fallback produced because the cache is not initialized
+   * must not be mistaken for the configured value.
+   */
+  public getWithProvenance<K extends UnifiedPreferenceKeyType>(
+    key: K
+  ): { value: UnifiedPreferenceType[K]; provenance: PreferenceReadProvenance } {
+    const route = this.resolveKey(key)
+    if (route.store === 'bootConfig') {
+      return { value: bootConfigService.get(route.key) as UnifiedPreferenceType[K], provenance: 'bootConfig' }
+    }
+
+    if (!this.isReady) {
+      return {
+        value: DefaultPreferences.default[route.key] as UnifiedPreferenceType[K],
+        provenance: 'not-ready'
+      }
+    }
+
+    if (route.key in this.cache) {
+      return { value: this.cache[route.key] as UnifiedPreferenceType[K], provenance: 'cache' }
+    }
+
+    return {
+      value: DefaultPreferences.default[route.key] as UnifiedPreferenceType[K],
+      provenance: 'default'
+    }
   }
 
   /**
