@@ -210,6 +210,15 @@ describe('memory save contract', () => {
 })
 
 describe('limits, access, and recovery', () => {
+  it('bounds entry injection when an external editor creates an oversized file', async () => {
+    const oversized = Buffer.concat([Buffer.from('Visible fact\n'), Buffer.alloc(MEMORY_BACKUP_BYTES + 1, 65)])
+    await writeFile(path.join(root, 'MEMORY.md'), oversized)
+    await store.initialize()
+    expect(await store.entry(caller)).toEqual({ content: 'Visible fact\n', truncated: true })
+    await expect(store.read(caller, 'MEMORY.md')).rejects.toMatchObject({ code: 'limit' })
+    expect((await readFile(path.join(root, 'MEMORY.md'))).equals(oversized)).toBe(true)
+  })
+
   it('checks revocation at the replacement boundary after temporary-file preparation', async () => {
     const originalWrite = memoryFiles.writeMemoryBytes
     vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes, assertCurrent) => {

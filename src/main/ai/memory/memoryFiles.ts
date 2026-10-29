@@ -9,6 +9,7 @@ export const MEMORY_MAX_BYTES = 25_000
 export const MEMORY_MAX_LINES = 200
 export const MEMORY_WARNING_BYTES = 20_000
 export const MEMORY_WARNING_LINES = 160
+const COMPLETE_READ_BYTES = 20 * 1024 * 1024
 
 export class MemoryError extends Error {
   constructor(
@@ -118,13 +119,54 @@ export async function readMemoryBytes(root: string, relative: string): Promise<B
   try {
     const before = await handle.stat()
     if (!before.isFile()) throw new MemoryError('invalid-path', 'Memory target must be a regular file')
-    const bytes = await handle.readFile()
+    if (before.size > COMPLETE_READ_BYTES) {
+      throw new MemoryError(
+        'limit',
+        'Memory file exceeds the complete-read budget; preserve and reorganize the original'
+      )
+    }
+    const buffer = Buffer.alloc(before.size + 1)
+    let length = 0
+    while (length < buffer.length) {
+      const result = await handle.read(buffer, length, buffer.length - length, length)
+      if (result.bytesRead === 0) break
+      length += result.bytesRead
+    }
+    const bytes = buffer.subarray(0, length)
     const after = await handle.stat()
     if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || bytes.length !== after.size) {
       throw new MemoryError('conflict', 'Memory changed during the read')
     }
     await assertMemoryPath(root, relative)
     return bytes
+  } finally {
+    await handle.close()
+  }
+}
+
+/** Entry injection has a bounded read and never produces an editing receipt. */
+export async function readMemoryEntry(root: string): Promise<{ content: string; truncated: boolean }> {
+  const target = await assertMemoryPath(root, MEMORY_ENTRY)
+  const stat = await statIfPresent(target)
+  if (!stat) return { content: '', truncated: false }
+  if (!stat.isFile()) throw new MemoryError('invalid-path', 'Memory entry must be a regular file')
+  const handle = await open(target, constants.O_RDONLY | (process.platform === 'win32' ? 0 : constants.O_NOFOLLOW))
+  try {
+    const buffer = Buffer.alloc(MEMORY_MAX_BYTES + 1)
+    let length = 0
+    while (length < buffer.length) {
+      const result = await handle.read(buffer, length, buffer.length - length, length)
+      if (result.bytesRead === 0) break
+      length += result.bytesRead
+    }
+    const incomplete = length > MEMORY_MAX_BYTES
+    let content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, length), {
+      stream: incomplete
+    })
+    if (incomplete) content = content.slice(0, content.lastIndexOf('\n') + 1)
+    await assertMemoryPath(root, MEMORY_ENTRY)
+    const preview = memoryEntryPreview(content)
+    return { content: preview.content, truncated: incomplete || preview.truncated }
   } finally {
     await handle.close()
   }
