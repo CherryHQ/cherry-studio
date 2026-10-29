@@ -59,7 +59,7 @@ A ⋯ menu in the pane header, next to the pane actions, holds settings that app
 | Scroll past end | `scroll_past_end` | off | Lets the last line scroll to the top of the editor. |
 | Tab size | `tab_size` | 2 | 2, 4, or 8 columns. |
 
-Indent guides and whitespace marks come from a local `@pierre/diffs` patch on its three line builders (`utils/renderTokenLines.js` and `worker/worker.js` for highlighted views, `renderers/FileRenderer.js` for lines re-rendered while editing). Whitespace-only token spans get `data-ws`, and leading ones also `data-indent`; in the editing path a token that starts with indentation is split into a whitespace span and a text span with matching `data-char` offsets. The pane draws both marks as CSS backgrounds, so text and caret positions are unchanged. Blank lines carry no guide, and whitespace inside a non-whitespace token (for example inside a string) is not marked.
+Indent guides and whitespace marks come from a local `@pierre/diffs` patch on its four line builders (`utils/renderTokenLines.js` and `worker/worker.js` for highlighted views, `renderers/FileRenderer.js` for lines re-rendered while editing, and `editor/tokenizer.js` for the line being typed). Whitespace-only token spans get `data-ws`, and leading ones also `data-indent`; in the two editing paths a token that starts with indentation is split into a whitespace span and a text span with matching `data-char` offsets. The pane draws both marks as CSS backgrounds, so text and caret positions are unchanged. Blank lines carry no guide, and whitespace inside a non-whitespace token (for example inside a string) is not marked.
 
 ### Tree rows
 

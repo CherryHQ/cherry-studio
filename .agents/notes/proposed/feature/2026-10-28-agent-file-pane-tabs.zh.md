@@ -59,7 +59,7 @@ Agent 文件面板打开文件时，会用铺满整个面板的浮层盖住目�
 | 滚动超出末尾 | `scroll_past_end` | 关 | 允许最后一行滚动到编辑器顶部。 |
 | 制表符宽度 | `tab_size` | 2 | 2、4 或 8 列。 |
 
-缩进参考线和空白标记依赖本地 `@pierre/diffs` patch，修改其三处行构建逻辑（高亮视图用的 `utils/renderTokenLines.js` 和 `worker/worker.js`，以及编辑时重渲染行的 `renderers/FileRenderer.js`）。纯空白的 token span 带 `data-ws`，行首的还带 `data-indent`；在编辑路径中，以缩进开头的 token 会拆成一个空白 span 和一个文本 span，并保持对应的 `data-char` 偏移。面板用 CSS 背景绘制两种标记，因此文本和光标位置不变。空行不显示参考线，非空白 token 内部的空白（例如字符串中的空格）不会被标记。
+缩进参考线和空白标记依赖本地 `@pierre/diffs` patch，修改其四处行构建逻辑（高亮视图用的 `utils/renderTokenLines.js` 和 `worker/worker.js`，编辑时重渲染行的 `renderers/FileRenderer.js`，以及输入时渲染当前行的 `editor/tokenizer.js`）。纯空白的 token span 带 `data-ws`，行首的还带 `data-indent`；在两条编辑路径中，以缩进开头的 token 会拆成一个空白 span 和一个文本 span，并保持对应的 `data-char` 偏移。面板用 CSS 背景绘制两种标记，因此文本和光标位置不变。空行不显示参考线，非空白 token 内部的空白（例如字符串中的空格）不会被标记。
 
 ### 目录树行
 

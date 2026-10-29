@@ -319,6 +319,49 @@ index df1ba637c2f7834f21f087eba7a416c802f4ac68..af6d8f20b5458b40e81c4b677f715d2c
  			gridElement.dataset.mode = next;
  			this.#inputElement.focus();
  			this.#inputElement.select();
+diff --git a/dist/editor/tokenizer.js b/dist/editor/tokenizer.js
+index e90145985e62c7cca8ac907c5f355540bbd71d55..39c4e6330016709cfa4cb74949d9953cbee2a052 100644
+--- a/dist/editor/tokenizer.js
++++ b/dist/editor/tokenizer.js
+@@ -140,16 +140,32 @@ var EditorTokenizer = class {
+ 	}
+ };
+ function renderLineTokens(tokens) {
+-	return tokens.map(([char, fg, textContent]) => {
++	let leading = true;
++	return tokens.flatMap(([char, fg, textContent]) => {
+ 		if (char === 0 && fg === "") {
+-			if (textContent === "") return h("br");
+-			return textContent;
++			if (textContent === "") return [h("br")];
++			return [textContent];
+ 		}
+-		return h("span", {
+-			dataset: { char: char.toString() },
++		const span = (start, text, marks) => h("span", {
++			dataset: {
++				char: start.toString(),
++				...marks
++			},
+ 			style: `color:${fg};`,
+-			textContent
++			textContent: text
+ 		});
++		const lead = leading ? /^\s+/.exec(textContent)?.[0] ?? "" : "";
++		if (lead === "") {
++			leading = false;
++			return [span(char, textContent, /^\s+$/.test(textContent) ? { ws: textContent.includes("\t") ? "tab" : "space" } : void 0)];
++		}
++		const marks = {
++			ws: lead.includes("\t") ? "tab" : "space",
++			indent: ""
++		};
++		if (lead.length === textContent.length) return [span(char, textContent, marks)];
++		leading = false;
++		return [span(char, lead, marks), span(char + lead.length, textContent.slice(lead.length))];
+ 	});
+ }
+ //#endregion
 diff --git a/dist/react/utils/useFileDiffInstance.js b/dist/react/utils/useFileDiffInstance.js
 index 4c31cf5025d726a55d07d4cada9d4ba5510998b4..04711616c4f9c5af0e211f4817537ad2ac5db9a4 100644
 --- a/dist/react/utils/useFileDiffInstance.js

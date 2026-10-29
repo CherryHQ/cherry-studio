@@ -3457,6 +3457,43 @@ describe('AgentRightPane', () => {
     expect(tabNames()).toEqual(['README.md'])
   })
 
+  it('closes a file opened from an attachment link to its neighbour, not to the attachment history', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.queryAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('DESIGN.md'))
+
+    await user.click(screen.getByRole('button', { name: 'close DESIGN.md' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(tabNames()).toEqual(['README.md', 'notes.md'])
+
+    // Closing the attachment itself still returns to the file it was opened from.
+    await user.click(screen.getByRole('button', { name: 'close notes.md' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+  })
+
   it('does not reopen a tab the user closed when the attachment it led to closes', async () => {
     const user = userEvent.setup()
     fileTreeModelState.hasLoaded = true

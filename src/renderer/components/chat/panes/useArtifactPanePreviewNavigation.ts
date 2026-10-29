@@ -14,6 +14,8 @@ interface PreviewReturnTarget {
   panelId?: string
   previous?: PreviewReturnTarget
   selection: ArtifactPaneFileSelection | null
+  /** The attachment preview that recorded this target; only closing it returns here. */
+  owner?: ArtifactPaneFileSelection
 }
 
 interface SelectionGeneration {
@@ -184,8 +186,10 @@ export function useArtifactPanePreviewNavigation({
           (previewPath === input.previewPath ? null : createInputFileSelection(input, workspacePath, input.previewPath))
         if (!selection) return
         await validateSelection(selection, requestId, () => {
+          const before = returnRef.current
           if (!isSameAcceptedSelection(previewFileSelection, selection)) captureInputPreviewReturnTarget()
           rememberPreviewReturnTarget()
+          if (returnRef.current && returnRef.current !== before) returnRef.current.owner = selection
         })
       })()
     },
@@ -204,6 +208,11 @@ export function useArtifactPanePreviewNavigation({
   const closeFilePreview = useCallback(() => {
     beginRequest()
     const returnTarget = returnRef.current
+    // Closing any other file, e.g. one opened from a link in the attachment, just closes its tab.
+    if (returnTarget?.owner && !isSameAcceptedSelection(previewFileSelection, returnTarget.owner)) {
+      requestFileSelection(null, undefined, true)
+      return
+    }
     requestFileSelection(
       returnTarget?.selection ?? null,
       () => {
@@ -218,7 +227,7 @@ export function useArtifactPanePreviewNavigation({
       },
       true
     )
-  }, [beginRequest, panelActions, requestFileSelection])
+  }, [beginRequest, panelActions, previewFileSelection, requestFileSelection])
 
   const invalidatePreviewRequests = useCallback(() => {
     requestRef.current += 1
