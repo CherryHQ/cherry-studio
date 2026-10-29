@@ -339,6 +339,37 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
     ).toBeNull()
   })
+  it.each([false, true])(
+    'archives agent conversations while preserving a background session (busy=%s)',
+    async (busy) => {
+      dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, 'user')).run()
+      mocks.busyForArchive.mockImplementation((sessionId: string) => busy && sessionId === 'user')
+
+      const result = await lifecycle.archiveAgentSessions('agent')
+
+      expect(result.deletedIds).toEqual(['system'])
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+      ).toEqual(expect.any(Number))
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'user')).get()?.deletedAt
+      ).toBeNull()
+      expect(await readFile(path.join(workspacePath(root, 'user'), 'output.txt'), 'utf8')).toBe('user output')
+    }
+  )
+
+  it('archives background sessions in the agent-delete cascade', async () => {
+    dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, 'user')).run()
+
+    await lifecycle.archiveAgent('agent', { archiveSessions: true })
+
+    for (const id of ['system', 'user']) {
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()?.deletedAt).toEqual(
+        expect.any(Number)
+      )
+    }
+  })
+
   it('archives only system files and restores them before making the session active', async () => {
     await lifecycle.archiveSessions(['system', 'user'])
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
