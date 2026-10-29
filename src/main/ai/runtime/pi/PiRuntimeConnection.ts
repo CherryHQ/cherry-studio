@@ -200,6 +200,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    await application.get('MemoryMigrationService').ensureSession(this.input.sessionId)
     const resolveInjection = (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> =>
       resolvePiProviderInjectionForSession(
         this.input.sessionId,

@@ -17,6 +17,7 @@ import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { MemoryEditorService } from '@main/ai/memory/MemoryEditorService'
+import { MemoryMigrationService } from '@main/ai/memory/MemoryMigrationService'
 import { MemoryService } from '@main/ai/memory/MemoryService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
@@ -173,6 +174,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   MemoryService,
+  MemoryMigrationService,
   MemoryEditorService,
   McpCatalogService,
   BinaryManager,
