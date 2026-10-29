@@ -11,7 +11,7 @@ import { application } from '@application'
 import {
   assertNotesPathNotMutatingDuringMigration,
   assertNotesPathNotRetired,
-  clearRetiredNotesRootsForTests,
+  clearNotesMigrationPairsForTests,
   beginNotesBatchMarkdownUpload,
   beginNotesFilesystemMutation,
   completeNotesMigrationCommit,
@@ -29,7 +29,7 @@ import {
 describe('notes migration session', () => {
   afterEach(() => {
     releaseNotesMigrationSession()
-    clearRetiredNotesRootsForTests()
+    clearNotesMigrationPairsForTests()
     vi.restoreAllMocks()
   })
 
@@ -216,6 +216,23 @@ describe('notes migration session', () => {
       releaseNotesMigrationSession()
 
       expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).not.toThrow()
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
+    })
+
+    it('retires the source on the write after a late preference flip', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      const preference = { read: { value: source, provenance: 'cache' } }
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => preference.read)
+      })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).not.toThrow()
+
+      preference.read = { value: target, provenance: 'cache' }
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
       expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
     })
 

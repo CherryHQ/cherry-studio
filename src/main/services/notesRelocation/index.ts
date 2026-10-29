@@ -2,7 +2,7 @@ export { inspectNotesRelocation, migrateNotesDirectory } from './migrate'
 export {
   assertNotesPathNotMutatingDuringMigration,
   assertNotesPathNotRetired,
-  clearRetiredNotesRootsForTests,
+  clearNotesMigrationPairsForTests,
   beginNotesBatchMarkdownUpload,
   beginNotesFilesystemMutation,
   completeNotesMigrationCommit,

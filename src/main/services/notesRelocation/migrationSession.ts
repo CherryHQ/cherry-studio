@@ -16,11 +16,13 @@ const COMMIT_TIMEOUT_MS = 60_000
 let migrationInFlight = false
 let activeSessionId: string | null = null
 let blockedRoots: { source: string; target: string } | null = null
-// Roots retired by a completed migration (target-active: source only) or by an
-// unresolvable release (close-loud: both roots). In-memory only: a crash or
-// restart clears the record, and reopening resolves against the canonical
-// configured root again.
-let retiredRoots: string[] = []
+// Migration root pairs recorded at release. Enforcement is write-time, not a
+// release-time latch: a preference flip can land AFTER a source-active
+// release, and only re-reading the canonical configured root when a write
+// targets a recorded root keeps that late flip from silently orphaning the
+// write. In-memory only: a crash or restart clears the record, and reopening
+// resolves against the canonical configured root again.
+let migrationPairs: { source: string; target: string }[] = []
 let activeNotesFilesystemMutations = 0
 let notesFilesystemMutationIdleWaiters: Array<() => void> = []
 let commitWatchTimer: NodeJS.Timeout | undefined
@@ -113,18 +115,19 @@ export function isNotesRetiredRootWriteError(error: unknown): error is NotesReti
   return error instanceof NotesRetiredRootWriteError
 }
 
+type ActiveRootResolution = { state: 'source-active' | 'target-active' } | { state: 'unresolved'; reason: string }
+
 /**
- * Classify which root the canonical configured notes path points at while the
- * migration session releases. The renderer flips the preference BEFORE
- * committing, and a commit can also arrive from the renderer's catch path, so
- * arrival order alone never proves the flip landed - read the raw preference
- * with its provenance instead.
+ * Resolve which migration root the canonical configured notes path points at.
+ * The renderer flips the preference BEFORE committing, and a commit can also
+ * arrive from the renderer's catch path, so arrival order alone never proves
+ * the flip landed - read the raw preference with its provenance instead.
  */
-function classifyReleaseRoots(roots: { source: string; target: string }): void {
+function resolveActiveMigrationRoot(roots: { source: string; target: string }): ActiveRootResolution {
   try {
     const read = application.get('PreferenceService').getWithProvenance('feature.notes.path')
     if (read.provenance === 'not-ready') {
-      throw new Error('preference cache not ready')
+      return { state: 'unresolved', reason: 'preference cache not ready' }
     }
     const raw = typeof read.value === 'string' ? read.value.trim() : ''
     let configuredReal: string
@@ -134,49 +137,62 @@ function classifyReleaseRoots(roots: { source: string; target: string }): void {
     } else {
       const normalized = path.resolve(raw)
       if (!isAllowedNotesDirectory(normalized)) {
-        throw new Error(`configured notes path is not an allowed notes directory: ${normalized}`)
+        return {
+          state: 'unresolved',
+          reason: `configured notes path is not an allowed notes directory: ${normalized}`
+        }
       }
       configuredReal = realPath(normalized)
     }
     if (configuredReal === roots.target) {
-      retiredRoots.push(roots.source)
-      logger.info('Notes migration released with target root configured; retiring source root', {
-        source: roots.source
-      })
-      return
+      return { state: 'target-active' }
     }
     if (configuredReal === roots.source) {
-      logger.info('Notes migration released with source root still configured; barrier lifts cleanly')
-      return
+      return { state: 'source-active' }
     }
-    throw new Error(`configured notes root matches neither migration root: ${configuredReal}`)
+    return { state: 'unresolved', reason: `configured notes root matches neither migration root: ${configuredReal}` }
   } catch (error) {
-    // Unresolvable: close loud under BOTH roots. Drafts stay in memory; the
-    // user recovers by reopening once the canonical root resolves, or after a
-    // restart clears this in-memory record.
-    retiredRoots.push(roots.source, roots.target)
-    logger.warn(
-      'Notes migration release could not resolve the configured root; closing loud under both roots',
-      error as Error
-    )
+    return { state: 'unresolved', reason: (error as Error).message }
   }
 }
 
+/**
+ * Reject path-kind edits under a retired migration root. The canonical root
+ * is re-read on every call so a preference flip landing after the migration
+ * released still retires the source, and a once-unresolved root accepts edits
+ * again as soon as the configured root resolves - reopening is the recovery,
+ * and only a target-active source stays retired.
+ */
 export function assertNotesPathNotRetired(filePath: string): void {
-  if (retiredRoots.length === 0) {
+  if (migrationPairs.length === 0) {
     return
   }
   const resolved = effectiveFilesystemPath(filePath)
-  for (const root of retiredRoots) {
-    if (pathUnderRoot(resolved, root) || pathUnderRoot(root, resolved)) {
-      throw new NotesRetiredRootWriteError()
+  for (const pair of migrationPairs) {
+    const underSource = pathUnderRoot(resolved, pair.source) || pathUnderRoot(pair.source, resolved)
+    const underTarget = pathUnderRoot(resolved, pair.target) || pathUnderRoot(pair.target, resolved)
+    if (!underSource && !underTarget) {
+      continue
+    }
+    const active = resolveActiveMigrationRoot(pair)
+    switch (active.state) {
+      case 'target-active':
+        // The configured root moved: the source copy is retired.
+        if (underSource) throw new NotesRetiredRootWriteError()
+        break
+      case 'source-active':
+        // The flip never landed: both copies stay editable at their roots.
+        break
+      case 'unresolved':
+        // Close loud under both roots until the canonical root resolves.
+        throw new NotesRetiredRootWriteError()
     }
   }
 }
 
-/** Test hook: retired roots are per-app-run module state. */
-export function clearRetiredNotesRootsForTests(): void {
-  retiredRoots = []
+/** Test hook: migration root pairs are per-app-run module state. */
+export function clearNotesMigrationPairsForTests(): void {
+  migrationPairs = []
 }
 
 export function assertNotesPathNotMutatingDuringMigration(filePath: string): void {
@@ -236,7 +252,18 @@ export function waitForNotesBatchMarkdownUploadsIdle(): Promise<void> {
 
 export function releaseNotesMigrationSession(): void {
   if (blockedRoots) {
-    classifyReleaseRoots(blockedRoots)
+    migrationPairs.push(blockedRoots)
+    const active = resolveActiveMigrationRoot(blockedRoots)
+    if (active.state === 'unresolved') {
+      logger.warn(
+        'Notes migration release could not resolve the configured root; writes under both roots close loud until it resolves',
+        { reason: active.reason }
+      )
+    } else {
+      logger.info(
+        `Notes migration released with ${active.state === 'target-active' ? 'target' : 'source'} root configured`
+      )
+    }
   }
   migrationInFlight = false
   activeSessionId = null
