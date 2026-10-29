@@ -95,7 +95,7 @@ it('shares streamed message identities across handles while releasing only one o
     .poll(() => messages(right).at(-1)?.message)
     .toMatchObject({
       metadata: { completeness: 'complete' },
-      parts: [{ type: 'text', text: 'native output for both handles', state: 'done' }]
+      parts: [{ type: 'text', text: 'native output for both handles' }]
     })
   expect(left).toHaveLength(count)
   expect(await first.input.submit(input('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
@@ -210,10 +210,10 @@ it('correlates identical transformed inputs and shares one response across batch
   const after = await observe(confirmed(await runtime.open(handle.thread)))
   await expect.poll(() => after[0]?.type).toBe('snapshot')
   if (after[0].type !== 'snapshot') throw new Error('Missing snapshot')
-  const users = after[0].items.filter((item) => item.type === 'message' && item.role === 'user')
+  const users = after[0].messages.filter((item) => item.role === 'user')
   expect(users).toHaveLength(4)
-  expect(users.map((item) => item.type === 'message' && item.inputId)).toEqual(['root', 'steer-1', 'steer-2', 'follow'])
-  expect(users.every((item) => item.type === 'message' && item.parts[0]?.text === 'same')).toBe(true)
+  expect(users.map((item) => item.metadata?.inputId)).toEqual(['root', 'steer-1', 'steer-2', 'follow'])
+  expect(users.every((item) => item.parts.find((part) => part.type === 'text')?.text === 'same')).toBe(true)
   expect(after[0].inputs).toEqual(
     expect.arrayContaining(
       ['root', 'steer-1', 'steer-2', 'follow'].map((inputId) =>
@@ -225,17 +225,19 @@ it('correlates identical transformed inputs and shares one response across batch
       )
     )
   )
-  expect(after[0].items.filter((item) => item.type === 'message' && item.role === 'assistant')).toEqual(
-    expect.arrayContaining([expect.objectContaining({ parts: [{ type: 'text', text: 'shared steering answer' }] })])
+  expect(after[0].messages.filter((item) => item.role === 'assistant')).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ parts: [expect.objectContaining({ type: 'text', text: 'shared steering answer' })] })
+    ])
   )
-  for (const item of after[0].items) {
-    if (item.type === 'message' && item.role === 'assistant') expect(item.inputId).toBeUndefined()
+  for (const item of after[0].messages) {
+    if (item.role === 'assistant') expect(item.metadata?.inputId).toBeUndefined()
   }
   const snapshot = after[0]
   const responseText = (id: string) => {
     const state = snapshot.inputs.find((value) => value.inputId === id)
-    const response = snapshot.items.find((item) => item.ref.id === state?.response?.id)
-    return response && response.type === 'message' ? response.parts[0]?.text : undefined
+    const response = snapshot.messages.find((item) => item.id === state?.response?.id)
+    return response?.parts.find((part) => part.type === 'text')?.text
   }
   expect(['root', 'steer-1', 'steer-2', 'follow'].map(responseText)).toEqual([
     'initial answer',
@@ -290,7 +292,7 @@ it('keeps a locally handled command failure after its later admission acknowledg
   const events = await observe(handle)
   await expect.poll(() => events[0]?.type).toBe('snapshot')
   if (events[0].type !== 'snapshot') throw new Error('Missing snapshot')
-  expect(events[0].items).toEqual([])
+  expect(events[0].messages).toEqual([])
   expect(events[0].inputs).toEqual([
     {
       inputId: '/fail',
@@ -343,8 +345,7 @@ it('attributes a final answer to the original input and steering delivered after
   expect(snapshot.inputs).toHaveLength(2)
   expect(snapshot.inputs.every((state) => state.outcome === 'completed')).toBe(true)
   expect(snapshot.inputs[0].response).toEqual(snapshot.inputs[1].response)
-  expect(snapshot.items.find((item) => item.ref.id === snapshot.inputs[0].response?.id)).toMatchObject({
-    type: 'message',
+  expect(snapshot.messages.find((item) => item.id === snapshot.inputs[0].response?.id)).toMatchObject({
     parts: [{ type: 'text', text: 'answer using both inputs' }]
   })
 })
@@ -403,8 +404,11 @@ it.each(['error', 'length', 'toolUse'] as const)(
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          type: 'item.upsert',
-          item: expect.objectContaining({ role: 'assistant', parts: [{ type: 'text', text: 'partial output' }] })
+          type: 'message.upsert',
+          message: expect.objectContaining({
+            role: 'assistant',
+            parts: [expect.objectContaining({ type: 'text', text: 'partial output' })]
+          })
         })
       ])
     )
@@ -463,7 +467,10 @@ it('reopens native files after shutdown without requiring the Cherry model bridg
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   expect(snapshot.messages).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ role: 'assistant', parts: [{ type: 'text', text: 'saved answer', state: 'done' }] })
+      expect.objectContaining({
+        role: 'assistant',
+        parts: [expect.objectContaining({ type: 'text', text: 'saved answer' })]
+      })
     ])
   )
   expect(await handle.input.submit(input('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
@@ -508,8 +515,8 @@ it('continues an observed child through its owner, keeps one relationship, and r
     .poll(() => childEvents[0])
     .toMatchObject({
       type: 'snapshot',
-      items: expect.arrayContaining([
-        expect.objectContaining({ parts: [{ type: 'text', text: 'first child answer' }] })
+      messages: expect.arrayContaining([
+        expect.objectContaining({ parts: [expect.objectContaining({ type: 'text', text: 'first child answer' })] })
       ])
     })
   const started = gate()
@@ -549,10 +556,9 @@ it('continues an observed child through its owner, keeps one relationship, and r
     .poll(() =>
       childEvents.some(
         (event) =>
-          event.type === 'item.upsert' &&
-          event.item.type === 'message' &&
-          event.item.completeness === 'complete' &&
-          event.item.parts[0]?.text === 'continued child answer'
+          event.type === 'message.upsert' &&
+          event.message.metadata?.completeness === 'complete' &&
+          event.message.parts.find((part) => part.type === 'text')?.text === 'continued child answer'
       )
     )
     .toBe(true)
@@ -563,19 +569,17 @@ it('continues an observed child through its owner, keeps one relationship, and r
       () =>
         after.some(
           (event) =>
-            event.type === 'item.upsert' &&
-            event.item.type === 'message' &&
-            event.item.parts[0]?.text === 'parent received the result' &&
-            event.item.completeness === 'complete'
+            event.type === 'message.upsert' &&
+            event.message.parts.find((part) => part.type === 'text')?.text === 'parent received the result' &&
+            event.message.metadata?.completeness === 'complete'
         ) ||
         after.some(
           (event) =>
             event.type === 'snapshot' &&
-            event.items.some(
+            event.messages.some(
               (item) =>
-                item.type === 'message' &&
-                item.parts[0]?.text === 'parent received the result' &&
-                item.completeness === 'complete'
+                item.parts.find((part) => part.type === 'text')?.text === 'parent received the result' &&
+                item.metadata?.completeness === 'complete'
             )
         )
     )
@@ -712,3 +716,5 @@ it('binds a child launched during session initialization to its ready parent', a
   const child = confirmed(await runtime.open(delegation.child))
   expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
 })
+
+// A tool update must change its part, without splitting or reordering the surrounding native message.

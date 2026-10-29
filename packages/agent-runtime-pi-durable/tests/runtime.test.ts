@@ -128,9 +128,8 @@ describe('Pi Durable runtime contract', () => {
       .toMatchObject({ found: true, input: { outcome: 'completed' } })
     const settled = confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))
     if (!settled.found) throw new Error('Missing input')
-    const response = current(right)?.items.find((item) => item.ref.id === settled.input.response?.id)
+    const response = current(right)?.messages.find((item) => item.id === settled.input.response?.id)
     expect(response).toMatchObject({
-      type: 'message',
       parts: [{ type: 'text', text: 'a sufficiently long streaming answer' }]
     })
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
@@ -281,8 +280,7 @@ describe('Pi Durable runtime contract', () => {
     const root = await lookup('root')
     const steering = await lookup('steering')
     expect(root).toMatchObject({ outcome: 'completed', response: steering.response })
-    expect(current(events)?.items.find((item) => item.ref.id === root.response?.id)).toMatchObject({
-      type: 'message',
+    expect(current(events)?.messages.find((item) => item.id === root.response?.id)).toMatchObject({
       parts: [{ type: 'text', text: 'answer using both inputs' }]
     })
   })
@@ -338,13 +336,14 @@ describe('Pi Durable runtime contract', () => {
     expect(child.thread).not.toEqual(parent.thread)
     await expect
       .poll(() =>
-        current(parentEvents)?.items.some(
+        current(parentEvents)?.messages.some(
           (item) =>
-            item.type === 'message' && item.parts[0]?.text === 'parent finished' && item.completeness === 'complete'
+            item.parts.find((part) => part.type === 'text')?.text === 'parent finished' &&
+            item.metadata?.completeness === 'complete'
         )
       )
       .toBe(true)
-    const parentItems = current(parentEvents)!.items
+    const parentItems = current(parentEvents)!.messages
     await parent.release()
     const started = gate()
     const finish = gate()
@@ -374,11 +373,10 @@ describe('Pi Durable runtime contract', () => {
     finish.resolve()
     await expect
       .poll(() =>
-        current(retainedEvents)?.items.some(
+        current(retainedEvents)?.messages.some(
           (item) =>
-            item.type === 'message' &&
-            item.parts[0]?.text === 'continued child output' &&
-            item.completeness === 'complete'
+            item.parts.find((part) => part.type === 'text')?.text === 'continued child output' &&
+            item.metadata?.completeness === 'complete'
         )
       )
       .toBe(true)
@@ -390,7 +388,7 @@ describe('Pi Durable runtime contract', () => {
     const restored = await observe(reopenedParent)
     await expect.poll(() => current(restored)).toMatchObject({ subagents: [relationship.subagent] })
     expect(current(restored)!.subagents).toHaveLength(1)
-    expect(current(restored)!.items).toEqual(parentItems)
+    expect(current(restored)!.messages).toEqual(parentItems)
   })
 
   it('closes without cancelling durable work, reopens for observation only, then resumes explicitly', async () => {
