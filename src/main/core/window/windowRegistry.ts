@@ -534,6 +534,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
+        // Matches Main: the conversation renders local files (user avatar, attachments) as file:// URLs.
+        webSecurity: false,
         devTools: true
       }
     },

@@ -30,6 +30,7 @@ import {
   isSelectionWorkspaceUnavailableError,
   type SelectionAgentTarget
 } from './selectionAgentSession'
+import { useSelectionAgentWindowRules } from './useSelectionAgentWindowRules'
 
 const logger = loggerService.withContext('SelectionAgentWindow')
 
@@ -64,6 +65,7 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
   const [stage, setStage] = useState<Stage>(() =>
     action.isBuiltIn ? { kind: 'compose', sending: false, error: null } : { kind: 'starting' }
   )
+  const [composeText, setComposeText] = useState('')
   const shellRef = useRef<HTMLDivElement>(null)
   const selectedText = action.selectedText ?? ''
   const actionName = action.isBuiltIn ? t(action.name) : action.name
@@ -107,8 +109,7 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
   const startCustomAction = () => {
     if (action.isBuiltIn) return
     setStage({ kind: 'starting' })
-    const source = action.programName ? t('selection.agent.source', { app: action.programName }) : ''
-    const text = [expandSelectionPrompt(action.prompt, selectedText), source].filter(Boolean).join('\n\n')
+    const text = expandSelectionPrompt(action.prompt, selectedText)
     void start(target, { text }).then((message) => message && setStage({ kind: 'failed', message }))
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,6 +127,13 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
       if (message) setStage({ kind: 'compose', sending: false, error: message })
     },
     [start, target]
+  )
+
+  // The conversation applies its own rules, since only it knows the turn and the composer draft.
+  useSelectionAgentWindowRules(
+    stage.kind === 'conversation'
+      ? null
+      : { idle: stage.kind === 'failed' || (stage.kind === 'compose' && !composeText.trim()), pinned: isPinned }
   )
 
   const isCompose = stage.kind === 'compose'
@@ -163,6 +171,8 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
           selectedText={selectedText}
           programName={action.programName}
           target={target}
+          text={composeText}
+          onTextChange={setComposeText}
           sending={stage.sending}
           error={stage.error}
           onSend={(draft) => void handleComposeSend(draft)}
