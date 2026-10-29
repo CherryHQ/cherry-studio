@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { replayMigration, setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
@@ -12,13 +12,9 @@ import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 
 // An upgrade must preserve populated knowledge rows while initializing their original order.
 describe('knowledge ordering migrate-forward', () => {
-  const dbh = setupTestDatabase({ migrationsThrough: '0026_clammy_the_renegades' })
+  const dbh = setupTestDatabase()
 
   it('upgrades a populated previous schema without losing rows or changing timestamps', () => {
-    const migrationsFolder = resolve('migrations/sqlite-drizzle')
-    expect(
-      dbh.sqlite.prepare("SELECT name FROM pragma_table_info('knowledge_base') WHERE name = 'order_key'").get()
-    ).toBeUndefined()
     const values = [
       { id: '11111111-1111-4111-8111-111111111111', name: 'Older', createdAt: 1000, updatedAt: 1100 },
       { id: '22222222-2222-4222-8222-222222222222', name: 'Newer', createdAt: 2000, updatedAt: 2100 }
@@ -28,17 +24,29 @@ describe('knowledge ordering migrate-forward', () => {
       .insert(groupTable)
       .values({ id: groupId, entityType: 'knowledge', name: 'Existing group', orderKey: 'a0' })
       .run()
-    const insert = dbh.sqlite.prepare(`
-      INSERT INTO knowledge_base (id, name, group_id, status, chunk_size, chunk_overlap, created_at, updated_at)
-      VALUES (?, ?, ?, 'completed', 1024, 200, ?, ?)
-    `)
-    for (const row of values) insert.run(row.id, row.name, groupId, row.createdAt, row.updatedAt)
+    dbh.db
+      .insert(knowledgeBaseTable)
+      .values(
+        values.map((row) => ({
+          ...row,
+          orderKey: 'a0',
+          groupId,
+          status: 'completed' as const,
+          error: null,
+          chunkSize: 1024,
+          chunkOverlap: 200
+        }))
+      )
+      .run()
     const content = { source: 'Original note', content: 'Existing user content' }
     dbh.db
       .insert(knowledgeItemTable)
       .values({ baseId: values[0].id, type: 'note', data: content, status: 'completed' })
       .run()
-    applyMigrations(dbh.db, migrationsFolder)
+    dbh.sqlite.exec(
+      'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
+    )
+    replayMigration(dbh, '0027_knowledge_base_order')
     new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])
     const service = new KnowledgeBaseService()
     const rows = service.listCursor({ limit: 100, sortBy: 'orderKey', sortOrder: 'asc' }).items
@@ -53,10 +61,6 @@ describe('knowledge ordering migrate-forward', () => {
     expect(dbh.db.select().from(knowledgeItemTable).all()[0].data).toEqual(content)
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
-})
-
-describe('knowledge ordering migration idempotency', () => {
-  const dbh = setupTestDatabase()
 
   it('preserves custom keys and child rows when migrations run again', () => {
     const service = new KnowledgeBaseService()

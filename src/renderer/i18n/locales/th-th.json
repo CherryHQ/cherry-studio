@@ -2940,7 +2940,6 @@
   "notes.upload_success": "อัปโหลดโน้ตสำเร็จ",
   "notification.assistant": "คำตอบผู้ช่วย",
   "notification.center.activation_failed": "ไม่สามารถเปิดการแจ้งเตือนนี้ได้ เป้าหมายอาจไม่มีอยู่อีกต่อไป",
-  "notification.center.all": "ทั้งหมด",
   "notification.center.dismiss": "ลบการแจ้งเตือนนี้",
   "notification.center.empty": "ไม่มีการแจ้งเตือน",
   "notification.center.error": "ไม่สามารถโหลดการแจ้งเตือนได้",

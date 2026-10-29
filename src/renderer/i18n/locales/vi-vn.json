@@ -2940,7 +2940,6 @@
   "notes.upload_success": "Ghi chú tải lên thành công",
   "notification.assistant": "Phản hồi của Trợ lý",
   "notification.center.activation_failed": "Không thể mở thông báo này. Đích liên kết có thể không còn tồn tại.",
-  "notification.center.all": "Tất cả",
   "notification.center.dismiss": "Xóa thông báo này",
   "notification.center.empty": "Không có thông báo",
   "notification.center.error": "Không thể tải thông báo",

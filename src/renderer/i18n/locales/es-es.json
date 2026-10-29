@@ -2940,7 +2940,6 @@
   "notes.upload_success": "Nota cargada con éxito",
   "notification.assistant": "Respuesta del asistente",
   "notification.center.activation_failed": "No se pudo abrir esta notificación. Es posible que su destino ya no exista.",
-  "notification.center.all": "Todas",
   "notification.center.dismiss": "Eliminar esta notificación",
   "notification.center.empty": "No hay notificaciones",
   "notification.center.error": "No se pudieron cargar las notificaciones",

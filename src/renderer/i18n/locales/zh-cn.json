@@ -2940,7 +2940,6 @@
   "notes.upload_success": "笔记上传成功",
   "notification.assistant": "助手响应",
   "notification.center.activation_failed": "无法打开此通知，其关联内容可能已不存在。",
-  "notification.center.all": "全部",
   "notification.center.dismiss": "删除该通知",
   "notification.center.empty": "暂无通知",
   "notification.center.error": "无法加载通知",

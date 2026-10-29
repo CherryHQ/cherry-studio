@@ -2940,7 +2940,6 @@
   "notes.upload_success": "Notiță încărcată cu succes",
   "notification.assistant": "Răspuns asistent",
   "notification.center.activation_failed": "Această notificare nu a putut fi deschisă. Este posibil ca destinația sa să nu mai existe.",
-  "notification.center.all": "Toate",
   "notification.center.dismiss": "Șterge această notificare",
   "notification.center.empty": "Nu există notificări",
   "notification.center.error": "Notificările nu au putut fi încărcate",
