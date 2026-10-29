@@ -1,8 +1,5 @@
----
-# 2026-10-28-gemini-tool-call-history-names-repaired.i18n.yaml
-# This file pairs the English and Chinese Agent Notes for the sync tool.
-# Do not edit the keys; only add new languages under `translations`.
-english: 2026-10-28-gemini-tool-call-history-names-repaired.md
-translations:
-  zh: 2026-10-28-gemini-tool-call-history-names-repaired.zh.md
----
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-gemini-tool-call-history-names-repaired.md
+2026-10-28-gemini-tool-call-history-names-repaired.md: b4ac35c1a1385cc17c95c745b905342740779123
+2026-10-28-gemini-tool-call-history-names-repaired.zh.md: 1982c7e21ecadeaf24821aaee68e45b83290a4b7
