@@ -2,7 +2,16 @@ import { APICallError } from '@ai-sdk/provider'
 import { combineHeaders, type FetchFunction, removeUndefinedEntries } from '@ai-sdk/provider-utils'
 
 const AUDIO_FORMATS = ['mp3', 'm4a', 'wav'] as const
-const MODELS = ['speech-2.8-hd', 'speech-2.6-hd', 'speech-02-hd', 'speech-01-hd'] as const
+const MODELS = [
+  'speech-2.8-hd',
+  'speech-2.8-turbo',
+  'speech-2.6-hd',
+  'speech-2.6-turbo',
+  'speech-02-hd',
+  'speech-02-turbo',
+  'speech-01-hd',
+  'speech-01-turbo'
+] as const
 
 export type MinimaxVoiceCloneModel = (typeof MODELS)[number]
 
@@ -30,16 +39,6 @@ interface MinimaxResponse {
   }
 }
 
-interface MinimaxUploadResponse extends MinimaxResponse {
-  file?: {
-    file_id?: number
-  }
-}
-
-interface MinimaxVoiceCloneResponse extends MinimaxResponse {
-  voice_id?: string
-}
-
 function responseHeaders(response: Response): Record<string, string> {
   const headers: Record<string, string> = {}
   response.headers.forEach((value, key) => {
@@ -52,7 +51,7 @@ async function parseResponse<T extends MinimaxResponse>(
   response: Response,
   url: string,
   requestBodyValues: Record<string, unknown>
-): Promise<T> {
+): Promise<{ data: T; responseBody: string }> {
   const headers = responseHeaders(response)
   const responseBody = await response.text()
 
@@ -83,7 +82,12 @@ async function parseResponse<T extends MinimaxResponse>(
     })
   }
 
-  return parsed
+  return { data: parsed, responseBody }
+}
+
+function extractFileId(responseBody: string): string | undefined {
+  const fileObject = responseBody.match(/"file"\s*:\s*\{([^{}]*)\}/s)?.[1]
+  return fileObject?.match(/"file_id"\s*:\s*(\d+)/)?.[1]
 }
 
 export class MinimaxVoiceCloning {
@@ -106,30 +110,29 @@ export class MinimaxVoiceCloning {
     form.append('file', options.audio, options.fileName)
 
     const uploadResponse = await fetchFn(uploadUrl, { method: 'POST', headers, body: form })
-    const upload = await parseResponse<MinimaxUploadResponse>(uploadResponse, uploadUrl, {
+    const upload = await parseResponse<MinimaxResponse>(uploadResponse, uploadUrl, {
       purpose: 'voice_clone',
       fileName: options.fileName
     })
-    if (typeof upload.file?.file_id !== 'number') {
+    const fileId = extractFileId(upload.responseBody)
+    if (!fileId) {
       throw new Error('MiniMax voice clone upload did not return a file ID')
     }
 
     const cloneUrl = this.config.url({ path: '/voice_clone' })
     const body = {
-      file_id: upload.file.file_id,
+      file_id: fileId,
       voice_id: options.voiceId,
       model: options.model
     }
+    const requestBody = `{"file_id":${fileId},"voice_id":${JSON.stringify(options.voiceId)},"model":${JSON.stringify(options.model)}}`
     const cloneResponse = await fetchFn(cloneUrl, {
       method: 'POST',
       headers: removeUndefinedEntries(combineHeaders(headers, { 'Content-Type': 'application/json' })),
-      body: JSON.stringify(body)
+      body: requestBody
     })
-    const cloned = await parseResponse<MinimaxVoiceCloneResponse>(cloneResponse, cloneUrl, body)
-    if (!cloned.voice_id) {
-      throw new Error('MiniMax voice clone response did not include a voice ID')
-    }
+    await parseResponse<MinimaxResponse>(cloneResponse, cloneUrl, body)
 
-    return { voiceId: cloned.voice_id }
+    return { voiceId: options.voiceId }
   }
 }

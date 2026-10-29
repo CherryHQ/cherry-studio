@@ -4,7 +4,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
 import { MinimaxImageModel } from './minimaxImageModel'
-import { type MinimaxVoiceCloneOptions, type MinimaxVoiceCloneResult, MinimaxVoiceCloning } from './minimaxVoiceCloning'
+import { type MinimaxVoiceCloneOptions, type MinimaxVoiceCloneResult, MinimaxVoiceCloning } from './MinimaxVoiceCloning'
 
 export const MINIMAX_PROVIDER_NAME = 'minimax' as const
 

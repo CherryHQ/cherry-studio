@@ -136,10 +136,12 @@ describe('createMinimaxProvider', () => {
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ file: { file_id: 123456 }, base_resp: { status_code: 0 } }), { status: 200 })
+        new Response('{"file":{"file_id":123456789012345678},"base_resp":{"status_code":0}}', { status: 200 })
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ voice_id: 'CustomVoice001', base_resp: { status_code: 0 } }), { status: 200 })
+        new Response(JSON.stringify({ input_sensitive: false, demo_audio: '', base_resp: { status_code: 0 } }), {
+          status: 200
+        })
       )
     const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL, fetch })
 
@@ -147,7 +149,7 @@ describe('createMinimaxProvider', () => {
       audio: new Blob(['voice sample'], { type: 'audio/mpeg' }),
       fileName: 'sample.mp3',
       voiceId: 'CustomVoice001',
-      model: 'speech-2.8-hd'
+      model: 'speech-2.8-turbo'
     })
 
     expect(fetch).toHaveBeenNthCalledWith(1, uploadUrl, expect.objectContaining({ method: 'POST' }))
@@ -155,11 +157,9 @@ describe('createMinimaxProvider', () => {
     expect(form.get('purpose')).toBe('voice_clone')
     expect((form.get('file') as File).name).toBe('sample.mp3')
     expect(fetch).toHaveBeenNthCalledWith(2, `${baseURL}/voice_clone`, expect.objectContaining({ method: 'POST' }))
-    expect(JSON.parse(fetch.mock.calls[1][1]?.body as string)).toEqual({
-      file_id: 123456,
-      voice_id: 'CustomVoice001',
-      model: 'speech-2.8-hd'
-    })
+    expect(fetch.mock.calls[1][1]?.body).toBe(
+      '{"file_id":123456789012345678,"voice_id":"CustomVoice001","model":"speech-2.8-turbo"}'
+    )
     expect(result).toEqual({ voiceId: 'CustomVoice001' })
   })
 
