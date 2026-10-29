@@ -14,6 +14,7 @@ import type * as SidebarFooterModule from '../../Sidebar/SidebarFooter'
 
 const mocks = vi.hoisted(() => ({
   activate: vi.fn(),
+  edition: 'cn' as 'cn' | 'global',
   openSettingsTab: vi.fn(),
   registryResolve: vi.fn(),
   remove: vi.fn(),
@@ -24,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   shortcuts: [] as any[],
   showUpdatePopup: vi.fn()
 }))
+
+vi.mock('@renderer/utils/appEdition', () => ({ getAppEdition: () => mocks.edition }))
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) => [
@@ -200,6 +203,26 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
 
     expect(screen.queryByRole('status', { name: 'settings.subscription.go_to_subscribe' })).not.toBeInTheDocument()
+  })
+
+  it('does not mark the account avatar in the global edition', async () => {
+    mocks.subscribePromptSeen = false
+    mocks.edition = 'global'
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
+      route === 'cherry_cloud.status.get'
+        ? { ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } }
+        : { ok: true, data: undefined }
+    )
+
+    try {
+      render(<Sidebar />)
+      // A signed-out status would light the dot in the China edition as soon as it resolves.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+
+      expect(screen.queryByRole('status', { name: 'settings.subscription.go_to_subscribe' })).not.toBeInTheDocument()
+    } finally {
+      mocks.edition = 'cn'
+    }
   })
 
   it('does not reopen the account menu after resizing the sidebar to hidden', async () => {

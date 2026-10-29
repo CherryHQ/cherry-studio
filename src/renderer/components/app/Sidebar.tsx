@@ -21,6 +21,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 
 import { HelpMenu } from '../layout/HelpMenu'
 import { AppUpdateButton, SidebarSettingsButton } from '../layout/ShellTabBarActions'
@@ -93,11 +94,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const avatar = useAvatar()
   const [subscribePromptSeen] = usePersistCache('ui.cherry_cloud.subscribe_prompt_seen')
-  const { session: cloudSession, plansQuery, activePaid } = useCherryCloudPlans(!subscribePromptSeen)
+  // The subscribe reminder dot is China-edition only for now.
+  const remindToSubscribe = getAppEdition() === 'cn' && !subscribePromptSeen
+  const { session: cloudSession, plansQuery, activePaid } = useCherryCloudPlans(remindToSubscribe)
   // Wait for the plans of a signed-in account so a paying user never sees the dot flash.
   const showSubscribeDot =
-    !subscribePromptSeen &&
-    (cloudSession.status?.phase === 'signed-out' || (plansQuery.data !== undefined && !activePaid))
+    remindToSubscribe && (cloudSession.status?.phase === 'signed-out' || (plansQuery.data !== undefined && !activePaid))
   const handleUserMenuOpenChange = useCallback(
     (open: boolean) => {
       setUserMenuOpen(open)
