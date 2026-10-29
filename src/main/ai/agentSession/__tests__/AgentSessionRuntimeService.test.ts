@@ -1111,6 +1111,40 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    // The same consumption reached through the other event ordering: the driver's membership drain
+    // runs first and moves the task's authority into `completedBackgroundTasks`, and the notification
+    // bookend arrives afterwards — while the foreground turn is still open. Retiring the parked copy
+    // here is what lets the post-drain release finalize the stream; leaving it would hold the topic
+    // open on a debt no receive-only wake will ever pay.
+    it('retires a membership-parked completion whose notification lands on the open foreground query', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+      ;(service as any).rememberBackgroundTaskIds(entry, [{ id: 'task-parked', status: 'running' }] as any)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      // The driver drains membership while the foreground turn streams: the removal transfers the
+      // task's authority into the completion ledger before the notification bookend arrives.
+      ;(service as any).rememberBackgroundTaskIds(entry, [] as any)
+      expect((service as any).completedBackgroundTasks.get('session-1')?.has('task-parked')).toBe(true)
+
+      // The bookend arrives on the still-open foreground query: the query consumed the result.
+      ;(service as any).publishBackgroundTaskEvent(entry, {
+        taskId: 'task-parked',
+        event: 'notification',
+        status: 'completed'
+      } as any)
+      expect((service as any).completedBackgroundTasks.get('session-1')?.has('task-parked')).toBe(false)
+
+      // After the foreground settles and the background drains, the hold can finalize.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
     // With the spawning turn already settled, the result is queued for the NEXT generation, whose
     // receive-only wake consumes the recorded debt — the guard must still see it and hold.
     it('keeps recording completion debt when no live turn will consume the notification', () => {

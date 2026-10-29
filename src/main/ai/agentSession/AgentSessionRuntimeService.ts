@@ -2916,7 +2916,19 @@ export class AgentSessionRuntimeService extends BaseService {
       // the stashed recipients.
       const authorities = this.backgroundTaskAuthorities.get(entry.sessionId)
       const authority = authorities?.get(data.taskId)
-      if (authorities && authority !== undefined && !hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {
+      if (hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {
+        // The open foreground query consumed the notification inside its own turn — no
+        // receive-only generation follows, so no wake will ever pay this debt. Membership removal
+        // may already have moved the authority into the completion ledger when the driver drained
+        // the task earlier, so the parked copy is retired here too: leaving either record
+        // outstanding would hold `releaseDrainedTopicStream` open forever after the foreground
+        // settles and the background drains. Debts parked under other obligations (a notification
+        // recorded before their own turn ended) are unaffected — each task retires only its own id.
+        authorities?.delete(data.taskId)
+        this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
+      } else if (authorities && authority !== undefined) {
+        // A settled turn queued the result for the next generation: its receive-only wake pays
+        // the stashed recipients, so the debt rides in `completedBackgroundTasks` until then.
         authorities.delete(data.taskId)
         const completed = this.completedBackgroundTasks.get(entry.sessionId) ?? new Map<string, boolean>()
         completed.set(data.taskId, authority)

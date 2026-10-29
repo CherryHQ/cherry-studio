@@ -758,6 +758,37 @@ describe('AiStreamManager', () => {
     expect(sentinel.errorResults).toEqual([])
   })
 
+  // An inbound channel request's `channel-completion:` sentinel resolves that request's execution
+  // promise. A native completion wake replacing the stream while the foreground dispatch awaits
+  // persistence must not inherit it: the wake's earlier error terminal would reject (and retire)
+  // the successful original request through a sentinel that was never the wake's to carry.
+  it('drops an inbound channel-completion sentinel from a replacement turn’s carried listeners', async () => {
+    const topicId = 'agent-session:s1'
+    const sentinel = new FakeListener('channel-completion:chat-1')
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [sentinel]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    // The wake replaces the stream while the sentinel is still attached (the original request is
+    // inside its terminal dispatch and removes the sentinel only in its own callback).
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:wake')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain('channel-completion:chat-1')
+
+    // The wake's own error must not reject the original request through the inherited sentinel.
+    await mgr.onExecutionError(topicId, 'provider-a::model-a', error('wake failed'))
+    expect(sentinel.errorResults).toEqual([])
+  })
+
   // Terminal dispatch awaits each listener in turn, so a listener queued behind a slow recipient
   // has not seen the foreground terminal when an overlapping wake terminal fans out. The manager
   // therefore binds the dispatching attempt on EVERY listener synchronously, before any delivery.

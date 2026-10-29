@@ -1072,6 +1072,12 @@ export class AiStreamManager extends BaseService {
           // it while the fire sits inside terminal dispatch would settle the fire with this turn's
           // result. The fire removes the sentinel itself in its terminal callback.
           if (listener.id.startsWith('agent-task:')) return false
+          // An inbound channel request's `channel-completion:` sentinel resolves THAT request's
+          // execution promise. A native completion wake replacing the stream while the foreground
+          // dispatch awaits persistence would otherwise inherit it — the wake's earlier error
+          // terminal then rejects (and retires) the successful original request through a sentinel
+          // that was never the wake's to carry. The sentinel retires itself at its own terminal.
+          if (listener.id.startsWith('channel-completion:')) return false
           // Channel recipients ride ONLY via the stash: the fire recorded the obligation there, and
           // a carried copy of a served (or never-recorded) listener would hand later wakes to chats
           // that were already answered — a user follow-up or the next fire must not inherit them.
