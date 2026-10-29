@@ -3,10 +3,15 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import {
   assertNotesPathNotMutatingDuringMigration,
+  assertNotesPathNotRetired,
+  clearRetiredNotesRootsForTests,
   beginNotesBatchMarkdownUpload,
   beginNotesFilesystemMutation,
   completeNotesMigrationCommit,
@@ -24,6 +29,8 @@ import {
 describe('notes migration session', () => {
   afterEach(() => {
     releaseNotesMigrationSession()
+    clearRetiredNotesRootsForTests()
+    vi.restoreAllMocks()
   })
 
   it('blocks writes through a symlink alias into the source root', () => {
@@ -138,5 +145,84 @@ describe('notes migration session', () => {
 
     completeNotesMigrationCommit(sessionId!)
     expect(isNotesDirectoryMigrationInFlight()).toBe(false)
+  })
+
+  describe('release classification', () => {
+    const mockPreference = (read: { value: unknown; provenance: string }) => {
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => read)
+      })
+    }
+
+    it('retires the source root when the canonical preference resolves target-active', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      mockPreference({ value: target, provenance: 'cache' })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
+    })
+
+    it('lifts cleanly when the canonical preference still resolves source-active', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      mockPreference({ value: source, provenance: 'cache' })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).not.toThrow()
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
+    })
+
+    it('closes loud under both roots when the preference cache is not ready', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      mockPreference({ value: '', provenance: 'not-ready' })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/relocated/)
+    })
+
+    it('closes loud under both roots when the configured root matches neither migration root', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-else-'))
+      mockPreference({ value: elsewhere, provenance: 'cache' })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).toThrow(/relocated/)
+      expect(() => assertNotesPathNotRetired(path.join(elsewhere, 'note.md'))).not.toThrow()
+    })
+
+    it('treats an empty preference as the affirmative default root', () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-tgt-'))
+      // The default notes dir IS the source root here: an unset preference
+      // must lift the barrier, not close loud.
+      vi.spyOn(application, 'getPath').mockReturnValue(source)
+      mockPreference({ value: '', provenance: 'cache' })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      expect(() => assertNotesPathNotRetired(path.join(source, 'note.md'))).not.toThrow()
+      expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
+    })
+
+    it('skips classification when no blocked roots were installed', () => {
+      mockPreference({ value: '', provenance: 'not-ready' })
+      releaseNotesMigrationSession()
+      expect(() => assertNotesPathNotRetired('/tmp/anywhere.md')).not.toThrow()
+    })
   })
 })
