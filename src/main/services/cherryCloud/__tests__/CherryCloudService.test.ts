@@ -1,8 +1,11 @@
 import { createHmac } from 'node:crypto'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cherryCloudHandlers } from '@main/ipc/handlers/cherryCloud'
 import type { Model } from '@shared/data/types/model'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   appEdition: 'global' as 'cn' | 'global',
@@ -338,6 +341,99 @@ describe('CherryCloudService', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+  })
+
+  async function loginEnvelope(service: CherryCloudService) {
+    MockApplicationUtils.setService('CherryCloudService', service)
+    try {
+      const error = await cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' }).catch(
+        (caught: unknown) => caught
+      )
+      return IpcError.from(error).toJSON()
+    } finally {
+      MockApplicationUtils.resetServices()
+    }
+  }
+
+  it.each([
+    [426, 'upgrade_required', 'CHERRY_CLOUD_UPGRADE_REQUIRED'],
+    [404, 'service_unavailable', 'CHERRY_CLOUD_LOGIN_SERVICE_UNAVAILABLE'],
+    [503, 'service_unavailable', 'CHERRY_CLOUD_LOGIN_SERVICE_UNAVAILABLE'],
+    [400, 'http_error', 'CHERRY_CLOUD_SIGN_IN_FAILED'],
+    [408, 'http_error', 'CHERRY_CLOUD_SIGN_IN_FAILED'],
+    [429, 'http_error', 'CHERRY_CLOUD_SIGN_IN_FAILED']
+  ])('reports a received HTTP %s without leaking the response body', async (httpStatus, reason, code) => {
+    mockCloudRoute('/api/v1/desktop/authorizations', new Response('TOKEN_MARKER', { status: httpStatus }))
+    const service = await createService()
+    expect(await loginEnvelope(service)).toEqual({
+      code,
+      message: 'Cherry Cloud sign-in failed',
+      data: { reason, phase: 'authorization', httpStatus }
+    })
+    await service._doStop()
+  })
+
+  it.each([
+    'configuration_missing',
+    'network',
+    'invalid_response',
+    'browser_open_failed',
+    'callback_unavailable',
+    'unknown'
+  ])('reports initial %s without invented HTTP status', async (reason) => {
+    if (reason === 'configuration_missing') vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', '')
+    if (reason === 'network')
+      mockCloudRoute('/api/v1/desktop/authorizations', () => Promise.reject(new TypeError('TOKEN_MARKER')))
+    if (reason === 'invalid_response') mockCloudRoute('/api/v1/desktop/authorizations', new Response('{TOKEN_MARKER'))
+    if (reason === 'browser_open_failed') {
+      mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+      mocks.openExternal.mockRejectedValueOnce(new Error('https://TOKEN_MARKER'))
+    }
+    if (reason === 'callback_unavailable') mocks.loopbackOpen.mockRejectedValueOnce(new Error('TOKEN_MARKER'))
+    if (reason === 'unknown') vi.mocked(uuid).mockRejectedValueOnce(new TypeError('TOKEN_MARKER'))
+    const service = await createService()
+    expect(await loginEnvelope(service)).toEqual({
+      code:
+        reason === 'configuration_missing' || reason === 'network'
+          ? 'CHERRY_CLOUD_LOGIN_SERVICE_UNAVAILABLE'
+          : 'CHERRY_CLOUD_SIGN_IN_FAILED',
+      message: 'Cherry Cloud sign-in failed',
+      data: { reason, phase: reason === 'browser_open_failed' ? 'callback' : 'authorization' }
+    })
+    await service._doStop()
+  })
+
+  it.each(['headers', 'body'])('reports the control-request deadline at the %s stage', async (stage) => {
+    const deadline = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal)
+    mockCloudRoute('/api/v1/desktop/authorizations', (init) => {
+      if (stage === 'headers')
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            init.signal?.addEventListener('abort', () => controller.error(init.signal?.reason), { once: true })
+          }
+        })
+      )
+    })
+    const service = await createService()
+    try {
+      const envelope = loginEnvelope(service)
+      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
+      deadline.abort(new DOMException('TOKEN_MARKER', 'TimeoutError'))
+      expect(await envelope).toEqual({
+        code: 'CHERRY_CLOUD_LOGIN_SERVICE_UNAVAILABLE',
+        message: 'Cherry Cloud sign-in failed',
+        data: { reason: 'request_timeout', phase: 'authorization' }
+      })
+      expect(timeout).toHaveBeenCalledWith(30_000)
+    } finally {
+      timeout.mockRestore()
+      await service._doStop()
+    }
   })
 
   it('authenticates both login requests with the cloud secret and their transmitted bodies', async () => {

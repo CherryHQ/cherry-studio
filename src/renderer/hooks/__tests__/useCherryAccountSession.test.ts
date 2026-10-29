@@ -1,5 +1,16 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { createInstance } from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import enUs from '@renderer/i18n/locales/en-us.json'
+
+const i18n = createInstance()
+await i18n.init({
+  resources: { en: { translation: enUs } },
+  lng: 'en',
+  keySeparator: false,
+  interpolation: { escapeValue: false }
+})
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
@@ -15,7 +26,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: i18n.t }) }))
 
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -88,11 +99,30 @@ describe('useCherryAccountSession', () => {
   })
 
   it.each([
-    ['login', new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE), 'error.http.503'],
-    ['login', new IpcError('CHERRY_CLOUD_UPGRADE_REQUIRED'), 'settings.provider.cherry_cloud.upgrade_required'],
-    ['login', new Error('Cherry Cloud login request failed (400)'), 'settings.provider.cherry_cloud.sign_in_failed'],
-    ['cancelLogin', new Error('cancel failed'), 'settings.provider.cherry_cloud.sign_in_failed'],
-    ['revokeSession', new Error('revoke failed'), 'settings.provider.cherry_cloud.logout_failed']
+    ['login', new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE), enUs['error.http.503']],
+    ['login', new IpcError('CHERRY_CLOUD_UPGRADE_REQUIRED'), enUs['settings.provider.cherry_cloud.upgrade_required']],
+    [
+      'login',
+      new Error('Cherry Cloud login request failed (400)'),
+      { title: 'Cherry Cloud sign-in failed', description: 'An unexpected error occurred.' }
+    ],
+    [
+      'cancelLogin',
+      new Error('cancel failed'),
+      { title: 'Could not cancel Cherry Cloud sign-in', description: 'An unexpected error occurred.' }
+    ],
+    [
+      'login',
+      new IpcError(cherryCloudErrorCodes.SIGN_IN_FAILED, 'PRIVATE_MESSAGE', {
+        reason: 'network',
+        phase: 'authorization'
+      }),
+      {
+        title: 'Cherry Cloud sign-in failed',
+        description: 'During authorization request: A network error prevented sign-in.'
+      }
+    ],
+    ['revokeSession', new Error('revoke failed'), enUs['settings.provider.cherry_cloud.logout_failed']]
   ] as const)('translates %s failures', async (action, error, message) => {
     const { result } = renderHook(() => useCherryAccountSession())
     await waitFor(() => expect(result.current.loadState).toBe('ready'))

@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatSignInFailure } from '@renderer/utils/signInFailure'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+
+const logger = loggerService.withContext('useCherryAccountSession')
 
 type CherryCloudStatusLoadState = 'error' | 'loading' | 'ready'
 
@@ -63,11 +67,8 @@ export function useCherryAccountSession(enabled = true) {
         if (requestId === requestRef.current) applyStatus(nextStatus)
       } catch (error) {
         if (requestId !== requestRef.current) return
-        let message = t(
-          action === 'revoke'
-            ? 'settings.provider.cherry_cloud.logout_failed'
-            : 'settings.provider.cherry_cloud.sign_in_failed'
-        )
+        logger.error(`Cherry Cloud ${action} failed`, error as Error)
+        let message = action === 'revoke' ? t('settings.provider.cherry_cloud.logout_failed') : undefined
         if (action === 'login' && error instanceof IpcError) {
           if (error.code === cherryCloudErrorCodes.UPGRADE_REQUIRED) {
             message = t('settings.provider.cherry_cloud.upgrade_required')
@@ -75,7 +76,17 @@ export function useCherryAccountSession(enabled = true) {
             message = t('error.http.503')
           }
         }
-        toast.error(message)
+        if (message !== undefined) {
+          toast.error(message)
+        } else {
+          const { title, description } = formatSignInFailure(
+            t,
+            'cherry_cloud',
+            error,
+            action === 'cancel' ? 'cancel' : 'login'
+          )
+          toast.error({ title, description })
+        }
       } finally {
         setPendingAction((current) => (current === action ? null : current))
       }

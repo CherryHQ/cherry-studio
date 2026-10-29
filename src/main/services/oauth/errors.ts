@@ -1,3 +1,5 @@
+import { normalizeSignInFailure, type SignInFailure, type SignInPhase } from '@shared/ipc/errors/signIn'
+
 export class OAuthServiceError extends Error {
   constructor(
     message: string,
@@ -7,6 +9,45 @@ export class OAuthServiceError extends Error {
     super(message)
     this.name = 'OAuthServiceError'
   }
+}
+
+/**
+ * Thrown when the token endpoint returns a non-2xx response. Carries the raw
+ * status and body so callers can redact/log them however they need.
+ */
+export class OAuthHttpError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly body: string
+  ) {
+    super(message)
+    this.name = 'OAuthHttpError'
+  }
+}
+
+export class OAuthSignInFailureError extends OAuthServiceError {
+  readonly failure: SignInFailure
+
+  constructor(failure: SignInFailure, cause?: unknown, providerId = 'Provider') {
+    super(`${providerId} sign-in failed`, cause)
+    this.name = 'OAuthSignInFailureError'
+    this.failure = normalizeSignInFailure(failure) ?? { reason: 'unknown' }
+  }
+}
+
+export function classifyOAuthSignInFailure(error: unknown, phase?: SignInPhase): SignInFailure {
+  const failure =
+    error instanceof OAuthSignInFailureError
+      ? normalizeSignInFailure(error.failure)
+      : error instanceof OAuthHttpError
+        ? normalizeSignInFailure({ reason: 'http_error', httpStatus: error.status })
+        : undefined
+  return normalizeSignInFailure({
+    reason: failure?.reason ?? 'unknown',
+    phase: phase ?? failure?.phase,
+    httpStatus: failure?.httpStatus
+  })!
 }
 
 export class OAuthSignInCancelledError extends OAuthServiceError {

@@ -5,7 +5,7 @@ import * as z from 'zod'
 
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 
-import { OAuthServiceError } from '../../errors'
+import { OAuthHttpError, OAuthServiceError, OAuthSignInFailureError } from '../../errors'
 import { PkceOAuthClient } from '../PkceOAuthClient'
 import type { OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from '../types'
 
@@ -38,17 +38,29 @@ function assertXaiEndpoint(url: string): string {
 
 async function discoverGrok(signal?: AbortSignal): Promise<Discovery> {
   if (grokDiscoveryCache) return grokDiscoveryCache
-  const response = await net.fetch(GROK_CONFIG.DISCOVERY_URL, {
-    headers: { Accept: 'application/json' },
-    signal
-  })
-  if (!response.ok) {
-    throw new OAuthServiceError(`xAI OAuth discovery failed: ${response.status}`)
+  let response: Response
+  let body: string
+  try {
+    response = await net.fetch(GROK_CONFIG.DISCOVERY_URL, {
+      headers: { Accept: 'application/json' },
+      signal
+    })
+    if (!response.ok) {
+      throw new OAuthHttpError(`xAI OAuth discovery failed: ${response.status}`, response.status, '')
+    }
+    body = await response.text()
+  } catch (error) {
+    if (error instanceof OAuthHttpError) throw error
+    throw new OAuthSignInFailureError({ reason: signal?.aborted ? 'request_timeout' : 'network' }, error)
   }
-  const data = DiscoverySchema.parse(await response.json())
-  grokDiscoveryCache = {
-    authorization_endpoint: assertXaiEndpoint(data.authorization_endpoint),
-    token_endpoint: assertXaiEndpoint(data.token_endpoint)
+  try {
+    const data = DiscoverySchema.parse(JSON.parse(body))
+    grokDiscoveryCache = {
+      authorization_endpoint: assertXaiEndpoint(data.authorization_endpoint),
+      token_endpoint: assertXaiEndpoint(data.token_endpoint)
+    }
+  } catch (error) {
+    throw new OAuthSignInFailureError({ reason: 'invalid_response' }, error)
   }
   return grokDiscoveryCache
 }

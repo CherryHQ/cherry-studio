@@ -6,7 +6,14 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import type { WindowId } from '@shared/ipc/types'
 import type { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { describeOAuthError, OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../errors'
+import {
+  classifyOAuthSignInFailure,
+  describeOAuthError,
+  OAuthServiceError,
+  OAuthSignInCancelledError,
+  OAuthSignInFailureError,
+  OAuthTransientError
+} from '../errors'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
 import { OAuthHttpError } from './PkceOAuthClient'
@@ -112,7 +119,7 @@ export class OAuthRuntimeService extends BaseService {
   private getDefinition(providerId: string): OAuthRuntimeProviderDefinition {
     const definition = this.definitions[providerId as keyof typeof this.definitions]
     if (!definition) {
-      throw new OAuthServiceError(`No OAuth provider registered for provider: ${providerId}`)
+      throw new OAuthSignInFailureError({ reason: 'provider_not_registered' }, undefined, providerId)
     }
     return definition
   }
@@ -156,7 +163,8 @@ export class OAuthRuntimeService extends BaseService {
     operation: ActiveSignIn['operation']
   ): Promise<OAuthAccount> => {
     const context = operation.context ?? {}
-    const signal = AbortSignal.any([operation.controller.signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)])
+    const deadlineSignal = AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)
+    const signal = AbortSignal.any([operation.controller.signal, deadlineSignal])
     try {
       const client = await definition.createClient({ ...context, signal })
       if (operation.controller.signal.aborted) {
@@ -168,8 +176,16 @@ export class OAuthRuntimeService extends BaseService {
       const codePromise = transport.waitForAuthorizationCode(state, signal)
       void codePromise.catch(() => undefined)
       await transport.ready
-      if (signal.aborted) throw new OAuthSignInCancelledError(definition.providerId)
-      await Promise.race([shell.openExternal(authUrl), codePromise.then(() => undefined)])
+      if (signal.aborted) {
+        if (operation.controller.signal.aborted) throw new OAuthSignInCancelledError(definition.providerId)
+        throw new OAuthSignInFailureError({ reason: 'callback_timeout' })
+      }
+      await Promise.race([
+        shell.openExternal(authUrl).catch((error) => {
+          throw new OAuthSignInFailureError({ reason: 'browser_open_failed' }, error)
+        }),
+        codePromise.then(() => undefined)
+      ])
       const code = await codePromise
 
       operation.phase = 'exchange'
@@ -192,9 +208,15 @@ export class OAuthRuntimeService extends BaseService {
         throw new OAuthSignInCancelledError(definition.providerId)
       }
       this.logger.error(`${definition.providerId} sign-in failed`, describeOAuthError(error))
-      throw error instanceof OAuthServiceError
-        ? error
-        : new OAuthServiceError(`${definition.providerId} sign-in failed`, error)
+      const failure = classifyOAuthSignInFailure(error, operation.phase)
+      if (
+        this.isSignInCancellable(operation.phase) &&
+        deadlineSignal.aborted &&
+        ['unknown', 'network', 'request_timeout', 'callback_unavailable'].includes(failure.reason)
+      ) {
+        failure.reason = 'callback_timeout'
+      }
+      throw new OAuthSignInFailureError(failure, error, definition.providerId)
     }
   }
 
@@ -226,10 +248,10 @@ export class OAuthRuntimeService extends BaseService {
     const existing = this.activeSignIns.get(providerId)
     if (existing) {
       if (existing.operation.initiatorWindowId !== initiatorWindowId) {
-        return Promise.reject(new OAuthServiceError('A sign-in from another window is already in progress'))
+        return Promise.reject(new OAuthSignInFailureError({ reason: 'already_in_progress' }, undefined, providerId))
       }
       if (this.getDefinition(providerId).matchesSignInContext?.(existing.operation.context ?? {}, context) === false) {
-        return Promise.reject(new OAuthServiceError('A sign-in for another server is already in progress'))
+        return Promise.reject(new OAuthSignInFailureError({ reason: 'already_in_progress' }, undefined, providerId))
       }
       existing.operation.requestIdsByWindow.get(initiatorWindowId)?.add(requestId)
       return existing.promise
@@ -241,7 +263,7 @@ export class OAuthRuntimeService extends BaseService {
       // Reserve synchronously before the first await — a check-then-await guard
       // lets a double-click start a second flow that kills the first.
       if (!transport.tryAcquire()) {
-        throw new OAuthServiceError(`A ${providerId} sign-in is already in progress`)
+        throw new OAuthSignInFailureError({ reason: 'already_in_progress' }, undefined, providerId)
       }
 
       const operation: ActiveSignIn['operation'] = {
