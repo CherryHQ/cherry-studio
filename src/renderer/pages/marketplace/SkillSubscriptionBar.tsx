@@ -20,6 +20,8 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import { normalizeSubscriptionUrl } from '@shared/utils/skillSubscription'
 
+import { SKILLS_SH_SOURCE_ID } from './SkillsShCatalog'
+
 export function SkillSubscriptionBar({
   sourceId,
   onSelect,
@@ -55,10 +57,18 @@ export function SkillSubscriptionBar({
           size="sm"
           variant={sourceId === null ? 'default' : 'ghost'}
           className="shrink-0 rounded-full focus-visible:underline"
-          style={sourceId === null ? { backgroundColor: '#ffa39e', color: '#ffffff' } : undefined}
+          style={sourceId === null ? { backgroundColor: '#FF5F5F', color: '#ffffff' } : undefined}
           aria-pressed={sourceId === null}
           onClick={() => onSelect(null)}>
           {t('marketplace.curated')}
+        </Button>
+        <Button
+          size="sm"
+          variant={sourceId === SKILLS_SH_SOURCE_ID ? 'default' : 'ghost'}
+          className="shrink-0 rounded-full"
+          aria-pressed={sourceId === SKILLS_SH_SOURCE_ID}
+          onClick={() => onSelect(SKILLS_SH_SOURCE_ID)}>
+          skills.sh
         </Button>
         <Button
           ref={addRef}
@@ -83,7 +93,7 @@ export function SkillSubscriptionBar({
           </Button>
         ))}
       </div>
-      {sourceId ? (
+      {sourceId && sourceId !== SKILLS_SH_SOURCE_ID ? (
         <>
           <Button
             variant="ghost"

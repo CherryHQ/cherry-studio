@@ -1,24 +1,20 @@
-import { Bot, Layers, Network, Settings2, Sparkles, WandSparkles } from 'lucide-react'
+import { Bot, Layers, Network, Settings2, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useAgentCatalogPresets } from '@renderer/hooks/useAgentCatalogPresets'
-import {
-  buildAssistantCatalogTabs,
-  toCreateAssistantDtoFromCatalogPreset,
-  useAssistantCatalogPresets
-} from '@renderer/hooks/useAssistantCatalogPresets'
+import { buildAssistantCatalogTabs, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import type { MarketplaceResourceType, MarketplaceTemplate, MarketplaceView } from '@renderer/types/marketplace'
-import { localizeMarketplaceText } from '@shared/utils/cherrySkillMarketplace'
+import type { MarketplaceResourceType, MarketplaceView } from '@renderer/types/marketplace'
 
-import { MarketplaceCuratedTab } from './MarketplaceComponents'
 import { MarketplaceMcp } from './MarketplaceMcp'
 import { MarketplaceSkills } from './MarketplaceSkills'
+import { buildMarketplaceTemplates } from './marketplaceTemplateCatalog'
 import { MarketplaceTemplates } from './MarketplaceTemplates'
+import { SkillsShCatalog, SKILLS_SH_SOURCE_ID } from './SkillsShCatalog'
 import { SkillSubscriptionBar } from './SkillSubscriptionBar'
 import { useMarketplace } from './useMarketplace'
 
@@ -26,10 +22,9 @@ const RESOURCE_TYPES = [
   { id: 'all', label: 'common.all', icon: Layers },
   { id: 'skill', label: 'marketplace.type.skill', icon: Sparkles },
   { id: 'mcp', label: 'marketplace.type.mcp', icon: Network },
-  { id: 'agent', label: 'marketplace.type.agent', icon: Bot },
-  { id: 'assistant', label: 'marketplace.type.assistant', icon: WandSparkles }
+  { id: 'agent', label: 'marketplace.type.agent', icon: Bot }
 ] as const
-const OVERVIEW_TYPES = ['skill', 'agent', 'assistant', 'mcp'] as const
+const OVERVIEW_TYPES = ['skill', 'agent', 'mcp'] as const
 
 export default function MarketplacePage() {
   const { t, i18n } = useTranslation()
@@ -39,71 +34,55 @@ export default function MarketplacePage() {
     all: '',
     skill: '',
     agent: '',
-    assistant: '',
     mcp: ''
   })
-  const [assistantCategory, setAssistantCategory] = useState('')
+  const [templateCategory, setTemplateCategory] = useState('')
   const [moreMcpSources, setMoreMcpSources] = useState(false)
   const query = queries[resourceType]
   const skillSourceId = resourceType === 'skill' ? sourceId : null
-  const skills = useMarketplace(skillSourceId, resourceType === 'all' || resourceType === 'skill')
+  const isSkillsSh = skillSourceId === SKILLS_SH_SOURCE_ID
+  const skills = useMarketplace(
+    isSkillsSh ? null : skillSourceId,
+    !isSkillsSh && (resourceType === 'all' || resourceType === 'skill')
+  )
   const agents = useAgentCatalogPresets({ enabled: resourceType === 'all' || resourceType === 'agent' })
   const assistants = useAssistantCatalogPresets({
-    enabled: resourceType === 'all' || resourceType === 'assistant'
+    enabled: resourceType === 'all' || resourceType === 'agent'
   })
   const mcp = useBuiltinMcpCatalog()
-  const agentItems = useMemo<MarketplaceTemplate[]>(
-    () =>
-      agents.items.map((item) => ({
-        kind: 'agent',
-        id: item.id,
-        name: localizeMarketplaceText(item.name, i18n.language),
-        description: localizeMarketplaceText(item.description, i18n.language),
-        avatar: item.avatar,
-        prompt: item.instructions,
-        groups: [item.category]
-      })),
-    [agents.items, i18n.language]
+  const templates = useMemo(
+    () => buildMarketplaceTemplates(agents.items, assistants.presets, i18n.language),
+    [agents.items, assistants.presets, i18n.language]
   )
-  const assistantItems = useMemo<MarketplaceTemplate[]>(
+  const categories = useMemo(
     () =>
-      assistants.presets.map((item) => ({
-        kind: 'assistant',
-        id: item.id,
-        name: item.name,
-        description: item.description ?? '',
-        avatar: item.emoji || '💬',
-        prompt: item.prompt ?? '',
-        groups: item.group ?? [],
-        createDto: toCreateAssistantDtoFromCatalogPreset(item)
-      })),
-    [assistants.presets]
-  )
-  const assistantCategories = useMemo(
-    () =>
-      buildAssistantCatalogTabs(assistants.presets, 0, '')
+      buildAssistantCatalogTabs(
+        templates.map((item) => ({ id: item.id, name: item.name, group: item.groups })),
+        0,
+        ''
+      )
         .slice(1)
         .map((tab) => tab.id),
-    [assistants.presets]
+    [templates]
   )
   const counts: Record<MarketplaceView, number | null> = {
-    skill: skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
-    agent: agents.isLoading || agents.error ? null : agentItems.length,
-    assistant: assistants.isLoading || assistants.error ? null : assistantItems.length,
+    skill: isSkillsSh ? null : skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
+    agent: agents.isLoading || agents.error || assistants.isLoading || assistants.error ? null : templates.length,
     mcp: mcp.presets.length,
     all: null
   }
-  const curatedCounts = [skills.curatedCount, counts.agent, counts.assistant, counts.mcp]
+  const curatedCounts = [skills.curatedCount, counts.agent, counts.mcp]
   if (curatedCounts.every((count) => count !== null))
     counts.all = curatedCounts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
   const browse = (type: MarketplaceResourceType) => {
     setQueries((current) => ({ ...current, [type]: query }))
     if (type === 'skill') setSourceId(null)
-    if (type === 'assistant') setAssistantCategory('')
+    if (type === 'agent') setTemplateCategory('')
     if (type === 'mcp') setMoreMcpSources(false)
     setResourceType(type)
   }
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
+    if (type === 'skill' && !preview && isSkillsSh) return <SkillsShCatalog query={query} active />
     if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active />
     if (type === 'mcp')
       return (
@@ -111,16 +90,19 @@ export default function MarketplacePage() {
       )
     return (
       <MarketplaceTemplates
-        items={type === 'agent' ? agentItems : assistantItems}
+        items={templates}
         query={query}
         preview={preview}
         active
-        loading={type === 'agent' ? agents.isLoading : assistants.isLoading}
-        error={type === 'agent' ? agents.error : assistants.error}
-        retry={type === 'agent' ? agents.retry : assistants.retry}
-        category={assistantCategories.includes(assistantCategory) ? assistantCategory : ''}
-        categories={type === 'assistant' ? assistantCategories : undefined}
-        onCategoryChange={setAssistantCategory}
+        loading={agents.isLoading || assistants.isLoading}
+        error={agents.error || assistants.error}
+        retry={() => {
+          agents.retry()
+          assistants.retry()
+        }}
+        category={categories.includes(templateCategory) ? templateCategory : ''}
+        categories={categories}
+        onCategoryChange={setTemplateCategory}
       />
     )
   }
@@ -154,7 +136,10 @@ export default function MarketplacePage() {
             onValueChange={(value) => setQueries((current) => ({ ...current, [resourceType]: value }))}
             placeholder={t('marketplace.search_placeholder')}
             aria-label={t('marketplace.search_placeholder')}
-            className="shrink-0 [&_input]:h-10 [&_input]:rounded-xl"
+            className={
+              'shrink-0 [&_input]:h-10 [&_input]:rounded-xl ' +
+              (resourceType === 'skill' || resourceType === 'mcp' ? '' : 'mb-3')
+            }
           />
           {resourceType === 'skill' ? (
             <SkillSubscriptionBar
@@ -164,41 +149,35 @@ export default function MarketplacePage() {
               onSelect={setSourceId}
               onRefresh={() => void skills.catalog.mutate().catch(() => {})}
             />
-          ) : (
+          ) : resourceType === 'mcp' ? (
             <div className="flex shrink-0 items-center gap-2 py-3">
-              {resourceType === 'mcp' ? (
-                <>
-                  <Button
-                    size="sm"
-                    variant={moreMcpSources ? 'ghost' : 'default'}
-                    className="shrink-0 rounded-full focus-visible:underline"
-                    aria-pressed={!moreMcpSources}
-                    style={moreMcpSources ? undefined : { backgroundColor: '#ffa39e', color: '#ffffff' }}
-                    onClick={() => setMoreMcpSources(false)}>
-                    {t('marketplace.curated')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={'shrink-0 rounded-full ' + (moreMcpSources ? 'bg-accent' : '')}
-                    aria-pressed={moreMcpSources}
-                    onClick={() => setMoreMcpSources(true)}>
-                    {t('marketplace.more_sources')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto"
-                    onClick={() => openSettingsTab('/settings/mcp/servers')}>
-                    <Settings2 className="size-4" />
-                    {t('marketplace.manage_mcp')}
-                  </Button>
-                </>
-              ) : (
-                <MarketplaceCuratedTab />
-              )}
+              <Button
+                size="sm"
+                variant={moreMcpSources ? 'ghost' : 'default'}
+                className="shrink-0 rounded-full focus-visible:underline"
+                aria-pressed={!moreMcpSources}
+                style={moreMcpSources ? undefined : { backgroundColor: '#FF5F5F', color: '#ffffff' }}
+                onClick={() => setMoreMcpSources(false)}>
+                {t('marketplace.curated')}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className={'shrink-0 rounded-full ' + (moreMcpSources ? 'bg-accent' : '')}
+                aria-pressed={moreMcpSources}
+                onClick={() => setMoreMcpSources(true)}>
+                {t('marketplace.more_sources')}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto"
+                onClick={() => openSettingsTab('/settings/mcp/servers?mcpStandalone=true')}>
+                <Settings2 className="size-4" />
+                {t('marketplace.manage_mcp')}
+              </Button>
             </div>
-          )}
+          ) : null}
           {resourceType === 'all' ? (
             <div className="min-h-0 flex-1 space-y-7 overflow-y-auto pr-1">
               {OVERVIEW_TYPES.map((type) => (
@@ -218,7 +197,7 @@ export default function MarketplacePage() {
               key={resourceType + ':' + (skillSourceId ?? '') + ':' + moreMcpSources}
               className={
                 'min-h-0 flex-1 ' +
-                (resourceType === 'assistant' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pr-1')
+                (resourceType === 'agent' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pr-1')
               }>
               {renderCatalog(resourceType)}
             </div>

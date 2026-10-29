@@ -380,13 +380,15 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
 export async function searchSkillMarketplaces(
   query: string,
   fetchJson: (url: string) => Promise<unknown>,
-  onSourceFailure?: (source: SkillSearchSource, error: unknown) => void
+  onSourceFailure?: (source: SkillSearchSource, error: unknown) => void,
+  selectedSource?: SkillSearchSource
 ): Promise<SkillSearchResult[]> {
   const trimmed = query.trim()
   if (!trimmed) return []
 
+  const sources = MARKETPLACE_SOURCES.filter((source) => !selectedSource || source.name === selectedSource)
   const settled = await Promise.allSettled(
-    MARKETPLACE_SOURCES.map(async (source) => source.normalize(await fetchJson(source.buildUrl(trimmed))))
+    sources.map(async (source) => source.normalize(await fetchJson(source.buildUrl(trimmed))))
   )
   const combined: SkillSearchResult[] = []
   let failedSourceCount = 0
@@ -396,11 +398,11 @@ export async function searchSkillMarketplaces(
       combined.push(...result.value)
     } else {
       failedSourceCount += 1
-      onSourceFailure?.(MARKETPLACE_SOURCES[index].name, result.reason)
+      onSourceFailure?.(sources[index].name, result.reason)
     }
   }
 
-  if (failedSourceCount === MARKETPLACE_SOURCES.length) {
+  if (failedSourceCount === sources.length) {
     throw new Error(SKILL_SEARCH_FAILED_ERROR)
   }
 

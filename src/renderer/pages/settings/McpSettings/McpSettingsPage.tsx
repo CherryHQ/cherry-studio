@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { Outlet, useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { FolderCog, Server, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +21,7 @@ const McpSettings: FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
+  const standalone = useSearch({ strict: false, select: (search) => search.mcpStandalone === 'true' })
 
   // 获取当前激活的页面
   const getActiveView = () => {
@@ -46,7 +47,7 @@ const McpSettings: FC = () => {
   return (
     <Flex className="min-w-0 flex-1">
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
-        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+        <div className={`${standalone ? 'hidden' : 'flex'} flex-col ${settingsSubmenuScrollClassName}`}>
           <PageHeader title={t('settings.mcp.shortTitle')} />
           <Scrollbar className="min-h-0 flex-1">
             <MenuList className={settingsSubmenuListClassName}>

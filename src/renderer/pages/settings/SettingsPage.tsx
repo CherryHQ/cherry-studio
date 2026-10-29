@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { Outlet, useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import type { CSSProperties, FC, MouseEvent } from 'react'
 import { Fragment, useEffect, useRef, useState } from 'react'
@@ -26,6 +26,8 @@ const SettingsPage: FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { pathname } = location
+  const mcpStandalone = useSearch({ strict: false, select: (search) => search.mcpStandalone === 'true' })
+  const hideNavigation = pathname.startsWith('/settings/mcp/') && mcpStandalone
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   // Anchor-lookup scope for SettingsFocusScroll (this tab's content column)
@@ -63,7 +65,10 @@ const SettingsPage: FC = () => {
         <div className="flex min-h-0 flex-1 flex-row">
           <div
             data-ui="settings.navigation"
-            className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-r-[0.5px] border-border">
+            className={cn(
+              'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-r-[0.5px] border-border',
+              hideNavigation && 'hidden'
+            )}>
             {searchOpen ? (
               // Expanded: the field covers the whole header row at the standing
               // box's width; mt-2.5 top-aligns it with the provider column's

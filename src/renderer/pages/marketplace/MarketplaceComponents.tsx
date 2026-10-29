@@ -33,7 +33,7 @@ export function MarketplaceCard({
     <div className="flex h-full min-w-0 items-center gap-2 rounded-2xl border border-border-subtle pr-3 transition-colors hover:bg-accent/50">
       <Button
         variant="ghost"
-        className="h-auto min-h-20 min-w-0 flex-1 justify-start gap-3 rounded-2xl p-3 text-left"
+        className="h-auto min-h-20 min-w-0 flex-1 justify-start gap-3 rounded-2xl p-3 text-left hover:bg-transparent"
         onClick={onOpen}>
         {icon}
         <div className="min-w-0 flex-1">
@@ -255,18 +255,5 @@ export function MarketplaceDetailProperties({ items }: { items: { label: string;
           </div>
         ))}
     </div>
-  )
-}
-
-export function MarketplaceCuratedTab() {
-  const { t } = useTranslation()
-  return (
-    <Button
-      size="sm"
-      className="shrink-0 rounded-full focus-visible:underline"
-      style={{ backgroundColor: '#ffa39e', color: '#ffffff' }}
-      aria-pressed>
-      {t('marketplace.curated')}
-    </Button>
   )
 }

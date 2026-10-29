@@ -1,6 +1,4 @@
-import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
-
-export type MarketplaceResourceType = 'skill' | 'agent' | 'assistant' | 'mcp'
+export type MarketplaceResourceType = 'skill' | 'agent' | 'mcp'
 export type MarketplaceView = 'all' | MarketplaceResourceType
 
 export interface AgentCatalogPreset {
@@ -19,4 +17,4 @@ export type MarketplaceTemplate = {
   avatar: string
   prompt: string
   groups: string[]
-} & ({ kind: 'agent' } | { kind: 'assistant'; createDto: CreateAssistantDto })
+}

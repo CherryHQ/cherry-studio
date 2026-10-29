@@ -1,14 +1,13 @@
-import { FileText, Loader2, Plus } from 'lucide-react'
+import { FileText, Plus } from 'lucide-react'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog } from '@cherrystudio/ui'
+import { Button, Dialog, HorizontalScrollContainer } from '@cherrystudio/ui'
 import { groupTranslations } from '@renderer/components/resourceCatalog/catalog'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
-import { useAgentMutations, useAssistantMutations } from '@renderer/hooks/resourceCatalog'
+import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 
 import {
@@ -49,12 +48,8 @@ export function MarketplaceTemplates({
 }) {
   const { t, i18n } = useTranslation()
   const { createAgent, isCreatingAgent } = useAgentMutations()
-  const { createAssistant } = useAssistantMutations()
   const [selected, setSelected] = useState<MarketplaceTemplate | null>(null)
   const [creating, setCreating] = useState<MarketplaceTemplate | null>(null)
-  const [adding, setAdding] = useState<ReadonlySet<string>>(() => new Set())
-  const busy = selected ? adding.has(selected.id) : false
-  const pending = useRef(new Set<string>())
   useLayoutEffect(
     () => () => {
       setSelected(null)
@@ -75,40 +70,30 @@ export function MarketplaceTemplates({
   const categoryLabel = (group: string) =>
     groupTranslations[group]?.[i18n.language] ??
     (MARKETPLACE_CATEGORY_KEYS[group] ? t(MARKETPLACE_CATEGORY_KEYS[group]) : group)
-  const add = async (item: MarketplaceTemplate) => {
-    if (item.kind === 'agent') {
-      setSelected(null)
-      setCreating(item)
-      return
-    }
-    if (pending.current.has(item.id)) return
-    pending.current.add(item.id)
-    setAdding(new Set(pending.current))
-    try {
-      await createAssistant(item.createDto)
-      toast.success(t('common.add_success'))
-    } catch (error) {
-      toast.error(formatErrorMessageWithPrefix(error, t('library.assistant_catalog.add_failed')))
-    } finally {
-      pending.current.delete(item.id)
-      setAdding(new Set(pending.current))
-    }
+  const add = (item: MarketplaceTemplate) => {
+    setSelected(null)
+    setCreating(item)
   }
   return (
     <div className={preview ? '' : 'flex h-full min-h-0 flex-col'}>
       {!preview && categories ? (
-        <div className="mb-3 flex shrink-0 gap-1 overflow-x-auto pb-1" aria-label={t('marketplace.categories')}>
-          {['', ...categories].map((group) => (
-            <Button
-              key={group}
-              variant="ghost"
-              size="sm"
-              className={'shrink-0 rounded-full ' + (category === group ? 'bg-accent' : '')}
-              aria-pressed={category === group}
-              onClick={() => onCategoryChange?.(group)}>
-              {group ? categoryLabel(group) : t('common.all')}
-            </Button>
-          ))}
+        <div className="mb-3 shrink-0" aria-label={t('marketplace.categories')}>
+          <HorizontalScrollContainer
+            gap="4px"
+            scrollLeftLabel={t('settings.models.filter.scroll_left')}
+            scrollRightLabel={t('settings.models.filter.scroll_right')}>
+            {['', ...categories].map((group) => (
+              <Button
+                key={group}
+                variant="ghost"
+                size="sm"
+                className={'shrink-0 rounded-full ' + (category === group ? 'bg-accent' : '')}
+                aria-pressed={category === group}
+                onClick={() => onCategoryChange?.(group)}>
+                {group ? categoryLabel(group) : t('common.all')}
+              </Button>
+            ))}
+          </HorizontalScrollContainer>
         </div>
       ) : null}
       <MarketplaceLoadState loading={loading} error={error} empty={!filtered.length} retry={retry} />
@@ -132,20 +117,20 @@ export function MarketplaceTemplates({
             action={
               <MarketplaceCardAction
                 title={t('common.add')}
-                aria-busy={adding.has(item.id)}
                 aria-label={t('common.add') + ': ' + item.name}
-                disabled={adding.has(item.id)}
                 onClick={(event) => {
                   trigger.current = event.currentTarget
-                  void add(item)
+                  add(item)
                 }}>
-                {adding.has(item.id) ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                <Plus className="size-4" />
               </MarketplaceCardAction>
             }>
             {item.groups.length ? (
-              <span className="mt-1 block truncate text-xs font-normal text-foreground-tertiary">
-                {item.groups.map(categoryLabel).join(' · ')}
-              </span>
+              <div className="mt-1 flex min-w-0 items-center gap-2">
+                <span className="truncate text-xs font-normal text-foreground-tertiary">
+                  {item.groups.map(categoryLabel).join(' · ')}
+                </span>
+              </div>
             ) : null}
           </MarketplaceCard>
         )}
@@ -153,12 +138,9 @@ export function MarketplaceTemplates({
       <Dialog
         open={Boolean(selected) && active}
         onOpenChange={(open) => {
-          if (!open && !busy) setSelected(null)
+          if (!open) setSelected(null)
         }}>
         <MarketplaceDetailContent
-          closeOnOverlayClick={!busy}
-          onPointerDownOutside={(event) => busy && event.preventDefault()}
-          onEscapeKeyDown={(event) => busy && event.preventDefault()}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             trigger.current?.focus()
@@ -169,13 +151,12 @@ export function MarketplaceTemplates({
                 curated
                 name={selected.name}
                 description={selected.description || selected.name}
-                type={t(selected.kind === 'agent' ? 'marketplace.type.agent' : 'marketplace.type.assistant')}
+                type={t('marketplace.type.agent')}
                 icon={
                   <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border-subtle bg-background text-3xl shadow-sm">
                     {selected.avatar}
                   </span>
-                }
-              />
+                }></MarketplaceDetailHeader>
               <MarketplaceDetailBody>
                 {selected.groups.length ? (
                   <MarketplaceDetailProperties
@@ -193,11 +174,7 @@ export function MarketplaceTemplates({
                   <section className="space-y-2">
                     <h3 className="flex items-center gap-2 text-xs font-medium">
                       <FileText className="size-3.5 text-foreground-tertiary" />
-                      {t(
-                        selected.kind === 'agent'
-                          ? 'marketplace.instructions'
-                          : 'library.assistant_catalog.preview_prompt'
-                      )}
+                      {t('marketplace.instructions')}
                     </h3>
                     <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
                       {selected.prompt}
@@ -207,9 +184,9 @@ export function MarketplaceTemplates({
               </MarketplaceDetailBody>
               <MarketplaceDetailFooter>
                 <span />
-                <Button size="sm" disabled={busy} aria-busy={busy} onClick={() => void add(selected)}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                  {t(busy ? 'common.loading' : 'common.add')}
+                <Button size="sm" onClick={() => add(selected)}>
+                  <Plus className="size-4" />
+                  {t('common.add')}
                 </Button>
               </MarketplaceDetailFooter>
             </>

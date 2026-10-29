@@ -144,6 +144,40 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it('keeps a catalog prompt and default agent settings when creating from template metadata', async () => {
+    const user = userEvent.setup()
+    modelHook.defaultModel = makeModel()
+    const onSubmit = vi.fn()
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onSubmit={onSubmit}
+        initialValues={{
+          name: 'Product manager',
+          avatar: '👨‍💼',
+          description: 'Plan products',
+          prompt: 'Keep this prompt\n{{language}}'
+        }}
+      />
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: NEXT })).toBeEnabled())
+    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: 'Product manager',
+      avatar: '👨‍💼',
+      description: 'Plan products',
+      prompt: 'Keep this prompt\n{{language}}',
+      agentType: 'claude-code',
+      permissionMode: 'auto',
+      modelId: 'provider::default',
+      skillIds: [],
+      knowledgeBaseIds: []
+    })
+  })
+
   it.each(['assistant', 'agent'] as const)('labels the shared authoring step as System Prompt for %s', (kind) => {
     render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 

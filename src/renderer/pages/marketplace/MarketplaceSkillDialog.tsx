@@ -20,6 +20,8 @@ import { MarketplaceSkillIcon } from './MarketplaceSkillIcon'
 
 type Props = {
   skill: MarketplaceSkill | null
+  fetchDetail?: boolean
+  curated?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   onReturnFocus: () => void
@@ -32,6 +34,8 @@ type Props = {
 
 export function MarketplaceSkillDialog({
   skill,
+  fetchDetail = true,
+  curated = !skill?.subscription,
   open,
   onOpenChange,
   onReturnFocus,
@@ -49,7 +53,7 @@ export function MarketplaceSkillDialog({
     isLoading,
     mutate
   } = useSWR(
-    open && skill
+    open && skill && fetchDetail
       ? skill.subscription
         ? ['skill.subscription.detail', skill.subscription.sourceId, skill.id]
         : ['skill.marketplace.detail', skill.id]
@@ -92,14 +96,13 @@ export function MarketplaceSkillDialog({
           onReturnFocus()
         }}>
         <MarketplaceDetailHeader
-          curated={!skill.subscription}
+          curated={curated}
           name={text(item.name)}
-          description={text(item.description)}
+          description={text(item.description) || text(item.name)}
           type={t('marketplace.type.skill')}
           icon={<MarketplaceSkillIcon skill={item} large />}>
-          <p className={`mt-1 text-xs ${skill.subscription ? 'text-muted-foreground' : 'text-black/60'}`}>
-            {item.author ? `@${item.author} · ` : ''}
-            {published}
+          <p className={`mt-1 text-xs ${curated ? 'text-black/60' : 'text-muted-foreground'}`}>
+            {[item.author ? `@${item.author}` : '', published].filter(Boolean).join(' · ')}
           </p>
         </MarketplaceDetailHeader>
 
