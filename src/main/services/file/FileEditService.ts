@@ -6,7 +6,9 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import {
   assertNotesPathNotMutatingDuringMigration,
+  assertNotesPathNotRetired,
   isNotesMigrationWriteBlockedError,
+  isNotesRetiredRootWriteError,
   withNotesFilesystemMutation
 } from '@main/services/notesRelocation'
 import { atomicWriteIfUnchanged, hashContent, PathStaleVersionError } from '@main/utils/file'
@@ -77,6 +79,10 @@ export class FileEditService extends BaseService {
       // Fail fast instead of handing out a lease whose first write the migration
       // barrier would refuse; no-op outside the blocked notes roots.
       assertNotesPathNotMutatingDuringMigration(path)
+      // A path-kind handle under a retired (migrated-away) notes root would
+      // silently write the old tree; library entries (external refs) under that
+      // root stay openable, keyed on the recorded migration source identity.
+      if (handle.kind === 'path') assertNotesPathNotRetired(path)
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
       if ([...this.leases.values()].filter((lease) => lease.owner === owner).length >= MAX_LEASES_PER_WINDOW) {
         throw new IpcError(fileErrorCodes.EDIT_LIMIT, 'Too many retained file editing sessions')
@@ -129,6 +135,7 @@ export class FileEditService extends BaseService {
     const task = withNotesFilesystemMutation(async (): Promise<FileEditWriteResult> => {
       try {
         assertNotesPathNotMutatingDuringMigration(lease.path)
+        if (lease.handle.kind === 'path') assertNotesPathNotRetired(lease.path)
         const version =
           lease.handle.kind === 'entry'
             ? await application
@@ -201,6 +208,9 @@ export class FileEditService extends BaseService {
     if (error instanceof IpcError) return error
     if (isNotesMigrationWriteBlockedError(error)) {
       return new IpcError(fileErrorCodes.EDIT_MIGRATION_BLOCKED, error.message)
+    }
+    if (isNotesRetiredRootWriteError(error)) {
+      return new IpcError(fileErrorCodes.EDIT_RETIRED_ROOT, error.message)
     }
     if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {
       return new IpcError(fileErrorCodes.STALE_VERSION, 'File changed since the editing baseline')

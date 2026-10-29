@@ -1,6 +1,8 @@
 export { inspectNotesRelocation, migrateNotesDirectory } from './migrate'
 export {
   assertNotesPathNotMutatingDuringMigration,
+  assertNotesPathNotRetired,
+  clearRetiredNotesRootsForTests,
   beginNotesBatchMarkdownUpload,
   beginNotesFilesystemMutation,
   completeNotesMigrationCommit,
@@ -9,7 +11,9 @@ export {
   getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
   isNotesMigrationWriteBlockedError,
+  isNotesRetiredRootWriteError,
   NotesMigrationWriteBlockedError,
+  NotesRetiredRootWriteError,
   releaseNotesMigrationSession,
   scheduleAwaitingMigrationCommit,
   setNotesMigrationBlockedRoots,

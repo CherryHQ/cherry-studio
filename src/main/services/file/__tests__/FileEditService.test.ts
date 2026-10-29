@@ -10,6 +10,7 @@ import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
 import {
+  clearRetiredNotesRootsForTests,
   releaseNotesMigrationSession,
   setNotesMigrationBlockedRoots,
   waitForNotesFilesystemMutationsIdle
@@ -381,10 +382,29 @@ describe('FileEditService persistence contract', () => {
       blockedTarget = path.join(root, 'migration-target')
       await mkdir(blockedTarget)
       MockApplicationUtils.setService('IpcApiService', { broadcast: vi.fn(), send: vi.fn() })
+      // Canonical release classification reads the configured notes root with
+      // provenance; default this suite to "source still configured" so a
+      // released barrier lifts cleanly.
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: root, provenance: 'cache' }))
+      })
+      // The outer getPath spy maps every app dir to root, which makes root a
+      // protected directory for the classifier's allowed-notes-dir check; point
+      // the protected probes at subdirs so the temp notes root stays classifiable.
+      vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+        const base =
+          key === 'feature.files.data'
+            ? path.join(root, 'managed')
+            : key === 'sys.appdata' || key === 'feature.notes.data'
+              ? path.join(root, key === 'sys.appdata' ? 'appdata' : 'default-notes')
+              : root
+        return filename ? path.join(base, filename) : base
+      })
     })
 
     afterEach(() => {
       releaseNotesMigrationSession()
+      clearRetiredNotesRootsForTests()
     })
 
     it('refuses to open a lease under a blocked notes root', async () => {
@@ -432,6 +452,52 @@ describe('FileEditService persistence contract', () => {
       releaseNotesMigrationSession()
       await service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
       await expect(readFile(resource.path, 'utf-8')).resolves.toBe('dirty')
+    })
+
+    it('retires the source root once the release resolves target-active', async () => {
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: blockedTarget, provenance: 'cache' }))
+      })
+      releaseNotesMigrationSession()
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      await expect(open()).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('base')
+    })
+
+    it('keeps entry-kind external refs under a retired root openable', async () => {
+      const files = application.get('FileManager') as FileManager
+      const target = path.join(root, 'external.md')
+      await writeFile(target, 'external')
+      const entry = await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: blockedTarget, provenance: 'cache' }))
+      })
+      releaseNotesMigrationSession()
+      const { resource, snapshot } = await open({ kind: 'entry', entryId: entry.id })
+      expect(Buffer.from(snapshot.data).toString()).toBe('external')
+      await service.close(owner, resource.editId)
+    })
+
+    it('closes loud under both roots when the release cannot resolve the configured root', async () => {
+      const { resource, snapshot } = await open()
+      const orphanPath = path.join(blockedTarget, 'orphan.md')
+      await writeFile(orphanPath, 'orphan')
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      releaseNotesMigrationSession()
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      await expect(open({ kind: 'path', path: AbsoluteFilePathSchema.parse(orphanPath) })).rejects.toMatchObject({
+        code: fileErrorCodes.EDIT_RETIRED_ROOT
+      })
     })
   })
 })

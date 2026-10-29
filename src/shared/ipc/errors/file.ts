@@ -11,6 +11,7 @@ export const fileErrorCodes = {
   EDIT_IO: 'FILE_EDIT_IO',
   /** A notes directory migration barrier refused the edit write or lease open. */
   EDIT_MIGRATION_BLOCKED: 'FILE_EDIT_MIGRATION_BLOCKED',
+  EDIT_RETIRED_ROOT: 'FILE_EDIT_RETIRED_ROOT',
 
   /** Default-open was blocked because the extension may execute through OS file associations. */
   OPEN_BLOCKED_UNSAFE_TYPE: 'FILE_OPEN_BLOCKED_UNSAFE_TYPE',
