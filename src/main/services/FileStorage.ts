@@ -35,6 +35,7 @@ import {
   endNotesBatchMarkdownUpload,
   isAllowedNotesDirectory,
   isNotesMigrationWriteBlockedError,
+  isNotesRetiredRootWriteError,
   withNotesFilesystemMutation
 } from '@main/services/notesRelocation'
 import { getFileType } from '@main/utils/file'
@@ -595,6 +596,27 @@ class FileStorage {
       await fs.promises.writeFile(filePath, data)
     })
 
+  /**
+   * Export destinations are explicit user-chosen plain-file locations (the
+   * configured markdown export folder, save-dialog picks, asset folders next
+   * to them) - never library-tree state - so the retired-root guard does not
+   * apply. The managed-storage guard and the in-flight migration barrier
+   * still do: an export must not land inside managed storage, and it must not
+   * race the tree move. Parent directories are created so callers need no
+   * separate (guarded) mkdir for a nested export path.
+   */
+  public exportWrite = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    data: Uint8Array | string
+  ): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      await assertOutsideManagedStorageMutation(filePath)
+      assertNotesPathNotMutatingDuringMigration(filePath)
+      await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
+      await fs.promises.writeFile(filePath, data)
+    })
+
   public fileNameGuard = async (
     _: Electron.IpcMainInvokeEvent,
     dirPath: string,
@@ -624,6 +646,9 @@ class FileStorage {
         return dirPath
       } catch (error) {
         logger.error('Failed to create directory:', error as Error)
+        // Keep the notes-relocation error identity: a retired or migrating
+        // root must stay distinguishable from a plain filesystem failure.
+        if (isNotesMigrationWriteBlockedError(error) || isNotesRetiredRootWriteError(error)) throw error
         throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
       }
     })

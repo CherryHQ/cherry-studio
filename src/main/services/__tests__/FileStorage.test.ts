@@ -243,7 +243,7 @@ describe('FileStorage', () => {
       fs.writeFileSync(note, '# stale')
       fs.mkdirSync(dir)
 
-      await expect(fileStorage.mkdir(event, path.join(retiredSource, 'new-folder'))).rejects.toThrow()
+      await expect(fileStorage.mkdir(event, path.join(retiredSource, 'new-folder'))).rejects.toThrow(/relocated/)
       await expect(fileStorage.renameFile(event, note, 'renamed')).rejects.toThrow(/relocated/)
       await expect(fileStorage.renameDir(event, dir, 'renamed-dir')).rejects.toThrow(/relocated/)
       await expect(fileStorage.moveFile(event, note, path.join(liveTarget, 'moved.md'))).rejects.toThrow(/relocated/)
@@ -258,6 +258,26 @@ describe('FileStorage', () => {
       expect(fs.existsSync(path.join(liveTarget, 'moved.md'))).toBe(false)
       expect(fs.existsSync(path.join(liveTarget, 'moved-dir'))).toBe(false)
       expect(vi.mocked(shell.trashItem)).not.toHaveBeenCalled()
+    })
+
+    it('exportWrite keeps plain-file semantics for explicit destinations under a retired root', async () => {
+      // The configured export folder is a legitimate plain-file destination,
+      // never library-tree state: exports into it must keep working even when
+      // it sits under a retired root.
+      const exportFile = path.join(retiredSource, 'exports', 'note.md')
+      await fileStorage.exportWrite(event, exportFile, '# exported')
+      expect(fs.readFileSync(exportFile, 'utf-8')).toBe('# exported')
+      await expect(fileStorage.writeFile(event, path.join(retiredSource, 'note.md'), 'x')).rejects.toThrow(/relocated/)
+    })
+
+    it('exportWrite still honors the in-flight migration barrier', async () => {
+      const src = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-src-'))
+      const tgt = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-tgt-'))
+      setNotesMigrationBlockedRoots(src, tgt)
+      await expect(fileStorage.exportWrite(event, path.join(src, 'note.md'), 'x')).rejects.toThrow(
+        /migration is in progress/
+      )
+      releaseNotesMigrationSession()
     })
 
     it('still accepts the same ops under the live canonical root', async () => {

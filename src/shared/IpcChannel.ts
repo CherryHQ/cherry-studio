@@ -59,6 +59,7 @@ export enum IpcChannel {
   File_CreateTempFile = 'file:createTempFile',
   File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
+  File_ExportWrite = 'file:export-write',
   File_SaveImage = 'file:saveImage',
   File_BinaryImage = 'file:binaryImage',
   Fs_Read = 'fs:read',
