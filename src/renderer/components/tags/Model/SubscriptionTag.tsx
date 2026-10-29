@@ -16,7 +16,11 @@ export const SubscriptionTag = ({ size = 12, ...restProps }: Props) => {
   const { t } = useTranslation()
 
   return (
-    <CustomTag size={size} color={SUBSCRIPTION_TAG_COLOR} icon={<Lock size={size} aria-hidden="true" />} {...restProps}>
+    <CustomTag
+      size={size}
+      color={SUBSCRIPTION_TAG_COLOR}
+      icon={<Lock size={size} color="currentColor" className="text-current" aria-hidden="true" />}
+      {...restProps}>
       {t('models.type.subscription')}
     </CustomTag>
   )
