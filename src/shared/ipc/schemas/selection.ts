@@ -1,7 +1,11 @@
 import type { TextSelectionData } from 'selection-hook'
 import * as z from 'zod'
 
-import { SelectionActionSchema, SelectionAgentWindowLayoutSchema } from '@shared/types/selection'
+import {
+  SelectionActionSchema,
+  SelectionAgentSummarySchema,
+  SelectionAgentWindowLayoutSchema
+} from '@shared/types/selection'
 
 import { defineRoute } from '../define'
 
@@ -42,6 +46,17 @@ export const selectionRequestSchemas = {
   'selection.resize_agent_window': defineRoute({ input: SelectionAgentWindowLayoutSchema, output: z.void() }),
   // An empty compose bar or a settled, unpinned window with no draft: the next selection trigger closes it.
   'selection.set_agent_window_replaceable': defineRoute({ input: z.boolean(), output: z.void() }),
+  'selection.update_agent_summary': defineRoute({ input: SelectionAgentSummarySchema, output: z.void() }),
+  'selection.collapse_agent_window': defineRoute({ input: z.void(), output: z.void() }),
+  // The renderer's blur rule; main skips it once the window is in a capsule, since hiding it caused the blur.
+  'selection.dismiss_blurred_agent_window': defineRoute({ input: z.enum(['close', 'collapse']), output: z.void() }),
+  // Capsule host routes: only a capsule host may call them, and the id names one of its collapsed agent windows.
+  'selection.determine_capsule_size': defineRoute({
+    input: z.object({ width: z.number(), height: z.number() }),
+    output: z.void()
+  }),
+  'selection.restore_agent_window': defineRoute({ input: z.string(), output: z.void() }),
+  'selection.close_agent_window': defineRoute({ input: z.string(), output: z.void() }),
   'selection.get_linux_env_info': defineRoute({ input: z.void(), output: linuxEnvInfoSchema })
 }
 

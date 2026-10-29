@@ -6,6 +6,8 @@ import { ipcApi } from '@renderer/ipc'
 export interface SelectionAgentWindowRules {
   /** Closing loses nothing: an empty compose bar, or a settled turn without a draft. */
   idle: boolean
+  /** Blur collapses it into a capsule: the turn is starting, running, or waiting on the user. */
+  collapsible?: boolean
   pinned: boolean
   /** Runs on an Esc nothing else handled while the window is not idle, e.g. to stop the turn. */
   onEscape?: () => void
@@ -13,8 +15,8 @@ export interface SelectionAgentWindowRules {
 
 /**
  * Applies the window state rules. An idle window closes on Esc and, with auto-close on and unpinned,
- * on blur; while also unpinned, main replaces it on the next selection trigger. `null` leaves the
- * rules to the stage that owns them.
+ * on blur, where a collapsible one collapses instead; while also unpinned, main replaces an idle
+ * window on the next selection trigger. `null` leaves the rules to the stage that owns them.
  */
 export function useSelectionAgentWindowRules(rules: SelectionAgentWindowRules | null): void {
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -25,7 +27,9 @@ export function useSelectionAgentWindowRules(rules: SelectionAgentWindowRules | 
   }, [replaceable])
 
   const handleBlur = useEffectEvent(() => {
-    if (rules?.idle && isAutoClose && !rules.pinned) void ipcApi.request('window.close')
+    if (!rules || !isAutoClose || rules.pinned) return
+    if (rules.idle) void ipcApi.request('selection.dismiss_blurred_agent_window', 'close')
+    else if (rules.collapsible) void ipcApi.request('selection.dismiss_blurred_agent_window', 'collapse')
   })
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (!rules || event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return
