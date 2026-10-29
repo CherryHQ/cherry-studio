@@ -208,6 +208,7 @@ async function run(
   limit: RequestLimit
 ): Promise<AgentToolResult<SubagentDetails>> {
   const { session } = child
+  const firstEntry = session.sessionManager.getEntryCount()
   let stopped: 'aborted' | 'limit_reached' | undefined
   const stop = (reason: 'aborted' | 'limit_reached') => {
     stopped ??= reason
@@ -234,7 +235,11 @@ async function run(
     signal?.removeEventListener('abort', onAbort)
   }
 
-  const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
+  const compactionUsage = session.sessionManager
+    .getEntries()
+    .slice(firstEntry)
+    .flatMap((entry) => (entry.type === 'compaction' && entry.usage ? [entry.usage] : []))
+  const usage = [...replies.map((reply) => reply.usage), ...compactionUsage].reduce(addUsage, zeroUsage())
   const last = replies.at(-1)
   const outcome = error === undefined ? outcomeOf(last, stopped) : (stopped ?? 'failed')
   const details = { ...base, outcome }

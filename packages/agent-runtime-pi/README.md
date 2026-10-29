@@ -76,7 +76,7 @@ With `summarize`, the host summarizes with its own prompt and model:
 `summarize({ reason, sessionId, model, messages, previousSummary?, instructions?, signal })` gets
 the compacting session's id and model and the folded native messages after the session model's
 replay rules (failed replies left out, tool calls without a result answered); Cherry converts them
-only when it calls its summarization model. The text it returns is stored as the summary as is; Pi
+only when it calls its summarization model. It returns text or `{ summary, usage }` when the host has provider usage. The summary is stored as is; Pi
 frames it when it builds the next context. A summarizer that fails, or returns an empty summary,
 cancels that compaction (it never falls back to the session model), and `compaction-end` carries
 the error.
@@ -199,7 +199,7 @@ idle. Design: [goal note](../../.agents/notes/proposed/feature/2026-10-11-agent-
   queued user message always goes first, and its turn does not count for the goal. When
   `port.defaults.autonomy()` returns `confirm-each-round`, every round ends paused. Creating or
   resuming a goal on an idle session starts its first round; during a run it only arms the goal
-  for that run's settle. A reopened session restores the goal disarmed and writes that down
+  for that run's settle. A reopened session or native tree navigation restores the selected branch's goal disarmed and writes that down
   (`armed: false` in a snapshot of the same revision); `/goal resume` continues it.
 - **Stops** – every stop sets `phase` and `lastStop.code`. The runtime stops the goal for the
   round cap (`round_limit`; the last allowed round is a wrap-up, and a cap lowered to the running
@@ -220,7 +220,7 @@ idle. Design: [goal note](../../.agents/notes/proposed/feature/2026-10-11-agent-
   goal's admitted rounds while the goal was active, judged where the request's input ends (a
   `/goal pause` written while its reply was being handled does not drop it), the request whose tool
   call stopped it included and requests after a stop (the summary after `complete`) never, priced
-  at each entry's stored `cost`, plus the `usage` a tool result reports when the request that made
+  at each entry's stored `cost`, including native compaction usage assigned when compaction starts, plus the `usage` a tool result reports when the request that made
   its call counted (a foreground subagent still running under `/goal pause` counts when it
   returns). Snapshots record that usage when written (`tokensUsed`, `costUsed`) for display only.
 - **Progress** – read from the branch too (`goalProgress`): a round moved the objective when one of

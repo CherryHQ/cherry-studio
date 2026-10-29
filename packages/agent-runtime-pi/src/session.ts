@@ -91,7 +91,6 @@ async function buildSession(
       }
     : undefined
   const extensionFactories = [
-    ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),
     ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
     ...(options.subagents
       ? [
@@ -111,6 +110,7 @@ async function buildSession(
         ]
       : []),
     ...(options.extensionFactories ?? []),
+    ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),
     ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
   ]
   const settingsManager = SettingsManager.inMemory({

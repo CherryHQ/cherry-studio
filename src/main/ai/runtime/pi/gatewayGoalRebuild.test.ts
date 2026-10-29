@@ -31,6 +31,32 @@ import {
 import { finish, MODEL, plain, tempDir, textParts } from './gatewaySupport'
 
 describe('goal across sessions', () => {
+  it('reads the selected branch goal after native tree navigation and leaves other branches unchanged', async () => {
+    const { session, calls } = await goalSession(
+      [working],
+      goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
+    )
+    await promptIdle(session, 'seed')
+    const seed = session.sessionManager.getLeafId()!
+    await promptIdle(session, '/goal Branch A')
+    const branchA = session.sessionManager.getLeafId()!
+    await session.navigateTree(seed)
+    await session.prompt('/goal')
+    const latestNotice = () => notices(session.sessionManager.getBranch()).at(-1)
+    expect(latestNotice()).toContain('No goal')
+    await promptIdle(session, '/goal Branch B')
+    const branchB = session.sessionManager.getLeafId()!
+    const before = calls.length
+    await session.navigateTree(branchA)
+    await session.prompt('/goal')
+    expect(latestNotice()).toContain('Goal: Branch A')
+    await session.prompt('/goal edit Updated A')
+    await session.navigateTree(branchB)
+    await session.prompt('/goal')
+    expect(latestNotice()).toContain('Goal: Branch B')
+    expect(calls).toHaveLength(before)
+  })
+
   // Breaks when session_start restores the goal armed: the first message's settle would start round 2.
   it('a session rebuilt after a crash mid-round restores the goal disarmed, and resume continues it', async () => {
     const cwd = tempDir('cwd')
@@ -138,12 +164,33 @@ describe('goal across sessions', () => {
       goalPort({ defaults: { maxGoalRounds: 8 } }),
       {
         model: { ...MODEL, contextWindow: 9_000 },
-        compaction: { reserveTokens: 2_000, keepRecentTokens: 1_000, summarize: async () => 'SUMMARY-MARKER' }
+        compaction: {
+          reserveTokens: 2_000,
+          keepRecentTokens: 1_000,
+          summarize: async () => ({
+            summary: 'SUMMARY-MARKER',
+            usage: {
+              input: 100,
+              output: 20,
+              cacheRead: 10,
+              cacheWrite: 5,
+              totalTokens: 135,
+              cost: { input: 1, output: 0.2, cacheRead: 0.01, cacheWrite: 0.05, total: 1.26 }
+            }
+          })
+        }
       }
     )
     await promptIdle(s, '/goal Finish the OBJECTIVE-MARKER work')
 
-    expect(host.entries.some((entry) => entry.type === 'compaction')).toBe(true)
+    const compactions = host.entries.filter((entry) => entry.type === 'compaction')
+    expect(compactions.length).toBeGreaterThan(0)
+    expect(compactions.every((entry) => entry.usage?.totalTokens === 135)).toBe(true)
+    const requestTokens = calls.reduce(
+      (sum, call) => sum + Math.ceil(JSON.stringify(call.prompt).length / 3.5) + 1202,
+      0
+    )
+    expect(lastSnapshot(host.entries).tokensUsed).toBe(requestTokens + 135 * compactions.length)
     const afterCompaction = calls.find((call) => JSON.stringify(call.prompt).includes('SUMMARY-MARKER'))!
     expect(JSON.stringify(afterCompaction.prompt)).not.toContain('step 1:')
     expect(JSON.stringify(afterCompaction.prompt.at(-1))).toContain('OBJECTIVE-MARKER')
