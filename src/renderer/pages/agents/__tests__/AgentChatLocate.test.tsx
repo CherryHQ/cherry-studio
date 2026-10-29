@@ -391,7 +391,7 @@ describe('AgentChat locate pending message', () => {
       locateToEnd: toEnd,
       onLocateMessageHandled: handled
     }
-    const { rerender } = render(<AgentChat {...props} centerSurface={{ content: <div>History</div> }} />)
+    const { rerender } = renderAgentChat(<AgentChat {...props} centerSurface={{ content: <div>History</div> }} />)
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
     expect(handled).not.toHaveBeenCalled()
     expect(agentSessionPartsMocks.locateAgentMessageInList).not.toHaveBeenCalled()
@@ -412,7 +412,7 @@ describe('AgentChat locate pending message', () => {
     'scrolls to the end for an explicit end request or a missing anchor (explicit=%s)',
     async (explicit) => {
       const handled = vi.fn()
-      render(
+      renderAgentChat(
         <AgentChat
           {...activeSessionProps()}
           locateToEnd={explicit}

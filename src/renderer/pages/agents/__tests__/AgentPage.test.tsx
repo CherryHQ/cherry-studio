@@ -926,7 +926,10 @@ describe('Agent task dashboard interactions', () => {
     const user = userEvent.setup()
     render(<Dashboard enabled />)
     await user.pointer({ target: screen.getByRole('button', { name: /^Scheduled tasks/ }), keys: '[MouseRight]' })
-    await user.click(screen.getByRole('menuitem', { name: 'New scheduled task' }))
+    await act(async () => {
+      await user.click(screen.getByRole('menuitem', { name: 'New scheduled task' }))
+      await vi.dynamicImportSettled()
+    })
     const dialog = await screen.findByRole('dialog', { name: 'New scheduled task' })
     expect(within(dialog).getByLabelText('Name')).toBeInTheDocument()
     expect(ipcMocks.request).not.toHaveBeenCalledWith('navigation.open_route_in_main', expect.anything())
@@ -1137,7 +1140,7 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-task-chat')
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-      initialDraft: { text: 'settings.scheduledTasks.chatDraft', tokens: [] }
+      initialDraft: { text: enUS['settings.scheduledTasks.chatDraft'], tokens: [] }
     })
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
 
