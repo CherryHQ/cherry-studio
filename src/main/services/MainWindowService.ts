@@ -543,11 +543,7 @@ export class MainWindowService extends BaseService {
       // onReady, consumed once); runtime rebuilds must always become visible.
       const suppressShow = this.suppressInitialLaunchShow
       this.suppressInitialLaunchShow = false
-      if (!suppressShow) {
-        //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
-        void app.dock?.show()
-        mainWindow.show()
-      }
+      if (!suppressShow) mainWindow.show()
     })
 
     // Workaround for electron#10572: zoom factor resets to the cached value when

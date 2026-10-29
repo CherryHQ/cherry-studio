@@ -1418,7 +1418,8 @@ describe('MainWindowService', () => {
       const rebuilt = rebuildAndShow(svc, created)
       rebuilt.emit('ready-to-show')
       expect(rebuilt.show).toHaveBeenCalledTimes(1)
-      expect(dockShowMock).toHaveBeenCalledTimes(1)
+      // WindowManager owns the Dock; showing it here would override a Dock hold.
+      expect(dockShowMock).not.toHaveBeenCalled()
     })
 
     it('shows the initial window when tray-on-launch is disabled', async () => {
