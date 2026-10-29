@@ -5,9 +5,9 @@ import { loggerService } from '@logger'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { popup } from '@renderer/services/popup'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { getSelectionActionAgent, type SelectionActionAgentIssue } from '@renderer/utils/selectionAction'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { SELECTION_ACTION_RUNNER, type SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import {
   type AskAgentSelectionAction,
   type CustomSelectionAction,
@@ -18,6 +18,11 @@ import {
 import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal'
 
 const logger = loggerService.withContext('useSettingsActionsList')
+
+export interface SelectionActionAgentInfo {
+  agent: { emoji: string; name: string } | undefined
+  issue: SelectionActionAgentIssue | null
+}
 
 const MAX_CUSTOM_ITEMS = 10
 const MAX_ENABLED_ITEMS = 8
@@ -46,7 +51,7 @@ export const useActionItems = (
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
   const [isAskAgentModalOpen, setIsAskAgentModalOpen] = useState(false)
   const [userEditingAction, setUserEditingAction] = useState<CustomSelectionAction | null>(null)
-  const { agents } = useAgents()
+  const { agents, isLoading: agentsLoading } = useAgents()
 
   const enabledItems = useMemo(() => initialItems?.filter((item) => item.enabled) ?? [], [initialItems])
   const disabledItems = useMemo(() => initialItems?.filter((item) => !item.enabled) ?? [], [initialItems])
@@ -154,21 +159,15 @@ export const useActionItems = (
     return { icon: customEngine?.icon, name: engine }
   }
 
-  const builtinAssistantAgentId = agents.find(
-    (candidate) => candidate.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
-  )?.id
-
-  const getAgentInfo = (item: SelectionAction) => {
-    const agentId = item.isBuiltIn
-      ? item.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT
-        ? (item.agentId ?? builtinAssistantAgentId)
-        : undefined
-      : item.runner === SELECTION_ACTION_RUNNER.AGENT
-        ? item.agentId
-        : undefined
-    const agent = agentId ? agents.find((candidate) => candidate.id === agentId) : undefined
-    if (!agent) return null
-    return { emoji: getAgentAvatarFromConfiguration(agent.configuration), name: agent.name }
+  const getAgentInfo = (item: SelectionAction): SelectionActionAgentInfo | null => {
+    const resolved = agentsLoading ? null : getSelectionActionAgent(item, agents)
+    if (!resolved) return null
+    const { agent, issue } = resolved
+    if (!agent && !issue) return null
+    return {
+      agent: agent && { emoji: getAgentAvatarFromConfiguration(agent.configuration), name: agent.name },
+      issue
+    }
   }
 
   return {

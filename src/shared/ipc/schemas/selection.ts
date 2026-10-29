@@ -1,7 +1,7 @@
 import type { TextSelectionData } from 'selection-hook'
 import * as z from 'zod'
 
-import { SelectionActionSchema } from '@shared/types/selection'
+import { SelectionActionSchema, SelectionAgentWindowLayoutSchema } from '@shared/types/selection'
 
 import { defineRoute } from '../define'
 
@@ -39,6 +39,7 @@ export const selectionRequestSchemas = {
     output: z.void()
   }),
   'selection.pin_action_window': defineRoute({ input: z.boolean(), output: z.void() }),
+  'selection.resize_agent_window': defineRoute({ input: SelectionAgentWindowLayoutSchema, output: z.void() }),
   'selection.get_linux_env_info': defineRoute({ input: z.void(), output: linuxEnvInfoSchema })
 }
 

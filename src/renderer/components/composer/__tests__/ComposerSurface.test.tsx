@@ -1198,6 +1198,14 @@ describe('ComposerSurface', () => {
     expect(inputbar).not.toHaveClass('expanded')
   })
 
+  it('leaves sizing to an embedding host: no resize handle or expand control', () => {
+    render(<ComposerSurface {...baseProps} embedded />)
+
+    expect(screen.queryByRole('separator', { name: 'chat.input.resize_height' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.input.expand' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toBeInTheDocument()
+  })
+
   it('renders the resize handle and expand control in the inputbar corner', () => {
     render(<Harness />)
 

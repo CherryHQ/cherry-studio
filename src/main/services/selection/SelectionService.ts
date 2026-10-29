@@ -18,7 +18,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getApplicationId } from '@main/utils/appEdition'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import type { SelectionAction, SelectionActionSession } from '@shared/types/selection'
+import { isAgentSelectionAction, type SelectionAction, type SelectionActionSession } from '@shared/types/selection'
 
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
@@ -216,6 +216,7 @@ export class SelectionService extends BaseService implements Activatable {
       // so the first user-triggered action recycles instantly instead of going through
       // the fresh-path (create + load HTML + wait for React to mount).
       wm.resumePool(WindowType.SelectionAction)
+      wm.resumePool(WindowType.SelectionAgent)
 
       // Open the toolbar (singleton) — registry's show: false ensures no auto-show here,
       // showToolbarAtPosition controls positioning and visibility.
@@ -322,8 +323,10 @@ export class SelectionService extends BaseService implements Activatable {
         // Both calls are idempotent.
         if (!enabled) {
           wm.suspendPool(WindowType.SelectionAction)
+          wm.suspendPool(WindowType.SelectionAgent)
         } else if (this.isActivated) {
           wm.resumePool(WindowType.SelectionAction)
+          wm.resumePool(WindowType.SelectionAgent)
         }
         this.reconciler.request()
       })
@@ -333,6 +336,7 @@ export class SelectionService extends BaseService implements Activatable {
     // feature is off; onActivate()'s resumePool() re-enables it.
     if (!preferenceService.get('feature.selection.enabled')) {
       wm.suspendPool(WindowType.SelectionAction)
+      wm.suspendPool(WindowType.SelectionAgent)
     }
   }
 
@@ -1281,6 +1285,7 @@ export class SelectionService extends BaseService implements Activatable {
     // resumePool() is called on next activate. In-use windows are NOT destroyed here,
     // preserving user-visible results.
     wm.suspendPool(WindowType.SelectionAction)
+    wm.suspendPool(WindowType.SelectionAgent)
   }
 
   /**
@@ -1289,6 +1294,14 @@ export class SelectionService extends BaseService implements Activatable {
    * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
   public processAction(actionItem: SelectionAction, isFullScreen: boolean = false): void {
+    if (isAgentSelectionAction(actionItem)) {
+      application.get('SelectionAgentWindowService').open(actionItem, {
+        anchor: this.isFollowToolbar && this.toolbarWindow ? this.toolbarWindow.getBounds() : null,
+        isFullScreen
+      })
+      return
+    }
+
     const wm = application.get('WindowManager')
 
     // open({ initData }) atomically stores the action payload and, for the

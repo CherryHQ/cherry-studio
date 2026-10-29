@@ -27,10 +27,10 @@ const DEFAULT_NAV_BACKGROUND = 'var(--sidebar)'
 
 /**
  * The window runtime shared by every full-chrome window (main + subWindow): the
- * window-level side effects both need, identically. It calls the two hooks the light
- * windows also reuse (`useLanguageSync` / `useCustomCss`) and inlines the concerns
- * only main + subWindow have (dayjs locale, root background, app-path snapshot,
- * fullscreen, topic/agent auto-rename).
+ * window-level side effects both need, identically. It calls the hooks lighter windows
+ * also reuse (`useLanguageSync` / `useCustomCss` / `useDayjsLocaleSync` / `useAppPathSnapshot`)
+ * and inlines the concerns only main + subWindow have (root background, fullscreen,
+ * topic/agent auto-rename).
  *
  * Mount it from a leaf inside the providers but OUTSIDE every `TabRouter`/`<Activity>`
  * — a hidden `<Activity>` subtree destroys effects, so a window-scoped subscription
@@ -42,30 +42,16 @@ const DEFAULT_NAV_BACKGROUND = 'var(--sidebar)'
  * holds no main-only behavior, so it cannot hide a per-window difference — that is the
  * line between this composition and the retired `useAppInit` grab-bag.
  */
-export function useWindowRuntime(): void {
-  const { t } = useTranslation()
+/** dayjs locale — only the windows that render localized dates need it. */
+export function useDayjsLocaleSync(): void {
   const [language] = usePreference('app.language')
-  const [exitFullscreenPref] = usePreference('shortcut.app.fullscreen.exit')
-  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
-  const isMacTransparentWindow = useMacTransparentWindow()
-  const navBackground = isMacTransparentWindow ? MAC_TRANSPARENT_NAV_BACKGROUND : DEFAULT_NAV_BACKGROUND
-
-  // Also used by the light windows, so these stay as their own reusable hooks.
-  useLanguageSync()
-  useCustomCss()
-
-  // dayjs locale — only the windows that render localized dates need it.
   useEffect(() => {
     setDayjsLocale(language || navigator.language || defaultLanguage)
   }, [language])
+}
 
-  // Root background (macOS vibrancy / transparent-window aware).
-  useEffect(() => {
-    window.root.style.background = navBackground
-  }, [navBackground])
-
-  // Snapshot app paths into the inline file-path base + resources cache. Mount-time,
-  // non-blocking; failure logs rather than throwing.
+/** Snapshot app paths into the inline file-path base + resources cache. Mount-time, non-blocking; failure logs. */
+export function useAppPathSnapshot(): void {
   useEffect(() => {
     void ipcApi
       .request('app.get_info')
@@ -75,6 +61,25 @@ export function useWindowRuntime(): void {
       })
       .catch((error) => logger.error('Failed to snapshot app paths', error as Error))
   }, [])
+}
+
+export function useWindowRuntime(): void {
+  const { t } = useTranslation()
+  const [exitFullscreenPref] = usePreference('shortcut.app.fullscreen.exit')
+  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const navBackground = isMacTransparentWindow ? MAC_TRANSPARENT_NAV_BACKGROUND : DEFAULT_NAV_BACKGROUND
+
+  // Also used by the light windows, so these stay as their own reusable hooks.
+  useLanguageSync()
+  useCustomCss()
+  useDayjsLocaleSync()
+  useAppPathSnapshot()
+
+  // Root background (macOS vibrancy / transparent-window aware).
+  useEffect(() => {
+    window.root.style.background = navBackground
+  }, [navBackground])
 
   // [Windows] hint toast on entering fullscreen (useIpcOn self-cleans on unmount).
   useIpcOn('window.fullscreen_changed', (isFullscreen) => {

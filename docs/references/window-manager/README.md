@@ -55,12 +55,13 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 
 ## WM Does Not Know "Pin"
 
-**Cherry Studio windows do not share a single "pin" concept** — the three pinnable windows each mean something different by it:
+**Cherry Studio windows do not share a single "pin" concept** — the pinnable windows do not all mean the same thing by it:
 
 | Window | What "pin" toggles |
 |---|---|
 | QuickAssistant | Suppress blur-auto-hide (`alwaysOnTop` stays true) |
 | SelectionAction | Toggle `alwaysOnTop` (no blur auto-hide to suppress) |
+| SelectionAgent | Toggle `alwaysOnTop`, same as SelectionAction |
 | SelectionToolbar | No pin concept (always hide on blur) |
 
 Plus SelectionAction has an independent `auto_close` user preference that drives blur-auto-hide on its own axis — so all four `{hideOnBlur, alwaysOnTop}` quadrants are reachable.

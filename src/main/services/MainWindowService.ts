@@ -894,11 +894,11 @@ export class MainWindowService extends BaseService {
   }
 
   /**
-   * 引用文本到发起窗口（子窗口）或主窗口
-   * @param text 原始文本（未格式化）
-   * @param sourceWebContents 发起引用的 webContents（IPC 调用方）。当它属于一个
-   *   detached SubWindow（独立标签窗口）时，引用插入该子窗口自己的输入框，避免
-   *   内容总是落到主窗口；其余情况（主窗口、selection toolbar 等）保持发往主窗口。
+   * Quote text into the window that asked for it, or into the main window.
+   * @param text Raw, unformatted text
+   * @param sourceWebContents The IPC caller. When it belongs to a window with its own composer
+   *   (a detached SubWindow or a selection agent window), the quote lands in that composer;
+   *   every other caller (main window, selection toolbar, …) quotes into the main window.
    */
   public quoteToMainWindow(text: string, sourceWebContents?: Electron.WebContents): void {
     // Track the intended landing spot so a failure log names the right window:
@@ -908,9 +908,9 @@ export class MainWindowService extends BaseService {
     try {
       const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
       if (sourceWindow) {
-        quoteTarget = `sub window ${sourceWindow.id}`
-        // SubWindow already has a composer mounted with the same App_QuoteToMain
-        // listener, so sending here inserts the quote into the detached window.
+        quoteTarget = `source window ${sourceWindow.id}`
+        // The source window already has a composer mounted with the same App_QuoteToMain
+        // listener, so sending here inserts the quote into that window.
         // Deliberately no Dock-visibility side effects: quoting into a detached
         // window must not undo the user's close-to-tray choice (macOS keeps the
         // Dock icon hidden while Main stays hidden; the tray still shows the app).
@@ -937,16 +937,17 @@ export class MainWindowService extends BaseService {
   }
 
   /**
-   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a detached
-   * SubWindow. Returns null otherwise — including when that window is already
-   * destroyed — so callers need no further liveness check on the result.
+   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a window with its own
+   * composer. Returns null otherwise — including when that window is already destroyed — so
+   * callers need no further liveness check on the result.
    */
   private resolveQuoteSourceWindow(sourceWebContents?: Electron.WebContents): BrowserWindow | null {
     if (!sourceWebContents) return null
     const windowManager = application.get('WindowManager')
     const sourceWindowId = windowManager.getWindowIdByWebContents(sourceWebContents)
     if (!sourceWindowId) return null
-    if (windowManager.getWindowType(sourceWindowId) !== WindowType.SubWindow) return null
+    const sourceWindowType = windowManager.getWindowType(sourceWindowId)
+    if (sourceWindowType !== WindowType.SubWindow && sourceWindowType !== WindowType.SelectionAgent) return null
     const sourceWindow = windowManager.getWindow(sourceWindowId)
     return sourceWindow && !sourceWindow.isDestroyed() ? sourceWindow : null
   }

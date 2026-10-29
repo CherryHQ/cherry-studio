@@ -211,6 +211,8 @@ type Props = {
   compactWhenSingleLine?: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  /** Sends during a running turn steer it instead of queueing, for windows that cannot keep a queue alive. */
+  steerWhileBusy?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -241,6 +243,7 @@ const AgentComposerRoot = ({
   compactWhenSingleLine = false,
   previewInputFile,
   launchOptions,
+  steerWhileBusy = false,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -375,6 +378,7 @@ const AgentComposerRoot = ({
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={previewInputFile}
         launchOptions={launchOptions}
+        steerWhileBusy={steerWhileBusy}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
@@ -418,6 +422,7 @@ interface InnerProps {
   compactWhenSingleLine: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  steerWhileBusy: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
@@ -498,6 +503,7 @@ const AgentComposerInner = ({
   compactWhenSingleLine,
   previewInputFile,
   launchOptions,
+  steerWhileBusy,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
@@ -1198,13 +1204,12 @@ const AgentComposerInner = ({
   const sendKeyLabel = getComposerShortcutLabel(sendMessageShortcut)
   const steerKeyLabel = getComposerShortcutLabel(resolvedSteerShortcut)
 
-  const placeholderText = useMemo(
-    () =>
-      isStreaming
-        ? t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
-        : t('agent.input.placeholder'),
-    [isStreaming, sendKeyLabel, steerKeyLabel, t]
-  )
+  const placeholderText = useMemo(() => {
+    if (!isStreaming) return t('agent.input.placeholder')
+    return steerWhileBusy
+      ? t('agent.input.placeholder_steering')
+      : t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
+  }, [isStreaming, sendKeyLabel, steerKeyLabel, steerWhileBusy, t])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
@@ -1395,7 +1400,7 @@ const AgentComposerInner = ({
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
-      if (isStreaming && !options?.steer) {
+      if (isStreaming && !options?.steer && !steerWhileBusy) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1419,6 +1424,7 @@ const AgentComposerInner = ({
       model,
       sendDisabled,
       sendQueuedPayload,
+      steerWhileBusy,
       t,
       workspaceWarning
     ]
@@ -1591,7 +1597,7 @@ const AgentComposerInner = ({
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
           sendMessageShortcut={sendMessageShortcut}
-          steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
+          steerShortcut={isStreaming && !steerWhileBusy ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
             isDirectSending ||
