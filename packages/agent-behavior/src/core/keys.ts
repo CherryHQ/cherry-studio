@@ -74,6 +74,7 @@ export const keys = {
   approvalMemo: (call: CallKey): Key => mint(`cherry.approval:${call}`),
   askMemo: (call: CallKey): Key => mint(`cherry.ask:${call}`),
   verdictMemo: (call: CallKey): Key => mint(`cherry.verdict:${call}`),
+  summaryUsage: (compactionKey: string): Key => mint(`cherry.summary-usage:${compactionKey}`),
   summaryMemo: (compactionKey: string): Key => mint(`cherry.summary:${compactionKey}`)
 } as const
 

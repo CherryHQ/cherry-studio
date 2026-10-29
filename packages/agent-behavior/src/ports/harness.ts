@@ -1,7 +1,16 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { Effect, JobKind, JobSpec, Step, StopCause, TurnInput } from '../core/decisions'
-import type { CallKey, ConversationFacts, GateCall, GateFacts, RunEndFacts, ToolResultFact } from '../core/facts'
+import type {
+  CallKey,
+  ConversationFacts,
+  GateCall,
+  GateFacts,
+  HistoryEntry,
+  PolicyRecord,
+  RunEndFacts,
+  ToolResultFact
+} from '../core/facts'
 import type { CompactionReason } from '../core/hostFacts'
 import type { Key } from '../core/keys'
 
@@ -318,6 +327,8 @@ export interface RequestMeter {
 export type CompactionRequest = {
   /** Durable: the compaction task id; coding-agent: `<sessionId>:<id of the entry the compaction follows>`. */
   readonly key: string
+  /** Full branch captured before the summary request; adapters persist any returned accounting once by its key. */
+  readonly history: readonly HistoryEntry[]
   readonly reason: CompactionReason
   readonly messages: readonly JsonValue[]
   readonly previousSummary?: string
@@ -328,7 +339,15 @@ export type CompactionRequest = {
  * The summary to compact with, or a decline that cancels the compaction (D33); a decline's `reason` is the summarizer's
  * error or an empty summary, for the host to show as the compaction's failure.
  */
-export type CompactionVerdict = { readonly summary: string } | { readonly decline: true; readonly reason: string }
+export type CompactionVerdict =
+  | {
+      readonly summary: string
+      readonly accounting?: {
+        readonly key: string
+        readonly record: Extract<PolicyRecord, { readonly type: 'summary-usage' }>
+      }
+    }
+  | { readonly decline: true; readonly reason: string }
 export interface LifecycleHandlers {
   onOpen(thread: ThreadId, open: { readonly reopened: boolean }, ports: BoundPorts): Promise<void>
   onCompacting(thread: ThreadId, request: CompactionRequest, ports: GatePorts): Promise<CompactionVerdict>
@@ -347,7 +366,8 @@ export interface LifecycleHandlers {
  * facts read after its own stop. No conversation's interrupted run resumes before its own `onOpen` has run.
  *
  * `onCompacting` decides a compaction before it happens: the package summarizes with the host's `Summarizer` and
- * answers with the summary or a decline, and the harness compacts only with a summary. Adapters never call
+ * answers with the summary or a decline, and the harness compacts only with a summary. Its optional accounting is
+ * persisted alongside the summary or its memo and projected once into history, including child run usage. Adapters never call
  * `Summarizer` themselves. A compaction during a run is one model request of that run: the harness asks
  * `RequestMeter.allow` first, counts it, and a refusal cancels the compaction without asking `onCompacting`.
  *

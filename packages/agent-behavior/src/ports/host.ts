@@ -1,7 +1,7 @@
 import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { BehaviorEvent } from '../core/decisions'
-import type { CallKey, ToolCallFact } from '../core/facts'
+import type { CallKey, ToolCallFact, UsageFact } from '../core/facts'
 import type {
   ApprovalAnswer,
   ApprovalHostFacts,
@@ -136,7 +136,10 @@ export type SummaryRequest = {
  * @keys The summary is memoized under `cherry.summary:<compactionKey>`.
  */
 export interface Summarizer {
-  summarize(request: SummaryRequest, signal: AbortSignal): Promise<string>
+  summarize(
+    request: SummaryRequest,
+    signal: AbortSignal
+  ): Promise<string | { readonly summary: string; readonly usage: UsageFact }>
 }
 
 /**

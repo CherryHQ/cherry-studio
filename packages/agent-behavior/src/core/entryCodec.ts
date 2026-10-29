@@ -17,7 +17,8 @@ import {
   type SubagentOrigin,
   type SubagentOutcome,
   type SubagentRunRecord,
-  type SubagentStopper
+  type SubagentStopper,
+  type UsageFact
 } from './facts'
 
 export type EncodedEntry = { readonly kind: EntryKind; readonly data: JsonValue }
@@ -28,6 +29,7 @@ export type RawEntry = {
   readonly text?: string
 }
 
+type SummaryUsage = Extract<PolicyRecord, { readonly type: 'summary-usage' }>['value']
 type TurnStop = Extract<PolicyRecord, { readonly type: 'turn-stop' }>['value']
 type SubagentSteer = Extract<PolicyRecord, { readonly type: 'subagent-steer' }>['value']
 type SubagentUserStop = Extract<PolicyRecord, { readonly type: 'subagent-user-stop' }>['value']
@@ -57,6 +59,8 @@ const STOP_CAUSES: Members<TurnStop['cause']> = {
 
 const isMember = (value: JsonValue, members: object): boolean =>
   typeof value === 'string' && Object.hasOwn(members, value)
+const optionalGoalId = (value: JsonValue | undefined): boolean =>
+  value === undefined || value === null || typeof value === 'string'
 const isOptionalMember = (value: JsonValue | undefined, members: object): boolean =>
   value === undefined || isMember(value, members)
 const withKey = (fields: Fields, key: string | undefined): Fields => (key === undefined ? fields : { ...fields, key })
@@ -64,6 +68,8 @@ const withKey = (fields: Fields, key: string | undefined): Fields => (key === un
 /** Lays a record or marker out as agent-runtime-pi stores it today; a given `key` travels as one extra `key` field. */
 export function encodeEntry(fact: PolicyRecord | MarkerFact, key?: string): EncodedEntry {
   switch (fact.type) {
+    case 'summary-usage':
+      return { kind: ENTRY_KINDS.summaryUsage, data: withKey(fact.value, key) }
     case 'goal':
       return { kind: ENTRY_KINDS.goal, data: withKey(fact.value, key) }
     case 'goal-notice':
@@ -109,6 +115,22 @@ export function decodeEntry(entry: RawEntry): HistoryEntry | undefined {
 
 function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
   switch (kind) {
+    case ENTRY_KINDS.summaryUsage: {
+      const fields: readonly (keyof UsageFact)[] = [
+        'input',
+        'output',
+        'cacheRead',
+        'cacheWrite',
+        'totalTokens',
+        'costUsd'
+      ]
+      const usage = f.usage
+      return (f.goalId === null || typeof f.goalId === 'string') &&
+        isFields(usage) &&
+        fields.every((key) => typeof usage[key] === 'number' && Number.isFinite(usage[key]) && usage[key] >= 0)
+        ? { type: 'summary-usage', value: f as SummaryUsage }
+        : undefined
+    }
     case ENTRY_KINDS.goal: {
       if (typeof f.id !== 'string' || typeof f.revision !== 'number') return undefined
       const valid =
@@ -124,6 +146,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
     case ENTRY_KINDS.subagentRun:
       return typeof f.sessionId === 'string' &&
         typeof f.run === 'number' &&
+        optionalGoalId(f.goalId) &&
         isMember(f.status, RUN_STATUSES) &&
         isOptionalMember(f.outcome, OUTCOMES) &&
         isOptionalMember(f.stoppedBy, STOPPERS)
@@ -151,6 +174,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
     case ENTRY_KINDS.subagentSteer:
       return typeof f.sessionId === 'string' &&
         typeof f.run === 'number' &&
+        optionalGoalId(f.goalId) &&
         typeof f.digest === 'string' &&
         typeof f.withdrawn === 'boolean'
         ? { type: 'subagent-steer', value: f as SubagentSteer }

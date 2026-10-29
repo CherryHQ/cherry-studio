@@ -1,6 +1,7 @@
 import { summaryDecision } from '../core/context/offload'
 import { ensureDriver } from '../core/driver/jobs'
 import { decideOnOpen } from '../core/driver/lifecycle'
+import { goalForRequest } from '../core/goal/goalHistory'
 import { keys } from '../core/keys'
 import type { LifecycleHandlers } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
@@ -19,15 +20,25 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
       if (open.reopened) await emitViews(context, thread)
     },
     async onCompacting(thread, request, ports) {
-      const { key, signal, ...summarize } = request
+      const { key, signal, history, ...summarize } = request
       try {
-        const summary = await ports.memory.remember(keys.summaryMemo(key), async () => {
-          const decided = summaryDecision(await host.summarizer.summarize({ ...summarize, thread }, signal))
-          // A decline is not kept: a retry of the same compaction asks the host again.
+        return await ports.memory.remember(keys.summaryMemo(key), async () => {
+          const goalId = goalForRequest(history)
+          const result = await host.summarizer.summarize({ ...summarize, thread }, signal)
+          const decided = summaryDecision(typeof result === 'string' ? result : result.summary)
           if ('decline' in decided) throw new Error('The summary is empty')
-          return decided.summary
+          return {
+            summary: decided.summary,
+            ...(typeof result === 'string'
+              ? {}
+              : {
+                  accounting: {
+                    key: keys.summaryUsage(key),
+                    record: { type: 'summary-usage' as const, value: { goalId, usage: result.usage } }
+                  }
+                })
+          }
         })
-        return { summary }
       } catch (error) {
         // D33: a failed summary cancels the compaction; nothing falls back to the conversation's model.
         return { decline: true, reason: error instanceof Error ? error.message : String(error) }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { callTool, holds, latch, reply, toolBase } from '../../src/contract/fixtures'
-import { currentGoal } from '../../src/core/goal/goalHistory'
+import { currentGoal, goalUsage } from '../../src/core/goal/goalHistory'
 import { MAX_SUBAGENT_REQUESTS } from '../../src/core/subagents/subagentText'
+import { lifecycleHandlers } from '../../src/orchestration/lifecycle'
 import type { CompactionVerdict, HarnessPorts } from '../../src/ports/harness'
-import { markers, runRecords, world } from './world'
+import { goal, goalEntry, roundEntry, usage } from '../core/history'
+import { markers, records, runRecords, world } from './world'
 
 const compactions = async (w: ReturnType<typeof world>, thread: Parameters<ReturnType<typeof world>['read']>[0]) =>
   (await w.read(thread)).history.filter((entry) => entry.kind === 'compaction')
@@ -63,6 +65,78 @@ async function forkWithPendingResult() {
 }
 
 describe('lifecycle handlers', () => {
+  it('memoizes real summary usage with its request owner across a pause and replay', async () => {
+    const w = world()
+    const t = await w.fake.createThread()
+    const started = latch()
+    const finish = latch()
+    let requests = 0
+    const handlers = lifecycleHandlers({
+      ...w.host,
+      summarizer: {
+        summarize: async () => {
+          requests++
+          started.release()
+          await finish.promise
+          return { summary: 'condensed', usage: usage(17, 0.2) }
+        }
+      }
+    })
+    const history = [
+      goalEntry(goal({ admittedRound: 'r1' })),
+      roundEntry({ id: 'r1', goalId: 'g1', revision: 1, round: 1, kind: 'work' })
+    ]
+    const request = {
+      key: 'compact-1',
+      history,
+      reason: 'manual' as const,
+      messages: [],
+      signal: new AbortController().signal
+    }
+    await w.enter(t, async (_entries, ports) => {
+      const first = handlers.onCompacting(t, request, ports)
+      await started.promise
+      const paused = [...history, goalEntry(goal({ phase: 'paused', armed: false }))]
+      finish.release()
+      const result = await first
+      expect(result).toMatchObject({
+        summary: 'condensed',
+        accounting: { record: { value: { goalId: 'g1', usage: usage(17, 0.2) } } }
+      })
+      const replay = await handlers.onCompacting(t, { ...request, history: paused }, ports)
+      expect(replay).toEqual(result)
+      expect(requests).toBe(1)
+      const manual = await handlers.onCompacting(t, { ...request, key: 'compact-2', history: paused }, ports)
+      expect(manual).toMatchObject({ accounting: { record: { value: { goalId: null } } } })
+    })
+  })
+
+  it('counts a child compaction in that run and preserves it after restart', async () => {
+    const hold = holds()
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [callTool('hold', { id: 'child' }), reply('done')] : [])
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', { description: 'work', prompt: 'work', background: true }),
+      reply('waiting'),
+      reply('read')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await hold.started('child')
+    const child = runRecords(await w.read(t))[0].sessionId
+    w.host.giveSummary({ summary: 'condensed', usage: usage(17, 0.2) })
+    await w.fake.compact(child)
+    expect((await w.read(t)).children.get(child)?.runUsage[0]).toMatchObject({ totalTokens: 17, costUsd: 0.2 })
+    hold.release('child')
+    await w.fake.settle()
+    await w.fake.restart()
+    expect(records(await w.read(child), 'summary-usage')).toHaveLength(1)
+    expect((await w.read(t)).children.get(child)?.runUsage[0]).toMatchObject({ totalTokens: 17, costUsd: 0.2 })
+    expect(goalUsage(await w.read(t), 'g1').tokens).toBe(0)
+  })
+
   // Catches a compaction the package was never asked about, or a summary not kept for a rerun of the same compaction
   // (I-d: on Durable the select phase reruns after a crash).
   it('compacts with the host summary and keeps it under the compaction key', async () => {

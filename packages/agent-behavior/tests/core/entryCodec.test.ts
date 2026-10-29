@@ -24,6 +24,10 @@ const goal: GoalSnapshot = {
   updatedAt: 2
 }
 const records: PolicyRecord[] = [
+  {
+    type: 'summary-usage',
+    value: { goalId: 'g1', usage: { input: 3, output: 2, cacheRead: 1, cacheWrite: 0, totalTokens: 6, costUsd: 0.01 } }
+  },
   { type: 'goal', value: goal },
   { type: 'goal', value: { id: 'goal:task-1', revision: 3, cleared: true, at: 5 } },
   { type: 'goal-notice', value: { text: 'paused', level: 'info' } },
@@ -66,6 +70,7 @@ describe('entry kinds', () => {
   it('keeps today’s cherry.* kinds and adds plan, turn-stop, idle-driver-exit, subagent-steer and subagent-user-stop', () => {
     expect(ENTRY_KINDS).toEqual({
       goal: 'cherry.goal',
+      summaryUsage: 'cherry.summary-usage',
       goalRound: 'cherry.goal-round',
       goalNotice: 'cherry.goal-notice',
       subagentRun: 'cherry.subagent-state',

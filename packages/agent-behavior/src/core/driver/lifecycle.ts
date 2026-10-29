@@ -99,6 +99,7 @@ export function decideOnOpen(
 export function decideUserStop(facts: ConversationFacts, inputs: CallInputs, requestKey: string): Step<null> {
   const key = keys.turnStop(requestKey)
   const turn = stoppedTurn(facts.history, key)
+  const goal = facts.lineage.kind === 'root' ? currentGoal(facts.history) : undefined
   return {
     ops: [
       {
@@ -106,7 +107,10 @@ export function decideUserStop(facts: ConversationFacts, inputs: CallInputs, req
         thread: facts.thread,
         record: { type: 'turn-stop', value: { cause: 'user', at: inputs.now } },
         key
-      }
+      },
+      ...(!facts.keysSeen.has(key) && goal?.phase === 'active' && goal.armed
+        ? [goalStop(facts, inputs, goal, { code: 'aborted' })]
+        : [])
     ],
     effects: turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause: 'user', turn }],
     result: null
