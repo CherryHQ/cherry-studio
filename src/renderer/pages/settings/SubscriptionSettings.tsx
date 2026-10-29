@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, Skeleton } from '@cherrystudio/ui'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
@@ -28,7 +28,7 @@ function quotaWindowLabel(
 
 export function SubscriptionSettings() {
   const { t, i18n } = useTranslation()
-  const { status, login } = useCherryAccountSession()
+  const { status, loadState, login, cancelLogin, isAuthorizing, isCancellingLogin } = useCherryAccountSession()
   const accountId = status?.phase === 'signed-in' ? status.accountId : null
   // Keyed by account: a response for a previous account only ever lands in that account's cache entry.
   const {
@@ -49,14 +49,54 @@ export function SubscriptionSettings() {
   const openPortal = () => void openCherryCloudAccountPortal()
 
   if (status?.phase !== 'signed-in') {
+    // Placeholders until the first status arrives, so a signed-in user never sees the sign-in prompt flash.
+    const statusPending = !status && loadState === 'loading'
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
-        <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          <p>{t('settings.subscription.sign_in_required')}</p>
-          <Button className="mt-4" onClick={() => void login()}>
-            {t('settings.subscription.sign_in')}
-          </Button>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            {statusPending ? (
+              <>
+                <div className="min-w-0 flex-1" aria-busy="true">
+                  <div className="flex h-5 items-center">
+                    <Skeleton className="h-3.5 w-24" />
+                  </div>
+                  <div className="mt-1 flex h-4 items-center">
+                    <Skeleton className="h-3 w-64 max-w-full" />
+                  </div>
+                </div>
+                <Skeleton className="h-7 w-16" />
+              </>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{t('settings.subscription.signed_out')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('settings.subscription.sign_in_hint')}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {isAuthorizing && (
+                    <Button variant="ghost" size="sm" disabled={isCancellingLogin} onClick={() => void cancelLogin()}>
+                      {t('common.cancel')}
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" loading={isAuthorizing} onClick={() => void login()}>
+                    {t(isAuthorizing ? 'settings.provider.cherry_cloud.signing_in' : 'settings.subscription.sign_in')}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-center py-6">
+              <div className="flex h-5 items-center text-sm text-muted-foreground">
+                {statusPending ? <Skeleton className="h-3 w-36" /> : t('settings.subscription.sign_in_usage')}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )

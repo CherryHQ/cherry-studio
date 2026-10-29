@@ -9,11 +9,23 @@ import { SubscriptionSettings } from '../SubscriptionSettings'
 
 const { requestMock, session } = vi.hoisted(() => ({
   requestMock: vi.fn(),
-  session: { status: null as CherryCloudStatus | null }
+  session: {
+    status: null as CherryCloudStatus | null,
+    loadState: 'ready',
+    login: vi.fn(),
+    cancelLogin: vi.fn()
+  }
 }))
 
 vi.mock('@renderer/hooks/useCherryAccountSession', () => ({
-  useCherryAccountSession: () => ({ status: session.status, login: vi.fn() })
+  useCherryAccountSession: () => ({
+    status: session.status,
+    loadState: session.loadState,
+    login: session.login,
+    cancelLogin: session.cancelLogin,
+    isAuthorizing: session.status?.phase === 'authorizing',
+    isCancellingLogin: false
+  })
 }))
 
 const signedIn = (accountId: string): CherryCloudStatus => ({ phase: 'signed-in', accountId, displayName: accountId })
@@ -66,6 +78,7 @@ vi.mock('react-i18next', () => ({
 
 afterEach(() => {
   session.status = signedIn('account-1')
+  session.loadState = 'ready'
   vi.clearAllMocks()
   vi.unstubAllEnvs()
 })
@@ -144,6 +157,33 @@ describe('SubscriptionSettings', () => {
     expect(screen.getByText('100% remaining')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: '30-day limit' })).toHaveAttribute('aria-valuenow', '100')
     expect(screen.queryByText('US$8.00')).not.toBeInTheDocument()
+  })
+
+  it('does not offer sign-in before the session status is known', () => {
+    session.status = null
+    session.loadState = 'loading'
+    renderSettings()
+
+    expect(screen.queryByRole('button', { name: 'settings.subscription.sign_in' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.signed_out')).not.toBeInTheDocument()
+  })
+
+  it('signs in from the signed-out section', async () => {
+    session.status = { phase: 'signed-out', accountId: null, displayName: null }
+    renderSettings()
+
+    await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.sign_in' }))
+    expect(session.login).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('settings.subscription.sign_in_usage')).toBeInTheDocument()
+  })
+
+  it('blocks a second sign-in while the browser is authorizing and lets the user cancel', async () => {
+    session.status = { phase: 'authorizing', accountId: null, displayName: null }
+    renderSettings()
+
+    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(session.cancelLogin).toHaveBeenCalledTimes(1)
   })
 
   it("keeps the current account's plan when a previous account's response arrives late", async () => {
