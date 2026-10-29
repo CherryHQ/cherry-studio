@@ -1405,5 +1405,42 @@ export default defineConfig([
     rules: {
       'data-schema-key/valid-key': 'error'
     }
+  },
+  {
+    files: ['src/renderer/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
+    ignores: [
+      'packages/ui/src/lib/code-highlight/**',
+      'packages/ui/src/code-highlight.ts',
+      'packages/ui/src/lib/code-block/**',
+      'packages/ui/src/code-block.ts'
+    ],
+    plugins: {
+      'highlight-boundary': {
+        rules: {
+          'public-entry': {
+            meta: {
+              type: 'problem',
+              schema: [],
+              messages: {
+                private:
+                  'Import highlighting APIs through @cherrystudio/ui/code-highlight or @cherrystudio/ui/code-block.'
+              }
+            },
+            create(context) {
+              return {
+                ImportDeclaration(node) {
+                  if (
+                    typeof node.source.value === 'string' &&
+                    /lib\/(code-highlight|code-block)/.test(node.source.value)
+                  )
+                    context.report({ node, messageId: 'private' })
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: { 'highlight-boundary/public-entry': 'error' }
   }
 ])

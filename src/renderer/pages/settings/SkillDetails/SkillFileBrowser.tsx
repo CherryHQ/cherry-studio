@@ -1,13 +1,12 @@
 import { useBlocker } from '@tanstack/react-router'
 import { AlertTriangle, Check, FileText, Loader2, RotateCcw } from 'lucide-react'
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, CodeEditor, ConfirmDialog, EmptyState, SegmentedControl, Skeleton } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, EmptyState, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
@@ -17,6 +16,7 @@ import { createFilePathHandle, type TreeDir, type TreeMutationEvent, type TreeNo
 
 const logger = loggerService.withContext('SkillFileBrowser')
 const MARKDOWN_EXTENSIONS = new Set(['md', 'mdx', 'markdown'])
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 
 interface Props {
   rootPath: AbsoluteFilePath
@@ -32,10 +32,6 @@ export interface SkillFileBrowserHandles {
 function isMarkdownFile(filePath: string): boolean {
   const extension = filePath.split('.').pop()?.toLowerCase() ?? ''
   return MARKDOWN_EXTENSIONS.has(extension)
-}
-
-function getEditorLanguage(filePath: string): string {
-  return filePath.split('.').pop()?.toLowerCase() || 'text'
 }
 
 function projectNode(node: TreeNode): FileTreeNode | null {
@@ -85,7 +81,6 @@ export const SkillFileBrowser = function SkillFileBrowser({
   disabled = false
 }: Props & { ref?: React.RefObject<SkillFileBrowserHandles | null> }) {
   const { t } = useTranslation()
-  const { activeCmTheme } = useCodeStyle()
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<AbsoluteFilePath | null>(null)
   const [pendingFile, setPendingFile] = useState<AbsoluteFilePath | null>(null)
@@ -98,7 +93,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     () => (access === 'read_write' && selectedFile ? createFilePathHandle(selectedFile) : undefined),
     [access, selectedFile]
   )
-  const fileSession = useFileEditSession(editableHandle)
+  const fileSession = useFileEditSession(editableHandle, `skill:${skillId}`)
   const notifyExternalChange = fileSession.notifyExternalChange
   const reloadFile = fileSession.reload
   const keepCurrentDraft = fileSession.keepDraft
@@ -133,9 +128,9 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const handleTreeMutation = useCallback(
     (event: TreeMutationEvent) => {
       if (access !== 'read_write') return
+      notifyExternalChange()
       const activePath = selectedFileRef.current
       if (event.type === 'updated' && activePath === event.path) {
-        notifyExternalChange(event.stats.mtime)
         return
       }
       void reconcileSkill().catch(() => undefined)
@@ -232,9 +227,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
     [disabled, flush, selectedFile]
   )
 
-  const discardAndSelectPending = useCallback(() => {
+  const discardAndSelectPending = useCallback(async () => {
     const nextFile = pendingFile
-    fileSession.discard()
+    try {
+      await fileSession.discard()
+    } catch {
+      return
+    }
     setSyncError(null)
     setPendingFile(null)
     if (nextFile) {
@@ -332,14 +331,14 @@ export const SkillFileBrowser = function SkillFileBrowser({
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="truncate font-medium text-foreground text-sm">
+        <span className="truncate text-sm font-medium text-foreground">
           {selectedFileName || t('library.skill_detail.select_file')}
         </span>
         {access === 'read_write' && !showRecovery ? (
           <span
             role="status"
             aria-live="polite"
-            className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+            className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
             {statusIcon}
             <span className="truncate">{saveStatus}</span>
           </span>
@@ -362,7 +361,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     </>
   )
   const customPreviewHeader = (
-    <div className="relative flex h-11 min-h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
+    <div className="relative flex h-11 min-h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
       {previewHeader}
     </div>
   )
@@ -373,12 +372,12 @@ export const SkillFileBrowser = function SkillFileBrowser({
         data-ui="skill-file-workspace"
         className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]">
         <div className="flex h-40 min-h-0 shrink-0 flex-col overflow-hidden rounded-lg bg-background-subtle lg:h-full">
-          <div className="flex h-10 shrink-0 items-center px-3 font-medium text-muted-foreground text-xs">
+          <div className="flex h-10 shrink-0 items-center px-3 text-xs font-medium text-muted-foreground">
             {t('library.skill_detail.source_files')}
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             {tree.length === 0 ? (
-              <div className="flex h-full items-center justify-center px-4 text-center text-foreground-tertiary text-xs">
+              <div className="flex h-full items-center justify-center px-4 text-center text-xs text-foreground-tertiary">
                 {t('library.skill_detail.no_files')}
               </div>
             ) : (
@@ -398,23 +397,22 @@ export const SkillFileBrowser = function SkillFileBrowser({
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-background-subtle">
+          <div data-file-edit className="min-h-0 flex-1 overflow-hidden rounded-lg bg-background-subtle">
             {selectedFile ? (
               viewMode === 'edit' && canEdit ? (
                 <div className="flex h-full min-h-0 flex-col">
                   {customPreviewHeader}
-                  <CodeEditor
-                    value={fileSession.draft}
-                    language={getEditorLanguage(selectedFile)}
-                    onChange={fileSession.setDraft}
-                    expanded={false}
-                    height="100%"
-                    theme={activeCmTheme}
-                    editable={!disabled}
-                    readOnly={disabled}
-                    options={{ keymap: true }}
-                    className="min-h-0 flex-1"
-                  />
+                  <Suspense fallback={<Skeleton className="min-h-0 flex-1" />}>
+                    <FileEditor
+                      key={`${fileSession.sessionId}:${fileSession.documentEpoch}`}
+                      sessionKey={`skill:${skillId}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+                      fileName={selectedFileName}
+                      value={fileSession.draft}
+                      onChange={fileSession.setDraft}
+                      readOnly={disabled || fileSession.readOnly}
+                      wrapLines
+                    />
+                  </Suspense>
                 </div>
               ) : viewMode === 'edit' && fileSession.status === 'loading' ? (
                 <div className="flex h-full min-h-0 flex-col">
@@ -444,7 +442,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
             <div
               role="status"
               aria-live="polite"
-              className="flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-warning-subtle px-3 text-warning-subtle-foreground text-xs">
+              className="flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-warning-subtle px-3 text-xs text-warning-subtle-foreground">
               {statusIcon}
               <span>{saveStatus}</span>
               {fileSession.conflict ? (
@@ -507,9 +505,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
           <Button
             variant="destructive"
             disabled={fileSession.isSaving || isSyncing}
-            onClick={() => {
+            onClick={async () => {
               if (blocker.status !== 'blocked') return
-              fileSession.discard()
+              try {
+                await fileSession.discard()
+              } catch {
+                return
+              }
               setSyncError(null)
               blocker.proceed()
             }}>

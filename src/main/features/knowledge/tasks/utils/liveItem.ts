@@ -21,13 +21,9 @@ export function resolveLiveKnowledgeItem(itemId: string): LiveKnowledgeItemResul
   }
 }
 
-export type LiveKnowledgeSubtreeResult = { items: KnowledgeItem[] } | { skip: 'deleting' }
-
-/** Classify a resolved subtree (roots + descendants): live, or a skip if any member is deleting. */
-export function resolveLiveKnowledgeSubtree(baseId: string, rootItemIds: string[]): LiveKnowledgeSubtreeResult {
-  const items = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
-  if (items.some((item) => item.status === 'deleting')) {
-    return { skip: 'deleting' }
-  }
-  return { items }
+/** The selected roots that still exist and are not deleting. A delete owns only the roots it marked. */
+export function resolveLiveKnowledgeRoots(baseId: string, rootItemIds: string[]): KnowledgeItem[] {
+  return knowledgeItemService
+    .getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+    .filter((item) => rootItemIds.includes(item.id) && item.status !== 'deleting')
 }

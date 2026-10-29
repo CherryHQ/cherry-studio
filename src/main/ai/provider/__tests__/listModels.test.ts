@@ -2,14 +2,25 @@ import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Use bundled registry data rather than the application mock's /mock paths.
+vi.mock('@main/data/services/utils/registryDataPaths', () => ({
+  resolveRegistryPaths: () => ({
+    models: `${process.cwd()}/packages/provider-registry/data/models.json`,
+    providers: `${process.cwd()}/packages/provider-registry/data/providers.json`,
+    providerModels: `${process.cwd()}/packages/provider-registry/data/provider-models.json`
+  })
+}))
+
 import type * as CustomFetchModule from '@main/ai/utils/customFetch'
-import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type * as ProviderRegistryModule from '@main/data/services/ProviderRegistryService'
+import { ENDPOINT_TYPE, type EndpointType, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
+import { AIHubMixModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -41,16 +52,20 @@ vi.mock('@main/data/services/ProviderService', () => ({
   }
 }))
 
-vi.mock('@main/data/services/ProviderRegistryService', () => ({
-  providerRegistryService: {
-    isRegistryProvider: isRegistryProviderMock,
-    getProviderPreset: () => ({
-      endpointConfigs: {
-        'openai-chat-completions': { baseUrl: 'https://router.huggingface.co/v1' }
-      }
-    })
+vi.mock('@main/data/services/ProviderRegistryService', async (importOriginal) => {
+  const actual = await importOriginal<typeof ProviderRegistryModule>()
+  return {
+    providerRegistryService: {
+      resolveModel: actual.providerRegistryService.resolveModel.bind(actual.providerRegistryService),
+      isRegistryProvider: isRegistryProviderMock,
+      getProviderPreset: () => ({
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://router.huggingface.co/v1' }
+        }
+      })
+    }
   }
-}))
+})
 
 vi.mock('@main/services/VertexAiService', () => ({
   vertexAiService: {
@@ -158,6 +173,17 @@ describe('listModels — default grouping', () => {
       expect(models.map((model) => model.group)).not.toContain(providerId)
     }
   )
+})
+
+describe('AIHubMix model list response', () => {
+  it('accepts null pricing without dropping the model', () => {
+    const response = AIHubMixModelsResponseSchema.parse({
+      data: [{ model_id: 'media-model', pricing: null }]
+    })
+
+    expect(response.data).toHaveLength(1)
+    expect(response.data[0]).toMatchObject({ model_id: 'media-model', pricing: null })
+  })
 })
 
 describe('listModels — malformed OpenAI-compatible rows', () => {
@@ -470,11 +496,53 @@ describe('listModels — Ollama capabilities', () => {
       capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     expect(models[0].reasoning).toBeUndefined()
-    expect(models[1]).toMatchObject({ capabilities: [] })
+    expect(models[1]).toMatchObject({
+      apiModelId: 'qwen3-embedding:4b',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
     expect(models[1].reasoning).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it.each([
+    {
+      label: 'embedding support for a non-catalog name',
+      nativeModel: { name: 'acme-retriever:latest', capabilities: ['embedding'] },
+      expected: [MODEL_CAPABILITY.EMBEDDING]
+    },
+    {
+      label: 'chat-only support without embedding',
+      nativeModel: { name: 'llama3', capabilities: ['completion'] },
+      expected: []
+    },
+    {
+      label: 'omitted capabilities without inventing flags',
+      nativeModel: { name: 'unclassified:latest' },
+      expected: []
+    },
+    {
+      label: 'unknown flags without inventing capabilities',
+      nativeModel: { name: 'future:latest', capabilities: ['future-capability'] },
+      expected: []
+    },
+    {
+      label: 'additive capabilities in deterministic order',
+      nativeModel: {
+        name: 'multitask:latest',
+        capabilities: ['embedding', 'tools', 'thinking', 'completion', 'future-capability']
+      },
+      expected: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.EMBEDDING]
+    }
+  ])('lists a model with $label', async ({ nativeModel, expected }) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [nativeModel] } })
+
+    const { models } = await listModels(makeOllamaProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe(nativeModel.name)
+    expect(models[0].capabilities).toEqual(expected)
   })
 
   it('maps the tools flag to the function-call capability without thinking', async () => {
@@ -1793,4 +1861,108 @@ describe('listModels — huggingFaceFetcher (router dialects)', () => {
       }
     }
   )
+})
+
+describe('listModels — Poe declared chat endpoints', () => {
+  const provider = makeProvider({
+    id: 'poe',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://poe-proxy.example/v1' } }
+  })
+  const claudeEndpoints = [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+
+  it.each([
+    ['perplexity-adv-deep-research', [], [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    [
+      'gpt-5.2',
+      ['/v1/chat/completions', '/v1/responses'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    ],
+    ['claude-sonnet-5.5', ['/v1/chat/completions'], [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    ['claude-opus-4.8', ['/v1/responses', '/v1/chat/completions', '/v1/messages'], claudeEndpoints],
+    ['nano-banana-2', ['/v1/responses'], [ENDPOINT_TYPE.OPENAI_RESPONSES]],
+    ['veo-3.1', ['/v1/videos'], undefined],
+    ['unknown-path', ['/future/path'], undefined],
+    ['claude-opus-4.8', [], claudeEndpoints],
+    ['claude-opus-4.8', undefined, claudeEndpoints],
+    ['community-bot', undefined, [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    ['claude-opus-4.8', ['/v1/responses'], [ENDPOINT_TYPE.OPENAI_RESPONSES]],
+    [
+      'Mixed.Raw-ID',
+      ['/v1/chat/completions', '/unknown', '/v1/messages', '/v1/messages', '/v1/responses', '/v1/videos'],
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    ]
+  ] satisfies [string, string[] | undefined, EndpointType[] | undefined][])(
+    'maps %s declaring %j to %j',
+    async (id, supported_endpoints, endpointTypes) => {
+      aiSdkGetFromApiMock.mockResolvedValueOnce({
+        value: {
+          object: 'list',
+          data: [{ id, object: 'model', created: 1780000000, owned_by: 'Example owner', supported_endpoints }]
+        }
+      })
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({ apiModelId: id, name: id, ownedBy: 'Example owner' })
+      expect(models[0].endpointTypes).toEqual(endpointTypes)
+      expect(models[0].capabilities).toEqual([])
+    }
+  )
+
+  it('isolates malformed declarations and items, keeping raw ids, names and first duplicates', async () => {
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementationOnce(actual.getFromApi)
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        object: 'list',
+        extra: true,
+        data: [
+          { id: 'null-field', supported_endpoints: null },
+          { id: 'string-field', supported_endpoints: '/v1/responses' },
+          { id: 'mixed-array', supported_endpoints: ['/v1/responses', 1] },
+          { name: 'no-id' },
+          null,
+          { id: 'Raw.ID-Case', name: 'Friendly bot', owned_by: 'Owner', supported_endpoints: [], extra: true },
+          { id: 'Raw.ID-Case', name: 'Duplicate', supported_endpoints: ['/v1/responses'] }
+        ]
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({
+        apiModelId: 'Raw.ID-Case',
+        name: 'Friendly bot',
+        ownedBy: 'Owner',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it.each([
+    ['poe-copy', 'poe', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    ['custom', undefined, undefined]
+  ] as const)('uses configured host, credentials and abort signal for %s', async (id, presetProviderId, expected) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { data: [{ id: 'bot', supported_endpoints: [] }] } })
+    const signal = new AbortController().signal
+    const { models } = await listModels(
+      makeProvider({ ...provider, id, presetProviderId, settings: { extraHeaders: { 'X-Custom': 'keep' } } }),
+      signal
+    )
+    expect(models[0].endpointTypes).toEqual(expected)
+    const request = aiSdkGetFromApiMock.mock.calls[0][0]
+    expect(request.url).toBe('https://poe-proxy.example/v1/models')
+    expect(request.abortSignal).toBe(signal)
+    expect(new Headers(request.headers).get('authorization')).toBe('Bearer AIza-secret-key')
+    expect(new Headers(request.headers).get('x-custom')).toBe('keep')
+  })
+
+  it('retains listing-level failure and throwOnError behavior', async () => {
+    aiSdkGetFromApiMock.mockRejectedValue(new Error('listing failed'))
+    expect(await listModels(provider)).toEqual({ models: [] })
+    await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow('listing failed')
+  })
 })

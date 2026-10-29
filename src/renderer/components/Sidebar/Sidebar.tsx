@@ -2,9 +2,10 @@ import './Sidebar.css'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
+import { Button } from '@cherrystudio/ui'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { isMac } from '@renderer/utils/platform'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
@@ -18,6 +19,7 @@ export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
   entries: ResolvedSidebarEntry[]
+  emptyHint?: string
   user?: SidebarUser
   isFloating?: boolean
   searchLabel?: string
@@ -37,6 +39,7 @@ export function Sidebar({
   width,
   setWidth,
   entries,
+  emptyHint,
   user,
   isFloating = false,
   searchLabel = '',
@@ -119,6 +122,13 @@ export function Sidebar({
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }
+  const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
+  const contentLayout = isFloating ? 'full' : layout
+  const emptyState =
+    entries.length === 0 && contentLayout === 'full' && emptyHint ? (
+      <p className="px-4 py-3 text-xs text-muted-foreground [-webkit-app-region:no-drag]">{emptyHint}</p>
+    ) : null
+
   const footerProps = {
     user,
     userAction,
@@ -128,7 +138,6 @@ export function Sidebar({
     onOverlayOpenChange: handleFooterOverlayOpenChange,
     renderUserTrigger
   }
-  const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
 
   // --- Floating sidebar ---
   if (isFloating) {
@@ -153,7 +162,10 @@ export function Sidebar({
           }}>
           {showSearch && (
             <div className="px-3 py-2">
-              <div
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={searchLabel}
                 onClick={() => {
                   onSearchClick?.()
                   handleDismiss()
@@ -161,12 +173,13 @@ export function Sidebar({
                 className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
                 <Search size={13} />
                 <span>{searchLabel}</span>
-              </div>
+              </Button>
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
             <SidebarList layout="full" {...listProps} />
+            {emptyState}
           </div>
 
           {showFooter && (
@@ -182,7 +195,7 @@ export function Sidebar({
   // --- Hidden sidebar (hover zone + resize handle) ---
   if (layout === 'hidden') {
     return (
-      <div ref={sidebarRef} className="relative h-full w-2 shrink-0">
+      <div ref={sidebarRef} className="relative h-full w-1.5 shrink-0">
         <div
           className="absolute inset-y-0 left-0 z-50 w-4 [-webkit-app-region:no-drag]"
           onMouseEnter={() => {
@@ -215,35 +228,43 @@ export function Sidebar({
       className={cn(
         'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col',
         windowDragClassName,
+        isWin && 'pt-1',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Search */}
       {showSearch &&
         (layout === 'full' ? (
           <div className="px-3 py-2">
-            <div
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={searchLabel}
               onClick={onSearchClick}
               className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
               <Search size={13} />
               <span>{searchLabel}</span>
-            </div>
+            </Button>
           </div>
         ) : (
           <div className="flex justify-center py-1.5 [-webkit-app-region:no-drag]">
             <SidebarTooltip content={searchLabel}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={searchLabel}
                 onClick={onSearchClick}
                 className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
                 <Search size={16} strokeWidth={1.6} />
-              </button>
+              </Button>
             </SidebarTooltip>
           </div>
         ))}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
         <SidebarList layout={layout} {...listProps} />
+        {emptyState}
       </div>
 
       {/* Footer */}

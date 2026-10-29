@@ -10,7 +10,11 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'firecrawl',
   'crawl4ai',
   'parallel',
-  'serply'
+  'serply',
+  'yuanbao',
+  'deepseek',
+  'desearch',
+  'searchapi'
 ] as const)
 
 export type RemoteProviderId = (typeof REMOTE_PROVIDER_IDS)[number]
@@ -47,6 +51,7 @@ export type WebSearchCall = CallBase &
         config: Readonly<{
           apiHost?: string
           maxResults: number
+          useDefaultResultCount?: boolean
           engines?: readonly string[]
           excludeDomains?: readonly string[]
         }>

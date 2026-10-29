@@ -160,8 +160,9 @@ function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<Topi
 
 function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
   const actions = useRightPanelActions()
+  const [autoOpenPanel] = usePreference('app.browser.auto_open_panel')
   useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
-    if (scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
+    if (autoOpenPanel && scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
   })
   return null
 }

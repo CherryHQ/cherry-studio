@@ -36,6 +36,10 @@ export interface CompletedMessagePartLayout {
   reportEntries: readonly PartEntry[]
 }
 
+interface MessagePartLayoutOptions {
+  keepIntermediateAssistantText?: boolean
+}
+
 const HIDDEN_PART_TYPES = new Set([
   'step-start',
   'source-url',
@@ -162,9 +166,13 @@ function isVisibleProcessPart(part: CherryMessagePart): boolean {
  * Hidden transport markers are discarded without splitting process history.
  * Within each region bounded by an interactive or side-channel tool, visible
  * content through the last reasoning/tool part belongs to one process item.
- * Only the trailing content remains outside as the current result candidate.
+ * By default, only the trailing content remains outside as the current result
+ * candidate. The opt-in layout also keeps intermediate text outside.
  */
-export function projectLiveMessageParts(entries: readonly PartEntry[]): LiveMessagePartLayoutItem[] {
+export function projectLiveMessageParts(
+  entries: readonly PartEntry[],
+  { keepIntermediateAssistantText = false }: MessagePartLayoutOptions = {}
+): LiveMessagePartLayoutItem[] {
   const items: LiveMessagePartLayoutItem[] = []
   let regionEntries: PartEntry[] = []
 
@@ -179,7 +187,18 @@ export function projectLiveMessageParts(entries: readonly PartEntry[]): LiveMess
 
     if (lastProcessPosition >= 0) {
       const processEntries = regionEntries.slice(0, lastProcessPosition + 1)
-      items.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
+      if (keepIntermediateAssistantText) {
+        const foldedEntries = processEntries.filter((entry) => entry.part.type !== 'text')
+        for (const entry of processEntries) {
+          if (entry.part.type === 'text') {
+            items.push({ kind: 'part', key: entry.index, entry })
+          } else if (entry === foldedEntries[0]) {
+            items.push({ kind: 'process', key: entry.index, entries: foldedEntries })
+          }
+        }
+      } else {
+        items.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
+      }
     }
 
     const resultStart = lastProcessPosition + 1
@@ -281,7 +300,10 @@ export function isResultPart(part: CherryMessagePart): boolean {
  * {@link projectLiveMessageParts}; this function intentionally performs no
  * streaming-state inference.
  */
-export function projectCompletedMessageParts(entries: readonly PartEntry[]): CompletedMessagePartLayout {
+export function projectCompletedMessageParts(
+  entries: readonly PartEntry[],
+  { keepIntermediateAssistantText = false }: MessagePartLayoutOptions = {}
+): CompletedMessagePartLayout {
   const reportEntries: PartEntry[] = []
   const forkEntries: PartEntry[] = []
   const contentEntries: PartEntry[] = []
@@ -362,6 +384,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
 
   const isDirectResult = (entry: PartEntry, position: number) =>
     isInlineResultToolPart(entry.part) ||
+    (keepIntermediateAssistantText && entry.part.type === 'text' && isSubstantiveAnswerPart(entry.part)) ||
     (position >= resultStart &&
       position < resultEnd &&
       (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part)))

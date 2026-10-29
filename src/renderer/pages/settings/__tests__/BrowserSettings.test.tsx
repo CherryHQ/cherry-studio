@@ -110,6 +110,7 @@ afterEach(async () => {
 })
 beforeEach(() => {
   MockUsePreferenceUtils.resetMocks()
+  MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
   MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
   openTab.mockReset()
@@ -517,10 +518,39 @@ describe('Browser preferences', () => {
     }
   })
 
+  it('saves auto-opening independently of control and link routing, including after remount', async () => {
+    const user = userEvent.setup()
+    const view = renderSettings()
+    const label = en['settings.browser.autoOpenPanel']
+    const toggle = screen.getByRole('switch', { name: label })
+    expect(toggle).toHaveAccessibleDescription(en['settings.browser.autoOpenPanelHelp'])
+    expect(toggle).toBeChecked()
+    expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).not.toBeChecked()
+    expect(toggle).toBeEnabled()
+    await user.click(screen.getByText(label, { exact: true }))
+    expect(toggle).toBeChecked()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.auto_open_panel')).toBe(true)
+    await user.click(toggle)
+    await waitFor(() => expect(toggle).not.toBeChecked())
+    await waitForBrowserSwitchSave(label)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.auto_open_panel')).toBe(false)
+    view.unmount()
+    renderSettings()
+    const savedToggle = screen.getByRole('switch', { name: label })
+    expect(savedToggle).not.toBeChecked()
+    await user.click(savedToggle)
+    await waitFor(() => expect(savedToggle).toBeChecked())
+    await waitForBrowserSwitchSave(label)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.auto_open_panel')).toBe(true)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.agent_control.enabled')).toBe(false)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.open_links_in_browser')).toBe(false)
+  })
+
   it('persists website routing independently of Agent control', async () => {
     const user = userEvent.setup()
     renderSettings()
-    await user.click(screen.getByRole('switch', { name: en['settings.browser.openLinks'] }))
+    const openLinks = screen.getByRole('switch', { name: en['settings.browser.openLinks'] })
+    await user.click(openLinks)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.open_links_in_browser']).toBe(true)
     )
@@ -531,16 +561,18 @@ describe('Browser preferences', () => {
   it('persists browser control without individual tool permission settings', async () => {
     const user = userEvent.setup()
     const view = renderSettings()
-    await user.click(screen.getByRole('switch', { name: en['settings.browser.control'] }))
+    const control = screen.getByRole('switch', { name: en['settings.browser.control'] })
+    await user.click(control)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(true)
     )
     await waitForBrowserSwitchSave(en['settings.browser.control'])
     view.unmount()
     renderSettings()
-    expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeChecked()
+    const controlAfterRemount = screen.getByRole('switch', { name: en['settings.browser.control'] })
+    expect(controlAfterRemount).toBeChecked()
     expect(screen.queryByRole('button', { name: 'Manage Tool permissions' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('switch', { name: en['settings.browser.control'] }))
+    await user.click(controlAfterRemount)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(false)
     )
