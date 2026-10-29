@@ -363,11 +363,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
 })
 
 vi.mock('@renderer/components/OpenTarget', () => ({
-  OpenTargetButton: ({ targetPath }: { targetPath: string }) => (
-    <button type="button" onClick={() => window.api.file.openPath(targetPath)}>
-      open external preview
-    </button>
-  ),
+  OpenTargetButton: () => <button type="button">open external preview</button>,
   loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
@@ -767,9 +763,6 @@ describe('AgentChat artifact pane', () => {
           toolApproval: {
             respond: vi.fn()
           }
-        },
-        file: {
-          openPath: vi.fn()
         }
       }
     })

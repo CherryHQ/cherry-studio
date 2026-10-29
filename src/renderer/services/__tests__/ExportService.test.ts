@@ -1497,6 +1497,29 @@ describe('ExportService image capture serialization', () => {
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => canvasStub('data:image/png;base64,xxx'))
   })
 
+  it.each(['data-url', 'blob'] as const)(
+    'keeps conversation and default backdrops separate in queued %s captures',
+    async (format) => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: #191919; --chat-message-well-solid: #141414'
+      const backgrounds: unknown[] = []
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (_element, options) => {
+        backgrounds.push(options?.backgroundColor)
+        return canvasStub('data:image/png;base64,xxx')
+      })
+
+      if (format === 'data-url') {
+        await captureService.captureScrollableAsDataUrl({ current: root }, '--chat-message-well-solid')
+        await captureService.captureScrollableAsDataUrl({ current: root })
+      } else {
+        await captureService.captureScrollableAsBlob({ current: root }, () => {}, '--chat-message-well-solid')
+        await captureService.captureScrollableAsBlob({ current: root }, () => {})
+      }
+
+      expect(backgrounds).toEqual(['#141414', '#141414', '#191919', '#191919'])
+    }
+  )
+
   it('serializes capture lifecycles across roots and restores each root before the next starts', async () => {
     const rootA = document.createElement('div')
     rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
