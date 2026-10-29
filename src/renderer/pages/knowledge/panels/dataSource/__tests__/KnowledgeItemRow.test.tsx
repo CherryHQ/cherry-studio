@@ -350,6 +350,17 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByText('等待中')).toBeInTheDocument()
   })
 
+  it('tells a file still waiting for its copy apart from one already processing', () => {
+    mockUseSharedCacheValue.mockReturnValue(42)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'preparing' })} {...defaultHandlers} />)
+
+    expect(screen.getByText('等待中')).toBeInTheDocument()
+    expect(screen.queryByText('处理中')).not.toBeInTheDocument()
+    // A file has no directory copy progress to show.
+    expect(screen.queryByText(/42%/)).not.toBeInTheDocument()
+  })
+
   it('does not subscribe to any progress key for rows outside the progress phases', () => {
     // The subscriptions live in children only mounted while processing/embedding/preparing,
     // so ordinary completed/failed rows never touch (or create) the shared-cache keys.

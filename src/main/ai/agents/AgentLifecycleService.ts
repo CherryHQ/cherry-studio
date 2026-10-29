@@ -6,13 +6,13 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'

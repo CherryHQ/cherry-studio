@@ -3,6 +3,7 @@ import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { groupTable } from '@data/db/schemas/group'
+import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -11,20 +12,40 @@ import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
-const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
-  () => ({
-    getIndexStoreMock: vi.fn(),
-    deleteStoreMock: vi.fn(),
-    enqueueMock: vi.fn(),
-    enqueueTxMock: vi.fn(),
-    listMock: vi.fn(),
-    registerHandlerMock: vi.fn()
-  })
-)
+import type * as KnowledgeItemsModule from '../items'
+
+const {
+  getIndexStoreMock,
+  deleteStoreMock,
+  enqueueMock,
+  enqueueTxMock,
+  listMock,
+  registerHandlerMock,
+  classifySourceMock,
+  getIndexStoreIfExistsMock
+} = vi.hoisted(() => ({
+  getIndexStoreMock: vi.fn(),
+  deleteStoreMock: vi.fn(),
+  enqueueMock: vi.fn(),
+  enqueueTxMock: vi.fn(),
+  listMock: vi.fn(),
+  registerHandlerMock: vi.fn(),
+  classifySourceMock: vi.fn(),
+  getIndexStoreIfExistsMock: vi.fn()
+}))
+
+// Runs the real source check unless a test holds it open.
+vi.mock('../items', async (importOriginal) => {
+  const actual = await importOriginal<typeof KnowledgeItemsModule>()
+  classifySourceMock.mockImplementation(actual.classifyKnowledgeItemReacquireSource)
+  return { ...actual, classifyKnowledgeItemReacquireSource: classifySourceMock }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -40,7 +61,7 @@ vi.mock('@application', async () => {
     KnowledgeVectorStoreService: {
       getIndexStore: getIndexStoreMock,
       deleteStore: deleteStoreMock,
-      getIndexStoreIfExists: vi.fn()
+      getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -56,6 +77,9 @@ vi.mock('@logger', () => ({
 }))
 
 const { KnowledgeService } = await import('../KnowledgeService')
+const { knowledgeQueueName, toKnowledgeBaseId } = await import('../types')
+const { knowledgeItemService } = await import('@data/services/KnowledgeItemService')
+const { jobService } = await import('@data/services/JobService')
 
 const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_GROUP_ID = '22222222-2222-4222-8222-222222222222'
@@ -376,6 +400,266 @@ describe('KnowledgeService integration', () => {
       const rows = await baseRows()
       expect(rows).toHaveLength(2)
       expect(rows.some((row) => row.id === EXISTING_NOTE_ID)).toBe(true)
+    })
+  })
+  describe('enableEmbeddingModel backfill', () => {
+    const BM25_BASE_ID = '44444444-4444-4444-8444-444444444444'
+    const FILE_ID = '0198f3f2-7d3a-7abc-8def-123456789abc'
+    const NOTE_ID = '0198f3f2-7d3b-7abc-8def-123456789abc'
+    const URL_ID = '0198f3f2-7d3c-7abc-8def-123456789abc'
+    const DIR_ID = '0198f3f2-7d3d-7abc-8def-123456789abc'
+    const CHILD_ID = '0198f3f2-7d3e-7abc-8def-123456789abc'
+    const FAILED_URL_ID = '0198f3f2-7d3f-7abc-8def-123456789abc'
+    const DELETING_NOTE_ID = '0198f3f2-7d40-7abc-8def-123456789abc'
+    const LEAF_IDS = [FILE_ID, NOTE_ID, URL_ID, CHILD_ID]
+
+    // Originals live under a path that does not exist, as if the user had moved them after importing.
+    const seedBm25Base = async () => {
+      await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a1',
+        id: BM25_BASE_ID,
+        name: 'BM25 KB',
+        groupId: null,
+        dimensions: null,
+        embeddingModelId: null,
+        status: 'completed',
+        error: null,
+        rerankModelId: null,
+        fileProcessorId: 'paddleocr',
+        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+        documentCount: null
+      })
+      const path = (value: string) => value as PosixRelativeFilePath
+      const row = (id: string, fields: Omit<typeof knowledgeItemTable.$inferInsert, 'id' | 'baseId'>) => ({
+        id,
+        baseId: BM25_BASE_ID,
+        ...fields
+      })
+      const completed = { status: 'completed', error: null } as const
+      const rows: Array<typeof knowledgeItemTable.$inferInsert> = [
+        row(FILE_ID, {
+          ...completed,
+          type: 'file',
+          data: {
+            source: '/moved/report.pdf',
+            relativePath: path('report.pdf'),
+            indexedRelativePath: path('report.md')
+          }
+        }),
+        row(NOTE_ID, {
+          ...completed,
+          type: 'note',
+          data: { source: 'Note', content: 'Note\nbody', relativePath: path('Note.md') }
+        }),
+        row(URL_ID, {
+          ...completed,
+          type: 'url',
+          data: { source: 'https://example.com', url: 'https://example.com', relativePath: path('example.md') }
+        }),
+        row(DIR_ID, { ...completed, type: 'directory', data: { source: '/moved/docs', relativePath: path('docs') } }),
+        row(CHILD_ID, {
+          ...completed,
+          groupId: DIR_ID,
+          type: 'file',
+          data: { source: '/moved/docs/a.md', relativePath: path('docs/a.md') }
+        }),
+        // Its first fetch failed, so it never captured a snapshot.
+        row(FAILED_URL_ID, {
+          status: 'failed',
+          error: 'fetch failed',
+          type: 'url',
+          data: { source: 'https://unreachable.example', url: 'https://unreachable.example' }
+        }),
+        row(DELETING_NOTE_ID, {
+          status: 'deleting',
+          error: null,
+          type: 'note',
+          data: { source: 'Gone', content: 'Gone\nbody' }
+        })
+      ]
+      await dbh.db.insert(knowledgeItemTable).values(rows)
+    }
+
+    const statusOf = async (id: string) =>
+      (await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)))[0]
+    const enqueuedTypes = () => enqueueMock.mock.calls.map(([type]) => type)
+    const indexedItemIds = () =>
+      enqueueMock.mock.calls
+        .filter(([type]) => type === 'knowledge.index-documents')
+        .map(([, payload]) => (payload as { itemId: string }).itemId)
+    const enable = (service: InstanceType<typeof KnowledgeService>) =>
+      service.enableEmbeddingModel(BM25_BASE_ID, { embeddingModelId, dimensions: 1536 })
+
+    it('takes every completed leaf out of completed with the model, then indexes each from the in-base copy', async () => {
+      await seedBm25Base()
+      const service = new KnowledgeService()
+
+      const updated = await enable(service)
+
+      expect(updated.embeddingModelId).toBe(embeddingModelId)
+      for (const id of [...LEAF_IDS, DIR_ID]) {
+        expect((await statusOf(id)).status).toBe('processing')
+      }
+      expect((await statusOf(DELETING_NOTE_ID)).status).toBe('deleting')
+      // Scheduling the snapshotless url would fetch it; a failed leaf keeps its own error instead.
+      expect(await statusOf(FAILED_URL_ID)).toMatchObject({ status: 'failed', error: 'fetch failed' })
+      // One regular indexing job per leaf, even though every original is gone; nothing re-acquires
+      // from the originals and the pinned processed artifact is indexed without reprocessing.
+      expect([...indexedItemIds()].sort()).toEqual([...LEAF_IDS].sort())
+      expect(enqueuedTypes().every((type) => type === 'knowledge.index-documents')).toBe(true)
+    })
+
+    it('leaves no leaf completed without vectors when the app quits mid-backfill', async () => {
+      await seedBm25Base()
+      const service = new KnowledgeService()
+      await enable(service)
+      // One leaf finished indexing before the quit.
+      await dbh.db.update(knowledgeItemTable).set({ status: 'completed' }).where(eq(knowledgeItemTable.id, NOTE_ID))
+
+      // The next start's boot sweep (recoverInterruptedItems).
+      knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+
+      expect((await statusOf(NOTE_ID)).status).toBe('completed')
+      for (const id of [FILE_ID, URL_ID, CHILD_ID]) {
+        expect(await statusOf(id)).toMatchObject({ status: 'failed', error: KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED })
+      }
+    })
+
+    it('commits neither the model nor any status when activating the leaves fails', async () => {
+      await seedBm25Base()
+      const service = new KnowledgeService()
+      const activate = vi.spyOn(knowledgeItemService, 'activateCompletedLeavesTx').mockImplementationOnce(() => {
+        throw new Error('activation failed')
+      })
+
+      await expect(enable(service)).rejects.toThrow('activation failed')
+
+      const [base] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BM25_BASE_ID))
+      expect(base.embeddingModelId).toBeNull()
+      expect((await statusOf(FILE_ID)).status).toBe('completed')
+      expect(enqueueMock).not.toHaveBeenCalled()
+      activate.mockRestore()
+    })
+
+    it('fails only the leaf whose indexing job cannot be scheduled', async () => {
+      await seedBm25Base()
+      const service = new KnowledgeService()
+      enqueueMock.mockImplementation((_type: string, payload: { itemId?: string }) => {
+        if (payload.itemId === URL_ID) throw new Error('queue unavailable')
+        return { id: 'job-1', snapshot: {}, finished: Promise.resolve({}) }
+      })
+
+      await enable(service)
+
+      expect(await statusOf(URL_ID)).toMatchObject({
+        status: 'failed',
+        error: 'Failed to schedule knowledge item job: queue unavailable'
+      })
+      expect(indexedItemIds()).toEqual(expect.arrayContaining([FILE_ID, NOTE_ID, CHILD_ID]))
+    })
+
+    it('rejects while an item of the base is still running, before committing the model', async () => {
+      await seedBm25Base()
+      await dbh.db.update(knowledgeItemTable).set({ status: 'embedding' }).where(eq(knowledgeItemTable.id, NOTE_ID))
+      const service = new KnowledgeService()
+
+      await expect(enable(service)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      const [base] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BM25_BASE_ID))
+      expect(base.embeddingModelId).toBeNull()
+      expect((await statusOf(FILE_ID)).status).toBe('completed')
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    // A refresh's items stay `completed` until its job resets them, so the backfill must see the job itself.
+    it('rejects while a reindex of the base is pending, and enables once it settles', async () => {
+      await seedBm25Base()
+      listMock.mockImplementation(async (filter) => jobService.list(filter))
+      const reindexJob = (baseId: string) => ({
+        type: 'knowledge.reindex-subtree',
+        status: 'pending',
+        queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+        scheduledAt: Date.now(),
+        input: { baseId, rootItemIds: [FILE_ID] }
+      })
+      const [pending] = await dbh.db.insert(jobTable).values(reindexJob(BM25_BASE_ID)).returning()
+      const service = new KnowledgeService()
+
+      await expect(enable(service)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      const [base] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BM25_BASE_ID))
+      expect(base.embeddingModelId).toBeNull()
+      expect((await statusOf(FILE_ID)).status).toBe('completed')
+      expect(enqueueMock).not.toHaveBeenCalled()
+
+      // Once it settles, a reindex pending on another base does not block this one.
+      await dbh.db.update(jobTable).set({ status: 'completed' }).where(eq(jobTable.id, pending.id))
+      await dbh.db.insert(jobTable).values(reindexJob(SOURCE_BASE_ID))
+      await expect(enable(service)).resolves.toMatchObject({ embeddingModelId })
+    })
+
+    // Reindex awaits its source check before taking the lock, so the backfill can land in between.
+    it('rejects a reindex whose items a backfill activated while their sources were checked', async () => {
+      await seedBm25Base()
+      let finishSourceCheck!: () => void
+      classifySourceMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSourceCheck = () => resolve('rebuildable')
+          })
+      )
+      const service = new KnowledgeService()
+
+      const reindex = service.reindexItems(BM25_BASE_ID, [NOTE_ID])
+      await enable(service)
+      finishSourceCheck()
+
+      await expect(reindex).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      expect(enqueuedTypes()).not.toContain('knowledge.reindex-subtree')
+    })
+
+    it('rejects when an add starts an item while enabling waits for the base lock', async () => {
+      await seedBm25Base()
+      let finishPurge: (() => void) | undefined
+      // A replace add holds the lock while it purges the old note's index entries.
+      getIndexStoreIfExistsMock.mockReturnValueOnce({
+        deleteMaterials: () =>
+          new Promise<void>((resolve) => {
+            finishPurge = resolve
+          })
+      })
+      const service = new KnowledgeService()
+
+      const add = service.addItems(
+        BM25_BASE_ID,
+        [{ type: 'note', data: { source: 'Note', content: 'Note\nnew' } }],
+        'replace'
+      )
+      await vi.waitFor(() => expect(finishPurge).toBeDefined())
+      const enabling = enable(service)
+      finishPurge?.()
+      await add
+
+      await expect(enabling).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      const [base] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BM25_BASE_ID))
+      expect(base.embeddingModelId).toBeNull()
+      expect((await statusOf(FILE_ID)).status).toBe('completed')
+    })
+
+    it('rejects a failed base before committing the model', async () => {
+      const service = new KnowledgeService()
+
+      await expect(
+        service.enableEmbeddingModel(SOURCE_BASE_ID, { embeddingModelId, dimensions: 1536 })
+      ).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR',
+        message: 'Cannot enableEmbeddingModel failed knowledge base'
+      })
+
+      const [base] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
+      expect(base.embeddingModelId).toBeNull()
+      expect(enqueueMock).not.toHaveBeenCalled()
     })
   })
 })

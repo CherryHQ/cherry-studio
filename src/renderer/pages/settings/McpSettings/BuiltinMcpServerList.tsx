@@ -81,7 +81,7 @@ const BuiltinMcpServerList: FC = () => {
                   <span className="truncate text-[14px] leading-5">{server.name}</span>
                   {server?.shouldConfig && (
                     <a
-                      href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
+                      href="https://docs.cherry-ai.com/advanced-basic/extensions/mcp#nei-zhi-fu-wu-qi-yu-fu-wu-shi-chang"
                       target="_blank"
                       rel="noopener noreferrer">
                       <Badge

@@ -85,7 +85,17 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
-          ref: ${{ github.workflow_sha }}
+          # The default target-event checkout is trusted; an explicit merged fork SHA trips checkout's guard.
+
+      - name: Verify trusted workflow commit
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$WORKFLOW_SHA" ]; then
+            echo "Checked-out scripts do not match the trusted workflow commit" >&2
+            exit 1
+          fi
 
       - name: Validate merged hotfix contract
         id: hotfix-contract

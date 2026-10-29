@@ -48,6 +48,13 @@
       "description": "Open website links in shared built-in browser tabs"
     },
     {
+      "targetKey": "app.browser.auto_open_panel",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Automatically open the right-side browser panel when tools browse the web (default: true)."
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
@@ -200,6 +207,13 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.message.keep_intermediate_text",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Keep intermediate assistant text in the response lane while tools and reasoning remain folded (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "chat.web_search.default_search_keywords_provider",
