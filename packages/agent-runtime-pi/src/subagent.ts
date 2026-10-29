@@ -30,7 +30,7 @@ export interface SubagentPort {
    * Called once per subagent, before its session is built. A throw fails the call. For a fork,
    * `extensionFactories` must yield the parent's tools: the same tools, in the same order.
    */
-  configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
+  configure(subagent: Subagent, signal?: AbortSignal): SubagentSessionOptions | Promise<SubagentSessionOptions>
 }
 
 /** The subagent about to be created. */
@@ -271,9 +271,20 @@ export function subagentExtension({ port, createSession, parentSession }: Subage
           sessionId: `${ctx.sessionManager.getSessionId()}.${randomUUID()}`,
           fork
         }
-        const options = await port.configure(subagent)
         const base = { sessionId: subagent.sessionId, fork }
         if (signal?.aborted) return notStarted(base)
+        let onAbort!: () => void
+        const cancelled = new Promise<undefined>((resolve) => {
+          onAbort = () => resolve(undefined)
+        })
+        signal?.addEventListener('abort', onAbort, { once: true })
+        let options: SubagentSessionOptions | undefined
+        try {
+          options = await Promise.race([port.configure(subagent, signal), cancelled])
+        } finally {
+          signal?.removeEventListener('abort', onAbort)
+        }
+        if (!options || signal?.aborted) return notStarted(base)
         const limit = new RequestLimit()
         const child = await createSession({
           sessionManager: createSubagentSessionManager(parentSession, subagent, forkPoint),
