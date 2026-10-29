@@ -99,10 +99,7 @@ describe('SelectionAgentWindow', () => {
       ['ai.agent.assistant_session.create', { workspace: { type: 'system' } }]
     ])
     expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.resize_agent_window', { mode: 'conversation' })
-    const { sessionId, firstMessage } = conversationProps()
-    expect(sessionId).toBe('assistant-session')
-    expect(firstMessage.text).toBe(QUOTE_DRAFT.text)
-    expect(firstMessage.userMessageParts).toEqual([expect.objectContaining({ type: 'text', text: QUOTE_DRAFT.text })])
+    expect(conversationProps()).toMatchObject({ sessionId: 'assistant-session', firstMessage: QUOTE_DRAFT })
   })
 
   it('creates the session under a bound agent and workspace through the session API', async () => {
@@ -172,7 +169,7 @@ describe('SelectionAgentWindow', () => {
     expect(screen.queryByTestId('compose-bar')).not.toBeInTheDocument()
     expect(conversationProps()).toMatchObject({
       sessionId: 'custom-session',
-      firstMessage: { text: 'Add the hard words in ubiquity to my list' }
+      firstMessage: { text: 'Add the hard words in ubiquity to my list', tokens: [] }
     })
   })
 

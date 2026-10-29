@@ -3,7 +3,10 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
+import { createQuoteToken } from '@renderer/components/composer/variants/shared/composerQuote'
+import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 
 const mocks = vi.hoisted(() => ({
@@ -51,11 +54,14 @@ vi.mock('../SelectionAgentHeader', () => ({
 vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } }))
 
 const { SelectionAgentConversation } = await import('../SelectionAgentConversation')
-type FirstMessage = Parameters<typeof SelectionAgentConversation>[0]['firstMessage']
 
-const QUOTE_PARTS = [{ type: 'text' as const, text: '<blockquote>x</blockquote>\nWhy?' }]
+const quote = createQuoteToken('x is undefined', 'Quote')
+const QUOTE_DRAFT: ComposerSerializedDraft = {
+  text: `${quote.promptText}\nWhy?`,
+  tokens: [{ ...quote, index: 0, textOffset: 0 }]
+}
 
-function renderConversation(firstMessage: FirstMessage = { text: 'Why?', userMessageParts: QUOTE_PARTS }) {
+function renderConversation(firstMessage: ComposerSerializedDraft = QUOTE_DRAFT) {
   return render(
     <SelectionAgentConversation
       sessionId="session-1"
@@ -78,31 +84,55 @@ describe('SelectionAgentConversation', () => {
     mocks.ipcRequest.mockReset()
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
+    takeAgentDraftHandoffs('session-1')
   })
 
-  it('sends the first message once, keeping its composer parts', () => {
+  it('sends the first message once, keeping its quote token, and keeps nothing back once accepted', async () => {
     const { rerender } = renderConversation()
     rerender(
       <SelectionAgentConversation
         sessionId="session-1"
-        firstMessage={{ text: 'Why?', userMessageParts: QUOTE_PARTS }}
+        firstMessage={QUOTE_DRAFT}
         isPinned
         onTogglePin={() => undefined}
         opacity={80}
         onOpacityChange={() => undefined}
       />
     )
+    await act(async () => {})
 
     expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith(
-      { text: 'Why?' },
-      { body: { agentId: 'agent-1', sessionId: 'session-1', userMessageParts: QUOTE_PARTS } }
+      { text: QUOTE_DRAFT.text },
+      {
+        body: expect.objectContaining({
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: [
+            expect.objectContaining({
+              text: QUOTE_DRAFT.text,
+              providerMetadata: {
+                cherry: { composer: expect.objectContaining({ tokens: [expect.objectContaining({ kind: 'quote' })] }) }
+              }
+            })
+          ]
+        })
+      }
     )
+    expect(takeAgentDraftHandoffs('session-1')).toEqual([])
+  })
+
+  it('hands a rejected first message back to the session composer, quote and all', async () => {
+    mocks.sendMessage.mockResolvedValueOnce(false)
+    renderConversation()
+    await act(async () => {})
+
+    expect(takeAgentDraftHandoffs('session-1')).toEqual([{ ...QUOTE_DRAFT, files: [], knowledgeBaseIds: [] }])
   })
 
   it('holds the first message while the agent has no model, then sends it once one is set', () => {
     mocks.agent = { id: 'agent-1', name: 'Cherry Assistant', type: 'claude-code', model: null, modelName: null }
     mocks.model = undefined
-    const { rerender } = renderConversation({ text: 'Summarize this' })
+    const { rerender } = renderConversation({ text: 'Summarize this', tokens: [] })
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(screen.getByText('selection.agent.no_model_notice')).toBeInTheDocument()
@@ -112,7 +142,7 @@ describe('SelectionAgentConversation', () => {
     rerender(
       <SelectionAgentConversation
         sessionId="session-1"
-        firstMessage={{ text: 'Summarize this' }}
+        firstMessage={{ text: 'Summarize this', tokens: [] }}
         isPinned={false}
         onTogglePin={() => undefined}
         opacity={100}
@@ -120,7 +150,16 @@ describe('SelectionAgentConversation', () => {
       />
     )
 
-    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith({ text: 'Summarize this' }, undefined)
+    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith(
+      { text: 'Summarize this' },
+      {
+        body: {
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: [{ type: 'text', text: 'Summarize this' }]
+        }
+      }
+    )
   })
 
   describe('state rules', () => {
@@ -183,7 +222,7 @@ describe('SelectionAgentConversation', () => {
       rerender(
         <SelectionAgentConversation
           sessionId="session-1"
-          firstMessage={{ text: 'Why?', userMessageParts: QUOTE_PARTS }}
+          firstMessage={QUOTE_DRAFT}
           isPinned={false}
           onTogglePin={() => undefined}
           opacity={100}
