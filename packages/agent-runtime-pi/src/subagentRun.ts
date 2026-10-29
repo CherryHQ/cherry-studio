@@ -292,6 +292,7 @@ export async function runSubagent(
   inbox: SubagentInbox
 ): Promise<RunResult> {
   const { session } = child
+  const firstEntry = session.sessionManager.getEntryCount()
   let stopped: 'aborted' | 'limit_reached' | undefined
   const stop = (reason: 'aborted' | 'limit_reached') => {
     stopped ??= reason
@@ -324,7 +325,11 @@ export async function runSubagent(
     signal.removeEventListener('abort', onAbort)
   }
 
-  const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
+  const compactionUsage = session.sessionManager
+    .getEntries()
+    .slice(firstEntry)
+    .flatMap((entry) => (entry.type === 'compaction' && entry.usage ? [entry.usage] : []))
+  const usage = [...replies.map((reply) => reply.usage), ...compactionUsage].reduce(addUsage, zeroUsage())
   const last = replies.at(-1)
   const end = error === undefined ? endOf(last, stopped) : (stopped ?? 'failed')
   if (end === 'completed') return { end, report: textOf(last!).trim(), usage }

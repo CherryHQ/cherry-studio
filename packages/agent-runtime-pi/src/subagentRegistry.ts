@@ -91,6 +91,7 @@ interface LiveRun {
   done: Promise<RunResult>
   /** Tool calls executing in its session, which approval events name. */
   calls: Set<string>
+  pendingApprovals: Set<string>
   /** A foreground run only: hands it to the background, where it goes on. */
   toBackground?: () => void
 }
@@ -265,11 +266,14 @@ export class SubagentRegistry {
     return run.done
   }
 
-  /** A pending approval marks its subagent `awaiting_approval`; any other event, or the call ending, undoes it. */
+  /** A subagent waits until every pending tool approval settles. */
   approval(event: ToolApprovalEvent): void {
     for (const [sessionId, run] of this.live)
-      if ((event.sessionId ?? sessionId) === sessionId && run.calls.has(event.toolCallId))
-        this.setWaiting(sessionId, event.kind === 'pending')
+      if ((event.sessionId ?? sessionId) === sessionId && run.calls.has(event.toolCallId)) {
+        if (event.kind === 'pending') run.pendingApprovals.add(event.toolCallId)
+        else run.pendingApprovals.delete(event.toolCallId)
+        this.setWaiting(sessionId, run.pendingApprovals.size > 0)
+      }
   }
 
   /** Resolves once the latest run of the subagent is over and recorded. */
@@ -362,7 +366,14 @@ export class SubagentRegistry {
       this.changed()
       returnNow()
     }
-    this.live.set(record.sessionId, { controller, inbox, done, calls: calls.ids, toBackground })
+    this.live.set(record.sessionId, {
+      controller,
+      inbox,
+      done,
+      calls: calls.ids,
+      pendingApprovals: calls.pending,
+      toBackground
+    })
     return Promise.race([done, movedAway])
   }
 
@@ -399,7 +410,7 @@ export class SubagentRegistry {
       await this.record(record, child, result)
       return result
     })
-    this.live.set(record.sessionId, { controller, inbox, done, calls: calls.ids })
+    this.live.set(record.sessionId, { controller, inbox, done, calls: calls.ids, pendingApprovals: calls.pending })
   }
 
   /**
@@ -435,15 +446,20 @@ export class SubagentRegistry {
   }
 
   /** Follows the tool calls executing in a subagent's session, for its approval events. */
-  private watchCalls(sessionId: string, child: AgentRuntimeSession): { ids: Set<string>; stop: () => void } {
+  private watchCalls(
+    sessionId: string,
+    child: AgentRuntimeSession
+  ): { ids: Set<string>; pending: Set<string>; stop: () => void } {
     const ids = new Set<string>()
+    const pending = new Set<string>()
     const stop = child.session.subscribe((event) => {
       if (event.type === 'tool_execution_start') ids.add(event.toolCallId)
       if (event.type !== 'tool_execution_end') return
       ids.delete(event.toolCallId)
-      this.setWaiting(sessionId, false)
+      pending.delete(event.toolCallId)
+      this.setWaiting(sessionId, pending.size > 0)
     })
-    return { ids, stop }
+    return { ids, pending, stop }
   }
 
   private setWaiting(sessionId: string, waiting: boolean): void {

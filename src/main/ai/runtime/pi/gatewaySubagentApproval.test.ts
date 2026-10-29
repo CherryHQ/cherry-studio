@@ -46,6 +46,76 @@ const risky = defineTool({
 })
 
 describe('subagent approvals', () => {
+  it('keeps waiting until every approval in a parallel batch is settled', async () => {
+    const hub = approvalHub()
+    const first = gate()
+    const second = gate()
+    const free = gate()
+    const ended: string[] = []
+    const entered: string[] = []
+    const recording = recordingSubagentPort(() => ({
+      onSessionCreated: (child) => {
+        child.subscribe((event) => {
+          if (event.type === 'tool_execution_end') ended.push(event.toolCallId)
+        })
+      }
+    }))
+    const concurrent = defineTool({
+      ...risky,
+      executionMode: 'parallel',
+      async execute(id) {
+        entered.push(id)
+        if (id === 'free') await free.wait(undefined)
+        else {
+          hub.emit({ kind: 'pending', toolCallId: id })
+          await (id === 'first' ? first : second).wait(undefined)
+          hub.emit({ kind: 'granted', toolCallId: id })
+        }
+        return { content: [{ type: 'text', text: 'done' }], details: undefined }
+      }
+    })
+    const parent = hostStore()
+    const { model } = routedModel(({ userText, lastText, humanText }) => {
+      if (userText.includes('TASK-A'))
+        return lastText.includes('TASK-A')
+          ? ['first', 'second', 'free'].map((id) => toolCallPart(id, 'risky')).concat(finish('tool-calls'))
+          : reply('REPORT-A')
+      return humanText === 'launch' ? [subagentCall('launch', BG_A), finish('tool-calls')] : reply('OK')
+    })
+    const { session } = await createTestSession({
+      port: gatewayModel(model).upstream,
+      tools: [concurrent],
+      subagents: { ...recording.port, onApproval: hub.onApproval },
+      onEvent: parent.onEvent
+    })
+    const run = session.prompt('launch')
+    try {
+      await expect.poll(() => entered).toHaveLength(3)
+      await run
+      const status = () => subagentViews(parent.events).at(-1)?.[0].status
+      expect(status()).toBe('awaiting_approval')
+      free.open()
+      await waitFor(() => ended.includes('free'))
+      expect(status()).toBe('awaiting_approval')
+      first.open()
+      await waitFor(() => ended.includes('first'))
+      expect(status()).toBe('awaiting_approval')
+      second.open()
+      await waitFor(() => status() === 'finished')
+      expect(subagentViews(parent.events).map((views) => views[0].status)).toEqual([
+        'running',
+        'awaiting_approval',
+        'running',
+        'finished'
+      ])
+    } finally {
+      first.open()
+      second.open()
+      free.open()
+      await run
+    }
+  })
+
   // Breaks when the parent and the host cannot see that a background subagent waits for the user
   // (Claude Code #99887: an unattended parent then waits all night), or it stays shown as waiting.
   it('shows a background subagent as awaiting approval while its call waits, then running again', async () => {
