@@ -371,6 +371,30 @@ describe('prepareChatMessages — routing', () => {
     expect(out.parts).toEqual([{ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' }])
   })
 
+  it('inlines legacy text attachments as text instead of forwarding text/plain file parts', async () => {
+    const text = '文章正文'
+    resolveMock.mockResolvedValueOnce({
+      type: 'file',
+      url: `data:text/plain;base64,${Buffer.from(text).toString('base64')}`,
+      mediaType: 'text/plain',
+      filename: 'article.txt'
+    })
+    const legacy = {
+      type: 'file',
+      url: 'file:///x/article.txt',
+      mediaType: 'text/plain',
+      filename: 'article.txt'
+    } as CherryMessagePart
+
+    const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+      attachments: [],
+      nativeSupport: NONE,
+      isToolCapable: true
+    })
+
+    expect(out.parts).toEqual([{ type: 'text', text: 'Attached file "article.txt":\n文章正文' }])
+  })
+
   it.each([
     ['audio', 'wav', 'audio/wav'],
     ['video', 'mp4', 'video/mp4']
