@@ -367,6 +367,11 @@ describe('useProviderEndpointActions', () => {
       expect(await reset).toBe(true)
     })
 
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+      await flushEndpointAction()
+    })
+
     expect(result.current.apiHost).toBe('https://api.openai.com')
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
     expect(patchProviderMock).toHaveBeenCalledWith({
@@ -381,6 +386,62 @@ describe('useProviderEndpointActions', () => {
         }
       }
     })
+    for (const [payload] of patchProviderMock.mock.calls) {
+      expect(payload.endpointConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES].baseUrl).not.toBe(
+        'https://anthropic.example.com'
+      )
+    }
+  })
+
+  it('cancels a pending draft autosave when the reset is applied', async () => {
+    getProviderMock.mockResolvedValue({
+      ...customProvider,
+      endpointConfigs: {
+        ...customProvider.endpointConfigs,
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://new-anthropic.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    })
+    const dialog = holdConfirmation()
+    const { result } = renderHook(() => useDraftEndpointActions(customProvider))
+    let reset!: Promise<boolean>
+
+    act(() => {
+      result.current.setApiHost('https://second-proxy.example.com')
+    })
+    await act(async () => {
+      reset = result.current.resetApiHost()
+      await dialog.params.action()
+      dialog.settle(true)
+      expect(await reset).toBe(true)
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+      await flushEndpointAction()
+    })
+
+    expect(result.current.apiHost).toBe('https://api.openai.com')
+    expect(patchProviderMock).toHaveBeenCalledTimes(1)
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          dialect: { developerRole: false }
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://new-anthropic.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    })
+    for (const [payload] of patchProviderMock.mock.calls) {
+      expect(payload.endpointConfigs[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS].baseUrl).not.toBe(
+        'https://second-proxy.example.com'
+      )
+    }
   })
 
   it('rejects an approved reset when the current provider cannot be read', async () => {

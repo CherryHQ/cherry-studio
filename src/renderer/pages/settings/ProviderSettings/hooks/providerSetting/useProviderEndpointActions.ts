@@ -271,6 +271,7 @@ export function useProviderEndpointActions({
       cancelText: t('common.cancel'),
       danger: true,
       action: async () => {
+        debouncedPersistApiHost.cancel()
         const fresh = await dataApiService.get(`/providers/${provider.id}`).catch((error: unknown) => {
           throw new Error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         })
@@ -285,16 +286,19 @@ export function useProviderEndpointActions({
           }
         }
 
+        const previousPersistedApiHost = lastPersistedApiHostRef.current
+        lastPersistedApiHostRef.current = trim(defaultApiHost)
         setApiHost(defaultApiHost)
         try {
           await patchProvider({ endpointConfigs: nextEndpointConfigs })
         } catch (error) {
+          lastPersistedApiHostRef.current = previousPersistedApiHost
           logger.error('Failed to reset provider API host', { providerId: provider.id, error })
           throw new Error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         }
       }
     })
-  }, [apiHost, defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
+  }, [apiHost, debouncedPersistApiHost, defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
 
   return {
     commitApiHost,
