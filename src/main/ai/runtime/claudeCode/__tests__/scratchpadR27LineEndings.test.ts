@@ -66,12 +66,13 @@ it('preserves CR ownership through pending carry, held fences and previous lines
   ]
   for (const document of documents) {
     const lf = stripKnownModelScratchpadBlocksPreservingCodeFences(document)
-    for (const endings of [['\r'], ['\r\n'], ['\n'], ['\r','\n','\r\n']]) {
+    for (const endings of [['\r'], ['\r\n'], ['\n'], ['\r', '\n', '\r\n']]) {
       let i = 0
       const raw = document.replace(/\n/g, () => endings[i++ % endings.length])
       const expected = stripKnownModelScratchpadBlocksPreservingCodeFences(raw)
       expect(expected.replace(/\r\n|\r/g, '\n')).toBe(lf)
-      for (let split = 0; split <= raw.length; split++) checkDelivery(raw, [raw.slice(0, split), raw.slice(split)], expected)
+      for (let split = 0; split <= raw.length; split++)
+        checkDelivery(raw, [raw.slice(0, split), raw.slice(split)], expected)
       for (const size of [1, 2, 3, 5, 7, 20, raw.length])
         checkDelivery(
           raw,
