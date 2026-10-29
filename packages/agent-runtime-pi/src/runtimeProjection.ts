@@ -110,6 +110,7 @@ export class PiProjection {
   /** Committed native entries and their proven live identities; copied parent context is excluded. */
   archive(): {
     messages: RuntimeMessage[]
+    responseIds: Record<string, string>
     aliases: Record<string, string>
     legacy: Record<string, { messageId: string; parts: number[] }>
   } {
@@ -121,10 +122,12 @@ export class PiProjection {
     this.calls = new Map()
     this.snapshotMessages = []
     const aliases: Record<string, string> = {}
+    const responseIds: Record<string, string> = {}
     try {
       for (const entry of branch.slice(start + 1)) {
         if (entry.type !== 'message' && entry.type !== 'custom_message') continue
         const message = sessionEntryToContextMessages(entry)[0]
+        if (message.role === 'assistant' && message.responseId) responseIds[message.responseId] = entry.id
         const offset = this.snapshotMessages.length
         this.write(message, entry.id, 'complete')
         const live = this.ids.get(message)
@@ -140,7 +143,7 @@ export class PiProjection {
         })
         legacy[message.id] = { messageId: message.id, parts }
       }
-      return { messages: this.snapshotMessages, aliases: { ...aliases, ...this.aliases }, legacy }
+      return { messages: this.snapshotMessages, responseIds, aliases: { ...aliases, ...this.aliases }, legacy }
     } finally {
       this.snapshotMessages = undefined
       this.calls = calls
