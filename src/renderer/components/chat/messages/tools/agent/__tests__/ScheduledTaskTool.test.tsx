@@ -34,6 +34,7 @@ function scheduledTask(overrides: Partial<ScheduledTaskListItem> = {}): Schedule
     timeoutMinutes: 2,
     workspace: { type: 'system' },
     guard: { type: 'always' as const },
+    guardApproval: null,
     reuseSession: false,
     reuseSessionId: null,
     channelIds: [],

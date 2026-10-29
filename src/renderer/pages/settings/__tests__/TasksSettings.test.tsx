@@ -48,6 +48,7 @@ const taskDataMock = vi.hoisted(() => {
     timeoutMinutes: 10,
     workspace: { type: 'system' as const },
     guard: { type: 'always' as const },
+    guardApproval: null,
     reuseSession: false,
     reuseSessionId: null,
     channelIds: [] as string[],
@@ -85,6 +86,7 @@ const tasksVersionMock = vi.hoisted(() => ({
 }))
 
 const taskMutationMocks = vi.hoisted(() => ({
+  approveTaskGuard: vi.fn(),
   createTask: vi.fn(),
   deleteTask: vi.fn(),
   nextPage: vi.fn(),
@@ -226,6 +228,7 @@ vi.mock('@renderer/hooks/agent/useTasks', () => {
         }
       }
     },
+    useApproveTaskGuard: () => ({ approveTaskGuard: taskMutationMocks.approveTaskGuard }),
     useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
     useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
     useRunTask: () => ({ runTask: taskMutationMocks.runTask }),

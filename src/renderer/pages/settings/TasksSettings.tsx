@@ -318,6 +318,7 @@ const TaskDetail: FC<{
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
 }> = ({ task, agents, onBack, onUpdate, onDelete, onRun, onToggleStatus }) => {
+  const guardCommand = task.guard.type === 'command' ? task.guard.command : null
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
@@ -567,7 +568,7 @@ const TaskDetail: FC<{
         onConfirm={() => onDelete(task.id)}
       />
 
-      {task.guard.type === 'command' && (
+      {guardCommand !== null && (
         <ConfirmDialog
           open={guardApproveOpen}
           onOpenChange={setGuardApproveOpen}
@@ -575,12 +576,12 @@ const TaskDetail: FC<{
           description={t('agent.tasks.guard.approveConfirmBody')}
           content={
             <code className="block max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-xs">
-              {task.guard.command}
+              {guardCommand}
             </code>
           }
           confirmText={t('agent.tasks.guard.approve')}
           cancelText={t('agent.tasks.cancel')}
-          onConfirm={() => void approveTaskGuard(task.agentId, task.id, task.guard.command)}
+          onConfirm={() => void approveTaskGuard(task.agentId, task.id, guardCommand)}
         />
       )}
     </SettingsContentColumn>
