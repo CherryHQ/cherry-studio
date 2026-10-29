@@ -33,7 +33,7 @@ import {
 
 /** Main-only authority, supplied by the session/editor owner, never deserialized from model input. */
 export interface MemoryAccess {
-  assertAuthorized(): Promise<void>
+  assertAuthorized(): undefined
 }
 
 export interface MemoryRead {
@@ -133,9 +133,9 @@ export class MemoryStore {
   async list(access: MemoryAccess): Promise<string[]> {
     const epoch = this.accessEpochs.get(access) ?? 0
     const generation = this.generation
-    await access.assertAuthorized()
+    access.assertAuthorized()
     const files = await listMemoryFiles(this.root)
-    await access.assertAuthorized()
+    access.assertAuthorized()
     this.assertAccessEpoch(access, epoch)
     this.assertGeneration(generation)
     return files
@@ -144,9 +144,9 @@ export class MemoryStore {
   async entry(access: MemoryAccess): Promise<{ content: string; truncated: boolean }> {
     const epoch = this.accessEpochs.get(access) ?? 0
     const generation = this.generation
-    await access.assertAuthorized()
+    access.assertAuthorized()
     const entry = await readMemoryEntry(this.root)
-    await access.assertAuthorized()
+    access.assertAuthorized()
     this.assertAccessEpoch(access, epoch)
     this.assertGeneration(generation)
     return entry
@@ -155,11 +155,11 @@ export class MemoryStore {
   async read(access: MemoryAccess, target: string): Promise<MemoryRead> {
     assertMemoryTarget(target)
     const epoch = this.accessEpochs.get(access) ?? 0
-    await access.assertAuthorized()
+    access.assertAuthorized()
     const generation = this.generation
     const bytes = await readMemoryBytes(this.root, target)
     const content = bytes === null ? null : this.decode(bytes)
-    await access.assertAuthorized()
+    access.assertAuthorized()
     this.assertGeneration(generation)
     this.assertAccessEpoch(access, epoch)
     const receipt = randomUUID()
@@ -181,7 +181,7 @@ export class MemoryStore {
   ): Promise<MemoryCommitResult> {
     const intent = mutations.map((mutation) => ({ ...mutation }))
     const epoch = this.accessEpochs.get(access) ?? 0
-    await access.assertAuthorized()
+    access.assertAuthorized()
     const generation = this.generation
     const changes: MemoryFileChange[] = []
     for (const mutation of intent) {
@@ -215,7 +215,7 @@ export class MemoryStore {
       this.assertAccessEpoch(access, epoch)
     }
     return this.lock.runExclusive(async () => {
-      await access.assertAuthorized()
+      access.assertAuthorized()
       await validateApproval()
       this.assertGeneration(generation)
       for (const change of changes)
@@ -229,7 +229,7 @@ export class MemoryStore {
     return this.lock.runExclusive(async () => {
       const epoch = this.accessEpochs.get(access) ?? 0
       const generation = this.generation
-      await access.assertAuthorized()
+      access.assertAuthorized()
       const latest = await latestMemoryBackup(this.backupRoot)
       if (!latest) return undefined
       const batch = await reconcileMemoryBackup(this.backupRoot, this.root, latest)
@@ -241,7 +241,7 @@ export class MemoryStore {
         hashes.set(step.path, currentHash)
         files.push({ path: step.path, currentHash, conflict: currentHash !== step.afterHash })
       }
-      await access.assertAuthorized()
+      access.assertAuthorized()
       const token = randomUUID()
       this.assertAccessEpoch(access, epoch)
       this.assertGeneration(generation)
@@ -252,7 +252,7 @@ export class MemoryStore {
 
   async recover(access: MemoryAccess, token: string, approve: MemoryApproval): Promise<MemoryCommitResult> {
     const epoch = this.accessEpochs.get(access) ?? 0
-    await access.assertAuthorized()
+    access.assertAuthorized()
     const preview = this.recoveries.get(access)?.get(token)
     if (!preview) throw new MemoryError('invalid-receipt', 'Recovery requires this caller to preview the latest batch')
     this.assertGeneration(preview.generation)
@@ -278,7 +278,7 @@ export class MemoryStore {
       this.assertAccessEpoch(access, epoch)
     }
     return this.lock.runExclusive(async () => {
-      await access.assertAuthorized()
+      access.assertAuthorized()
       await validateApproval()
       this.assertGeneration(preview.generation)
       if ((await latestMemoryBackup(this.backupRoot))?.id !== preview.batch.id) {
@@ -317,11 +317,12 @@ export class MemoryStore {
     }
     for (const [index, change] of changes.entries()) {
       try {
-        await access.assertAuthorized()
+        access.assertAuthorized()
         await approval()
         this.assertGeneration(generation)
         await this.readMatching({ path: change.path, hash: memoryHash(change.before), generation })
         await writeMemoryBytes(this.root, change.path, change.after, () => {
+          access.assertAuthorized()
           this.assertGeneration(generation)
           this.assertAccessEpoch(access, epoch)
         })
