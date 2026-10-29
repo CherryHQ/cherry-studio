@@ -36,10 +36,10 @@ vi.mock('@renderer/components/WebviewBrowser', () => ({
   }
 }))
 
-vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: (props: { fileName: string; value: string; wrapLines: boolean; readOnly: boolean }) => {
     mocks.codeViewer(props)
-    return <div data-testid="code-viewer">{props.value}</div>
+    return <textarea aria-label="HTML source" readOnly={props.readOnly} defaultValue={props.value} />
   }
 }))
 
@@ -207,9 +207,9 @@ describe('HtmlFilePreview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
 
-    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
+    expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Hello</h1>')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ language: 'html', value: '<h1>Hello</h1>', wrapped: true })
+      expect.objectContaining({ fileName: 'index.html', value: '<h1>Hello</h1>', wrapLines: true, readOnly: true })
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.preview' }))
@@ -277,7 +277,7 @@ describe('HtmlFilePreview', () => {
     expect(screen.getByTestId('html-frame')).toHaveAttribute('srcdoc', html)
 
     await user.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
-    await screen.findByTestId('code-viewer')
+    await screen.findByRole('textbox', { name: 'HTML source' })
     view.rerender(<HtmlFilePreview {...props} refreshKey={2} />)
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
     expect(screen.getByRole('button', { name: 'file_preview.html.mode.source' })).toHaveAttribute(

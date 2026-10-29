@@ -1021,6 +1021,9 @@ function mergeRuntimeSettings(
     },
     { additionalBypassRule: gatewayBypassRule(route) }
   )
+  if (route.branch === 'gateway' && !env.CLAUDE_CODE_SUBAGENT_MODEL?.trim()) {
+    env.CLAUDE_CODE_SUBAGENT_MODEL = route.modelIds.primary
+  }
   // `buildEnvironment` force-enables the SDK's ToolSearch via `ENABLE_TOOL_SEARCH=auto` before the
   // per-turn model is known, and the var is in the blocked list so agents cannot override it. When
   // the effective connection model rejects dynamically-loaded tool declarations (e.g. Kimi models

@@ -157,6 +157,17 @@ describe('ChatAppShell', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
+  it('scopes the message-well theme surface to the conversation center', () => {
+    const { container } = render(
+      <ChatAppShell centerId="chat-main" pane={<div data-testid="pane" />} paneOpen main={<div data-testid="main" />} />
+    )
+
+    // The public message-well token belongs to the conversation, while its rails keep the frame surface.
+    expect(container.querySelector('#chat-main')).toHaveClass('bg-chat-message-well')
+    expect(container.querySelector('[data-chat-app-shell-root]')).not.toHaveClass('bg-chat-message-well')
+    expect(screen.getByTestId('pane').closest('[data-resource-list-pane]')).not.toHaveClass('bg-chat-message-well')
+  })
+
   it('renders side panel in a root overlay host above center layers', () => {
     const { container } = render(
       <ChatAppShell
