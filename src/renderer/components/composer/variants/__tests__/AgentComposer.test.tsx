@@ -5140,6 +5140,40 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
   })
 
+  it('attaches a file or folder from the file pane once, and only in its own session', async () => {
+    const composer = () => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const { rerender } = render(composer())
+    mocks.insertToken.mockClear()
+    const attach = (payload: { topicId: string; path: string; kind: 'file' | 'directory' }) =>
+      act(async () => {
+        await EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, payload)
+      })
+
+    await attach({ topicId: 'agent-session:other-session', path: '/ws/a.ts', kind: 'file' })
+    expect(mocks.files).toEqual([])
+
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/a.ts', kind: 'file' })
+    // The mocked file store does not re-render; the real one does after each attachment.
+    rerender(composer())
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/a.ts', kind: 'file' })
+    expect(mocks.files).toEqual([expect.objectContaining({ path: '/ws/a.ts' })])
+    expect(mocks.insertToken).toHaveBeenCalledTimes(1)
+
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/src', kind: 'directory' })
+    expect(mocks.insertToken).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'folder', promptText: '/ws/src' })
+    )
+    expect(mocks.files).toHaveLength(1)
+  })
+
   it('opens the agent edit dialog for a session with history', async () => {
     render(
       <AgentComposer

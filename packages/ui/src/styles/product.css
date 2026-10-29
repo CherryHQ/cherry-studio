@@ -68,10 +68,11 @@
   --chat-user: rgba(0, 0, 0, 0.045);
 
   /* Stable product domain: cross-surface resource-list rows */
-  --resource-list-row-hover: var(--background-subtle);
+  /* Hover and selected share one fill */
+  --resource-list-row-hover: var(--resource-list-row-selected);
   --resource-list-row-active: var(--accent);
   --resource-list-row-active-foreground: var(--accent-foreground);
-  --resource-list-row-selected: var(--accent);
+  --resource-list-row-selected: oklch(0 0 0 / 0.08);
   --resource-list-row-selected-foreground: var(--accent-foreground);
 }
 
@@ -104,4 +105,6 @@
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(255, 255, 255, 0.08);
+
+  --resource-list-row-selected: oklch(1 0 0 / 0.14);
 }

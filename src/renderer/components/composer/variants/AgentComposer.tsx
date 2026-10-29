@@ -93,6 +93,7 @@ import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toF
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
+import { createComposerFolderToken } from '../folderToken'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -115,7 +116,7 @@ import {
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
-import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
+import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
@@ -1156,6 +1157,24 @@ const AgentComposerInner = ({
       data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
     })
   }, [actionsRef, layerActive, sessionTopicId])
+
+  // "Attach as context" from the file pane: the same chip and attachment an @-mention of the path creates.
+  useEffect(() => {
+    if (!layerActive) return
+    return EventEmitter.on(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, (payload) => {
+      const data = payload as { topicId?: string; path?: string; kind?: 'file' | 'directory' } | undefined
+      if (!data?.path || data.topicId !== sessionTopicId) return
+      if (data.kind === 'directory') {
+        actionsRef.current.insertToken(createComposerFolderToken(data.path))
+        return
+      }
+      const parsed = AbsoluteFilePathSchema.safeParse(data.path)
+      if (!parsed.success || filesRef.current.some((file) => file.path === parsed.data)) return
+      const attachment = createAttachmentFromPath(parsed.data)
+      actionsRef.current.insertToken(agentFileToComposerToken(attachment))
+      setFiles((prev) => (prev.some((file) => file.path === attachment.path) ? prev : [...prev, attachment]))
+    })
+  }, [actionsRef, filesRef, layerActive, sessionTopicId, setFiles])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return

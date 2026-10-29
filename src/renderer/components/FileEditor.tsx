@@ -24,6 +24,41 @@ const poolOptions = {
 }
 const highlighterOptions = { preferredHighlighter: 'highlights', useTokenTransformer: true } as const
 
+// Pierre (patched) tags whitespace-only token spans with data-ws and leading ones with data-indent.
+const INDENT_GUIDE = 'linear-gradient(to right, var(--border) 0 1px, transparent 1px)'
+const WHITESPACE_DOT =
+  'radial-gradient(circle, color-mix(in oklch, var(--muted-foreground) 55%, transparent) 1px, transparent 1.5px)'
+const WHITESPACE_TAB =
+  'linear-gradient(to bottom, transparent calc(50% - 0.5px), color-mix(in oklch, var(--muted-foreground) 55%, transparent) calc(50% - 0.5px) calc(50% + 0.5px), transparent calc(50% + 0.5px))'
+
+function whitespaceCss(indentGuides: boolean, showWhitespace: boolean): string {
+  const guideSize = 'calc(var(--diffs-tab-size, 2) * 1ch) 100%'
+  const rules: string[] = []
+  if (indentGuides || showWhitespace) {
+    rules.push(
+      '[data-ws]{display:inline-block;vertical-align:top;height:var(--diffs-line-height);background-repeat:repeat-x}'
+    )
+  }
+  if (showWhitespace) {
+    rules.push(`[data-ws="space"]{background-image:${WHITESPACE_DOT};background-size:1ch 100%}`)
+    rules.push(
+      `[data-ws="tab"]{background-image:${WHITESPACE_TAB};background-size:100% 100%;background-origin:content-box;padding-inline:0.2ch}`
+    )
+  }
+  if (indentGuides) {
+    const ws = showWhitespace ? { space: [WHITESPACE_DOT, '1ch 100%'], tab: [WHITESPACE_TAB, '100% 100%'] } : null
+    rules.push(`[data-indent]{background-image:${INDENT_GUIDE};background-size:${guideSize}}`)
+    if (ws) {
+      for (const [kind, [image, size]] of Object.entries(ws)) {
+        rules.push(
+          `[data-indent][data-ws="${kind}"]{background-image:${INDENT_GUIDE},${image};background-size:${guideSize},${size}}`
+        )
+      }
+    }
+  }
+  return rules.join('')
+}
+
 function FileEditorTheme({ theme }: { theme: string }) {
   const pool = useWorkerPool()
   useEffect(() => {
@@ -41,6 +76,14 @@ interface Props {
   wrapLines?: boolean
   expanded?: boolean
   className?: string
+  /** Columns per tab stop. */
+  tabSize?: number
+  /** When false, Tab and Shift+Tab move focus instead of indenting. */
+  tabIndent?: boolean
+  indentGuides?: boolean
+  showWhitespace?: boolean
+  /** Leaves room so the last line can scroll to the top. */
+  scrollPastEnd?: boolean
 }
 
 export default function FileEditor({
@@ -51,7 +94,12 @@ export default function FileEditor({
   readOnly = false,
   wrapLines = false,
   expanded = false,
-  className
+  className,
+  tabSize = 2,
+  tabIndent = true,
+  indentGuides = false,
+  showWhitespace = false,
+  scrollPastEnd = false
 }: Props) {
   const { t } = useTranslation()
   const [messageFontSize] = usePreference('chat.message.font_size')
@@ -104,9 +152,11 @@ export default function FileEditor({
       themeType: isCodeThemeDark ? 'dark' : 'light',
       overflow: wrapLines ? 'wrap' : 'scroll',
       disableLineNumbers: !showLineNumbers,
-      unsafeCSS: theme === CHERRY_CODE_THEME ? CHERRY_EDITOR_CSS : undefined
+      unsafeCSS:
+        (theme === CHERRY_CODE_THEME ? CHERRY_EDITOR_CSS : '') + whitespaceCss(indentGuides, showWhitespace) ||
+        undefined
     }),
-    [theme, isCodeThemeDark, showLineNumbers, wrapLines]
+    [theme, isCodeThemeDark, showLineNumbers, wrapLines, indentGuides, showWhitespace]
   )
   const editorOptions = useMemo<EditorOptions<'file', undefined, undefined>>(
     () => ({
@@ -155,10 +205,12 @@ export default function FileEditor({
           {
             '--diffs-font-family': 'var(--code-font-family)',
             '--diffs-font-size': `${fontSize}px`,
-            '--diffs-line-height': `${fontSize * 1.6}px`
+            '--diffs-line-height': `${fontSize * 1.6}px`,
+            '--diffs-tab-size': tabSize
           } as CSSProperties
         }
       />
+      {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${fontSize * 1.6}px)` }} /> : null}
     </div>
   )
 
@@ -166,7 +218,15 @@ export default function FileEditor({
     <div
       role="group"
       aria-label={fileName}
-      className={cn('flex min-h-0 flex-1 flex-col select-text', !expanded && 'overflow-hidden', className)}>
+      className={cn('flex min-h-0 flex-1 flex-col select-text', !expanded && 'overflow-hidden', className)}
+      onKeyDownCapture={
+        tabIndent
+          ? undefined
+          : (event) => {
+              // Pierre binds Tab to indent and cannot unbind it, so keep the key from reaching the editor.
+              if (event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) event.stopPropagation()
+            }
+      }>
       {loadFailed ? <p role="alert">{t('file_preview.load_error.description')}</p> : null}
       <WorkerPoolContextProvider poolOptions={poolOptions} highlighterOptions={runtimeOptions}>
         <FileEditorTheme theme={theme} />

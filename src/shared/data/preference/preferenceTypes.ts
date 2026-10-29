@@ -36,6 +36,9 @@ export type PreferenceShortcutType = {
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
+/** Side of a wide Agent file pane that holds the file tree. */
+export type AgentFilePaneTreePosition = 'left' | 'right'
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
