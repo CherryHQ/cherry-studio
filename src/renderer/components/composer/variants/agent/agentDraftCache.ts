@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
-import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import { isComposerClipboardTokenKind, isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CacheAgentComposerDraft } from '@shared/data/cache/cacheValueTypes'
+import type { ConversationDraft } from '@shared/types/navigation'
 import type { LocalSkill } from '@shared/types/skill'
 
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tokens'
@@ -132,4 +133,44 @@ export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft
     },
     DRAFT_CACHE_TTL
   )
+}
+
+/** Serializes a draft for another window; IPC carries in-memory attachments as bytes. */
+export async function toConversationDraft(draft: AgentComposerDraftCache): Promise<ConversationDraft> {
+  const files = await Promise.all(
+    draft.files.map(async ({ blob, ...file }) =>
+      blob ? { ...file, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: blob.type } : file
+    )
+  )
+  return { text: draft.text, tokens: draft.tokens, files, knowledgeBaseIds: draft.knowledgeBaseIds }
+}
+
+/** Appends a draft handed over from another window after what this composer already holds. */
+export function appendConversationDraft(
+  draft: RestoredAgentComposerDraftCache,
+  handoff: ConversationDraft
+): RestoredAgentComposerDraftCache {
+  const separator = draft.text && handoff.text ? '\n' : ''
+  const textOffset = draft.text.length + separator.length
+  // Tokens the policy keeps in their own composer stay behind as plain text.
+  const tokens = handoff.tokens.filter((token) => isComposerClipboardTokenKind(token.kind))
+  return {
+    ...draft,
+    text: draft.text + separator + handoff.text,
+    tokens: [
+      ...draft.tokens,
+      ...tokens.map((token) => ({
+        ...token,
+        index: token.index + draft.tokens.length,
+        textOffset: token.textOffset + textOffset
+      }))
+    ],
+    files: [
+      ...draft.files,
+      ...handoff.files.map(({ bytes, mimeType, ...file }) =>
+        bytes ? { ...file, blob: new Blob([new Uint8Array(bytes)], { type: mimeType }) } : file
+      )
+    ],
+    knowledgeBaseIds: [...new Set([...draft.knowledgeBaseIds, ...handoff.knowledgeBaseIds])]
+  }
 }

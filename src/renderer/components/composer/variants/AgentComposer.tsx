@@ -62,6 +62,7 @@ import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { subscribeAgentDraftHandoff, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -106,6 +107,7 @@ import { type AgentConversationWorkspace } from './agent/AgentConversationContro
 import {
   type AgentComposerDraftCache,
   type AgentComposerDraftCacheKey,
+  appendConversationDraft,
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
@@ -266,7 +268,10 @@ const AgentComposerRoot = ({
   // Persistence follows the live launch options, not the sticky seed: once the launch message is
   // sent the session owns its draft again, so follow-ups are cached like any other session's.
   const draftPersistenceEnabled = launchOptions === undefined
-  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}`
+  // A draft handed over from another window remounts the composer around the merged draft.
+  const handoffDraftRef = useRef<RestoredAgentComposerDraftCache | null>(null)
+  const [handoffRevision, setHandoffRevision] = useState(0)
+  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}:${handoffRevision}`
   const resolvedWorkspaceId = workspaceId ?? session?.workspaceId ?? null
   const workspaceKey = buildAgentFileWorkspaceKey(resolvedWorkspaceId, session?.workspace?.path)
   const draftCacheKey = getAgentDraftCacheKey(sessionId)
@@ -278,7 +283,7 @@ const AgentComposerRoot = ({
   if (initialDraftRef.current?.instanceKey !== scopedComposerInstanceKey) {
     let draft: RestoredAgentComposerDraftCache
     if (launchInitialDraft === undefined) {
-      draft = readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+      draft = handoffDraftRef.current ?? readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
     } else {
       // A launch draft is never cached, so a scope change (switching the session workspace)
       // has to carry the live edits over itself — re-seeding the template would silently
@@ -303,6 +308,27 @@ const AgentComposerRoot = ({
     initialDraftRef.current = { instanceKey: scopedComposerInstanceKey, draft }
   }
   const { draft: initialDraft } = initialDraftRef.current
+
+  useEffect(() => {
+    if (!draftPersistenceEnabled) return
+    const takeHandoffs = () => {
+      const drafts = takeAgentDraftHandoffs(sessionId)
+      if (drafts.length === 0) return
+      handoffDraftRef.current = drafts.reduce(
+        appendConversationDraft,
+        readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+      )
+      setHandoffRevision((revision) => revision + 1)
+    }
+    takeHandoffs()
+    return subscribeAgentDraftHandoff(sessionId, takeHandoffs)
+  }, [agentId, draftCacheKey, draftPersistenceEnabled, sessionId, workspaceKey])
+  // Passive effects run after the replaced composer saved its own draft on unmount, so this write wins.
+  useEffect(() => {
+    if (!handoffDraftRef.current) return
+    writeAgentDraftCache(draftCacheKey, handoffDraftRef.current)
+    handoffDraftRef.current = null
+  }, [draftCacheKey, handoffRevision])
   const handleNewSessionShortcut = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
