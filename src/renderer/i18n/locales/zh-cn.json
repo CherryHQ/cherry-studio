@@ -3219,6 +3219,7 @@
   "provider.jina": "Jina",
   "provider.lanyun": "蓝耘科技",
   "provider.litellm": "LiteLLM",
+  "provider.llamay": "llamay",
   "provider.lmstudio": "LM Studio",
   "provider.local-embedding": "本地模型",
   "provider.longcat": "龙猫",

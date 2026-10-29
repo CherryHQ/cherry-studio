@@ -3219,6 +3219,7 @@
   "provider.jina": "Jina",
   "provider.lanyun": "LANYUN",
   "provider.litellm": "LiteLLM",
+  "provider.llamay": "llamay",
   "provider.lmstudio": "LM Studio",
   "provider.local-embedding": "本機模型",
   "provider.longcat": "LongCat AI",
