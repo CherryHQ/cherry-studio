@@ -816,6 +816,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
       const entry: AgentSessionRuntimeEntry = {
         sessionId,
+        branchHead: agentSessionMessageService.captureHead(sessionId),
         topicId: buildAgentSessionTopicId(sessionId),
         sessionTraceId,
         agentId: session.agentId,
