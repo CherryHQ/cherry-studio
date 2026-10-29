@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -36,13 +37,94 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   let terminalWindow: string | undefined
-  const terminalText = () =>
+  const windowContents = (id: string) =>
     appleScript(
       `on run argv
     tell application "Terminal" to return contents of selected tab of window id (item 1 of argv as integer)
   end run`,
-      [terminalWindow!]
+      [id]
     )
+  const terminalText = () => windowContents(terminalWindow!)
+  // A window belongs to this launch only when its tab is a tty that did not exist before the launch and
+  // that tty runs `claude` with this run's workspace as its cwd, or its buffer shows that exact path.
+  const terminalWindows = () =>
+    appleScript(
+      `on run
+    set rows to {}
+    tell application "Terminal"
+      repeat with w in windows
+        if (count of tabs of w) > 0 then
+          set t to selected tab of w
+          set end of rows to ((id of w as text) & "|" & (tty of t as text))
+        end if
+      end repeat
+    end tell
+    set AppleScript's text item delimiters to linefeed
+    return rows as text
+  end run`
+    )
+      .split('\n')
+      .map((line) => line.split('|').map((part) => part.trim()))
+      .filter((parts) => parts.length === 2)
+      .map(([id, tty]) => ({ id, tty }))
+  const frontWindowId = () => {
+    try {
+      return appleScript('tell application "Terminal" to return id of front window as text')
+    } catch {
+      return ''
+    }
+  }
+  const workspaceSpellings = () => {
+    const resolved = (path: string) => {
+      try {
+        return realpathSync(path)
+      } catch {
+        return path
+      }
+    }
+    return [...new Set([app.paths.workspace, resolved(app.paths.workspace)])]
+  }
+  const showsWorkspace = (contents: string) =>
+    workspaceSpellings().some((path) => {
+      for (let index = contents.indexOf(path); index >= 0; index = contents.indexOf(path, index + 1)) {
+        const next = contents[index + path.length]
+        if (next === undefined || !/[A-Za-z0-9._-]/.test(next)) return true
+      }
+      return false
+    })
+  const ttyRunsClaudeInWorkspace = (tty: string) => {
+    const device = tty.replace('/dev/', '')
+    const spellings = workspaceSpellings()
+    return execFileSync('/bin/ps', ['-Ao', 'pid=,tty=,command='], { encoding: 'utf8' })
+      .split('\n')
+      .some((row) => {
+        const match = row.trim().match(/^(\d+)\s+(\S+)\s+(.*)$/)
+        if (!match || match[2] !== device) return false
+        const executable = match[3].trim().split(/\s+/)[0]
+        if (!/(^|\/)claude$/.test(executable)) return false
+        let cwd: string
+        try {
+          cwd = execFileSync('/usr/sbin/lsof', ['-a', '-p', match[1], '-d', 'cwd', '-Fn'], { encoding: 'utf8' })
+        } catch {
+          // The process exited between ps and lsof; nothing to prove either way.
+          return false
+        }
+        const reported = cwd
+          .split('\n')
+          .find((line) => line.startsWith('n'))
+          ?.slice(1)
+        return reported !== undefined && spellings.includes(reported)
+      })
+  }
+  const windowContentsIfAlive = (id: string): string | null => {
+    try {
+      return windowContents(id)
+    } catch (error) {
+      // A window that vanished mid-poll is somebody else's business; any other failure is real.
+      if (/\(-1728\)|Can.t get window/.test(String(error))) return null
+      throw error
+    }
+  }
   const terminalInput = (text: string) =>
     appleScript(
       `on run argv
@@ -81,26 +163,33 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await expect(dialog).toBeHidden()
   }
   const launch = async () => {
-    const before = appleScript('tell application "Terminal" to return id of every window')
-      .split(',')
-      .map((v) => v.trim())
+    const baseline = terminalWindows()
+    const baselineIds = baseline.map((w) => w.id)
+    const baselineTtys = baseline.map((w) => w.tty)
     await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Launch Claude Code', exact: true })
     await expect(dialog.getByRole('textbox')).toHaveValue(app.paths.workspace)
     await dialog.getByRole('button', { name: 'Launch', exact: true }).click()
     await expect(dialog).toBeHidden()
-    await expect
-      .poll(
-        () => {
-          const ids = appleScript('tell application "Terminal" to return id of every window')
-            .split(',')
-            .map((v) => v.trim())
-          terminalWindow = ids.find((id) => id && !before.includes(id))
-          return Boolean(terminalWindow)
-        },
-        { timeout: 30_000 }
+    let observed = ''
+    const deadline = Date.now() + 45_000
+    while (!terminalWindow && Date.now() < deadline) {
+      const candidates = terminalWindows().filter(
+        (w) => w.tty && !baselineIds.includes(w.id) && !baselineTtys.includes(w.tty)
       )
-      .toBe(true)
+      observed = candidates.map((w) => `${w.id}@${w.tty}`).join(', ')
+      const front = frontWindowId()
+      const owned = candidates.find(
+        (w) => w.id === front || showsWorkspace(windowContentsIfAlive(w.id) ?? '') || ttyRunsClaudeInWorkspace(w.tty)
+      )
+      terminalWindow = owned?.id
+      if (!terminalWindow) await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+    if (!terminalWindow) {
+      throw new Error(
+        `MP-97 could not verify which Terminal window this launch opened; new windows: ${observed || 'none'}`
+      )
+    }
     await expect.poll(() => terminalText(), { timeout: 45_000 }).toMatch(/trust|Welcome|Claude Code|❯/i)
     if (/trust this folder|trust the files|Yes, I trust/i.test(terminalText())) terminalInput('')
     if (/select login method|Please run \/login|Sign in to continue/i.test(terminalText())) {
