@@ -139,7 +139,8 @@ describe('AskUserQuestionComposer', () => {
     const row = screen.getByRole('button', { name: /Winston/ })
     const span = within(row).getByText(description)
     // The list shrinks inside the bounded panel so every option remains reachable.
-    expect.soft(row.parentElement).toHaveClass('min-h-0', 'flex-auto', 'overflow-y-auto', 'overscroll-contain')
+    expect.soft(row.parentElement).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
+    expect.soft(row.parentElement).not.toHaveClass('min-h-0')
     expect(row.parentElement).not.toHaveClass('max-h-[50vh]')
     expect(span).toHaveClass(
       'block',
@@ -174,7 +175,8 @@ describe('AskUserQuestionComposer', () => {
 
     const firstOption = screen.getByRole('button', { name: /Option 1/ })
     // The list shrinks inside the bounded panel; each description stays fully expanded.
-    expect.soft(firstOption.parentElement).toHaveClass('min-h-0', 'flex-auto', 'overflow-y-auto', 'overscroll-contain')
+    expect.soft(firstOption.parentElement).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
+    expect.soft(firstOption.parentElement).not.toHaveClass('min-h-0')
     expect(firstOption.parentElement).not.toHaveClass('max-h-[50vh]')
     for (const option of options) {
       const row = screen.getByRole('button', { name: new RegExp(option.label) })
@@ -329,10 +331,14 @@ describe('AskUserQuestionComposer', () => {
     const list = screen.getByRole('button', { name: /Winston/ }).parentElement!
     const answerRow = screen.getByRole('button', { name: 'Skip' }).parentElement!
 
-    // The complete-panel bound must leave the heading and growing answer outside the shrinking list.
+    // The complete-panel bound must leave the heading and growing answer outside the shrinking
+    // list; when those fixed regions exhaust the budget, the panel scrolls and the list keeps
+    // a readable floor instead of collapsing.
     expect(card.style.maxHeight).toBe('512px')
-    expect(card).toHaveClass('flex', 'min-h-0', 'flex-col', 'overflow-hidden')
-    expect(list).toHaveClass('min-h-0', 'flex-auto', 'overflow-y-auto', 'overscroll-contain')
+    expect(card).toHaveClass('flex', 'min-h-0', 'flex-col', 'overflow-y-auto', 'overscroll-contain')
+    expect(card).not.toHaveClass('overflow-hidden')
+    expect(list).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
+    expect(list).not.toHaveClass('min-h-0')
     expect(list).not.toHaveClass('max-h-[50vh]')
     expect(headingRow).toHaveClass('shrink-0')
     expect(answerRow).toHaveClass('shrink-0')

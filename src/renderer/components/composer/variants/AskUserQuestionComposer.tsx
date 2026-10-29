@@ -246,7 +246,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       // composers re-enable interaction on their own root.
       className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
-        className="flex min-h-0 flex-col overflow-hidden rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
+        className="flex min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
         style={{
           backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)',
           maxHeight: panelMaxHeight ?? undefined
@@ -297,7 +297,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           </div>
         </div>
 
-        <div className="mt-2 flex min-h-0 flex-auto flex-col gap-1.5 overflow-y-auto overscroll-contain">
+        <div className="mt-2 flex min-h-24 flex-auto flex-col gap-1.5 overflow-y-auto">
           {currentQuestion.options.map((option, optionIndex) => {
             const isSelected = selectedForCurrent.includes(option.label)
 
