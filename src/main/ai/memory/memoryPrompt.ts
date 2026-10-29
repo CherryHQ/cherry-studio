@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
@@ -22,7 +24,16 @@ async function entry(createAuthority: () => MemoryAuthority) {
   try {
     const snapshot = await session.entry()
     authority.assertAuthorized()
-    return { scope: authority.scope.kind, ...snapshot, assertAuthorized: authority.assertAuthorized }
+    const root =
+      authority.scope.kind === 'shared'
+        ? application.getPath('feature.memory.data')
+        : path.join(application.getPath('feature.agents.data'), authority.scope.agentId)
+    return {
+      scope: authority.scope.kind,
+      entryPath: path.join(root, 'MEMORY.md'),
+      ...snapshot,
+      assertAuthorized: authority.assertAuthorized
+    }
   } catch (error) {
     logger.warn('Memory entry is unavailable for this request', { error })
     return undefined

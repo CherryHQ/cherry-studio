@@ -95,11 +95,14 @@ export interface PiApprovalContext {
   nonBypassableApprovalTools: ReadonlySet<string>
   /** Cross-Session tools that cannot initiate an unattended delegation hop. */
   delegationTools: ReadonlySet<string>
+  /** Native replacements that perform the same authorization inside their execution owner. */
+  executionOwnedTools?: ReadonlySet<string>
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
   return (pi: ExtensionAPI) => {
     pi.on('tool_call', async (event: ToolCallEvent, extCtx: ExtensionContext) => {
+      if (ctx.executionOwnedTools?.has(event.toolName)) return
       return createPiToolAuthorizer(ctx)({
         toolName: event.toolName,
         toolCallId: event.toolCallId,
