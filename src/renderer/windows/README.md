@@ -50,6 +50,7 @@ Each window declares its logger source **declaratively** in its `index.html`, no
 | `migrationV2` | `MigrationApp` | in-component (`components/`) |
 | `userDataRelocation` | `RelocationApp` | in-component progress/recovery UI |
 | `selection/action` | `SelectionActionApp` | `ActionWindow` |
+| `selection/agent` | `SelectionAgentApp` | `SelectionAgentWindow` |
 | `selection/toolbar` | `SelectionToolbarApp` | `SelectionToolbar` (reused in settings pages) |
 | `screenshot` | `ScreenshotApp` | `CaptureOverlay` (one pooled window per display) |
 

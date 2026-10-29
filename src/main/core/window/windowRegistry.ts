@@ -508,6 +508,52 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Agent window for agent selection actions — pooled like the action window, but a hidden
+  // instance is still in use (collapsed), so only close returns it to the pool.
+  // Managed by SelectionAgentWindowService, which sizes it per layout and shows it.
+  [WindowType.SelectionAgent]: {
+    type: WindowType.SelectionAgent,
+    lifecycle: 'pooled',
+    htmlPath: 'windows/selection/agent/index.html',
+    showMode: 'manual',
+    windowOptions: {
+      width: 560,
+      height: 160,
+      frame: false,
+      transparent: true,
+      autoHideMenuBar: true,
+      hasShadow: false,
+      thickFrame: false,
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          fullscreenable: false,
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 16, y: 16 }
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        devTools: true
+      }
+    },
+    behavior: {
+      macShowInDock: false
+    },
+    quirks: {
+      macRestoreFocusOnHide: true
+    },
+    poolConfig: {
+      standbySize: 1,
+      recycleMaxSize: 3,
+      decayInterval: 60,
+      inactivityTimeout: 300,
+      warmup: 'eager'
+    }
+  },
+
   // Full-display capture overlay — one instance per display, opened and dismissed together.
   // Pooled because a session creates N windows at once and users re-trigger it repeatedly.
   [WindowType.Screenshot]: {

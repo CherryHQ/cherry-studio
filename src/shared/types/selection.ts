@@ -2,7 +2,7 @@ import * as z from 'zod'
 
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { SELECTION_ACTION_RUNNERS } from '@shared/data/preference/preferenceTypes'
+import { SELECTION_ACTION_RUNNER, SELECTION_ACTION_RUNNERS } from '@shared/data/preference/preferenceTypes'
 
 export const SELECTION_BUILTIN_ACTION_IDS = [
   'translate',
@@ -87,3 +87,19 @@ export type SelectionAction = z.infer<typeof SelectionActionSchema>
 export type SelectionActionSession = SelectionAction & {
   sessionId: string
 }
+
+export type AgentSelectionAction = AskAgentSelectionAction | (CustomSelectionAction & { runner: 'agent' })
+
+/** Agent actions open the selection agent window instead of the action window. */
+export function isAgentSelectionAction(action: SelectionAction): action is AgentSelectionAction {
+  return action.isBuiltIn
+    ? action.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT
+    : action.runner === SELECTION_ACTION_RUNNER.AGENT
+}
+
+/** `compose` fits the compose bar to its content height in CSS pixels; `conversation` takes the conversation window size. */
+export const SelectionAgentWindowLayoutSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('compose'), height: z.number().positive() }),
+  z.object({ mode: z.literal('conversation') })
+])
+export type SelectionAgentWindowLayout = z.infer<typeof SelectionAgentWindowLayoutSchema>

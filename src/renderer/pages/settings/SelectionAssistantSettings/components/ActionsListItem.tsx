@@ -5,8 +5,11 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { SELECTION_AGENT_ISSUE_LABEL_KEYS } from '@renderer/utils/selectionAction'
 import { cn } from '@renderer/utils/style'
 import { SELECTION_BUILTIN_ACTION_ID, type SelectionAction } from '@shared/types/selection'
+
+import type { SelectionActionAgentInfo } from '../hooks/useSettingsActionsList'
 
 interface ActionItemProps {
   item: SelectionAction
@@ -14,7 +17,7 @@ interface ActionItemProps {
   onEdit: (item: SelectionAction) => void
   onDelete: (id: string) => void
   getSearchEngineInfo: (engine: string) => { icon: any; name: string } | null
-  getAgentInfo: (item: SelectionAction) => { emoji: string; name: string } | null
+  getAgentInfo: (item: SelectionAction) => SelectionActionAgentInfo | null
 }
 
 const ActionsListItem = memo(
@@ -36,10 +39,15 @@ const ActionsListItem = memo(
               <span>{getSearchEngineInfo(item.searchEngine)?.name}</span>
             </ItemDescription>
           )}
-          {agentInfo && (
+          {agentInfo?.agent && (
             <ItemDescription>
-              <span aria-hidden="true">{agentInfo.emoji}</span>
-              <span className="truncate">{agentInfo.name}</span>
+              <span aria-hidden="true">{agentInfo.agent.emoji}</span>
+              <span className="truncate">{agentInfo.agent.name}</span>
+            </ItemDescription>
+          )}
+          {agentInfo?.issue && (
+            <ItemDescription className="bg-warning-subtle text-warning-subtle-foreground">
+              {t(SELECTION_AGENT_ISSUE_LABEL_KEYS[agentInfo.issue])}
             </ItemDescription>
           )}
         </ItemLeft>

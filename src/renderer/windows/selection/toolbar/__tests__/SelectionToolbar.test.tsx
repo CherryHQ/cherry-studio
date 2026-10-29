@@ -1,6 +1,8 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import SelectionToolbar from '../SelectionToolbar'
@@ -17,6 +19,8 @@ const mocks = vi.hoisted(() => ({
     },
     { id: 'quote', name: 'Quote', enabled: true, isBuiltIn: true },
     { id: 'summary', name: 'Summary', enabled: true, isBuiltIn: true },
+    { id: 'ask-agent', name: 'Ask Agent', enabled: true, isBuiltIn: true },
+    { id: 'user-agent', name: 'Research', enabled: true, isBuiltIn: false, runner: 'agent', agentId: 'gone' },
     { id: 'disabled', name: 'Disabled', enabled: false, isBuiltIn: false, runner: 'default' }
   ] as SelectionActionItem[],
   clearTimeoutTimer: vi.fn(),
@@ -43,19 +47,29 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/components/selection/SelectionToolbarView', () => ({
   default: ({
     actionItems,
-    handleAction
+    handleAction,
+    unavailableReasons
   }: {
     actionItems: SelectionActionItem[]
     handleAction: (action: SelectionActionItem) => void
+    unavailableReasons?: Partial<Record<string, string>>
   }) => (
     <div>
       {actionItems.map((action) => (
-        <button key={action.id} type="button" onClick={() => handleAction(action)}>
+        <button
+          key={action.id}
+          type="button"
+          aria-description={unavailableReasons?.[action.id]}
+          onClick={() => handleAction(action)}>
           {action.name}
         </button>
       ))}
     </div>
   )
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -78,9 +92,13 @@ function pushSelection(text: string, isFullscreen = false, programName = '') {
   })
 }
 
+const agentPage = (items: AgentEntity[]) => ({ items, total: items.length, page: 1 })
+
 describe('SelectionToolbar actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/agents', agentPage([]))
     mocks.handlers.clear()
     mocks.ipcRequest.mockResolvedValue(true)
     Object.assign(window, {
@@ -139,5 +157,29 @@ describe('SelectionToolbar actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.write_to_clipboard', 'bridge text')
+  })
+
+  it('marks agent actions whose agent cannot run, once agents have loaded', () => {
+    MockUseDataApiUtils.mockQueryResult('/agents', { data: undefined, isLoading: true })
+    const { rerender } = render(<SelectionToolbar />)
+    expect(screen.getByRole('button', { name: 'Ask Agent' })).not.toHaveAttribute('aria-description')
+
+    MockUseDataApiUtils.mockQueryData(
+      '/agents',
+      agentPage([
+        { id: 'cherry', name: 'Cherry', model: null, configuration: { builtin_role: 'assistant' } } as AgentEntity
+      ])
+    )
+    rerender(<SelectionToolbar />)
+
+    expect(screen.getByRole('button', { name: 'Ask Agent' })).toHaveAttribute(
+      'aria-description',
+      'selection.action.agent_issue.no_model'
+    )
+    expect(screen.getByRole('button', { name: 'Research' })).toHaveAttribute(
+      'aria-description',
+      'selection.action.agent_issue.agent_unavailable'
+    )
+    expect(screen.getByRole('button', { name: 'Summary' })).not.toHaveAttribute('aria-description')
   })
 })
