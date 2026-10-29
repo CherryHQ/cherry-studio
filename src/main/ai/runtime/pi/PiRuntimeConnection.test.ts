@@ -51,6 +51,7 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
@@ -369,7 +370,10 @@ describe('desktop Pi root connection', () => {
       if (call.sessionId !== root) {
         child = call.sessionId!
         childRuns++
-        return assistantReply(childRuns === 1 ? 'child first answer' : 'child continued answer')
+        return {
+          ...assistantReply(childRuns === 1 ? 'child first answer' : 'child continued answer'),
+          responseId: `child-response-${childRuns}`
+        }
       }
       const last = JSON.stringify(call.messages.at(-1))
       if (last.includes('delegate now'))
@@ -416,6 +420,19 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('continue child') })
     await done(events)
     await expect.poll(() => childText()).toContain('child continued answer')
+    const childMessage = access!
+      .snapshot()
+      .messages.find((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
+      )!
+    await expect
+      .poll(() => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'))
+      .toContainEqual({
+        type: 'response-start',
+        responseId: 'child-response-2',
+        messageId: childMessage.id,
+        sessionId: contexts.context(access!.snapshot().contextId).sessionId
+      })
     expect(child).toBe(firstChild)
     expect(nativeFiles()).toHaveLength(2)
     await expect

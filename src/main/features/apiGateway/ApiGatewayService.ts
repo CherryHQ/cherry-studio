@@ -22,6 +22,7 @@ import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
+const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 
 /** What a scoped internal credential may call: one generation path, one model address. */
@@ -48,6 +49,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private readonly internalApiKey = `cs-internal-${uuidv4()}`
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
+  private readonly usageCaptures = new Map<string, InProcessUsageContext>()
   /** Loopback listener for internal consumers, started on first use and independent of `enabled`. */
   private internalGateway: Promise<ApiGateway> | null = null
   private internalOrigin: string | undefined
@@ -153,6 +155,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     this.internalGateway = null
     this.internalOrigin = undefined
     await internalGateway?.then((gateway) => gateway.stop()).catch(() => undefined)
+    this.usageCaptures.clear()
   }
 
   /**
@@ -445,6 +448,28 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return { [AGENT_SESSION_ID_HEADER]: sessionId }
   }
 
+  captureAgentSessionUsage(
+    sessionId: string,
+    ownerSessionId = sessionId
+  ): { headers: Record<string, string>; release(): void } {
+    const current = application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
+    const usage =
+      current && ownerSessionId === sessionId
+        ? current
+        : { agentSessionId: ownerSessionId, source: current?.source ?? null }
+    const key = uuidv4()
+    this.usageCaptures.set(key, usage)
+    return {
+      headers: {
+        ...this.getAgentSessionUsageHeaders(ownerSessionId),
+        [AGENT_USAGE_CAPTURE_HEADER]: key
+      },
+      release: () => {
+        this.usageCaptures.delete(key)
+      }
+    }
+  }
+
   /** Agent session id of an unrestricted internal request; undefined for every other caller. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
@@ -456,6 +481,11 @@ export class ApiGatewayService extends BaseService implements Activatable {
   resolveAgentSessionUsage(headers: Headers, responseId?: string): InProcessUsageContext | undefined {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
+    const capture = headers.get(AGENT_USAGE_CAPTURE_HEADER)
+    if (capture) {
+      const usage = this.usageCaptures.get(capture)
+      return usage?.agentSessionId === sessionId ? usage : undefined
+    }
     return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
   }
 }

@@ -967,7 +967,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                       this.eventQueue.push({
                         type: 'response-start',
                         responseId: native.message.message.id,
-                        messageId: ownerId
+                        messageId: ownerId,
+                        sessionId: context.sessionId
                       })
                     }
                     this.captureAssistantInvocation(native.message, 'stateless')

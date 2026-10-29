@@ -738,10 +738,12 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   getActiveUsageContext(sessionId: string, responseId?: string): InProcessUsageContext | undefined {
     const entry = this.entries.get(sessionId)
-    if (entry?.agentType === 'claude-code' && responseId) {
+    if (entry && responseId) {
       return {
         agentSessionId: sessionId,
-        source: sourceSnapshotFromMessageSnapshot(this.liveTurn(entry)?.messageSnapshot ?? entry.messageSnapshot),
+        source:
+          sourceSnapshotFromMessageSnapshot(this.liveTurn(entry)?.messageSnapshot ?? entry.messageSnapshot) ??
+          (entry.messageSnapshot ? null : this.captureUsageSource(entry.agentId)),
         recordInvocation: (entry.usageAttribution ??= new AgentSessionUsageAttribution()).capture(responseId)
       }
     }
@@ -760,12 +762,25 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const turn = entry ? this.liveTurn(entry) : undefined
-    if (!turn) return undefined
+    if (!turn)
+      return entry
+        ? {
+            agentSessionId: sessionId,
+            source: sourceSnapshotFromMessageSnapshot(entry.messageSnapshot) ?? this.captureUsageSource(entry.agentId)
+          }
+        : undefined
     return {
       agentSessionId: sessionId,
       assistantMessageId: turn.assistantMessageId,
       source: sourceSnapshotFromMessageSnapshot(turn.messageSnapshot)
     }
+  }
+
+  private captureUsageSource(agentId: string): SourceSnapshot | null {
+    const agent = agentService.getAgent(agentId)
+    return agent
+      ? { type: 'agent', id: agent.id, name: agent.name ?? null, icon: agent.configuration?.avatar ?? null }
+      : null
   }
 
   private reserveSteerContinuation(entry: AgentSessionRuntimeEntry, inputs: AgentRuntimeUserInput[]): void {
@@ -2081,7 +2096,12 @@ export class AgentSessionRuntimeService extends BaseService {
           (execution.kind === 'steer-transition'
             ? (execution.continuationTurn?.assistantMessageId ?? execution.reservation?.assistantMessageId)
             : this.liveTurn(entry)?.assistantMessageId)
-        if (messageId) (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(event.responseId, messageId)
+        if (messageId)
+          (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(
+            event.responseId,
+            messageId,
+            event.sessionId ?? entry.sessionId
+          )
         else (entry.pendingResponseIds ??= new Set()).add(event.responseId)
         break
       }
@@ -2284,6 +2304,7 @@ export class AgentSessionRuntimeService extends BaseService {
             ? (frozenModel?.pricingSnapshot ?? null)
             : invocation.pricingSnapshot,
         credentialReceipt: capture.credentialReceipt,
+        agentSessionId: entry.sessionId,
         source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
       }),

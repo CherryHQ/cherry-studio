@@ -80,8 +80,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         this.input,
         desktop.snapshot.provider,
         desktop.snapshot.model,
-        (usage, sessionId) => {
-          if (sessionId === this.providerSessionId) this.recordUsage(usage)
+        (usage, sessionId, responseId) => {
+          if (sessionId === this.providerSessionId) {
+            if (responseId) this.events.push({ type: 'response-start', responseId })
+            this.recordUsage(usage)
+          }
         }
       )
       const behavior = await createPiBehaviorHost({
@@ -100,6 +103,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           ),
         emit: (event) => this.events.push(event),
         observe: (event) => this.onBehavior(event),
+        usageSessionId: async (thread) => {
+          if (thread === this.handle?.thread.id || thread === (this.context!.nativeThreadId ?? '0'))
+            return this.input.sessionId
+          await this.observeChild(thread)
+          return this.childProjections.get(thread)!.context.sessionId
+        },
         toolCallId: (call) => this.behaviorToolCallId(call)
       })
       const root = await prepareDurableRoot(this.context.id)
@@ -417,7 +426,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         if (archive.status !== 'confirmed') throw new Error(archive.error.message)
         return archive.value
       },
-      (message) => this.adapter.decorate(message)
+      (message) => this.adapter.decorate(message),
+      (responseId, messageId) =>
+        this.events.push({ type: 'response-start', responseId, messageId, sessionId: childContext.sessionId })
     )
     this.childProjections.set(id, projection)
     await projection.attach()

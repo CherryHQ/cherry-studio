@@ -262,8 +262,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input,
       initialSnapshot.provider,
       initialSnapshot.model,
-      (usage, sessionId) => {
-        if (sessionId === nativeId) this.recordUsage(usage)
+      (usage, sessionId, responseId) => {
+        if (sessionId === nativeId) {
+          if (responseId) this.eventQueue.push({ type: 'response-start', responseId })
+          this.recordUsage(usage)
+        }
       }
     )
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
@@ -290,7 +293,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       approval: approvalContext,
       emit: (event) => this.eventQueue.push(event),
       observe: (event) => this.handleBehaviorEvent(event),
-      toolCallId
+      toolCallId,
+      usageSessionId: async (thread) => {
+        if (thread === nativeId) return this.input.sessionId
+        this.observeChild(thread)
+        await this.childHandles.get(thread)
+        const child = this.childProjections.get(thread)
+        if (!child) throw new Error('Native child usage context is unavailable')
+        return child.context.sessionId
+      }
     })
     const options = {
       ...binding,
@@ -571,7 +582,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
               })
           },
           () => handle.pi.archive(),
-          (message) => this.adapter.decorate(message)
+          (message) => this.adapter.decorate(message),
+          (responseId, messageId) =>
+            this.eventQueue.push({ type: 'response-start', responseId, messageId, sessionId: context.sessionId })
         )
         this.childProjections.set(id, projection)
         await projection.attach()

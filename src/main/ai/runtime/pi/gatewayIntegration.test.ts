@@ -44,6 +44,7 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
       getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
       isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
@@ -196,6 +197,7 @@ describe('native Pi through the production gateway', () => {
         nonBypassableApprovalTools: new Set(),
         delegationTools: new Set()
       },
+      usageSessionId: async () => input.sessionId,
       toolCallId: async (call) => call.key,
       emit: () => {},
       observe: () => {}

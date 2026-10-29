@@ -231,6 +231,13 @@
       "when": 1793399402441,
       "tag": "0032_woozy_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1793399706264,
+      "tag": "0033_pale_marten_broadcloak",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -191,6 +191,7 @@ function createCaptureContext(input: {
   credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
+  agentSessionId?: string | null
 }): () => AiUsageCaptureContext {
   return () => {
     const modelId = parseUniqueModelId(input.model.id).modelId
@@ -217,7 +218,8 @@ function createCaptureContext(input: {
       reportedCostCurrency: input.provider.reportedCostCurrency,
       credentialReceipt: input.credentialReceipt,
       source: input.source,
-      messageRef: input.messageRef
+      messageRef: input.messageRef,
+      agentSessionId: input.agentSessionId
     })
   }
 }
@@ -636,6 +638,7 @@ export class AiService extends BaseService {
       source: request.usageContext
         ? request.usageContext.source
         : (request.source ?? sourceSnapshotForAssistant(assistant)),
+      agentSessionId: request.usageContext?.agentSessionId,
       messageRef: request.usageContext
         ? request.usageContext.assistantMessageId
           ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
@@ -728,7 +731,8 @@ export class AiService extends BaseService {
                 sdkModelId,
                 credentialReceipt,
                 source: usageContext().source,
-                messageRef: usageContext().messageRef
+                messageRef: usageContext().messageRef,
+                agentSessionId: usageContext().agentSessionId
               }),
               request.usageContext?.recordInvocation
             )

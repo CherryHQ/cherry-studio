@@ -1011,6 +1011,7 @@ describe('AgentSessionRuntimeService', () => {
               name: 'Original Agent',
               icon: '🧠'
             },
+            agentSessionId: 'session-1',
             messageRef: { kind: 'agent-session', id: 'assistant-1' }
           },
           modality: 'language',
@@ -6084,6 +6085,7 @@ describe('AgentSessionRuntimeService', () => {
           expect.objectContaining({
             requestId: 'claude-agent:pre-steer-request',
             context: expect.objectContaining({
+              agentSessionId: 'session-1',
               messageRef: { kind: 'agent-session', id: 'assistant-1' }
             })
           })

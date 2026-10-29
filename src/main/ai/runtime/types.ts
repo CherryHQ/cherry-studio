@@ -126,7 +126,7 @@ export interface RuntimeMessageProjection {
 
 export type AgentRuntimeEvent =
   | { type: 'message-projection'; projection: RuntimeMessageProjection }
-  | { type: 'response-start'; responseId: string; messageId?: string }
+  | { type: 'response-start'; responseId: string; messageId?: string; sessionId?: string }
   | { type: 'chunk'; chunk: UIMessageChunk }
   | { type: 'input-response'; input: InputState }
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }

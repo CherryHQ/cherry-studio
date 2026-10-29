@@ -46,6 +46,7 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
@@ -397,8 +398,8 @@ describe('desktop Pi Durable connection', () => {
         child = call.sessionId!
         childRuns++
         return childRuns === 1
-          ? held.wait(assistantReply('child first answer'))
-          : assistantReply('child continued answer')
+          ? held.wait({ ...assistantReply('child first answer'), responseId: 'child-response-1' })
+          : { ...assistantReply('child continued answer'), responseId: 'child-response-2' }
       }
       if (!call.messages.some((entry) => entry.role === 'toolResult'))
         return assistantReply(
@@ -431,6 +432,19 @@ describe('desktop Pi Durable connection', () => {
     await connection.messageChild(contextId, 'continue research')
     await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child continued answer')
     expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
+    const childMessage = view!
+      .snapshot()
+      .messages.find((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
+      )!
+    await expect
+      .poll(() => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'))
+      .toContainEqual({
+        type: 'response-start',
+        responseId: 'child-response-2',
+        messageId: childMessage.id,
+        sessionId: contexts.context(view!.snapshot().contextId).sessionId
+      })
     expect(child).not.toBe(root)
     expect(text(events)).not.toContain('child continued answer')
     expect(events.filter((event) => event.type === 'error')).toEqual([])

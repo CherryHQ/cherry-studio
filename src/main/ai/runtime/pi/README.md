@@ -30,7 +30,7 @@ still validates availability for each request after selection.
 
 The binding preserves the model's native protocol when the gateway supports it. The model route
 uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. Internal usage
-headers associate provider calls with the active Agent input. The internal listener works independently
+headers capture the Agent session; native response IDs associate completed calls with root or child messages. The internal listener works independently
 of the externally exposed gateway setting. Its origin participates in the connection signature, so
 a listener restart retires warm connections. Trusted headers carry reasoning, tier and Fast selections
 to the same Cherry parameter builder used by other requests.
@@ -38,7 +38,7 @@ to the same Cherry parameter builder used by other requests.
 The behavior adapter disables native retries; the native HTTP client and gateway do not add retries.
 Native usage is for context and display; it must not create another billing record. Only root model
 calls emit native usage updates on the root stream; child, summary and verifier calls still contribute
-to gateway billing. Product message totals use the gateway's aggregated provider calls.
+to gateway billing. Desktop-owned summaries freeze their initiating owner before the gateway hop. Product message totals use the gateway's aggregated provider calls.
 Model metadata, native errors and tool validation follow Pi's provider implementation. There is no
 `ModelCallPort`, custom AI SDK stream protocol, metadata codec or implicit session requirement.
 
