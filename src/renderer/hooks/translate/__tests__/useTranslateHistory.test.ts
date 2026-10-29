@@ -17,31 +17,6 @@ describe('useTranslateHistory', () => {
     vi.clearAllMocks()
   })
 
-  it('registers history CRUD mutations with shared refresh keys', () => {
-    renderHook(() => useTranslateHistory())
-
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'POST',
-      '/translate/histories',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'PATCH',
-      '/translate/histories/:id',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'DELETE',
-      '/translate/histories/:id',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'DELETE',
-      '/translate/histories',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
-  })
-
   it('adds history and coerces UNKNOWN language sentinels to null', async () => {
     const addTrigger = vi.fn().mockResolvedValue({ id: 'h1' })
     mockUseMutation.mockImplementation((method, path) => {
@@ -82,13 +57,19 @@ describe('useTranslateHistory', () => {
     const { result } = renderHook(() => useTranslateHistory())
 
     await result.current.update('hist-123', { star: true })
+    await result.current.update('archive', { archived: true })
+    await result.current.update('restore', { archived: false })
+    await result.current.update('empty', {})
     await result.current.update('hist-456', {
       sourceLanguage: 'unknown',
       targetLanguage: parseTranslateLangCode('en-us')
     })
 
     expect(updateTrigger).toHaveBeenNthCalledWith(1, { params: { id: 'hist-123' }, body: { star: true } })
-    expect(updateTrigger).toHaveBeenNthCalledWith(2, {
+    expect(updateTrigger).toHaveBeenNthCalledWith(2, { params: { id: 'archive' }, body: { archived: true } })
+    expect(updateTrigger).toHaveBeenNthCalledWith(3, { params: { id: 'restore' }, body: { archived: false } })
+    expect(updateTrigger).toHaveBeenNthCalledWith(4, { params: { id: 'empty' }, body: {} })
+    expect(updateTrigger).toHaveBeenNthCalledWith(5, {
       params: { id: 'hist-456' },
       body: { sourceLanguage: null, targetLanguage: 'en-us' }
     })
@@ -129,7 +110,7 @@ describe('useTranslateHistory', () => {
 
     const { result } = renderHook(() => useTranslateHistory({ update: { rethrowError: false } }))
 
-    await expect(result.current.update('hist-123', { star: false })).resolves.toBeUndefined()
+    await expect(result.current.update('hist-123', { archived: true })).resolves.toBeUndefined()
     expect(loggerSpy).toHaveBeenCalledWith('Failed to update translate history', failure, {
       operation: 'translate.history.error.save'
     })

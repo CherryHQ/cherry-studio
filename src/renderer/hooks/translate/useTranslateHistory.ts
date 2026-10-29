@@ -22,6 +22,7 @@ export type UpdateTranslateHistoryInput = {
   sourceLanguage?: TranslateLangCode | null
   targetLanguage?: TranslateLangCode | null
   star?: boolean
+  archived?: boolean
 }
 
 export const useTranslateHistory = (options?: {
@@ -79,6 +80,7 @@ export const useTranslateHistory = (options?: {
           body.targetLanguage = toPersistedLangCodeOrNull(data.targetLanguage)
         }
         if (data.star !== undefined) body.star = data.star
+        if (data.archived !== undefined) body.archived = data.archived
         return updateTrigger({ params: { id }, body })
       },
       [updateTrigger]
