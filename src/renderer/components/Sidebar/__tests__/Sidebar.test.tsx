@@ -290,7 +290,7 @@ describe('Sidebar resize handle', () => {
     { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
     { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
     { name: 'floating', width: 0, isFloating: true }
-  ])('renders the $name account entry as an accessible footer button', async ({ width, isFloating }) => {
+  ])('renders the $name account entry as an accessible header button', async ({ width, isFloating }) => {
     const user = userEvent.setup()
     const onAccountClick = vi.fn()
     render(
@@ -300,13 +300,17 @@ describe('Sidebar resize handle', () => {
         entries={entries}
         user={{ name: 'User', onClick: onAccountClick }}
         isFloating={isFloating}
-        renderUserTrigger={(trigger: ReactElement) => <div data-testid="footer-account-trigger">{trigger}</div>}
+        renderUserTrigger={(trigger: ReactElement) => <div data-testid="header-account-trigger">{trigger}</div>}
       />
     )
 
     const accountButton = screen.getByRole('button', { name: 'User' })
 
-    expect(screen.getByTestId('footer-account-trigger')).toContainElement(accountButton)
+    expect(screen.getByTestId('header-account-trigger')).toContainElement(accountButton)
+    expect(
+      accountButton.compareDocumentPosition(screen.getByRole('button', { name: 'Chat' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     await user.click(accountButton)
     expect(onAccountClick).toHaveBeenCalledOnce()
   })
@@ -385,7 +389,7 @@ describe('Sidebar resize handle', () => {
     const settingsButton = screen.getByRole('button', { name: 'Settings full' })
     const helpButton = screen.getByRole('button', { name: 'Help full' })
     expect(accountButton).not.toHaveTextContent('›')
-    expect(updateButton.parentElement?.parentElement).toBe(accountButton.parentElement)
+    expect(accountButton.compareDocumentPosition(updateButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(settingsButton.parentElement).not.toBe(accountButton.parentElement)
     expect(helpButton.parentElement).not.toBe(accountButton.parentElement)
   })

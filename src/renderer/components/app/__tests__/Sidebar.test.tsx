@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
   resolutions: [] as any[],
   sidebarWidth: 170,
   shortcuts: [] as any[],
-  showUpdatePopup: vi.fn()
+  showUpdatePopup: vi.fn(),
+  openSettingsTab: vi.fn()
 }))
 
 vi.unmock('@cherrystudio/ui')
@@ -30,6 +31,7 @@ vi.mock('@data/hooks/useCache', () => ({
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
 vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({ useOpenReleaseNotes: () => vi.fn() }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
@@ -160,7 +162,15 @@ describe('app Sidebar', () => {
     mocks.reorder.mockResolvedValue(undefined)
   })
 
-  it('opens and closes the anchored account menu from the footer identity', async () => {
+  it('opens settings directly from the sidebar', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+    await user.click(screen.getByRole('button', { name: 'settings.title' }))
+    expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('opens and closes the anchored account menu from the sidebar identity', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)
 
@@ -238,7 +248,7 @@ describe('app Sidebar', () => {
     if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
     const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
 
-    expect(within(sidebar).queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
+    expect(within(sidebar).getByRole('button', { name: 'settings.title' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'help.title' })).not.toBeInTheDocument()
 
     await user.click(within(sidebar).getByRole('button', { name: 'User' }))

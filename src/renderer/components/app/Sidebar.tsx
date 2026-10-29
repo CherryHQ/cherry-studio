@@ -1,5 +1,5 @@
 import { arrayMove } from '@dnd-kit/sortable'
-import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
+import { CircleOff, LoaderCircle, Settings, WifiOff } from 'lucide-react'
 import type { ReactElement, Ref } from 'react'
 import {
   lazy,
@@ -16,16 +16,18 @@ import {
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 
+import { CommandTooltip } from '../command'
 import { HelpMenu } from '../layout/HelpMenu'
 import { AppUpdateButton } from '../layout/ShellTabBarActions'
 import {
@@ -35,6 +37,7 @@ import {
   type ResolvedSidebarEntry,
   type SidebarIconPresentation,
   type SidebarUser,
+  type SidebarVisibleLayout,
   Sidebar as UISidebar
 } from '../Sidebar'
 import { UserAccountPanel } from '../UserAccountPanel'
@@ -59,7 +62,13 @@ function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly 
   ]
 }
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const { status: accountStatus } = useCherryAccountSession()
@@ -138,7 +147,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       <PopoverContent
         aria-label={t('sidebar.account_menu')}
         align="start"
-        side="top"
+        side="bottom"
         sideOffset={8}
         className="w-56 rounded-md p-0"
         onOpenAutoFocus={(event) => {
@@ -244,11 +253,29 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [])
 
   const sidebarProps = {
+    isFullscreen,
     entries,
     emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
     userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : null,
     renderUserTrigger: renderSidebarUserTrigger,
+    actions: (footerLayout: SidebarVisibleLayout) => (
+      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
+        <Button
+          variant="ghost"
+          size={footerLayout === 'icon' ? 'icon' : 'default'}
+          aria-label={t('settings.title')}
+          onClick={() => openSettingsTab()}
+          className={
+            footerLayout === 'icon'
+              ? 'sidebar-action size-9 rounded-full'
+              : 'sidebar-action w-full justify-start rounded-lg'
+          }>
+          <Settings className="size-4.5" strokeWidth={1.6} />
+          {footerLayout === 'full' && <span>{t('settings.title')}</span>}
+        </Button>
+      </CommandTooltip>
+    ),
     onEntriesReorder: handleReorder
   }
 
