@@ -44,6 +44,28 @@ export class RootMessageProjection {
 
   accept(update: RuntimeMessageProjection, currentMessageId?: string): Map<string, CherryUIMessage['parts']> {
     const changed = new Set<string>()
+    const groups = new Map<string, string[]>()
+    for (const [old, source] of Object.entries(update.legacy ?? {})) {
+      if (!this.sources.has(old) || old === source.messageId) continue
+      groups.set(source.messageId, [...(groups.get(source.messageId) ?? []), old])
+    }
+    for (const [id, old] of groups) {
+      const owners = new Set(old.map((key) => this.sources.get(key)!.messageId))
+      const message = update.messages.find((message) => message.id === id)
+      if (owners.size !== 1 || !message) continue
+      const owner = owners.values().next().value!
+      const first = old[0]
+      const ordered = [...this.sources].flatMap(([key, value]) =>
+        key === first
+          ? [[id, { messageId: owner, parts: message.parts }] as const]
+          : old.includes(key)
+            ? []
+            : [[key, value] as const]
+      )
+      this.sources.clear()
+      for (const [key, value] of ordered) this.sources.set(key, value)
+      changed.add(owner)
+    }
     for (const id of update.removed) {
       this.removed.add(id)
       const previous = this.sources.get(id)
@@ -119,6 +141,6 @@ export class RootMessageProjection {
       sources[id] = { messageId: source.messageId, offset, count: source.parts.length }
       offsets.set(source.messageId, offset + source.parts.length)
     }
-    return { contextId: this.contextId, root: { sources, removed: [...this.removed] } }
+    return { contextId: this.contextId, root: { version: 2, sources, removed: [...this.removed] } }
   }
 }

@@ -18,7 +18,7 @@ import { getRawModelId } from '@shared/utils/model'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
-import { PI_TRANSPORT } from './piStreamAdapter'
+import { PI_TRANSPORT } from './PiMessageMetadata'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type HostOptions = {

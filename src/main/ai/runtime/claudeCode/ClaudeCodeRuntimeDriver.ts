@@ -11,6 +11,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
+import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 
 import { canSalvageClaudeOutput } from './processExitDiagnostics'
@@ -470,13 +471,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
-    const draft = messages.prepareSubmission(
-      this.input.sessionId,
-      input.message.id,
-      this.context!.id,
-      'follow-up',
-      JSON.stringify(sdkMessage.message.content)
-    )
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, 'follow-up', {
+      text: JSON.stringify(sdkMessage.message.content),
+      parts: input.message.data.parts
+    })
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
@@ -494,13 +492,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
-    const draft = messages.prepareSubmission(
-      this.input.sessionId,
-      input.message.id,
-      this.context!.id,
-      'steer',
-      JSON.stringify(sdkMessage.message.content)
-    )
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, 'steer', {
+      text: JSON.stringify(sdkMessage.message.content),
+      parts: input.message.data.parts
+    })
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'steer')
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
@@ -727,11 +722,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             type: 'message-projection',
             projection: {
               contextId,
+              legacy: metadata.legacy,
               messages: projection.snapshot().messages,
               live,
               replaces: Object.fromEntries(
                 batch.events.flatMap((event) =>
-                  event.type === 'item.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.item.ref.id]) : []
+                  event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
                 )
               ),
               removed: [...metadata.removed]
@@ -930,6 +926,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         const handle = opened.value
         const context = saved ?? contexts.child(parent.id, id, handle.thread.id, origin.toolCallId, origin.name)
+        // The SDK stores the child prompt without forwarding it in the live conversation feed.
+        await handle.claude.archive()
         const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
         const responseOwners = new Set<string>()
         let end!: () => void
@@ -957,7 +955,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                     const productId = contexts.context(context.id).checkpointMapping?.projection as
                       | Record<string, string>
                       | undefined
-                    const ownerId = productId?.[`${native.message.uuid}:0`]
+                    const ownerId = productId?.[native.message.uuid]
                     if (ownerId && !responseOwners.has(native.message.message.id)) {
                       responseOwners.add(native.message.message.id)
                       this.eventQueue.push({

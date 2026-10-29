@@ -24,7 +24,7 @@ import { createPiBehavior, createAgentRuntimeSession } from '@cherrystudio/agent
 
 import { readPiApprovalFacts } from './piApprovalFacts'
 import { createPiMcpExtension } from './piMcpExtension'
-import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
+import { resolvePiMcpToolMetadata } from './PiMessageMetadata'
 
 // Real SDK session + MCP wire + QuickJS: catches bypassed nested policy and lost structured results.
 it.each(['cherry-tools', 'my-server', 'my_server'])(
@@ -46,9 +46,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     const cwd = await mkdtemp(join(tmpdir(), 'cherry-pi-native-'))
     const calls: string[] = []
     const events: AgentSessionEvent[] = []
-    const chunks: unknown[] = []
     let resolveMetadata: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata> = () => undefined
-    const adapter = new PiStreamAdapter({ enqueue: (chunk) => chunks.push(chunk) }, (name) => resolveMetadata(name))
     const server = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
       fixture.setRequestHandler('tools/list', async () => ({
@@ -194,7 +192,6 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         })
         native.session.subscribe((event) => {
           events.push(event)
-          adapter.handleEvent(event)
         })
         resolveMetadata = (name) => resolvePiMcpToolMetadata(native.session.getToolDefinition(name), snapshots)
         return native
@@ -207,42 +204,21 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       await mkdir('.context/cherry-electron-dev', { recursive: true })
       await writeFile(
         `.context/cherry-electron-dev/pi-native-${binding}-events.json`,
-        JSON.stringify({ events, chunks }, null, 2)
+        JSON.stringify({ events }, null, 2)
       )
       expect(calls).toEqual(['read_value', longTool, ...(binding === 'cherry-tools' ? [] : ['shadow:forbidden'])])
-      expect(chunks).toContainEqual(
-        expect.objectContaining({
-          type: 'tool-input-available',
-          toolName: expect.any(String),
-          providerMetadata: expect.objectContaining({
-            cherry: expect.objectContaining({
-              tool: { type: 'mcp', serverId, serverName: binding, name: longTool }
-            })
-          })
-        })
+      const longCall = events.find(
+        (event) => event.type === 'tool_execution_start' && resolveMetadata(event.toolName)?.name === longTool
       )
+      if (longCall?.type !== 'tool_execution_start') throw new Error('Missing native MCP call')
+      expect(resolveMetadata(longCall.toolName)).toEqual({ type: 'mcp', serverId, serverName: binding, name: longTool })
       const output = events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'codemode')
       expect(JSON.stringify(output)).toContain('42')
       expect(JSON.stringify(output)).toContain('disabled for this agent')
-      expect(chunks).toContainEqual(
-        expect.objectContaining({
-          type: 'tool-output-available',
-          toolCallId: 'script',
-          output: expect.stringContaining('42')
-        })
+      const nestedResult = events.find(
+        (event) => event.type === 'tool_execution_end' && event.toolCallId === 'script/1'
       )
-      expect(chunks).toContainEqual(
-        expect.objectContaining({
-          type: 'tool-output-available',
-          toolCallId: 'script/1',
-          output: { value: 42 },
-          providerMetadata: expect.objectContaining({
-            cherry: expect.objectContaining({
-              tool: expect.objectContaining({ serverId, serverName: binding, name: 'read_value' })
-            })
-          })
-        })
-      )
+      expect(nestedResult).toMatchObject({ result: { structuredContent: { structuredContent: { value: 42 } } } })
       expect(
         events.some((event) => event.type === 'tool_execution_start' && event.toolName === `${nativePrefix}read_value`)
       ).toBe(true)

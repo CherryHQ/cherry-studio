@@ -28,7 +28,7 @@ import { buildAgentUserContent } from '../agentUserContent'
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
-import { PiStreamAdapter } from '../pi/piStreamAdapter'
+import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -70,25 +70,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly childProjections = new Map<string, ChildThreadProjection>()
   private readonly childOrigins = new Map<string, { parent: string; origin: SubagentOrigin; toolCallId?: string }>()
   private readonly childStates = new Map<string, AgentTaskEventPartData>()
-  private readonly adapter = new PiStreamAdapter(
-    { enqueue: (chunk) => this.events.push({ type: 'chunk', chunk }) },
-    (name) => this.desktop?.mcp.metadata.get(name)
-  )
-  private readonly projection = new ThreadProjection(
-    (chunk) => this.events.push({ type: 'chunk', chunk }),
-    (part) => {
-      this.adapter.handleToolStart(part.toolCallId, part.toolName, part.input)
-      if (part.state === 'output-available')
-        this.adapter.handleToolEnd(part.toolCallId, part.toolName, part.output, false, part.preliminary)
-      else if (part.state === 'output-error')
-        this.adapter.handleToolEnd(
-          part.toolCallId,
-          part.toolName,
-          part.resultProviderMetadata?.pi?.result ?? part.errorText,
-          true
-        )
-    }
-  )
+  private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
+  private projection?: ThreadProjection
 
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
@@ -251,22 +234,20 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (this.closing) return
     try {
       if (event.type === 'snapshot') {
-        const aliases = this.handle!.durable.aliases()
-        const content = event.messages.map((message) => ({ ...message, id: aliases[message.id] ?? message.id }))
         const nowActive = event.activity.state === 'active'
         if (nowActive && !this.sending) this.beginAutonomous()
-        if (!this.baseline) {
-          this.projection.accept({
-            ...event,
-            messages: content.filter((message) => message.metadata?.completeness === 'complete')
-          })
-          this.baseline = true
-        }
-        for (const message of content) this.projection.accept({ type: 'message.upsert', message })
-        this.active = nowActive
         for (const input of event.inputs) {
           this.captureInput(input, true)
         }
+        this.projection ??= new ThreadProjection(
+          this.handle!.thread,
+          this.context!.id,
+          (projection) => this.events.push({ type: 'message-projection', projection }),
+          (message) => this.adapter.decorate(message)
+        )
+        await this.projection.accept(event, !initial, this.handle!.durable.aliases())
+        this.baseline = true
+        this.active = nowActive
         for (const relation of event.subagents ?? [])
           if (relation.child) void this.observeChild(relation.child.id).catch((error) => this.fail(error))
         await this.finishIfIdle()
@@ -366,10 +347,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
       if (event.type === 'goal-notice') {
-        const id = randomUUID()
-        this.events.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-        this.events.push({ type: 'chunk', chunk: { type: 'text-delta', id, delta: event.notice.text } })
-        this.events.push({ type: 'chunk', chunk: { type: 'text-end', id } })
+        this.projection?.notice(event.notice.text)
       }
     }
   }
@@ -449,7 +427,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         const archive = await handle.archive()
         if (archive.status !== 'confirmed') throw new Error(archive.error.message)
         return archive.value
-      }
+      },
+      (message) => this.adapter.decorate(message)
     )
     this.childProjections.set(id, projection)
     await projection.attach()
@@ -574,6 +553,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
     await this.observation?.stop()
     this.observation = undefined
+    await this.projection?.close()
+    this.projection = undefined
     await this.handle?.release()
     this.handle = undefined
     for (const [id, handle] of this.childHandles) {

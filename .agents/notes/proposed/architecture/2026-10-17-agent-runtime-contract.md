@@ -10,7 +10,7 @@ Cherry needs to open native contexts, submit input, observe work independently o
 
 This note replaces the stack's runtime ownership and behavior design. It records the implemented v0 access boundary and its reasons, together with the host obligations still needed for integration. [Common types](../../../../packages/agent-runtime/src/contracts.ts), the [Pi adapter](../../../../packages/agent-runtime-pi/src/runtime.ts), and the [Pi Durable adapter](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) own exact signatures. Pi and Pi Durable desktop calls now use the common Runtime and independent child projections. The full acceptance below remains incomplete; delivered integration does not establish every recovery or performance guarantee. The [harness boundaries](2026-10-17-agent-harness-boundaries.md) own the broader division of responsibilities.
 
-The [SDK content protocol proposal](../simplification/2026-10-29-agent-runtime-content-protocol.md) now owns the planned replacement of `ContentItem` and the move of SDK content accumulation to the shared observation source. The item events and Main readers described below remain the current implementation until that migration; access, input admission, lifecycle, native recovery, and product ownership remain governed here.
+The [SDK content protocol](../simplification/2026-10-29-agent-runtime-content-protocol.md) owns the implemented replacement of `ContentItem` and SDK content accumulation at the shared observation source. Its `RuntimeMessage` contract supersedes the item events and Main readers described below. Access, input admission, lifecycle, native recovery, and product ownership remain governed here.
 
 ## Proposal
 

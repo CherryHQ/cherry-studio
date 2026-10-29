@@ -16,7 +16,7 @@ sources:
 
 ## Ownership and message model
 
-Root conversations and children use `CherryUIMessage`. Each execution selects one content source: chunk streams use `readUIMessageStream` in `pipeStreamLoop`; Claude roots use authoritative message views from `RootMessageProjection`, with host display state applied by `pipeMessageStream`. Each native owner has an independent projection. Child messages come from `ThreadMessageProjection` and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
+Root conversations and children use `CherryUIMessage`. Each execution selects one content source: chunk streams use `readUIMessageStream` in `pipeStreamLoop`; Pi, Pi Durable, and Claude roots use authoritative message views from `RootMessageProjection`, with host display state applied by `pipeMessageStream`. Their runtime adapters accumulate native content into SDK messages before observer fan-out. Each native owner has an independent projection. Child messages come from `ThreadMessageProjection`, Main-owned reply composition, and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
 
 ```text
 Root message source → TopicMessageProjection ──┐

@@ -8,10 +8,10 @@ import { afterAll, expect, it } from 'vitest'
 
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as storedMessages } from '@data/services/AgentSessionMessageService'
 import { RootMessageProjection } from '@main/ai/agentSession/RootMessageProjection'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { confirmed } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
@@ -72,22 +72,23 @@ function verifyContent(source: TranscriptCase, messages: readonly CherryUIMessag
   for (const message of latest.values()) {
     const content = message.message.content
     const blocks: Block[] = typeof content === 'string' ? [{ type: 'text', text: content }] : content
+    let partIndex = 0
+    const projected = messages.find((value) => value.id === message.uuid)
+    if (blocks.some((block) => !('tool_use_id' in block))) order.push(message.uuid)
     for (const [index, block] of blocks.entries()) {
       const id = `${message.uuid}:${index}`
-      const projected = messages.find((value) => value.id === id)
+      const part = 'tool_use_id' in block ? undefined : projected?.parts[partIndex++]
       if (!('tool_use_id' in block)) {
-        order.push(id)
         check(id, 'role', projected?.role, message.type)
       }
       if (block.type === 'text') {
         check(
           id,
           'text',
-          projected?.parts[0]?.type === 'text' ? projected.parts[0].text : undefined,
+          part?.type === 'text' ? part.text : undefined,
           block.text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
         )
       } else if (block.type === 'thinking') {
-        const part = projected?.parts[0]
         check(id, 'thinking', part?.type === 'reasoning' ? part.text : undefined, block.thinking)
         if (typeof block.signature === 'string')
           check(
@@ -174,7 +175,7 @@ function verifyPersistence(messages: readonly CherryUIMessage[]): boolean {
     .values({ id: workspaceId, name: 'Replay', type: 'user', path: `/test/${workspaceId}`, orderKey: 'a0' })
     .run()
   dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Replay', orderKey: 'a0' }).run()
-  const context = contexts.prepareClaudeBranch(sessionId, '/test/claude')
+  const context = prepareClaudeBranch(sessionId, '/test/claude')
   const id = storedMessages.saveMessage({
     sessionId,
     message: { role: 'assistant', status: 'pending', data: { parts: [] } }
