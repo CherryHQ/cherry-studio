@@ -22,6 +22,7 @@ import {
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { isAbortError } from '@main/utils/error'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
@@ -2041,6 +2042,11 @@ export class AiStreamManager extends BaseService {
         }
       })
     } catch (err) {
+      if (signal.aborted && (err === signal.reason || isAbortError(err))) {
+        if (exec.status === 'streaming') exec.status = 'aborted'
+        await this.onExecutionPaused(topicId, modelId, exec)
+        return
+      }
       if (!signal.aborted) {
         logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
       }

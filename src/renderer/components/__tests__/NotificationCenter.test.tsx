@@ -56,9 +56,14 @@ describe('NotificationCenter reading', () => {
     expect(mockDataApiService.patch).not.toHaveBeenCalled()
   })
 
-  it.each(['assistant', 'agent'] as const)(
+  it.each([
+    ['assistant', true],
+    ['agent', true],
+    ['assistant', false],
+    ['agent', false]
+  ] as const)(
     'shows the %s success excerpt while keeping failed and scheduled outcomes compact',
-    async (source) => {
+    async (source, hasReply) => {
       const records: NotificationRecord[] = [
         {
           id: 'c4519cf1-0405-4eb1-a18c-17b263872413',
@@ -90,7 +95,7 @@ describe('NotificationCenter reading', () => {
           category: 'system',
           kind: 'queue-completion',
           title: 'Hidden batch count',
-          message: 'Conversation name to hide\nBrief reply excerpt',
+          message: hasReply ? 'Conversation name to hide\nBrief reply excerpt' : 'Conversation name to hide',
           createdAt: Date.now() - 1000,
           readAt: null,
           dismissedAt: null,
@@ -136,7 +141,7 @@ describe('NotificationCenter reading', () => {
       expect(await screen.findByText('Current agent')).toBeVisible()
       expect(await screen.findByText('Completed source')).toBeVisible()
       expect(await screen.findByText('Saved scheduled task')).toBeVisible()
-      for (const label of ['Failed', 'Brief reply excerpt', 'Interrupted'])
+      for (const label of ['Failed', hasReply ? 'Brief reply excerpt' : 'Completed', 'Interrupted'])
         expect(screen.getByText(label)).toBeVisible()
       expect(screen.queryByText('Old agent')).not.toBeInTheDocument()
       expect(screen.queryByText(/Conversation name to hide/)).not.toBeInTheDocument()

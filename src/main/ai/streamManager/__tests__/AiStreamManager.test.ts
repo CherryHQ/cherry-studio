@@ -1859,6 +1859,43 @@ describe('AiStreamManager', () => {
   })
 
   describe('unsuccessful conversation outcomes', () => {
+    it.each(['reason', 'abort-error', 'real-error'] as const)(
+      'settles a startup rejection after Stop without hiding genuine errors: %s',
+      async (kind) => {
+        const outcomes: ConversationUnsuccessfulEvent[] = []
+        mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+        mockStreamText.mockImplementationOnce(
+          (request) =>
+            new Promise((_, reject) => {
+              const signal = (request.requestOptions as { signal: AbortSignal }).signal
+              signal.addEventListener(
+                'abort',
+                () =>
+                  reject(
+                    kind === 'reason'
+                      ? signal.reason
+                      : kind === 'abort-error'
+                        ? new DOMException('OCR cancelled', 'AbortError')
+                        : new Error('Storage unavailable')
+                  ),
+                { once: true }
+              )
+            })
+        )
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [],
+          isPersistentConversation: true
+        })
+        mgr.abort('a', 'user-requested')
+        await vi.waitFor(() => expect(outcomes).toHaveLength(1))
+        expect(outcomes[0].status).toBe(kind === 'real-error' ? 'failed' : 'cancelled')
+        expect(conversationCompletedEvents).toEqual([])
+      }
+    )
+
     it.each([
       ['user-requested', 'cancelled'],
       ['remote-cancel', 'cancelled'],
