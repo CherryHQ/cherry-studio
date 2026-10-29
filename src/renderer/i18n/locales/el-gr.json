@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Κλείσιμο άλλων αρχείων",
   "agent.preview_pane.tabs.show_all": "Εμφάνιση όλων των καρτελών",
   "agent.preview_pane.toggle_tree": "Εναλλαγή δέντρου αρχείων",
-  "agent.preview_pane.too_large.description": "Το αρχείο υπερβαίνει το όριο προεπισκόπησης των {{limit}}.",
   "agent.preview_pane.tree_error.invalid_path.description": "Το πλαίσιο αρχείων απαιτεί έγκυρη απόλυτη τοπική διαδρομή. Παρακαλώ επιλέξτε ξανά τον κατάλογο εργασίας.",
   "agent.preview_pane.tree_error.invalid_path.title": "Μη έγκυρη διαδρομή χώρου εργασίας",
   "agent.preview_pane.tree_error.load_error.description": "Βεβαιωθείτε ότι ο φάκελος εργασίας υπάρχει ακόμα και είναι προσβάσιμος, στη συνέχεια προσπαθήστε ξανά.",

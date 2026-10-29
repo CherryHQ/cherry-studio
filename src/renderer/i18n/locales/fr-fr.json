@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Fermer les autres fichiers",
   "agent.preview_pane.tabs.show_all": "Afficher tous les onglets",
   "agent.preview_pane.toggle_tree": "Afficher ou masquer l'arborescence",
-  "agent.preview_pane.too_large.description": "Le fichier dépasse la limite d’aperçu de {{limit}}.",
   "agent.preview_pane.tree_error.invalid_path.description": "Le panneau de fichiers nécessite un chemin local absolu valide. Veuillez sélectionner à nouveau le répertoire de travail.",
   "agent.preview_pane.tree_error.invalid_path.title": "Chemin d'espace de travail invalide",
   "agent.preview_pane.tree_error.load_error.description": "Assurez-vous que le répertoire de travail existe toujours et est accessible, puis réessayez.",

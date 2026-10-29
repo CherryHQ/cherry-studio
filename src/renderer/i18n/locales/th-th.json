@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "ปิดไฟล์อื่น",
   "agent.preview_pane.tabs.show_all": "แสดงแท็บทั้งหมด",
   "agent.preview_pane.toggle_tree": "แสดง/ซ่อนแผนผังไฟล์",
-  "agent.preview_pane.too_large.description": "ไฟล์เกินขีดจำกัดพรีวิว {{limit}}",
   "agent.preview_pane.tree_error.invalid_path.description": "แผงไฟล์ต้องการเส้นทางในเครื่องที่ถูกต้อง โปรดเลือกไดเรกทอรีทำงานอีกครั้ง",
   "agent.preview_pane.tree_error.invalid_path.title": "เส้นทางเวิร์กสเปซไม่ถูกต้อง",
   "agent.preview_pane.tree_error.load_error.description": "ตรวจสอบว่าไดเรกทอรีทำงานยังคงมีอยู่และสามารถเข้าถึงได้ แล้วลองอีกครั้ง",

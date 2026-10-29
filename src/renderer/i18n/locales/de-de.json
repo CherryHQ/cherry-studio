@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Andere Dateien schließen",
   "agent.preview_pane.tabs.show_all": "Alle Tabs anzeigen",
   "agent.preview_pane.toggle_tree": "Dateibaum ein-/ausblenden",
-  "agent.preview_pane.too_large.description": "Datei überschreitet das {{limit}}-Vorschau-Limit.",
   "agent.preview_pane.tree_error.invalid_path.description": "Das Dateipanel erfordert einen gültigen absoluten lokalen Pfad. Bitte wählen Sie das Arbeitsverzeichnis erneut aus.",
   "agent.preview_pane.tree_error.invalid_path.title": "Ungültiger Arbeitsbereich-Pfad",
   "agent.preview_pane.tree_error.load_error.description": "Stellen Sie sicher, dass das Arbeitsverzeichnis noch existiert und zugänglich ist, und versuchen Sie es dann erneut.",

@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Cerrar los demás archivos",
   "agent.preview_pane.tabs.show_all": "Mostrar todas las pestañas",
   "agent.preview_pane.toggle_tree": "Mostrar u ocultar el árbol de archivos",
-  "agent.preview_pane.too_large.description": "El archivo excede el límite de vista previa de {{limit}}.",
   "agent.preview_pane.tree_error.invalid_path.description": "El panel de archivos requiere una ruta local absoluta válida. Selecciona de nuevo la carpeta de trabajo.",
   "agent.preview_pane.tree_error.invalid_path.title": "Ruta de espacio de trabajo no válida",
   "agent.preview_pane.tree_error.load_error.description": "Asegúrate de que la carpeta de trabajo todavía existe y es accesible, e inténtalo de nuevo.",

@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Diğer dosyaları kapat",
   "agent.preview_pane.tabs.show_all": "Tüm sekmeleri göster",
   "agent.preview_pane.toggle_tree": "Dosya ağacını göster/gizle",
-  "agent.preview_pane.too_large.description": "Dosya, {{limit}} önizleme sınırını aşıyor.",
   "agent.preview_pane.tree_error.invalid_path.description": "Dosya paneli için geçerli bir mutlak yerel yol gerekir. Çalışma dizinini yeniden seçin.",
   "agent.preview_pane.tree_error.invalid_path.title": "Geçersiz çalışma alanı yolu",
   "agent.preview_pane.tree_error.load_error.description": "Çalışma dizininin hâlâ var ve erişilebilir olduğundan emin olup yeniden deneyin.",

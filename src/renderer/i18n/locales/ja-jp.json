@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "他のファイルを閉じる",
   "agent.preview_pane.tabs.show_all": "すべてのタブを表示",
   "agent.preview_pane.toggle_tree": "ファイルツリーの表示切替",
-  "agent.preview_pane.too_large.description": "ファイルが{{limit}}のプレビュー制限を超えています。",
   "agent.preview_pane.tree_error.invalid_path.description": "ファイルパネルには有効な絶対ローカルパスが必要です。ワークフォルダーを再度選択してください。",
   "agent.preview_pane.tree_error.invalid_path.title": "無効なワークスペースパス",
   "agent.preview_pane.tree_error.load_error.description": "作業フォルダーが存在し、アクセス可能であることを確認してから、もう一度お試しください。",

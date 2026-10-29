@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "关闭其他文件",
   "agent.preview_pane.tabs.show_all": "显示所有标签页",
   "agent.preview_pane.toggle_tree": "显示/隐藏目录树",
-  "agent.preview_pane.too_large.description": "文件超过 {{limit}} 预览上限。",
   "agent.preview_pane.tree_error.invalid_path.description": "文件面板需要有效的本地绝对路径，请重新选择工作目录。",
   "agent.preview_pane.tree_error.invalid_path.title": "工作区路径无效",
   "agent.preview_pane.tree_error.load_error.description": "请确认工作目录仍然存在且可以访问，然后重试。",

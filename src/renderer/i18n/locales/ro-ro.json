@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Închide celelalte fișiere",
   "agent.preview_pane.tabs.show_all": "Afișează toate filele",
   "agent.preview_pane.toggle_tree": "Afișează sau ascunde arborele de fișiere",
-  "agent.preview_pane.too_large.description": "Fișierul depășește limita de previzualizare de {{limit}}.",
   "agent.preview_pane.tree_error.invalid_path.description": "Panoul de fișiere necesită o cale locală absolută validă. Selectează din nou directorul de lucru.",
   "agent.preview_pane.tree_error.invalid_path.title": "Calea spațiului de lucru este invalidă",
   "agent.preview_pane.tree_error.load_error.description": "Asigură-te că directorul de lucru există și este accesibil, apoi încearcă din nou.",

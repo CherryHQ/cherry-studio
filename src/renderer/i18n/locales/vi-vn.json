@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Đóng các tệp khác",
   "agent.preview_pane.tabs.show_all": "Hiển thị tất cả các tab",
   "agent.preview_pane.toggle_tree": "Hiện/ẩn cây tệp",
-  "agent.preview_pane.too_large.description": "Tệp vượt quá giới hạn xem trước {{limit}}.",
   "agent.preview_pane.tree_error.invalid_path.description": "Bảng tệp yêu cầu một đường dẫn tuyệt đối hợp lệ trên máy cục bộ. Vui lòng chọn lại thư mục làm việc.",
   "agent.preview_pane.tree_error.invalid_path.title": "Đường dẫn không gian làm việc không hợp lệ",
   "agent.preview_pane.tree_error.load_error.description": "Hãy đảm bảo thư mục làm việc vẫn tồn tại và có thể truy cập được, sau đó thử lại.",

@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Закрыть другие файлы",
   "agent.preview_pane.tabs.show_all": "Показать все вкладки",
   "agent.preview_pane.toggle_tree": "Показать или скрыть дерево файлов",
-  "agent.preview_pane.too_large.description": "Файл превышает лимит предпросмотра {{limit}}.",
   "agent.preview_pane.tree_error.invalid_path.description": "Для панели файлов требуется действительный абсолютный локальный путь. Снова выберите рабочий каталог.",
   "agent.preview_pane.tree_error.invalid_path.title": "Недопустимый путь рабочей области",
   "agent.preview_pane.tree_error.load_error.description": "Убедитесь, что рабочий каталог всё ещё существует и доступен, затем попробуйте снова.",

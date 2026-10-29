@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Chiudi gli altri file",
   "agent.preview_pane.tabs.show_all": "Mostra tutte le schede",
   "agent.preview_pane.toggle_tree": "Mostra o nascondi l'albero dei file",
-  "agent.preview_pane.too_large.description": "Il file supera il limite di {{limit}} per l'anteprima.",
   "agent.preview_pane.tree_error.invalid_path.description": "Il pannello dei file richiede un percorso locale assoluto valido. Seleziona di nuovo la cartella di lavoro.",
   "agent.preview_pane.tree_error.invalid_path.title": "Percorso dell'area di lavoro non valido",
   "agent.preview_pane.tree_error.load_error.description": "Verifica che la cartella di lavoro esista ancora e sia accessibile, poi riprova.",

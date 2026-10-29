@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Close other files",
   "agent.preview_pane.tabs.show_all": "Show all tabs",
   "agent.preview_pane.toggle_tree": "Toggle file tree",
-  "agent.preview_pane.too_large.description": "File exceeds the {{limit}} preview limit.",
   "agent.preview_pane.tree_error.invalid_path.description": "The file panel requires a valid absolute local path. Please select the work directory again.",
   "agent.preview_pane.tree_error.invalid_path.title": "Invalid workspace path",
   "agent.preview_pane.tree_error.load_error.description": "Make sure the work directory still exists and is accessible, then try again.",

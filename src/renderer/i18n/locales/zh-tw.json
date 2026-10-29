@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "關閉其他檔案",
   "agent.preview_pane.tabs.show_all": "顯示所有分頁",
   "agent.preview_pane.toggle_tree": "顯示/隱藏目錄樹",
-  "agent.preview_pane.too_large.description": "檔案超過 {{limit}} 預覽限制。",
   "agent.preview_pane.tree_error.invalid_path.description": "檔案面板需要有效的絕對本機路徑。請重新選擇工作目錄。",
   "agent.preview_pane.tree_error.invalid_path.title": "無效的工作區路徑",
   "agent.preview_pane.tree_error.load_error.description": "請確認工作目錄仍然存在且可存取，然後再試一次。",

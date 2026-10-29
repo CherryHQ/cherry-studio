@@ -217,7 +217,6 @@
   "agent.preview_pane.tabs.close_others": "Fechar os outros ficheiros",
   "agent.preview_pane.tabs.show_all": "Mostrar todos os separadores",
   "agent.preview_pane.toggle_tree": "Mostrar ou ocultar a árvore de ficheiros",
-  "agent.preview_pane.too_large.description": "O ficheiro excede o limite de pré-visualização de {{limit}}.",
   "agent.preview_pane.tree_error.invalid_path.description": "O painel de ficheiros requer um caminho local absoluto válido. Por favor, selecione a pasta de trabalho novamente.",
   "agent.preview_pane.tree_error.invalid_path.title": "Caminho do espaço de trabalho inválido",
   "agent.preview_pane.tree_error.load_error.description": "Certifique-se de que a pasta de trabalho ainda existe e está acessível, depois tente novamente.",
