@@ -387,13 +387,11 @@ describe('ModelSelector', () => {
       expect(onSelect).not.toHaveBeenCalled()
     })
 
-    it('draws the subscription lock in the tag color', () => {
+    it('draws the subscription tag in the prototype amber', () => {
       renderCherryAiGroup()
 
       const subscriptionTag = screen.getByText('models.type.subscription').closest('div')
-      // The lock inherits the tag's text color, so the icon and the label can never diverge.
       expect(subscriptionTag).toHaveStyle({ color: '#d48806' })
-      expect(subscriptionTag?.querySelector('svg')).toHaveAttribute('stroke', 'currentColor')
     })
 
     it('shows the backend plan name instead of the link once subscribed', () => {

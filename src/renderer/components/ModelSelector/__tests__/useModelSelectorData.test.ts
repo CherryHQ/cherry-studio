@@ -224,6 +224,36 @@ describe('useModelSelectorData', () => {
     }
   })
 
+  it('shows no locked rows once the account has a paid plan', () => {
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [makeModel('owned-model', CHERRY_CLOUD_PROVIDER_ID)]
+    })
+    const otherPlan = {
+      id: '33333333-3333-4333-8333-333333333333',
+      display_name: 'Other',
+      is_free: false,
+      default_for_new_accounts: false,
+      quota_pool_count: 1,
+      model_count: 1,
+      purchase_available: true,
+      models: [
+        { id: 'other-plan-model', display_name: 'Other model', available_features: ['agent', 'chat', 'translate'] }
+      ]
+    }
+    cloudPlans.data = { measured_at: '2026-10-27T00:00:00Z', entitlements: [], available_plans: [otherPlan] }
+    cloudPlans.activePaid = { id: '11111111-1111-4111-8111-111111111111', plan: { display_name: 'Plus' } }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+      expect(result.current.modelItems.some((item) => item.locked)).toBe(false)
+    } finally {
+      cloudPlans.data = undefined
+      cloudPlans.activePaid = undefined
+    }
+  })
+
   it('passes the selector activation state to every catalog query', () => {
     wireDeps({
       providers: [makeProvider('openai')],

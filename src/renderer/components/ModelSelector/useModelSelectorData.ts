@@ -125,11 +125,14 @@ export function useModelSelectorData({
   const { isModelHidden, isModelFree, isModelUnavailable, getModelDescription } =
     useCherryCloudModelAvailability(enabled)
   const { plansQuery, activePaid } = useCherryCloudPlans(enabled)
-  // Models a paid plan grants; those the account cannot use yet render as locked rows. Like the usage
-  // page, ignore purchase_available: the portal decides whether checkout is open.
+  // Until the account subscribes, paid plan models it cannot use render as locked rows; there is no
+  // higher plan to sell after that. Like the usage page, ignore purchase_available: the portal decides.
   const planModels = useMemo(
-    () => (plansQuery.data?.available_plans ?? []).filter((plan) => !plan.is_free).flatMap((plan) => plan.models ?? []),
-    [plansQuery.data]
+    () =>
+      activePaid
+        ? []
+        : (plansQuery.data?.available_plans ?? []).filter((plan) => !plan.is_free).flatMap((plan) => plan.models ?? []),
+    [activePaid, plansQuery.data]
   )
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
