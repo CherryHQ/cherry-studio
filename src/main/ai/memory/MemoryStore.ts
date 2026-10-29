@@ -1,8 +1,6 @@
-import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, open } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import { promisify } from 'node:util'
 
 import { Mutex } from 'async-mutex'
 
@@ -13,6 +11,7 @@ import {
   memoryBatchStatus,
   type MemoryBatch,
   type MemoryFileChange,
+  type MemoryLegacyOriginal,
   type MemoryMutationSource,
   reconcileMemoryBackup,
   saveMemoryBackup
@@ -21,10 +20,9 @@ import {
   assertMemoryContent,
   assertMemoryPath,
   assertMemoryTarget,
-  ensureMemoryDirectory,
+  initializeMemoryFiles,
   listMemoryFiles,
   MEMORY_ENTRY,
-  MEMORY_TOPICS,
   MemoryError,
   memoryHash,
   readMemoryBytes,
@@ -84,6 +82,7 @@ export interface MemoryClearPreview {
 interface MemoryCommitConditions {
   readReceipts?: readonly string[]
   clearTargets?: readonly string[]
+  legacy?: MemoryLegacyOriginal
 }
 
 interface RecoveryBaseline {
@@ -116,22 +115,9 @@ export class MemoryStore {
 
   async initialize(): Promise<void> {
     await this.lock.runExclusive(async () => {
-      await mkdir(this.root, { recursive: true, mode: 0o700 })
-      await assertMemoryPath(this.root, '')
+      await initializeMemoryFiles(this.root)
       await mkdir(this.backupRoot, { recursive: true, mode: 0o700 })
       await assertMemoryPath(this.backupRoot, '')
-      await ensureMemoryDirectory(this.root, MEMORY_TOPICS)
-      if (process.platform === 'win32') {
-        await promisify(execFile)('attrib.exe', ['+H', path.join(this.root, MEMORY_TOPICS)], { windowsHide: true })
-      }
-      const entry = await assertMemoryPath(this.root, MEMORY_ENTRY)
-      try {
-        const handle = await open(entry, 'wx', 0o600)
-        await handle.close()
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      }
-      await readMemoryEntry(this.root)
     })
   }
 
@@ -201,6 +187,16 @@ export class MemoryStore {
     access.assertAuthorized()
     const generation = this.generation
     const dependencies = (conditions.readReceipts ?? []).map((receipt) => this.baseline(access, receipt))
+    const legacy = conditions.legacy
+      ? { path: conditions.legacy.path, content: Buffer.from(conditions.legacy.content) }
+      : undefined
+    if (legacy && (source !== 'migration' || !/^memory\/fact\.md$/i.test(legacy.path)))
+      throw new MemoryError('invalid-path', 'Only a trusted migration can back up legacy FACT content')
+    const assertLegacy = async () => {
+      if (legacy && memoryHash(await readMemoryBytes(this.root, legacy.path)) !== memoryHash(legacy.content))
+        throw new MemoryError('conflict', 'Legacy FACT changed during migration')
+    }
+    await assertLegacy()
     const clearTargets = conditions.clearTargets ? [...conditions.clearTargets] : undefined
     const changes: MemoryFileChange[] = []
     for (const mutation of intent) {
@@ -244,8 +240,9 @@ export class MemoryStore {
       }
       for (const change of changes)
         await this.readMatching({ path: change.path, hash: memoryHash(change.before), generation })
+      await assertLegacy()
       if (source === 'clear' || source === 'recovery') this.invalidate()
-      return this.apply(access, changes, source, validateApproval, epoch)
+      return this.apply(access, changes, source, validateApproval, epoch, legacy)
     })
   }
 
@@ -377,17 +374,18 @@ export class MemoryStore {
     proposed: readonly MemoryFileChange[],
     source: MemoryMutationSource,
     approval: () => undefined,
-    epoch: number
+    epoch: number,
+    legacy?: MemoryLegacyOriginal
   ): Promise<MemoryCommitResult> {
     const changes = proposed.filter((change) => memoryHash(change.before) !== memoryHash(change.after))
-    if (!changes.length) {
+    if (!changes.length && !legacy) {
       return {
         batchId: null,
         files: proposed.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'unchanged' }))
       }
     }
     const generation = this.generation
-    const batch = await createMemoryBackup(this.backupRoot, changes, source)
+    const batch = await createMemoryBackup(this.backupRoot, changes, source, legacy)
     const result: MemoryCommitResult = {
       batchId: batch.id,
       files: changes.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'pending' }))

@@ -32,11 +32,22 @@ const batchSchema = z.strictObject({
   createdAt: z.number().int().nonnegative(),
   source: z.enum(['controlled', 'dreaming', 'recovery', 'clear', 'migration']),
   status: z.enum(['pending', 'completed', 'partial']),
+  legacy: z
+    .strictObject({
+      path: z.string().regex(/^memory\/fact\.md$/i),
+      content: z.string(),
+      hash: z.string().regex(/^[0-9a-f]{64}$/)
+    })
+    .optional(),
   steps: z.array(stepSchema)
 })
 
 export type MemoryBatch = z.infer<typeof batchSchema>
 export type MemoryMutationSource = MemoryBatch['source']
+export interface MemoryLegacyOriginal {
+  path: string
+  content: Buffer
+}
 export interface MemoryFileChange {
   path: string
   before: Buffer | null
@@ -86,6 +97,15 @@ async function storedBatches(root: string): Promise<StoredBatch[]> {
       assertMemoryTarget(step.path)
       decodeOriginal(step)
     }
+    if (batch.legacy) {
+      const original = Buffer.from(batch.legacy.content, 'base64')
+      if (
+        batch.source !== 'migration' ||
+        original.toString('base64') !== batch.legacy.content ||
+        memoryHash(original) !== batch.legacy.hash
+      )
+        throw new MemoryError('invalid-backup', 'Legacy memory backup content does not match its hash')
+    }
     batches.push({ filename, reservedBytes: Math.max(bytes.length, reservedBatchBytes(batch)), batch })
   }
   return batches.sort(
@@ -101,8 +121,11 @@ function batchFilename(batch: MemoryBatch): string {
 export async function createMemoryBackup(
   root: string,
   changes: readonly MemoryFileChange[],
-  source: MemoryMutationSource
+  source: MemoryMutationSource,
+  legacy?: MemoryLegacyOriginal
 ): Promise<MemoryBatch> {
+  if (legacy && (source !== 'migration' || !/^memory\/fact\.md$/i.test(legacy.path)))
+    throw new MemoryError('invalid-backup', 'Legacy originals belong only to FACT migration backups')
   const existing = await storedBatches(root)
   const batch: MemoryBatch = {
     version: 1,
@@ -110,6 +133,9 @@ export async function createMemoryBackup(
     createdAt: Math.max(Date.now(), (existing.at(-1)?.batch.createdAt ?? 0) + 1),
     source,
     status: 'pending',
+    ...(legacy
+      ? { legacy: { path: legacy.path, content: legacy.content.toString('base64'), hash: memoryHash(legacy.content)! } }
+      : {}),
     steps: changes.map((change) => ({
       path: change.path,
       before: change.before?.toString('base64') ?? null,
@@ -148,6 +174,11 @@ export async function saveMemoryBackup(root: string, batch: MemoryBatch): Promis
 export async function latestMemoryBackup(root: string): Promise<MemoryBatch | undefined> {
   const stored = await storedBatches(root)
   return stored.findLast((item) => item.batch.steps.some((step) => step.outcome !== 'unchanged'))?.batch
+}
+
+export async function findLegacyMemoryBackup(root: string, hash: string): Promise<string | undefined> {
+  const stored = await storedBatches(root)
+  return stored.findLast((item) => item.batch.source === 'migration' && item.batch.legacy?.hash === hash)?.batch.id
 }
 
 export function memoryBatchStatus(batch: MemoryBatch): MemoryBatch['status'] {
