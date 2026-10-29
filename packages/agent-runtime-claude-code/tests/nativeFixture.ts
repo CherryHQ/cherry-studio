@@ -173,7 +173,7 @@ export async function observe(handle: ClaudeThreadHandle) {
   const initial: ThreadSnapshot = {
     type: 'snapshot',
     coverage: 'live-only',
-    items: [],
+    messages: [],
     inputs: [],
     activity: { scope: 'foreground', state: 'unknown' }
   }
@@ -209,5 +209,7 @@ export const spawnChild = (id: string, background = false): ReplyBlock => ({
 })
 
 export function textOf(snapshot: ThreadSnapshot): string[] {
-  return snapshot.items.flatMap((item) => (item.type === 'message' ? item.parts.map((part) => part.text) : []))
+  return snapshot.messages.flatMap((item) =>
+    item.parts.flatMap((part) => (part.type === 'text' || part.type === 'reasoning' ? [part.text] : []))
+  )
 }

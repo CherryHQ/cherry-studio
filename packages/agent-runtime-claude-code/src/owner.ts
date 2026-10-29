@@ -197,7 +197,7 @@ export class ClaudeOwner {
       try {
         for await (const message of this.sdk!) {
           if (this.buffered) this.buffered.push(message)
-          else this.consume(message)
+          else await this.consume(message)
         }
       } catch (error) {
         if (!this.closing) this.report(error)
@@ -356,7 +356,7 @@ export class ClaudeOwner {
     return false
   }
 
-  private consume(message: SDKMessage | ClaudeCommandLifecycle): void {
+  private async consume(message: SDKMessage | ClaudeCommandLifecycle): Promise<void> {
     if (isCommandLifecycle(message)) {
       const input = this.inputs.get(message.command_uuid)
       if (input) {
@@ -409,7 +409,12 @@ export class ClaudeOwner {
       events.push(...projection.message(message, { live: !agentId, aborted: message.aborted }))
       for (const block of message.message.content)
         if (block.type === 'tool_use') this.toolOwners.set(block.id, projection)
-      if (!agentId) this.response = events.findLast((event) => event.type === 'item.upsert')?.item.ref ?? this.response
+      if (!agentId) {
+        const response = events.findLast(
+          (event) => event.type === 'message.upsert' && event.message.role === 'assistant'
+        )
+        if (response?.type === 'message.upsert') this.response = projection.ref(response.message.id)
+      }
     } else if (message.type === 'user' && message.uuid) {
       events.push(
         ...projection.message(
@@ -418,13 +423,18 @@ export class ClaudeOwner {
         )
       )
     } else if (message.type === 'stream_event') {
-      events.push(...projection.partial(message))
+      events.push(...(await projection.partial(message)))
     } else if (message.type === 'system' && message.subtype === 'model_refusal_fallback') {
       for (const target of this.projections.values())
         target.publish(target.remove(message.retracted_message_uuids ?? []))
     } else if (message.type === 'system' && message.subtype === 'compact_boundary') {
       events.push({ type: 'gap', reason: 'mapping-reset' })
     } else if (message.type === 'result') {
+      const content = projection.result(message)
+      if (content.length) {
+        projection.publish(content)
+        if (!agentId) this.response = projection.ref(message.uuid)
+      }
       events.push({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
     }
     if (message.type !== 'result') projection.publish(events, { source: 'live', message })
@@ -525,7 +535,7 @@ export class ClaudeOwner {
       this.reading = undefined
       const buffered = this.buffered
       this.buffered = undefined
-      for (const message of buffered ?? []) this.consume(message)
+      for (const message of buffered ?? []) await this.consume(message)
     }
   }
 
@@ -566,7 +576,10 @@ export class ClaudeOwner {
         }
       }
     }
-    for (const projection of this.projections.values()) projection.feed.close('shutdown')
+    for (const projection of this.projections.values()) {
+      await projection.close()
+      projection.feed.close('shutdown')
+    }
     return { status: 'confirmed', value: { effect: 'closed' } }
   }
 }

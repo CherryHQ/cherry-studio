@@ -11,13 +11,14 @@ export class ClaudeFeed {
   private readonly taskRuns = new Map<string, string>()
   private readonly observers = new Set<(batch: ClaudeObservation) => void>()
   private ended = false
+  private legacy: NonNullable<ClaudeObservation['legacy']> = {}
 
   constructor(private readonly report: (error: unknown) => void) {
     this.state = new ThreadFeed(
       {
         type: 'snapshot',
         coverage: 'live-only',
-        items: [],
+        messages: [],
         inputs: [],
         subagents: [],
         activity: { scope: 'foreground', state: 'unknown' }
@@ -33,13 +34,19 @@ export class ClaudeFeed {
   private baseline(): ClaudeObservation {
     return {
       events: [this.snapshot],
+      legacy: structuredClone(this.legacy),
       native: structuredClone([...this.native.values()]),
       retracted: [...this.retracted]
     }
   }
 
-  publish(events: readonly ObservationPayload[], native: readonly ClaudeNativeMessage[] = []): void {
+  publish(
+    events: readonly ObservationPayload[],
+    native: readonly ClaudeNativeMessage[] = [],
+    legacy?: ClaudeObservation['legacy']
+  ): void {
     if (this.ended) return
+    if (legacy) this.legacy = structuredClone(legacy)
     native = native.filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
     for (const event of events) this.state.publish(event)
     for (const value of native) {
@@ -64,7 +71,7 @@ export class ClaudeFeed {
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
         this.native.set(key, structuredClone(value))
     }
-    const batch = { events, native, retracted: [...this.pendingRetractions] }
+    const batch = { events, native, legacy: structuredClone(this.legacy), retracted: [...this.pendingRetractions] }
     this.pendingRetractions.clear()
     for (const send of this.observers) send(batch)
   }

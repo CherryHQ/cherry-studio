@@ -66,14 +66,12 @@ it('reconciles an archive read overlapping live output without losing the commit
       'Before archive',
       'Concurrent tail'
     ])
-    expect(view.snapshot.items.some((item) => item.ref.id.startsWith('live:'))).toBe(false)
+    expect(view.snapshot.messages.some((item) => item.id.startsWith('live:'))).toBe(false)
     const final = confirmed(await root.claude.archive())
     expect(final.sources.filter((source) => source.ref.id.startsWith('live:'))).toEqual([])
-    expect(final.items.filter((item) => item.type === 'message' && item.role === 'assistant')).toHaveLength(2)
-    await expect
-      .poll(() => view.snapshot.items.map((item) => item.ref.id))
-      .toEqual(final.items.map((item) => item.ref.id))
-    expect(view.snapshot.items[0]).toMatchObject({ type: 'message', role: 'user' })
+    expect(final.content.filter((item) => item.role === 'assistant')).toHaveLength(2)
+    await expect.poll(() => view.snapshot.messages.map((item) => item.id)).toEqual(final.content.map((item) => item.id))
+    expect(view.snapshot.messages[0]).toMatchObject({ role: 'user' })
   } finally {
     await test.close()
   }
@@ -337,7 +335,7 @@ it('retains product observation through compaction while the native archive sele
     compact.reply.finish()
     await view.event((event) => event.type === 'system' && event.subtype === 'compact_boundary')
     const archive = confirmed(await root.claude.archive())
-    expect(JSON.stringify(archive.messages)).toContain('Retained decision.')
+    expect(JSON.stringify(archive.content)).toContain('Retained decision.')
     expect(textOf(view.snapshot)).toContain('Original decision')
     expect(archive.retracted).toEqual([])
   } finally {
@@ -401,7 +399,7 @@ it('shares a lazy Query, binds streamed blocks once, and retains archives after 
       'First block',
       'Second block'
     ])
-    expect(view.snapshot.items.some((item) => item.ref.id.startsWith('live:'))).toBe(false)
+    expect(view.snapshot.messages.some((item) => item.id.startsWith('live:'))).toBe(false)
     expect(view.snapshot).toEqual(other.snapshot)
     expect(test.children).toHaveLength(1)
     await first.release()
@@ -415,9 +413,9 @@ it('shares a lazy Query, binds streamed blocks once, and retains archives after 
     expect(await runtime.shutdown()).toMatchObject({ status: 'confirmed' })
     expect(test.children[0].exitCode !== null || test.children[0].signalCode !== null).toBe(true)
     const archive = confirmed(await second.claude.archive())
-    expect(
-      archive.items.some((item) => item.type === 'message' && item.parts.some((part) => part.text === 'Continued'))
-    ).toBe(true)
+    expect(archive.content.some((item) => item.parts.some((part) => 'text' in part && part.text === 'Continued'))).toBe(
+      true
+    )
     expect(await first.claude.archive()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
   } finally {
     await test.close()
@@ -457,12 +455,8 @@ it('observes a background child after its parent result without adding child bod
     const assistant = archive.messages.filter((message) => message.type === 'assistant')
     expect(assistant).toHaveLength(2)
     expect(new Set(assistant.map((message) => message.uuid)).size).toBe(2)
-    expect(
-      archive.items.filter((item) => item.type === 'message' && item.role === 'assistant').map((item) => item.ref.id)
-    ).toEqual(
-      childView.snapshot.items
-        .filter((item) => item.type === 'message' && item.role === 'assistant')
-        .map((item) => item.ref.id)
+    expect(archive.content.filter((item) => item.role === 'assistant').map((item) => item.id)).toEqual(
+      childView.snapshot.messages.filter((item) => item.role === 'assistant').map((item) => item.id)
     )
   } finally {
     await test.close()
@@ -499,16 +493,14 @@ it('preserves interrupted partial output and later queued input, without claimin
       expect.arrayContaining(['accepted', 'queued', 'placed'])
     )
     expect(
-      view.snapshot.items.find(
-        (item) => item.type === 'message' && item.parts.some((part) => part.text === 'Unfinished')
-      )
-    ).toMatchObject({ completeness: 'partial' })
+      view.snapshot.messages.find((item) => item.parts.some((part) => 'text' in part && part.text === 'Unfinished'))
+    ).toMatchObject({ metadata: { completeness: 'partial' } })
     confirmed(await runtime.shutdown())
     const reopened = confirmed(await test.runtime().open(root.thread))
     const archive = confirmed(await reopened.claude.archive())
     expect(
-      archive.items.find((item) => item.type === 'message' && item.parts.some((part) => part.text === 'Unfinished'))
-    ).toMatchObject({ completeness: 'partial' })
+      archive.content.find((item) => item.parts.some((part) => 'text' in part && part.text === 'Unfinished'))
+    ).toMatchObject({ metadata: { completeness: 'partial' } })
   } finally {
     await test.close()
   }
