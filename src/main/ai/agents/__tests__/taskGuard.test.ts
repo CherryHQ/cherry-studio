@@ -1,4 +1,5 @@
-import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -90,6 +91,57 @@ describe('evaluateTaskGuard', () => {
       expect(outcome).toMatchObject({ proceed: false })
       expect(outcome.proceed === false && outcome.reason).toContain('exit code 3')
     })
+
+    it('skips irreversibly when the deadline passes even if the command then exits 0 on SIGTERM', async () => {
+      // Real shell: traps SIGTERM and exits 0 (a well-behaved command that
+      // shuts down cleanly on our kill). The timeout outcome must still be a
+      // skip, never a late approval.
+      const marker = join(dir, 'sigterm-received')
+      // The trap lives in the spawned shell itself (no nested sh -c), so the
+      // kill reaches the process that owns the trap.
+      // Background sleep + wait: sh defers traps while waiting on a
+      // foreground child, but a trapped signal interrupts `wait` itself.
+      const command = `trap "touch ${marker}; exit 0" TERM; sleep 60 & wait`
+      const started = Date.now()
+      const outcome = await evaluateTaskGuard({ type: 'command', command }, { lastRunStartedAt: null })
+      const elapsed = Date.now() - started
+
+      expect(outcome).toEqual({ proceed: false, reason: `command failed (timed out): ${command}` })
+      expect(elapsed).toBeGreaterThanOrEqual(30_000)
+      expect(elapsed).toBeLessThan(40_000)
+      // The SIGTERM was really delivered (the trap ran) and the exit-0 from
+      // it did not flip the already-settled skip. The touch lands right
+      // after the kill, so give the trap a moment to run.
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      await expect(stat(marker)).resolves.toBeTruthy()
+    }, 45_000)
+
+    it('settles the skip in bounded time and terminates the owned shell when SIGTERM is ignored', async () => {
+      // Real shell: ignores SIGTERM entirely, so settlement cannot rely on
+      // process exit. A unique marker argument lets us verify the owned
+      // shell is actually reaped after SIGKILL escalation. (A descendant the
+      // command spawned may outlive this - tracked separately.)
+      const marker = `guard-ignore-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      // The trap lives in the spawned shell itself; the marker sits in its
+      // own command line so we can watch that exact process in ps.
+      const command = `trap "" TERM; : "${marker}"; sleep 60`
+      const findOwnedShell = () =>
+        spawnSync('ps', ['-eo', 'args='])
+          .stdout.toString()
+          .split('\n')
+          .some((line) => line.includes(marker))
+
+      const started = Date.now()
+      const outcome = await evaluateTaskGuard({ type: 'command', command }, { lastRunStartedAt: null })
+      const elapsed = Date.now() - started
+
+      expect(outcome).toEqual({ proceed: false, reason: `command failed (timed out): ${command}` })
+      expect(elapsed).toBeGreaterThanOrEqual(30_000)
+      expect(elapsed).toBeLessThan(40_000)
+      expect(findOwnedShell()).toBe(true) // SIGTERM was ignored: still alive right after the skip
+      await new Promise((resolve) => setTimeout(resolve, 6_000)) // past the 5s SIGKILL grace
+      expect(findOwnedShell()).toBe(false)
+    }, 45_000)
 
     it('rejects on cancellation instead of resolving a guard skip', async () => {
       const node = `"${process.execPath}"`
