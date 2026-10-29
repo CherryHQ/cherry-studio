@@ -12,6 +12,8 @@
   "file_preview.pdf.page_number": "Số trang",
   "file_preview.pdf.too_large.description": "Một phần của tệp PDF này quá lớn để xem trước an toàn trong ứng dụng.",
   "file_preview.pdf.too_large.title": "Không thể xem trước tệp PDF này",
+  "file_preview.powerpoint.zip_limit.description": "Tệp PowerPoint này vượt quá giới hạn xem trước an toàn của ứng dụng.",
+  "file_preview.powerpoint.zip_limit.title": "Không thể xem trước tệp PowerPoint này",
   "file_preview.too_large.action": "Mở bằng ứng dụng mặc định",
   "file_preview.too_large.description": "Kích thước tệp {{size}} vượt quá giới hạn xem trước {{limit}}.",
   "file_preview.too_large.title": "Tệp quá lớn để xem trước",

@@ -61,8 +61,7 @@ export const SubWindowAppShell = () => {
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
   // an unrelated route after navigation inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
-    // Chat / agent tabs are page-titled (topic / session name + emoji set by
-    // their page); only sync the url so navigating topics doesn't wipe them.
+    // Chat / agent tabs are page-titled (topic / session name + emoji), so navigation keeps them.
     if (isPageTitledRoute(url)) {
       updateTab(tabId, { url })
       return

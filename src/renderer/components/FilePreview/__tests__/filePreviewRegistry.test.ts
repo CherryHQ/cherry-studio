@@ -5,6 +5,7 @@ import {
   canProduceSelectionReference,
   createFilePreviewRegistry,
   filePreviewRegistry,
+  hasRenderedFilePreview,
   resolveExtensionPlugin
 } from '../filePreviewRegistry'
 import { textFilePreviewPlugin } from '../plugins/text/textFilePreviewPlugin'
@@ -106,6 +107,11 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('word')
   })
 
+  it.each(['rtf', 'RTF'])('routes .%s to rich document preview instead of source fallback', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('rtf')
+    expect(canProduceSelectionReference(`/tmp/report.${extension}`)).toBe(false)
+  })
+
   it('registers the PowerPoint plugin', () => {
     const extension = 'pptx'
     expect(resolveExtensionPlugin(`/tmp/slides.${extension}`, filePreviewRegistry)?.id).toBe('powerpoint')
@@ -114,6 +120,17 @@ describe('file preview registry', () => {
   it.each(['xlsx', 'XLSX'])('registers the spreadsheet plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/workbook.${extension}`, filePreviewRegistry)?.id).toBe('spreadsheet')
   })
+
+  it.each(['mp4', 'webm', 'm4v'])('registers the video plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/video.${extension}`, filePreviewRegistry)?.id).toBe('video')
+  })
+
+  it.each(['ogg', 'ogv', 'mov', 'avi', 'mkv', 'wmv', 'flv'])(
+    'does not claim .%s videos without reliable native playback',
+    (extension) => {
+      expect(resolveExtensionPlugin(`/tmp/video.${extension}`, filePreviewRegistry)).toBeNull()
+    }
+  )
 
   it.each(['html', 'htm'])('registers the HTML plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/page.${extension}`, filePreviewRegistry)?.id).toBe('html')
@@ -170,5 +187,16 @@ describe('file preview registry', () => {
     expect(canProduceSelectionReference('/tmp/README.md')).toBe(false)
     expect(canProduceSelectionReference('/tmp/photo.png')).toBe(false)
     expect(canProduceSelectionReference('/tmp/no-extension')).toBe(false)
+  })
+})
+
+describe('hasRenderedFilePreview', () => {
+  it('treats rendered formats as preview-only and plain text as editable', () => {
+    for (const path of ['/w/README.md', '/w/page.html', '/w/logo.svg', '/w/photo.png', '/w/spec.pdf', '/w/clip.mp4']) {
+      expect(hasRenderedFilePreview(path)).toBe(true)
+    }
+    for (const path of ['/w/main.ts', '/w/notes.txt', '/w/config.json', '/w/Makefile']) {
+      expect(hasRenderedFilePreview(path)).toBe(false)
+    }
   })
 })

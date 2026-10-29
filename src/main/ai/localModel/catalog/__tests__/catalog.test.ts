@@ -120,6 +120,25 @@ describe('local model catalog', () => {
     }
   })
 
+  it('includes the Mandarin eSpeak dictionary and language definition in Kokoro installs', () => {
+    const files = LOCAL_MODEL_BUNDLES['kokoro-multi-lang-v1.1'].files
+
+    expect(files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relPath: 'espeak-ng-data/cmn_dict',
+          sha256: '109aaa7708d3727382acb3ae41d8e2094a7e2bb9f651a81835be22a6f08071fe',
+          minBytes: 1566335
+        }),
+        expect.objectContaining({
+          relPath: 'espeak-ng-data/lang/sit/cmn',
+          sha256: 'a130a38e3b622735c2401cb37f6719f46995e84a133729185cef9a543ec0b072',
+          minBytes: 686
+        })
+      ])
+    )
+  })
+
   it('derives the FunASR platform contract from the sherpa artifact matrix', () => {
     const sherpa = SHARED_ARTIFACTS['sherpa-onnx']
 
@@ -128,7 +147,19 @@ describe('local model catalog', () => {
       upstream: { revision: '1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911' }
     })
     expect(Object.keys(sherpa.platforms).sort()).toEqual([...FUNASR_SUPPORTED_PLATFORM_KEYS].sort())
-    expect(sherpa.platforms['win32-arm64']).toBeUndefined()
+    expect(sherpa.platforms['win32-arm64']).toMatchObject({
+      tarballUrls: [
+        expect.stringMatching(/^https:\/\/github\.com\/CherryHQ\/sherpa-onnx\/releases\/download\/sherpa-runtime-v/)
+      ],
+      tarballPrefix: 'runtime/',
+      entryFile: 'sherpa-onnx.node',
+      supportFiles: expect.arrayContaining([
+        'onnxruntime_providers_shared.dll',
+        'onnxruntime.dll',
+        'sherpa-onnx-c-api.dll',
+        'sherpa-onnx-cxx-api.dll'
+      ])
+    })
     expect(sherpa.platforms['win32-x64']).toMatchObject({
       packageName: 'sherpa-onnx-win-x64',
       entryFile: 'sherpa-onnx.node',

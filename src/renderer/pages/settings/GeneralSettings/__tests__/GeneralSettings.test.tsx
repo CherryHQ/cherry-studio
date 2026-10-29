@@ -122,6 +122,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+const requestedRoutes = () => vi.mocked(window.api.ipcApi.request).mock.calls.map(([route]) => route)
+
 describe('GeneralSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -206,7 +208,7 @@ describe('GeneralSettings', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
     )
-    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    expect(requestedRoutes()).not.toContain('app.relaunch')
     expect(screen.queryByRole('button', { name: /restart/i })).not.toBeInTheDocument()
   })
 
@@ -221,7 +223,7 @@ describe('GeneralSettings', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(false)
     )
-    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    expect(requestedRoutes()).not.toContain('app.relaunch')
   })
 
   it('keeps the port disabled until CDP is enabled and saves a custom port on blur', async () => {
@@ -260,7 +262,7 @@ describe('GeneralSettings', () => {
     })
     rerender(<GeneralSettings />)
     expect(screen.queryByRole('switch', { name: 'Local automation (CDP)' })).not.toBeInTheDocument()
-    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    expect(requestedRoutes()).not.toContain('app.relaunch')
   })
 
   it('prevents a pending CDP enable from racing with disabling developer mode', async () => {

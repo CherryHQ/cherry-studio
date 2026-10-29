@@ -2,6 +2,8 @@ import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } fro
 
 import kokoroRelease from './kokoro-v1.1.json'
 import mlxNodeRelease from './mlxNodeRelease.json'
+import qwen3AsrRelease from './qwen3AsrRelease.json'
+import sherpaRuntimeRelease from './sherpaRuntimeRelease.json'
 import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 /**
@@ -171,6 +173,24 @@ export const SHARED_ARTIFACTS = {
           'sherpa-onnx-c-api.dll',
           'sherpa-onnx-cxx-api.dll'
         ]
+      },
+      'win32-arm64': {
+        packageName: 'cherry-sherpa-onnx-win-arm64',
+        tarballUrls: [
+          `https://github.com/${sherpaRuntimeRelease.repository}/releases/download/${sherpaRuntimeRelease.tag}/${sherpaRuntimeRelease.asset}`
+        ],
+        tarballSha256: sherpaRuntimeRelease.sha256,
+        tarballPrefix: 'runtime/',
+        installSubdir: 'win32/arm64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: [
+          'onnxruntime_providers_shared.dll',
+          'onnxruntime.dll',
+          'sherpa-onnx-c-api.dll',
+          'sherpa-onnx-cxx-api.dll',
+          'LICENSE',
+          'build-info.json'
+        ]
       }
     }
   }
@@ -212,6 +232,34 @@ export const LOCAL_MODEL_BUNDLES = {
         { source: 'huggingface', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath },
         { source: 'hf-mirror', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath }
       ]
+    }))
+  },
+  'qwen3-asr-1.7b-8bit': {
+    id: 'qwen3-asr-1.7b-8bit',
+    capability: 'asr',
+    installDirKey: 'feature.asr.qwen3',
+    requires: ['mlx-node'],
+    runtime: { architecture: 'qwen3-asr' },
+    provenance: {
+      license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf' },
+      upstream: { url: `https://huggingface.co/${qwen3AsrRelease.upstream}`, revision: qwen3AsrRelease.modelRevision },
+      conversion: {
+        url: 'https://github.com/mlx-node/mlx-node',
+        revision: qwen3AsrRelease.sourceRevision,
+        license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf' }
+      }
+    },
+    files: qwen3AsrRelease.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      urls: {
+        china: `https://www.modelscope.cn/models/${qwen3AsrRelease.modelscope.repo}/resolve/${qwen3AsrRelease.modelscope.revision}/${file.relPath}`,
+        global: `https://github.com/${qwen3AsrRelease.repository}/releases/download/${qwen3AsrRelease.tag}/${file.asset}`
+      },
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(1, Math.round(file.sizeBytes / 1_000_000))
     }))
   },
   'qwen3-tts-0.6b-customvoice-8bit': {
