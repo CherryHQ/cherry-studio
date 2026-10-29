@@ -40,6 +40,7 @@ import { Route as SettingsFileProcessingRouteImport } from './routes/settings/fi
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsLocalModelsRouteImport } from './routes/settings/local-models'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
+import { Route as SettingsMemoryRouteImport } from './routes/settings/memory'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsOcrRouteImport } from './routes/settings/ocr'
@@ -229,6 +230,11 @@ const SettingsLocalModelsRoute = SettingsLocalModelsRouteImport.update({
 const SettingsMcpRoute = SettingsMcpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsMemoryRoute = SettingsMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsModelRoute = SettingsModelRouteImport.update({
@@ -437,6 +443,7 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
+  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
@@ -502,6 +509,7 @@ export interface FileRoutesByTo {
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
+  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
@@ -568,6 +576,7 @@ export interface FileRoutesById {
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
+  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
@@ -637,6 +646,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/local-models'
     | '/settings/mcp'
+    | '/settings/memory'
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
@@ -702,6 +712,7 @@ export interface FileRouteTypes {
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/local-models'
+    | '/settings/memory'
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
@@ -767,6 +778,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/local-models'
     | '/settings/mcp'
+    | '/settings/memory'
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
@@ -1026,6 +1038,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/settings/mcp'
       preLoaderRoute: typeof SettingsMcpRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/memory': {
+      id: '/settings/memory'
+      path: '/memory'
+      fullPath: '/settings/memory'
+      preLoaderRoute: typeof SettingsMemoryRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/model': {
@@ -1383,6 +1402,7 @@ interface SettingsRouteChildren {
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsLocalModelsRoute: typeof SettingsLocalModelsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
+  SettingsMemoryRoute: typeof SettingsMemoryRoute
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsOcrRoute: typeof SettingsOcrRoute
@@ -1420,6 +1440,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsLocalModelsRoute: SettingsLocalModelsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
+  SettingsMemoryRoute: SettingsMemoryRoute,
   SettingsModelRoute: SettingsModelRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsOcrRoute: SettingsOcrRoute,
