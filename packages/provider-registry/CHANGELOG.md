@@ -1,5 +1,15 @@
 # @cherrystudio/provider-registry
 
+## 0.3.0
+
+### Minor Changes
+
+- [#19811](https://github.com/CherryHQ/cherry-studio/pull/19811) [`4134610`](https://github.com/CherryHQ/cherry-studio/commit/41346103c62917a01785733d00d39ae43039fcf0) Thanks [@GeorgeDong32](https://github.com/GeorgeDong32)! - Rebrand the DashScope provider as Qwen AI Platform with updated default API endpoints, links, pricing pages, and localized labels. User-saved endpoint overrides are preserved.
+
+- [#19810](https://github.com/CherryHQ/cherry-studio/pull/19810) [`6c19eae`](https://github.com/CherryHQ/cherry-studio/commit/6c19eae14e32ef7b73e4d64a253a4b2320bff7bf) Thanks [@GeorgeDong32](https://github.com/GeorgeDong32)! - Add the QwenCloud provider (DashScope international endpoint) with its chat and image models, endpoint-aware web-search eligibility, and reasoning/sampling contracts.
+  
+  Enable documented Anthropic web search and fetch on QwenCloud and Qwen AI Platform, including the required system identifier and paired search/fetch routing.
+
 ## 0.2.9
 
 ### Patch Changes
