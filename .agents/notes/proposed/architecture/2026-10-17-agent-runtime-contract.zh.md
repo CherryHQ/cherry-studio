@@ -10,7 +10,7 @@ Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次�
 
 本文接替栈中的 Runtime 所有权与行为设计，记录已实现的 v0 访问边界及其理由，以及接入时仍需履行的宿主责任。[公共类型](../../../../packages/agent-runtime/src/contracts.ts)、[Pi 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)和 [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)维护精确签名。Pi 和 Pi Durable 的桌面调用现已使用公共 Runtime 和独立 child 投影。下述完整验收仍未完成；接线已经交付不代表所有恢复或性能保证都已成立。[Harness 边界](2026-10-17-agent-harness-boundaries.md)维护更上层的职责划分。
 
-[SDK 内容协议方案](../simplification/2026-10-29-agent-runtime-content-protocol.md)现在维护替换 `ContentItem`、将 SDK 内容累积迁入共享观察来源的后续设计。下文的 item 事件和 Main reader 在迁移完成前仍是当前实现；访问、输入接纳、生命周期、原生恢复和产品所有权继续由本文维护。
+[SDK 内容协议](../simplification/2026-10-29-agent-runtime-content-protocol.md)维护已实现的 `ContentItem` 替换，以及共享观察来源中的 SDK 内容累积。其 `RuntimeMessage` 契约取代下文的 item 事件和 Main reader 描述。访问、输入接纳、生命周期、原生恢复和产品所有权继续由本文维护。
 
 ## Proposal
 

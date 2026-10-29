@@ -62,15 +62,15 @@ Large tool output is saved under `feature.agents.outputs`, which read tools may 
 
 ## Desktop ownership
 
-`ThreadProjection` converts ordered runtime items into UI chunks. A snapshot establishes its baseline;
-it never replays recovered content into the product archive. Tool items use the Pi facet's opaque
-lookup and the existing tool renderer. Child output uses an independent `ChildThreadProjection`
+`ThreadProjection` receives authoritative SDK messages from the runtime adapter; the driver declares
+the projection source before opening a connection. Main applies tool display metadata and product
+reply ownership without a second SDK reader. Child output uses an independent `ChildThreadProjection`
 and product archive; only task-card metadata remains on background-flow. Goal rounds and background
 delivery announce autonomous turn boundaries.
 Observation loss fails the turn and retires the owner.
 
 `PiRuntimeConnection` remains the bridge to `AgentSessionRuntimeService`: it owns product input
-persistence, branch bindings, UI chunks, trace context and configuration reconciliation. Retiring the
+persistence, branch bindings, message views, trace context and configuration reconciliation. Retiring the
 class requires moving those consumers to `ThreadHandle`; installing behavior alone does not remove it.
 
 Before dispatch, Main records submission identity and facts on the existing user row. Native placement
@@ -86,7 +86,7 @@ Queued inputs Pi never placed are marked aborted and are not automatically resen
 
 Child projection consumes the public `ThreadHandle` and committed content supplied by the connection.
 It never imports Pi types or dispatches input. The connection reads the typed `pi.archive()` facet,
-which proves native entry/live-item aliases and excludes inherited parent context, and submits child
+which proves native entry/live-message aliases and excludes inherited parent context, and submits child
 input through its native owner. Archive messages use the existing shared message model, with stable
 product IDs and source mappings saved atomically. IPC sends a snapshot on attach and ordered patches
 afterward; detaching a window leaves the native observer and archive writer alive.

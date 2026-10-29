@@ -156,3 +156,26 @@ it('rolls back the message write when the checkpoint belongs to another session'
   ).toThrow()
   expect(messages.getSessionMessage(f.sessionId, id).data.parts).toEqual([])
 })
+
+// Whole native messages replace only legacy sources with a proven common product owner.
+it('migrates saved block ownership without duplicating content or changing the product reply', () => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('uuid:0', 'Before'), text('uuid:1', 'After')]), id)
+  f.save(id)
+  const saved = f.projection.checkpoint()
+  const root = { ...saved.root }
+  delete root.version
+  contexts.saveRootProjectionTx(dbh.db, f.sessionId, { ...saved, root })
+  const restored = new RootMessageProjection(f.context.id)
+  const message = { ...text('uuid', 'Before'), parts: [...text('', 'Before').parts, ...text('', 'After').parts] }
+  const update = f.update([message], {
+    live: [],
+    legacy: { 'uuid:0': { messageId: 'uuid', parts: [0] }, 'uuid:1': { messageId: 'uuid', parts: [1] } }
+  })
+  expect(restored.accept(update)).toEqual(new Map([[id, message.parts]]))
+  expect(restored.parts(id)).toEqual(message.parts)
+  expect(Object.keys(restored.checkpoint().root.sources)).toEqual(['uuid'])
+  expect(restored.checkpoint().root.version).toBe(2)
+  expect(restored.accept(update).size).toBe(0)
+})

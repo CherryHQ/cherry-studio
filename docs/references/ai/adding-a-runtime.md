@@ -138,11 +138,12 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Content producer** — choose one source per execution. A chunk driver converts
-   native events to `UIMessageChunk`s (see `pi/piStreamAdapter.ts`). A projection
-   driver uses common observation and `ThreadMessageProjection`, decorates native
-   blocks, then publishes replacement-aware message views (see
-   `claudeCode/ClaudeMessageMetadata.ts`). Keep lifecycle/approval controls separate;
+4. **Content producer** — choose one source per execution. Common runtime adapters
+   expose AI SDK `RuntimeMessage` values through observation. Native deltas use
+   `RuntimeMessageStream` before observer fanout; authoritative native snapshots
+   can produce messages directly. Main uses `ThreadMessageProjection` and product
+   decorators such as `pi/PiMessageMetadata.ts` and `claudeCode/ClaudeMessageMetadata.ts`,
+   then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
    do not produce the same text and tools through both sources. Import the transport
    constant from the descriptor rather than re-declaring its string.
 

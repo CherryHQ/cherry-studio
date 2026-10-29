@@ -212,7 +212,13 @@ it('persists background child output independently and reopens the same child me
     )
   ).toBe(true)
   await connection.close()
-  const saved = savedChildView(context).messages
+  const saved = savedChildView(contexts.context(context.id)).messages
+  const replies = saved.filter((message) => message.role === 'assistant')
+  expect(replies).toHaveLength(1)
+  expect(replies[0].parts.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
+    'Late child block one',
+    'Late child block two'
+  ])
   const reopened = await test.connect()
   await expect.poll(async () => Boolean(await reopened.childProjection!('toolu_background_desktop'))).toBe(true)
   const projection = await reopened.childProjection!('toolu_background_desktop')

@@ -64,8 +64,8 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
 8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`
    and `readUIMessageStream`; `messages` uses `pipeMessageStream` to apply host display
    state to authoritative bodies. Listeners receive `onMessage` snapshots, and
-   persistence uses that same final view. Claude selects `messages`; Chat and Pi
-   retain their chunk sources.
+   persistence uses that same final view. Pi, Pi Durable, and Claude select
+   `messages`; Chat retains its chunk source.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
    - `PersistenceListener` writes the final assistant message.
    - `TopicMessageProjection` publishes the final message and terminal state to subscribed windows.

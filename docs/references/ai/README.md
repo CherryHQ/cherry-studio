@@ -134,7 +134,7 @@ src/main/ai/
    routes them to `AgentSessionRuntimeService.openTurnStream()` so the
    registered driver can own the concrete agent runtime.
 6. Each execution selects one content source. `chunks` uses `pipeStreamLoop` and
-   `readUIMessageStream`; Claude's `messages` uses `pipeMessageStream` over native
+   `readUIMessageStream`; Pi, Pi Durable, and Claude use `messages` and `pipeMessageStream` over native
    projection views. Both publish the same `CherryUIMessage` model through the
    root projection and `onMessage` listeners. See [Stream Manager](./stream-manager.md).
 7. On terminal (done / error / aborted / paused-for-approval), listeners get

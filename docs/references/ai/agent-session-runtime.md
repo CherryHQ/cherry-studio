@@ -621,13 +621,16 @@ CLI subscription login retains native authentication. See the gateway's
 
 Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
 Native replacements retain product ownership across steer boundaries; explicit
-retractions persist with the context checkpoint. Rich native tool, thinking,
-image and document metadata is restored before publishing `CherryUIMessage`.
+retractions persist with the context checkpoint. The runtime adapter preserves ordered
+AI SDK message parts, including tool output, reasoning signatures, files and citations.
+Main adds Cherry display metadata before publishing `CherryUIMessage`.
 The driver selects the `messages` source for the entire execution. `pipeMessageStream`
 applies host approval, data-part and status metadata to that view; it never accumulates
 a second text/tool body. Publishing, listeners and persistence receive the same
 `CherryUIMessage`. `ClaudeRuntimeState` owns native lifecycle events, while
-`ClaudeMessageMetadata` decorates rich native blocks. No Claude chunk adapter remains.
+`ClaudeMessageMetadata` decorates normalized SDK messages. No Claude chunk adapter remains.
+Child attachment reads the native archive once to recover its actual prompt, which the live SDK
+feed omits. Subsequent content follows the observer; there is no transcript polling loop.
 
 Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
@@ -650,7 +653,7 @@ MCP server — so a dead or slow server cannot block startup. See
 
 The driver converts Claude SDK messages into runtime events:
 
-- `stream_event` / assistant/user messages -> root `chunk` and replacement-aware
+- `stream_event` / assistant/user messages -> replacement-aware root
   `message-projection`; child bodies go directly to their independent projection;
 - external-CLI subscription `stream_event` messages establish one invocation per
   message id and provide terminal usage plus per-request timing; complete
@@ -861,6 +864,19 @@ parts. Environment facts (disabled tools, protected paths, delegation attendance
 and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
 whether to run, ask or block. No new approval table is required.
 
+Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
+the adapter source; Durable materializes its authoritative watch snapshots directly.
+Tool results and preliminary progress update the originating tool part, while activity
+and input outcomes remain separate facts.
+Local `/goal` answers publish complete host message projections. They remain visible
+outside native model history, including when no model turn starts.
+
+Child reply composition belongs to Main: only observed user-message placement starts
+a new reply boundary. Queued inputs do not split the current reply. Existing split
+archive rows retain their IDs and branch edges; a versioned checkpoint composes them
+using native-proven part mappings. Missing native evidence leaves saved rows readable.
+Renderer and reopened views consume the same composition through shared projection.
+
 The Pi facet resolves behavior call keys to native tool ids. Each child has one
 Main observation owner and an independent product archive. Its panel receives a
 snapshot and ordered message/part patches through IpcApi and uses the shared message
@@ -869,7 +885,7 @@ carry child output. Foreground completion can continue the same child in the bac
 User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
 
 `PiRuntimeConnection` remains responsible for product branch bindings, input
-persistence, UI chunks and configuration reconciliation. It can retire after
+persistence, product message views and configuration reconciliation. It can retire after
 `AgentSessionRuntimeService` consumes the common Runtime directly; enabling
 shared behavior does not by itself replace those responsibilities. A reopened root
 restores identity-checked child files without starting execution. Saved output remains

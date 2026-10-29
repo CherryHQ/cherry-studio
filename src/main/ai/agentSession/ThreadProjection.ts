@@ -1,81 +1,60 @@
-import { isDeepStrictEqual } from 'node:util'
+import { randomUUID } from 'node:crypto'
 
-import type { ObservationPayload, RuntimeMessage } from '@cherrystudio/agent-runtime'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
+import type { ObservationPayload, Thread } from '@cherrystudio/agent-runtime'
+import type { RuntimeMessageProjection } from '@main/ai/runtime/types'
 
-/** Bridges observed messages to the desktop chunk consumer until message-source adoption. */
+import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
+
+/** Root observation uses the same materialized message view as child observation. */
 export class ThreadProjection {
-  private readonly messages = new Map<string, RuntimeMessage>()
-  private readonly ids = new Map<string, string>()
-  private readonly baseline = new Set<string>()
-  private readonly ended = new Set<string>()
-  private readonly text = new Map<string, { type: string; text: string }>()
+  private readonly view: ThreadMessageProjection
 
   constructor(
-    private readonly emit: (chunk: CherryUIMessageChunk) => void,
-    private readonly tool: (part: Extract<RuntimeMessage['parts'][number], { type: 'dynamic-tool' }>) => void
-  ) {}
+    thread: Thread,
+    private readonly contextId: string,
+    private readonly emit: (projection: RuntimeMessageProjection) => void,
+    decorate?: MessageDecorator
+  ) {
+    this.view = new ThreadMessageProjection(thread, decorate)
+  }
 
-  accept(event: ObservationPayload): void {
-    if (event.type === 'snapshot') {
-      this.messages.clear()
-      this.ids.clear()
-      this.baseline.clear()
-      this.ended.clear()
-      this.text.clear()
-      for (const message of event.messages) {
-        this.messages.set(message.id, message)
-        this.baseline.add(message.id)
-      }
-      return
-    }
-    if (event.type !== 'message.upsert') return
-    const message = event.message
-    const source =
-      this.ids.get(message.id) ??
-      event.replaces?.map((ref) => this.ids.get(ref.id) ?? ref.id).find((id) => this.messages.has(id)) ??
-      message.id
-    const previous = this.messages.get(source)
-    this.ids.set(message.id, source)
-    for (const ref of event.replaces ?? []) this.ids.set(ref.id, source)
-    this.messages.set(source, message)
-    if (this.baseline.has(source) || message.role !== 'assistant') return
-    for (const [index, part] of message.parts.entries()) {
-      const id = `${source}:${index}`
-      const before = previous?.parts[index]
-      if (part.type === 'dynamic-tool') {
-        if (part.state !== 'input-streaming' && !isDeepStrictEqual(before, part)) this.tool(part)
-        continue
-      }
-      if (this.ended.has(id)) continue
-      if (part.type === 'file' || part.type === 'source-url' || part.type === 'source-document') {
-        this.emit(part)
-        this.ended.add(id)
-        continue
-      }
-      if (part.type !== 'text' && part.type !== 'reasoning') continue
-      const sent = this.text.get(id)
-      // Native start snapshots can already contain text whose deltas arrive afterward.
-      if (sent?.type === part.type && sent.text.length > part.text.length && sent.text.startsWith(part.text)) continue
-      if (sent && (sent.type !== part.type || !part.text.startsWith(sent.text)))
-        throw new Error('Runtime replaced an already streamed content part')
-      if (!sent)
-        this.emit({
-          type: part.type === 'text' ? 'text-start' : 'reasoning-start',
-          id,
-          providerMetadata: part.providerMetadata
-        })
-      const delta = part.text.slice(sent?.text.length ?? 0)
-      if (delta) this.emit({ type: part.type === 'text' ? 'text-delta' : 'reasoning-delta', id, delta })
-      this.text.set(id, { type: part.type, text: part.text })
-      if (part.state === 'done' || message.metadata?.completeness === 'complete') {
-        this.emit({
-          type: part.type === 'text' ? 'text-end' : 'reasoning-end',
-          id,
-          providerMetadata: part.providerMetadata
-        })
-        this.ended.add(id)
-      }
-    }
+  async accept(
+    event: ObservationPayload,
+    liveSnapshot = false,
+    aliases: Readonly<Record<string, string>> = {}
+  ): Promise<void> {
+    const before = new Map(this.view.snapshot().messages.map((message) => [message.id, message]))
+    await this.view.accept(event)
+    const messages = this.view.snapshot().messages
+    this.emit({
+      contextId: this.contextId,
+      messages,
+      live:
+        event.type !== 'snapshot' || liveSnapshot
+          ? messages.filter((message) => before.get(message.id) !== message).map((message) => message.id)
+          : [],
+      replaces: {
+        ...Object.fromEntries(Object.entries(aliases).map(([committed, live]) => [live, committed])),
+        ...(event.type === 'message.upsert' &&
+          Object.fromEntries((event.replaces ?? []).map((ref) => [ref.id, event.message.id])))
+      },
+      removed: event.type === 'message.remove' ? [event.ref.id] : []
+    })
+  }
+
+  close(): Promise<void> {
+    return this.view.close()
+  }
+
+  /** Local command replies belong to the product message, outside native model history. */
+  notice(text: string): void {
+    const id = `notice:${randomUUID()}`
+    this.emit({
+      contextId: this.contextId,
+      messages: [{ id, role: 'assistant', parts: [{ type: 'text', text, state: 'done' }] }],
+      live: [id],
+      replaces: {},
+      removed: []
+    })
   }
 }

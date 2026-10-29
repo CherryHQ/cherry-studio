@@ -114,6 +114,7 @@ export interface AgentRuntimeToolApprovalRequest {
 }
 
 export interface RuntimeMessageProjection {
+  readonly legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
   contextId: string
   messages: readonly CherryUIMessage[]
   live: readonly string[]

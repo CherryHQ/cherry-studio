@@ -718,11 +718,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             type: 'message-projection',
             projection: {
               contextId,
+              legacy: metadata.legacy,
               messages: projection.snapshot().messages,
               live,
               replaces: Object.fromEntries(
                 batch.events.flatMap((event) =>
-                  event.type === 'item.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.item.ref.id]) : []
+                  event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
                 )
               ),
               removed: [...metadata.removed]
@@ -931,6 +932,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         const handle = opened.value
         const context = saved ?? contexts.child(parent.id, id, handle.thread.id, origin.toolCallId, origin.name)
+        // The SDK stores the child prompt without forwarding it in the live conversation feed.
+        await handle.claude.archive()
         const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
         const responseOwners = new Set<string>()
         let end!: () => void
@@ -958,7 +961,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                     const productId = contexts.context(context.id).checkpointMapping?.projection as
                       | Record<string, string>
                       | undefined
-                    const ownerId = productId?.[`${native.message.uuid}:0`]
+                    const ownerId = productId?.[native.message.uuid]
                     if (ownerId && !responseOwners.has(native.message.message.id)) {
                       responseOwners.add(native.message.message.id)
                       this.eventQueue.push({

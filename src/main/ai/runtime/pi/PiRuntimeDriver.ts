@@ -26,6 +26,7 @@ import { piWorkspaceRelocation } from './workspaceRelocation'
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = piWorkspaceRelocation
   readonly type = 'pi'
+  readonly messageSource = 'projection' as const
   readonly capabilities = ['agent-session'] as const
   readonly fork = forkPiSession
   readonly recoverSessions = migrateRetiredSessionHistories
