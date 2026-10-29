@@ -1039,7 +1039,9 @@ function emphasisFlanks(before: number, run: string, after: number): { opens: bo
   const right = micromarkClass(after)
   // A run also opens against a marker beside it and closes behind one (`*` at `x*_y` opens and
   // closes): the two flags take the attention markers themselves, not only the class they fall in.
-  const isMarker = (code: number): boolean => code === 42 || code === 95
+  // GFM registers `~` as an attention marker too (code point 126), so a `*` against a tilde opens
+  // the way it does against another asterisk.
+  const isMarker = (code: number): boolean => code === 42 || code === 95 || code === 126
   const open = right === undefined || (right === 'punctuation' && left !== undefined) || isMarker(after)
   const close = left === undefined || (left === 'punctuation' && right !== undefined) || isMarker(before)
   // The `!before`/`!after` tests above already cover whitespace, which classifies as its own group

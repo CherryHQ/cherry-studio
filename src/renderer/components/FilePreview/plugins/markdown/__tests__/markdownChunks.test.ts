@@ -3419,6 +3419,17 @@ describe('an ineligible emphasis opener between a closer and its partner', () =>
   })
 })
 
+describe('a tilde beside an emphasis run', () => {
+  it('reads the emphasis against the GFM attention marker the renderer reads', () => {
+    // GFM registers `~` as an attention marker, so the `**` in `A**~B**C` opens against the tilde
+    // and the run renders nothing; the scanner keyed the heading on the literal tildes (`a-b-c`),
+    // the renderer produced `a-bc`, and a duplicate in a later chunk lost its numbered fragment.
+    const content = `# A**~B**C\n\n${'filler\n\n'.repeat(3100)}# A**~B**C\n\n[jump](#a-bc-1)\n`
+
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
+})
+
 describe('a definition beside indented code', () => {
   it('carries a definition that indented code does not absorb', () => {
     // micromark opens indented code at `    code` and reads `[label]: /right` as the document's
