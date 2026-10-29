@@ -6,7 +6,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 
-const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
+export const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
 
 /**
