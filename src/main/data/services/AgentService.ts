@@ -819,6 +819,7 @@ export class AgentService {
 
     const updated = this.getAgent(id)
     if (updated) {
+      this.notifyReadModelChange([id], 'projection')
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
     return updated
