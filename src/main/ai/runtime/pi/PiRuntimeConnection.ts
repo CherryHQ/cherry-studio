@@ -78,6 +78,7 @@ import {
   resolvePiProviderInjectionForSession,
   usesPiGateway
 } from './modelInjection'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
@@ -287,6 +288,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const settingsManager = pi.SettingsManager.inMemory(
         {
           ...(shellPath ? { shellPath } : {}),
+          compaction: resolvePiCompactionSettings(model),
           defaultTools: ['read', 'bash', 'edit', 'write', '+codemode', '+tool_search']
         },
         { projectTrusted: true }
