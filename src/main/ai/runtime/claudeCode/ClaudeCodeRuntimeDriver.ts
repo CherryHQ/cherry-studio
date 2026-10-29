@@ -338,7 +338,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // the model captured when that turn was created, even if the agent was edited since.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
-      this.resumeToken ?? this.input.nativeSessionId,
+      this.resumeToken ?? messages.getLastRuntimeResumeToken(this.input.sessionId, this.input.branchHead),
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,

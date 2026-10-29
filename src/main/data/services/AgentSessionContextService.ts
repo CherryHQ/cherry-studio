@@ -136,7 +136,8 @@ class AgentSessionContextService {
     const locator = locatorSchema.parse({ version: 1, kind: 'claude-code', configDir })
     return application.get('DbService').withWriteTx((tx) => {
       const root = ensureAgentSessionRootTx(tx, sessionId)
-      const anchor = messageId ?? root
+      const anchor =
+        messageId ?? tx.select().from(sessions).where(eq(sessions.id, sessionId)).get()?.activeNodeId ?? root
       const existing = this.branchTx(tx, sessionId, anchor)
       if (existing && (!nativeId || (existing.nativeThreadId ?? existing.intendedThreadId) === nativeId)) {
         const backend = this.backend(existing.backendId)
@@ -174,6 +175,15 @@ class AgentSessionContextService {
       this.bindBranchTx(tx, sessionId, root, nativeId ?? uuid())
       return this.branchTx(tx, sessionId, root)!
     })
+  }
+
+  reserveClaudeBranchTx(tx: DbOrTx, sessionId: string, anchor: string, nativeId: string): void {
+    const parent = this.branchTx(tx, sessionId, anchor)
+    if (!parent || this.backend(parent.backendId).locator.kind !== 'claude-code')
+      throw new Error('Claude edit requires an existing native backend')
+    tx.insert(contexts)
+      .values({ sessionId, backendId: parent.backendId, anchorMessageId: anchor, intendedThreadId: nativeId })
+      .run()
   }
 
   prepareDurableBranch(sessionId: string, messageId?: string): AgentSessionContextRow {

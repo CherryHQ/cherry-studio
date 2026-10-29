@@ -628,6 +628,8 @@ export class AgentSessionMessageService {
     runtime = 'pi'
   ): void {
     if (runtime === 'pi') agentSessionContextService.bindBranchTx(tx, sessionId, userMessageId, nativeSessionId)
+    else if (runtime === 'claude-code')
+      agentSessionContextService.reserveClaudeBranchTx(tx, sessionId, userMessageId, nativeSessionId)
     tx.update(sessionMessagesTable)
       .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativeSessionId', ${nativeSessionId})` })
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, userMessageId)))
