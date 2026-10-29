@@ -133,7 +133,10 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
   useSelectionAgentWindowRules(
     stage.kind === 'conversation'
       ? null
-      : { idle: stage.kind === 'failed' || (stage.kind === 'compose' && !composeText.trim()), pinned: isPinned }
+      : {
+          idle: stage.kind === 'failed' || (stage.kind === 'compose' && !stage.sending && !composeText.trim()),
+          pinned: isPinned
+        }
   )
 
   const isCompose = stage.kind === 'compose'
