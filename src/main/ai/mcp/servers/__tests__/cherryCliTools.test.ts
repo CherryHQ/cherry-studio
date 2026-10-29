@@ -189,6 +189,23 @@ describe('cherry-tools CLI tools', () => {
     expect(textOf(result)).toContain('Invalid tool specification: curl installer')
   })
 
+  it('propagates a targeted external-install rejection without returning ready inventory', async () => {
+    binaryManager.getToolInventory.mockResolvedValue([
+      { name: 'uv', recipe: 'uv', status: 'ready', version: '0.11.16' }
+    ])
+    const error =
+      'Cannot satisfy uv@0.13.4: source=bundled; bundled version=0.11.16. The requested version could not be verified as an exact semantic-version match. Omit the version target (requestedVersion in cli_install) to use the bundled copy, or update/reinstall Cherry Studio; bundled tools cannot be updated independently.'
+    binaryManager.installByName.mockRejectedValueOnce(new Error(error))
+
+    const result = await call(CLI_INSTALL_TOOL_NAME, { name: 'uv', tool: 'uv', requestedVersion: '0.13.4' })
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain(error)
+    expect(binaryManager.installByName).toHaveBeenCalledWith({ name: 'uv', targetVersion: '0.13.4' })
+    expect(binaryManager.getToolInventory).toHaveBeenCalledTimes(1)
+    expect(binaryManager.addCustomTool).not.toHaveBeenCalled()
+  })
+
   it('does not let a divergent recipe bypass a canonical existing definition', async () => {
     binaryManager.getToolInventory.mockResolvedValue([{ name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'ready' }])
     binaryManager.addCustomTool.mockRejectedValue(new Error('Tool fd is a built-in tool and cannot be added'))

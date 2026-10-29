@@ -18,7 +18,7 @@ import {
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
-import { getDefaultRouteTitle, isConversationRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('TabsProvider')
@@ -104,8 +104,9 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: bo
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
-  if (isConversationRoute(tab.url)) {
-    return { ...tab, title: getDefaultRouteTitle(tab.url), icon: undefined }
+  // Chat / agent tabs are page-titled — never auto-localize, or the route title clobbers them.
+  if (isPageTitledRoute(tab.url)) {
+    return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
   }
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab

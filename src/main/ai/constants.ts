@@ -1,5 +1,11 @@
 export const DEFAULT_TIMEOUT = 30 * 1000 * 60
 
+/**
+ * Idle-chunk bound for chat stream turns. Separate from `DEFAULT_TIMEOUT` on purpose: during a long
+ * silent reasoning phase the provider's only sign of life is an SSE comment, which never becomes a chunk.
+ */
+export const CHAT_STREAM_IDLE_TIMEOUT_MS = 120 * 1000 * 60
+
 export const DEFAULT_MAX_TOKENS = 8192
 
 /**

@@ -22,7 +22,7 @@ import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { Markdown } from '../markdown'
-import { withChatPlugins } from '../presets'
+import { withChatPlugins } from '../mermaid-presets'
 
 function dispatchCopy(): ReturnType<typeof vi.fn> {
   const setData = vi.fn()

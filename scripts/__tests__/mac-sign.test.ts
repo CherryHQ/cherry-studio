@@ -23,6 +23,32 @@ describe('macOS signing policy', () => {
     expect(builder.mac.extendInfo.NSMicrophoneUsageDescription.trim()).not.toBe('')
   })
 
+  it('declares macOS privacy access required by local MCP servers', () => {
+    const builder = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
+    const mainEntitlements = readFileSync(
+      path.join(projectRoot, builder.mac.entitlements ?? 'build/entitlements.mac.plist'),
+      'utf8'
+    )
+    const inheritedEntitlements = readFileSync(path.join(projectRoot, builder.mac.entitlementsInherit), 'utf8')
+
+    for (const key of [
+      'NSCalendarsUsageDescription',
+      'NSCalendarsFullAccessUsageDescription',
+      'NSCalendarsWriteOnlyAccessUsageDescription',
+      'NSRemindersUsageDescription',
+      'NSRemindersFullAccessUsageDescription',
+      'NSAppleEventsUsageDescription'
+    ]) {
+      expect(builder.mac.extendInfo[key]).toEqual(expect.any(String))
+      expect(builder.mac.extendInfo[key].trim()).not.toBe('')
+    }
+
+    for (const entitlements of [mainEntitlements, inheritedEntitlements]) {
+      expect(entitlements).toMatch(/<key>com\.apple\.security\.personal-information\.calendars<\/key>\s*<true\s*\/>/)
+      expect(entitlements).toMatch(/<key>com\.apple\.security\.automation\.apple-events<\/key>\s*<true\s*\/>/)
+    }
+  })
+
   it('packages the native helper as code in Contents/Helpers', () => {
     const builder = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
 

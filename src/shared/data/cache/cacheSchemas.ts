@@ -470,8 +470,13 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
+  // Workspace paths whose file tree is unpinned in a wide Agent file pane; absent means pinned.
+  'ui.agent.file_pane.unpinned_tree_workspaces': string[]
+  // File tree column width in a wide Agent file pane, in pixels.
+  'ui.agent.file_pane.tree_width': number
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.skills.enabled_only': boolean
   'settings.device_connections.step': 'download' | 'connect' | 'complete'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
@@ -526,8 +531,11 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
+  'ui.agent.file_pane.unpinned_tree_workspaces': [],
+  'ui.agent.file_pane.tree_width': 256,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.skills.enabled_only': false,
   'settings.device_connections.step': 'download',
   'settings.usage.window': '30d',
   'settings.usage.group_by': 'provider',

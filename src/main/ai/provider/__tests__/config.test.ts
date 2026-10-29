@@ -3,7 +3,8 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
+import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { mergePresetModel } from '@data/services/ProviderRegistryService'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -25,9 +26,11 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
 import { splitParamValues } from '../../utils/imageOptions'
+import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
+import { resolveWireModelId } from '../endpoint'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -1020,6 +1023,143 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // The fix: relay base URLs come from THIS instance, not open.cherryin.net.
       expect(settings.geminiBaseURL).toBe(`${host}/v1beta`)
       expect(settings.anthropicBaseURL).toBe(`${host}/v1`)
+    })
+  })
+
+  describe('QwenCloud wire IDs and native image routing', () => {
+    const textEndpoints = [
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    ]
+    const qwencloudEndpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
+        adapterFamily: 'openai-compatible'
+      },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+        baseUrl: 'https://responses.example.com/v1/',
+        adapterFamily: 'openai'
+      },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+        baseUrl: 'https://anthropic.example.com/apps/anthropic',
+        adapterFamily: 'anthropic'
+      }
+    }
+
+    it('keeps the documented DeepSeek V4.1 Flash API ID through preset merge and wire resolution', () => {
+      const loader = new RegistryLoader({
+        models: 'packages/provider-registry/data/models.json',
+        providers: 'packages/provider-registry/data/providers.json',
+        providerModels: 'packages/provider-registry/data/provider-models.json'
+      })
+      const preset = loader.findModel('deepseek-v4-1-flash')!
+      const override = loader.findOverride('qwencloud', preset.id)
+      const model = mergePresetModel(preset, override, 'qwencloud')
+
+      expect(resolveWireModelId(model, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('deepseek-v4.1-flash')
+    })
+
+    it.each(textEndpoints)(
+      'submits native images independently of the %s text default',
+      async (defaultChatEndpoint) => {
+        const provider = makeProvider({
+          id: 'qwencloud',
+          defaultChatEndpoint,
+          endpointConfigs: qwencloudEndpointConfigs
+        })
+        const model = makeModel({
+          id: 'qwencloud::qwen-image-3-0',
+          providerId: 'qwencloud',
+          apiModelId: 'qwen-image-3.0',
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe('qwencloud')
+        expect(settings.imageBaseURL).toBe('https://ap-southeast-1.maas.qwencloudapi.com')
+        vi.mocked(net.fetch).mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              output: { choices: [{ message: { content: [{ image: 'https://image.example/result.png' }] } }] }
+            })
+          )
+        )
+        const transport = resolveImageTransport(config.providerId, 'qwen-image-3.0', settings)
+        expect(transport).not.toBeNull()
+        const result = await transport!.submit({
+          modelId: 'qwen-image-3.0',
+          prompt: 'a red circle',
+          n: 1,
+          size: undefined,
+          seed: undefined,
+          files: undefined,
+          mask: undefined,
+          modelDescriptor: {
+            id: 'qwen-image-3.0',
+            endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+            isSync: true,
+            mode: 'generate'
+          },
+          providerParams: {}
+        })
+        expect(result.imageUrls).toEqual(['https://image.example/result.png'])
+        const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+        expect(String(url)).toBe(
+          'https://ap-southeast-1.maas.qwencloudapi.com/api/v1/services/aigc/multimodal-generation/generation'
+        )
+        expect(JSON.parse(String(request?.body)).model).toBe('qwen-image-3.0')
+      }
+    )
+
+    it.each(textEndpoints)('preserves the proxy AIGC path with a %s text default', async (defaultChatEndpoint) => {
+      const provider = makeProvider({
+        id: 'qwencloud-proxy',
+        presetProviderId: 'qwencloud',
+        defaultChatEndpoint,
+        endpointConfigs: {
+          ...qwencloudEndpointConfigs,
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://proxy.example.com/ds/compatible-mode/v1/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'qwencloud-proxy::qwen-image-3-0',
+        providerId: 'qwencloud-proxy',
+        apiModelId: 'qwen-image-3.0',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+    })
+
+    it.each([
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai'],
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic']
+    ] as const)('keeps text models on the selected %s adapter', async (defaultChatEndpoint, expectedProviderId) => {
+      const provider = makeProvider({
+        id: 'qwencloud',
+        defaultChatEndpoint,
+        endpointConfigs: qwencloudEndpointConfigs
+      })
+      const model = makeModel({
+        id: 'qwencloud::qwen3-8-max',
+        providerId: 'qwencloud',
+        apiModelId: 'qwen3.8-max',
+        capabilities: []
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe(expectedProviderId)
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBeUndefined()
     })
   })
 

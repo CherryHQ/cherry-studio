@@ -164,7 +164,7 @@ settings:
 
 overrides:
   '@aiany/sqlite-vec-linux-x64': npm:sqlite-vec-linux-x64@0.1.9
-  '@earendil-works/pi-ai@1.0.0>@google/genai': 2.23.0
+  '@earendil-works/pi-ai@1.4.0>@google/genai': 2.23.0
   picomatch: 4.0.4
   concurrently>shell-quote: 1.8.4
   fast-xml-parser: '>=5.10.1'
@@ -230,12 +230,12 @@ patchedDependencies:
   '@ai-sdk/openai@3.0.109': 5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
-  '@earendil-works/pi-ai@1.0.0': 5efd52ee4fcf7309c209fa6135c915d0e138b2d4f8517af46e8222763e938ae0
+  '@earendil-works/pi-ai@1.4.0': d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': e0be38439b76d1d8d7966c0f789373ed393adba22bd9b0ff333898c0c8223301
-  '@pierre/diffs@1.6.1': 5736364c6b6aee53400d010775cb87455c61c83bb834a720bf0d4cc231edd565
+  '@pierre/diffs@1.6.1': 102caba717d9b1897e0e29c02cdee4693f8b427ef9323281a8514b2ec5307b5b
   '@sting8k/pi-vcc@0.8.1': ad2495c1bd33d364d13266612df4ebed4997e01acd622d0248acced107d6cba4
   '@tiptap/extension-drag-handle@3.26.1': 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
   '@tiptap/extension-list@3.26.1': 584483147536f57383bef48109cf67a7798ae4c965a97009c61003a9c509898f
@@ -285,11 +285,11 @@ importers:
         specifier: workspace:*
         version: link:packages/system-speech
       '@earendil-works/pi-ai':
-        specifier: 1.0.0
-        version: 1.0.0(patch_hash=5efd52ee4fcf7309c209fa6135c915d0e138b2d4f8517af46e8222763e938ae0)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.4.0
+        version: 1.4.0(patch_hash=d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-coding-agent':
-        specifier: 1.0.0
-        version: 1.0.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.4.0
+        version: 1.4.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@firecrawl/anydoc':
         specifier: 0.2.4
         version: 0.2.4
@@ -689,7 +689,7 @@ importers:
         version: 0.2.0
       '@pierre/diffs':
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=5736364c6b6aee53400d010775cb87455c61c83bb834a720bf0d4cc231edd565)(@shikijs/themes@4.5.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 1.6.1(patch_hash=102caba717d9b1897e0e29c02cdee4693f8b427ef9323281a8514b2ec5307b5b)(@shikijs/themes@4.5.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@pierre/highlights':
         specifier: 0.2.0
         version: 0.2.0
@@ -713,7 +713,7 @@ importers:
         version: 5.4.0(encoding@0.1.13)(supports-color@8.1.1)
       '@sting8k/pi-vcc':
         specifier: 0.8.1
-        version: 0.8.1(patch_hash=ad2495c1bd33d364d13266612df4ebed4997e01acd622d0248acced107d6cba4)(@earendil-works/pi-coding-agent@1.0.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3))(typebox@1.3.27)
+        version: 0.8.1(patch_hash=ad2495c1bd33d364d13266612df4ebed4997e01acd622d0248acced107d6cba4)(@earendil-works/pi-coding-agent@1.4.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3))(typebox@1.3.27)
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -1218,9 +1218,6 @@ importers:
       mdast-util-from-markdown:
         specifier: ^2.0.2
         version: 2.0.2(supports-color@8.1.1)
-      mermaid:
-        specifier: ^11.13.0
-        version: 11.13.0
       micromark-util-types:
         specifier: ^2.0.2
         version: 2.0.2
@@ -1982,6 +1979,9 @@ importers:
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
+      '@mermanjs/web-render':
+        specifier: 0.9.2
+        version: 0.9.2
       '@pierre/highlights':
         specifier: 0.2.0
         version: 0.2.0
@@ -2048,9 +2048,6 @@ importers:
       '@streamdown/math':
         specifier: ^1.0.2
         version: 1.0.2(react@19.2.3)(supports-color@8.1.1)
-      '@streamdown/mermaid':
-        specifier: ^1.0.2
-        version: 1.0.2(react@19.2.3)
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -2084,9 +2081,6 @@ importers:
       lucide-react:
         specifier: ^0.545.0
         version: 0.545.0(react@19.2.3)
-      mermaid:
-        specifier: ^11.13.0
-        version: 11.13.0
       react-day-picker:
         specifier: ^9.14.0
         version: 9.14.0(react@19.2.3)
@@ -2475,8 +2469,8 @@ packages:
       '@modelcontextprotocol/sdk': ^1.29.0
       zod: ^4.0.0
 
-  '@anthropic-ai/sdk@0.124.0':
-    resolution: {integrity: sha512-cN5O8i9UVxHeOQAzj/XjshWXG8KiibJDw9OGpH2Z/eR3n/RBxdoLxDJOcfqAJWvjaMDFfHTBADU04hWRJVkDyA==}
+  '@anthropic-ai/sdk@0.129.0':
+    resolution: {integrity: sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -3225,38 +3219,34 @@ packages:
     engines: {node: '>=0.8'}
     hasBin: true
 
-  '@earendil-works/chord@1.0.0':
-    resolution: {integrity: sha512-BIfWfrByM0pKq6tfKYXuwx0ed2CvaqIM3EDA7Dps+fP+d3CiPWdlHi1cDsJC05llqKJoRz5//G0hz0yQwwjISQ==}
+  '@earendil-works/pi-agent-core@1.4.0':
+    resolution: {integrity: sha512-PoKY84SKUwnt7S5QBZaGUqfNO1kjP3KHpHUA9QpFTj4cOjaVWMYIcBPJ6FDRCdE8Zen9OSECQUd0uUfVgtSmgA==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-agent-core@1.0.0':
-    resolution: {integrity: sha512-bHFONjtEBDqiV+g1DmmtkSlfAaqHELr+XO+6I5Nah4gswwZrLJO4yZB/JjsnlI4AKWTayBLfgS6DCbeBBz9e2Q==}
-    engines: {node: '>=22.19.0'}
-
-  '@earendil-works/pi-ai@1.0.0':
-    resolution: {integrity: sha512-3/W1vdDaVtpeMd23ElvJC12HLA5yS/BGqqcXF+0SK082dN7cbgNcCwguTBRBC258Ke8SzSvUW1B75iAf8w8IxA==}
+  '@earendil-works/pi-ai@1.4.0':
+    resolution: {integrity: sha512-hQM/C4+1w8rHYACzDDf+0vQMnEnpzIop1tptIERVgR3ZeT/hHSzBNG8PaWPgxWQjqSeKCyBZSyp8uTT6eKK1pQ==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-codemode@1.0.0':
-    resolution: {integrity: sha512-LPpFI4+T9NzDnhBDs15izWAolaoM8xnwqdziRd6Zx8BQeoEPvzefD2vMMzSyF0rOtq34TfQqkZ0ki16f6cGdMg==}
+  '@earendil-works/pi-codemode@1.4.0':
+    resolution: {integrity: sha512-23CNAXpS9DuLzPMyYuvrXVVio46x4YhffCgCqaWmF7F5H8PooqjrQvX4ucF6M0BhUd+x2tV6r1J0dv8cCME4Cg==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-coding-agent@1.0.0':
-    resolution: {integrity: sha512-/FtbxoSQU/mEv1QnichJjRjqteqaIaMWxmhB4G367+MwZfX7/DI5B9YAg5lqbN7nztFskBEtUSZ+FlmMBECtMw==}
+  '@earendil-works/pi-coding-agent@1.4.0':
+    resolution: {integrity: sha512-Z41LpZ3yYHSC/UUps6Mr39UMFPwH8elhJBG9DY1P7kuzsE5qSK/6eMj2EHzO5evJRQWLbKSqUMw+4nCNtIyiQg==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-mcp@1.0.0':
-    resolution: {integrity: sha512-rYra0aF5iPmJd+fsB+VBuqxWNABGJ3Iiyhg0CqIc/91ta2n7IvQmCp0Cac/YkUTNnvRsVZnjgAiBkRi6+ouWuw==}
+  '@earendil-works/pi-mcp@1.4.0':
+    resolution: {integrity: sha512-92aZmmGsUpHHknYuKXZHRINQfahntw5hU9If0I0ZM49GojOaFHpkl5/GF3/aatqpt7v7GjZbBfpfSygGKW+pnw==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-telemetry@1.0.0':
-    resolution: {integrity: sha512-WjNBj5TYIiPZFQEz2WlULcDwPLaKwIlmsKjVeYM+LJSbnSp38kWsHUJysIDGnu23IcLbKoPtywsvYfUJCeZePA==}
+  '@earendil-works/pi-telemetry@1.4.0':
+    resolution: {integrity: sha512-MLIfowwUYIY65jSjMX82paZOrX/NTvLk6D08h+3Jq42a99RzUOewzuCR0zOlPul3D6UBfddat76VT6LvsHEs1w==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-tui@1.0.0':
-    resolution: {integrity: sha512-JsT7kXnpZA2YOtQu6RyriyxEO0eJIzPyfiH09bH+OLN5+s18HYkwaUD/tBkjhnSfMu6/50CQPRYJagzSP6HdPw==}
+  '@earendil-works/pi-tui@1.4.0':
+    resolution: {integrity: sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg==}
     engines: {node: '>=22.19.0'}
 
   '@electron-internal/extract-zip@1.0.3':
@@ -4265,6 +4255,9 @@ packages:
 
   '@mermaid-js/parser@1.0.1':
     resolution: {integrity: sha512-opmV19kN1JsK0T6HhhokHpcVkqKpF+x2pPDKKM2ThHtZAB5F4PROopk0amuVYK5qMrIA4erzpNm8gmPNJgMDxQ==}
+
+  '@mermanjs/web-render@0.9.2':
+    resolution: {integrity: sha512-pE8Q+SaLRKmhsHgGddmJ7BrJ06MwkcmiOMQtO6qdVCzFqqBAaDJDAw+E3U8S/U8vk35QtU96cheEJ7ToyBVTJA==}
 
   '@mistralai/mistralai@1.11.0':
     resolution: {integrity: sha512-6/BVj2mcaggYbpMzNSxtqtM2Tv/Jb5845XFd2CMYFO+O5VBkX70iLjtkBBTI4JFhh1l9vTCIMYXBVOjLoBVHGQ==}
@@ -7065,11 +7058,6 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@streamdown/mermaid@1.0.2':
-    resolution: {integrity: sha512-Fr/4sBWnAeSnxM3PcrV/+DiZe5oPMq9gOkUIAH7ZauJeuwrZ/DVzD4g0zlav6AH0axh2m/sOfrfLtY5aLT7niw==}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0':
     resolution: {integrity: sha512-b9MIk7yhdS1pMCZM8VeNfUlSKVRhsHZNMl5O9SfaX0l0t5wjdgu4IDzGB8bpnGBBOjGST3rRFVsaaEtI4W6f7g==}
     engines: {node: '>=14'}
@@ -9115,6 +9103,10 @@ packages:
 
   brace-expansion@2.1.4:
     resolution: {integrity: sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==}
+
+  brace-expansion@5.0.12:
+    resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
+    engines: {node: 20 || >=22}
 
   brace-expansion@5.0.9:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
@@ -12245,6 +12237,12 @@ packages:
 
   markdown-table@3.0.4:
     resolution: {integrity: sha512-wiYz4+JrLyb/DqW2hkFJxP7Vd7JuTDm77fvbM8VfEQdmSMqcImWeeRbHwZjBjIFki/VaMK2BhFi7oUUZeM5bqw==}
+
+  marked-cjk-friendly@0.1.2:
+    resolution: {integrity: sha512-GUj8HjiEbur9yhgUo52FBgKizggF1QtT6gVdrYdWW6ZB4lVVjgS3EyyXPyfyRD0V4ghGRPlO7MO80rgSWbm0eA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      marked: '>=15.0.0'
 
   marked@16.4.2:
     resolution: {integrity: sha512-TI3V8YYWvkVf3KJe1dRkpnjs68JUPyEa5vjKrp1XEEJUAOaQc+Qj+L1qWbPd0SJuAdQkFU0h73sXXqwDYxsiDA==}
@@ -16044,7 +16042,7 @@ snapshots:
       '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.284
       '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.284
 
-  '@anthropic-ai/sdk@0.124.0(zod@4.4.3)':
+  '@anthropic-ai/sdk@0.129.0(zod@4.4.3)':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.1.1
@@ -17391,13 +17389,9 @@ snapshots:
 
   '@e965/xlsx@0.20.3': {}
 
-  '@earendil-works/chord@1.0.0':
+  '@earendil-works/pi-agent-core@1.4.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      esbuild: 0.25.12
-
-  '@earendil-works/pi-agent-core@1.0.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
-    dependencies:
-      '@earendil-works/pi-ai': 1.0.0(patch_hash=5efd52ee4fcf7309c209fa6135c915d0e138b2d4f8517af46e8222763e938ae0)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-ai': 1.4.0(patch_hash=d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       typebox: 1.3.27
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -17408,16 +17402,16 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.0.0(patch_hash=5efd52ee4fcf7309c209fa6135c915d0e138b2d4f8517af46e8222763e938ae0)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-ai@1.4.0(patch_hash=d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@anthropic-ai/sdk': 0.124.0(zod@4.4.3)
+      '@anthropic-ai/sdk': 0.129.0(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
-      '@earendil-works/pi-telemetry': 1.0.0
+      '@earendil-works/pi-telemetry': 1.4.0
       '@google/genai': 2.23.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0(supports-color@8.1.1)
       https-proxy-agent: 9.1.0(supports-color@8.1.1)
-      openai: 6.15.0(ws@8.21.3)(zod@4.4.3)
+      openai: '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)'
       partial-json: 0.1.7
       typebox: 1.3.27
     transitivePeerDependencies:
@@ -17429,19 +17423,19 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-codemode@1.0.0':
+  '@earendil-works/pi-codemode@1.4.0':
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.0.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-coding-agent@1.4.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/chord': 1.0.0
-      '@earendil-works/pi-agent-core': 1.0.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-ai': 1.0.0(patch_hash=5efd52ee4fcf7309c209fa6135c915d0e138b2d4f8517af46e8222763e938ae0)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-codemode': 1.0.0
-      '@earendil-works/pi-mcp': 1.0.0
-      '@earendil-works/pi-tui': 1.0.0
+      '@earendil-works/pi-agent-core': 1.4.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-ai': 1.4.0(patch_hash=d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-codemode': 1.4.0
+      '@earendil-works/pi-mcp': 1.4.0
+      '@earendil-works/pi-tui': 1.4.0
       '@silvia-odwyer/photon-node': 0.3.4
+      brace-expansion: 5.0.12
       chalk: 6.0.0
       cross-spawn: 7.0.6
       diff: 8.0.4
@@ -17466,16 +17460,17 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-mcp@1.0.0':
+  '@earendil-works/pi-mcp@1.4.0':
     dependencies:
       cross-spawn: 7.0.6
 
-  '@earendil-works/pi-telemetry@1.0.0': {}
+  '@earendil-works/pi-telemetry@1.4.0': {}
 
-  '@earendil-works/pi-tui@1.0.0':
+  '@earendil-works/pi-tui@1.4.0':
     dependencies:
       get-east-asian-width: 1.6.0
       marked: 18.0.11
+      marked-cjk-friendly: 0.1.2(marked@18.0.11)
 
   '@electron-internal/extract-zip@1.0.3': {}
 
@@ -18652,6 +18647,8 @@ snapshots:
     dependencies:
       langium: 4.2.1
 
+  '@mermanjs/web-render@0.9.2': {}
+
   '@mistralai/mistralai@1.11.0':
     dependencies:
       zod: 3.25.76
@@ -19552,7 +19549,7 @@ snapshots:
       tslib: 2.8.1
       webcrypto-core: 1.9.2
 
-  '@pierre/diffs@1.6.1(patch_hash=5736364c6b6aee53400d010775cb87455c61c83bb834a720bf0d4cc231edd565)(@shikijs/themes@4.5.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@pierre/diffs@1.6.1(patch_hash=102caba717d9b1897e0e29c02cdee4693f8b427ef9323281a8514b2ec5307b5b)(@shikijs/themes@4.5.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@pierre/highlights': 0.2.0
       '@pierre/theme': 2.0.0
@@ -21070,9 +21067,9 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@sting8k/pi-vcc@0.8.1(patch_hash=ad2495c1bd33d364d13266612df4ebed4997e01acd622d0248acced107d6cba4)(@earendil-works/pi-coding-agent@1.0.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3))(typebox@1.3.27)':
+  '@sting8k/pi-vcc@0.8.1(patch_hash=ad2495c1bd33d364d13266612df4ebed4997e01acd622d0248acced107d6cba4)(@earendil-works/pi-coding-agent@1.4.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3))(typebox@1.3.27)':
     dependencies:
-      '@earendil-works/pi-coding-agent': 1.0.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-coding-agent': 1.4.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       typebox: 1.3.27
 
   '@storybook/addon-docs@10.6.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(storybook@10.6.0(@types/react@19.2.7)(prettier@3.8.1)(react@19.2.3))':
@@ -21176,11 +21173,6 @@ snapshots:
       remark-math: 6.0.0(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
-
-  '@streamdown/mermaid@1.0.2(react@19.2.3)':
-    dependencies:
-      mermaid: 11.13.0
-      react: 19.2.3
 
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0(@babel/core@7.28.5(supports-color@8.1.1))':
     dependencies:
@@ -23540,6 +23532,10 @@ snapshots:
   brace-expansion@2.1.4:
     dependencies:
       balanced-match: 1.0.2
+
+  brace-expansion@5.0.12:
+    dependencies:
+      balanced-match: 4.0.4
 
   brace-expansion@5.0.9:
     dependencies:
@@ -27031,6 +27027,10 @@ snapshots:
       repeat-string: 1.6.1
 
   markdown-table@3.0.4: {}
+
+  marked-cjk-friendly@0.1.2(marked@18.0.11):
+    dependencies:
+      marked: 18.0.11
 
   marked@16.4.2: {}
 
