@@ -7,6 +7,7 @@ import type {
   AgentSessionEvent,
   CompactionResult,
   ContextUsage,
+  CreateAgentSessionOptions,
   ProviderConfig,
   ToolDefinition
 } from '@earendil-works/pi-coding-agent'
@@ -55,6 +56,7 @@ import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import type {
@@ -85,6 +87,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
+import { resolvePiThinkingLevel } from './piThinkingLevel'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -427,6 +430,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         sessionManager,
         resourceLoader,
         model,
+        // Patched pi-ai includes ultra; the SDK's transitive agent-core type still ends at max.
+        thinkingLevel: resolvePiThinkingLevel(this.input.reasoningEffort) as CreateAgentSessionOptions['thinkingLevel'],
         customTools: [managedBashTool],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
@@ -554,6 +559,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    reasoningEffort?: ReasoningEffortOption
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -566,6 +572,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    reasoningEffort?: ReasoningEffortOption
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -594,7 +601,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
 
-    if (snapshot.signature !== this.connectionSignature) {
+    if (
+      snapshot.signature !== this.connectionSignature ||
+      resolvePiThinkingLevel(input.reasoningEffort) !== resolvePiThinkingLevel(this.input.reasoningEffort)
+    ) {
       return 'rebuild'
     }
     return policyChanged ? 'patched' : 'current'
