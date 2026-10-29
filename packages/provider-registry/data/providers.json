@@ -1730,18 +1730,18 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic"
+          "baseUrl": "https://maas.qianwenaiapi.com/apps/anthropic"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "baseUrl": "https://maas.qianwenaiapi.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-chat"
           }
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "baseUrl": "https://maas.qianwenaiapi.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-responses"
           }
@@ -2841,5 +2841,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e9ff66dc4e799400"
+  "version": "5e1a39c021b56ec0"
 }
