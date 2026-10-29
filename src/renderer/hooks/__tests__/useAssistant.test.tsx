@@ -1,4 +1,4 @@
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -202,5 +202,36 @@ describe('useAssistant', () => {
     expect(result.current.setModel).toBe(firstSetModel)
     expect(result.current.updateAssistant).toBe(firstUpdateAssistant)
     expect(result.current.updateAssistantSettings).toBe(firstUpdateAssistantSettings)
+  })
+
+  it('preserves a newly persisted native-code toggle when switching from a stale assistant snapshot', async () => {
+    const persistedSettings = { enableNativeCodeExecution: true, enableWebSearch: true }
+    const trigger = vi.fn().mockImplementation(async ({ body }) => {
+      Object.assign(persistedSettings, body.settings)
+      return { id: 'assistant-1', settings: persistedSettings }
+    })
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/assistants/:id', trigger)
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/assistants/:id') {
+        return queryResult({
+          id: 'assistant-1',
+          modelId: 'provider::old-model',
+          settings: { enableNativeCodeExecution: false, enableWebSearch: true }
+        })
+      }
+      return queryResult()
+    })
+    const { result } = renderHook(() => useAssistant('assistant-1'))
+    await result.current.setModel({
+      id: 'provider::plain-model',
+      providerId: 'provider',
+      apiModelId: 'plain-model',
+      name: 'Plain model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+    expect(persistedSettings).toEqual({ enableNativeCodeExecution: true, enableWebSearch: false })
   })
 })
