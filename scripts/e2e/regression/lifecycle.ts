@@ -133,7 +133,7 @@ function getLaunchSpec(
       process.execPath,
       join(targetRoot, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
       '--',
-      '--inspect',
+      `--inspect=${MAIN_INSPECTOR_PORT}`,
       '--sourcemap',
       `--remote-debugging-port=${CDP_PORT}`,
       '--disable-backgrounding-occluded-windows'

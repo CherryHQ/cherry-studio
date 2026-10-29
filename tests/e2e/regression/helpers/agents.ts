@@ -111,7 +111,7 @@ export async function openAgentPane(page: Page, name: 'Files' | 'Status'): Promi
 
 export async function createAgent(
   page: Page,
-  options: { name: string; runtime: string; model: string; permission?: string }
+  options: { name: string; runtime: string; model: string; providerId?: string; permission?: string }
 ): Promise<void> {
   const agentView = await showAgentList(page)
   const agents = await page.evaluate(() =>
@@ -145,7 +145,7 @@ export async function createAgent(
     await expect(permission).toHaveText(options.permission)
   }
   await dialog.getByRole('button', { name: 'Model', exact: true }).click()
-  await selectVisibleModel(page, options.model)
+  await selectVisibleModel(page, options.model, options.providerId)
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()

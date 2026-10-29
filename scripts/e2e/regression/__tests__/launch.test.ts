@@ -50,7 +50,7 @@ it.each(['macos', 'windows'] as const)(
         process.execPath,
         join(directory, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
         '--',
-        '--inspect',
+        '--inspect=9229',
         '--sourcemap',
         '--remote-debugging-port=9222',
         '--disable-backgrounding-occluded-windows'

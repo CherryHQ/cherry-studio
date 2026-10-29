@@ -61,7 +61,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     const original = await register(originalPath, originalName)
     const empty = await register(emptyPath, emptyName)
     // A real provider and runtime execute the relative-path write; no successful tool result is injected.
-    await ensureCustomChatProvider(app, page)
+    const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await selectSidebarApp(page, 'Work')
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
@@ -71,6 +71,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
       name: agentName,
       runtime: 'Pi',
       model: app.config.customProvider.chatModel,
+      providerId,
       permission: 'Full Access'
     })
     await view.getByRole('button', { name: 'No work directory', exact: true }).click()
