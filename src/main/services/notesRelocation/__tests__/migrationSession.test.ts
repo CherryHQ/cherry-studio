@@ -298,65 +298,65 @@ describe('notes migration session', () => {
       expect(() => assertNotesPathNotRetired(path.join(target, 'note.md'))).not.toThrow()
     })
 
-  describe('plain notes-root flip barrier', () => {
-    it('closes admission synchronously and commits only after in-flight edits drain', async () => {
-      beginNotesFilesystemMutation()
-      let committed = false
-      const flipping = withNotesRootFlipBarrier(() => {
-        committed = true
-      }, 1000)
-      // Deterministic: the flag is set synchronously at the call, and the
-      // commit continuation cannot run while a mutation is counted.
-      expect(isNotesRootFlipInFlight()).toBe(true)
-      expect(() => beginNotesFilesystemMutation()).toThrow(/migration is in progress/)
-      expect(committed).toBe(false)
-
-      endNotesFilesystemMutation()
-      await flipping
-      expect(committed).toBe(true)
-      expect(isNotesRootFlipInFlight()).toBe(false)
-      // Admission reopens after the flip.
-      beginNotesFilesystemMutation()
-      endNotesFilesystemMutation()
-    })
-
-    it('serializes concurrent flips without reopening admission between them', async () => {
-      beginNotesFilesystemMutation()
-      const order: string[] = []
-      const f1 = withNotesRootFlipBarrier(() => {
-        order.push('c1')
-        // f2 still holds the barrier here: admission must stay closed.
-        expect(isNotesRootFlipInFlight()).toBe(true)
-        expect(() => beginNotesFilesystemMutation()).toThrow(/migration is in progress/)
-      }, 1000)
-      const f2 = withNotesRootFlipBarrier(() => {
-        order.push('c2')
-        // Would be FALSE with a naive boolean flag cleared by f1's finally.
-        expect(isNotesRootFlipInFlight()).toBe(true)
-        expect(() => beginNotesFilesystemMutation()).toThrow(/migration is in progress/)
-      }, 1000)
-      endNotesFilesystemMutation()
-      await Promise.all([f1, f2])
-      expect(order).toEqual(['c1', 'c2'])
-      expect(isNotesRootFlipInFlight()).toBe(false)
-    })
-
-    it('fails closed without committing when the drain times out', async () => {
-      beginNotesFilesystemMutation()
-      let committed = false
-      await expect(
-        withNotesRootFlipBarrier(() => {
+    describe('plain notes-root flip barrier', () => {
+      it('closes admission synchronously and commits only after in-flight edits drain', async () => {
+        beginNotesFilesystemMutation()
+        let committed = false
+        const flipping = withNotesRootFlipBarrier(() => {
           committed = true
-        }, 50)
-      ).rejects.toThrow(/not changed/)
-      expect(committed).toBe(false)
-      endNotesFilesystemMutation()
-      expect(isNotesRootFlipInFlight()).toBe(false)
-      // Admission reopens after the failed flip.
-      beginNotesFilesystemMutation()
-      endNotesFilesystemMutation()
+        }, 1000)
+        // Deterministic: the flag is set synchronously at the call, and the
+        // commit continuation cannot run while a mutation is counted.
+        expect(isNotesRootFlipInFlight()).toBe(true)
+        expect(() => beginNotesFilesystemMutation()).toThrow(/migration is in progress/)
+        expect(committed).toBe(false)
+
+        endNotesFilesystemMutation()
+        await flipping
+        expect(committed).toBe(true)
+        expect(isNotesRootFlipInFlight()).toBe(false)
+        // Admission reopens after the flip.
+        beginNotesFilesystemMutation()
+        endNotesFilesystemMutation()
+      })
+
+      it('serializes concurrent flips without reopening admission between them', async () => {
+        beginNotesFilesystemMutation()
+        const order: string[] = []
+        const f1 = withNotesRootFlipBarrier(() => {
+          order.push('c1')
+          // f2 still holds the barrier here: admission must stay closed.
+          expect(isNotesRootFlipInFlight()).toBe(true)
+          expect(() => beginNotesFilesystemMutation()).toThrow(/migration is in progress/)
+        }, 1000)
+        const f2 = withNotesRootFlipBarrier(() => {
+          order.push('c2')
+          // Would be FALSE with a naive boolean flag cleared by f1's finally.
+          expect(isNotesRootFlipInFlight()).toBe(true)
+          expect(() => beginNotesFilesystemMutation()).toThrow(/migration is in progress/)
+        }, 1000)
+        endNotesFilesystemMutation()
+        await Promise.all([f1, f2])
+        expect(order).toEqual(['c1', 'c2'])
+        expect(isNotesRootFlipInFlight()).toBe(false)
+      })
+
+      it('fails closed without committing when the drain times out', async () => {
+        beginNotesFilesystemMutation()
+        let committed = false
+        await expect(
+          withNotesRootFlipBarrier(() => {
+            committed = true
+          }, 50)
+        ).rejects.toThrow(/not changed/)
+        expect(committed).toBe(false)
+        endNotesFilesystemMutation()
+        expect(isNotesRootFlipInFlight()).toBe(false)
+        // Admission reopens after the failed flip.
+        beginNotesFilesystemMutation()
+        endNotesFilesystemMutation()
+      })
     })
-  })
 
     it('treats an empty preference as the affirmative default root', () => {
       const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rel-src-'))
