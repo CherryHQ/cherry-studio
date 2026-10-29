@@ -1,24 +1,19 @@
 import { isDeepStrictEqual } from 'node:util'
 
-import { readUIMessageStream } from 'ai'
-
 import type {
   Activity,
-  ContentItem,
   InputState,
-  MessageItem,
   Observation,
   ObservationPayload,
   RuntimeError,
+  RuntimeMessage,
   Subagent,
   Thread,
   ThreadHandle,
-  ThreadSnapshot,
-  ToolCallItem,
-  ToolResultItem
+  ThreadSnapshot
 } from '@cherrystudio/agent-runtime'
 import { loggerService } from '@logger'
-import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('ThreadMessageProjection')
 type Gap = Extract<ObservationPayload, { type: 'gap' }>['reason']
@@ -47,14 +42,12 @@ export type ThreadProjectionUpdate =
       order: readonly string[]
       state: ProjectionState
     }
-type Source = { item: MessageItem | ToolCallItem; result?: ToolResultItem }
+export type MessageDecorator = (message: CherryUIMessage, source: RuntimeMessage) => CherryUIMessage
 
 /** Main-owned current view. Native execution, product IDs and archive writes belong to its caller. */
 export class ThreadMessageProjection {
-  private items = new Map<string, ContentItem>()
-  private readonly sources = new Map<string, Source>()
+  private sources = new Map<string, RuntimeMessage>()
   private readonly messages = new Map<string, CherryUIMessage>()
-  private readonly readers = new Map<string, MessageReader>()
   private readonly listeners = new Set<(update: ThreadProjectionUpdate) => void>()
   private state: ProjectionState = { activity: { scope: 'foreground', state: 'unknown' }, inputs: [], subagents: [] }
   private revision = 0
@@ -66,7 +59,10 @@ export class ThreadMessageProjection {
   private closing?: Promise<void>
   private view: ThreadMessageView
 
-  constructor(readonly thread: Thread) {
+  constructor(
+    readonly thread: Thread,
+    private readonly decorate?: MessageDecorator
+  ) {
     this.view = { ...this.state, thread, revision: 0, messages: [] }
   }
 
@@ -117,11 +113,9 @@ export class ThreadMessageProjection {
         await this.reduce(event)
       } catch (error) {
         this.source = undefined
-        this.items.clear()
         this.sources.clear()
         this.messages.clear()
         for (const message of this.view.messages) this.messages.set(message.id, message)
-        await this.closeReaders().catch(() => {})
         this.state = {
           ...state,
           gap: 'mapping-reset',
@@ -145,7 +139,6 @@ export class ThreadMessageProjection {
       this.source = undefined
       await this.observation?.stop()
       await this.pending
-      await this.closeReaders()
       this.listeners.clear()
     })())
   }
@@ -156,18 +149,12 @@ export class ThreadMessageProjection {
   }
 
   private validate(event: ObservationPayload): void {
-    const item = (value: ContentItem) => {
-      this.assertThread(value.ref.session)
-      if (value.type === 'tool-result' && value.call) this.assertThread(value.call.session)
-    }
     if (event.type === 'snapshot') {
-      event.items.forEach(item)
       event.subagents?.forEach((relation) => this.assertThread(relation.parent))
       event.inputs.forEach((input) => this.validateInput(input))
-    } else if (event.type === 'item.upsert') {
-      item(event.item)
+    } else if (event.type === 'message.upsert') {
       event.replaces?.forEach((ref) => this.assertThread(ref.session))
-    } else if (event.type === 'item.remove') this.assertThread(event.ref.session)
+    } else if (event.type === 'message.remove') this.assertThread(event.ref.session)
     else if (event.type === 'subagent.upsert') this.assertThread(event.subagent.parent)
     else if (event.type === 'input.changed') this.validateInput(event.input)
   }
@@ -206,27 +193,27 @@ export class ThreadMessageProjection {
     const before = new Map(this.messages)
     const state = this.state
     if (event.type === 'snapshot') {
-      this.items = new Map(event.items.map((item) => [item.ref.id, item]))
+      this.sources = new Map(event.messages.map((message) => [message.id, message]))
       this.state = {
         coverage: event.coverage,
         activity: event.activity,
         inputs: this.mergeInputs(event.inputs),
         subagents: event.subagents ?? []
       }
-    } else if (event.type === 'item.upsert' || event.type === 'item.remove') {
+    } else if (event.type === 'message.upsert' || event.type === 'message.remove') {
       if (this.state.gap || this.state.closed) return
-      if (event.type === 'item.remove') this.items.delete(event.ref.id)
+      if (event.type === 'message.remove') this.sources.delete(event.ref.id)
       else {
         const replaced = new Set<string>(event.replaces?.map((ref) => ref.id))
-        replaced.add(event.item.ref.id)
-        const items = new Map<string, ContentItem>()
-        for (const [id, item] of this.items) {
+        replaced.add(event.message.id)
+        const items = new Map<string, RuntimeMessage>()
+        for (const [id, item] of this.sources) {
           if (replaced.has(id)) {
-            if (!items.has(event.item.ref.id)) items.set(event.item.ref.id, event.item)
+            if (!items.has(event.message.id)) items.set(event.message.id, event.message)
           } else items.set(id, item)
         }
-        items.set(event.item.ref.id, event.item)
-        this.items = items
+        items.set(event.message.id, event.message)
+        this.sources = items
       }
     } else if (event.type === 'input.changed') this.state = { ...this.state, inputs: this.mergeInputs([event.input]) }
     else if (event.type === 'activity.changed') this.state = { ...this.state, activity: event.activity }
@@ -237,10 +224,9 @@ export class ThreadMessageProjection {
     } else if (event.type === 'diagnostic') this.state = { ...this.state, diagnostic: event.error }
     else if (event.type === 'gap' || event.type === 'closed') {
       this.state = event.type === 'gap' ? { ...this.state, gap: event.reason } : { ...this.state, closed: event.reason }
-      await this.closeReaders()
     }
-    if (event.type === 'snapshot' || event.type === 'item.upsert' || event.type === 'item.remove') {
-      await this.project()
+    if (event.type === 'snapshot' || event.type === 'message.upsert' || event.type === 'message.remove') {
+      this.project()
     }
     this.publish(before, state)
   }
@@ -269,12 +255,6 @@ export class ThreadMessageProjection {
     for (const listener of [...this.listeners]) this.deliver(listener, update)
   }
 
-  private async closeReaders(): Promise<void> {
-    const readers = [...this.readers.values()]
-    this.readers.clear()
-    await Promise.all(readers.map((reader) => reader.close()))
-  }
-
   private deliver(listener: (update: ThreadProjectionUpdate) => void, update: ThreadProjectionUpdate): void {
     try {
       listener(update)
@@ -284,169 +264,31 @@ export class ThreadMessageProjection {
     }
   }
 
-  private async project(): Promise<void> {
-    const next = new Map<string, Source>()
-    const results = new Map<string, ToolResultItem>()
-    for (const item of this.items.values())
-      if (item.type === 'tool-result' && item.call) results.set(item.call.id, item)
-    for (const item of this.items.values())
-      if (item.type !== 'tool-result')
-        next.set(item.ref.id, { item, result: item.type === 'tool-call' ? results.get(item.ref.id) : undefined })
-    for (const id of this.messages.keys())
-      if (!next.has(id)) {
-        await this.readers.get(id)?.close()
-        this.readers.delete(id)
-        this.sources.delete(id)
-        this.messages.delete(id)
-      }
-    for (const [id, source] of next) {
-      const previous = this.sources.get(id)
-      if (isDeepStrictEqual(previous, source)) continue
-      const message = await this.render(source, previous)
-      this.sources.set(id, source)
-      if (!isDeepStrictEqual(message, this.messages.get(id))) this.messages.set(id, message)
-    }
-    const ordered = [...next.keys()].map((id) => [id, this.messages.get(id)!] as const)
-    this.messages.clear()
-    for (const [id, message] of ordered) this.messages.set(id, message)
-  }
-
-  private async render(source: Source, previous?: Source): Promise<CherryUIMessage> {
-    const { item, result } = source
-    const id = item.ref.id
-    let reader = this.readers.get(id)
-    const append = previous && canAppend(previous, source)
-    if (!append) {
-      await reader?.close()
-      this.readers.delete(id)
-      reader = undefined
-    }
-    if (item.type === 'message' && (item.role !== 'assistant' || (item.completeness === 'complete' && !reader))) {
-      return {
-        id,
-        role: item.role,
-        metadata: undefined,
-        parts: item.parts.map((part) => ({ ...part, state: item.completeness === 'complete' ? 'done' : 'streaming' }))
-      }
-    }
-    const continuing = Boolean(reader)
-    if (!reader) {
-      reader = new MessageReader(id)
-      this.readers.set(id, reader)
-    }
-    if (item.type === 'message') {
-      const prior = continuing && previous?.item.type === 'message' ? previous.item.parts : []
-      for (const [index, part] of item.parts.entries()) {
-        const before = prior[index]
-        const partId = String(index)
-        if (!before) await reader.write({ type: part.type === 'text' ? 'text-start' : 'reasoning-start', id: partId })
-        const delta = part.text.slice(before?.text.length ?? 0)
-        if (delta)
-          await reader.write({ type: part.type === 'text' ? 'text-delta' : 'reasoning-delta', id: partId, delta })
-        if (item.completeness === 'complete')
-          await reader.write({ type: part.type === 'text' ? 'text-end' : 'reasoning-end', id: partId })
-      }
-    } else {
-      if (!continuing)
-        await reader.write({ type: 'tool-input-start', toolCallId: id, toolName: item.name, dynamic: true })
-      const before = continuing && previous?.item.type === 'tool-call' ? previous.item.argumentsText : ''
-      const delta = item.argumentsText.slice(before.length)
-      if (delta) await reader.write({ type: 'tool-input-delta', toolCallId: id, inputTextDelta: delta })
-      if (item.completeness === 'complete') {
-        let input: unknown
-        try {
-          input = JSON.parse(item.argumentsText)
-        } catch (error) {
-          await reader.write({
-            type: 'tool-input-error',
-            toolCallId: id,
-            toolName: item.name,
-            dynamic: true,
-            input: item.argumentsText,
-            errorText: String(error)
-          })
-        }
-        if (input !== undefined)
-          await reader.write({
-            type: 'tool-input-available',
-            toolCallId: id,
-            toolName: item.name,
-            dynamic: true,
-            input
-          })
-      }
-      if (result)
-        await reader.write(
-          result.outcome === 'error'
-            ? { type: 'tool-output-error', toolCallId: id, errorText: result.parts.map((part) => part.text).join('\n') }
-            : {
-                type: 'tool-output-available',
-                toolCallId: id,
-                output: result.data === undefined ? result.parts : result.data,
-                preliminary: result.outcome === 'unknown'
-              }
+  private project(): void {
+    const next = new Map<string, CherryUIMessage>()
+    for (const source of this.sources.values()) {
+      const pending =
+        source.metadata?.completeness === 'partial' ||
+        source.parts.some(
+          (part) =>
+            part.type === 'dynamic-tool' &&
+            (part.state === 'input-streaming' ||
+              part.state === 'input-available' ||
+              part.state === 'approval-requested' ||
+              part.state === 'approval-responded' ||
+              (part.state === 'output-available' && part.preliminary))
         )
+      const normalized: CherryUIMessage = {
+        id: source.id,
+        role: source.role,
+        parts: source.parts as CherryUIMessage['parts'],
+        metadata: { status: pending ? 'pending' : 'success' }
+      }
+      const message = this.decorate?.(normalized, source) ?? normalized
+      const previous = this.messages.get(message.id)
+      next.set(message.id, previous && isDeepStrictEqual(message, previous) ? previous : message)
     }
-    const message = reader.message
-    if (item.completeness === 'complete') {
-      await reader.close()
-      this.readers.delete(id)
-    }
-    return message
-  }
-}
-
-function canAppend(previous: Source, next: Source): boolean {
-  const before = previous.item
-  const after = next.item
-  if (before.completeness === 'complete' || !isDeepStrictEqual(previous.result, next.result)) return false
-  if (before.type === 'message' && after.type === 'message')
-    return (
-      before.role === after.role &&
-      before.parts.length <= after.parts.length &&
-      before.parts.every(
-        (part, index) => part.type === after.parts[index].type && after.parts[index].text.startsWith(part.text)
-      )
-    )
-  return (
-    before.type === 'tool-call' &&
-    after.type === 'tool-call' &&
-    before.name === after.name &&
-    after.argumentsText.startsWith(before.argumentsText)
-  )
-}
-
-class MessageReader {
-  private controller!: ReadableStreamDefaultController<CherryUIMessageChunk>
-  private readonly reader: ReadableStreamDefaultReader<CherryUIMessage>
-  private closed = false
-  message: CherryUIMessage
-
-  constructor(id: string) {
-    this.message = { id, role: 'assistant', metadata: undefined, parts: [] }
-    this.reader = readUIMessageStream<CherryUIMessage>({
-      // The SDK mutates its seed before emitting snapshots; an empty published view must stay immutable.
-      message: { ...this.message, parts: [] },
-      stream: new ReadableStream({
-        start: (controller) => {
-          this.controller = controller
-        }
-      }),
-      terminateOnError: true
-    }).getReader()
-  }
-
-  async write(chunk: CherryUIMessageChunk): Promise<void> {
-    this.controller.enqueue(chunk)
-    const next = await this.reader.read()
-    if (next.done) throw new Error('Message reader closed before applying an update')
-    this.message = next.value
-  }
-
-  async close(): Promise<void> {
-    if (this.closed) return
-    this.closed = true
-    this.controller.close()
-    await this.reader.read()
+    this.messages.clear()
+    for (const [id, message] of next) this.messages.set(id, message)
   }
 }

@@ -48,6 +48,7 @@ import {
 import { Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
+import { KeyedMessageActivityStore } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type { MessageInputFilePreview } from '@renderer/components/chat/messages/types'
@@ -1237,11 +1238,13 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
 }
 
 const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
+  childActive,
   messages,
   partsByMessageId,
   title,
   toolCallId
 }: {
+  childActive?: boolean
   toolCallId: string
   title: string
   messages: CherryUIMessage[]
@@ -1251,6 +1254,12 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   const { t } = useTranslation()
   const meta = useAgentRightPaneMeta()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  const childActivity = useMemo(() => {
+    if (childActive === undefined) return undefined
+    const store = new KeyedMessageActivityStore()
+    store.update([], [], childActive ? 'streaming' : 'done')
+    return store
+  }, [childActive])
   const topic = useMemo<Topic>(
     () => ({
       id: meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : 'agent-session:tool-flow',
@@ -1292,6 +1301,10 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
       ...providerValue,
       state: {
         ...providerValue.state,
+        ...(childActivity && {
+          messageActivityStore: childActivity,
+          getMessageActivityState: childActivity.getSnapshot
+        }),
         selection: undefined,
         renderConfig: {
           ...providerValue.state.renderConfig,
@@ -1302,7 +1315,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
         }
       }
     }),
-    [providerValue, t]
+    [childActivity, providerValue, t]
   )
 
   return (
@@ -1334,15 +1347,14 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   )
   const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined)
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
-  const flow = useMemo(
+  const flow = useMemo<ReturnType<typeof buildAgentToolFlowProjection>>(
     () =>
       child?.view
         ? {
             messages: [...child.view.messages],
             partsByMessageId: Object.fromEntries(child.view.messages.map((message) => [message.id, message.parts])),
             toolNodes: [],
-            selectedToolCallIds: new Set<string>(),
-            selectedTool: undefined
+            selectedToolCallIds: new Set<string>()
           }
         : !active && retainedFlowRef.current
           ? retainedFlowRef.current
@@ -1418,6 +1430,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
       </div>
       <div className="min-h-0 flex-1">
         <AgentToolFlowMessageList
+          childActive={child?.view?.active}
           toolCallId={tab.toolCallId}
           title={tab.title}
           messages={flow.messages}

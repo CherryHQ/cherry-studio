@@ -75,9 +75,25 @@ class AgentSessionContextService {
     return rows.length === 1 ? rows[0].context : undefined
   }
 
-  saveProjectionTx(tx: DbOrTx, contextId: string, mapping: Record<string, string>, gap?: string): void {
+  saveProjectionTx(
+    tx: DbOrTx,
+    contextId: string,
+    mapping: Record<string, string>,
+    gap?: string,
+    removed?: readonly string[],
+    composition?: Record<string, { messageId: string; parts: number[] }[]>
+  ): void {
+    const checkpoint = tx.select().from(contexts).where(eq(contexts.id, contextId)).get()?.checkpointMapping
     tx.update(contexts)
-      .set({ checkpointMapping: { projection: mapping, ...(gap && { gap }) } })
+      .set({
+        checkpointMapping: {
+          ...checkpoint,
+          projection: mapping,
+          gap,
+          ...(removed && { removed }),
+          ...(composition && { projectionVersion: 2, composition })
+        }
+      })
       .where(eq(contexts.id, contextId))
       .run()
   }

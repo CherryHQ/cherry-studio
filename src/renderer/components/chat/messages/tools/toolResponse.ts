@@ -218,7 +218,10 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
           ...(typeof toolPart.approval.reason === 'string' ? { reason: toolPart.approval.reason } : {})
         }
       : undefined
-  const status = mapPartStateToStatus(toolPart.state, approval?.approved)
+  const status =
+    toolPart.state === 'output-available' && toolPart.preliminary
+      ? 'invoking'
+      : mapPartStateToStatus(toolPart.state, approval?.approved)
 
   const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)

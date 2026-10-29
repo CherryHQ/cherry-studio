@@ -1616,13 +1616,22 @@ export class AgentSessionMessageService {
   }
 
   /** Reconciles a child archive's proven source order without editing a product conversation branch. */
-  orderChildArchiveTx(tx: DbOrTx, sessionId: string, order: readonly string[]): void {
+  orderChildArchiveTx(tx: DbOrTx, sessionId: string, order: readonly string[], removed: readonly string[] = []): void {
     const session = tx.select().from(sessionTable).where(eq(sessionTable.id, sessionId)).get()
     if (!session?.ownerSessionId) throw new Error('Only owned child archives can reconcile message order')
     const rows = tx.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).all()
     const byId = new Map(rows.filter((row) => row.role !== 'root').map((row) => [row.id, row]))
-    if (new Set(order).size !== byId.size || order.some((id) => !byId.has(id)))
-      throw new Error('Child archive order must retain every message')
+    const priorPath = new Set(
+      readAgentSessionAncestry(tx, sessionId, session.activeNodeId ?? ensureAgentSessionRootTx(tx, sessionId)).map(
+        (row) => row.id
+      )
+    )
+    if (
+      new Set(order).size !== order.length ||
+      order.some((id) => !byId.has(id)) ||
+      [...priorPath].some((id) => byId.has(id) && !order.includes(id) && !removed.includes(id))
+    )
+      throw new Error('Child archive order must retain messages without explicit removal')
     let parentId = ensureAgentSessionRootTx(tx, sessionId)
     for (const id of order) {
       if (byId.get(id)!.parentId !== parentId)

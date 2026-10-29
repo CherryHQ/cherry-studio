@@ -4,20 +4,18 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 
-The caller supplies a borrowed native `ModelRuntime` and `Model`, a working directory and an agent
-directory. Credentials and provider registration remain with the caller. Closing the runtime leaves
-the supplied model runtime usable. Content uses the common AI SDK message protocol; this package has no Cherry application dependency.
-
 Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
 `steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
 controller: a live run receives a queued message; a finished child continues in the background.
 The legacy controller needs `SubagentPort.load`; the behavior-backed controller retains the same
 native session. An unsupported policy is rejected before native dispatch.
 
-
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
-Pi owns the execution loop, tools, context accounting and compaction. Content uses the common AI SDK message protocol; the package imports no Cherry application code.
-Native deltas accumulate once into ordered SDK messages, including preliminary/final tool results.
+Pi owns the execution loop, tools, context accounting and compaction. Content deltas use the common AI SDK message reader before observer fanout; the package
+imports no Cherry application code. Native tool results and progress update their calling message,
+without reordering its text, reasoning and tool parts.
+Behavior's child-task and continuation custom messages project as user messages with native entry
+identities. Other hidden custom markers remain hidden; filtering them must not erase actual input boundaries.
 
 ## Common runtime with Cherry behavior
 
@@ -95,7 +93,7 @@ Live child projections feed independent desktop message archives and IPC subscri
 tests live in `tests/`, using Pi providers directly. `tests/sessionSupport.ts` supplies native
 scripted streams with fixed usage for budget and compaction assertions, without an HTTP or AI SDK fixture.
 Cherry gateway integration tests remain in `src/main/ai/runtime/pi/`.
-The typed `pi.archive()` facet supplies committed content and proven native-entry/live-item aliases;
+The typed `pi.archive()` facet supplies committed content and proven native-entry/live-message aliases and legacy part mappings;
 it excludes a child's inherited parent context. It remains readable after native shutdown until the
 access is released, so the host can finish archiving the quiesced tail. This is not a mandatory common
 Runtime history interface.

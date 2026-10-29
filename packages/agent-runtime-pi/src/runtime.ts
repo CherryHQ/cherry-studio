@@ -310,7 +310,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         },
         toolDefinition: (name) => (unavailable() ? undefined : entry.session.getToolDefinition(name)),
         toolCallId: (ref) =>
-          unavailable() || ref.thread !== entry.ref.id ? undefined : entry.behavior?.harness.toolCallId(ref),
+          !unavailable() && ref.thread === entry.ref.id ? entry.behavior?.harness.toolCallId(ref) : undefined,
         cancelQueuedInputs() {
           if (unavailable()) return rejected('cancel-queued-inputs', 'closed')
           if (!entry.owner) return rejected('cancel-queued-inputs', 'not-owner')
