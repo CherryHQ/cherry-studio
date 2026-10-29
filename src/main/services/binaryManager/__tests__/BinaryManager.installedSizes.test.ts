@@ -1,4 +1,5 @@
 import fsp from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { MockApplicationUtils } from '@test-mocks/main/application'
@@ -93,7 +94,7 @@ describe('BinaryManager installed sizes', () => {
     MockMainPreferenceServiceUtils.resetMocks()
     vi.clearAllMocks()
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
-    root = await fsp.mkdtemp(path.join(process.env.TMPDIR!, 'manager-sizes-'))
+    root = await fsp.realpath(await fsp.mkdtemp(path.join(tmpdir(), 'manager-sizes-')))
     await fsp.mkdir(path.join(root, 'shims'))
     await fsp.mkdir(path.join(root, 'bundled'))
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {

@@ -1,4 +1,5 @@
 import fsp from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,7 +13,7 @@ describe('installed size filesystem measurement', () => {
   beforeEach(async () => {
     const modulePath = '../toolInstalledSize'
     measure = (await import(modulePath)).measureToolInstalledSize
-    root = await fsp.mkdtemp(path.join(process.env.TMPDIR!, 'installed-size-'))
+    root = await fsp.realpath(await fsp.mkdtemp(path.join(tmpdir(), 'installed-size-')))
   })
 
   afterEach(async () => {
