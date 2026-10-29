@@ -2697,6 +2697,27 @@ describe('AgentPage', () => {
     )
   })
 
+  it.each([
+    ['emoji glyph', '🚀', { emoji: '🚀', icon: undefined }],
+    ['image URL', 'https://example.com/avatar.png', { emoji: undefined, icon: 'https://example.com/avatar.png' }]
+  ])('labels the Work tab with an %s avatar through its own slot', (_label, avatar, expected) => {
+    // An image URL handed to the emoji slot renders as clipped text in the tab.
+    agentPageMocks.routeSearch = { sessionId: 'session-1' }
+    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A', configuration: { avatar } }]
+    activeSessionMocks.session = {
+      id: 'session-1',
+      agentId: 'agent-a',
+      name: 'Session 1',
+      workspaceId: agentPageMocks.workspace.id,
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(expect.objectContaining(expected))
+  })
+
   it('does not create a first-launch session from remembered agent and workspace state', () => {
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [

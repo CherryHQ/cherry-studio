@@ -118,7 +118,7 @@ afterEach(() => {
   cleanup()
 })
 
-describe('useConversationTabTitleWriter', () => {
+describe('useConversationTabTitleChangeSync', () => {
   it('relabels a tab when another window renames its conversation', async () => {
     // A rename in another window only reaches this one as a DataApi change notification, which
     // carries no name — the label has to follow the row it points at.
@@ -197,6 +197,21 @@ describe('useConversationTabTitleWriter', () => {
     })
 
     await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Old A'))
+    get.mockRestore()
+  })
+
+  it('ignores a non-Chat route that happens to carry the same query key', async () => {
+    const stray: Tab = { ...chatTab('tab-x', 'Notes', 'topic-a'), url: '/app/notes?topicId=topic-a' }
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a'), stray]
+    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: 'Renamed A' })
+    renderShell(<CrossWindowRenameSync />)
+
+    await act(async () => {
+      changeListeners.get('/topics/:id')?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+    })
+
+    await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('tab-a=Renamed A'))
+    expect(screen.getByTestId('labels')).toHaveTextContent('tab-x=Notes')
     get.mockRestore()
   })
 

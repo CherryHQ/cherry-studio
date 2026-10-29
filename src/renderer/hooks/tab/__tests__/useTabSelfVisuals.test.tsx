@@ -52,14 +52,14 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Topic title" emoji="🚀" routePrefix="/documents" />
+        <TabVisualsWriter title="Topic title" emoji="spark" routePrefix="/documents" />
       </TabIdProvider>
     )
 
     await waitFor(() =>
       expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
         title: 'Topic title',
-        icon: 'icon:🚀'
+        icon: 'icon:spark'
       })
     )
   })
@@ -76,7 +76,7 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Topic title" emoji="🚀" routePrefix="/app/chat" />
+        <TabVisualsWriter title="Topic title" emoji="spark" routePrefix="/app/chat" />
       </TabIdProvider>
     )
 
@@ -92,42 +92,18 @@ describe('useTabSelfVisuals', () => {
         type: 'route',
         url: '/app/agents?sessionId=session-1',
         title: 'Session title',
-        icon: 'icon:🚀'
+        icon: 'icon:spark'
       }
     ]
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Session title" emoji="🚀" routePrefix="/app/agents" />
+        <TabVisualsWriter title="Session title" emoji="spark" routePrefix="/app/agents" />
       </TabIdProvider>
     )
 
     await act(async () => {})
 
     expect(mocks.updateTab).not.toHaveBeenCalled()
-  })
-
-  it('stores an image-URL avatar as the tab image instead of an emoji descriptor', async () => {
-    mocks.tabs = [
-      {
-        id: 'tab-1',
-        type: 'route',
-        url: '/app/agents?sessionId=session-1',
-        title: 'Session title'
-      }
-    ]
-
-    render(
-      <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Session title" emoji="https://example.com/avatar.png" routePrefix="/app/agents" />
-      </TabIdProvider>
-    )
-
-    await waitFor(() =>
-      expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
-        title: 'Session title',
-        icon: 'https://example.com/avatar.png'
-      })
-    )
   })
 })
