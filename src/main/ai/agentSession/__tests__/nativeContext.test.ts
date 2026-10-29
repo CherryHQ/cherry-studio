@@ -124,8 +124,8 @@ describe('native context storage and reconciliation', () => {
     confirmed(
       await restored.observe((event) => {
         if (event.type === 'snapshot')
-          for (const item of event.items) {
-            if (item.type === 'message') text.push(...item.parts.map((part) => part.text))
+          for (const message of event.messages) {
+            text.push(...message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
           }
       })
     )
