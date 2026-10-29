@@ -511,7 +511,7 @@ export const aiRequestSchemas = {
     input: agentTaskRefSchema,
     output: z.void()
   }),
-  'ai.agent.task.approveGuard': defineRoute({
+  'ai.agent.task.approve_guard': defineRoute({
     input: agentTaskRefSchema.extend({
       /** Exact command string the user saw and approved; a stale dialog approves nothing. */
       expectedCommand: z.string().min(1)

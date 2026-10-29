@@ -327,7 +327,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const fired = await application.get('AgentJobsService').runTask(agentId, taskId)
     if (!fired) throw agentTaskNotFound(taskId)
   },
-  'ai.agent.task.approveGuard': ({ agentId, taskId, expectedCommand }) =>
+  'ai.agent.task.approve_guard': ({ agentId, taskId, expectedCommand }) =>
     exposeAgentTaskError(() => {
       const approved = application.get('AgentJobsService').approveTaskGuardCommand(agentId, taskId, expectedCommand)
       if (!approved) throw agentTaskNotFound(taskId)

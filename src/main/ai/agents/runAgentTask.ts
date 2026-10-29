@@ -268,7 +268,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       const approval = readTaskGuardApproval(scheduleSnapshot?.metadata)
       if (approval?.command !== ctx.input.guard.command) {
         logger.debug('Task skipped: command guard pending user approval', { agentId, scheduleId })
-        return { result: 'Skipped (guard: command pending user approval)', skipped: true }
+        return {
+          result:
+            'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.',
+          skipped: true
+        }
       }
     }
     // Crash recovery replays the same job under `recovery: 'retry'`. Admission
@@ -409,13 +413,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         // The run reached the agent: advance the durable guard watermark.
         if (scheduleId) {
           const startedMs = jobSnapshot?.startedAt ? Date.parse(jobSnapshot.startedAt) : Number.NaN
-          application
-            .get('AgentJobsService')
-            .recordTaskExecutionStart({
-              scheduleId,
-              startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now(),
-              jobId: ctx.jobId
-            })
+          application.get('AgentJobsService').recordTaskExecutionStart({
+            scheduleId,
+            startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now(),
+            jobId: ctx.jobId
+          })
         }
         break
       }

@@ -587,6 +587,10 @@ export class AgentJobsService extends BaseService {
    * Persist the guard watermark when a scheduled run reaches the agent. Not
    * part of the read model: the value only feeds fire-time guard evaluation.
    */
+  // Admission semantics: the watermark advances when a run is ADMITTED, not when it
+  // completes. A post-admission failure that is never retried therefore consumes the
+  // change that admitted it - the F6 history filter narrows fallback evidence but does
+  // not change that; do not claim no unprocessed change can be consumed.
   recordTaskExecutionStart(params: { scheduleId: string; startedAtMs: number; jobId: string }): void {
     const snapshot = jobScheduleService.getById(params.scheduleId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
@@ -596,7 +600,7 @@ export class AgentJobsService extends BaseService {
   }
 
   /**
-   * Record the user's approval of a `command` guard (`ai.agent.task.approveGuard`).
+   * Record the user's approval of a `command` guard (`ai.agent.task.approve_guard`).
    * `expectedCommand` is the exact string the user saw and approved; a mismatch
    * means the guard changed under the open dialog, so nothing is approved.
    */

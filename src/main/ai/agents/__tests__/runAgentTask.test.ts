@@ -313,7 +313,9 @@ describe('runAgentTask', () => {
       )
 
       expect(out.skipped).toBe(true)
-      expect(out.result).toBe('Skipped (guard: command pending user approval)')
+      expect(out.result).toBe(
+        'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.'
+      )
       expect(agentSessionService.create).not.toHaveBeenCalled()
       expect(mockStartRun).not.toHaveBeenCalled()
     })
@@ -325,7 +327,9 @@ describe('runAgentTask', () => {
       )
 
       expect(out.skipped).toBe(true)
-      expect(out.result).toBe('Skipped (guard: command pending user approval)')
+      expect(out.result).toBe(
+        'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.'
+      )
       expect(agentSessionService.create).not.toHaveBeenCalled()
       expect(mockStartRun).not.toHaveBeenCalled()
     })
@@ -373,7 +377,9 @@ describe('runAgentTask', () => {
       )
 
       expect(out.skipped).toBe(true)
-      expect(out.result).toBe('Skipped (guard: command pending user approval)')
+      expect(out.result).toBe(
+        'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.'
+      )
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
@@ -408,7 +414,12 @@ describe('runAgentTask', () => {
         vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({}))
         vi.mocked(jobService.list).mockReturnValueOnce([
           { id: 'j-fail', status: 'failed', startedAt: '2026-05-19T00:00:00.000Z', output: null },
-          { id: 'j-busy', status: 'completed', startedAt: '2026-05-19T00:00:00.000Z', output: { result: 'Skipped (session busy)' } },
+          {
+            id: 'j-busy',
+            status: 'completed',
+            startedAt: '2026-05-19T00:00:00.000Z',
+            output: { result: 'Skipped (session busy)' }
+          },
           { id: 'j-ran', status: 'completed', startedAt: '2026-05-21T00:00:00.000Z', output: { result: 'Done' } }
         ] as never)
 
@@ -434,7 +445,12 @@ describe('runAgentTask', () => {
       vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
       vi.mocked(jobService.list).mockReturnValueOnce([
         { id: 'j-fail', status: 'failed', startedAt: '2026-05-21T00:00:00.000Z', output: null },
-        { id: 'j-skip', status: 'completed', startedAt: '2026-05-21T00:00:00.000Z', output: { skipped: true, result: 'Skipped (guard: unchanged: /x)' } }
+        {
+          id: 'j-skip',
+          status: 'completed',
+          startedAt: '2026-05-21T00:00:00.000Z',
+          output: { skipped: true, result: 'Skipped (guard: unchanged: /x)' }
+        }
       ] as never)
 
       const promise = runAgentTask(

@@ -191,12 +191,15 @@ export const useApproveTaskGuard = () => {
   const approveTaskGuard = useCallback(
     async (agentId: string, taskId: string, expectedCommand: string): Promise<ScheduledTaskEntity | undefined> => {
       try {
-        const task = await ipcApi.request('ai.agent.task.approveGuard', { agentId, taskId, expectedCommand })
+        const task = await ipcApi.request('ai.agent.task.approve_guard', { agentId, taskId, expectedCommand })
         toast.success({ key: 'approve-task-guard', title: t('agent.tasks.guard.approveSuccess') })
         await invalidate(taskReadKeys(agentId))
         return task
       } catch (error) {
+        // A stale dialog (agent changed the command after render) fails closed here;
+        // refresh so reopening the dialog shows the command that is actually current.
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.updateFailed', 'Failed to update task')))
+        await invalidate(taskReadKeys(agentId))
         return undefined
       }
     },

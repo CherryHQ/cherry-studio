@@ -279,7 +279,11 @@ describe('AgentJobsService', () => {
 
   it('auto-approves a command guard saved through the user-originated settings form', () => {
     const command = 'user-typed-command'
-    const task = service.createTask(AGENT_ID, { ...form, guard: { type: 'command', command } }, { guardApprovedByUser: true })
+    const task = service.createTask(
+      AGENT_ID,
+      { ...form, guard: { type: 'command', command } },
+      { guardApprovedByUser: true }
+    )
     expect(task.guardApproval?.command).toBe(command)
 
     // A user-originated edit of the command re-approves in the same save.
@@ -294,7 +298,11 @@ describe('AgentJobsService', () => {
 
   it('drops the approval when an agent-origin edit changes the command, and keeps it otherwise', () => {
     const command = 'original-command'
-    const task = service.createTask(AGENT_ID, { ...form, guard: { type: 'command', command } }, { guardApprovedByUser: true })
+    const task = service.createTask(
+      AGENT_ID,
+      { ...form, guard: { type: 'command', command } },
+      { guardApprovedByUser: true }
+    )
     expect(task.guardApproval?.command).toBe(command)
 
     // Unrelated update: approval survives.

@@ -43,7 +43,11 @@ const mockListSessionDeliveries = vi.fn()
 const mockGetInteractionState = vi.fn()
 
 // Production saveJob reads task.guard.type; every created-task mock needs a default guard.
-const withDefaultGuard = <T extends object>(task: T) => ({ guard: { type: 'always' as const }, guardApproval: null, ...task })
+const withDefaultGuard = <T extends object>(task: T) => ({
+  guard: { type: 'always' as const },
+  guardApproval: null,
+  ...task
+})
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.

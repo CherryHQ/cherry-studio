@@ -680,7 +680,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   let notice = ''
   if (task.guard.type === 'command' && task.guardApproval === null) {
     notice =
-      `\n\nNote: the command guard is pending user approval. Every fire will skip until the user approves this exact command in Settings > Scheduled Tasks: ${task.guard.command}` +
+      `\n\nNote: the command guard is pending user approval. Every fire will skip until the user approves this exact command in Settings > Scheduled Tasks: ${JSON.stringify(task.guard.command)}` +
       '\nIf you change the command later, the user must approve the new command again.'
   } else if (task.guard.type === 'command') {
     notice = '\n\nThe command guard is approved by the user and active.'

@@ -180,7 +180,7 @@ export type TaskGuard = z.infer<typeof TaskGuardSchema>
 
 /**
  * User approval record for a `command` guard. Written only through the
- * user-originated `ai.agent.task.approveGuard` command — never by agent-driven
+ * user-originated `ai.agent.task.approve_guard` command — never by agent-driven
  * paths (MCP cron) — and bound to the exact command string it approved.
  */
 export const TaskGuardApprovalSchema = z.strictObject({

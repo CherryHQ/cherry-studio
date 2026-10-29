@@ -412,7 +412,12 @@ const TaskDetail: FC<{
                 {task.guardApproval === null ? (
                   <>
                     <Badge variant="secondary">{t('agent.tasks.guard.pendingApproval')}</Badge>
-                    <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setGuardApproveOpen(true)}>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0"
+                      onClick={() => setGuardApproveOpen(true)}>
                       {t('agent.tasks.guard.approve')}
                     </Button>
                   </>

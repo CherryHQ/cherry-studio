@@ -209,7 +209,7 @@ const TASK_GUARD_APPROVAL_METADATA_KEY = 'guardApproval'
  * User approval for a `command` guard, bound to the exact approved command.
  * Agent-driven paths (MCP cron) can persist a command guard but can never
  * write this record — approval arrives only through the user-originated
- * `ai.agent.task.approveGuard` command, so an agent without shell
+ * `ai.agent.task.approve_guard` command, so an agent without shell
  * authorization cannot reach main-process `exec` by scheduling a guard.
  */
 export function readTaskGuardApproval(metadata: Record<string, unknown> | undefined): TaskGuardApproval | null {
