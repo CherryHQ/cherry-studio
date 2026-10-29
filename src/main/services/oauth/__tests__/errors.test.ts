@@ -9,7 +9,13 @@ import { runOAuthSignIn } from '@main/ipc/handlers/oauthSignIn'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { normalizeSignInFailure } from '@shared/ipc/errors/signIn'
 
-import { classifyOAuthSignInFailure, describeOAuthError, OAuthDiscoveryError, OAuthServiceError } from '../errors'
+import {
+  classifyOAuthSignInFailure,
+  describeOAuthError,
+  OAuthDiscoveryError,
+  OAuthServiceError,
+  OAuthSignInFailureError
+} from '../errors'
 import { LoopbackCallbackTransport } from '../runtime/LoopbackCallbackTransport'
 import { OAuthRuntimeService } from '../runtime/OAuthRuntimeService'
 import { OAuthHttpError } from '../runtime/PkceOAuthClient'
@@ -174,6 +180,29 @@ describe('sign-in classification and redaction', () => {
     } finally {
       transport.close()
     }
+  })
+
+  it('retains the underlying transport diagnostic in the log projection', () => {
+    const error = new OAuthSignInFailureError({ reason: 'network' }, new Error('net::ERR_TUNNEL_CONNECTION_FAILED'))
+    expect(describeOAuthError(error)).toEqual({
+      name: 'Error',
+      message: 'net::ERR_TUNNEL_CONNECTION_FAILED'
+    })
+  })
+
+  it('keeps nested HTTP status without leaking token bodies in the log projection', () => {
+    const error = new OAuthSignInFailureError(
+      { reason: 'http_error', httpStatus: 400 },
+      new OAuthServiceError('outer', new OAuthHttpError('Failed to exchange code for token: 400', 400, TOKEN_BODY))
+    )
+    const projection = describeOAuthError(error)
+    expect(projection).toEqual({
+      name: 'OAuthHttpError',
+      message: 'Failed to exchange code for token: 400',
+      status: 400
+    })
+    expect(projection.message).not.toContain('TOKEN_MARKER')
+    expect(JSON.stringify(projection)).not.toContain(TOKEN_BODY)
   })
 
   it('retains the existing log-safe nested HTTP projection', () => {

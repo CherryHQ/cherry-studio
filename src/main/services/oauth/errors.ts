@@ -102,8 +102,8 @@ export function describeOAuthError(error: unknown): { name: string; message: str
     if (!(cause instanceof Error)) break
     current = cause
   }
-  if (error instanceof Error) {
-    return { name: error.name, message: error.message }
+  if (current instanceof Error) {
+    return { name: current.name, message: current.message }
   }
   return { name: 'UnknownError', message: String(error) }
 }

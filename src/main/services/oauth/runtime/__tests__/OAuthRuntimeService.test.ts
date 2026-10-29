@@ -573,7 +573,10 @@ describe('OAuthRuntimeService', () => {
         deadline.abort(new DOMException('deadline', 'TimeoutError'))
         listening()
         expect(await outcome).toMatchObject({
-          failure: { reason: 'callback_timeout', phase: stage === 'discovery' ? 'discovery' : 'callback' }
+          failure: {
+            reason: stage === 'discovery' ? 'request_timeout' : 'callback_timeout',
+            phase: stage === 'discovery' ? 'discovery' : 'callback'
+          }
         })
         expect(await outcome).not.toBeInstanceOf(OAuthSignInCancelledError)
         expect(timeout).toHaveBeenCalledWith(600_000)

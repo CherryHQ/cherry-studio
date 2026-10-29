@@ -214,7 +214,7 @@ export class OAuthRuntimeService extends BaseService {
         deadlineSignal.aborted &&
         ['unknown', 'network', 'request_timeout', 'callback_unavailable'].includes(failure.reason)
       ) {
-        failure.reason = 'callback_timeout'
+        failure.reason = operation.phase === 'discovery' ? 'request_timeout' : 'callback_timeout'
       }
       throw new OAuthSignInFailureError(failure, error, definition.providerId)
     }
