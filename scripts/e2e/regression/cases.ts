@@ -487,6 +487,13 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: []
   },
+  {
+    id: 'MP-02',
+    title: 'Streaming, stop, continue, and restart persistence',
+    tasks: ['chat-core'],
+    phase: 'chatCore',
+    capabilities: []
+  },
   { id: 'MP-11', title: 'Notes and export', tasks: ['notes'], phase: 'notes', capabilities: [] },
   {
     id: 'MP-74',

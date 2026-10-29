@@ -20,6 +20,7 @@ import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
+import { chatStreamingStopContinue } from '../scenarios/chatStreamingStopContinue'
 import { codeBlockToolbar } from '../scenarios/codeBlockToolbar'
 import { dragDropPasteAttachments } from '../scenarios/dragDropPasteAttachments'
 import { htmlArtifactPreview } from '../scenarios/htmlArtifactPreview'
@@ -871,4 +872,9 @@ test(...caseDefinition('MP-40'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-41'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(3 * 60_000)
   await htmlArtifactPreview(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-02'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(3 * 60_000)
+  await chatStreamingStopContinue(app, mainWindow, testInfo)
 })
