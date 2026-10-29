@@ -592,16 +592,16 @@
         "name": "New API"
       },
       {
-        "id": "llamay",
-        "name": "llamay"
-      },
-      {
         "id": "lmstudio",
         "name": "LM Studio"
       },
       {
         "id": "litellm",
         "name": "LiteLLM"
+      },
+      {
+        "id": "llamay",
+        "name": "llamay"
       },
       {
         "id": "anthropic",
