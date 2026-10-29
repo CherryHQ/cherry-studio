@@ -238,6 +238,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   }
 
   const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider) || usesGatewayAutoCaching(provider)
+  // The gateway owns cache placement (caching: 'auto'), so only the enable switch and the
+  // TTL hint apply there; threshold/placement controls are Anthropic-marker-path only.
+  const isGatewayAutoCache = usesGatewayAutoCaching(provider)
   const showCacheDetailOptions = effectiveCacheTokenThreshold > 0
   const cacheSystemMessage = cacheControl?.cacheSystemMessage ?? true
 
@@ -274,26 +277,49 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
           <>
             {options.length > 0 ? <div className={drawerClasses.divider} /> : null}
             <div className="flex flex-col gap-4">
-              <PageSidePanelItem
-                title={
-                  <OptionTitle
-                    id={apiOptionId(providerId, 'cache-token-threshold')}
-                    label={t('settings.provider.api.options.anthropic_cache.token_threshold')}
-                    help={t('settings.provider.api.options.anthropic_cache.token_threshold_help')}
-                  />
-                }
-                action={
-                  <InputNumber
-                    id={apiOptionId(providerId, 'cache-token-threshold')}
-                    min={0}
-                    max={CACHE_TOKEN_THRESHOLD_MAX}
-                    step={1}
-                    value={tokenThresholdDraft}
-                    onBlur={commitTokenThreshold}
-                    className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
-                  />
-                }
-              />
+              {isGatewayAutoCache ? (
+                <PageSidePanelItem
+                  title={
+                    <OptionTitle
+                      id={apiOptionId(providerId, 'cache-enable')}
+                      label={t('settings.provider.api.options.anthropic_cache.enable')}
+                      help={t('settings.provider.api.options.anthropic_cache.enable_help')}
+                    />
+                  }
+                  action={
+                    <Switch
+                      id={apiOptionId(providerId, 'cache-enable')}
+                      checked={effectiveCacheTokenThreshold > 0}
+                      onCheckedChange={(checked) =>
+                        updateCacheSettings({
+                          tokenThreshold: checked ? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD : 0
+                        })
+                      }
+                    />
+                  }
+                />
+              ) : (
+                <PageSidePanelItem
+                  title={
+                    <OptionTitle
+                      id={apiOptionId(providerId, 'cache-token-threshold')}
+                      label={t('settings.provider.api.options.anthropic_cache.token_threshold')}
+                      help={t('settings.provider.api.options.anthropic_cache.token_threshold_help')}
+                    />
+                  }
+                  action={
+                    <InputNumber
+                      id={apiOptionId(providerId, 'cache-token-threshold')}
+                      min={0}
+                      max={CACHE_TOKEN_THRESHOLD_MAX}
+                      step={1}
+                      value={tokenThresholdDraft}
+                      onBlur={commitTokenThreshold}
+                      className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
+                    />
+                  }
+                />
+              )}
 
               {showCacheDetailOptions ? (
                 <>
@@ -331,49 +357,53 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                     }
                   />
 
-                  <PageSidePanelItem
-                    title={
-                      <OptionTitle
-                        id={apiOptionId(providerId, 'cache-last-n')}
-                        label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
-                        help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
-                      />
-                    }
-                    action={
-                      <InputNumber
-                        id={apiOptionId(providerId, 'cache-last-n')}
-                        min={0}
-                        max={CACHE_LAST_N_MAX}
-                        step={1}
-                        value={cacheLastNDraft}
-                        onBlur={commitCacheLastNMessages}
-                        className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
-                      />
-                    }
-                  />
-
-                  <PageSidePanelItem
-                    title={
-                      <OptionTitle
-                        id={apiOptionId(providerId, 'cache-system-message')}
-                        label={t('settings.provider.api.options.anthropic_cache.cache_system')}
-                        help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
-                      />
-                    }
-                    action={
-                      <Switch
-                        id={apiOptionId(providerId, 'cache-system-message')}
-                        checked={cacheSystemMessage}
-                        onCheckedChange={(checked) =>
-                          updateCacheSettings({
-                            enabled: effectiveCacheTokenThreshold > 0,
-                            tokenThreshold: effectiveCacheTokenThreshold,
-                            cacheSystemMessage: checked
-                          })
+                  {!isGatewayAutoCache ? (
+                    <>
+                      <PageSidePanelItem
+                        title={
+                          <OptionTitle
+                            id={apiOptionId(providerId, 'cache-last-n')}
+                            label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
+                            help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
+                          />
+                        }
+                        action={
+                          <InputNumber
+                            id={apiOptionId(providerId, 'cache-last-n')}
+                            min={0}
+                            max={CACHE_LAST_N_MAX}
+                            step={1}
+                            value={cacheLastNDraft}
+                            onBlur={commitCacheLastNMessages}
+                            className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
+                          />
                         }
                       />
-                    }
-                  />
+
+                      <PageSidePanelItem
+                        title={
+                          <OptionTitle
+                            id={apiOptionId(providerId, 'cache-system-message')}
+                            label={t('settings.provider.api.options.anthropic_cache.cache_system')}
+                            help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
+                          />
+                        }
+                        action={
+                          <Switch
+                            id={apiOptionId(providerId, 'cache-system-message')}
+                            checked={cacheSystemMessage}
+                            onCheckedChange={(checked) =>
+                              updateCacheSettings({
+                                enabled: effectiveCacheTokenThreshold > 0,
+                                tokenThreshold: effectiveCacheTokenThreshold,
+                                cacheSystemMessage: checked
+                              })
+                            }
+                          />
+                        }
+                      />
+                    </>
+                  ) : null}
                 </>
               ) : null}
             </div>

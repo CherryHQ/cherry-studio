@@ -5151,6 +5151,8 @@
   "settings.provider.api.options.anthropic_cache.cache_ttl_1h": "1 ora",
   "settings.provider.api.options.anthropic_cache.cache_ttl_5m": "5 minuti",
   "settings.provider.api.options.anthropic_cache.cache_ttl_help": "Conserva la cache dei prompt per 5 minuti o 1 ora. Le scritture nella cache di un'ora costano di più.",
+  "settings.provider.api.options.anthropic_cache.enable": "Cache dei prompt",
+  "settings.provider.api.options.anthropic_cache.enable_help": "Vercel AI Gateway memorizza automaticamente nella cache i prefissi della conversazione.",
   "settings.provider.api.options.anthropic_cache.token_threshold": "Soglia di token per la cache",
   "settings.provider.api.options.anthropic_cache.token_threshold_help": "I messaggi che superano questo numero di token verranno memorizzati nella cache. Imposta 0 per disattivare la cache.",
   "settings.provider.api.options.developer_role.help": "Il fornitore supporta i messaggi con role: \"developer\"?",

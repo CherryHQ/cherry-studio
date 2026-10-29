@@ -5151,6 +5151,8 @@
   "settings.provider.api.options.anthropic_cache.cache_ttl_1h": "1 час",
   "settings.provider.api.options.anthropic_cache.cache_ttl_5m": "5 минут",
   "settings.provider.api.options.anthropic_cache.cache_ttl_help": "Хранить кэш промптов 5 минут или 1 час. Запись кэша на один час стоит дороже.",
+  "settings.provider.api.options.anthropic_cache.enable": "Кэширование промптов",
+  "settings.provider.api.options.anthropic_cache.enable_help": "Vercel AI Gateway автоматически кэширует префиксы диалога.",
   "settings.provider.api.options.anthropic_cache.token_threshold": "Порог токена кэша",
   "settings.provider.api.options.anthropic_cache.token_threshold_help": "Сообщения, превышающие это количество токенов, будут кэшироваться. Установите значение 0, чтобы отключить кэширование.",
   "settings.provider.api.options.developer_role.help": "Предоставляет ли этот провайдер сообщения с ролью: \"разработчик\"",

@@ -5151,6 +5151,8 @@
   "settings.provider.api.options.anthropic_cache.cache_ttl_1h": "1 ώρα",
   "settings.provider.api.options.anthropic_cache.cache_ttl_5m": "5 λεπτά",
   "settings.provider.api.options.anthropic_cache.cache_ttl_help": "Διατηρήστε την κρυφή μνήμη προτροπών για 5 λεπτά ή 1 ώρα. Η εγγραφή κρυφής μνήμης μίας ώρας κοστίζει περισσότερο.",
+  "settings.provider.api.options.anthropic_cache.enable": "Προσωρινή αποθήκευση prompt",
+  "settings.provider.api.options.anthropic_cache.enable_help": "Το Vercel AI Gateway αποθηκεύει αυτόματα στην προσωρινή μνήμη τα προθέματα της συνομιλίας.",
   "settings.provider.api.options.anthropic_cache.token_threshold": "Κατώφλι Διακριτικού Κρυφής Μνήμης",
   "settings.provider.api.options.anthropic_cache.token_threshold_help": "Μηνύματα που υπερβαίνουν αυτό το όριο token θα αποθηκεύονται στην cache. Ορίστε το σε 0 για να απενεργοποιήσετε την προσωρινή αποθήκευση.",
   "settings.provider.api.options.developer_role.help": "Ο πάροχος υποστηρίζει μηνύματα με ρόλο: \"developer\";",
