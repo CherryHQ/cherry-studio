@@ -13,7 +13,8 @@ import {
   clearNotesMigrationPairsForTests,
   releaseNotesMigrationSession,
   setNotesMigrationBlockedRoots,
-  waitForNotesFilesystemMutationsIdle
+  waitForNotesFilesystemMutationsIdle,
+  isNotesRootFlipInFlight
 } from '@main/services/notesRelocation'
 import { hashContent } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
@@ -448,10 +449,15 @@ describe('FileEditService persistence contract', () => {
       const flipping = prefs.set('feature.notes.path', elsewhere).then(() => {
         flipped = true
       })
-      await new Promise((resolve) => setTimeout(resolve, 20))
-      // The flip must NOT commit while the write holds a notes mutation.
-      expect(flipped).toBe(false)
+      // Deterministic: while the gate holds, a mutation is counted, so the
+      // flip's drain can never resolve and its commit cannot run.
+      await vi.waitFor(() => expect(isNotesRootFlipInFlight()).toBe(true))
       expect(prefs.get('feature.notes.path')).not.toBe(elsewhere)
+      // A write admitted during the flip is REFUSED, never slipped into the
+      // gap between the drain resolving and the preference commit.
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('gap') })
+      ).rejects.toThrow(/migration is in progress/)
 
       gate.resolve()
       await writing

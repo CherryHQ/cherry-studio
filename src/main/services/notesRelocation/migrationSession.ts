@@ -195,6 +195,13 @@ export function assertNotesPathNotRetired(filePath: string): void {
   if (canonical.state === 'unresolved') {
     throw new NotesRootUnresolvedError()
   }
+  // Canonical containment wins over pair history: a path under the live
+  // canonical root is never retired, even when a historical pair also matches
+  // it - A->B then B->A/sub leaves the live A/sub sitting under the OLD pair
+  // (A,B)'s source, and retiring it would refuse writes to the live tree.
+  if (pathUnderRoot(resolved, canonical.root)) {
+    return
+  }
   for (const pair of matching) {
     const underSource = pathUnderRoot(resolved, pair.source) || pathUnderRoot(pair.source, resolved)
     if (canonical.root === pair.source) {
@@ -231,6 +238,11 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
 }
 
 export function beginNotesFilesystemMutation(): void {
+  // Refused while a plain notes-root flip holds its barrier: the write would
+  // otherwise be checked against the pre-flip root and commit after it. Same
+  // error class as the migration barrier - identical retry semantics, and
+  // the window is bounded by the flip's drain timeout.
+  if (notesRootFlipBarriers > 0) throw new NotesMigrationWriteBlockedError()
   activeNotesFilesystemMutations++
 }
 
@@ -270,6 +282,58 @@ export function endNotesBatchMarkdownUpload(): void {
 
 export function waitForNotesBatchMarkdownUploadsIdle(): Promise<void> {
   return waitForNotesFilesystemMutationsIdle()
+}
+
+// ── Plain notes-root flip barrier ────────────────────────────────────────
+// A plain `feature.notes.path` update carries no migration protocol: without
+// coordination it can commit while an admitted-but-uncommitted write is still
+// in flight, silently landing that write in the retired tree. Protocol: close
+// admission SYNCHRONOUSLY (before the first await) and keep it closed through
+// the commit, so no queued write-admission microtask can sneak between the
+// drain resolving and the preference continuation; drain counted mutations
+// BOUNDED; commit only on success. A timeout fails CLOSED - the old
+// preference stays and the caller gets a loud error; a hung edit must never
+// hang the flip forever. Both critical sections (admission check-and-count
+// here, flag-set in the barrier) are synchronous JS segments, so they cannot
+// interleave.
+const NOTES_ROOT_FLIP_DRAIN_TIMEOUT_MS = 15_000
+// A counter, not a boolean: concurrent flips (set + setMultiple, or a
+// reentrant call) each hold the barrier, and admission reopens only once the
+// LAST one finishes. The finally decrement also covers a throwing commit -
+// no flag leak on failure.
+let notesRootFlipBarriers = 0
+
+/** Test/observability hook: whether a plain flip currently holds the barrier. */
+export function isNotesRootFlipInFlight(): boolean {
+  return notesRootFlipBarriers > 0
+}
+
+export async function withNotesRootFlipBarrier(
+  commit: () => void | Promise<void>,
+  drainTimeoutMs: number = NOTES_ROOT_FLIP_DRAIN_TIMEOUT_MS
+): Promise<void> {
+  notesRootFlipBarriers++
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    let timedOut = false
+    await Promise.race([
+      waitForNotesFilesystemMutationsIdle(),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          timedOut = true
+          resolve()
+        }, drainTimeoutMs)
+        timer.unref?.()
+      })
+    ])
+    if (timedOut) {
+      throw new Error('Timed out waiting for in-flight notes edits to finish; the notes folder was not changed - retry')
+    }
+    await commit()
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+    notesRootFlipBarriers--
+  }
 }
 
 export function releaseNotesMigrationSession(): void {

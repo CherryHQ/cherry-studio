@@ -11,6 +11,8 @@ export {
   getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
   isNotesMigrationWriteBlockedError,
+  isNotesRootFlipInFlight,
+  withNotesRootFlipBarrier,
   isNotesRetiredRootWriteError,
   isNotesRootUnresolvedError,
   NotesMigrationWriteBlockedError,

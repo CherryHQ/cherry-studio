@@ -30,6 +30,7 @@ import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
 import {
   assertNotesPathNotMutatingDuringMigration,
+  assertNotesPathNotRetired,
   beginNotesBatchMarkdownUpload,
   endNotesBatchMarkdownUpload,
   isAllowedNotesDirectory,
@@ -1007,6 +1008,9 @@ class FileStorage {
       const basePath = path.resolve(targetPath)
       await assertOutsideManagedStorageMutation(basePath)
       assertNotesPathNotMutatingDuringMigration(basePath)
+      // A stale absolute targetPath must not land files in a retired notes
+      // tree: the barrier above only covers an in-flight migration.
+      assertNotesPathNotRetired(basePath)
       const MARKDOWN_EXTS = ['.md', '.markdown']
 
       // Filter markdown files

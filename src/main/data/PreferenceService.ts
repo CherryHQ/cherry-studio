@@ -433,32 +433,34 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      if (key === 'feature.notes.path') {
-        // Coordinate a plain notes-root flip with in-flight note edits: the
-        // write path checks the canonical root before its awaits, so a flip
-        // landing mid-write would commit into the tree being retired. Drain
-        // first (the same barrier the migration protocol uses) so every
-        // in-flight write either commits before the flip or re-checks against
-        // the new root at its commit boundary. Lazy import: the data layer
-        // must not statically depend on the notes-relocation service module.
-        const { waitForNotesFilesystemMutationsIdle } = await import(
-          '@main/services/notesRelocation/migrationSession'
-        )
-        await waitForNotesFilesystemMutationsIdle()
+      const applyCommit = (): void => {
+        application
+          .get('DbService')
+          .getDb()
+          .update(preferenceTable)
+          .set({
+            value: value
+          })
+          .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
+          .run()
+
+        // Update memory cache immediately — safe after resolveKey + cache key check
+        ;(this.cache as Record<string, unknown>)[cacheKey] = value
       }
 
-      application
-        .get('DbService')
-        .getDb()
-        .update(preferenceTable)
-        .set({
-          value: value
-        })
-        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
-        .run()
-
-      // Update memory cache immediately — safe after resolveKey + cache key check
-      ;(this.cache as Record<string, unknown>)[cacheKey] = value
+      if (key === 'feature.notes.path') {
+        // A plain notes-root flip commits through the flip barrier: admission
+        // of new note edits closes before the drain and stays closed through
+        // this synchronous commit (DbService writes are sync), so no write
+        // can linearize between the drain and the flip; the drain is bounded
+        // and fails closed without committing on timeout. Lazy import: the
+        // data layer must not statically depend on the notes-relocation
+        // service module.
+        const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation/migrationSession')
+        await withNotesRootFlipBarrier(applyCommit)
+      } else {
+        applyCommit()
+      }
 
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
@@ -553,16 +555,6 @@ export class PreferenceService extends BaseService {
         throw error
       }
 
-      // Plain notes-root flip: drain in-flight note edits before the commit
-      // (same reasoning as `set`). Gated on key presence; the wait is
-      // immediate when no edits are in flight.
-      if ('feature.notes.path' in updates) {
-        const { waitForNotesFilesystemMutationsIdle } = await import(
-          '@main/services/notesRelocation/migrationSession'
-        )
-        await waitForNotesFilesystemMutationsIdle()
-      }
-
       // Performance optimization: filter out unchanged preference values
       const actualUpdates: Record<string, any> = {}
       const oldValues: Record<string, any> = {}
@@ -588,22 +580,32 @@ export class PreferenceService extends BaseService {
 
       // Write changed preference values to DB
       if (Object.keys(actualUpdates).length > 0) {
-        application.get('DbService').withWriteTx((tx) => {
-          for (const [key, value] of Object.entries(actualUpdates)) {
-            tx.update(preferenceTable)
-              .set({
-                value
-              })
-              .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
-              .run()
-          }
-        })
+        const applyBatchCommit = (): void => {
+          application.get('DbService').withWriteTx((tx) => {
+            for (const [key, value] of Object.entries(actualUpdates)) {
+              tx.update(preferenceTable)
+                .set({
+                  value
+                })
+                .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+                .run()
+            }
+          })
 
-        // Update memory cache for changed keys only
-        for (const [key, value] of Object.entries(actualUpdates)) {
-          if (key in this.cache) {
-            ;(this.cache as Record<string, unknown>)[key] = value
+          // Update memory cache for changed keys only
+          for (const [key, value] of Object.entries(actualUpdates)) {
+            if (key in this.cache) {
+              ;(this.cache as Record<string, unknown>)[key] = value
+            }
           }
+        }
+
+        if ('feature.notes.path' in actualUpdates) {
+          // Same plain-flip barrier as `set` (which see).
+          const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation/migrationSession')
+          await withNotesRootFlipBarrier(applyBatchCommit)
+        } else {
+          applyBatchCommit()
         }
 
         // Collect preference changes for notification

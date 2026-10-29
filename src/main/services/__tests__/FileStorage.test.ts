@@ -20,7 +20,10 @@ vi.mock('word-extractor', () => ({
   }
 }))
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
+
 import {
+  clearNotesMigrationPairsForTests,
   releaseNotesMigrationSession,
   setNotesMigrationBlockedRoots,
   tryBeginNotesDirectoryMigration,
@@ -404,6 +407,29 @@ describe('FileStorage', () => {
   describe('batchUploadMarkdownFiles', () => {
     afterEach(() => {
       releaseNotesMigrationSession()
+      clearNotesMigrationPairsForTests()
+      MockApplicationUtils.resetServices()
+    })
+
+    it('rejects a stale absolute targetPath under a retired notes root', async () => {
+      // The batch target is an absolute path with no lease: after a migration
+      // A->B landed (canonical = B), uploading into the retired A must not
+      // write the old tree.
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-ret-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-ret-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: target, provenance: 'cache' }))
+      })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], source)).rejects.toThrow(/relocated/)
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).resolves.toMatchObject({
+        failedFiles: 0
+      })
     })
 
     it('rejects uploads into notes roots blocked during directory migration', async () => {
