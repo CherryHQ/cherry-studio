@@ -158,6 +158,13 @@ export class ChildThreadProjection {
     await this.flush()
   }
 
+  async refreshDecoration(ids: readonly string[]): Promise<void> {
+    if (this.stopped) return
+    await this.projection.accept([], ids)
+    this.needsHistory = true
+    this.schedule()
+  }
+
   private schedule(): void {
     this.timer ??= setTimeout(() => {
       this.timer = undefined

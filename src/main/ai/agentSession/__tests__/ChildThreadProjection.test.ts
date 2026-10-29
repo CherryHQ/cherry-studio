@@ -13,6 +13,7 @@ import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 
 import { ChildThreadProjection, savedChildView } from '../ChildThreadProjection'
+import type { MessageDecorator } from '../ThreadMessageProjection'
 
 const dbh = setupTestDatabase()
 const projections: ChildThreadProjection[] = []
@@ -21,7 +22,7 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-function fixture(beforeRead?: () => Promise<void>) {
+function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) {
   const workspaceId = randomUUID()
   dbh.db
     .insert(agentWorkspaceTable)
@@ -56,11 +57,16 @@ function fixture(beforeRead?: () => Promise<void>) {
     legacy?: Record<string, { messageId: string; parts: number[] }>
   } = { messages: [], aliases: {} }
   let unavailable = false
-  const projection = new ChildThreadProjection(context, handle, async () => {
-    await beforeRead?.()
-    if (unavailable) throw new Error('History temporarily unavailable')
-    return archive
-  })
+  const projection = new ChildThreadProjection(
+    context,
+    handle,
+    async () => {
+      await beforeRead?.()
+      if (unavailable) throw new Error('History temporarily unavailable')
+      return archive
+    },
+    decorate
+  )
   projections.push(projection)
   const item = (id: string, text: string, completeness: 'partial' | 'complete' = 'complete'): RuntimeMessage => ({
     id,
@@ -80,6 +86,28 @@ function fixture(beforeRead?: () => Promise<void>) {
     }
   }
 }
+
+// Settled archive precedence must not suppress an explicit update to product display metadata.
+it('refreshes committed child display metadata and persists it without new native content', async () => {
+  let hidden = false
+  const f = fixture(undefined, (message) => ({
+    ...message,
+    parts: message.parts.map((part) =>
+      part.type === 'text' && hidden ? { ...part, text: part.text.replace(' reminder', '') } : part
+    )
+  }))
+  await f.projection.attach()
+  f.archive.messages = [f.item('native', 'Visible reminder')]
+  f.archive.aliases = { native: 'native' }
+  await f.send({ type: 'message.upsert', message: f.archive.messages[0] })
+  await f.projection.flush()
+  const id = f.projection.snapshot().messages[0].id
+  hidden = true
+  await f.projection.refreshDecoration(['native'])
+  await f.projection.flush()
+  expect(f.projection.snapshot().messages).toMatchObject([{ id, parts: [{ text: 'Visible' }] }])
+  expect(savedChildView(f.context).messages).toMatchObject([{ id, parts: [{ text: 'Visible' }] }])
+})
 
 // Native retraction must survive a stale archive replay; old rows remain retained off the active path.
 it('persists explicit removals and does not resurrect them after reopening', async () => {
