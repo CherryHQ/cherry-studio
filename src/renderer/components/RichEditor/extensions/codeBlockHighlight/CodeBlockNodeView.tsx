@@ -1,7 +1,7 @@
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
 import { Code, Copy, Eye } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Combobox, Tooltip } from '@cherrystudio/ui'
@@ -24,7 +24,8 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const language = (node.attrs.language as string) || 'text'
   const isSpecialView = SPECIAL_VIEWS.includes(language)
   const isEditable = editor.isEditable
-  const [showPreview, setShowPreview] = useState(true)
+  // A new block has no source to preview yet, and typing into the hidden source would land outside it.
+  const [showPreview, setShowPreview] = useState(() => node.textContent.trim().length > 0)
 
   // Handle language change
   const handleLanguageChange = useCallback(
@@ -81,7 +82,9 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           </div>
         </div>
         <div className="special-preview-wrapper">
-          <SpecialComponent>{codeContent}</SpecialComponent>
+          <Suspense fallback={null}>
+            <SpecialComponent>{codeContent}</SpecialComponent>
+          </Suspense>
         </div>
         <pre
           className={`language-${language}`}
