@@ -456,7 +456,7 @@ export class PreferenceService extends BaseService {
         // and fails closed without committing on timeout. Lazy import: the
         // data layer must not statically depend on the notes-relocation
         // service module.
-        const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation/migrationSession')
+        const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation')
         await withNotesRootFlipBarrier(applyCommit)
       } else {
         applyCommit()
@@ -602,7 +602,7 @@ export class PreferenceService extends BaseService {
 
         if ('feature.notes.path' in actualUpdates) {
           // Same plain-flip barrier as `set` (which see).
-          const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation/migrationSession')
+          const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation')
           await withNotesRootFlipBarrier(applyBatchCommit)
         } else {
           applyBatchCommit()

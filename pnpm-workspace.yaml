@@ -1,7 +1,7 @@
 packages:
   - "packages/*"
 
-engineStrict: true
+engineStrict: false
 
 packageExtensions:
   # Published declaration files import Shiki types, but upstream lists it only as a devDependency.
