@@ -657,6 +657,15 @@ export function useArtifactFileTreeModel({
     [expandedIds, loadDirectoryChildren, onExpandedIdsChange]
   )
 
+  // Loaded entries attach under their folder's node, which exists only once its ancestors are loaded.
+  const loadFolder = useCallback(
+    (id: string) => {
+      const segments = id.split('/')
+      segments.forEach((_, index) => loadDirectoryChildren(segments.slice(0, index + 1).join('/')))
+    },
+    [loadDirectoryChildren]
+  )
+
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
   const searchTree = useArtifactFileSearch(
     treeOpen && enableFileSearch ? validWorkspacePath : undefined,
@@ -764,6 +773,6 @@ export function useArtifactFileTreeModel({
     hasLoaded: hasLoaded && !isLazyLoading,
     errorKind: invalidWorkspacePath ? 'invalid_path' : error ? 'load_error' : undefined,
     setExpandedIds,
-    loadFolder: loadDirectoryChildren
+    loadFolder
   }
 }

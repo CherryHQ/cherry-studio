@@ -65,9 +65,9 @@ import {
   type ArtifactPaneFileSelection,
   getArtifactPaneSelectionPath,
   getArtifactPaneSelectionDisplayPath,
+  getArtifactPaneSelectionRelativePath,
   getCopyableAbsolutePath,
   getPathBasename,
-  normalizeArtifactPaneFilePath,
   WORKSPACE_ROOT_ID
 } from './artifactPanePath'
 import { ArtifactPaneSettingsMenu, useFilePaneSettings } from './ArtifactPaneSettingsMenu'
@@ -713,7 +713,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       onCopyContent?: () => void
     ): CommandContextMenuExtraItem[] => {
       const absolutePath = getArtifactPaneSelectionDisplayPath(selection)
-      const relativePath = workspacePath ? normalizeArtifactPaneFilePath(workspacePath, selection.filePath) : null
+      const relativePath = getArtifactPaneSelectionRelativePath(workspacePath, selection)
       return [
         ...attachMenuItems(absolutePath, 'file'),
         buildCopyMenu({
@@ -934,9 +934,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 <div className="flex min-w-0 cursor-context-menu font-normal">
                   <ArtifactPaneBreadcrumb
                     key={previewKey}
-                    relativePath={
-                      workspacePath ? normalizeArtifactPaneFilePath(workspacePath, overlaySelection.filePath) : null
-                    }
+                    relativePath={getArtifactPaneSelectionRelativePath(workspacePath, overlaySelection)}
                     fallbackTitle={getPreviewFileTitle(overlaySelection)}
                     fullPath={getArtifactPaneSelectionPath(overlaySelection)}
                     rootEntries={model.filteredTree}

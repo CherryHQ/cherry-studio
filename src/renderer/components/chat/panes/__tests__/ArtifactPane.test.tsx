@@ -1,6 +1,6 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { type PropsWithChildren, useState } from 'react'
@@ -1323,6 +1323,35 @@ describe('ArtifactPane', () => {
       expect(overlay.querySelector('.truncate')?.textContent).toBe(item.title)
       view.unmount()
     }
+  })
+
+  it('loads a deep folder whose ancestors were never expanded', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectoryEntries.mockImplementation(async (path: string) =>
+      path === '/tmp/workspace/src'
+        ? [{ path: '/tmp/workspace/src/lib', isDirectory: true }]
+        : path === '/tmp/workspace/src/lib'
+          ? [{ path: '/tmp/workspace/src/lib/util.ts', isDirectory: false }]
+          : []
+    )
+    const { result } = renderHook(() =>
+      useArtifactFileTreeModel({
+        workspacePath: '/tmp/workspace',
+        treeOpen: true,
+        expandedIds: new Set(),
+        searchKeyword: '',
+        enableFileSearch: false,
+        selectedFile: null,
+        onExpandedIdsChange: () => {}
+      })
+    )
+    await waitFor(() => expect(result.current.nodeById.has('src')).toBe(true))
+
+    act(() => result.current.loadFolder('src/lib'))
+
+    await waitFor(() =>
+      expect(result.current.nodeById.get('src/lib')?.children?.map((child) => child.id)).toEqual(['src/lib/util.ts'])
+    )
   })
 
   it('loads deeper directory children when folders are expanded', async () => {

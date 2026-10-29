@@ -5172,6 +5172,15 @@ describe('AgentComposer', () => {
       expect.objectContaining({ kind: 'folder', promptText: '/ws/src' })
     )
     expect(mocks.files).toHaveLength(1)
+
+    // A folder already in the draft, e.g. from an @-mention, is not attached again.
+    mocks.insertToken.mockClear()
+    mocks.getDraft.mockReturnValue({
+      text: '',
+      tokens: [{ id: 'folder-token:1', kind: 'folder', label: 'src', promptText: '/ws/src/' }]
+    })
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/src', kind: 'directory' })
+    expect(mocks.insertToken).not.toHaveBeenCalled()
   })
 
   it('opens the agent edit dialog for a session with history', async () => {

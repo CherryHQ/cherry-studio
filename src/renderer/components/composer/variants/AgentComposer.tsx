@@ -99,7 +99,7 @@ import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
-import { isPathWithinAccessiblePath } from './agent/accessiblePath'
+import { getPathComparisonKey, isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   AgentConversationControls,
   type AgentConversationControlsProps,
@@ -1165,7 +1165,11 @@ const AgentComposerInner = ({
       const data = payload as { topicId?: string; path?: string; kind?: 'file' | 'directory' } | undefined
       if (!data?.path || data.topicId !== sessionTopicId) return
       if (data.kind === 'directory') {
-        actionsRef.current.insertToken(createComposerFolderToken(data.path))
+        const key = getPathComparisonKey(data.path)
+        const attached = actionsRef.current
+          .getDraft()
+          .tokens.some((token) => token.kind === 'folder' && getPathComparisonKey(token.promptText ?? '') === key)
+        if (!attached) actionsRef.current.insertToken(createComposerFolderToken(data.path))
         return
       }
       const parsed = AbsoluteFilePathSchema.safeParse(data.path)

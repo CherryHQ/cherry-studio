@@ -35,15 +35,13 @@ function whitespaceCss(indentGuides: boolean, showWhitespace: boolean): string {
   const guideSize = 'calc(var(--diffs-tab-size, 2) * 1ch) 100%'
   const rules: string[] = []
   if (indentGuides || showWhitespace) {
-    rules.push(
-      '[data-ws]{display:inline-block;vertical-align:top;height:var(--diffs-line-height);background-repeat:repeat-x}'
-    )
+    // Spans stay inline with no inline padding, so tab stops and caret geometry are untouched;
+    // block padding on an inline box only extends its painted background to the full line height.
+    rules.push('[data-ws]{background-repeat:repeat-x;padding-block:calc((var(--diffs-line-height) - 1em) / 2)}')
   }
   if (showWhitespace) {
     rules.push(`[data-ws="space"]{background-image:${WHITESPACE_DOT};background-size:1ch 100%}`)
-    rules.push(
-      `[data-ws="tab"]{background-image:${WHITESPACE_TAB};background-size:100% 100%;background-origin:content-box;padding-inline:0.2ch}`
-    )
+    rules.push(`[data-ws="tab"]{background-image:${WHITESPACE_TAB};background-size:100% 100%}`)
   }
   if (indentGuides) {
     const ws = showWhitespace ? { space: [WHITESPACE_DOT, '1ch 100%'], tab: [WHITESPACE_TAB, '100% 100%'] } : null

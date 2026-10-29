@@ -3398,6 +3398,34 @@ describe('AgentRightPane', () => {
     expect(fileSessionDiscardMock).not.toHaveBeenCalled()
   })
 
+  it('drops a closed attachment tab while returning to the file it was opened from', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.queryAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(tabNames()).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(tabNames()).toEqual(['README.md'])
+  })
+
   it('shows the prior file after one Back when the same attachment is previewed again', async () => {
     // Bug: previewing the attachment already on screen consumes the first Back and leaves that attachment visible.
     const user = userEvent.setup()

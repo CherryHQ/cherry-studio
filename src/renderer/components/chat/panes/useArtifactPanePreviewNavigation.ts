@@ -24,7 +24,12 @@ interface UseArtifactPanePreviewNavigationOptions {
   enabled?: boolean
   paneId: string
   previewFileSelection: ArtifactPaneFileSelection | null
-  requestFileSelection: (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => void
+  /** `closeActive` asks the host to drop the active file before showing `selection`. */
+  requestFileSelection: (
+    selection: ArtifactPaneFileSelection | null,
+    onAccepted?: () => void,
+    closeActive?: boolean
+  ) => void
   /** Shared with other file navigations so a newer artifact or attachment wins. */
   selectionGenerationRef?: SelectionGeneration
   scopeKey?: string
@@ -199,16 +204,20 @@ export function useArtifactPanePreviewNavigation({
   const closeFilePreview = useCallback(() => {
     beginRequest()
     const returnTarget = returnRef.current
-    requestFileSelection(returnTarget?.selection ?? null, () => {
-      if (returnRef.current !== returnTarget) return
-      returnRef.current = returnTarget?.previous ?? null
-      if (!returnTarget) return
-      if (returnTarget.closePane) {
-        panelActions.close()
-        return
-      }
-      if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
-    })
+    requestFileSelection(
+      returnTarget?.selection ?? null,
+      () => {
+        if (returnRef.current !== returnTarget) return
+        returnRef.current = returnTarget?.previous ?? null
+        if (!returnTarget) return
+        if (returnTarget.closePane) {
+          panelActions.close()
+          return
+        }
+        if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
+      },
+      true
+    )
   }, [beginRequest, panelActions, requestFileSelection])
 
   const invalidatePreviewRequests = useCallback(() => {

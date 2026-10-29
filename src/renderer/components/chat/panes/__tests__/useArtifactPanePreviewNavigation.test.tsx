@@ -105,11 +105,11 @@ describe('useArtifactPanePreviewNavigation', () => {
     acceptLastSelection(requestFileSelection)
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
   })
 
@@ -134,11 +134,11 @@ describe('useArtifactPanePreviewNavigation', () => {
     act(() => result.current.captureInputPreviewReturnTarget())
     rerender({ selection: third })
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
     rerender({ selection: second })
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
   })
 
@@ -454,12 +454,12 @@ describe('useArtifactPanePreviewNavigation', () => {
     await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
     acceptLastSelection(requestFileSelection)
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function), true)
     expect(panelActions.close).not.toHaveBeenCalled()
 
     act(() => result.current.closeFilePreview())
     expect(panelActions.close).not.toHaveBeenCalled()
-    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function), true)
 
     acceptLastSelection(requestFileSelection)
     expect(panelActions.close).toHaveBeenCalledTimes(1)
@@ -527,7 +527,7 @@ describe('useArtifactPanePreviewNavigation', () => {
     })
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(notes, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(notes, expect.any(Function), true)
 
     rerender({
       acceptedWorkspacePath: '/workspace-b',
@@ -535,7 +535,7 @@ describe('useArtifactPanePreviewNavigation', () => {
       workspacePath: '/workspace-b'
     })
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function), true)
   })
 
   it('drops in-flight attachment metadata when the incoming workspace changes', async () => {
@@ -599,7 +599,7 @@ describe('useArtifactPanePreviewNavigation', () => {
     panelActions.requestOpen.mockClear()
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(artifact, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(artifact, expect.any(Function), true)
     expect(panelActions.requestOpen).not.toHaveBeenCalled()
     expect(panelActions.close).not.toHaveBeenCalled()
 

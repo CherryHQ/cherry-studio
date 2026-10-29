@@ -257,7 +257,12 @@ interface AgentRightPaneFileState {
 
 type AgentFileEditorMode = 'preview' | 'edit'
 /** A file that is not open yet gets a new tab after the active one; an open file activates its tab. */
-type RequestFileSelection = (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => void
+/** `closeActive` removes the active tab first; a `null` selection always closes it and activates its neighbour. */
+type RequestFileSelection = (
+  selection: ArtifactPaneFileSelection | null,
+  onAccepted?: () => void,
+  closeActive?: boolean
+) => void
 export type AgentFileNavigationRequest = (transition: () => void) => void
 
 interface AgentRightPaneActions {
@@ -793,10 +798,9 @@ function AgentRightPaneStateProvider({
     return () => onFileNavigationRequestChange?.(null)
   }, [onFileNavigationRequestChange, requestFileTransition])
 
-  // `null` closes the active tab and activates its neighbour.
   const applyFileSelection = useCallback<RequestFileSelection>(
-    (selection, onAccepted) => {
-      if (isSameFileSelection(previewFileSelection, selection)) {
+    (selection, onAccepted, closeActive = !selection) => {
+      if (!closeActive && isSameFileSelection(previewFileSelection, selection)) {
         onAccepted?.()
         return
       }
@@ -804,11 +808,13 @@ function AgentRightPaneStateProvider({
       const activeIndex = fileTabs.findIndex((tab) => isSameFileSelection(tab, previewFileSelection))
       let nextTabs = fileTabs
       let next = selection
-      if (!selection) {
+      if (closeActive) {
         nextTabs = activeIndex < 0 ? fileTabs : fileTabs.toSpliced(activeIndex, 1)
-        next = nextTabs[Math.min(activeIndex, nextTabs.length - 1)] ?? null
-      } else if (!fileTabs.some((tab) => isSameFileSelection(tab, selection))) {
-        nextTabs = fileTabs.toSpliced(activeIndex + 1, 0, selection)
+        next ??= nextTabs[Math.min(activeIndex, nextTabs.length - 1)] ?? null
+      }
+      // A file not yet open gets a tab after the active one, or in the closed tab's place.
+      if (next && !nextTabs.some((tab) => isSameFileSelection(tab, next))) {
+        nextTabs = nextTabs.toSpliced(closeActive ? Math.max(activeIndex, 0) : activeIndex + 1, 0, next)
       }
       // Plain-text files open in the live editor; rendered previews stay read-only for now.
       setEditMode(
@@ -823,19 +829,19 @@ function AgentRightPaneStateProvider({
   )
   // Without autosave, leaving a file with unsaved edits asks first; other exits still flush on release.
   const requestFileSelection = useCallback<RequestFileSelection>(
-    (selection, onAccepted) => {
+    (selection, onAccepted, closeActive) => {
       if (
         autoSave ||
         !fileSession.isDirty ||
         !previewFileSelection ||
-        isSameFileSelection(previewFileSelection, selection)
+        (!closeActive && isSameFileSelection(previewFileSelection, selection))
       ) {
-        applyFileSelection(selection, onAccepted)
+        applyFileSelection(selection, onAccepted, closeActive)
         return
       }
       setPendingLeave({
         fileName: getPathBasename(previewFileSelection.filePath),
-        proceed: () => applyFileSelection(selection, onAccepted)
+        proceed: () => applyFileSelection(selection, onAccepted, closeActive)
       })
     },
     [applyFileSelection, autoSave, fileSession.isDirty, previewFileSelection]
