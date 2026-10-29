@@ -10,6 +10,7 @@ import {
   createMemoryBackup,
   decodeOriginal,
   latestMemoryBackup,
+  memoryBatchStatus,
   type MemoryBatch,
   type MemoryFileChange,
   type MemoryMutationSource,
@@ -343,7 +344,29 @@ export class MemoryStore {
       }
       this.recoveries.delete(access)
       this.invalidate()
-      const result = await this.apply(access, changes, 'recovery', validateApproval, epoch)
+      const previousStatus = preview.batch.status
+      preview.batch.status = 'partial'
+      await saveMemoryBackup(this.backupRoot, preview.batch)
+      let result: MemoryCommitResult
+      try {
+        result = await this.apply(access, changes, 'recovery', validateApproval, epoch)
+      } catch (error) {
+        preview.batch.status = previousStatus
+        await saveMemoryBackup(this.backupRoot, preview.batch).catch(() => undefined)
+        throw error
+      }
+      if (
+        !result.error &&
+        !conflicts.length &&
+        result.files.every((file) => file.outcome === 'applied' || file.outcome === 'unchanged')
+      ) {
+        preview.batch.status = 'completed'
+        try {
+          await saveMemoryBackup(this.backupRoot, preview.batch)
+        } catch (error) {
+          result.error = error instanceof Error ? error.message : String(error)
+        }
+      }
       result.files.push(...conflicts)
       return result
     })
@@ -403,7 +426,7 @@ export class MemoryStore {
           // Keep the pending manifest when the actual disk result cannot be read.
         }
         for (const step of batch.steps.slice(index + 1)) step.outcome = 'unchanged'
-        batch.status = batch.steps.some((step) => step.outcome === 'pending') ? 'pending' : 'completed'
+        batch.status = memoryBatchStatus(batch)
         await saveMemoryBackup(this.backupRoot, batch).catch(() => undefined)
         return result
       }

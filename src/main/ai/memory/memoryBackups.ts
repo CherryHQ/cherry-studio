@@ -45,12 +45,20 @@ export interface MemoryFileChange {
 
 interface StoredBatch {
   filename: string
-  bytes: number
+  reservedBytes: number
   batch: MemoryBatch
 }
 
 function encodeBatch(batch: MemoryBatch): Buffer {
   return Buffer.from(JSON.stringify(batch))
+}
+
+function reservedBatchBytes(batch: MemoryBatch): number {
+  return encodeBatch({
+    ...batch,
+    status: 'completed',
+    steps: batch.steps.map((step) => ({ ...step, outcome: 'unchanged' }))
+  }).length
 }
 
 export function decodeOriginal(step: MemoryBatch['steps'][number]): Buffer | null {
@@ -78,7 +86,7 @@ async function storedBatches(root: string): Promise<StoredBatch[]> {
       assertMemoryTarget(step.path)
       decodeOriginal(step)
     }
-    batches.push({ filename, bytes: bytes.length, batch })
+    batches.push({ filename, reservedBytes: Math.max(bytes.length, reservedBatchBytes(batch)), batch })
   }
   return batches.sort(
     (left, right) => left.batch.createdAt - right.batch.createdAt || left.filename.localeCompare(right.filename)
@@ -110,13 +118,8 @@ export async function createMemoryBackup(
       outcome: 'pending'
     }))
   }
-  // Reserve the longest status strings before accepting the batch.
-  const reservation = encodeBatch({
-    ...batch,
-    status: 'completed',
-    steps: batch.steps.map((step) => ({ ...step, outcome: 'unchanged' }))
-  }).length
-  let bytes = existing.reduce((total, item) => total + item.bytes, 0) + reservation
+  // Retain metadata growth reservations for existing partial/pending batches too.
+  let bytes = existing.reduce((total, item) => total + item.reservedBytes, 0) + reservedBatchBytes(batch)
   let count = existing.length + 1
   const latest = existing.findLast((item) => item.batch.steps.some((step) => step.outcome !== 'unchanged'))
   const removable = existing.filter((item) => item.batch.status === 'completed' && item !== latest)
@@ -125,7 +128,7 @@ export async function createMemoryBackup(
     if (count <= MEMORY_BACKUP_BATCHES && bytes <= MEMORY_BACKUP_BYTES) break
     prune.push(item)
     count--
-    bytes -= item.bytes
+    bytes -= item.reservedBytes
   }
   if (count > MEMORY_BACKUP_BATCHES || bytes > MEMORY_BACKUP_BYTES) {
     throw new MemoryError(
@@ -147,6 +150,16 @@ export async function latestMemoryBackup(root: string): Promise<MemoryBatch | un
   return stored.findLast((item) => item.batch.steps.some((step) => step.outcome !== 'unchanged'))?.batch
 }
 
+export function memoryBatchStatus(batch: MemoryBatch): MemoryBatch['status'] {
+  if (batch.steps.some((step) => step.outcome === 'pending')) return 'pending'
+  if (
+    batch.steps.some((step) => step.outcome === 'conflict') ||
+    (batch.steps.some((step) => step.outcome === 'applied') && batch.steps.some((step) => step.outcome === 'unchanged'))
+  )
+    return 'partial'
+  return 'completed'
+}
+
 export async function reconcileMemoryBackup(
   root: string,
   activeRoot: string,
@@ -158,7 +171,7 @@ export async function reconcileMemoryBackup(
     const actualHash = memoryHash(await readMemoryBytes(activeRoot, step.path))
     step.outcome = actualHash === step.afterHash ? 'applied' : actualHash === step.beforeHash ? 'unchanged' : 'conflict'
   }
-  batch.status = batch.steps.some((step) => step.outcome === 'conflict') ? 'partial' : 'completed'
+  batch.status = memoryBatchStatus(batch)
   await saveMemoryBackup(root, batch)
   return batch
 }
