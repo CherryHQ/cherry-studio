@@ -40,8 +40,8 @@ match name "kb_search" at …`）。提供商以 HTTP 400 `invalid Gemini functi
 管道顺序（记录在 `toModelMessages` 的 JSDoc 中）：
 
 ```
-… → 使旧版 v1 工具名称线上合法 → 修复缺失/不匹配的工具调用名称 →
-    去除模型不支持的媒体 → …
+… → make legacy v1 tool names wire-legal → repair missing/unmatchable tool-call names →
+    strip media the model can't accept → …
 ```
 
 ## 考虑的替代方案
