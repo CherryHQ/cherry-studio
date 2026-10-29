@@ -3,14 +3,15 @@ import { randomUUID } from 'node:crypto'
 import type {
   SDKAssistantMessage,
   SDKPartialAssistantMessage,
+  SDKResultMessage,
   SessionMessage,
   SessionStoreEntry
 } from '@anthropic-ai/claude-agent-sdk'
 
 import {
   runtimeId,
-  type ContentItem,
-  type ContentPart,
+  RuntimeMessageStream,
+  type RuntimeMessage,
   type InputId,
   type ItemRef,
   type ObservationPayload,
@@ -20,37 +21,76 @@ import {
 import { ClaudeFeed } from './observation'
 import type { ClaudeArchive, ClaudeNativeMessage, ClaudeSource } from './types'
 
+type Part = RuntimeMessage['parts'][number]
+type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
 }
+const json = (value: unknown) => JSON.parse(JSON.stringify(value))
 
-function parts(value: unknown): ContentPart[] {
-  if (typeof value === 'string') return [{ type: 'text', text: value }]
-  return Array.isArray(value)
-    ? value.flatMap<ContentPart>((part) => {
-        const block = object(part)
-        if (block?.type === 'text' && typeof block.text === 'string')
-          return [{ type: 'text' as const, text: block.text }]
-        if (block?.type === 'thinking' && typeof block.thinking === 'string')
-          return [{ type: 'reasoning' as const, text: block.thinking }]
-        return []
-      })
-    : []
+/** Native blocks retain their order; native result messages update the originating tool part. */
+function contentPart(block: Record<string, unknown>, partial: boolean): Part | undefined {
+  const state = partial ? 'streaming' : 'done'
+  if (block.type === 'text' && typeof block.text === 'string')
+    return {
+      type: 'text',
+      text: block.text,
+      state,
+      ...(block.citations !== undefined && { providerMetadata: { anthropic: { citations: json(block.citations) } } })
+    }
+  if (block.type === 'thinking' && typeof block.thinking === 'string')
+    return {
+      type: 'reasoning',
+      text: block.thinking,
+      state,
+      ...(typeof block.signature === 'string' && { providerMetadata: { anthropic: { signature: block.signature } } })
+    }
+  if (block.type === 'redacted_thinking' && typeof block.data === 'string')
+    return { type: 'reasoning', text: '', state, providerMetadata: { anthropic: { redactedData: block.data } } }
+  if (block.type === 'image' || block.type === 'document') {
+    const source = object(block.source)
+    if (!source) return undefined
+    const mediaType =
+      typeof source.media_type === 'string' ? source.media_type : block.type === 'image' ? 'image/*' : 'application/pdf'
+    if (source.type === 'url' && typeof source.url === 'string') return { type: 'file', mediaType, url: source.url }
+    if (source.type === 'base64' && typeof source.data === 'string')
+      return { type: 'file', mediaType, url: `data:${mediaType};base64,${source.data}` }
+    if (source.type === 'text' && typeof source.data === 'string')
+      return { type: 'file', mediaType, url: `data:${mediaType};base64,${Buffer.from(source.data).toString('base64')}` }
+  }
+  if (
+    (block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use') &&
+    typeof block.id === 'string' &&
+    typeof block.name === 'string'
+  )
+    return {
+      type: 'dynamic-tool',
+      toolCallId: block.id,
+      toolName: block.name,
+      input: block.input ?? {},
+      state: partial ? 'input-streaming' : 'input-available',
+      callProviderMetadata: {
+        anthropic: { type: block.type, ...(typeof block.server_name === 'string' && { serverName: block.server_name }) }
+      }
+    }
+  return undefined
 }
 
 export class ClaudeProjection {
   readonly feed: ClaudeFeed
   readonly retracted = new Set<string>()
   private readonly sources = new Map<string, ClaudeSource[]>()
-  private readonly calls = new Map<string, ItemRef>()
+  private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
+  private readonly messages = new Map<string, RuntimeMessage>()
+  private readonly calls = new Map<string, { id: string; part: ToolPart }>()
+  private readonly results = new Map<string, Set<string>>()
   private readonly aborted = new Set<string>()
-  private readonly liveSources = new Set<string>()
-  private readonly generationId = randomUUID()
-  private generation = 0
   private stream?: {
+    apiId: string
     id: string
-    generation: number
-    blocks: Map<number, { item: ContentItem; bound: boolean; stopped: boolean; aborted?: boolean }>
+    reader: RuntimeMessageStream
+    blocks: Map<number, { part: number; type: string; callId?: string; bound?: string; stopped: boolean }>
+    message?: RuntimeMessage
   }
 
   constructor(
@@ -60,16 +100,38 @@ export class ClaudeProjection {
     this.feed = new ClaudeFeed(report)
   }
 
-  ref(uuid: string, block: number): ItemRef {
-    return { session: this.thread, id: runtimeId<'item'>(`${uuid}:${block}`) }
+  ref(uuid: string): ItemRef {
+    return { session: this.thread, id: runtimeId(uuid) }
+  }
+
+  private upsert(message: RuntimeMessage, replaces?: readonly ItemRef[]): ObservationPayload {
+    for (const ref of replaces ?? []) this.messages.delete(ref.id)
+    this.messages.set(message.id, message)
+    return { type: 'message.upsert', message, replaces }
   }
 
   remove(uuids: readonly string[]): ObservationPayload[] {
-    return uuids.flatMap((uuid) => {
+    const events: ObservationPayload[] = []
+    for (const uuid of uuids) {
       this.retracted.add(uuid)
       this.feed.forget(uuid)
-      return (this.sources.get(uuid) ?? []).map(({ ref }) => ({ type: 'item.remove' as const, ref }))
-    })
+      for (const callId of this.results.get(uuid) ?? []) {
+        const call = this.calls.get(callId)
+        const owner = call && this.messages.get(call.id)
+        if (owner && call)
+          events.push(
+            this.upsert({
+              ...owner,
+              parts: owner.parts.map((part) =>
+                part.type === 'dynamic-tool' && part.toolCallId === callId ? call.part : part
+              )
+            })
+          )
+      }
+      this.results.delete(uuid)
+      if (this.messages.delete(uuid)) events.push({ type: 'message.remove', ref: this.ref(uuid) })
+    }
+    return events
   }
 
   message(
@@ -79,106 +141,218 @@ export class ClaudeProjection {
     if (this.retracted.has(message.uuid)) return []
     if (options.aborted) this.aborted.add(message.uuid)
     const body = object(message.message)
-    if (!body) return []
-    const content = typeof body.content === 'string' ? [{ type: 'text', text: body.content }] : body.content
+    const content = typeof body?.content === 'string' ? [{ type: 'text', text: body.content }] : body?.content
     if (!Array.isArray(content)) return []
     const events: ObservationPayload[] = []
+    const value: RuntimeMessage = {
+      id: message.uuid,
+      role: message.type,
+      parts: [],
+      metadata: { completeness: this.aborted.has(message.uuid) ? 'partial' : 'complete', inputId: options.inputId }
+    }
     const sources: ClaudeSource[] = []
+    const bound: number[] = []
     for (const [index, raw] of content.entries()) {
       const block = object(raw)
       if (!block) continue
-      const ref = this.ref(message.uuid, index)
-      const completeness = this.aborted.has(message.uuid) ? 'partial' : 'complete'
-      let item: ContentItem
-      if (
-        (block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use') &&
-        typeof block.id === 'string' &&
-        typeof block.name === 'string'
-      ) {
-        item = {
-          ref,
-          type: 'tool-call',
-          name: block.name,
-          argumentsText: JSON.stringify(block.input ?? {}),
-          completeness
+      sources.push({ ref: this.ref(message.uuid), uuid: message.uuid, block: index })
+      if (typeof block.tool_use_id === 'string') {
+        const call = this.calls.get(block.tool_use_id)
+        const owner = call && this.messages.get(call.id)
+        if (!call || !owner) continue
+        const output = block.content ?? ''
+        const part = call.part
+        const base = {
+          type: 'dynamic-tool' as const,
+          toolName: part.toolName,
+          toolCallId: part.toolCallId,
+          input: part.input,
+          callProviderMetadata: part.callProviderMetadata
         }
-        this.calls.set(block.id, ref)
-      } else if (typeof block.tool_use_id === 'string') {
-        item = {
-          ref,
-          type: 'tool-result',
-          call: typeof block.tool_use_id === 'string' ? this.calls.get(block.tool_use_id) : undefined,
-          parts: parts(block.content),
-          outcome: block.is_error === true ? 'error' : 'success'
-        }
-      } else {
-        item = { ref, type: 'message', role: message.type, parts: parts([raw]), completeness, inputId: options.inputId }
+        const result: ToolPart =
+          block.is_error === true
+            ? {
+                ...base,
+                state: 'output-error',
+                errorText:
+                  typeof output === 'string'
+                    ? output
+                    : Array.isArray(output)
+                      ? output
+                          .filter((part) => object(part)?.type === 'text')
+                          .map((part) => object(part)?.text)
+                          .join('\n')
+                      : JSON.stringify(output),
+                resultProviderMetadata: { anthropic: { result: json(output) } }
+              }
+            : { ...base, state: 'output-available', output }
+        events.push(
+          this.upsert({
+            ...owner,
+            parts: owner.parts.map((part) =>
+              part.type === 'dynamic-tool' && part.toolCallId === block.tool_use_id ? result : part
+            )
+          })
+        )
+        const calls = this.results.get(message.uuid) ?? new Set<string>()
+        calls.add(block.tool_use_id)
+        this.results.set(message.uuid, calls)
+        continue
       }
+      let part = contentPart(block, this.aborted.has(message.uuid))
+      if (!part) continue
       const provisional =
-        options.live &&
-        !this.liveSources.has(message.uuid) &&
-        message.type === 'assistant' &&
-        this.stream?.id === body.id
-          ? [...this.stream!.blocks.values()].find(
-              (entry) =>
-                !entry.bound &&
-                entry.item.type === item.type &&
-                (item.type !== 'tool-call' || (entry.item.type === 'tool-call' && entry.item.name === item.name))
+        options.live && this.stream?.apiId === body?.id
+          ? [...this.stream!.blocks.entries()].find(
+              ([, entry]) => !entry.bound && entry.type === block.type && (!entry.callId || entry.callId === block.id)
             )
           : undefined
       if (provisional) {
-        provisional.bound = true
-        provisional.aborted = options.aborted
-        if (item.type === 'tool-call' && !provisional.stopped) item = { ...item, completeness: 'partial' }
+        provisional[1].bound = message.uuid
+        bound.push(provisional[0])
+        if (part.type === 'dynamic-tool' && !provisional[1].stopped)
+          part = {
+            type: 'dynamic-tool',
+            toolName: part.toolName,
+            toolCallId: part.toolCallId,
+            input: part.input,
+            callProviderMetadata: part.callProviderMetadata,
+            state: 'input-streaming'
+          }
       }
-      events.push({ type: 'item.upsert', item, replaces: provisional ? [provisional.item.ref] : undefined })
-      if (provisional) provisional.item = item
-      sources.push({ ref, uuid: message.uuid, block: index })
+      if (part.type === 'dynamic-tool') {
+        const callId = part.toolCallId
+        const previous = this.messages
+          .get(message.uuid)
+          ?.parts.find((item) => item.type === 'dynamic-tool' && item.toolCallId === callId)
+        this.calls.set(part.toolCallId, { id: message.uuid, part })
+        if (previous?.type === 'dynamic-tool' && previous.state.startsWith('output-')) part = previous
+      }
+      this.legacy[`${message.uuid}:${index}`] = { messageId: message.uuid, parts: [value.parts.length] }
+      value.parts.push(part)
     }
     this.sources.set(message.uuid, sources)
-    if (options.live) this.liveSources.add(message.uuid)
+    if (value.parts.length || content.length === 0) {
+      const replaces = bound.length && this.stream ? [this.ref(this.stream.id)] : undefined
+      events.push(this.upsert(value, replaces))
+      if (bound.length && this.stream) {
+        this.stream.id = `live:${randomUUID()}`
+        events.push(...this.preview())
+      }
+    }
     return events
   }
 
-  partial(message: SDKPartialAssistantMessage): ObservationPayload[] {
+  result(message: SDKResultMessage): ObservationPayload[] {
+    if (message.subtype !== 'success' || message.structured_output === undefined) return []
+    return this.message({
+      type: 'assistant',
+      uuid: message.uuid,
+      session_id: message.session_id,
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: { content: [{ type: 'text', text: JSON.stringify(message.structured_output) }] }
+    })
+  }
+
+  private preview(): ObservationPayload[] {
+    if (!this.stream?.message) return []
+    const indices = new Set([...this.stream.blocks.values()].filter((block) => !block.bound).map((block) => block.part))
+    const parts = this.stream.message.parts.filter((_, index) => indices.has(index))
+    if (!parts.length) return []
+    const message = { ...this.stream.message, id: this.stream.id, parts }
+    for (const part of parts)
+      if (part.type === 'dynamic-tool') this.calls.set(part.toolCallId, { id: message.id, part })
+    return [this.upsert(message)]
+  }
+
+  async partial(message: SDKPartialAssistantMessage): Promise<ObservationPayload[]> {
     const event = message.event
     if (event.type === 'message_start') {
-      this.stream = { id: event.message.id, generation: ++this.generation, blocks: new Map() }
+      await this.stream?.reader.close()
+      const id = `live:${randomUUID()}`
+      this.stream = { apiId: event.message.id, id, reader: new RuntimeMessageStream(id), blocks: new Map() }
       return [{ type: 'activity.changed', activity: { scope: 'foreground', state: 'active' } }]
     }
-    if (!this.stream || !('index' in event)) return []
+    const stream = this.stream
+    if (!stream || !('index' in event)) return []
+    type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
+    const chunks: Chunk[] = []
+    const key = String(event.index)
     if (event.type === 'content_block_start') {
       const block = event.content_block
-      const ref = this.ref(`live:${this.generationId}:${this.stream.generation}:${this.stream.id}`, event.index)
-      const item: ContentItem =
-        block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use'
-          ? { ref, type: 'tool-call', name: block.name, argumentsText: '', completeness: 'partial' }
-          : { ref, type: 'message', role: 'assistant', parts: parts([block]), completeness: 'partial' }
-      this.stream.blocks.set(event.index, { item, bound: false, stopped: false })
-      if (block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use')
-        this.calls.set(block.id, ref)
-      return [{ type: 'item.upsert', item }]
+      const tool = block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use'
+      stream.blocks.set(event.index, {
+        part: stream.message?.parts.length ?? 0,
+        type: block.type,
+        callId: tool ? block.id : undefined,
+        stopped: false
+      })
+      if (tool) chunks.push({ type: 'tool-input-start', toolCallId: block.id, toolName: block.name, dynamic: true })
+      else if (block.type === 'text') {
+        chunks.push({ type: 'text-start', id: key })
+        if (block.text) chunks.push({ type: 'text-delta', id: key, delta: block.text })
+      } else if (block.type === 'thinking' || block.type === 'redacted_thinking') {
+        chunks.push({ type: 'reasoning-start', id: key })
+        if (block.type === 'thinking' && block.thinking)
+          chunks.push({ type: 'reasoning-delta', id: key, delta: block.thinking })
+      }
     }
-    const block = this.stream.blocks.get(event.index)
+    const block = stream.blocks.get(event.index)
     if (!block) return []
-    if (event.type === 'content_block_delta' && !block.bound) {
+    if (event.type === 'content_block_delta') {
       const delta = event.delta
-      if (delta.type === 'input_json_delta' && block.item.type === 'tool-call') {
-        block.item = { ...block.item, argumentsText: block.item.argumentsText + delta.partial_json }
-      } else if ((delta.type === 'text_delta' || delta.type === 'thinking_delta') && block.item.type === 'message') {
-        const type = delta.type === 'text_delta' ? 'text' : 'reasoning'
-        const text = delta.type === 'text_delta' ? delta.text : delta.thinking
-        block.item = {
-          ...block.item,
-          parts: [{ type, text: block.item.parts.map((part) => part.text).join('') + text }]
-        }
-      } else return []
-    } else if (event.type === 'content_block_stop') {
+      if (delta.type === 'text_delta') chunks.push({ type: 'text-delta', id: key, delta: delta.text })
+      if (delta.type === 'thinking_delta') chunks.push({ type: 'reasoning-delta', id: key, delta: delta.thinking })
+      if (delta.type === 'signature_delta')
+        chunks.push({
+          type: 'reasoning-delta',
+          id: key,
+          delta: '',
+          providerMetadata: { anthropic: { signature: delta.signature } }
+        })
+      if (delta.type === 'input_json_delta' && block.callId)
+        chunks.push({ type: 'tool-input-delta', toolCallId: block.callId, inputTextDelta: delta.partial_json })
+    }
+    if (event.type === 'content_block_stop') {
       block.stopped = true
-      if (block.aborted || block.item.type === 'tool-result') return []
-      block.item = { ...block.item, completeness: 'complete' }
-    } else return []
-    return [{ type: 'item.upsert', item: block.item }]
+      if (block.type === 'text') chunks.push({ type: 'text-end', id: key })
+      if (block.type === 'thinking' || block.type === 'redacted_thinking')
+        chunks.push({ type: 'reasoning-end', id: key })
+      if (block.callId) {
+        const part = stream.message?.parts.find(
+          (part) => part.type === 'dynamic-tool' && part.toolCallId === block.callId
+        )
+        if (part?.type === 'dynamic-tool')
+          chunks.push({
+            type: 'tool-input-available',
+            toolCallId: block.callId,
+            toolName: part.toolName,
+            input: part.input,
+            dynamic: true
+          })
+      }
+    }
+    if (!chunks.length) return []
+    stream.message = await stream.reader.append(chunks, 'partial')
+    if (block.bound) {
+      const owner = this.messages.get(block.bound)
+      if (owner && block.callId && block.stopped && !this.aborted.has(block.bound)) {
+        const call = this.calls.get(block.callId)
+        if (call?.part.state === 'input-streaming') call.part = { ...call.part, state: 'input-available' }
+        const value = {
+          ...owner,
+          parts: owner.parts.map(
+            (part): Part =>
+              part.type === 'dynamic-tool' && part.toolCallId === block.callId && part.state === 'input-streaming'
+                ? { ...part, state: 'input-available' }
+                : part
+          )
+        }
+        return [this.upsert(value)]
+      }
+    }
+    return this.preview()
   }
 
   restore(messages: readonly SessionMessage[], entries: readonly SessionStoreEntry[]): ClaudeArchive {
@@ -200,38 +374,45 @@ export class ClaudeProjection {
       )
     this.feed.publish(
       events,
-      selected.map((message) => ({ source: 'archive', message }))
+      selected.map((message) => ({ source: 'archive', message })),
+      this.legacy
     )
-    const ids = new Set(selected.flatMap((message) => this.sources.get(message.uuid)?.map(({ ref }) => ref.id) ?? []))
-    const items = events.flatMap((event) => (event.type === 'item.upsert' ? [event.item] : []))
-    const retained = new Map<string | undefined, ContentItem[]>()
-    const removed = new Set(events.flatMap((event) => (event.type === 'item.remove' ? [event.ref.id] : [])))
+    const content = selected.flatMap((message) =>
+      this.messages.has(message.uuid) ? [this.messages.get(message.uuid)!] : []
+    )
+    const ids = new Set(content.map((message) => message.id))
+    const retained = new Map<string | undefined, RuntimeMessage[]>()
     let anchor: string | undefined
-    for (const item of before.items) {
-      if (ids.has(item.ref.id)) anchor = item.ref.id
-      else if (!removed.has(item.ref.id)) retained.set(anchor, [...(retained.get(anchor) ?? []), item])
+    for (const message of before.messages) {
+      if (ids.has(message.id)) anchor = message.id
+      else if (!this.retracted.has(message.id)) retained.set(anchor, [...(retained.get(anchor) ?? []), message])
     }
     this.feed.publish([
       {
         ...this.feed.snapshot,
         coverage: retained.size ? 'retained-view' : 'current-view',
-        items: [
+        messages: [
           ...(retained.get(undefined) ?? []),
-          ...items.flatMap((item) => [item, ...(retained.get(item.ref.id) ?? [])])
+          ...content.flatMap((message) => [message, ...(retained.get(message.id) ?? [])])
         ]
       }
     ])
     return {
       thread: this.thread,
       coverage: 'current-view',
-      items,
+      content,
+      legacy: { ...this.legacy },
       sources: selected.flatMap((message) => this.sources.get(message.uuid) ?? []),
       messages: selected,
       retracted: [...this.retracted]
     }
   }
 
+  async close(): Promise<void> {
+    await this.stream?.reader.close()
+  }
+
   publish(events: readonly ObservationPayload[], message?: ClaudeNativeMessage): void {
-    this.feed.publish(events, message ? [message] : [])
+    this.feed.publish(events, message ? [message] : [], this.legacy)
   }
 }

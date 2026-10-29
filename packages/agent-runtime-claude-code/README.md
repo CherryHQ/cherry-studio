@@ -83,21 +83,22 @@ once, so a later folded input may appear only in the result's complete UUID list
 The host can arm a continuation from `started` and bind it at the next reply frame.
 Input outcomes are published before the corresponding terminal result batch.
 
-Committed item IDs use transcript UUID and block ordinal. Provisional root blocks
-carry `replaces` when committed; distinct UUIDs sharing an API response ID remain
+Committed message IDs use transcript UUIDs; ordered SDK parts retain their native blocks.
+Provisional root messages carry `replaces` when committed; distinct UUIDs sharing an API response ID remain
 distinct. Child output has native complete-block granularity. Aborted content stays
 partial. Explicit retractions are retained in live snapshots and archives so replay
 cannot revive removed sources. A newer task run cannot be ended by an older run's
 late event. Missing parent evidence leaves relationships unresolved.
 
-`claude.archive()` returns the native selected view, normalized items, source IDs,
+`claude.archive()` returns the native selected view, normalized SDK messages (`content`), source IDs,
 and explicit retractions. SDK history APIs and native export run in an isolated
 worker with the backend's configuration environment; the caller's environment is
 unchanged. Live events are buffered during reconciliation and applied afterward.
 Compaction selects a new model context without deleting previously observed product
 content. Missing native files return an error instead of a writable replacement.
-Archive projection types do not retain every live SDK field; the desktop must keep
-its richer saved parts and persist source mappings/retractions with its checkpoint.
+The adapter preserves signatures, files, citations and raw tool outputs in SDK parts/metadata.
+The desktop adds display metadata and persists source mappings/retractions with its checkpoint.
+`legacy` maps prior UUID/block identities to proven whole-message part positions.
 
 ## Verification and desktop migration
 

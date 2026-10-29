@@ -34,9 +34,8 @@ it('delivers queued final content before close without waiting for a detached or
         .flatMap((batch) => batch.events)
         .some(
           (event) =>
-            event.type === 'item.upsert' &&
-            event.item.type === 'message' &&
-            event.item.parts.some((part) => part.text === 'Last content')
+            event.type === 'message.upsert' &&
+            event.message.parts.some((part) => 'text' in part && part.text === 'Last content')
         )
     ).toBe(true)
   } finally {
@@ -66,8 +65,11 @@ it('does not turn an interrupted tool-input block into a completed call at messa
     partial({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"command":' } })
     partial({ type: 'message_stop' })
     await expect
-      .poll(() => test.view.snapshot.items[0])
-      .toMatchObject({ type: 'tool-call', argumentsText: '{"command":', completeness: 'partial' })
+      .poll(() => test.view.snapshot.messages[0])
+      .toMatchObject({
+        metadata: { completeness: 'partial' },
+        parts: [{ type: 'dynamic-tool', toolCallId: 'call', state: 'input-streaming' }]
+      })
     expect(test.view.snapshot.inputs.every((input) => input.outcome === undefined)).toBe(true)
   } finally {
     await test.close()
@@ -112,7 +114,7 @@ it('upserts repeated UUIDs, retains same-API distinct blocks, and never resurrec
       content: '',
       retracted_message_uuids: [second.uuid, resultId]
     })
-    await expect.poll(() => test.view.snapshot.items).toHaveLength(1)
+    await expect.poll(() => test.view.snapshot.messages).toHaveLength(1)
     const reopened = await observe(confirmed(await test.runtime.open(test.root.thread)))
     await expect.poll(() => textOf(reopened.snapshot)).toEqual(['Replacement'])
     expect(reopened.batches[0].retracted).toEqual(expect.arrayContaining([first.uuid, second.uuid, resultId]))
@@ -198,7 +200,7 @@ it('recovers a slow observer with a paired native baseline while other observers
     )
     await expect.poll(() => batches.length).toBe(1)
     for (let index = 0; index < 150; index++) test.send(test.assistant(`Block ${index}`))
-    await expect.poll(() => test.view.snapshot.items.length).toBe(150)
+    await expect.poll(() => test.view.snapshot.messages.length).toBe(150)
     expect(batches).toHaveLength(1)
     resume()
     await expect
@@ -210,8 +212,8 @@ it('recovers a slow observer with a paired native baseline while other observers
       (batch, index) => index > 0 && batch.events.some((event) => event.type === 'snapshot')
     )!
     const snapshot = baseline.events.find((event) => event.type === 'snapshot')!
-    expect(baseline.native.filter((entry) => entry.message.type === 'assistant')).toHaveLength(snapshot.items.length)
-    expect(new Set(snapshot.items.map((item) => item.ref.id)).size).toBe(snapshot.items.length)
+    expect(baseline.native.filter((entry) => entry.message.type === 'assistant')).toHaveLength(snapshot.messages.length)
+    expect(new Set(snapshot.messages.map((item) => item.id)).size).toBe(snapshot.messages.length)
   } finally {
     resume()
     await test.close()
@@ -245,6 +247,106 @@ it('isolates a throwing observer and leaves uncorrelated commands and ambiguous 
     await expect
       .poll(() => test.failures.some((error) => error instanceof Error && error.message === 'Consumer failed'))
       .toBe(true)
+  } finally {
+    await test.close()
+  }
+})
+
+// Structured output is native content too; the desktop must not need a second result-to-text path.
+it('projects structured result content before the terminal activity event', async () => {
+  const test = await wireFixture()
+  try {
+    test.send({
+      type: 'result',
+      subtype: 'success',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      structured_output: { answer: ['one', 'two'] },
+      result: 'duplicate prose',
+      is_error: false,
+      usage: { input_tokens: 1, output_tokens: 1 },
+      modelUsage: {},
+      permission_denials: []
+    } as unknown as SDKMessage)
+    await expect.poll(() => textOf(test.view.snapshot)).toEqual([JSON.stringify({ answer: ['one', 'two'] })])
+    expect(test.view.snapshot.activity.state).toBe('idle')
+  } finally {
+    await test.close()
+  }
+})
+
+// Rich blocks must survive the public protocol; a tool result must not create a separate reply.
+it('preserves rich native blocks and retracts a result without removing the tool call', async () => {
+  const test = await wireFixture()
+  try {
+    const assistant = test.assistant('')
+    const blocks = [
+      { type: 'thinking', thinking: 'Reason', signature: 'native-signature' },
+      {
+        type: 'text',
+        text: 'Before',
+        citations: [
+          {
+            type: 'char_location',
+            cited_text: 'quote',
+            document_index: 0,
+            document_title: 'doc',
+            start_char_index: 0,
+            end_char_index: 5
+          }
+        ]
+      },
+      { type: 'tool_use', id: 'rich-call', name: 'Read', input: { path: '/tmp/doc' } },
+      { type: 'text', text: 'After' },
+      { type: 'redacted_thinking', data: 'opaque-reasoning' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AQID' } },
+      { type: 'document', source: { type: 'url', url: 'https://example.org/doc.pdf' } }
+    ]
+    test.send({ ...assistant, message: { ...assistant.message, content: blocks } } as SDKMessage)
+    const result = randomUUID()
+    test.send({
+      type: 'user',
+      uuid: result,
+      session_id: test.sessionId,
+      parent_tool_use_id: null,
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'rich-call', content: [{ type: 'text', text: 'Result' }] }]
+      }
+    })
+    await expect
+      .poll(() => test.view.snapshot.messages[0]?.parts[2])
+      .toMatchObject({ state: 'output-available', toolCallId: 'rich-call', output: [{ type: 'text', text: 'Result' }] })
+    expect(test.view.snapshot.messages).toHaveLength(1)
+    const message = test.view.snapshot.messages[0]
+    expect(message.id).toBe(assistant.uuid)
+    expect(message.parts.map((part) => part.type)).toEqual([
+      'reasoning',
+      'text',
+      'dynamic-tool',
+      'text',
+      'reasoning',
+      'file',
+      'file'
+    ])
+    expect(message.parts[0]).toMatchObject({ providerMetadata: { anthropic: { signature: 'native-signature' } } })
+    expect(message.parts[1]).toMatchObject({ providerMetadata: { anthropic: { citations: blocks[1].citations } } })
+    expect(message.parts[4]).toMatchObject({
+      text: '',
+      providerMetadata: { anthropic: { redactedData: 'opaque-reasoning' } }
+    })
+    expect(message.parts.slice(5)).toEqual([
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AQID' },
+      { type: 'file', mediaType: 'application/pdf', url: 'https://example.org/doc.pdf' }
+    ])
+    test.send({ ...test.assistant('Retry'), supersedes: [result] })
+    await expect
+      .poll(() => test.view.snapshot.messages[0]?.parts[2])
+      .toMatchObject({ state: 'input-available', toolCallId: 'rich-call' })
+    expect(test.view.snapshot.messages[0].parts.filter((part) => part.type !== 'dynamic-tool')).toEqual(
+      message.parts.filter((part) => part.type !== 'dynamic-tool')
+    )
+    expect(test.failures).toEqual([])
   } finally {
     await test.close()
   }
