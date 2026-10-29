@@ -22,12 +22,16 @@ vi.mock('word-extractor', () => ({
 
 import { MockApplicationUtils } from '@test-mocks/main/application'
 
+import { application } from '@application'
 import {
+  beginNotesFilesystemMutation,
   clearNotesMigrationPairsForTests,
+  endNotesFilesystemMutation,
   releaseNotesMigrationSession,
   setNotesMigrationBlockedRoots,
   tryBeginNotesDirectoryMigration,
-  waitForNotesFilesystemMutationsIdle
+  waitForNotesFilesystemMutationsIdle,
+  withNotesRootFlipBarrier
 } from '@main/services/notesRelocation/migrationSession'
 
 import { fileStorage } from '../FileStorage'
@@ -278,6 +282,68 @@ describe('FileStorage', () => {
         /migration is in progress/
       )
       releaseNotesMigrationSession()
+    })
+
+    it('mkdir keeps the unresolved-root error identity instead of wrapping it', async () => {
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-mkdir-unrs-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-mkdir-unrt-'))
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await expect(fileStorage.mkdir(event, path.join(source, 'new-folder'))).rejects.toThrow(/cannot be verified/)
+    })
+
+    it('exportWrite honors the plain notes-root flip barrier', async () => {
+      const exportFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-flip-')), 'out.md')
+      // Hold one mutation so the flip commit is deferred while the barrier is
+      // in flight, mirroring migrationSession's own barrier tests.
+      beginNotesFilesystemMutation()
+      let committed = false
+      const flipping = withNotesRootFlipBarrier(() => {
+        committed = true
+      }, 1000)
+
+      await expect(fileStorage.exportWrite(event, exportFile, 'x')).rejects.toThrow(/migration is in progress/)
+      expect(committed).toBe(false)
+      endNotesFilesystemMutation()
+      await flipping
+      expect(committed).toBe(true)
+    })
+
+    it('exportWrite still refuses managed storage', async () => {
+      const managed = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-managed-'))
+      vi.spyOn(application, 'getPath').mockImplementation((key: string) =>
+        key === 'feature.files.data' ? managed : path.join(os.tmpdir(), `notes-expw-other-${key}`)
+      )
+
+      await expect(fileStorage.exportWrite(event, path.join(managed, 'out.md'), 'x')).rejects.toThrow(
+        /overlaps FileManager-owned storage/
+      )
+    })
+
+    it('exportWrite does not consult canonical resolution: succeeds while the library root is unverifiable', async () => {
+      // Explicit export destinations are plain-file user intent, so an
+      // unresolvable canonical notes root (a Retry-able library state) does
+      // not hold them back - the in-flight and flip barriers still do.
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-unrs-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-unrt-'))
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      const exportFile = path.join(source, 'export.md')
+      await fileStorage.exportWrite(event, exportFile, '# exported')
+      expect(fs.readFileSync(exportFile, 'utf-8')).toBe('# exported')
+      await expect(fileStorage.writeFile(event, path.join(source, 'note.md'), 'x')).rejects.toThrow(
+        /cannot be verified/
+      )
     })
 
     it('still accepts the same ops under the live canonical root', async () => {

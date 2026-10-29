@@ -114,7 +114,7 @@ function generateImageDeferredPart(toolCallId = 'call-1') {
 const fileApi: Record<string, ReturnType<typeof vi.fn>> = {
   save: vi.fn(),
   write: vi.fn(),
-  mkdir: vi.fn(),
+  exportWrite: vi.fn(),
   read: vi.fn(),
   writeWithId: vi.fn()
 }
@@ -655,12 +655,11 @@ describe('writeImageAssets', () => {
     const failed = await writeImageAssets('/tmp/exports', pendingWrites)
 
     expect(failed).toEqual([])
-    expect(fileApi.mkdir).toHaveBeenCalledWith('/tmp/exports/assets')
     expect(ipcApiRequest).toHaveBeenCalledWith('file.copy', {
       sourcePath: '/data/Files/a.png',
       destPath: '/tmp/exports/assets/img-a.png'
     })
-    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
   })
 
   it('writes a data-url image through the renderer path (no file to copy)', async () => {
@@ -669,7 +668,7 @@ describe('writeImageAssets', () => {
     ])
 
     expect(failed).toEqual([])
-    expect(fileApi.write).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png', expect.any(Uint8Array))
+    expect(fileApi.exportWrite).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png', expect.any(Uint8Array))
     expect(ipcApiRequest).not.toHaveBeenCalled()
   })
 
@@ -690,12 +689,12 @@ describe('writeImageAssets', () => {
     const failed = await writeImageAssets('/tmp/exports', [])
 
     expect(failed).toEqual([])
-    expect(fileApi.mkdir).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
   })
 
-  it('reports every image as failed when mkdir fails, without throwing', async () => {
-    fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
-    const ref = { key: 'k', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
+  it('reports every image as failed when the asset writes fail, without throwing', async () => {
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('permission denied')).mockRejectedValueOnce(new Error('permission denied'))
+    const ref = { key: 'k', url: PNG_1PX, mime: 'image/png' } as const
 
     const failed = await writeImageAssets('/tmp/exports', [
       { fileName: 'img-a.png', ref },
@@ -704,7 +703,7 @@ describe('writeImageAssets', () => {
 
     // the .md is already saved by then: report-for-repair, never a thrown error
     expect(failed).toEqual(['img-a.png', 'img-b.png'])
-    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).toHaveBeenCalledTimes(2)
     expect(ipcApiRequest).not.toHaveBeenCalled()
   })
 })
@@ -826,8 +825,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.save).not.toHaveBeenCalled()
-    expect(fileApi.write).not.toHaveBeenCalled()
-    expect(fileApi.mkdir).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
 
     // export mutex must be released: a second call proceeds to the save dialog
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
@@ -839,7 +837,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     await exportMessageAsMarkdown(imageMessage())
 
     expect(fileApi.save).not.toHaveBeenCalled()
-    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
     expect(chooseImageMode).not.toHaveBeenCalled()
   })
 
@@ -851,7 +849,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     expect(fileApi.save.mock.calls[0][1]).toContain('with picture')
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
-    expect(fileApi.mkdir).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
   })
 
   it('embeds data URIs when the user picks "embed" (save dialog branch)', async () => {
@@ -861,7 +859,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.save.mock.calls[0][1]).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
-    expect(fileApi.mkdir).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
   })
 
   it('writes an assets folder next to the saved file (folder, save dialog branch)', async () => {
@@ -870,14 +868,13 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
-    expect(fileApi.mkdir).toHaveBeenCalledWith('/tmp/exports/assets')
     // the .md went through the save dialog; only the image is a direct write
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     const markdown = fileApi.save.mock.calls[0][1] as string
     const link = markdown.match(/\(assets\/(img-[a-z0-9-]+\.png)\)/)![1]
-    expect(fileApi.write).toHaveBeenCalledTimes(1)
-    expect(fileApi.write.mock.calls[0][0]).toBe(`/tmp/exports/assets/${link}`)
-    expect(fileApi.write.mock.calls[0][1]).toBeInstanceOf(Uint8Array)
+    expect(fileApi.exportWrite).toHaveBeenCalledTimes(1)
+    expect(fileApi.exportWrite.mock.calls[0][0]).toBe(`/tmp/exports/assets/${link}`)
+    expect(fileApi.exportWrite.mock.calls[0][1]).toBeInstanceOf(Uint8Array)
   })
 
   it('derives the assets directory from root save paths (POSIX root and Windows drive root)', async () => {
@@ -885,12 +882,12 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     fileApi.save.mockResolvedValueOnce('/a.md')
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
-    expect(fileApi.mkdir).toHaveBeenCalledWith('/assets')
+    expect(fileApi.exportWrite.mock.calls[0][0]).toMatch(/^\/assets\//)
 
     // A bare drive letter is not a usable directory: 'C:\a.md' must keep its separator.
     fileApi.save.mockResolvedValueOnce('C:\\a.md')
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
-    expect(fileApi.mkdir).toHaveBeenCalledWith('C:\\assets')
+    expect(fileApi.exportWrite.mock.calls[1][0]).toMatch(/^C:\\assets\//)
   })
 
   it('writes asset bytes identical to the source image (folder, save dialog branch)', async () => {
@@ -899,7 +896,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
-    const written = fileApi.write.mock.calls[0][1] as Uint8Array
+    const written = fileApi.exportWrite.mock.calls[0][1] as Uint8Array
     const source = Uint8Array.from(atob(PNG_1PX_RAW), (c) => c.charCodeAt(0))
     expect(Array.from(written)).toEqual(Array.from(source))
   })
@@ -911,15 +908,14 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
     expect(fileApi.save).toHaveBeenCalledTimes(1)
-    expect(fileApi.mkdir).not.toHaveBeenCalled()
-    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('falls back to warning when an asset write fails but keeps the .md (folder)', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('disk full'))
 
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
@@ -928,16 +924,17 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
   })
 
-  it('warns but keeps the export when creating the assets folder fails (folder)', async () => {
+  it('warns but keeps the export when the asset write fails (folder)', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
+    // exportWrite creates the assets directory itself, so an uncreatable
+    // directory surfaces as the per-file write failure.
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('permission denied'))
 
     await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
-    // the .md stays; the mkdir failure degrades to the write-failed warning
+    // the .md stays; the write failure degrades to the write-failed warning
     expect(fileApi.save).toHaveBeenCalledTimes(1)
-    expect(fileApi.write).not.toHaveBeenCalled()
     expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
   })
 
@@ -967,7 +964,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('rewrites the .md without the failed link and keeps the successful one (folder)', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.write.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('disk full'))
+    fileApi.exportWrite.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('disk full'))
     mockRepairRoutes()
     const message = view([
       imageFilePart(PNG_1PX, 'entry-a', 'ok.png'),
@@ -1001,7 +998,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('strips every occurrence of a deduped failed image (folder)', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('disk full'))
     mockRepairRoutes()
     const message = view([
       imageFilePart(PNG_1PX, 'entry-a'),
@@ -1019,10 +1016,10 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     expect(repaired).toContain('again below')
   })
 
-  it('strips all links when the assets directory cannot be created (folder)', async () => {
+  it('strips all links when the assets cannot be written (folder)', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('permission denied')).mockRejectedValueOnce(new Error('permission denied'))
     mockRepairRoutes()
     const message = view([
       imageFilePart(PNG_1PX, 'entry-a'),
@@ -1040,7 +1037,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('does not delete user text when an unpaired ![ precedes the failed link', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('disk full'))
     mockRepairRoutes()
     const message = view([
       { type: 'text', text: '![\nan unpaired image marker paragraph' },
@@ -1058,7 +1055,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('strips a failed link whose filename contains a newline', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('disk full'))
     mockRepairRoutes()
     const message = view([imageFilePart(PNG_1PX, 'entry-a', 'holiday\nphoto.png')])
 
@@ -1072,7 +1069,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('skips the repair when the .md changed since the export wrote it', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('disk full'))
     ipcApiRequest.mockImplementation((route: unknown) => {
       if (route === 'file.read') {
         return Promise.resolve({
@@ -1097,7 +1094,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
   it('keeps the export intact when the repair rewrite itself fails (folder)', async () => {
     chooseImageMode.mockResolvedValue('folder')
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    fileApi.exportWrite.mockRejectedValueOnce(new Error('disk full'))
     ipcApiRequest.mockImplementation((route: unknown) => {
       if (route === 'file.read') {
         const saved = (fileApi.save.mock.calls[0]?.[1] as string) ?? ''
@@ -1116,7 +1113,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     // and nothing writes the .md outside the refused atomic route
     expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
     expect(toast.success).toHaveBeenCalled()
-    expect(fileApi.write.mock.calls.every((call) => !String(call[0]).endsWith('.md'))).toBe(true)
+    expect(fileApi.exportWrite.mock.calls.every((call) => !String(call[0]).endsWith('.md'))).toBe(true)
   })
 
   it('toasts the skipped-image count and still completes the export (embed, oversize)', async () => {
@@ -1142,14 +1139,13 @@ describe('exportMessageAsMarkdown image pipeline', () => {
       await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
 
       expect(fileApi.save).not.toHaveBeenCalled()
-      expect(fileApi.mkdir).toHaveBeenCalledWith('/tmp/preconf/assets')
-      const paths = fileApi.write.mock.calls.map((call: unknown[]) => call[0] as string)
+      const paths = fileApi.exportWrite.mock.calls.map((call: unknown[]) => call[0] as string)
       const mdPath = paths.find((p) => p.startsWith('/tmp/preconf/') && p.endsWith('.md'))
       const assetPath = paths.find((p) => p.startsWith('/tmp/preconf/assets/img-'))
       expect(mdPath).toBeDefined()
       expect(assetPath).toBeDefined()
       // the markdown body must link to the exact asset file that was written
-      const markdown = fileApi.write.mock.calls.find((call: unknown[]) => call[0] === mdPath)![1] as string
+      const markdown = fileApi.exportWrite.mock.calls.find((call: unknown[]) => call[0] === mdPath)![1] as string
       expect(markdown).toContain(`(assets/${assetPath!.split('/').pop()})`)
     } finally {
       await preferenceService.set('data.export.markdown.path', null)
@@ -1206,6 +1202,6 @@ describe('exportTopicAsMarkdown image pipeline', () => {
     await exportTopicAsMarkdown(topic, false, undefined, chooseImageMode)
 
     expect(fileApi.save).not.toHaveBeenCalled()
-    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(fileApi.exportWrite).not.toHaveBeenCalled()
   })
 })

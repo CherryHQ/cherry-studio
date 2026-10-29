@@ -36,6 +36,7 @@ import {
   isAllowedNotesDirectory,
   isNotesMigrationWriteBlockedError,
   isNotesRetiredRootWriteError,
+  isNotesRootUnresolvedError,
   withNotesFilesystemMutation
 } from '@main/services/notesRelocation'
 import { getFileType } from '@main/utils/file'
@@ -648,7 +649,12 @@ class FileStorage {
         logger.error('Failed to create directory:', error as Error)
         // Keep the notes-relocation error identity: a retired or migrating
         // root must stay distinguishable from a plain filesystem failure.
-        if (isNotesMigrationWriteBlockedError(error) || isNotesRetiredRootWriteError(error)) throw error
+        if (
+          isNotesMigrationWriteBlockedError(error) ||
+          isNotesRetiredRootWriteError(error) ||
+          isNotesRootUnresolvedError(error)
+        )
+          throw error
         throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
       }
     })
