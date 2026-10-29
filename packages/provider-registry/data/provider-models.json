@@ -16436,6 +16436,22 @@
       "providerId": "gateway"
     },
     {
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "grok-imagine-image",
+      "providerId": "grok"
+    },
+    {
+      "apiModelId": "grok-imagine-image-2.0",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "grok-imagine-image-2-0",
+      "providerId": "grok"
+    },
+    {
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "grok-imagine-image-quality",
+      "providerId": "grok"
+    },
+    {
       "apiModelId": "grok-4.20-0309-non-reasoning",
       "capabilities": {
         "force": ["function-call", "image-recognition"]
@@ -44397,5 +44413,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "193ff765371fa1fb"
+  "version": "31e540c646949bcf"
 }

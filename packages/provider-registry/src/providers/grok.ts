@@ -10,6 +10,10 @@ export default defineProvider({
       adapterFamily: 'xai',
       baseUrl: 'https://api.x.ai'
     },
+    'openai-image-generation': {
+      adapterFamily: 'xai',
+      baseUrl: 'https://api.x.ai/v1'
+    },
     'openai-responses': {
       adapterFamily: 'xai-responses',
       baseUrl: 'https://api.x.ai/v1',
@@ -30,6 +34,15 @@ export default defineProvider({
       }
     }
   },
+  overrides: [
+    { modelId: 'grok-imagine-image', endpointTypes: ['openai-image-generation'] },
+    {
+      apiModelId: 'grok-imagine-image-2.0',
+      modelId: 'grok-imagine-image-2-0',
+      endpointTypes: ['openai-image-generation']
+    },
+    { modelId: 'grok-imagine-image-quality', endpointTypes: ['openai-image-generation'] }
+  ],
   serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: ['grok-4'] }],
   metadata: {
     website: {
