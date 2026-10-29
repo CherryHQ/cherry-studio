@@ -14,10 +14,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-  Textarea
+  SelectValue
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import FileEditor from '@renderer/components/FileEditor'
 import { ipcApi } from '@renderer/ipc'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
@@ -97,10 +97,10 @@ export function MemoryEditor({ scope }: { scope: MemoryScope }) {
           close()
           return
         }
+        setEditor(opened)
         const paths = await ipcApi.request('memory.file.list', { editorId })
         const read = await ipcApi.request('memory.file.read', { editorId, path: 'MEMORY.md' })
         if (!alive) return
-        setEditor(opened)
         setFiles(paths)
         setFile(read)
         setDraft(read.content ?? '')
@@ -203,6 +203,11 @@ export function MemoryEditor({ scope }: { scope: MemoryScope }) {
           {t(error)}
         </p>
       )}
+      {!file && editor && (
+        <Button variant="ghost" disabled={busy} onClick={() => void run(() => preview('recover'))}>
+          {t('settings.memory.recover')}
+        </Button>
+      )}
       {file && (
         <>
           <div className="flex items-center justify-between gap-2">
@@ -253,12 +258,14 @@ export function MemoryEditor({ scope }: { scope: MemoryScope }) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Textarea.Input
-            aria-label={fileLabel(file.path)}
+          <FileEditor
+            fileName={`${fileLabel(file.path)}.md`}
+            sessionKey={`${editor?.editorId}:${file.path}`}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            disabled={busy}
-            className="min-h-80"
+            onChange={setDraft}
+            readOnly={busy}
+            wrapLines
+            className="h-96 rounded-md border border-border"
           />
           {overLimit && (
             <p role="alert" className="text-error">
