@@ -2848,6 +2848,8 @@
   "notes.save_failed": "Échec de l'enregistrement de la note",
   "notes.save_failure.description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu.",
   "notes.save_failure.metadata_pending": "La note a été enregistrée, mais ses métadonnées de fichier sont encore en cours de récupération. Ne réessayez pas cet enregistrement.",
+  "notes.save_failure.retired_root": "Le dossier de cette note a été déplacé vers un nouvel emplacement. Vos modifications ne peuvent pas être enregistrées dans l'ancienne copie. Enregistrez une copie de vos modifications, puis rouvrez la note.",
+  "notes.save_copy": "Enregistrer une copie",
   "notes.search.both": "Nom + Contenu",
   "notes.search.content": "contenu",
   "notes.search.found_results": "{{count}} résultat(s) trouvé(s) (nom : {{nameCount}}, contenu : {{contentCount}})",

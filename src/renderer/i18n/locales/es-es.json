@@ -2848,6 +2848,8 @@
   "notes.save_failed": "Error al guardar la nota",
   "notes.save_failure.description": "Esta nota no se pudo guardar. Tus ediciones permanecen en el editor y el guardado automático está pausado.",
   "notes.save_failure.metadata_pending": "La nota se guardó, pero sus metadatos de archivo aún se están recuperando. No vuelva a intentar este guardado.",
+  "notes.save_failure.retired_root": "La carpeta de esta nota se ha movido a una nueva ubicación. Tus cambios no se pueden guardar en la copia antigua. Guarda una copia de tus cambios y vuelve a abrir la nota.",
+  "notes.save_copy": "Guardar una copia",
   "notes.search.both": "Nombre + Contenido",
   "notes.search.content": "contenido",
   "notes.search.found_results": "Se encontraron {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",

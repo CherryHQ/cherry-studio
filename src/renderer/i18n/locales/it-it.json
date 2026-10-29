@@ -2848,6 +2848,8 @@
   "notes.save_failed": "Impossibile salvare la nota",
   "notes.save_failure.description": "Impossibile salvare questa nota. Le modifiche restano nell'editor e il salvataggio automatico è sospeso.",
   "notes.save_failure.metadata_pending": "La nota è stata salvata, ma il recupero dei metadati del file è ancora in corso. Non ripetere il salvataggio.",
+  "notes.save_failure.retired_root": "La cartella di questa nota è stata spostata in una nuova posizione. Le modifiche non possono essere salvate nella vecchia copia. Salva una copia delle modifiche e riapri la nota.",
+  "notes.save_copy": "Salva una copia",
   "notes.search.both": "Nome+Contenuto",
   "notes.search.content": "Contenuto",
   "notes.search.found_results": "Trovati {{count}} risultati (nome: {{nameCount}}, contenuto: {{contentCount}})",

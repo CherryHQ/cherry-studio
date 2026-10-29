@@ -2848,6 +2848,8 @@
   "notes.save_failed": "Không lưu được ghi chú",
   "notes.save_failure.description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng.",
   "notes.save_failure.metadata_pending": "Ghi chú đã được lưu, nhưng siêu dữ liệu tệp của nó vẫn đang được khôi phục. Không thử lại việc lưu này.",
+  "notes.save_failure.retired_root": "Thư mục của ghi chú này đã được di chuyển sang vị trí mới. Không thể lưu các thay đổi vào bản sao cũ. Hãy lưu một bản sao các thay đổi, rồi mở lại ghi chú.",
+  "notes.save_copy": "Lưu bản sao",
   "notes.search.both": "Tên+Nội dung",
   "notes.search.content": "Nội dung",
   "notes.search.found_results": "Tìm thấy {{count}} kết quả (Tên: {{nameCount}}, Nội dung: {{contentCount}})",

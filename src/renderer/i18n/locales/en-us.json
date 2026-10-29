@@ -2848,6 +2848,8 @@
   "notes.save_failed": "Failed to save note",
   "notes.save_failure.description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused.",
   "notes.save_failure.metadata_pending": "The note was saved, but its file metadata is still being recovered. Do not retry this save.",
+  "notes.save_failure.retired_root": "This note's folder was moved to a new location. Your edits cannot be saved to the old copy. Save a copy of your edits, then reopen the note.",
+  "notes.save_copy": "Save a copy",
   "notes.search.both": "Name+Content",
   "notes.search.content": "Content",
   "notes.search.found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",

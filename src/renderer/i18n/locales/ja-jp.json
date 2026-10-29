@@ -2848,6 +2848,8 @@
   "notes.save_failed": "メモの保存に失敗しました",
   "notes.save_failure.description": "このノートを保存できませんでした。編集内容はエディタに残っており、自動保存は一時停止されています。",
   "notes.save_failure.metadata_pending": "メモは保存されましたが、ファイルのメタデータはまだ復旧中です。この保存を再試行しないでください。",
+  "notes.save_failure.retired_root": "このノートのフォルダーは新しい場所に移動されました。編集内容は古いコピーには保存できません。編集内容をコピーとして保存してから、ノートを開き直してください。",
+  "notes.save_copy": "コピーを保存",
   "notes.search.both": "名称+内容",
   "notes.search.content": "内容",
   "notes.search.found_results": "{{count}} 件の結果が見つかりました（名称: {{nameCount}}、内容: {{contentCount}}）",

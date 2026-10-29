@@ -270,6 +270,24 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     }
   }, [flushFileDraft])
 
+  const isRetiredRootSaveError =
+    fileSession.saveError instanceof IpcError && fileSession.saveError.code === fileErrorCodes.EDIT_RETIRED_ROOT
+
+  // The retired root never accepts this draft again: export is the honest,
+  // user-directed recovery. Discarding only after a completed export keeps the
+  // draft (and the banner) when the dialog is cancelled or the write fails.
+  const handleSaveDraftCopy = useCallback(async () => {
+    const fileName = activeFilePath?.split(/[\\/]/).pop() ?? 'note.md'
+    try {
+      const savedPath = await window.api.file.save(fileName, fileSession.draft)
+      if (!savedPath) return
+      await fileSession.discard()
+    } catch (error) {
+      logger.error('Failed to export note draft copy:', error as Error)
+      toast.error(t('notes.save_failed'))
+    }
+  }, [activeFilePath, fileSession, t])
+
   useEffect(() => {
     if (contentLoadError) {
       logger.error('Failed to load note content:', contentLoadError)
@@ -1187,7 +1205,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                     : fileSession.saveError instanceof IpcError &&
                         fileSession.saveError.code === fileErrorCodes.EDIT_MIGRATION_BLOCKED
                       ? 'settings.data.notes_relocation.error.migration_in_progress'
-                      : 'notes.save_failure.description'
+                      : isRetiredRootSaveError
+                        ? 'notes.save_failure.retired_root'
+                        : 'notes.save_failure.description'
                 )}
               </span>
               {!fileSession.metadataRecoveryPending && (
@@ -1196,8 +1216,8 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                   variant="outline"
                   size="sm"
                   disabled={fileSession.isSaving}
-                  onClick={() => void handleRetrySave()}>
-                  {t('common.retry')}
+                  onClick={() => void (isRetiredRootSaveError ? handleSaveDraftCopy() : handleRetrySave())}>
+                  {t(isRetiredRootSaveError ? 'notes.save_copy' : 'common.retry')}
                 </Button>
               )}
             </div>

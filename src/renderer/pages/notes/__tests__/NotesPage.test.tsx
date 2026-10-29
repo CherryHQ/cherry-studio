@@ -382,6 +382,9 @@ vi.mock('../NotesSidebar', () => ({
   }
 }))
 
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
 import NotesPage from '../NotesPage'
 
 async function renderReadyNotesPage() {
@@ -433,7 +436,8 @@ describe('NotesPage print payloads', () => {
         file: {
           write: vi.fn().mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([]),
-          move: vi.fn().mockResolvedValue(undefined)
+          move: vi.fn().mockResolvedValue(undefined),
+          save: vi.fn().mockResolvedValue('/exports/note.md')
         }
       }
     })
@@ -461,6 +465,28 @@ describe('NotesPage print payloads', () => {
         markdown: mocks.currentContent
       })
     )
+  })
+
+  it('offers Save a copy for a retired-root save error and discards only after the export completes', async () => {
+    mocks.sessionSaveError = new IpcError(fileErrorCodes.EDIT_RETIRED_ROOT, 'retired root')
+    await renderReadyNotesPage()
+
+    expect(screen.getByText('notes.save_failure.retired_root')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save_copy' }))
+    await waitFor(() => expect(window.api.file.save).toHaveBeenCalledWith('note.md', mocks.sessionDraft))
+    await waitFor(() => expect(mocks.discardSession).toHaveBeenCalled())
+  })
+
+  it('keeps the draft when the retired-root copy export is cancelled', async () => {
+    mocks.sessionSaveError = new IpcError(fileErrorCodes.EDIT_RETIRED_ROOT, 'retired root')
+    ;(window.api.file.save as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+    await renderReadyNotesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save_copy' }))
+    await waitFor(() => expect(window.api.file.save).toHaveBeenCalled())
+    expect(mocks.discardSession).not.toHaveBeenCalled()
   })
 
   it('opens a requested saved note once its directory-tree entry arrives', async () => {

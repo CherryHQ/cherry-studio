@@ -2848,6 +2848,8 @@
   "notes.save_failed": "Not kaydedilemedi",
   "notes.save_failure.description": "Bu not kaydedilemedi. Düzenlemeler düzenleyicide kalır ve otomatik kaydetme duraklatılır.",
   "notes.save_failure.metadata_pending": "Not kaydedildi ancak dosya meta verileri hâlâ kurtarılıyor. Bu kaydetme işlemini yeniden denemeyin.",
+  "notes.save_failure.retired_root": "Bu notun klasörü yeni bir konuma taşındı. Değişiklikleriniz eski kopyaya kaydedilemez. Değişikliklerinizin bir kopyasını kaydedin, ardından notu yeniden açın.",
+  "notes.save_copy": "Kopyayı kaydet",
   "notes.search.both": "Ad+İçerik",
   "notes.search.content": "İçerik",
   "notes.search.found_results": "{{count}} sonuç bulundu (Ad: {{nameCount}}, İçerik: {{contentCount}})",
