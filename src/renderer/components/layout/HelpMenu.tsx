@@ -14,10 +14,9 @@ import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } f
 import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { useAccountSubmenu } from '@renderer/hooks/useAccountSubmenu'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
-
-import { useAccountSubmenu } from './useAccountSubmenu'
 
 const logger = loggerService.withContext('HelpMenu')
 

@@ -5,8 +5,7 @@ export function useAccountSubmenu() {
   const [open, setOpen] = useState(false)
   const initialFocusRef = useRef<HTMLButtonElement>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const openedByHoverRef = useRef(false)
-  const closedByHoverRef = useRef(false)
+  const keepCurrentFocusRef = useRef(false)
 
   const cancelHoverClose = () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -17,7 +16,6 @@ export function useAccountSubmenu() {
 
   const onOpenChange = (nextOpen: boolean) => {
     cancelHoverClose()
-    closedByHoverRef.current = false
     setOpen(nextOpen)
   }
 
@@ -25,7 +23,7 @@ export function useAccountSubmenu() {
     if (event.pointerType !== 'mouse') return
     cancelHoverClose()
     if (!open) {
-      openedByHoverRef.current = true
+      keepCurrentFocusRef.current = true
       onOpenChange(true)
     }
   }
@@ -34,13 +32,13 @@ export function useAccountSubmenu() {
     if (event.pointerType !== 'mouse') return
     cancelHoverClose()
     closeTimerRef.current = setTimeout(() => {
-      closedByHoverRef.current = true
+      keepCurrentFocusRef.current = true
       setOpen(false)
     }, 200)
   }
 
   const openFromTrigger = () => {
-    openedByHoverRef.current = false
+    keepCurrentFocusRef.current = false
     onOpenChange(true)
     initialFocusRef.current?.focus()
   }
@@ -65,12 +63,15 @@ export function useAccountSubmenu() {
     contentProps: {
       onPointerEnter,
       onPointerLeave,
+      onEscapeKeyDown: () => {
+        keepCurrentFocusRef.current = false
+      },
       onOpenAutoFocus: (event: Event) => {
         event.preventDefault()
-        if (!openedByHoverRef.current) initialFocusRef.current?.focus()
+        if (!keepCurrentFocusRef.current) initialFocusRef.current?.focus()
       },
       onCloseAutoFocus: (event: Event) => {
-        if (openedByHoverRef.current || closedByHoverRef.current) event.preventDefault()
+        if (keepCurrentFocusRef.current) event.preventDefault()
       }
     }
   }

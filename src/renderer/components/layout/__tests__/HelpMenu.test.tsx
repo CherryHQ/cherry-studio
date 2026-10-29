@@ -119,7 +119,7 @@ describe('HelpMenu', () => {
     expect(screen.queryByRole('button', { name: 'help.whats_new' })).not.toBeInTheDocument()
   })
 
-  it('keeps help usable when hovering from a keyboard-opened appearance menu', async () => {
+  it('keeps help usable and restores focus on Escape after a keyboard-to-hover handoff', async () => {
     const user = userEvent.setup()
     render(
       <ThemeContext
@@ -142,6 +142,11 @@ describe('HelpMenu', () => {
     await user.hover(feedback)
 
     expect(screen.getByRole('button', { name: 'help.feedback' })).toBeVisible()
+    await user.keyboard('{Escape}')
+    const helpTrigger = screen.getByRole('button', { name: 'help.title' })
+    await waitFor(() => expect(helpTrigger).toHaveFocus())
+    await user.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('button', { name: 'help.whats_new' })).toHaveFocus()
     await user.click(screen.getByRole('button', { name: 'help.feedback' }))
     await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })

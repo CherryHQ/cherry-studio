@@ -2,10 +2,9 @@ import { Check, ChevronRight, Monitor, Moon, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { useAccountSubmenu } from '@renderer/hooks/useAccountSubmenu'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-
-import { useAccountSubmenu } from './useAccountSubmenu'
 
 export function AppearanceMenu({ onRequestClose }: { onRequestClose?: () => void }) {
   const { t } = useTranslation()
