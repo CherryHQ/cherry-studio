@@ -1028,7 +1028,27 @@ export class AgentSessionRuntimeService extends BaseService {
     } = {}
   ): void {
     const entry = this.entries.get(sessionId)
-    if (!entry) return
+    if (!entry) {
+      // A plan-model handoff preserved input for a replacement turn its teardown has not produced
+      // yet: this entry-less window would otherwise drop the message outright (or, dispatched as a
+      // fresh turn, send it ahead of the preserved corrections). Join the handoff buffer instead —
+      // the replacement turn replays it with the corrections in admission order.
+      if (!this.handoffQueuedInput.has(sessionId)) return
+      const pending: PendingAgentSessionTurn = {
+        message,
+        reasoningEffort: opts.reasoningEffort ?? 'default',
+        serviceTier: opts.serviceTier ?? 'standard',
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? [],
+        fastMode: opts.fastMode === true,
+        steer: true,
+        ...(opts.headless ? { headless: true } : {}),
+        ...(opts.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: opts.trustedNotifyChannels } : {}),
+        ...(opts.messageSnapshot ? { messageSnapshot: structuredClone(opts.messageSnapshot) } : {})
+      }
+      this.admissionOrder.set(message, (this.nextAdmissionOrder += 1))
+      this.handoffQueuedInput.get(sessionId)!.push(pending)
+      return
+    }
 
     // A handoff preserves input from two buffers; this is the only record of which came first.
     this.admissionOrder.set(message, (this.nextAdmissionOrder += 1))
@@ -1354,7 +1374,12 @@ export class AgentSessionRuntimeService extends BaseService {
   isSessionBusy(sessionId: string): boolean {
     if (this.forks.edits.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
-    if (!entry) return false
+    if (!entry) {
+      // A plan-model handoff tore its entry down and is waiting for the replacement turn: a
+      // submission in this window must join the preserved handoff buffer (see
+      // `enqueueUserMessage`), not start the replacement turn ahead of the saved corrections.
+      return this.handoffQueuedInput.has(sessionId)
+    }
     return isAgentSessionRuntimeBusy(entry.runtimeState)
   }
 
@@ -1740,10 +1765,8 @@ export class AgentSessionRuntimeService extends BaseService {
       }))
     ]
     if (preserved.length > 0) {
-      // Replay in the order they were accepted: concatenating the buffers would let an older
-      // correction supersede a newer one.
-      const rank = (message: AgentSessionMessageEntity) => this.admissionOrder.get(message) ?? Number.MAX_SAFE_INTEGER
-      preserved.sort((a, b) => rank(a.message) - rank(b.message))
+      // Replay order is restored at consumption time (`takeHandoffQueuedInput`): concatenating the
+      // buffers here would let an older correction supersede a newer one.
       this.handoffQueuedInput.set(entry.sessionId, preserved)
     }
     this.handoffTeardowns.add(entry.sessionId)
@@ -2932,13 +2955,15 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Re-admit input the handoff queued before it removed the entry, now that the replacement turn is
    * live: `enqueueUserMessage` steers it into that turn when the backend can, else queues it next.
+   * Submissions that landed in the entry-less teardown window joined the same buffer (see
+   * `enqueueUserMessage`), so they replay here too, in admission order with the corrections.
    */
   private replayHandoffQueuedInput(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
-    const preserved = this.handoffQueuedInput.get(entry.sessionId)
-    if (!preserved || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+    const preserved = this.takeHandoffQueuedInput(entry.sessionId)
+    if (preserved.length === 0) return
+    if (this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     // A headless turn is not where the user's correction belongs — hold it for the interactive one.
     if (turn.headless === true) return
-    this.handoffQueuedInput.delete(entry.sessionId)
     for (const pending of preserved) {
       this.enqueueUserMessage(entry.sessionId, pending.message, {
         ...(pending.headless !== undefined ? { headless: pending.headless } : {}),
@@ -2951,6 +2976,19 @@ export class AgentSessionRuntimeService extends BaseService {
         fastMode: pending.fastMode
       })
     }
+  }
+
+  /**
+   * Consume the handoff's preserved input for a session, ordered by admission. `undefined` entries
+   * (no recorded order — captured before the WeakMap was seeded) sort last, matching the pre-handoff
+   * `replayHandoffQueuedInput` fallback.
+   */
+  private takeHandoffQueuedInput(sessionId: string): PendingAgentSessionTurn[] {
+    const preserved = this.handoffQueuedInput.get(sessionId)
+    if (!preserved) return []
+    this.handoffQueuedInput.delete(sessionId)
+    const rank = (message: AgentSessionMessageEntity) => this.admissionOrder.get(message) ?? Number.MAX_SAFE_INTEGER
+    return preserved.sort((a, b) => rank(a.message) - rank(b.message))
   }
 
   private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {

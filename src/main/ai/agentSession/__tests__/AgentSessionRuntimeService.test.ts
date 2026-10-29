@@ -1032,6 +1032,94 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('joins a submission that lands after the teardown removed the entry onto the handoff buffer', async () => {
+      // Correction A is preserved by the teardown; correction B arrives in the entry-less window
+      // before the renderer's follow-up. Dispatching B as a fresh turn would send B ahead of the
+      // saved A and reverse instruction precedence ("use a.txt" superseding "actually, use b.txt").
+      // B must join the handoff buffer so the replacement turn replays A then B.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-entryless',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-entryless',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const entry = getEntry(service)
+      const stashed: any[] = []
+      entry.connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn((input: any) => {
+          stashed.push(input)
+          return true
+        }),
+        drainPendingSteers: vi.fn(() => stashed.splice(0)),
+        reconcile: vi.fn().mockResolvedValue('patched')
+      } as any
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      const result = service.respondToolApproval('approval-plan-entryless', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      // Older correction A reaches the driver buffer before the teardown.
+      service.enqueueUserMessage('session-1', userMessage('user-a'), {})
+      expect(stashed.map((input) => input.message.id)).toEqual(['user-a'])
+
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+
+      // Newer correction B arrives with no entry: the session still reads as busy, so the
+      // dispatcher enqueues it and it joins the preserved handoff buffer instead of starting
+      // the replacement turn itself.
+      expect(service.isSessionBusy('session-1')).toBe(true)
+      service.enqueueUserMessage('session-1', userMessage('user-b'), {})
+
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
+      const followUp = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        userMessage: userMessage('user-follow-up'),
+        assistantMessageId: 'assistant-follow-up'
+      })
+      getEntry(service).connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      // The replacement turn replays the saved corrections in admission order: A before B.
+      await vi.waitFor(() => expect(connection.redirect).toHaveBeenCalledTimes(2))
+      expect(connection.redirect.mock.calls.map((call: any[]) => call[0].message.id)).toEqual(['user-a', 'user-b'])
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('records the approved execution as a session-scoped permission, leaving the shared agent row alone', async () => {
       // The teardown discards the connection that carried the SDK's post-approval mode shift, and
       // the follow-up's fresh connection would re-read the row: spawning it back into `plan` ("no
