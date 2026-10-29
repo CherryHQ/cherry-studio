@@ -10,6 +10,14 @@ import type { Provider } from '@shared/data/types/provider'
 import { useProviderEndpointActions } from '../useProviderEndpointActions'
 import { useProviderEndpoints } from '../useProviderEndpoints'
 
+const { getProviderMock } = vi.hoisted(() => ({ getProviderMock: vi.fn() }))
+
+vi.mock('@data/DataApiService', async (importOriginal) => ({
+  // oxlint-disable-next-line typescript/consistent-type-imports -- Keep the required importOriginal mock shape.
+  ...(await importOriginal<typeof import('@data/DataApiService')>()),
+  dataApiService: { get: getProviderMock }
+}))
+
 const showMock = vi.mocked(ConfirmActionPopup.show)
 const patchProviderMock = vi.fn().mockResolvedValue(undefined)
 const setApiHostMock = vi.fn()
@@ -75,6 +83,7 @@ describe('useProviderEndpointActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     showMock.mockReset()
+    getProviderMock.mockReset()
     vi.useFakeTimers()
   })
 
@@ -262,6 +271,7 @@ describe('useProviderEndpointActions', () => {
   }
 
   it('keeps the saved custom host while reset is pending and after cancellation', async () => {
+    getProviderMock.mockResolvedValue(customProvider)
     const dialog = holdConfirmation()
     const { result } = renderHook(() => useDraftEndpointActions(customProvider))
     let reset!: Promise<boolean>
@@ -287,6 +297,7 @@ describe('useProviderEndpointActions', () => {
   })
 
   it('resets the primary host to the registry default only after approval and preserves other options', async () => {
+    getProviderMock.mockResolvedValue(customProvider)
     const dialog = holdConfirmation()
     const { result } = renderHook(() => useDraftEndpointActions(customProvider))
     let reset!: Promise<boolean>
@@ -328,7 +339,76 @@ describe('useProviderEndpointActions', () => {
     })
   })
 
+  it('preserves a secondary endpoint saved while the reset confirmation is open', async () => {
+    const dialog = holdConfirmation()
+    const { result } = renderHook(() => useDraftEndpointActions(customProvider))
+    let reset!: Promise<boolean>
+
+    await act(async () => {
+      reset = result.current.resetApiHost()
+      vi.advanceTimersByTime(200)
+      await flushEndpointAction()
+    })
+
+    getProviderMock.mockResolvedValue({
+      ...customProvider,
+      endpointConfigs: {
+        ...customProvider.endpointConfigs,
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://new-anthropic.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    })
+
+    await act(async () => {
+      await dialog.params.action()
+      dialog.settle(true)
+      expect(await reset).toBe(true)
+    })
+
+    expect(result.current.apiHost).toBe('https://api.openai.com')
+    expect(patchProviderMock).toHaveBeenCalledTimes(1)
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          dialect: { developerRole: false }
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://new-anthropic.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    })
+  })
+
+  it('rejects an approved reset when the current provider cannot be read', async () => {
+    getProviderMock.mockRejectedValueOnce(new Error('boom'))
+    const dialog = holdConfirmation()
+    const { result } = renderHook(() => useDraftEndpointActions(customProvider))
+    let reset!: Promise<boolean>
+
+    await act(async () => {
+      reset = result.current.resetApiHost()
+      await flushEndpointAction()
+    })
+
+    await act(async () => {
+      await expect(dialog.params.action()).rejects.toThrow('settings.provider.save_failed: boom')
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      dialog.settle(false)
+      expect(await reset).toBe(false)
+    })
+  })
+
   it('saves a pending custom edit normally while reset is open and retains it on cancellation', async () => {
+    getProviderMock.mockResolvedValue(customProvider)
     const dialog = holdConfirmation()
     const { result } = renderHook(() => useDraftEndpointActions(customProvider))
     let reset!: Promise<boolean>
@@ -393,6 +473,7 @@ describe('useProviderEndpointActions', () => {
   })
 
   it('allows resetting a whitespace-padded default draft to the exact default after approval', async () => {
+    getProviderMock.mockResolvedValue(provider)
     const dialog = holdConfirmation()
     const { result } = renderHook(() => useDraftEndpointActions(provider))
     let reset!: Promise<boolean>
@@ -424,6 +505,7 @@ describe('useProviderEndpointActions', () => {
   })
 
   it('rejects an approved reset with the actionable error and leaves feedback to the dialog', async () => {
+    getProviderMock.mockResolvedValue(customProvider)
     patchProviderMock.mockRejectedValueOnce(
       DataApiErrorFactory.validation({ endpointConfigs: ['Host is not allowed'] }, 'This API host is not allowed')
     )

@@ -2,6 +2,7 @@ import { debounce, trim } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { toast } from '@renderer/services/toast'
@@ -270,10 +271,16 @@ export function useProviderEndpointActions({
       cancelText: t('common.cancel'),
       danger: true,
       action: async () => {
+        const fresh = await dataApiService.get(`/providers/${provider.id}`).catch((error: unknown) => {
+          throw new Error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        })
+        if (!fresh) {
+          throw new Error(getEndpointActionErrorMessage(undefined, t('settings.provider.save_failed')))
+        }
         const nextEndpointConfigs = {
-          ...provider.endpointConfigs,
+          ...fresh.endpointConfigs,
           [primaryEndpoint]: {
-            ...provider.endpointConfigs?.[primaryEndpoint],
+            ...fresh.endpointConfigs?.[primaryEndpoint],
             baseUrl: defaultApiHost
           }
         }
