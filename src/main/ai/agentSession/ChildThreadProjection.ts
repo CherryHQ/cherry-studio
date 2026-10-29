@@ -16,6 +16,7 @@ import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageP
 
 const logger = loggerService.withContext('ChildThreadProjection')
 type CommittedHistory = {
+  responseIds?: Readonly<Record<string, string>>
   messages: readonly RuntimeMessage[]
   aliases: Readonly<Record<string, string>>
   removed?: readonly string[]
@@ -70,7 +71,8 @@ export class ChildThreadProjection {
     readonly context: AgentSessionContextRow,
     private readonly handle: ThreadHandle,
     private readonly readCommitted: () => CommittedHistory | Promise<CommittedHistory>,
-    private readonly decorate?: MessageDecorator
+    private readonly decorate?: MessageDecorator,
+    private readonly onResponse?: (responseId: string, messageId: string) => void
   ) {
     this.projection = new ThreadMessageProjection(handle.thread, decorate)
     this.removed = new Set(context.checkpointMapping?.removed as string[] | undefined)
@@ -336,6 +338,10 @@ export class ChildThreadProjection {
             )
         }
       })
+      for (const [responseId, nativeId] of Object.entries(archive?.responseIds ?? {})) {
+        const messageId = this.nativeIds[nativeId]
+        if (messageId) this.onResponse?.(responseId, messageId)
+      }
       this.saved.clear()
       for (const [id, message] of next) this.saved.set(id, message)
     }
