@@ -330,6 +330,18 @@ describe('AgentService', () => {
       ])
     })
 
+    it('notifies live agent reads after an update, including main-process writers', () => {
+      const agent = createAgentForTest({ type: 'claude-code', name: 'Before', model: TEST_MODEL_ID })
+      notifyDataApiDataChangeMock.mockClear()
+
+      agentService.updateAgent(agent.id, { name: 'After' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'projection', entityIds: [agent.id] },
+        { endpoint: '/agents/:agentId', entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',
