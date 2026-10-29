@@ -116,6 +116,24 @@ describe('ErrorBlock', () => {
     expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
+  it('shows the server retry title for a temporary service failure without a status', () => {
+    mocks.translations.set('error.diagnosis.server', enUS['error.diagnosis.server'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: 'Service temporarily unavailable. The model did not respond to this request.',
+          stack: null
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.server'])).toBeInTheDocument()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')

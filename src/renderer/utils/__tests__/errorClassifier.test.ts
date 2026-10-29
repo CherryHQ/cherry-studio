@@ -53,6 +53,15 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it('uses the server diagnosis for a temporary service failure without a status', () => {
+    const result = classifyError(
+      makeError({ message: 'Service temporarily unavailable. The model did not respond to this request.' })
+    )
+
+    expect(result.category).toBe('server')
+    expect(result.i18nKey).toBe('error.diagnosis.server')
+  })
+
   it('uses the parse diagnosis for a serialized unresolved tool call', () => {
     expect(
       classifyError(

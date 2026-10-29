@@ -105,6 +105,38 @@ describe('classifyErrorCategory transport failures', () => {
 })
 
 describe('classifyErrorCategory server failures', () => {
+  it.each([
+    'Service temporarily unavailable. The model did not respond to this request.',
+    'service temporarily unavailable. the model did not respond to this request.',
+    'SERVICE TEMPORARILY UNAVAILABLE. THE MODEL DID NOT RESPOND TO THIS REQUEST.',
+    'Service temporarily unavailable',
+    'Service unavailable',
+    'overloaded',
+    'overload',
+    'internal server error'
+  ])('maps "%s" without a status to server', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('server')
+  })
+
+  it('preserves HTTP 503 precedence for temporary service unavailability', () => {
+    expect(
+      classifyErrorCategory({
+        status: 503,
+        text: 'Service temporarily unavailable. The model did not respond to this request.'
+      })
+    ).toBe('server')
+  })
+
+  it.each([
+    ['Resource temporarily unavailable', 'unknown'],
+    ['EAGAIN', 'unknown'],
+    ['fetch failed: Resource temporarily unavailable', 'network'],
+    ['model temporarily unavailable', 'model'],
+    ['Some totally unrelated failure', 'unknown']
+  ] as const)('preserves the %s diagnosis as %s', (text, category) => {
+    expect(classifyErrorCategory({ text })).toBe(category)
+  })
+
   it.each([500, 502, 503, 504, 522, 524, 529])('maps HTTP %i to server', (status) => {
     expect(classifyErrorCategory({ status })).toBe('server')
   })
