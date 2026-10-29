@@ -138,7 +138,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
             i++
             continue
           }
-          const span = []
+          const span: ToolResultEvent['content'] = []
           while (i < event.content.length && event.content[i].type === 'text') span.push(event.content[i++])
           const result: ToolResultFact = {
             text: textOf(span),
