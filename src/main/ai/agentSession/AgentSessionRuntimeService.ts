@@ -156,6 +156,7 @@ export type AgentSessionTurnTerminalEvent = {
 
 export interface BeginAgentSessionTurnInput {
   sessionId: string
+  sourceJobId?: string
   topicId: string
   agentId: string
   agentType: string
@@ -190,6 +191,10 @@ export interface OpenAgentSessionTurnStreamInput {
 
 export interface AgentSessionRuntimeSnapshot {
   sessionId: string
+  agentId: string
+  sourceJobId?: string
+  busy: boolean
+  turnId?: string
   topicId?: string
   assistantMessageId?: string
   status: AgentSessionRuntimeStatus
@@ -277,6 +282,7 @@ type RuntimeStateEvent = AgentSessionRuntimeStateEvent<
 type AgentSessionRuntimeEntry = {
   interactionWindowId?: string
   sessionId: string
+  sourceJobId?: string
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
   sessionTraceId?: string
@@ -458,6 +464,8 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private runtimeActivity?: Disposable
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  private readonly workChanged = this.registerDisposable(new Emitter<string>())
+  readonly onWorkChanged = this.workChanged.event
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
@@ -565,6 +573,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.runtimeState = transition.state
     this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+    if (event.type !== 'buffer-chunk') this.workChanged.fire(entry.sessionId)
   }
 
   private syncRuntimeActivity(): void {
@@ -649,6 +658,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // connection's baked settings no longer vary by headless mode and never need a mismatch rebuild.
       this.clearIdleTimer(existing)
       existing.topicId = input.topicId
+      existing.sourceJobId = input.sourceJobId
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
       existing.agentId = input.agentId
       existing.agentType = input.agentType
@@ -673,6 +683,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const entry: AgentSessionRuntimeEntry = {
       sessionId: input.sessionId,
+      sourceJobId: input.sourceJobId,
       topicId: input.topicId,
       sessionTraceId: input.traceId,
       agentId: input.agentId,
@@ -683,6 +694,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     this.entries.set(input.sessionId, entry)
     this.syncRuntimeActivity()
+    this.workChanged.fire(input.sessionId)
 
     return {
       listeners: [
@@ -1111,6 +1123,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
+      this.workChanged.fire(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
     return barrier
@@ -1359,6 +1372,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
     return {
       sessionId: entry.sessionId,
+      agentId: entry.agentId,
+      sourceJobId: entry.sourceJobId,
+      busy: isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState),
+      turnId: turn?.turnId,
       topicId: entry.topicId,
       assistantMessageId: turn?.assistantMessageId,
       status: this.runtimeStatus(entry),
@@ -1367,6 +1384,10 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       activeToolCount: turn?.activeToolIds.size ?? 0
     }
+  }
+
+  listSnapshots(): AgentSessionRuntimeSnapshot[] {
+    return [...this.entries.keys()].map((sessionId) => this.inspect(sessionId)!)
   }
 
   // ── Write quiesce (backup restore) ───────────────────────────────
@@ -2955,6 +2976,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
+    entry.sourceJobId = undefined
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).

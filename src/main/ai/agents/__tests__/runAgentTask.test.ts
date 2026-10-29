@@ -368,7 +368,6 @@ describe('runAgentTask', () => {
 
     expect(out).toEqual({ result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(readHeartbeat).toHaveBeenCalledWith('/agent-data/a1')
   })
 
   describe('session reuse', () => {

@@ -1,3 +1,4 @@
+import type { DashboardEntry } from '@shared/ai/agentTaskDashboard'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -304,6 +305,7 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
+  'agent.task_dashboard.running': DashboardEntry[] | null
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
@@ -376,6 +378,7 @@ export type SharedCacheSchema = {
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
+  'agent.task_dashboard.running': null,
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
