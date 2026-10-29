@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => {
     removePath: vi.fn(),
     rewritePath: vi.fn(),
     setActiveFilePath: vi.fn(),
+    setActiveFileRoot: vi.fn(),
     settings: {
       isFullWidth: true,
       fontFamily: 'default',
@@ -75,6 +76,7 @@ const mocks = vi.hoisted(() => {
     updateSortType: vi.fn(),
     notesPath: '/notes',
     activeFilePath: ['/notes/note.md'].at(0),
+    activeFileRoot: undefined as string | undefined,
     noteNode
   }
 })
@@ -182,9 +184,15 @@ const setCacheValue = (value: unknown) => {
   mocks.activeFilePath = next as string | undefined
   mocks.setActiveFilePath(next)
 }
+const setRootCacheValue = (value: unknown) => {
+  const next = typeof value === 'function' ? (value as (prev: unknown) => unknown)(mocks.activeFileRoot) : value
+  mocks.activeFileRoot = next as string | undefined
+  mocks.setActiveFileRoot(next)
+}
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [mocks.activeFilePath, setCacheValue]
+  useCache: (key: string) =>
+    key === 'notes.active_file_root' ? [mocks.activeFileRoot, setRootCacheValue] : [mocks.activeFilePath, setCacheValue]
 }))
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
@@ -907,6 +915,52 @@ describe('NotesPage print payloads', () => {
 
     await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/c/nested/deep.md'))
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+
+  it('maps a persisted selection from its recorded root on a live-root mount when both candidate notes exist', async () => {
+    // Settings migration ran while this page was unmounted: the window mounts
+    // already at the live root, with only the persisted selection + its
+    // recorded owning root to go on. Both candidate notes exist, so a
+    // prefix guess would silently open the wrong one.
+    cacheService.setShared('notes.directory_root_transition', {
+      roots: ['/a', '/b', '/a/nested', '/c']
+    })
+    mocks.activeFilePath = '/a/nested/note.md'
+    mocks.activeFileRoot = '/a/nested'
+    mocks.notesPath = '/c'
+    mocks.projectedNodes = [
+      { ...mocks.noteNode, id: '/c/note.md', externalPath: '/c/note.md', treePath: '/note' },
+      { ...mocks.noteNode, id: '/c/nested/note.md', externalPath: '/c/nested/note.md', treePath: '/nested/note' }
+    ]
+    await renderReadyNotesPage()
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/c/note.md'))
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/c/nested/note.md')
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+
+  it('clears rather than guess when historical roots overlap and no owning root is recorded', async () => {
+    // Legacy persisted selection without a recorded root, mounting at the
+    // live root: two chain roots contain the path and both candidate notes
+    // exist, so no mapping is safe - the selection must clear, not follow a
+    // guess.
+    cacheService.setShared('notes.directory_root_transition', {
+      roots: ['/a', '/b', '/a/nested', '/c']
+    })
+    mocks.activeFilePath = '/a/nested/note.md'
+    mocks.activeFileRoot = undefined
+    mocks.notesPath = '/c'
+    mocks.projectedNodes = [
+      { ...mocks.noteNode, id: '/c/note.md', externalPath: '/c/note.md', treePath: '/note' },
+      { ...mocks.noteNode, id: '/c/nested/note.md', externalPath: '/c/nested/note.md', treePath: '/nested/note' }
+    ]
+    // No node resolves the persisted selection, so the editor never loads -
+    // render directly instead of waiting for readiness.
+    render(<NotesPage />)
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith(undefined))
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/c/note.md')
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/c/nested/note.md')
   })
 
   it('ignores a cached transition when the active file is outside every migrated root', async () => {
