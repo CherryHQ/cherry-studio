@@ -868,6 +868,47 @@ describe('NotesPage print payloads', () => {
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
   })
 
+  it('maps the selection from its owning root when historical roots overlap (A > B > A/nested > C)', async () => {
+    // Regression: every hop was valid pairwise, so the chain retains
+    // overlapping roots. The selection sits directly in A/nested (the root
+    // this window last saw), so it must follow to C/note.md - a first-prefix
+    // match on A would misroute it to C/nested/note.md and clear it.
+    cacheService.setShared('notes.directory_root_transition', {
+      roots: ['/a', '/b', '/a/nested', '/c']
+    })
+    mocks.activeFilePath = '/a/nested/note.md'
+    mocks.notesPath = '/a/nested'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/a/nested/note.md', treePath: '/note' }]
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.notesPath = '/c'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/c/note.md', treePath: '/note' }]
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/c/note.md'))
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/c/nested/note.md')
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+
+  it('still follows a selection rooted at an older chain root whose path nests a later root', async () => {
+    // The window last saw root A, so a selection at A/nested/deep.md belongs
+    // to generation A and maps relative-path-preserving to C/nested/deep.md.
+    cacheService.setShared('notes.directory_root_transition', {
+      roots: ['/a', '/b', '/a/nested', '/c']
+    })
+    mocks.activeFilePath = '/a/nested/deep.md'
+    mocks.notesPath = '/a'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/a/nested/deep.md', treePath: '/nested/deep' }]
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.notesPath = '/c'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/c/nested/deep.md', treePath: '/nested/deep' }]
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/c/nested/deep.md'))
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+
   it('ignores a cached transition when the active file is outside every migrated root', async () => {
     // A reset to the default root (or a fallback) is not a migration, so the
     // selection must clear instead of being rewritten onto the live library.

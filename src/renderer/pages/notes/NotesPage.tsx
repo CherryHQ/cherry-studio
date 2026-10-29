@@ -167,8 +167,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // Notes-root transitions (migration / fallback): remembered until the new
   // tree is projected so the active selection can follow the moved library.
   // The chain ends at the live root, so a selection parked on any earlier root
-  // still maps even after several consecutive migrations.
-  const notesRootTransitionRef = useRef<string[] | null>(null)
+  // still maps even after several consecutive migrations. The selection's
+  // OWNING root is recorded at consumption time, not inferred from the path:
+  // historical roots may overlap (A -> B -> A/nested -> C), which makes
+  // prefix matching ambiguous, while every hop preserves relative paths, so
+  // mapping relative-to-owner onto the live root is exact.
+  const notesRootTransitionRef = useRef<{ roots: string[]; ownerRoot: string } | null>(null)
   const lastSeenNotesPathRef = useRef<string | undefined>(notesPath)
 
   // Project the FS tree (from `useDirectoryTree`) into the legacy
@@ -177,11 +181,13 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // the initial mount triggers when `treeRoot` first becomes non-null.
   useEffect(() => {
     if (lastSeenNotesPathRef.current !== notesPath) {
-      notesRootTransitionRef.current =
-        notesPath && lastSeenNotesPathRef.current ? consumeNotesDirectoryRootTransition(notesPath) : null
+      const previousRoot = lastSeenNotesPathRef.current
+      const chain = notesPath && previousRoot ? consumeNotesDirectoryRootTransition(notesPath) : null
+      notesRootTransitionRef.current = chain ? { roots: chain, ownerRoot: normalizePathValue(previousRoot) } : null
       lastSeenNotesPathRef.current = notesPath
     } else if (notesPath && !notesRootTransitionRef.current) {
-      notesRootTransitionRef.current = consumeNotesDirectoryRootTransition(notesPath)
+      const chain = consumeNotesDirectoryRootTransition(notesPath)
+      notesRootTransitionRef.current = chain ? { roots: chain, ownerRoot: normalizePathValue(notesPath) } : null
     }
     if (!treeRoot || !notesPath) {
       setNotesTree([])
@@ -388,13 +394,19 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     if (shouldClearPath) {
       // A notes-root change may have moved the selected note to the same
       // relative location in the new directory — follow it instead of clearing.
-      const chain = notesRootTransitionRef.current
+      const transition = notesRootTransitionRef.current
       const activePath = activeFilePath ? normalizePathValue(activeFilePath) : ''
-      // The selection can sit on any root the library has occupied; hops are
-      // non-nesting, so at most one contains it. Map that one to the live root so
-      // a window lagging a migration behind still follows instead of clearing.
-      const sourceRoot = chain?.find((root) => activePath.startsWith(`${root}/`))
-      const liveRoot = chain?.at(-1)
+      const liveRoot = transition?.roots.at(-1)
+      // Prefer the recorded owning root: it identifies the selection's
+      // generation unambiguously even when historical roots nest. It must be
+      // a chain member - otherwise the transition was not a migration this
+      // selection took part in (e.g. a reset to the default root), and the
+      // selection must not be rewritten onto the live library.
+      const ownerRoot = transition?.ownerRoot
+      const sourceRoot =
+        ownerRoot && transition?.roots.includes(ownerRoot) && activePath.startsWith(`${ownerRoot}/`)
+          ? ownerRoot
+          : transition?.roots.find((root) => activePath.startsWith(`${root}/`))
       const mappedPath = sourceRoot && liveRoot ? `${liveRoot}${activePath.slice(sourceRoot.length)}` : undefined
       if (mappedPath && findNodeByPath(notesTree, mappedPath)?.type === 'file') {
         notesRootTransitionRef.current = null
