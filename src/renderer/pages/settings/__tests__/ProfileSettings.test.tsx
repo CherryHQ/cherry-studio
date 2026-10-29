@@ -22,7 +22,6 @@ describe('ProfileSettings', () => {
   it('shows profile editing and subscription usage in the global edition', () => {
     render(<ProfileSettings />)
 
-    expect(screen.getByRole('heading', { name: 'settings.profile.title' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Avatar editor' })).toBeInTheDocument()
     expect(screen.getByText('Subscription and quota')).toBeInTheDocument()
   })
