@@ -292,6 +292,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                       checked={effectiveCacheTokenThreshold > 0}
                       onCheckedChange={(checked) =>
                         updateCacheSettings({
+                          enabled: checked,
                           tokenThreshold: checked ? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD : 0
                         })
                       }
