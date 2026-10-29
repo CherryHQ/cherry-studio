@@ -757,8 +757,6 @@ describe('ArtifactPane', () => {
       configurable: true,
       value: {
         file: {
-          openPath: mocks.openPath,
-          showInFolder: mocks.showInFolder,
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
           listDirectoryEntries: mocks.listDirectoryEntries

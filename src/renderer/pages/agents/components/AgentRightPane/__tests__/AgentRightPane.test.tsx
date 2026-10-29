@@ -40,7 +40,6 @@ const {
   fileSessionState,
   fileTreeModelState,
   fileTreeModelStore,
-  openPathMock,
   resolveArtifactPaneFileSelectionMock,
   systemFileTreeState,
   tracePaneModuleLoadMock,
@@ -71,7 +70,6 @@ const {
     listeners: new Set<() => void>(),
     revision: 0
   },
-  openPathMock: vi.fn().mockResolvedValue(undefined),
   resolveArtifactPaneFileSelectionMock: vi.fn(),
   systemFileTreeState: {
     root: null as TreeDirRoot | null,
@@ -699,7 +697,6 @@ describe('AgentRightPane', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
-    window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
@@ -2484,7 +2481,7 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'select README.md' }))
     await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
 
-    await waitFor(() => expect(openPathMock).toHaveBeenCalledWith('/workspace/DESIGN.md'))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('system.shell.open_path', '/workspace/DESIGN.md'))
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })

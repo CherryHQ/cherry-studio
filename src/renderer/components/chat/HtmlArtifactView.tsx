@@ -38,6 +38,7 @@ import {
 } from '@renderer/components/CodeBlockView/HtmlArtifactPreviewSurface'
 import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -542,7 +543,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
     try {
       const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
       await window.api.file.write(tempPath, html)
-      await window.api.file.openPath(tempPath)
+      await ipcApi.request('system.shell.open_path', tempPath)
     } catch (error) {
       logger.error('Failed to open HTML artifact externally', error as Error)
       toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))

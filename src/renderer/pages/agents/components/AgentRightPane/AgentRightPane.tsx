@@ -480,7 +480,7 @@ function AgentRightPaneActionsProvider({
         },
         openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return
-          await window.api.file.openPath(path)
+          await ipcApi.request('system.shell.open_path', path)
           if (artifactOpenRequestRef.current !== requestId) return
           requestFileSelection(null)
         },
