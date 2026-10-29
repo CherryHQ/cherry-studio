@@ -1246,6 +1246,7 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
     const previousPid = app.record.electronPid
     await inspectStartup(app, 'quit')
     await expect.poll(() => isAlive(previousPid)).toBe(false)
+    app.windowHiddenExpected = true
     page = await app.restart()
     expect(app.record.electronPid).not.toBe(previousPid)
     expect(await page.evaluate(() => window.api.preference.get('app.launch_on_boot'))).toBe(true)
@@ -1282,6 +1283,7 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
     await setSwitch('launch-totray', false)
     await expect.poll(async () => (await inspectStartup(app)).openAtLogin).toBe(false)
     await attachScreenshot('MP-111 startup options disabled')
+    app.windowHiddenExpected = false
     page = await app.restart()
     await expect.poll(async () => (await inspectStartup(app)).visible).toBe(true)
     await openSettingsSection(page, 'General')
@@ -1294,6 +1296,7 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
     })
     throw error
   } finally {
+    app.windowHiddenExpected = false
     page = await app.mainWindow().catch(() => app.restart())
     await page.evaluate((preferences) => window.api.preference.setMultiple(preferences), original)
     await inspectStartup(app, 'show')

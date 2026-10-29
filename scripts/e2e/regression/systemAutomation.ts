@@ -556,7 +556,11 @@ public static class NativeDialog {
       '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen -and $_.Current.IsEnabled } | Select-Object -Last 1',
       '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
-      'if (-not $dialog) { throw "Native file dialog was not found" }',
+      'if (-not $dialog) {',
+      '  $all = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)',
+      '  $seen = ($all | Select-Object -First 25 | ForEach-Object { "$($_.Current.ProcessId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
+      '  throw ("Native file dialog was not found for pid ' + electronPid + '. Top-level windows: " + $seen)',
+      '}',
       ...(isDirectory
         ? [
             '$deadline = [DateTime]::UtcNow.AddSeconds(5)',

@@ -22,6 +22,15 @@ import { dismissTransientDialogs } from './helpers/navigation'
 
 const MAIN_WINDOW_PATH = '/windows/main/index.html'
 
+const rootVisible = (page: Page, timeout: number) =>
+  page
+    .locator('#root')
+    .waitFor({ state: 'visible', timeout })
+    .then(
+      () => true,
+      () => false
+    )
+
 export class RegressionApp {
   readonly paths: RunPaths
   private browser?: Browser
@@ -74,7 +83,32 @@ export class RegressionApp {
     return this.browser
   }
 
+  /** Set by cases that deliberately leave the window hidden (tray-only startup or close-to-tray). */
+  windowHiddenExpected = false
+  private recoveringWindow = false
+
   async mainWindow(): Promise<Page> {
+    const page = await this.findMainWindow()
+    if (this.windowHiddenExpected) return page
+    if (await rootVisible(page, 5_000)) return page
+    // A case that hides the window leaves the renderer mounted but unrendered, so every
+    // later case would spend its timeout on a hidden #root. Reveal the window instead.
+    if (!this.recoveringWindow) {
+      this.recoveringWindow = true
+      try {
+        if ((await this.revealWindow()) && (await rootVisible(page, 20_000))) return page
+        await this.disconnect()
+        await prepareWindowsCdpConnection(await restartApp(this.paths))
+      } finally {
+        this.recoveringWindow = false
+      }
+      return await this.mainWindow()
+    }
+    await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
+    return page
+  }
+
+  private async findMainWindow(): Promise<Page> {
     const deadline = Date.now() + 60_000
     do {
       const browser = await this.connect()
@@ -88,14 +122,19 @@ export class RegressionApp {
             return false
           }
         })
-      if (page) {
-        await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
-
-        return page
-      }
+      if (page) return page
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
     } while (Date.now() < deadline)
     throw new Error('Cherry Studio main window was not ready within 60 seconds')
+  }
+
+  private async revealWindow(): Promise<boolean> {
+    if (this.record.platform !== 'macos') return false
+    const { inspectStartup } = await import('./helpers/startupInspection')
+    return inspectStartup(this, 'show').then(
+      () => true,
+      () => false
+    )
   }
 
   async window(pathFragment: string, tabId?: string): Promise<Page> {
