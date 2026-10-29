@@ -14,7 +14,7 @@ import type {
   SubagentStopper,
   ToolResultFact
 } from '../facts'
-import { currentGoal, goalCounts } from '../goal/goalHistory'
+import { currentGoal, goalCounts, goalForCall } from '../goal/goalHistory'
 import { BUDGET_REFUSAL, budgetExceeded } from '../goal/goalState'
 import type { CallInputs, SubagentModelCandidate } from '../hostFacts'
 import { type Key, keys, nextRun } from '../keys'
@@ -71,7 +71,7 @@ export function backgroundRefusal(facts: Facts, inputs: CallInputs): string | un
   const goal = currentGoal(facts.history)
   if (goal?.phase === 'active' && goal.armed && budgetExceeded(goal, goalCounts(facts, goal.id).usage))
     return BUDGET_REFUSAL
-  const running = runningBackground(facts).length + facts.live.pendingLaunches
+  const running = runningBackground(facts).length
   return running >= inputs.settings.maxBackground ? capText(running) : undefined
 }
 
@@ -133,7 +133,7 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
         boundary: background ? 'background' : 'foreground',
         ...(fork && at ? { fork: { from: facts.thread, at } } : {}),
         origin,
-        record: { ...origin, background, run: 1, status: 'running' }
+        record: { ...origin, goalId: goalForCall(facts.history, call), background, run: 1, status: 'running' }
       },
       key
     }
@@ -180,7 +180,12 @@ export type MessageDecision =
  * harness answers as it first did (H3), so a steer the child took is never delivered twice. Once a stop is recorded
  * for the current turn, no finished child is continued.
  */
-export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): Step<MessageDecision> {
+export function decideMessage(
+  facts: Facts,
+  inputs: CallInputs,
+  call: CallKey,
+  cancelled = false
+): Step<MessageDecision> {
   if (facts.lineage.kind === 'subagent') return refuse({ kind: 'refused', text: IN_SUBAGENT })
   const args = fieldsOf(inputs.args)
   const id = (stringField(args, 'id') ?? '').trim()
@@ -196,7 +201,8 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
   if (sent)
     return facts.keysSeen.has(keys.subagentSteerWithdrawn(call, sent.run))
       ? refuse({ kind: 'refused', text: notDeliveredText(sent.sessionId) })
-      : steer(facts, call, sent.sessionId, sent.run, message)
+      : steer(facts, call, sent.sessionId, sent.run, message, sent.goalId)
+  if (cancelled) return refuse({ kind: 'refused', text: TURN_STOPPED })
   const target = resolveChild(readSubagents(facts.history), id)
   if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
   const { child, latest } = target
@@ -207,7 +213,7 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
         kind: 'refused',
         text: `Subagent ${child} has not started its run yet. Message it again once it is running.`
       })
-    return steer(facts, call, child, latest.run, message)
+    return steer(facts, call, child, latest.run, message, goalForCall(facts.history, call))
   }
   if (latest.stoppedBy === 'user')
     return refuse({
@@ -231,7 +237,14 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
     modelKey: latest.modelKey
   }
   const run = nextRun(facts.history, child)
-  const record: SubagentRunRecord = { ...origin, sessionId: child, background: true, run, status: 'running' }
+  const record: SubagentRunRecord = {
+    ...origin,
+    goalId: goalForCall(facts.history, call),
+    sessionId: child,
+    background: true,
+    run,
+    status: 'running'
+  }
   const report: ReportInput = { runKey: keys.subagentMessage(child, run), run, text, child }
   return {
     ops: [
@@ -257,9 +270,22 @@ function pendingSteer(facts: Facts, call: CallKey): SteerRecord | undefined {
 }
 
 /** Record the observed run in the request key; it is provenance, not an input admission condition. */
-function steer(facts: Facts, call: CallKey, child: ThreadId, run: number, message: string): Step<MessageDecision> {
+function steer(
+  facts: Facts,
+  call: CallKey,
+  child: ThreadId,
+  run: number,
+  message: string,
+  goalId: string | null | undefined
+): Step<MessageDecision> {
   const key = keys.subagentSteer(call, run)
-  const value: SteerRecord = { sessionId: child, run, digest: sha256Hex(message), withdrawn: false }
+  const value: SteerRecord = {
+    sessionId: child,
+    run,
+    ...(goalId === undefined ? {} : { goalId }),
+    digest: sha256Hex(message),
+    withdrawn: false
+  }
   return {
     ops: [{ type: 'append-record', thread: facts.thread, record: { type: 'subagent-steer', value }, key }],
     effects: [{ type: 'message-child', child, input: messageInput(message), key }],
@@ -280,6 +306,7 @@ export function decideMessageStarted(facts: Facts, call: CallKey, run: number, t
     description,
     modelKey,
     sessionId: sent.sessionId,
+    ...(sent.goalId === undefined ? {} : { goalId: sent.goalId }),
     background: true,
     run,
     status: 'running'

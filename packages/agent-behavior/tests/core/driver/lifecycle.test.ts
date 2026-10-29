@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { decideAtIdle } from '../../../src/core/driver/idle'
+import { admitRound, decideAtIdle } from '../../../src/core/driver/idle'
 import {
   decideOnOpen,
   decidePermissionModeChanged,
@@ -126,6 +126,18 @@ describe('decideOnOpen', () => {
 })
 
 describe('decideUserStop (R5)', () => {
+  it('pauses an armed goal atomically when stop races a reserved round, and replay cannot pause a later resume', () => {
+    const history = [goalEntry(goal())]
+    const start = decideAtIdle(facts(history), inputs()).result
+    if (start.kind !== 'start-round') throw new Error('Expected a round')
+    const stopped = apply(history, decideUserStop(facts(history), inputs(), 'stop'))
+    expect(currentGoal(stopped)).toMatchObject({ phase: 'paused', armed: false, lastStop: { code: 'aborted' } })
+    expect(admitRound(facts(stopped), inputs(), start).result).toBe('withdraw')
+    const resumed = [...stopped, goalEntry(goal({ revision: 3 }))]
+    const replay = apply(resumed, decideUserStop(facts(resumed), inputs(), 'stop'))
+    expect(currentGoal(replay)).toMatchObject({ phase: 'active', armed: true, revision: 3 })
+  })
+
   // Catches a repeated stop request that stops whatever turn runs now: the stop must name the turn begun before its
   // record, also when it is decided again after a later turn began.
   it('names the turn begun before its record, also when decided again', () => {

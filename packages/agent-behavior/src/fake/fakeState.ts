@@ -237,7 +237,15 @@ const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
 function runUsage(thread: ThreadState): UsageFact[] {
   const sums = Array.from({ length: thread.runs }, () => ZERO_USAGE)
   for (const { entry, run } of thread.entries)
-    if (entry.kind === 'assistant' && run !== undefined) sums[run - 1] = addUsage(sums[run - 1], entry.usage)
+    if (run !== undefined) {
+      const usage =
+        entry.kind === 'assistant'
+          ? entry.usage
+          : entry.kind === 'record' && entry.record.type === 'summary-usage'
+            ? entry.record.value.usage
+            : undefined
+      if (usage) sums[run - 1] = addUsage(sums[run - 1], usage)
+    }
   return sums
 }
 
@@ -266,8 +274,7 @@ export function buildFacts(state: FakeState, id: ThreadId): ConversationFacts {
       leftoverInputs: thread.active ? 0 : thread.inbox.length,
       queuedUserInput: thread.inbox.some((key) => thread.submissions.get(key)?.input.kind === USER_INPUT),
       hostCallInFlight: false,
-      ...(last && { runEnd: { outcome: last.live } }),
-      pendingLaunches: 0
+      ...(last && { runEnd: { outcome: last.live } })
     },
     children,
     keysSeen

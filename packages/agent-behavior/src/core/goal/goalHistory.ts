@@ -1,7 +1,15 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { fieldsOf, numberField, stringField } from '../args'
-import type { ConversationFacts, GoalCleared, GoalSnapshot, GoalStopCode, HistoryEntry, RoundDetails } from '../facts'
+import type {
+  CallKey,
+  ConversationFacts,
+  GoalCleared,
+  GoalSnapshot,
+  GoalStopCode,
+  HistoryEntry,
+  RoundDetails
+} from '../facts'
 import type { ApprovalOutcome } from '../hostFacts'
 import { armSeq } from '../keys'
 import { runActive, startsTurn, type Turn, turnKind } from '../turns'
@@ -86,6 +94,8 @@ const armedAfter = (history: readonly HistoryEntry[], goalId: string, at: number
   armSeq(history, goalId) > armSeq(history.slice(0, at + 1), goalId)
 
 type Branch = {
+  readonly calls: Map<CallKey, string | null>
+  requestGoal: string | null
   readonly counted: { readonly goalId: string; readonly tokens: number; readonly usd: number }[]
   /**
    * By `<child>:<run>`: the goal whose request started that run (the request before the run's first record), fixed at
@@ -103,7 +113,7 @@ const runKey = (child: ThreadId, run: number) => `${child}:${run}`
  * run counts toward the goal of the request whose call started it (the last request before its first record).
  */
 function readBranch(history: readonly HistoryEntry[]): Branch {
-  const branch: Branch = { counted: [], owners: new Map(), latestRuns: new Map() }
+  const branch: Branch = { calls: new Map(), requestGoal: null, counted: [], owners: new Map(), latestRuns: new Map() }
   const admitted = admittedRounds(history)
   let goal: GoalSnapshot | undefined
   let turn: Turn = 'human'
@@ -119,11 +129,16 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
       continue
     }
     if (entry.kind === 'record') {
+      if (entry.record.type === 'summary-usage') {
+        const { goalId, usage } = entry.record.value
+        if (goalId) branch.counted.push({ goalId, tokens: usage.totalTokens, usd: usage.costUsd })
+      }
       if (entry.record.type !== 'subagent-run') continue
-      const { sessionId, run, background } = entry.record.value
+      const { sessionId, run, background, goalId } = entry.record.value
+      const owner = goalId === undefined ? callerGoal : goalId
       const key = runKey(sessionId, run)
       if (!branch.owners.has(key))
-        branch.owners.set(key, { child: sessionId, run, ...(callerGoal ? { goalId: callerGoal } : {}) })
+        branch.owners.set(key, { child: sessionId, run, ...(owner ? { goalId: owner } : {}) })
       if (background) branch.latestRuns.set(sessionId, Math.max(run, branch.latestRuns.get(sessionId) ?? 0))
       continue
     }
@@ -131,6 +146,7 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
     if (entry.kind === 'assistant') {
       starting = false
       callerGoal = requestGoal
+      for (const call of entry.toolCalls) branch.calls.set(call.callKey, requestGoal ?? null)
       const { input, output, cacheRead, cacheWrite, costUsd } = entry.usage
       if (requestGoal)
         branch.counted.push({ goalId: requestGoal, tokens: input + output + cacheRead + cacheWrite, usd: costUsd })
@@ -158,7 +174,21 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
         ? goal.id
         : undefined
   }
+  branch.requestGoal =
+    goal?.phase === 'active' && ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
+      ? goal.id
+      : null
   return branch
+}
+
+/** The request that emitted this exact call owns its child run; host commands have no model call. */
+export function goalForCall(history: readonly HistoryEntry[], call: CallKey): string | null {
+  return readBranch(history).calls.get(call) ?? null
+}
+
+/** Captured before the summarizer runs, so a later pause cannot reassign its cost. */
+export function goalForRequest(history: readonly HistoryEntry[]): string | null {
+  return readBranch(history).requestGoal
 }
 
 /** What goal `goalId` has used: its requests, plus each child run it started, counted once as it occurs (G-d, R3). */

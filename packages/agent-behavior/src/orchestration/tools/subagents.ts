@@ -113,8 +113,9 @@ export type SubagentMessageReceipt =
 export async function messageSubagent(context: Context, call: ToolCall): Promise<SubagentMessageReceipt> {
   for (;;) {
     const inputs = await gatherInputs(context, call.thread, { args: call.args })
-    if (call.signal.aborted) return { status: 'refused', reason: TURN_STOPPED }
-    const executed = await step(context, call.thread, (facts) => decideMessage(facts, inputs, call.key))
+    const executed = await step(context, call.thread, (facts) =>
+      decideMessage(facts, inputs, call.key, call.signal.aborted)
+    )
     const decision = executed.result
     switch (decision.kind) {
       case 'refused':

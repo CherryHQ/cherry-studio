@@ -15,7 +15,7 @@ Cherry host -> adapters (coding-agent, Durable, fake) -> agent-behavior -> agent
 
 Dependencies point one way. The package imports no adapter, Pi, Node, Electron, AI SDK, logger or host code, and from
 [`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids, `JsonValue` and `ContentPart`. That is
-its only runtime dependency. The fake is the third harness implementation and ships here. Each layer under `src/` has
+its only declared dependency, used only for types. The emitted JavaScript import graph has no external executable dependency; the common runtime may itself implement AI SDK readers. The fake is the third harness implementation and ships here. Each layer under `src/` has
 one job:
 
 | Directory        | Holds                                                                                                                                                                                   | Rule                                                                                                                                                           |
@@ -199,7 +199,7 @@ above. It does not throw and does not validate fields beyond those checks. A rec
 `{ kind: 'record', id, key?, record }`, with `key` lifted out of `data`; a marker to
 `{ kind: 'marker', id, key?, marker, text }`, with `text` as stored or `''`. A decoded notification keeps `sessionId`,
 `run`, `outcome` and `stoppedBy` of each run, drops the per-run `usage` that older entries carry, and reads any `quiet`
-other than `true` as `false`. The adapter maps the other history entries (user, assistant, tool result, compaction) to
+other than `true` as `false`. New child run and steer records carry `goalId` (`null` means no goal); only historical records without that field use preceding-request inference. Host continuations never inherit a previous model call's goal. The adapter maps the other history entries (user, assistant, tool result, compaction) to
 `HistoryEntry` itself, as [History projection](#history-projection) describes.
 
 ## Applying a step
@@ -362,7 +362,7 @@ Beyond [What the adapters provide](#what-the-adapters-provide), each adapter mus
 - Set `Delegation.status` to `delegationStatus(record)` from the latest record of each child run, one run being one
   `DelegationId`.
 - Ask `onCompacting` before every compaction, under the key the `CompactionRequest.key` TSDoc names for the harness, and
-  pass the verdict through; meter a compaction during a run as one of its requests. Never call `Summarizer` itself.
+  pass the verdict through; meter a compaction during a run as one of its requests. Supply the full branch captured before summarization in `CompactionRequest.history`. If the host returns real usage with its summary, retain the verdict's `accounting` as a history record exactly once by its key (including in child run usage); the goal owner is captured before awaiting the host. Persist it with the summary or its durable memo so replay cannot lose or double-count it. Text-only summaries carry no invented usage. Never call `Summarizer` itself.
 - Pass each tool call's turn abort signal to `GateHandlers.before` as `call.signal`. Cancellation withdraws pending
   input, while normal completion carries it into a subsequent run. `Helpers.message` returns the run that actually
   consumed the message; orchestration records and reports a run it started using that same input key.

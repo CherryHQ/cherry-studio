@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 const read = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8')
@@ -36,10 +37,42 @@ describe('package boundary', () => {
     expect(manifest.optionalDependencies).toBeUndefined()
   })
 
-  // Catches the lockfile closure growing behind package.json (a workspace dep that itself pulls in runtime code).
-  it('has a lockfile closure of agent-runtime alone', () => {
-    expect(importerDependencies('packages/agent-behavior')).toEqual(['@cherrystudio/agent-runtime'])
-    expect(importerDependencies('packages/agent-runtime')).toEqual([])
+  it('keeps declared direct dependencies aligned with the lockfile', () => {
+    expect(importerDependencies('packages/agent-behavior')).toEqual(Object.keys(manifest.dependencies ?? {}))
+  })
+
+  it('has no external executable dependency after TypeScript erases type imports', () => {
+    const root = new URL('../../src/', import.meta.url)
+    const pending = [new URL('index.ts', root)]
+    const seen = new Set<string>()
+    while (pending.length > 0) {
+      const file = pending.pop()!
+      if (seen.has(file.href)) continue
+      seen.add(file.href)
+      expect(file.href.startsWith(root.href), file.href).toBe(true)
+      const emitted = ts.transpileModule(readFileSync(file, 'utf8'), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, verbatimModuleSyntax: true }
+      }).outputText
+      const parsed = ts.createSourceFile(file.pathname, emitted, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS)
+      const visit = (node: ts.Node) => {
+        let specifier: ts.Node | undefined
+        if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) specifier = node.moduleSpecifier
+        if (
+          ts.isCallExpression(node) &&
+          (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+        )
+          specifier = node.arguments[0]
+        if (specifier) {
+          if (!ts.isStringLiteral(specifier)) throw new Error(`Dynamic dependency in ${file.pathname}`)
+          expect(specifier.text.startsWith('.'), `${file.pathname}: ${specifier.text}`).toBe(true)
+          pending.push(new URL(`${specifier.text}.ts`, file))
+        }
+        ts.forEachChild(node, visit)
+      }
+      visit(parsed)
+    }
+    expect(seen.size).toBeGreaterThan(1)
   })
 
   // Catches a second entry point (e.g. "./testing", §15 Q6) that would let adapters bypass the sealed barrel.

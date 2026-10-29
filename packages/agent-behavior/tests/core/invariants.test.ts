@@ -393,6 +393,7 @@ describe('purity (AC7)', () => {
 describe('entry kinds', () => {
   /** The code that writes or reads each kind in a rule; origins are written through `ChildSpec.origin`. */
   const USED_AS: { readonly [kind in EntryKind]: string } = {
+    'cherry.summary-usage': "record.type === 'summary-usage'",
     'cherry.goal': "record.type === 'goal'",
     'cherry.goal-round': "marker.type === 'goal-round'",
     'cherry.goal-notice': "type: 'goal-notice', value",

@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 
 import type { HistoryEntry } from '../../../src/core/facts'
+import { goalSubagents, goalUsage } from '../../../src/core/goal/goalHistory'
 import { keys } from '../../../src/core/keys'
 import {
   allowRequest,
   budgetStops,
   decideMessage,
+  decideMessageStarted,
   decideRunEnd,
   decideSpawn,
   decideSpawnAbandoned,
@@ -21,6 +23,7 @@ import {
   apply,
   assistant,
   call,
+  callTo,
   facts,
   type FactsOptions,
   goal,
@@ -43,6 +46,57 @@ const spawn = (
   extra = {}
 ) => decideSpawn(facts(history, options), inputs({ args, ...extra }), k)
 const job = { description: 'd', prompt: 'p' }
+
+describe('child run ownership', () => {
+  it('pins the emitting request and keeps host continuations out of the goal budget', () => {
+    const tool = callTo('subagent', job, 'owner')
+    const history = [
+      goalEntry(goal({ admittedRound: 'r1' })),
+      roundEntry({ id: 'r1', goalId: 'g1', revision: 1, round: 1, kind: 'work' }),
+      assistant('spawn', { calls: [tool] }),
+      user('unrelated'),
+      assistant('human reply')
+    ]
+    const spawned = apply(history, decideSpawn(facts(history), inputs({ args: job }), tool.callKey), ['child'])
+    expect(goalUsage(facts(spawned, { children: { child: { runUsage: [usage(9)] } } }), 'g1').tokens).toBe(9)
+    const completed = [...spawned, runEntry(run('child', { status: 'finished', outcome: 'completed', goalId: 'g1' }))]
+    const continued = apply(
+      completed,
+      decideMessage(
+        facts(completed, { children: { child: { running: false } } }),
+        inputs({ args: { id: 'child', message: 'host follow up' } }),
+        call('host-command')
+      )
+    )
+    expect(goalUsage(facts(continued, { children: { child: { runUsage: [usage(9), usage(21)] } } }), 'g1').tokens).toBe(
+      9
+    )
+    expect(goalSubagents(continued, 'g1')).toEqual([])
+  })
+
+  it('keeps the steer owner when it starts a later run after another request', () => {
+    const tool = callTo('message_subagent', {}, 'owner')
+    const history = [
+      goalEntry(goal({ admittedRound: 'r1' })),
+      roundEntry({ id: 'r1', goalId: 'g1', revision: 1, round: 1, kind: 'work' }),
+      assistant('steer', { calls: [tool] }),
+      runEntry(run('child', { goalId: null }))
+    ]
+    const sent = apply(
+      history,
+      decideMessage(
+        facts(history, { children: { child: { running: true } } }),
+        inputs({ args: { id: 'child', message: 'more' } }),
+        tool.callKey
+      )
+    )
+    const later = [...sent, user('new turn'), assistant('reply')]
+    const started = apply(later, decideMessageStarted(facts(later), tool.callKey, 2, 'more'))
+    expect(goalUsage(facts(started, { children: { child: { runUsage: [usage(3), usage(12)] } } }), 'g1').tokens).toBe(
+      12
+    )
+  })
+})
 
 describe('spawning', () => {
   // Catches a subagent starting subagents, a fork switching models, a named model resolved by a fuzzy match (D16), or
@@ -113,6 +167,20 @@ describe('spawning', () => {
       kind: 'refused',
       text: expect.stringMatching(/^1 background subagents are already running/)
     })
+  })
+
+  it('reserves each background slot once until the committed child starts, excluding foreground construction', () => {
+    const capped = inputs({ args: { ...job, background: true }, settings: { ...inputs().settings, maxBackground: 2 } })
+    let history = [user(), assistant('x')]
+    history = apply(history, decideSpawn(facts(history), inputs({ args: job }), call('foreground')), ['fg'])
+    for (const name of ['a', 'b']) {
+      const next = decideSpawn(facts(history), capped, call(name))
+      expect(next.result.kind).toBe('spawn')
+      history = apply(history, next, [name])
+    }
+    expect(decideSpawn(facts(history), capped, call('c')).result).toMatchObject({ kind: 'refused' })
+    history.push(runEntry(run('a', { status: 'finished', outcome: 'failed' })))
+    expect(decideSpawn(facts(history), capped, call('c')).result.kind).toBe('spawn')
   })
 
   // Catches a spawn decided after its turn's stop was recorded: the stop already took the children the turn owned, so a

@@ -18,10 +18,12 @@ it('continues the exact child once for a repeated host request', async () => {
   await w.fake.sendUser(parent, 'delegate')
   await w.fake.settle()
   const child = [...(await w.read(parent)).children.keys()][0]
-  const signal = new AbortController().signal
+  const controller = new AbortController()
+  const signal = controller.signal
   const send = () =>
     w.enter(child, (entries, ports) => entries.messageSubagent(ports, child, 'continue', 'request', signal))
   expect(await send()).toEqual({ status: 'continued', child })
+  controller.abort()
   expect(await send()).toEqual({ status: 'continued', child })
   await w.fake.settle()
   const facts = await w.read(parent)

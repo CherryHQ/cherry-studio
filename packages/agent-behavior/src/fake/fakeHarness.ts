@@ -329,6 +329,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         const request = {
           key,
           reason: 'manual',
+          history: buildFacts(state, thread).history,
           messages: modelContext(state, epoch, target),
           signal: new AbortController().signal
         } as const
@@ -337,6 +338,8 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         // A restart while onCompacting ran retired the epoch that asked; its compaction must not land in the next one.
         if (!alive(asking)) return
         summary = verdict.summary
+        if (verdict.accounting && !buildFacts(state, thread).keysSeen.has(verdict.accounting.key))
+          append(target, { kind: 'record', id: nextItem(state), ...verdict.accounting })
       }
       append(target, { kind: 'compaction', id: nextItem(state) }, summary)
       await lifecycle((handlers, ports) => handlers.onCompacted(thread, ports))

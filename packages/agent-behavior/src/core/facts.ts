@@ -27,6 +27,7 @@ export type ToolCallFact = {
 /** The first eight keep today's customType (agent-runtime-pi), so stored sessions need no migration. Durable refuses only `pi.` kinds. */
 export const ENTRY_KINDS = {
   goal: 'cherry.goal',
+  summaryUsage: 'cherry.summary-usage',
   goalRound: 'cherry.goal-round',
   goalNotice: 'cherry.goal-notice',
   subagentRun: 'cherry.subagent-state',
@@ -101,6 +102,8 @@ export type SubagentStopper = 'model' | 'user' | 'budget'
 /** Today's `cherry.subagent-state` data; `usage` is a display cache only, rules read `ChildFacts.runUsage` (R3). */
 export type SubagentRunRecord = {
   readonly sessionId: ThreadId
+  /** Missing only on historical records; null explicitly belongs to no goal. */
+  readonly goalId?: string | null
   readonly parentToolCallId: string
   readonly description: string
   readonly fork: boolean
@@ -135,6 +138,7 @@ export type PlanState = { readonly active: boolean; readonly at: number }
 /** Never enters the model context. */
 export type PolicyRecord =
   | { readonly type: 'goal'; readonly value: GoalSnapshot | GoalCleared }
+  | { readonly type: 'summary-usage'; readonly value: { readonly goalId: string | null; readonly usage: UsageFact } }
   | { readonly type: 'goal-notice'; readonly value: GoalNotice }
   | { readonly type: 'subagent-run'; readonly value: SubagentRunRecord }
   | { readonly type: 'subagent-origin'; readonly value: SubagentOrigin }
@@ -155,6 +159,7 @@ export type PolicyRecord =
       readonly value: {
         readonly sessionId: ThreadId
         readonly run: number
+        readonly goalId?: string | null
         readonly digest: string
         readonly withdrawn: boolean
       }
@@ -239,8 +244,6 @@ export interface LiveFacts {
   readonly hostCallInFlight: boolean
   /** The most recently finished run; absent until a run ends. */
   readonly runEnd?: { readonly outcome: 'completed' | 'error' | 'aborted' }
-  /** coding-agent's slot reservations; always 0 on Durable and the fake. */
-  readonly pendingLaunches: number
 }
 export interface ConversationFacts {
   readonly thread: ThreadId

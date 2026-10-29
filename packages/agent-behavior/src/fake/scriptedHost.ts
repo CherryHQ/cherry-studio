@@ -24,7 +24,7 @@ export interface ScriptedHost extends HostPorts {
   answerApproval(answer: ApprovalAnswer): void
   answerQuestion(answer: QuestionAnswer): void
   giveVerdict(verdict: VerifierVerdict): void
-  giveSummary(summary: string): void
+  giveSummary(summary: Awaited<ReturnType<HostPorts['summarizer']['summarize']>>): void
   setSettings(patch: Partial<HostSettingsSnapshot>): void
   readonly asked: {
     readonly approvals: number
@@ -93,7 +93,7 @@ export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
   const approvalAnswers = createAnswers<ApprovalAnswer>()
   const questionAnswers = createAnswers<QuestionAnswer>()
   const verdicts = createAnswers<VerifierVerdict>()
-  const summaries = createAnswers<string>()
+  const summaries = createAnswers<Awaited<ReturnType<HostPorts['summarizer']['summarize']>>>()
   const outcomes = new Map<string, ApprovalOutcome>()
   const emitted: BehaviorEvent[] = []
   const saved: OutputFile[] = []
