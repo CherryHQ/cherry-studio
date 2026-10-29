@@ -16,6 +16,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
+import { isTerminalStatus } from '@shared/data/api/schemas/jobs'
 
 import { type AgentTaskInput, runAgentTask } from './runAgentTask'
 
@@ -73,6 +74,30 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   },
 
   async onSettled(event) {
+    // onSettled also runs when the terminal write itself failed (finalizeJob
+    // synthesizes a failed snapshot to free the slot; the row stays
+    // non-terminal and restart recovery replays it). Clear membership only
+    // against the durable row state, or that replay would re-face the guard
+    // against its own watermark and be converted into a completed skip. A
+    // cleanup failure only leaves a dead entry (a terminal job never
+    // replays), so it must not break the remaining settle handling.
+    if (event.scheduleId) {
+      try {
+        const row = jobService.getById(event.jobId)
+        if (row && isTerminalStatus(row.status)) {
+          application.get('AgentJobsService').clearTaskAdmission({
+            scheduleId: event.scheduleId,
+            jobId: event.jobId
+          })
+        }
+      } catch (error) {
+        logger.warn('Failed to clear the admitted-job record on settle', {
+          scheduleId: event.scheduleId,
+          jobId: event.jobId,
+          error: (error as Error).message
+        })
+      }
+    }
     if (event.status === 'completed' && event.scheduleId) {
       application
         .get('DbService')

@@ -26,6 +26,7 @@ const {
   mockStartRun,
   mockBindTaskSessionReuse,
   mockRecordTaskExecutionStart,
+  mockPersistRecoveredTaskBaseline,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
@@ -43,6 +44,7 @@ const {
     }),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockRecordTaskExecutionStart: vi.fn(),
+    mockPersistRecoveredTaskBaseline: vi.fn(),
     mockIsSessionBusy: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
     mockSyncJobScheduleTimerById: vi.fn(),
@@ -61,7 +63,8 @@ vi.mock('@application', async () => {
     AgentJobsService: {
       bindTaskSessionReuse: mockBindTaskSessionReuse,
       syncHeartbeat: syncHeartbeatScheduleMock,
-      recordTaskExecutionStart: mockRecordTaskExecutionStart
+      recordTaskExecutionStart: mockRecordTaskExecutionStart,
+      persistRecoveredTaskBaseline: mockPersistRecoveredTaskBaseline
     },
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
@@ -381,6 +384,88 @@ describe('runAgentTask', () => {
         'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.'
       )
       expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('bypasses the guard on a replay admitted before a newer overlapping run', async () => {
+      // Overlap: B was admitted while A was unfinished, so the single slot
+      // names B. A's crash replay is still a replay of admitted work and must
+      // not re-face the guard against B's watermark.
+      arrange({
+        lastExecutedRunStartedAt: Date.now() + 3_600_000,
+        lastExecutedRunJobId: 'j-other',
+        lastAdmittedRunJobIds: ['j1', 'j-other'],
+        ...approvedMetadata(passingCommand)
+      })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+    })
+
+    it('still evaluates the guard for a new fire when only other jobs hold admissions', async () => {
+      arrange({
+        lastExecutedRunStartedAt: Date.now() + 3_600_000,
+        lastExecutedRunJobId: 'j-other',
+        lastAdmittedRunJobIds: ['j-other']
+      })
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toContain('unchanged')
+      expect(mockStartRun).not.toHaveBeenCalled()
+      // The durable watermark already covers this baseline — nothing recovered.
+      expect(mockPersistRecoveredTaskBaseline).not.toHaveBeenCalled()
+    })
+
+    it('persists a history-recovered baseline when an unchanged file skips', async () => {
+      // Legacy schedule: no durable watermark, but job history holds a
+      // completed run that reached the agent. GC will prune that row; the
+      // baseline must be persisted before it disappears.
+      const baselineMs = Date.now() + 3_600_000
+      arrange()
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        {
+          id: 'j-legacy',
+          scheduleId: 's1',
+          status: 'completed',
+          startedAt: new Date(baselineMs).toISOString(),
+          output: { result: 'Completed' }
+        } as never
+      ])
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toContain('unchanged')
+      expect(mockStartRun).not.toHaveBeenCalled()
+      expect(mockPersistRecoveredTaskBaseline).toHaveBeenCalledWith({
+        scheduleId: 's1',
+        baselineMs
+      })
+    })
+
+    it('does not persist a baseline when the guard admits the fire', async () => {
+      // No watermark, no executed history: the fire reaches the agent and the
+      // admission path writes its own watermark.
+      arrange()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+      expect(mockPersistRecoveredTaskBaseline).not.toHaveBeenCalled()
     })
 
     it('advances the durable watermark when the run reaches the agent', async () => {

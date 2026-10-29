@@ -193,14 +193,69 @@ export function writeLastExecutedRunStartedAt(
 }
 
 /**
- * Identity of the job whose admission advanced the watermark. A crash
- * recovery replays that same job under `recovery: 'retry'`; the replay must
- * not re-face the guard against its own watermark, so the guard is bypassed
- * only for an exact jobId match.
+ * Identity of the most recently admitted job. Pre-overlap schedules carry only
+ * this slot (no `lastAdmittedRunJobIds`), so the replay check keeps slot
+ * equality as its legacy path; with a monotone watermark the admitting job is
+ * not necessarily the one whose start the watermark names.
  */
 export function readLastExecutedRunJobId(metadata: Record<string, unknown> | undefined): string | null {
   const raw = metadata?.[TASK_LAST_EXECUTED_JOB_ID_METADATA_KEY]
   return typeof raw === 'string' && raw.length > 0 ? raw : null
+}
+
+const TASK_ADMITTED_JOB_IDS_METADATA_KEY = 'lastAdmittedRunJobIds'
+
+/**
+ * Identity of every admitted-not-yet-terminal job of this schedule. A single
+ * `lastExecutedRunJobId` slot cannot represent overlapping admissions (the
+ * queue is per-agent with concurrency three): when B is admitted while A is
+ * unfinished, the slot names B and a crash replay of A would fail the identity
+ * check and re-face — and be skipped by — its own guard, dropping unfinished
+ * work. Membership here is what authorizes a recovery replay to bypass the
+ * guard; entries are removed only once the job is durably terminal.
+ */
+export function readAdmittedRunJobIds(metadata: Record<string, unknown> | undefined): string[] {
+  const raw = metadata?.[TASK_ADMITTED_JOB_IDS_METADATA_KEY]
+  if (!Array.isArray(raw)) return []
+  return raw.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+}
+
+/**
+ * Record one admission: the watermark advances monotonically (a replay's
+ * re-admission must never regress it below a concurrent run's), the slot
+ * follows the most recently admitting job, and the job joins the admitted set.
+ */
+export function writeTaskAdmission(
+  metadata: Record<string, unknown> | undefined,
+  startedAtMs: number,
+  jobId: string
+): Record<string, unknown> {
+  const current = readLastExecutedRunStartedAt(metadata)
+  const next = writeLastExecutedRunStartedAt(
+    metadata,
+    current !== null && current > startedAtMs ? current : startedAtMs,
+    jobId
+  )
+  const admitted = readAdmittedRunJobIds(metadata)
+  if (!admitted.includes(jobId)) admitted.push(jobId)
+  next[TASK_ADMITTED_JOB_IDS_METADATA_KEY] = admitted
+  return next
+}
+
+/**
+ * Remove a durably terminal job from the admitted set. The watermark and the
+ * newest slot stay: they describe the baseline, not liveness. Never called
+ * for a job the runtime could still replay.
+ */
+export function clearTaskAdmission(
+  metadata: Record<string, unknown> | undefined,
+  jobId: string
+): Record<string, unknown> {
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}) }
+  const admitted = readAdmittedRunJobIds(metadata).filter((id) => id !== jobId)
+  if (admitted.length > 0) next[TASK_ADMITTED_JOB_IDS_METADATA_KEY] = admitted
+  else delete next[TASK_ADMITTED_JOB_IDS_METADATA_KEY]
+  return next
 }
 
 const TASK_GUARD_APPROVAL_METADATA_KEY = 'guardApproval'

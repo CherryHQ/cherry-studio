@@ -3,12 +3,15 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  clearTaskAdmission,
   writeLastExecutedRunStartedAt,
+  writeTaskAdmission,
   agentTaskService,
   clearMissedTask,
   HEARTBEAT_PROMPT_SENTINEL,
   isMissedTask,
   normalizeTaskSessionReuseRevision,
+  readLastExecutedRunStartedAt,
   readTaskGuard,
   readTaskSessionReuse,
   writeTaskGuardApproval,
@@ -592,10 +595,51 @@ export class AgentJobsService extends BaseService {
   // change that admitted it - the F6 history filter narrows fallback evidence but does
   // not change that; do not claim no unprocessed change can be consumed.
   recordTaskExecutionStart(params: { scheduleId: string; startedAtMs: number; jobId: string }): void {
-    const snapshot = jobScheduleService.getById(params.scheduleId)
-    if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
-    jobScheduleService.update(params.scheduleId, {
-      metadata: writeLastExecutedRunStartedAt(snapshot.metadata, params.startedAtMs, params.jobId)
+    // Read-modify-write inside one write transaction: overlapping admissions
+    // (per-agent queue, concurrency three) and the recovered-baseline persist
+    // below serialize here, so neither can clobber the other's watermark or
+    // admission membership.
+    application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
+      if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+      application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
+        metadata: writeTaskAdmission(snapshot.metadata, params.startedAtMs, params.jobId)
+      })
+    })
+  }
+
+  /**
+   * Persist a guard baseline recovered from job history (legacy schedules
+   * predating the durable watermark). Job rows are pruned by hourly GC; once
+   * the newest executed row disappears, the recovered baseline reads null and
+   * the guard reruns an unchanged file. Never lowers or replaces a watermark
+   * a concurrent admission already advanced past the candidate.
+   */
+  persistRecoveredTaskBaseline(params: { scheduleId: string; baselineMs: number }): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
+      if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+      const current = readLastExecutedRunStartedAt(snapshot.metadata)
+      if (current !== null && current >= params.baselineMs) return
+      application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
+        metadata: writeLastExecutedRunStartedAt(snapshot.metadata, params.baselineMs)
+      })
+    })
+  }
+
+  /**
+   * Drop a job from the admitted set once its terminal status is durable
+   * (handler `onSettled`). A job the runtime could still replay keeps its
+   * membership, or its replay would re-face the guard against its own
+   * watermark and be converted into a completed skip.
+   */
+  clearTaskAdmission(params: { scheduleId: string; jobId: string }): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
+      if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+      application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
+        metadata: clearTaskAdmission(snapshot.metadata, params.jobId)
+      })
     })
   }
 

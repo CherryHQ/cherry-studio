@@ -415,6 +415,60 @@ describe('AgentJobsService', () => {
     expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
   })
 
+  describe('guard admission metadata', () => {
+    it('records overlapping admissions with a monotone watermark and per-job membership', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1000, jobId: 'j-a' })
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 2000, jobId: 'j-b' })
+
+      let metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+      expect(metadata?.lastExecutedRunJobId).toBe('j-b')
+      expect(metadata?.lastAdmittedRunJobIds).toEqual(['j-a', 'j-b'])
+
+      // A crash replay of the older job re-admits with its own start time: the
+      // watermark must not regress below the newer admission.
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1500, jobId: 'j-a' })
+      metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+      expect(metadata?.lastAdmittedRunJobIds).toEqual(['j-a', 'j-b'])
+    })
+
+    it('clears membership only at durable terminal and keeps the watermark', () => {
+      const task = service.createTask(AGENT_ID, form)
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1000, jobId: 'j-a' })
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 2000, jobId: 'j-b' })
+
+      service.clearTaskAdmission({ scheduleId: task.id, jobId: 'j-a' })
+      let metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastAdmittedRunJobIds).toEqual(['j-b'])
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+      expect(metadata?.lastExecutedRunJobId).toBe('j-b')
+
+      service.clearTaskAdmission({ scheduleId: task.id, jobId: 'j-b' })
+      metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastAdmittedRunJobIds).toBeUndefined()
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+    })
+
+    it('persists a recovered baseline without lowering a newer watermark', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      service.persistRecoveredTaskBaseline({ scheduleId: task.id, baselineMs: 5000 })
+      let metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(5000)
+      // The baseline is not an admission: no slot, no membership.
+      expect(metadata?.lastExecutedRunJobId).toBeUndefined()
+      expect(metadata?.lastAdmittedRunJobIds).toBeUndefined()
+
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 9000, jobId: 'j-x' })
+      service.persistRecoveredTaskBaseline({ scheduleId: task.id, baselineMs: 5000 })
+      metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(9000)
+    })
+  })
+
   describe('createTask', () => {
     it('stores an explicitly empty timeout as unlimited', () => {
       const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes: null })

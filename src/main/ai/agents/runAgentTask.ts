@@ -29,6 +29,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  readAdmittedRunJobIds,
   readLastExecutedRunJobId,
   readLastExecutedRunStartedAt,
   readTaskGuardApproval,
@@ -281,13 +282,35 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     // its own watermark — an unchanged file would otherwise convert recovery
     // into a completed skip and drop the unfinished work. New scheduled fires
     // (different jobId) still evaluate the guard normally.
-    const isRecoveryReplay = scheduleId !== null && readLastExecutedRunJobId(scheduleSnapshot?.metadata) === ctx.jobId
+    // Membership covers overlapping admissions: with B admitted while A was
+    // unfinished, the single slot names B, but A's replay is still a replay.
+    // The slot equality remains for schedules admitted before the set existed.
+    const isRecoveryReplay =
+      scheduleId !== null &&
+      (readAdmittedRunJobIds(scheduleSnapshot?.metadata).includes(ctx.jobId) ||
+        readLastExecutedRunJobId(scheduleSnapshot?.metadata) === ctx.jobId)
     if (!isRecoveryReplay) {
-      const lastRunStartedAt = scheduleId
-        ? (readLastExecutedRunStartedAt(scheduleSnapshot?.metadata) ?? findLastExecutedRunStart(scheduleId, ctx.jobId))
-        : null
+      const metadataBaseline = scheduleId ? readLastExecutedRunStartedAt(scheduleSnapshot?.metadata) : null
+      const recoveredBaseline =
+        scheduleId && metadataBaseline === null ? findLastExecutedRunStart(scheduleId, ctx.jobId) : null
+      const lastRunStartedAt = metadataBaseline ?? recoveredBaseline
       const outcome = await evaluateTaskGuard(ctx.input.guard, { lastRunStartedAt, signal: ctx.signal })
       if (!outcome.proceed) {
+        // A history-derived baseline disappears with the row when job GC
+        // prunes it; persist it so the unchanged file stays skipped instead of
+        // starting an agent turn after pruning.
+        if (scheduleId && recoveredBaseline !== null) {
+          try {
+            application
+              .get('AgentJobsService')
+              .persistRecoveredTaskBaseline({ scheduleId, baselineMs: recoveredBaseline })
+          } catch (error) {
+            logger.warn('Failed to persist the recovered guard baseline', {
+              scheduleId,
+              error: (error as Error).message
+            })
+          }
+        }
         logger.debug('Task skipped by guard', { agentId, scheduleId, reason: outcome.reason })
         return { result: `Skipped (guard: ${outcome.reason})`, skipped: true }
       }

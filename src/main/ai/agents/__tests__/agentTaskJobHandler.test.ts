@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
+const { mockClearTaskAdmission } = vi.hoisted(() => ({ mockClearTaskAdmission: vi.fn() }))
+
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
   return mod.mockApplicationFactory()
@@ -91,6 +93,7 @@ describe('AgentTaskJobHandler', () => {
       if (name === 'JobManager')
         return { updateJobScheduleTx: updateTxSpy, syncJobScheduleTimerById: syncTimerSpy } as never
       if (name === 'DbService') return MockMainDbServiceExport.dbService as never
+      if (name === 'AgentJobsService') return { clearTaskAdmission: mockClearTaskAdmission } as never
       throw new Error(`Unexpected application.get('${name}')`)
     })
     updateTxSpy.mockClear()
@@ -185,6 +188,42 @@ describe('AgentTaskJobHandler', () => {
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
 
       expect(agentTaskService.notifyRunChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('onSettled admission cleanup', () => {
+    it.each(['completed', 'failed', 'cancelled'] as const)(
+      'clears the admitted-job record once %s is durable',
+      async (status) => {
+        // Keep the circuit breaker out of the way; cleanup is under test.
+        vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValue([])
+        vi.mocked(jobService.getById).mockReturnValue(makeTerminal(status, 'job-1'))
+        await agentTaskJobHandler.onSettled?.(makeSettled({ status }))
+        expect(mockClearTaskAdmission).toHaveBeenCalledWith({ scheduleId: 's1', jobId: 'job-1' })
+      }
+    )
+
+    it('keeps membership when the terminal write was not durable', async () => {
+      // finalizeJob still invokes onSettled with a synthetic snapshot when the
+      // terminal write fails; the live row stays non-terminal and restart
+      // recovery replays the job, so its admission must survive.
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValue([])
+      vi.mocked(jobService.getById).mockReturnValue({ ...makeTerminal('failed', 'job-1'), status: 'running' })
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'failed' }))
+      expect(mockClearTaskAdmission).not.toHaveBeenCalled()
+    })
+
+    it('skips cleanup for jobs without a schedule', async () => {
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed', scheduleId: null }))
+      expect(mockClearTaskAdmission).not.toHaveBeenCalled()
+    })
+
+    it('keeps settle handling alive when cleanup fails', async () => {
+      vi.mocked(jobService.getById).mockReturnValue(makeTerminal('completed', 'job-1'))
+      mockClearTaskAdmission.mockImplementationOnce(() => {
+        throw new Error('db down')
+      })
+      await expect(agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed' }))).resolves.not.toThrow()
     })
   })
 
