@@ -88,6 +88,7 @@ describe('AgentTaskJobHandler', () => {
 
   beforeEach(() => {
     vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'NotificationService') return { publishScheduledTaskResult: vi.fn(async () => true) } as never
       if (name === 'JobManager')
         return { updateJobScheduleTx: updateTxSpy, syncJobScheduleTimerById: syncTimerSpy } as never
       if (name === 'DbService') return MockMainDbServiceExport.dbService as never

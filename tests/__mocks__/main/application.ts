@@ -86,6 +86,7 @@ export const mockJobManager = {
 }
 
 export const mockNotificationService = {
+  publishScheduledTaskResult: vi.fn(async (_jobId: string) => true),
   publish: vi.fn(
     async (_input: Partial<NotificationRecord>, _options?: { source?: NotificationSource; completion?: boolean }) =>
       true

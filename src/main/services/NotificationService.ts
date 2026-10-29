@@ -4,19 +4,24 @@ import { app, Notification as ElectronNotification } from 'electron'
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { type CreateNotificationRecordInput, notificationRecordService } from '@data/services/NotificationRecordService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import type { ConversationCompletedEvent } from '@main/ai/streamManager'
+import type { ConversationCompletedEvent, ConversationUnsuccessfulEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { NotificationTaskResultSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
@@ -24,6 +29,7 @@ import {
   type Notification,
   type NotificationSource
 } from '@shared/types/notification'
+import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 import { openNotificationInMainWindow, openRouteInMainWindow } from './mainWindowNavigation'
 
@@ -60,6 +66,11 @@ export class NotificationService extends BaseService {
   protected onInit(): void {
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
+    )
+    this.registerDisposable(
+      application
+        .get('AiStreamManager')
+        .onConversationUnsuccessful((event) => this.handleConversationUnsuccessful(event))
     )
     this.registerDisposable(
       application.get('AiStreamManager').onApprovalRequested((event) => this.handleApprovalRequested(event))
@@ -102,22 +113,34 @@ export class NotificationService extends BaseService {
 
   public async publish(
     input: CreateNotificationRecordInput,
-    options: { source?: NotificationSource; completion?: boolean } = {}
+    options: { source?: NotificationSource; completion?: boolean; recordOnly?: boolean } = {}
   ): Promise<boolean> {
     let committed = false
     try {
       const preferences = application.get('PreferenceService')
-      if (!preferences.get(`app.notification.center.${input.category}.enabled`)) return true
-      if (
-        (input.kind === 'task-completion' || input.kind === 'queue-completion') &&
+      const enabled = preferences.get(`app.notification.center.${input.category}.enabled`)
+      const result = input.target?.result
+      const completion = input.kind === 'task-completion' || input.kind === 'queue-completion'
+      const active =
+        enabled &&
+        (completion || !!result) &&
         input.target?.kind === 'conversation' &&
         getFullChromeWindowInfos().some((window) => window.isFocused) &&
         (await application.get('ConversationNavigationService').isActiveInFocusedWindow(input.target))
-      )
-        return true
-      const record = notificationRecordService.create(input)
+      const suppressed = !enabled || (active && (completion || result?.status === 'succeeded'))
+      const recordOnly = options.recordOnly || result?.status === 'cancelled' || (!!result && active)
+      const initial = {
+        ...input,
+        readAt: result && recordOnly ? Date.now() : input.readAt
+      }
+      const record = result
+        ? notificationRecordService.consumeTaskResult(input.eventKey, suppressed ? null : initial)
+        : suppressed
+          ? null
+          : notificationRecordService.create(initial)
       if (!record) return true
       committed = true
+      if (recordOnly) return true
       const windows = getFullChromeWindowInfos()
       const focused = windows.find((window) => window.isFocused)
       const owner = focused ?? windows.find((window) => window.type === WindowType.Main) ?? windows[0]
@@ -131,7 +154,7 @@ export class NotificationService extends BaseService {
         }
       }
       if (focused) {
-        if (options.completion || input.category === 'usage') {
+        if (options.completion || result || input.category === 'usage') {
           application.get('IpcApiService').send(focused.id, 'notification.present', record)
         }
         if (options.source !== 'update' && options.source !== 'backup') return true
@@ -161,6 +184,39 @@ export class NotificationService extends BaseService {
     }
   }
 
+  /** Persists an authoritative outcome through the existing notification delivery policy. */
+  public async publishTaskResult(input: TaskResultNotificationInput): Promise<boolean> {
+    try {
+      if (!input.resultId.trim() || !Number.isSafeInteger(input.finishedAt) || input.finishedAt < 0) return false
+      const result = NotificationTaskResultSchema.parse(input)
+      if (result.errorSummary) {
+        result.errorSummary = Array.from(redactSecretTokens(redactSecretText(result.errorSummary)))
+          .slice(0, 500)
+          .join('')
+      }
+      return this.publish(
+        {
+          eventKey: `task-result:${JSON.stringify([result.source, input.resultId])}`,
+          category: 'system',
+          kind: 'task-result',
+          title: {
+            succeeded: t('notification.result.succeeded'),
+            failed: t('notification.result.failed'),
+            interrupted: t('notification.result.interrupted'),
+            cancelled: t('notification.result.cancelled')
+          }[result.status],
+          message: result.errorSummary ? `${result.name}: ${result.errorSummary}` : result.name,
+          createdAt: input.finishedAt,
+          target: { ...input.target, result }
+        },
+        { source: 'assistant', completion: result.status === 'succeeded' }
+      )
+    } catch (error) {
+      logger.warn('Invalid task result notification', { error })
+      return false
+    }
+  }
+
   public async activateNotification(id: string): Promise<void> {
     const record = notificationRecordService.getById(id)
     if (!record) throw new Error(t('notification.center.target_unavailable'))
@@ -180,7 +236,16 @@ export class NotificationService extends BaseService {
       const conversation = { conversationType: target.conversationType, conversationId: target.conversationId }
       await application
         .get('ConversationNavigationService')
-        .focusOrOpen(conversation, this.resolveConversationName(target))
+        .focusOrOpen(conversation, this.resolveConversationName(target), null, target.messageId)
+    } else if (target.kind === 'scheduled-task') {
+      try {
+        if (!agentTaskService.getTaskById(target.taskId)) throw new Error('Deleted task')
+      } catch {
+        throw new Error(t('notification.center.target_unavailable'))
+      }
+      openRouteInMainWindow(
+        `/settings/scheduled-tasks/${encodeURIComponent(target.taskId)}?notificationId=${encodeURIComponent(id)}`
+      )
     } else if (target.kind === 'settings') {
       openRouteInMainWindow(`/settings/${target.tab}`)
     } else if (target.kind === 'knowledge') {
@@ -281,6 +346,46 @@ export class NotificationService extends BaseService {
     })
 
     electronNotification.show()
+  }
+
+  public async publishScheduledTaskResult(jobId: string): Promise<boolean> {
+    const job = jobService.getById(jobId)
+    if (!job?.scheduleId || !job.finishedAt || (job.status !== 'failed' && job.status !== 'cancelled')) return false
+    const schedule = jobScheduleService.getById(job.scheduleId)
+    if (!schedule) return false
+    const finishedAt = Date.parse(job.finishedAt)
+    return this.publishTaskResult({
+      resultId: job.id,
+      source: 'scheduled-task',
+      status:
+        job.metadata.taskResultStatus === 'cancelled' || job.metadata.taskResultStatus === 'interrupted'
+          ? job.metadata.taskResultStatus
+          : job.status === 'failed'
+            ? 'failed'
+            : job.cancelRequested
+              ? 'cancelled'
+              : 'interrupted',
+      name: schedule.name || t('notification.result.failed'),
+      finishedAt,
+      ...(job.startedAt ? { durationMs: Math.max(0, finishedAt - Date.parse(job.startedAt)) } : {}),
+      ...(job.error
+        ? { errorSummary: toExecutionFailure({ name: null, stack: null, message: job.error.message }).message }
+        : {}),
+      target: { kind: 'scheduled-task', taskId: job.scheduleId }
+    })
+  }
+
+  private handleConversationUnsuccessful(event: ConversationUnsuccessfulEvent): void {
+    const target = this.resolveConversationTarget(event.topicId)
+    void this.publishTaskResult({
+      ...event,
+      source: target.conversationType,
+      name: this.resolveConversationName(
+        target,
+        target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
+      ),
+      target: { kind: 'conversation', ...target, messageId: event.messageId }
+    })
   }
 
   private handleConversationCompleted({

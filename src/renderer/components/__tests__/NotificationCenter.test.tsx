@@ -56,6 +56,99 @@ describe('NotificationCenter reading', () => {
     expect(mockDataApiService.patch).not.toHaveBeenCalled()
   })
 
+  it.each(['assistant', 'agent'] as const)(
+    'shows the %s success excerpt while keeping failed and scheduled outcomes compact',
+    async (source) => {
+      const records: NotificationRecord[] = [
+        {
+          id: 'c4519cf1-0405-4eb1-a18c-17b263872413',
+          eventKey: 'agent-result',
+          category: 'system',
+          kind: 'task-result',
+          title: 'Hidden conversation title',
+          message: 'Hidden error details',
+          createdAt: Date.now(),
+          readAt: null,
+          dismissedAt: null,
+          target: {
+            kind: 'conversation',
+            conversationType: 'agent',
+            conversationId: 'session',
+            result: {
+              source: 'agent',
+              status: 'failed',
+              name: 'Hidden conversation name',
+              actor: { name: 'Old agent', emoji: '🍒' },
+              durationMs: 12000,
+              errorSummary: 'Hidden error details'
+            }
+          }
+        },
+        {
+          id: 'c4519cf1-0405-4eb1-a18c-17b263872414',
+          eventKey: 'assistant-result',
+          category: 'system',
+          kind: 'queue-completion',
+          title: 'Hidden batch count',
+          message: 'Conversation name to hide\nBrief reply excerpt',
+          createdAt: Date.now() - 1000,
+          readAt: null,
+          dismissedAt: null,
+          target: { kind: 'conversation', conversationType: source, conversationId: 'topic' }
+        },
+        {
+          id: 'c4519cf1-0405-4eb1-a18c-17b263872415',
+          eventKey: 'scheduled-result',
+          category: 'system',
+          kind: 'task-result',
+          title: 'Hidden result title',
+          message: 'Hidden task detail',
+          createdAt: Date.now() - 2000,
+          readAt: null,
+          dismissedAt: null,
+          target: {
+            kind: 'scheduled-task',
+            taskId: 'deleted-task',
+            result: { source: 'scheduled-task', status: 'interrupted', name: 'Saved scheduled task' }
+          }
+        }
+      ]
+      mockDataApiService.get.mockImplementation(async (path) => {
+        if (path === '/notifications') return { items: records }
+        if (path === '/notifications/unread-count') return { count: 3 }
+        if (path === '/agent-sessions/session') return { agentId: 'agent' }
+        if (path === '/agents/agent') return { name: 'Current agent', configuration: { avatar: '🍒' } }
+        if (path === '/agent-sessions/topic') return { agentId: 'completed-agent' }
+        if (path === '/agents/completed-agent') return { name: 'Completed source', configuration: { avatar: '🍒' } }
+        if (path === '/topics/topic') return { assistantId: 'assistant' }
+        if (path === '/assistants/assistant') return { name: 'Completed source', emoji: '🤖' }
+        throw new Error('Deleted source')
+      })
+      const user = userEvent.setup()
+      render(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <NotificationCenterProvider>
+            <NotificationCenterButton />
+          </NotificationCenterProvider>
+        </SWRConfig>
+      )
+      await user.click(await screen.findByRole('button', { name: /Notification center/ }))
+      expect(await screen.findByText('Current agent')).toBeVisible()
+      expect(await screen.findByText('Completed source')).toBeVisible()
+      expect(await screen.findByText('Saved scheduled task')).toBeVisible()
+      for (const label of ['Failed', 'Brief reply excerpt', 'Interrupted'])
+        expect(screen.getByText(label)).toBeVisible()
+      expect(screen.queryByText('Old agent')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Conversation name to hide/)).not.toBeInTheDocument()
+      for (const record of records) {
+        const list = screen.getByRole('list', { name: 'Notification center' })
+        expect(within(list).queryByText(record.title)).not.toBeInTheDocument()
+        if (record.kind !== 'queue-completion') expect(within(list).queryByText(record.message)).not.toBeInTheDocument()
+      }
+      expect(mockDataApiService.patch).not.toHaveBeenCalled()
+    }
+  )
+
   it.each([null, 1])('only persists unread announcements (readAt=%s)', async (readAt) => {
     const content =
       '**中文** 😀\n<b>Full announcement details</b>\n[link](https://example.com)\n' + '完整公告内容。'.repeat(30)

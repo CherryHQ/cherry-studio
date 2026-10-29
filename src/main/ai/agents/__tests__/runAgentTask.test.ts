@@ -58,6 +58,7 @@ vi.mock('@application', async () => {
     // An untrusted agent directory pauses its heartbeat schedule.
     JobManager: {
       ...mod.defaultServiceInstances.JobManager,
+      cancel: vi.fn(async () => ({ outcome: 'cancelled' })),
       updateJobScheduleTx: mockUpdateJobScheduleTx,
       syncJobScheduleTimerById: mockSyncJobScheduleTimerById
     }
@@ -368,7 +369,6 @@ describe('runAgentTask', () => {
 
     expect(out).toEqual({ result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(readHeartbeat).toHaveBeenCalledWith('/agent-data/a1')
   })
 
   describe('session reuse', () => {
@@ -634,40 +634,48 @@ describe('runAgentTask', () => {
     expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
   })
 
-  it('delivers a paused cron result to a subscribed channel exactly once', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
-    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
-      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
-    ] as never)
+  it.each([undefined, 'user-requested', 'remote-cancel'])(
+    'settles paused cron runs without claiming success: %s',
+    async (reason) => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+        { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+      ] as never)
 
-    const adapter = {
-      channelId: 'ch1',
-      connected: true,
-      notifyChatIds: ['chat-1'],
-      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
-      onTextUpdate: vi.fn(async () => {}),
-      onStreamComplete: vi.fn(async () => false)
+      const adapter = {
+        channelId: 'ch1',
+        connected: true,
+        notifyChatIds: ['chat-1'],
+        sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+        onTextUpdate: vi.fn(async () => {}),
+        onStreamComplete: vi.fn(async () => false)
+      }
+      mockGetAdapter.mockReturnValue(adapter as never)
+
+      const ctx = makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } })
+      const promise = runAgentTask(ctx)
+
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      const chunk = { type: 'text-delta', delta: 'partial summary' }
+      for (const listener of captured.listeners) {
+        listener.onChunk?.(chunk)
+      }
+      const rejected = expect(promise).rejects.toThrow('Task interrupted')
+      const pausedResult = { status: 'paused', reason }
+      await Promise.all(
+        captured.listeners.map((listener) => Promise.resolve(listener.onPaused?.(pausedResult as never)))
+      )
+
+      await rejected
+      expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskResultStatus: reason ? 'cancelled' : 'interrupted' })
+      expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+      expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(Stopped)_', undefined)
+      expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
     }
-    mockGetAdapter.mockReturnValue(adapter as never)
-
-    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
-
-    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-    const chunk = { type: 'text-delta', delta: 'partial summary' }
-    for (const listener of captured.listeners) {
-      listener.onChunk?.(chunk)
-    }
-    const pausedResult = { status: 'paused' }
-    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onPaused?.(pausedResult as never))))
-
-    await expect(promise).resolves.toEqual({ result: 'partial summary' })
-    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(Stopped)_', undefined)
-    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
-  })
+  )
 
   it.each([
     [

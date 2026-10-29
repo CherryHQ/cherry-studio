@@ -309,14 +309,28 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
 const TaskDetail: FC<{
   task: ScheduledTaskEntity
+  notificationId?: string
   agents: AgentInfo[]
   onBack: () => void
   onUpdate: (taskId: string, updates: AgentTaskPatch) => Promise<TaskUpdateResult | undefined>
   onDelete: (taskId: string) => Promise<void>
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
-}> = ({ task, agents, onBack, onUpdate, onDelete, onRun, onToggleStatus }) => {
+}> = ({ task, notificationId, agents, onBack, onUpdate, onDelete, onRun, onToggleStatus }) => {
   const { t } = useTranslation()
+  const { data: notification, error: notificationError } = useQuery('/notifications/:id', {
+    params: { id: notificationId ?? '' },
+    enabled: !!notificationId,
+    swrOptions: { shouldRetryOnError: false }
+  })
+  const resultError =
+    notificationId &&
+    notification?.id === notificationId &&
+    !notificationError &&
+    notification.target?.kind === 'scheduled-task' &&
+    notification.target.taskId === task.id
+      ? notification.target.result?.errorSummary
+      : undefined
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
   const { openConversation } = useConversationNavigation('agents')
@@ -475,6 +489,7 @@ const TaskDetail: FC<{
         )}
       </div>
 
+      {resultError && <Alert type="error" showIcon description={resultError} />}
       <SettingGroup theme={theme}>
         <Tabs defaultValue="prompt" variant="line">
           <TabsList aria-label={task.name}>
@@ -539,7 +554,7 @@ const TaskDetail: FC<{
   )
 }
 
-const TasksSettings: FC = () => {
+const TasksSettings: FC<{ notificationId?: string }> = ({ notificationId }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const navigate = useNavigate()
@@ -756,6 +771,7 @@ const TasksSettings: FC = () => {
       <TaskDetail
         key={selectedTask.id}
         task={selectedTask}
+        notificationId={notificationId}
         agents={agents}
         onBack={() => void navigate({ to: '/settings/scheduled-tasks' })}
         onUpdate={handleUpdate}

@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useConversationNavigationOwner } from '../useConversationNavigationOwner'
@@ -61,6 +63,39 @@ describe('useConversationNavigationOwner', () => {
       requestId: 'active-check',
       ownsTarget: true
     })
+  })
+
+  it('keeps a requested anchor until the destination mounts and clears it when its tab closes', async () => {
+    const owner = { tabs: [] as Tab[], activeTabId: '', openTab: vi.fn(), setActiveTab: vi.fn() }
+    const rendered = renderHook(({ tabs }) => useConversationNavigationOwner({ ...owner, tabs }), {
+      initialProps: { tabs: owner.tabs }
+    })
+    emit('navigation.conversation_focus_or_open_requested', {
+      requestId: 'locate',
+      target,
+      title: 'Task',
+      messageId: 'older-message'
+    })
+    rendered.rerender({
+      tabs: [{ id: 'new-tab', type: 'route', url: '/app/agents?sessionId=session-1', title: 'Task' }]
+    })
+    const locating = renderHook(() =>
+      useConversationLocateRequest({
+        navigationTabId: 'new-tab',
+        activeConversationId: 'session-1',
+        visibleConversationId: 'session-1'
+      })
+    )
+    await waitFor(() => expect(locating.result.current.locateMessageId).toBe('older-message'))
+    locating.unmount()
+    emit('navigation.conversation_focus_or_open_requested', {
+      requestId: 'latest',
+      target,
+      title: 'Task',
+      messageId: null
+    })
+    rendered.rerender({ tabs: [] })
+    expect(cacheService.getCasual('navigation.conversation.locate.new-tab')).toBeUndefined()
   })
 
   it('answers ownership on demand from the latest tab state', () => {

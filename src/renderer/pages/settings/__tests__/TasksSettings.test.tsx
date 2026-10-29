@@ -18,6 +18,8 @@ import TasksSettings from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
 
+const savedNotificationMock = vi.hoisted(() => ({ taskId: 'task-1' }))
+
 const taskLogsMock = vi.hoisted(() => {
   const defaultTaskLog = {
     id: 'log-1',
@@ -132,9 +134,20 @@ vi.mock('@renderer/hooks/agent/useChannels', () => ({
 vi.mock('@renderer/data/hooks/useDataApi', async () => ({
   useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useQuery: (path: string) =>
-    path === '/agents'
-      ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
-      : { data: [], refetch: vi.fn() }
+    path === '/notifications/:id'
+      ? {
+          data: {
+            id: 'result-1',
+            target: {
+              kind: 'scheduled-task',
+              taskId: savedNotificationMock.taskId,
+              result: { errorSummary: 'Saved safe failure' }
+            }
+          }
+        }
+      : path === '/agents'
+        ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
+        : { data: [], refetch: vi.fn() }
 }))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
@@ -934,6 +947,17 @@ describe('TasksSettings routing and creation', () => {
     taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
   })
+
+  it.each(['task-1', 'another-task'])(
+    'only displays the saved error for the matching scheduled target (%s)',
+    (taskId) => {
+      savedNotificationMock.taskId = taskId
+      taskLogsMock.logs = []
+      render(<TasksSettings notificationId="result-1" />)
+      if (taskId === 'task-1') expect(screen.getByText('Saved safe failure')).toBeInTheDocument()
+      else expect(screen.queryByText('Saved safe failure')).not.toBeInTheDocument()
+    }
+  )
 
   it('renders only the full-width task list on the base route', async () => {
     navigationMocks.taskId = undefined
