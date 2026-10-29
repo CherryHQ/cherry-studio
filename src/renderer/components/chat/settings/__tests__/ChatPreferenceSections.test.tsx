@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
+    'chat.input.rich_text_math_enabled': false,
     'chat.input.paste_long_text_as_file': false,
     'chat.input.paste_long_text_threshold': 1500,
     'chat.message.render_as_markdown': false,
@@ -126,6 +127,7 @@ describe('ChatPreferenceSections', () => {
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.preferenceValues['chat.message.user_content.default_expanded'] = false
     mocks.preferenceValues['chat.input.paste_long_text_as_file'] = false
+    mocks.preferenceValues['chat.input.rich_text_math_enabled'] = false
     mocks.preferenceValues['chat.input.paste_long_text_threshold'] = 1500
     mocks.preferenceValues['chat.message.keep_intermediate_text'] = false
     mocks.loadThemeNames.mockClear()
@@ -152,6 +154,20 @@ describe('ChatPreferenceSections', () => {
     const autoItems = screen.getAllByText('chat.settings.code_theme.cherry_default')
     expect(autoItems.map((item) => item.getAttribute('data-value'))).toEqual(['auto', 'auto'])
     expect(screen.queryByText('auto')).toBeNull()
+  })
+
+  it('keeps composer math preview off by default and persists enabling it', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ChatPreferenceSections />)
+    const name = 'settings.messages.input.rich_text_math_enabled'
+    const toggle = screen.getByRole('button', { name })
+    expect(toggle).toHaveAttribute('data-checked', 'false')
+
+    await user.click(toggle)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.rich_text_math_enabled', true)
+    rerender(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
   })
 
   it('does not render input translation controls', () => {

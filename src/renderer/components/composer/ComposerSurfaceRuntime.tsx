@@ -57,6 +57,7 @@ import {
   insertComposerTokenAtCursor,
   updateComposerToken
 } from './composerInputAdapter'
+import { configureComposerInlineMath, synchronizeComposerMath } from './composerMathExtension'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -623,6 +624,9 @@ export default function ComposerSurfaceRuntime({
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [richTextMathEnabled] = usePreference('chat.input.rich_text_math_enabled')
+  const richTextMathEnabledRef = useRef(richTextMathEnabled)
+  richTextMathEnabledRef.current = richTextMathEnabled
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const layerActive = useComposerLayerActive()
@@ -1538,12 +1542,14 @@ export default function ComposerSurfaceRuntime({
   )
 
   const editorExtensions = useMemo(
-    () =>
-      createComposerEditorPreset({
+    () => [
+      ...createComposerEditorPreset({
         placeholder,
         renderToken: renderComposerToken,
         suggestionSources: activeSuggestionSources
       }),
+      configureComposerInlineMath(() => richTextMathEnabledRef.current)
+    ],
     [activeSuggestionSources, placeholder, renderComposerToken]
   )
 
@@ -1910,6 +1916,10 @@ export default function ComposerSurfaceRuntime({
   useEffect(() => {
     editorRef.current = editor
   }, [editor])
+
+  useEffect(() => {
+    if (editor) synchronizeComposerMath(editor, richTextMathEnabled)
+  }, [editor, richTextMathEnabled])
 
   // The fallback textarea is removed in the same commit that attaches this view, so focus has to
   // land on it before paint — a deferred restore would leave a keystroke with nowhere to go.

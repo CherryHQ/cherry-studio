@@ -11,6 +11,7 @@ import type {
 } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/types/file'
 
+import { COMPOSER_INLINE_MATH_NODE_NAME, serializeComposerMath } from './composerMath'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableContent } from './promptVariables'
 import { getComposerInputLeafText } from './quickPanel'
@@ -199,6 +200,12 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
         textOffset: text.length
       })
       text += composerTokenText(token)
+      return
+    }
+
+    if (node.type === COMPOSER_INLINE_MATH_NODE_NAME) {
+      const latex: unknown = node.attrs?.latex
+      text += serializeComposerMath(typeof latex === 'string' ? latex : '')
       return
     }
 
