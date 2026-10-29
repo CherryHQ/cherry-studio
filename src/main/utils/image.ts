@@ -4,16 +4,15 @@ import { fileTypeFromBuffer } from 'file-type'
 const ENTITY_IMAGE_DIMENSION = 128
 
 /**
- * Whether the bytes decode as a raster image providers accept. Uses strict libvips
- * decode (not header-only checks): truncated PNGs can expose a plausible IHDR yet
- * fail on IDAT. Entity transcoding keeps `failOn: 'none'` for slightly malformed
- * user uploads; model-bound paths must not pass undecodable bytes upstream.
+ * Whether the bytes fully decode. Header-only checks miss truncated PNGs whose IHDR is intact.
+ * `failOn: 'error'` rejects truncation and decode errors but tolerates libvips warnings (e.g.
+ * extraneous JPEG marker bytes) that providers accept.
  */
 export async function isDecodableImage(bytes: Uint8Array): Promise<boolean> {
   if (bytes.byteLength === 0) return false
   try {
     const sharp = (await import('sharp')).default
-    await sharp(bytes).stats()
+    await sharp(bytes, { failOn: 'error' }).stats()
     return true
   } catch {
     return false
@@ -66,7 +65,7 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
  */
 export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array | null> {
   const sharp = (await import('sharp')).default
-  const image = sharp(bytes)
+  const image = sharp(bytes, { failOn: 'error' })
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
   if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) {
