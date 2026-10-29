@@ -103,7 +103,11 @@ Persistent Assistant chat creates a main-only `memoryContext`; temporary chat,
 auxiliary requests, and headless prompt streams do not. Opted-in Assistants reload
 the shared entry in `prepareStep`, after the context-compaction hooks. For
 Responses endpoints, Cherry's generated `instructions` mirror is refreshed too.
-The reference does not grant controlled file tools or confirm a save. Legacy
+The reference does not grant controlled file tools or confirm a save. Pi's
+separate native adapter provides full memory reads and receipt-bound writes and
+edits. Claude Code remains entry-only for managed memory: its native file guard
+rejects those targets because a pre-tool hook cannot own the complete commit.
+Legacy
 FACT/JOURNAL loading and tools remain until the coordinated migration layer.
 
 ## Update and variable lifecycle
