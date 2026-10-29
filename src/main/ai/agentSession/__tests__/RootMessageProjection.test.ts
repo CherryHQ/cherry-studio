@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { setupTestDatabase } from '@test-helpers/db'
 import { expect, it } from 'vitest'
 
+import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -12,6 +13,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
 import { RootMessageProjection } from '../RootMessageProjection'
+import { ThreadProjection } from '../ThreadProjection'
 
 const dbh = setupTestDatabase()
 function fixture() {
@@ -45,6 +47,98 @@ const text = (id: string, value: string): CherryUIMessage => ({
   id,
   role: 'assistant',
   parts: [{ type: 'text', text: value, state: 'done' }]
+})
+
+it('updates only the owning reply across interleaved sources, replacements, removal and retain', () => {
+  const f = fixture()
+  const first = f.reply()
+  const second = f.reply()
+  f.projection.accept(f.update([text('a', 'A')]), first)
+  f.projection.accept(f.update([text('b', 'B')]), second)
+  f.projection.accept(f.update([text('c', 'C')]), first)
+  expect(f.projection.accept(f.update([text('canonical', 'A2')], { replaces: { a: 'canonical' } }), second)).toEqual(
+    new Map([[first, [...text('', 'A2').parts, ...text('', 'C').parts]]])
+  )
+  f.projection.retain({
+    id: first,
+    role: 'assistant',
+    parts: [
+      ...text('', 'A2').parts,
+      ...text('', 'C').parts,
+      { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } }
+    ]
+  })
+  expect(f.projection.accept(f.update([], { removed: ['canonical'] }), second).has(second)).toBe(false)
+  f.projection.accept(f.update([text('d', 'D')]), first)
+  f.save(first)
+  f.save(second)
+  const restored = new RootMessageProjection(f.context.id)
+  expect(restored.parts(first)).toEqual([
+    ...text('', 'C').parts,
+    ...text('', 'D').parts,
+    { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } }
+  ])
+  expect(restored.parts(second)).toEqual(text('', 'B').parts)
+  expect(Object.keys(restored.checkpoint().root.sources)).toEqual(['b', 'c', 'd'])
+})
+
+it('keeps root history when incremental thread reconciliation drops compacted sources', async () => {
+  const f = fixture()
+  const id = f.reply()
+  const thread = { backendId: runtimeId<'backend'>('pi'), id: runtimeId<'thread'>('root') }
+  const updates: RuntimeMessageProjection[] = []
+  const view = new ThreadProjection(thread, f.context.id, (update) => {
+    updates.push(update)
+    f.projection.accept(update, id)
+  })
+  try {
+    await view.accept({ type: 'message.upsert', message: { ...text('old', 'Retained'), metadata: undefined } })
+    await view.accept({
+      type: 'snapshot',
+      coverage: 'current-view',
+      messages: [],
+      inputs: [],
+      activity: { scope: 'foreground', state: 'idle' }
+    })
+    expect(f.projection.parts(id)).toEqual(text('', 'Retained').parts)
+    expect(updates.at(-1)?.removed).toEqual([])
+    await view.accept({ type: 'message.upsert', message: { ...text('new', 'Live'), metadata: undefined } })
+    expect(updates.at(-1)?.messages.map((message) => message.id)).toEqual(['new'])
+    expect(f.projection.parts(id)).toEqual([...text('', 'Retained').parts, ...text('', 'Live').parts])
+    await view.accept(
+      {
+        type: 'snapshot',
+        coverage: 'current-view',
+        messages: [
+          { ...text('new', 'Live'), metadata: undefined },
+          { ...text('canonical', 'Committed'), metadata: undefined }
+        ],
+        inputs: [],
+        activity: { scope: 'foreground', state: 'idle' }
+      },
+      true,
+      { canonical: 'old' }
+    )
+    expect(updates.at(-1)?.messages.map((message) => message.id)).toEqual(['canonical'])
+    expect(f.projection.parts(id)).toEqual([...text('', 'Committed').parts, ...text('', 'Live').parts])
+    await view.accept({ type: 'message.remove', ref: { session: thread, id: runtimeId('canonical') } })
+    expect(f.projection.parts(id)).toEqual(text('', 'Live').parts)
+  } finally {
+    await view.close()
+  }
+})
+
+it('refreshes display metadata only for known owners without admitting historical sources', () => {
+  const f = fixture()
+  const first = f.reply()
+  const second = f.reply()
+  f.projection.accept(f.update([text('known', 'Original')]), first)
+  const update = f.update([text('known', 'Filtered'), text('historical', 'Must not be admitted')], {
+    live: [],
+    refresh: ['known', 'historical']
+  })
+  expect(f.projection.accept(update, second)).toEqual(new Map([[first, text('', 'Filtered').parts]]))
+  expect(f.projection.parts(second)).toBeUndefined()
 })
 
 // A child may finish after its parent: persist the task status without copying the child report.

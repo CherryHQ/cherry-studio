@@ -702,16 +702,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const observation = await handle.claude.observe(async (batch) => {
       let publish = () => {}
       try {
-        const before = new Map(projection.snapshot().messages.map((message) => [message.id, message]))
-        metadata.accept(batch)
-        for (const event of batch.events) await projection.accept(event)
+        const refresh = metadata.accept(batch)
+        const changed = await projection.accept(batch.events, refresh)
         const live =
           !batch.events.some((event) => event.type === 'snapshot') &&
           batch.native.some((native) => native.source === 'live')
-            ? projection
-                .snapshot()
-                .messages.filter((message) => before.get(message.id) !== message)
-                .map((message) => message.id)
+            ? changed.map((message) => message.id)
             : []
         publish = () => {
           this.eventQueue.push({
@@ -719,8 +715,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             projection: {
               contextId,
               legacy: metadata.legacy,
-              messages: projection.snapshot().messages,
+              messages: batch.events.some((event) => event.type === 'snapshot')
+                ? projection.snapshot().messages
+                : changed,
               live,
+              refresh,
               replaces: Object.fromEntries(
                 batch.events.flatMap((event) =>
                   event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
@@ -949,12 +948,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             observe: async (sink) => {
               const result = await handle.claude.observe(async (batch) => {
                 try {
-                  metadata.accept(batch)
+                  const refresh = metadata.accept(batch)
                   for (const event of batch.events) {
                     await sink(event)
                     if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
                     if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
                   }
+                  if (refresh.length) await projection.refreshDecoration(refresh)
                   for (const native of batch.native) {
                     if (native.source !== 'live' || native.message.type !== 'assistant') continue
                     await projection.flush()
