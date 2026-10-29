@@ -58,7 +58,7 @@ describe('TextFilePreview', () => {
     })
   })
 
-  it('renders highlighted source with line wrapping', async () => {
+  it('renders loaded source text', async () => {
     renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
@@ -125,7 +125,7 @@ describe('TextFilePreview', () => {
     renderPreview(0, 3)
 
     expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ value: ' \n' }))
+    expect(screen.getByTestId('code-viewer').textContent).toBe(' \n')
     expect(screen.queryByText('file_preview.text.empty.title')).not.toBeInTheDocument()
   })
 

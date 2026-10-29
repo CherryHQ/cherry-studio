@@ -80,7 +80,7 @@ export default defineProvider({
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://api.deepseek.com',
-      reasoningFormat: { type: 'openai-responses' }
+      reasoningFormat: { type: 'openai-responses', wire: v4ResponsesEffortWire }
     }
   },
   serverTools: [
@@ -105,6 +105,14 @@ export default defineProvider({
       modelId: 'deepseek-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       pricing: v4FlashPeakPricing,
+      reasoningContracts: {
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
+      }
+    },
+    {
+      modelId: 'deepseek-v4-flash',
+      endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }

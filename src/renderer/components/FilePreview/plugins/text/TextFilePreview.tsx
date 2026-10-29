@@ -28,7 +28,7 @@ function TextPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>

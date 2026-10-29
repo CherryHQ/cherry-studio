@@ -40,6 +40,7 @@ import {
   type MarkdownSanitizeSchema,
   SVG_ELEMENT_REGEX
 } from './utils'
+import { rehypeNormalizeLinkScheme } from './utils/normalize-link-scheme'
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
   if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
@@ -136,6 +137,7 @@ export interface MarkdownCoreProps {
   footnoteLabel?: string
   /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
   preserveFileLinkHrefs?: boolean
+  additionalLinkProtocols?: readonly string[]
   preserveRelativeImageSrcs?: boolean
 }
 
@@ -155,6 +157,7 @@ export function MarkdownCore({
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes',
   preserveFileLinkHrefs = false,
+  additionalLinkProtocols,
   preserveRelativeImageSrcs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
@@ -176,7 +179,7 @@ export function MarkdownCore({
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const relativeImages = createRelativeImagePreservation()
-    const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
+    const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema, additionalLinkProtocols)
     const effectiveSchema = preserveFileLinkHrefs
       ? {
           ...extendedSchema,
@@ -192,6 +195,9 @@ export function MarkdownCore({
       : extendedSchema
     const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
+      // Sanitize compares protocols case-sensitively, but URI schemes are case-insensitive.
+      // Normalize schemes instead of expanding the allow-list.
+      rehypeNormalizeLinkScheme,
       [sanitizeFn, effectiveSchema] as Pluggable,
       rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
@@ -208,7 +214,15 @@ export function MarkdownCore({
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [hasSvgElement, id, headingSlugs, stableExtraRehypePlugins, preserveFileLinkHrefs, preserveRelativeImageSrcs])
+  }, [
+    hasSvgElement,
+    id,
+    headingSlugs,
+    stableExtraRehypePlugins,
+    preserveFileLinkHrefs,
+    preserveRelativeImageSrcs,
+    additionalLinkProtocols
+  ])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value

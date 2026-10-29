@@ -15,6 +15,7 @@ import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { codeHighlightService } from '@renderer/services/CodeHighlightService'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
+import { EXTERNAL_LINK_PROTOCOLS } from '@shared/utils/externalUrlSafety'
 
 import { useMarkdownComponents } from './MarkdownRenderers'
 import { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'
@@ -85,6 +86,7 @@ function MarkdownContent({
   )
   const markdownComponents = useMarkdownComponents({ components, hasStyleElement: /<style\b[^>]*>/i.test(content) })
   const commonProps = {
+    additionalLinkProtocols: EXTERNAL_LINK_PROTOCOLS,
     id,
     headingSlugs,
     plugins,

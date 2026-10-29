@@ -1,14 +1,15 @@
 import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
+import type { EditorState } from '@uiw/react-codemirror'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-import type { HighlightResult, ThemedToken } from '@cherrystudio/ui/code-highlight'
+import type { CodeBlockHighlightResult as HighlightResult, CodeBlockToken } from '@cherrystudio/ui/code-block'
+import { readCodeBlockState } from '@cherrystudio/ui/code-block'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
-import { getReactStyleFromToken } from '@renderer/utils/codeHighlight'
 import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -28,6 +29,8 @@ interface SavedSelection {
 }
 
 interface CodeViewerProps {
+  /** Seed visible syntax from the matching editor document when switching back to reading. */
+  editorState?: EditorState | null
   /** Code string value. */
   value: string
   /**
@@ -88,6 +91,7 @@ interface CodeViewerProps {
  * Virtualized code viewer with viewport-only highlighting in a worker.
  */
 const CodeViewer = ({
+  editorState,
   value,
   language,
   height,
@@ -103,7 +107,7 @@ const CodeViewer = ({
 }: CodeViewerProps) => {
   const [_lineNumbers] = usePreference('chat.code.show_line_numbers')
   const [_fontSize] = usePreference('chat.message.font_size')
-  const { getCodePreProperties, isCodeThemeDark, highlightRange, cleanupTokenizers } = useCodeStyle()
+  const { codeBlockStyle, isCodeThemeDark, highlightRange, cleanupTokenizers } = useCodeStyle()
   const [capture, setCapture] = useState<{ lines: string[]; tokens: HighlightResult | null } | null>(null)
   const captureCommitRef = useRef<(() => void) | null>(null)
   useLayoutEffect(() => {
@@ -114,6 +118,7 @@ const CodeViewer = ({
 
   const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const widthProbeRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const gestureRef = useRef<{ active: boolean; anchor: SourcePoint | null; focus: SourcePoint | null } | null>(null)
@@ -181,37 +186,6 @@ const CodeViewer = ({
     () => (lineNumbers ? Math.max(rawLines.length.toString().length, 1) : 0),
     [lineNumbers, rawLines.length]
   )
-
-  // 设置 pre 标签属性
-  useLayoutEffect(() => {
-    let mounted = true
-    const shikiTheme = shikiThemeRef.current
-    if (shikiTheme) {
-      shikiTheme.className = `code-viewer ${className ?? ''}`
-      shikiTheme.classList.add(isCodeThemeDark ? 'shiki-dark' : 'shiki-light')
-    }
-
-    if (!highlight) return
-
-    void getCodePreProperties().then((properties) => {
-      if (!mounted) return
-      const shikiTheme = shikiThemeRef.current
-      if (shikiTheme) {
-        shikiTheme.className = `${properties.class || 'shiki'} code-viewer ${className ?? ''}`
-        // 滚动条适应 shiki 主题变化而非应用主题
-        shikiTheme.classList.add(isCodeThemeDark ? 'shiki-dark' : 'shiki-light')
-
-        if (properties.style) {
-          shikiTheme.style.cssText += `${properties.style}`
-        }
-        // FIXME: 临时解决 SelectionToolbar 无法弹出，走剪贴板回退的问题
-        // shikiTheme.tabIndex = properties.tabindex
-      }
-    })
-    return () => {
-      mounted = false
-    }
-  }, [language, getCodePreProperties, isCodeThemeDark, className, highlight])
 
   // 保存当前选区的逻辑位置
   const saveSelection = useCallback((): SavedSelection | null => {
@@ -495,11 +469,37 @@ const CodeViewer = ({
   })
   const virtualizer = expanded && scrollParent === null ? windowVirtualizer : elementVirtualizer
 
+  // measure() drops every cached size and mounted rows never re-run measureElement, so seed
+  // the rebuild from the DOM. Real deltas apply first; after measure() they are estimate error.
+  const remeasureRows = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (!scroller || capture) return
+    const rows = [...scroller.querySelectorAll<HTMLElement>('[data-index]')].map(
+      (element) => [Number(element.dataset.index), element.offsetHeight] as const
+    )
+    for (const [index, height] of rows) virtualizer.resizeItem(index, height)
+    virtualizer.measure()
+    virtualizer.getTotalSize()
+    const adjustBefore = virtualizer.shouldAdjustScrollPositionOnItemSizeChange
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false
+    try {
+      for (const [index, height] of rows) virtualizer.resizeItem(index, height)
+    } finally {
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = adjustBefore
+    }
+    // React commits after paint; sync the height now so the reflowed rows cannot
+    // flash a scrollbar for a frame.
+    if (listRef.current) listRef.current.style.height = `${virtualizer.getTotalSize()}px`
+  }, [capture, virtualizer])
+
   const previousRawLinesRef = useRef<string[] | null>(null)
 
+  // Observe a zero-height width probe, never the scroller itself: syncing the list height
+  // inside the callback must not resize the observed element (that trips the RO loop error).
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
-    if (!scroller) return
+    const probe = widthProbeRef.current
+    if (!scroller || !probe) return
 
     let lastWidth = scroller.clientWidth
     const observer = new ResizeObserver(() => {
@@ -507,22 +507,21 @@ const CodeViewer = ({
       if (nextWidth === lastWidth) return
       lastWidth = nextWidth
       if (wrapped) {
-        virtualizer.measure()
+        remeasureRows()
       }
     })
-    observer.observe(scroller)
+    observer.observe(probe)
     return () => observer.disconnect()
-  }, [expanded, virtualizer, wrapped])
+  }, [expanded, remeasureRows, wrapped])
 
   const previousWrapLayoutSignatureRef = useRef<string | null>(null)
 
   useLayoutEffect(() => {
-    if (!wrapped) return
-    const signature = `${lineNumbers}:${gutterDigits}:${fontSize}`
+    const signature = `${wrapped}:${lineNumbers}:${gutterDigits}:${fontSize}`
     if (previousWrapLayoutSignatureRef.current === signature) return
     previousWrapLayoutSignatureRef.current = signature
-    virtualizer.measure()
-  }, [expanded, fontSize, gutterDigits, lineNumbers, virtualizer, wrapped])
+    remeasureRows()
+  }, [expanded, fontSize, gutterDigits, lineNumbers, remeasureRows, wrapped])
 
   useLayoutEffect(() => {
     if (!wrapped) {
@@ -556,6 +555,14 @@ const CodeViewer = ({
     language,
     callerId
   })
+  const matchesEditor = useMemo(() => editorState?.sliceDoc() === value, [editorState, value])
+  const editorTokens = useMemo(
+    () =>
+      !tokens && highlight && matchesEditor && editorState && firstIndex !== undefined && lastIndex !== undefined
+        ? readCodeBlockState(editorState, { start: firstIndex, end: lastIndex + 1 })
+        : null,
+    [tokens, highlight, matchesEditor, editorState, firstIndex, lastIndex]
+  )
 
   // 防抖高亮提高流式响应的性能，数字大一点也不会影响用户体验
   const debouncedHighlightLines = useMemo(() => debounce(highlightLines, 300), [highlightLines])
@@ -684,20 +691,33 @@ const CodeViewer = ({
   }, [autoScrollToBottom, expanded, rawLines.length, totalSize])
 
   const renderedLines = capture?.lines ?? rawLines
-  const renderedTokens = capture ? capture.tokens : tokens
+  const renderedTokens = capture ? capture.tokens : (tokens ?? editorTokens)
   const renderedItems = capture ? capture.lines.map((_, index) => ({ key: index, index })) : virtualItems
 
   return (
-    <div ref={shikiThemeRef} data-image-capture-content="" style={expanded || capture ? undefined : { height }}>
+    <div
+      ref={shikiThemeRef}
+      data-image-capture-content=""
+      className={cn('code-viewer shiki highlights', isCodeThemeDark ? 'shiki-dark' : 'shiki-light', className)}
+      style={{
+        ...codeBlockStyle,
+        color: 'var(--code-foreground, var(--foreground))',
+        backgroundColor: 'var(--code-background, transparent)',
+        fontFamily: 'var(--code-font-family)',
+        ...(expanded || capture ? {} : { height })
+      }}>
+      <div ref={widthProbeRef} aria-hidden="true" data-width-probe className="h-0" />
       <div
         ref={scrollerRef}
-        className="shiki-scroller selectable relative block [scrollbar-color:auto] overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
+        className="shiki-scroller selectable relative block [scrollbar-color:auto] overflow-x-auto rounded-[inherit] pr-0 pl-[1em]"
         onScroll={handleScroll}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
             '--line-height': `${lineHeight}px`,
             fontSize,
+            paddingBlock: Math.round(fontSize / 2),
+            tabSize: 2,
             height: expanded || capture ? undefined : height,
             maxHeight: expanded || capture ? undefined : maxHeight,
             overflowY: capture ? 'visible' : expanded ? 'hidden' : 'auto'
@@ -729,12 +749,10 @@ const CodeViewer = ({
                 <VirtualizedRow
                   rawLine={renderedLines[virtualItem.index]}
                   tokenLine={highlight ? renderedTokens?.lines[virtualItem.index - renderedTokens.start] : undefined}
-                  highlightEnabled={highlight}
                   showLineNumbers={lineNumbers}
                   expanded={expanded}
                   wrapped={wrapped}
                   index={virtualItem.index}
-                  isDarkTheme={isCodeThemeDark}
                 />
               </div>
             ))}
@@ -747,86 +765,30 @@ const CodeViewer = ({
 
 CodeViewer.displayName = 'CodeViewer'
 
-// 渐进式高亮时，尚未被 shiki 覆盖到的内容用淡化样式提示“高亮即将到来”
-const dimmedTokenStyle = {
-  color: 'inherit',
-  bgColor: 'inherit',
-  htmlStyle: {
-    opacity: '0.35'
-  }
-}
-
-// 关闭高亮（streaming）时，直接以正常不透明度渲染原始文本
-const plainTokenStyle = {
-  color: 'inherit',
-  bgColor: 'inherit',
-  htmlStyle: {
-    opacity: '1'
-  }
-}
-
 interface VirtualizedRowData {
   rawLine: string
-  tokenLine?: ThemedToken[]
-  highlightEnabled: boolean
+  tokenLine?: CodeBlockToken[]
   showLineNumbers: boolean
   expanded: boolean
   wrapped: boolean
-  isDarkTheme: boolean
 }
 
 /**
  * 单行代码渲染
  */
 const VirtualizedRow = memo(
-  ({
-    rawLine,
-    tokenLine,
-    highlightEnabled,
-    showLineNumbers,
-    expanded,
-    wrapped,
-    index,
-    isDarkTheme
-  }: VirtualizedRowData & { index: number }) => {
-    // 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
+  ({ rawLine, tokenLine, showLineNumbers, expanded, wrapped, index }: VirtualizedRowData & { index: number }) => {
     const completeTokenLine = useMemo(() => {
-      // 关闭高亮时按原始文本渲染，不淡化；开启高亮时用淡化样式提示尚未覆盖到的内容
-      const fallbackTokenStyle = highlightEnabled ? dimmedTokenStyle : plainTokenStyle
-
-      // 如果出现空行，补一个空元素保证行高
-      if (rawLine.length === 0) {
-        return [
-          {
-            content: '',
-            offset: 0,
-            ...fallbackTokenStyle
-          }
-        ]
-      }
-
-      const currentTokens = tokenLine ?? []
-      const themedContentLength = currentTokens.reduce((acc, token) => acc + token.content.length, 0)
-
-      // 已有内容已经全部高亮，直接返回
-      if (themedContentLength >= rawLine.length) {
-        return currentTokens
-      }
-
-      // 补全剩余内容
-      return [
-        ...currentTokens,
-        {
-          content: rawLine.slice(themedContentLength),
-          offset: themedContentLength,
-          ...fallbackTokenStyle
-        }
-      ]
-    }, [rawLine, tokenLine, highlightEnabled])
+      const tokens = tokenLine ?? []
+      const length = tokens.reduce((total, token) => total + token.content.length, 0)
+      return tokens.length && length >= rawLine.length
+        ? tokens
+        : [...tokens, { content: rawLine.slice(length), offset: length }]
+    }, [rawLine, tokenLine])
 
     return (
       <div
-        className="line flex w-full items-start leading-[var(--line-height)]"
+        className="line flex min-h-[var(--line-height)] w-full items-start leading-[var(--line-height)]"
         style={{
           contain: wrapped ? 'content' : 'none',
           willChange: !wrapped && !expanded ? 'transform' : 'auto'
@@ -849,7 +811,7 @@ const VirtualizedRow = memo(
             wrapped ? '[&_*]:break-words! [&_*]:whitespace-pre-wrap!' : '[&_*]:break-normal [&_*]:whitespace-pre'
           )}>
           {completeTokenLine.map((token, tokenIndex) => (
-            <span key={tokenIndex} style={getReactStyleFromToken(token, { isDarkTheme })}>
+            <span key={tokenIndex} className={token.className}>
               {token.content}
             </span>
           ))}
