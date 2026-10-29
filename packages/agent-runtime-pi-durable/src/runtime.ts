@@ -94,6 +94,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
   archive(): Promise<OperationResult<PiDurableArchive>>
 }
 export interface PiDurableArchive {
+  readonly responseIds?: Readonly<Record<string, string>>
   readonly legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
   readonly messages: readonly RuntimeMessage[]
   /** Proven committed-to-live identities within this observation source. */
@@ -184,6 +185,7 @@ export async function createPiDurableRuntime(
                 } while (cursor)
                 archives.set(entry.conversation.id, {
                   messages: content.messages,
+                  responseIds: content.responseIds,
                   legacy: content.legacy,
                   aliases: { ...entry.projection.aliases }
                 })
@@ -491,7 +493,10 @@ export async function createPiDurableRuntime(
               const aliases = Object.fromEntries(
                 Object.entries(entry.projection.aliases).filter(([id]) => included.has(id))
               )
-              return { status: 'confirmed', value: { messages: content.messages, legacy: content.legacy, aliases } }
+              return {
+                status: 'confirmed',
+                value: { messages: content.messages, responseIds: content.responseIds, legacy: content.legacy, aliases }
+              }
             } catch (cause) {
               report(cause)
               return { status: 'unknown', error: error('archive', 'native-error') }

@@ -81,12 +81,12 @@ it('preserves each model route and usage owner when a child shares the native ga
     isHidden: false,
     supportsStreaming: true
   })
-  const usages: Array<{ sessionId: string | undefined; tokens: number }> = []
+  const usages: Array<{ sessionId: string | undefined; responseId: string | undefined; tokens: number }> = []
   const binding = await createPiGatewayModelBinding(
     { sessionId: 'session-1', reasoningEffort: 'high', serviceTier: 'flex', fastMode: true },
     provider,
     model,
-    (usage, sessionId) => usages.push({ sessionId, tokens: usage.totalTokens })
+    (usage, sessionId, responseId) => usages.push({ sessionId, responseId, tokens: usage.totalTokens })
   )
   const child = await createPiGatewayModelBinding(
     { sessionId: 'session-1', reasoningEffort: 'low' },
@@ -102,7 +102,7 @@ it('preserves each model route and usage owner when a child shares the native ga
       sessionId: 'native-child'
     })
     .result()
-  expect(usages).toEqual([{ sessionId: 'native-child', tokens: 15 }])
+  expect(usages).toEqual([{ sessionId: 'native-child', responseId: 'r', tokens: 15 }])
   expect(answer).toMatchObject({
     api: 'openai-completions',
     stopReason: 'stop',
@@ -127,7 +127,7 @@ it('preserves each model route and usage owner when a child shares the native ga
   )
   expect(childAnswer.stopReason).toBe('stop')
   expect(requests[1]).toMatchObject({ reasoning: 'low', body: { model: 'local:child-wire' } })
-  expect(usages).toEqual([{ sessionId: 'native-child', tokens: 15 }])
+  expect(usages).toEqual([{ sessionId: 'native-child', responseId: 'r', tokens: 15 }])
 })
 
 // A direct-provider replay workaround must not invent a thinking signature from a gateway message ID.

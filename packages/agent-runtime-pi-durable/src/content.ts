@@ -8,6 +8,7 @@ export const entryMessageId = (entry: EntryRecord, index: number): string => `en
 
 export class ContentProjection {
   readonly messages: RuntimeMessage[] = []
+  readonly responseIds: Record<string, string> = {}
   get legacy(): Record<string, { messageId: string; parts: number[] }> {
     const legacy: Record<string, { messageId: string; parts: number[] }> = {}
     for (const message of this.messages) {
@@ -35,6 +36,7 @@ export class ContentProjection {
   }
 
   message(message: Message, id: string, completeness: 'partial' | 'complete'): void {
+    if (message.role === 'assistant' && message.responseId) this.responseIds[message.responseId] = id
     if (message.role === 'system') return
     if (message.role === 'toolResult') {
       this.result(
