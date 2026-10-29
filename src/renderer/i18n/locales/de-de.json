@@ -4695,7 +4695,7 @@
   "settings.mcp.builtinServers": "Integrierter Server",
   "settings.mcp.builtinServersDescriptions.brave_search": "MCP-Server-Implementierung mit Brave-Search-API, die sowohl Web- als auch lokale Suchfunktionen bietet. BRAVE_API_KEY-Umgebungsvariable muss konfiguriert werden",
   "settings.mcp.builtinServersDescriptions.browser": "Webseiten per Snapshot durchsuchen, Elemente anklicken und ausfüllen, Tabs wechseln und Dialoge bedienen. Läuft standardmäßig im Hintergrund.",
-  "settings.mcp.builtinServersDescriptions.cloudbase": "CloudBase MCP server for databases, cloud functions, object storage, static hosting and deploys. Requires signing in with a CloudBase account",
+  "settings.mcp.builtinServersDescriptions.cloudbase": "CloudBase MCP-Server für Datenbanken, Cloud-Funktionen, Objektspeicher, statisches Hosting und Deployments. Erfordert die Anmeldung mit einem CloudBase-Konto",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "DiDi-MCP-Server mit Fahrdiensten wie Kartensuche, Preisschätzung, Auftragsverwaltung und Fahrerortung. Nur auf dem chinesischen Festland verfügbar. Die Umgebungsvariable DIDI_API_KEY muss konfiguriert sein.",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
   "settings.mcp.builtinServersDescriptions.fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
