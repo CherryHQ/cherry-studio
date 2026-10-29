@@ -27,6 +27,7 @@ import {
   isSelectionWorkspaceUnavailableError,
   type SelectionAgentTarget
 } from './selectionAgentSession'
+import { useSelectionAgentSummary } from './useSelectionAgentSummary'
 import { useSelectionAgentWindowRules } from './useSelectionAgentWindowRules'
 
 const logger = loggerService.withContext('SelectionAgentWindow')
@@ -129,8 +130,19 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
       ? null
       : {
           idle: stage.kind === 'failed' || (stage.kind === 'compose' && !stage.sending && !composeText.trim()),
+          collapsible: stage.kind === 'starting',
           pinned: isPinned
         }
+  )
+  useSelectionAgentSummary(
+    stage.kind === 'starting' || stage.kind === 'failed'
+      ? {
+          agentName,
+          agentAvatar: getAgentAvatarFromConfiguration(boundAgent?.configuration),
+          status: stage.kind,
+          steps: 0
+        }
+      : null
   )
 
   const isCompose = stage.kind === 'compose'

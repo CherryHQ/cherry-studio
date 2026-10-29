@@ -1,4 +1,5 @@
 import Droplet from 'lucide-react/dist/esm/icons/droplet'
+import Minus from 'lucide-react/dist/esm/icons/minus'
 import Pin from 'lucide-react/dist/esm/icons/pin'
 import X from 'lucide-react/dist/esm/icons/x'
 import type { ComponentProps, FC, ReactNode } from 'react'
@@ -23,7 +24,7 @@ interface SelectionAgentHeaderProps {
   onOpenInMainWindow?: () => void
 }
 
-/** The 44px header: drag region, agent and session names, then the window controls. */
+/** The 44px header of a started window: drag region, agent and session names, then the window controls. */
 export const SelectionAgentHeader: FC<SelectionAgentHeaderProps> = ({
   avatar,
   title,
@@ -96,6 +97,16 @@ export const SelectionAgentHeader: FC<SelectionAgentHeaderProps> = ({
               formatValueLabel={(value) => `${value}%`}
             />
           </div>
+        )}
+        {/* [macOS] The yellow traffic light collapses instead. */}
+        {!isMac && (
+          <Tooltip content={t('selection.agent.collapse')} placement="bottom">
+            <HeaderButton
+              aria-label={t('selection.agent.collapse')}
+              onClick={() => void ipcApi.request('selection.collapse_agent_window')}>
+              <Minus className="size-3.5" />
+            </HeaderButton>
+          </Tooltip>
         )}
         {!isMac && <SelectionAgentCloseButton />}
       </div>

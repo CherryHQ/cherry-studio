@@ -34,5 +34,23 @@ export const selectionHandlers: IpcHandlersFor<typeof selectionRequestSchemas> =
   'selection.set_agent_window_replaceable': async (replaceable, ctx) => {
     if (ctx.senderId) application.get('SelectionAgentWindowService').setReplaceable(ctx.senderId, replaceable)
   },
+  'selection.update_agent_summary': async (summary, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').setSummary(ctx.senderId, summary)
+  },
+  'selection.collapse_agent_window': async (_, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').collapse(ctx.senderId)
+  },
+  'selection.dismiss_blurred_agent_window': async (dismissal, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').dismissBlurred(ctx.senderId, dismissal)
+  },
+  'selection.determine_capsule_size': async (size, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').fitCapsuleHost(ctx.senderId, size)
+  },
+  'selection.restore_agent_window': async (windowId, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').restore(ctx.senderId, windowId)
+  },
+  'selection.close_agent_window': async (windowId, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').closeCollapsed(ctx.senderId, windowId)
+  },
   'selection.get_linux_env_info': async () => application.get('SelectionService').getLinuxEnvInfo()
 }

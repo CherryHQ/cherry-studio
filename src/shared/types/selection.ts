@@ -103,3 +103,27 @@ export const SelectionAgentWindowLayoutSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('conversation') })
 ])
 export type SelectionAgentWindowLayout = z.infer<typeof SelectionAgentWindowLayoutSchema>
+
+export const SELECTION_AGENT_STATUSES = [
+  'starting',
+  'running',
+  'awaiting-approval',
+  'needs-input',
+  'done',
+  'failed'
+] as const
+export type SelectionAgentStatus = (typeof SELECTION_AGENT_STATUSES)[number]
+
+/** What a collapsed agent window shows on its capsule; the window publishes it as its turn changes. */
+export const SelectionAgentSummarySchema = z.object({
+  agentName: z.string(),
+  agentAvatar: z.string(),
+  sessionTitle: z.string().optional(),
+  status: z.enum(SELECTION_AGENT_STATUSES),
+  /** Tool calls in the current turn. */
+  steps: z.number().int().nonnegative()
+})
+export type SelectionAgentSummary = z.infer<typeof SelectionAgentSummarySchema>
+
+/** One capsule of a display's stack, which main orders nearest the corner first. */
+export type SelectionAgentCapsule = SelectionAgentSummary & { windowId: string }
