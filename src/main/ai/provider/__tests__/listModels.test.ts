@@ -460,6 +460,66 @@ describe('listModels — LM Studio', () => {
   })
 })
 
+describe('listModels — llamay', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    fetchMock.mockReset()
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi({ ...options, fetch: fetchMock }))
+  })
+
+  function makeLlamayProvider(baseUrl = 'http://localhost:11435') {
+    return makeProvider({
+      id: 'llamay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl }
+      }
+    })
+  }
+
+  it('keeps chat models and encoders, and leaves out completion-only models and files it cannot run', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'qwen2.5:0.5b', owned_by: 'azmx', capabilities: ['chat'] },
+          { id: 'smollm2-base:135m', owned_by: 'azmx', capabilities: ['completion'] },
+          { id: 'all-minilm:latest', owned_by: 'azmx', capabilities: ['embeddings'] },
+          { id: 'gemma3-4b-mmproj:latest', owned_by: 'azmx', capabilities: [] }
+        ]
+      })
+    )
+
+    const { models } = await listModels(makeLlamayProvider(), undefined, { throwOnError: true })
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen2.5:0.5b', 'all-minilm:latest'])
+    expect(models[0]).toMatchObject({ ownedBy: 'azmx', capabilities: [] })
+    expect(models[0].endpointTypes).toBeUndefined()
+    expect(models[1]).toMatchObject({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:11435/v1/models')
+  })
+
+  it('treats entries without capabilities as chat models', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ data: [{ id: 'qwen2.5:7b' }, { id: 'gemma2:2b', capabilities: null }] })
+    )
+
+    const { models } = await listModels(makeLlamayProvider('http://localhost:11435/v1'), undefined, {
+      throwOnError: true
+    })
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen2.5:7b', 'gemma2:2b'])
+    expect(models.every((m) => m.endpointTypes === undefined)).toBe(true)
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:11435/v1/models')
+  })
+})
+
 describe('listModels — Ollama capabilities', () => {
   function makeOllamaProvider() {
     return makeProvider({

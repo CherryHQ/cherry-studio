@@ -206,6 +206,29 @@ export const LMStudioModelsResponseSchema = z.object({
   )
 })
 
+// === llamay (/v1/models) ===
+
+// Each entry says what it can be asked for: "chat", "completion" (a base model
+// with no chat template), "embeddings" (an encoder), or nothing for a file in the
+// store the server cannot run, such as a vision projector.
+export const LlamayModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      owned_by: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      capabilities: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
 // === NewAPI (extends OpenAI with endpoint types) ===
 
 export const NewApiModelsResponseSchema = z.object({
