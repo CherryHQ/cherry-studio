@@ -1638,10 +1638,9 @@ export class ClaudeCodeStreamAdapter {
       },
       segments: [heldRaw]
     }
-    // A trailing lone CR is a pending CRLF fragment withheld from the stepped
-    // span: its line is still open, so the open line resumes after the last
-    // LF only - the fragment's own line stays in the open-line state.
-    const lastLineStart = heldRaw.lastIndexOf('\n') + 1
+    // Resume after the last sealed CR, LF or CRLF. A trailing lone CR
+    // remains part of the pending line until the next byte seals it.
+    const lastLineStart = this.steppedLineEndOffset(heldRaw)
     for (const c of heldRaw.slice(lastLineStart)) this.heldFenceFeedChar(held, c)
     return held
   }
@@ -1735,34 +1734,38 @@ export class ClaudeCodeStreamAdapter {
     ctx.olSyncLen = ctx.accumulatedText.length
     ctx.accRecent = (ctx.accRecent + text).slice(-ACC_RECENT_MAX)
     if (text === '') return
-    const nl = text.lastIndexOf('\n')
-    if (nl >= 0) {
-      // Lines this append completes feed the previous-line verdict window.
-      const parts = text.split('\n')
-      for (let k = 0; k < parts.length - 1; k++) {
-        let completed: string | null
-        if (k === 0) {
-          completed =
-            ctx.olLen === ctx.olHead.length && ctx.olHead.length + parts[0].length <= OPEN_LINE_HEAD_MAX
-              ? ctx.olHead + parts[0]
-              : null
-        } else {
-          completed = parts[k].length <= OPEN_LINE_HEAD_MAX ? parts[k] : null
-        }
-        ctx.olPrev2 = ctx.olPrev1
-        ctx.olPrev1 = completed
-        ctx.olDone = Math.min(2, ctx.olDone + 1)
-      }
-      const line = text.slice(nl + 1)
-      ctx.olStart = prev + nl + 1
-      ctx.olLen = line.length
-      ctx.olHead = line.slice(0, OPEN_LINE_HEAD_MAX)
-      ctx.olPending = line
-    } else {
-      ctx.olLen += text.length
-      if (ctx.olHead.length < OPEN_LINE_HEAD_MAX) ctx.olHead += text.slice(0, OPEN_LINE_HEAD_MAX - ctx.olHead.length)
-      ctx.olPending = ctx.olPending.length > 8192 ? '' : ctx.olPending + text
+    const append = (part: string) => {
+      ctx.olLen += part.length
+      if (ctx.olHead.length < OPEN_LINE_HEAD_MAX) ctx.olHead += part.slice(0, OPEN_LINE_HEAD_MAX - ctx.olHead.length)
+      ctx.olPending = ctx.olPending.length > 8192 ? '' : ctx.olPending + part
     }
+    const commit = (at: number, cr: boolean) => {
+      const length = ctx.olLen - (cr ? 1 : 0)
+      const completed = length <= ctx.olHead.length ? ctx.olHead.slice(0, length) : null
+      ctx.olPrev2 = ctx.olPrev1
+      ctx.olPrev1 = completed
+      ctx.olDone = Math.min(2, ctx.olDone + 1)
+      ctx.olStart = at
+      ctx.olLen = 0
+      ctx.olHead = ''
+      ctx.olPending = ''
+    }
+    let at = 0
+    // A CR retained by the preceding append is now sealed by this byte.
+    if (prev > ctx.textBlockContextStart && ctx.accumulatedText[prev - 1] === '\r') {
+      const paired = text[0] === '\n'
+      commit(prev + (paired ? 1 : 0), true)
+      if (paired) at++
+    }
+    const endings = /\r\n|\r|\n/g
+    endings.lastIndex = at
+    for (let ending = endings.exec(text); ending; ending = endings.exec(text)) {
+      append(text.slice(at, ending.index))
+      at = ending.index + ending[0].length
+      if (ending[0] === '\r' && at === text.length) append('\r')
+      else commit(prev + at, false)
+    }
+    append(text.slice(at))
   }
 
   /** Brings the open-line tracker in sync with the accumulator (a full rebuild only when it was bypassed). */
@@ -1770,24 +1773,20 @@ export class ClaudeCodeStreamAdapter {
     const acc = ctx.accumulatedText
     if (ctx.olSyncLen === acc.length) return
     this.scratchpadWholeSliceChars += acc.length
-    const start = Math.max(acc.lastIndexOf('\n') + 1, ctx.textBlockContextStart)
+    const block = acc.slice(ctx.textBlockContextStart)
+    const endings = [...block.matchAll(/\r\n|\r|\n/g)].filter(
+      (ending) => !(ending[0] === '\r' && ending.index + 1 === block.length)
+    )
+    const last = endings[endings.length - 1]
+    const start = ctx.textBlockContextStart + (last ? last.index + last[0].length : 0)
     ctx.olStart = start
     ctx.olLen = acc.length - start
     ctx.olHead = acc.slice(start, start + OPEN_LINE_HEAD_MAX)
     ctx.olPending = ''
     ctx.accRecent = acc.slice(-ACC_RECENT_MAX)
-    // Prior lines of the block are unknown after a rebuild; only their count
-    // (capped at 2) is recovered, so the verdict falls back to the block slice.
     ctx.olPrev1 = null
     ctx.olPrev2 = null
-    // lastIndexOf with a negative start clamps to 0, so a count of 2 can come out with olPrev2 null:
-    // the verdict's `known` check then falls back to the (counted) block slice.
-    let done = 0
-    for (let at = start; done < 2 && at > ctx.textBlockContextStart; done++) {
-      at = acc.lastIndexOf('\n', at - 2) + 1
-      if (at < ctx.textBlockContextStart) at = ctx.textBlockContextStart
-    }
-    ctx.olDone = done
+    ctx.olDone = Math.min(2, endings.length)
     ctx.olSyncLen = acc.length
   }
 
@@ -1988,6 +1987,13 @@ export class ClaudeCodeStreamAdapter {
     const scanRemainder = ctx.scratchpadStreamRemainder
     const combined = prefix + scanRemainder + text
     this.scratchpadScanInputChars += combined.length
+    // A chunk-final CR is provisional in mask-state advance and open-line
+    // tracking. Do not commit a closer or clear fence ownership before the
+    // same line ending is sealed here too. Flush resolves a final lone CR.
+    if (combined.endsWith('\r')) {
+      ctx.scratchpadStreamRemainder = combined.slice(prefix.length)
+      return ''
+    }
     ctx.scratchpadStreamRemainder = ''
     ctx.scratchpadStreamEscapeCarry = false
 
@@ -2180,6 +2186,8 @@ export class ClaudeCodeStreamAdapter {
     // bounded carry: nothing below slices or scans the whole line per delta.
     if (ctx.olLen > ctx.olHead.length && /^\s{0,3}>/.test(ctx.olHead)) return this.boundedQuoteLineCarry(ctx)
     const openLine = this.openLineWhole(ctx)
+    // A provisional CR must survive the synthetic carry until the next byte seals it.
+    if (openLine.endsWith('\r')) return openLine
     // Whitespace/marker-only open lines carry as-is: their indentation and
     // container markers are the classification context (round-17).
     if (openLine.trim() === '') return openLine
@@ -2388,7 +2396,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private emittedIndentOnlyLinePrefix(text: string): string {
-    const lineStart = text.lastIndexOf('\n') + 1
+    const lineStart = this.steppedLineEndOffset(text)
     const openLine = text.slice(lineStart)
     // Any open line already sitting at four or more columns of indentation is
     // an indented-code line, whether the delta split inside the leading
@@ -2415,8 +2423,8 @@ export class ClaudeCodeStreamAdapter {
 
   private indentCarryAllowedByPreviousLine(text: string, lineStart: number): boolean {
     if (lineStart === 0) return true
-    const prevLineEnd = lineStart - 1
-    const prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1
+    const prevLineEnd = lineStart - (text.slice(lineStart - 2, lineStart) === '\r\n' ? 2 : 1)
+    const prevLineStart = Math.max(text.lastIndexOf('\r', prevLineEnd - 1), text.lastIndexOf('\n', prevLineEnd - 1)) + 1
     const prevLine = text.slice(prevLineStart, prevLineEnd)
     if (prevLine.trim() === '') return true
     // A line holding only blockquote markers is its container's blank line:
@@ -2474,9 +2482,9 @@ export class ClaudeCodeStreamAdapter {
     if (!/^ {0,3}(?:=+|-+)[ \t]*$/.test(content)) return false
     // A setext underline only closes an OPEN paragraph; on its own it is
     // paragraph text. The line before it decides.
-    const prevEnd = contentLineStart - 1
+    const prevEnd = contentLineStart - (text.slice(contentLineStart - 2, contentLineStart) === '\r\n' ? 2 : 1)
     if (prevEnd <= 0) return false
-    const prevStart = text.lastIndexOf('\n', prevEnd - 1) + 1
+    const prevStart = Math.max(text.lastIndexOf('\r', prevEnd - 1), text.lastIndexOf('\n', prevEnd - 1)) + 1
     const prevLine = this.stripMarkdownContainerMarkers(text.slice(prevStart, prevEnd))
     if (prevLine.trim() === '') return false
     if (this.leadingIndentColumns(prevLine) >= 4) return false

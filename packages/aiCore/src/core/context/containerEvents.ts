@@ -115,9 +115,10 @@ export function containerLine(
       p += c.width
       continue
     }
-    // A marker at an existing item's boundary starts a sibling even when
-    // empty. This is not the rule for a new list interrupting a paragraph.
-    const sibling = c.kind === 'item' && marker(rest) !== null
+    // A list marker at an unmatched container boundary starts a new item,
+    // including when the outer quote ends before its nested item is reached.
+    // This does not change new-list interruption inside a matched paragraph.
+    const sibling = marker(rest) !== null
     if (!sibling && state.paragraph !== null && rest.trim() !== '' && !interrupts(rest)) {
       lazy = true
       matched = state.stack.length
