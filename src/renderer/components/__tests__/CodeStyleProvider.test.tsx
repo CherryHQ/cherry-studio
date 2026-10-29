@@ -87,10 +87,30 @@ describe('shared code appearance', () => {
         <Probe />
       </CodeStyleProvider>
     )
-    const fallback = getCodeBlockPalette(await loadCodeTheme('one-light'))
-    await waitFor(() =>
-      expect(appearance().style.getPropertyValue('--code-background')).toBe(fallback['--code-background'])
+    await waitFor(() => expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('cherry'))
+  })
+
+  it('defaults to the transparent Cherry theme and follows the app mode without switching themes', async () => {
+    const { rerender } = render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
     )
-    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('one-light')
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-background')).toBe(
+        'var(--cherry-code-background, transparent)'
+      )
+    )
+    expect(appearance().style.getPropertyValue('--code-syntax-keyword')).toMatch(/^var\(--cherry-code-keyword, /)
+    expect(screen.getByText('Light code')).toBeInTheDocument()
+
+    themeState.theme = 'dark'
+    rerender(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('cherry')
+    expect(screen.getByText('Dark code')).toBeInTheDocument()
   })
 })

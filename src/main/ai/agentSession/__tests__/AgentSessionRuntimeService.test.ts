@@ -17,6 +17,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
+import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
@@ -2419,6 +2420,82 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('connection reconcile — pull path (fresh-turn staleness check)', () => {
+    it('sends a changed per-turn max override after an idle warm default without an Agent write', async () => {
+      const sent: Array<{ effort: AgentRuntimeConnectInput['reasoningEffort']; messageId: string }> = []
+      const connectionFor = (effort: AgentRuntimeConnectInput['reasoningEffort']) => ({
+        events: createAsyncQueue<never>().iterable,
+        send: (input: AgentRuntimeUserInput) => {
+          sent.push({ effort, messageId: input.message.id })
+        },
+        close: vi.fn(),
+        reconcile: async (target: { reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort'] }) =>
+          target.reasoningEffort === effort ? ('current' as const) : ('rebuild' as const)
+      })
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async (input) => connectionFor(input.reasoningEffort),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      getEntry(service).connection = connectionFor('default')
+      service.markTurnTerminal('session-1', 'success')
+      const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-2') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(sent).toEqual([{ effort: 'max', messageId: 'user-2' }]))
+      expect(mocks.getAgent()).not.toHaveProperty('configuration')
+      await reader.cancel()
+    })
+
+    it('queues low behind streaming max and sends the fresh follow-up at low without changing the running effort', async () => {
+      const sent: Array<AgentRuntimeConnectInput['reasoningEffort']> = []
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async (input) => ({
+          events: createAsyncQueue<never>().iterable,
+          send: () => {
+            sent.push(input.reasoningEffort)
+          },
+          close: vi.fn(),
+          redirect: vi.fn(() => true),
+          reconcile: async (target) => (target.reasoningEffort === input.reasoningEffort ? 'current' : 'rebuild')
+        }),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(sent).toEqual(['max']))
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { reasoningEffort: 'low' })
+      const entry = getEntry(service)
+      expect(entry.pendingTurns).toMatchObject([{ reasoningEffort: 'low', message: { id: 'user-2' } }])
+      expect(entry.currentTurn.reasoningEffort).toBe('max')
+      expect(sent).toEqual(['max'])
+      await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn.mock.lastCall?.[0].request.reasoningEffort).toBe('low'))
+      const followUpReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: entry.currentTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await followUpReader.read()
+      await vi.waitFor(() => expect(sent).toEqual(['max', 'low']))
+      await followUpReader.cancel()
+      await reader.cancel()
+    })
+
     it('rebuilds a stale warm connection before the next turn — no event required', async () => {
       const firstConnection = {
         events: createAsyncQueue<any>().iterable,

@@ -315,6 +315,17 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'proxy'
   }
 
+  // Embedded Claude Code runtime camel-case connection codes follow the proxy branch
+  // so proxy evidence keeps winning.
+  if (
+    msg.includes('connectionrefused') ||
+    msg.includes('connectionreset') ||
+    msg.includes('hostunreachable') ||
+    msg.includes('connectionaborted')
+  ) {
+    return 'network'
+  }
+
   // Server errors (5xx / overloaded)
   if (
     msg.includes('overloaded') ||

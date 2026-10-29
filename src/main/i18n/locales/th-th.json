@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "รีเซ็ตข้อมูลแอปฯ",
   "dialog.diagnostic_bundle.title": "บันทึกชุดข้อมูลวินิจฉัย",
   "dialog.diagnostic_bundle.zip_filter": "ไฟล์เก็บถาวร ZIP",
+  "dialog.external_link.message": "เปิดลิงก์นี้ในแอปพลิเคชันภายนอกหรือไม่?",
+  "dialog.external_link.open": "เปิดแอปพลิเคชัน",
   "dialog.html_files": "ไฟล์ HTML",
   "dialog.migration_database_unavailable.detail": "ตรวจว่าตำแหน่งข้อมูลพร้อมใช้และเขียนได้ และดิสก์มีพื้นที่ว่าง แล้วลองอีกครั้ง",
   "dialog.migration_database_unavailable.message": "Cherry Studio เข้าถึงฐานข้อมูลในเครื่องของมันไม่ได้",

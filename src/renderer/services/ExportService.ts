@@ -122,12 +122,12 @@ export class ExportService {
     return queuedCapture
   }
 
-  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef) {
-    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef, backdropVariable?: string) {
+    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef, backdropVariable))
   }
 
-  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) {
-    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
+  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback, backdropVariable?: string) {
+    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func, backdropVariable))
   }
 }
 

@@ -48,6 +48,13 @@
       "description": "Open website links in shared built-in browser tabs"
     },
     {
+      "targetKey": "app.browser.auto_open_panel",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Automatically open the right-side browser panel when tools browse the web (default: true)."
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
