@@ -26,6 +26,17 @@ export class OAuthHttpError extends Error {
   }
 }
 
+/** Non-2xx from a discovery / metadata endpoint (not the token endpoint). */
+export class OAuthDiscoveryError extends OAuthServiceError {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message)
+    this.name = 'OAuthDiscoveryError'
+  }
+}
+
 export class OAuthSignInFailureError extends OAuthServiceError {
   readonly failure: SignInFailure
 
@@ -40,7 +51,7 @@ export function classifyOAuthSignInFailure(error: unknown, phase?: SignInPhase):
   const failure =
     error instanceof OAuthSignInFailureError
       ? normalizeSignInFailure(error.failure)
-      : error instanceof OAuthHttpError
+      : error instanceof OAuthHttpError || error instanceof OAuthDiscoveryError
         ? normalizeSignInFailure({ reason: 'http_error', httpStatus: error.status })
         : undefined
   return normalizeSignInFailure({

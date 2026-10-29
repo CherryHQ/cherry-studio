@@ -5,7 +5,7 @@ import * as z from 'zod'
 
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 
-import { OAuthHttpError, OAuthServiceError, OAuthSignInFailureError } from '../../errors'
+import { OAuthDiscoveryError, OAuthServiceError, OAuthSignInFailureError } from '../../errors'
 import { PkceOAuthClient } from '../PkceOAuthClient'
 import type { OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from '../types'
 
@@ -46,11 +46,11 @@ async function discoverGrok(signal?: AbortSignal): Promise<Discovery> {
       signal
     })
     if (!response.ok) {
-      throw new OAuthHttpError(`xAI OAuth discovery failed: ${response.status}`, response.status, '')
+      throw new OAuthDiscoveryError(`xAI OAuth discovery failed: ${response.status}`, response.status)
     }
     body = await response.text()
   } catch (error) {
-    if (error instanceof OAuthHttpError) throw error
+    if (error instanceof OAuthDiscoveryError) throw error
     throw new OAuthSignInFailureError({ reason: signal?.aborted ? 'request_timeout' : 'network' }, error)
   }
   try {

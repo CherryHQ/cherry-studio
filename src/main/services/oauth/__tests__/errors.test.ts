@@ -9,7 +9,7 @@ import { runOAuthSignIn } from '@main/ipc/handlers/oauthSignIn'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { normalizeSignInFailure } from '@shared/ipc/errors/signIn'
 
-import { describeOAuthError, OAuthServiceError } from '../errors'
+import { classifyOAuthSignInFailure, describeOAuthError, OAuthDiscoveryError, OAuthServiceError } from '../errors'
 import { LoopbackCallbackTransport } from '../runtime/LoopbackCallbackTransport'
 import { OAuthRuntimeService } from '../runtime/OAuthRuntimeService'
 import { OAuthHttpError } from '../runtime/PkceOAuthClient'
@@ -40,6 +40,16 @@ describe('sign-in classification and redaction', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     MockApplicationUtils.resetServices()
+  })
+
+  it('keeps discovery HTTP status and the supplied sign-in phase', () => {
+    const error = new OAuthDiscoveryError('xAI OAuth discovery failed: 403', 403)
+    expect(classifyOAuthSignInFailure(error)).toEqual({ reason: 'http_error', httpStatus: 403 })
+    expect(classifyOAuthSignInFailure(error, 'discovery')).toEqual({
+      reason: 'http_error',
+      phase: 'discovery',
+      httpStatus: 403
+    })
   })
 
   it('keeps HTTP status through the real runtime without serializing token bodies, causes or stacks', async () => {
