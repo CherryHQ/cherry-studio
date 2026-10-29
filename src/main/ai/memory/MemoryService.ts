@@ -21,7 +21,13 @@ export interface MemorySession extends Disposable {
   list(): ReturnType<MemoryStore['list']>
   entry(): ReturnType<MemoryStore['entry']>
   read(target: string): ReturnType<MemoryStore['read']>
-  commit(mutations: readonly MemoryMutation[], approve: MemoryApproval): ReturnType<MemoryStore['commit']>
+  commit(
+    mutations: readonly MemoryMutation[],
+    approve: MemoryApproval,
+    readReceipts?: readonly string[]
+  ): ReturnType<MemoryStore['commit']>
+  previewClear(): ReturnType<MemoryStore['previewClear']>
+  clear(token: string, approve: MemoryApproval): ReturnType<MemoryStore['clear']>
   previewRecovery(): ReturnType<MemoryStore['previewRecovery']>
   recover(token: string, approve: MemoryApproval): ReturnType<MemoryStore['recover']>
 }
@@ -47,7 +53,7 @@ export class MemoryService extends BaseService {
   }
 
   /** Authority objects are created only by main-process runtime/editor owners. */
-  open(authority: MemoryAuthority): MemorySession {
+  open(authority: MemoryAuthority, source: 'controlled' | 'dreaming' | 'migration' = 'controlled'): MemorySession {
     authority.assertAuthorized()
     const scope = Object.freeze({ ...authority.scope })
     const generation = this.generation
@@ -89,8 +95,10 @@ export class MemoryService extends BaseService {
       list: () => run((store) => store.list(access)),
       entry: () => run((store) => store.entry(access)),
       read: (target) => run((store) => store.read(access, target)),
-      commit: (mutations, approve) =>
-        run(async (store) => notify('controlled', await store.commit(access, mutations, 'controlled', approve))),
+      commit: (mutations, approve, readReceipts) =>
+        run(async (store) => notify(source, await store.commit(access, mutations, source, approve, { readReceipts }))),
+      previewClear: () => run((store) => store.previewClear(access)),
+      clear: (token, approve) => run(async (store) => notify('clear', await store.clear(access, token, approve))),
       previewRecovery: () => run((store) => store.previewRecovery(access)),
       recover: (token, approve) => run(async (store) => notify('recovery', await store.recover(access, token, approve)))
     }
