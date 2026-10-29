@@ -9,11 +9,6 @@ import {
   CalendarFold,
   ChevronDown,
   ChevronRight,
-  CircleCheck,
-  CircleStop,
-  CircleX,
-  Clock3,
-  Loader2,
   MoreHorizontal,
   PencilLine,
   Play,
@@ -69,7 +64,9 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
+import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
+import { type AgentInfo, TaskFormDialog, toChannelInfo } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import {
   SettingDescription,
   SettingDivider,
@@ -77,7 +74,6 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { type AgentInfo, getTriggerSummary, TaskFormDialog, toChannelInfo } from '@renderer/components/TaskFormDialog'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import {
@@ -92,6 +88,7 @@ import {
 } from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -100,13 +97,14 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
+const logger = loggerService.withContext('TasksSettings')
+const ALL_TASKS_FILTER = 'all'
+
 type TaskUpdateResult = {
   succeeded: boolean
   task: ScheduledTaskEntity
 }
 
-const logger = loggerService.withContext('TasksSettings')
-const ALL_TASKS_FILTER = 'all'
 function getTaskStatusLabel(status: string, t: TFunction) {
   const labels: Record<string, string> = {
     active: t('agent.tasks.status.active'),
@@ -148,62 +146,6 @@ const TaskScheduleStatusIcon: FC<{ status: ScheduledTaskEntity['status'] }> = ({
     <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', wrapperClassName)}>
       <Icon size={20} aria-hidden className={iconClassName} />
     </div>
-  )
-}
-
-function formatTaskCardTime(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
-}
-
-const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskListItem['runSummary']> }> = ({ summary }) => {
-  const { t } = useTranslation()
-
-  if (summary.status === 'queued') {
-    return (
-      <span className="flex items-center gap-1.5 text-muted-foreground">
-        <Clock3 aria-hidden className="size-3" />
-        {t('agent.tasks.runSummary.queued')}
-      </span>
-    )
-  }
-
-  if (summary.status === 'running') {
-    return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <Loader2 aria-hidden className="size-3 text-foreground motion-safe:animate-spin" />
-        {t('agent.tasks.runSummary.running')}
-      </span>
-    )
-  }
-
-  const time = formatTaskCardTime(summary.finishedAt)
-  if (summary.status === 'completed') {
-    return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <CircleCheck aria-hidden className="size-3 text-foreground" />
-        {t('agent.tasks.runSummary.completed', { time })}
-      </span>
-    )
-  }
-  if (summary.status === 'failed') {
-    return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <CircleX aria-hidden className="size-3 text-foreground" />
-        {t('agent.tasks.runSummary.failed', { time })}
-      </span>
-    )
-  }
-  return (
-    <span className="flex items-center gap-1.5 text-foreground">
-      <CircleStop aria-hidden className="size-3 text-foreground" />
-      {t('agent.tasks.runSummary.cancelled', { time })}
-    </span>
   )
 }
 
@@ -665,6 +607,16 @@ const TasksSettings: FC = () => {
   const hasActiveFilters =
     searchQuery.trim().length > 0 || agentFilter !== ALL_TASKS_FILTER || statusFilter !== ALL_TASKS_FILTER
 
+  const createTaskWithAgent = useCallback(async () => {
+    try {
+      const { sessionId } = await ipcApi.request('ai.agent.assistant_session.create')
+      openRoute('/app/agents', { intent: 'task', sessionId })
+    } catch (error) {
+      logger.error('Failed to create scheduled task chat session', error as Error)
+      toast.error(t('settings.scheduledTasks.agentCreateFailed'))
+    }
+  }, [t])
+
   const clearFilters = useCallback(() => {
     setSearchQuery('')
     setAgentFilter(ALL_TASKS_FILTER)
@@ -892,7 +844,7 @@ const TasksSettings: FC = () => {
                     <PencilLine />
                     {t('settings.scheduledTasks.manualCreate')}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                  <DropdownMenuItem onSelect={() => void createTaskWithAgent()}>
                     <Bot />
                     {t('settings.scheduledTasks.agentCreate')}
                   </DropdownMenuItem>

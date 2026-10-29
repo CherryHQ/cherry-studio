@@ -120,6 +120,10 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: pnpm --filter @cherrystudio/provider-registry compat:policy -- "origin/$BASE_REF"
 
+      - name: Check changeset release policy
+        if: needs.changes.outputs.repository == 'true'
+        run: pnpm changeset:check
+
       - name: Check changesets
         if: needs.changes.outputs.repository == 'true' && github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         env:

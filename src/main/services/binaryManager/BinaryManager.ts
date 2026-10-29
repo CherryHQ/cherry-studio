@@ -639,13 +639,12 @@ export class BinaryManager extends BaseService {
             ? { source: 'system', path: system[name] }
             : { source: 'none' }
       const operation = operations[name]
-      // A failed install is stale only when the exact recipe is proven absent
-      // and an out-of-band executable now satisfies the tool. Unknown/broken
-      // application still needs the failure row to explain why Retry made no
-      // change, even if system/bundled availability keeps execution possible.
+      // External availability satisfies only untargeted failures; targeted
+      // failures must remain visible so Retry repeats the requested version.
       const staleFailedInstall =
         operation?.status === 'failed' &&
         operation.action === 'install' &&
+        operation.targetVersion === undefined &&
         (!derivedTool.application || derivedTool.application.status === 'absent') &&
         (availability.source === 'system' || availability.source === 'bundled')
       const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
@@ -1638,8 +1637,9 @@ export class BinaryManager extends BaseService {
    * recipe was already persisted by Custom Add). An unknown name, a foreign
    * conflict, or an unreadable backend reject without mutating; an already-applied
    * tool is a no-op (or a one-shot version update when a target is given); an
-   * externally satisfied tool (bundled/system) is a logged no-op so a race
-   * converges. A backend failure records a failed operation and rejects.
+   * external copy is a logged no-op without a target or with an exact bundled
+   * semver match. Unmet/unprovable targets and backend failures record a failed
+   * operation and reject.
    */
   installByName(request: BinaryInstallByNameRequest): Promise<void> {
     const { name, targetVersion } = request
@@ -1694,7 +1694,8 @@ export class BinaryManager extends BaseService {
           await refreshShellEnv()
           const snapshot = (await this.getToolSnapshots([name]))[name]
           const status = snapshot.application?.status
-          const source = snapshot.availability.source
+          const availability = snapshot.availability
+          const source = availability.source
 
           // Unproven ownership must not authorize installing over an existing tool.
           if (status === 'conflict')
@@ -1704,9 +1705,24 @@ export class BinaryManager extends BaseService {
             return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
           }
           if (status === 'applied' && !targetVersion) return { kind: 'done' }
-          // absent + an external copy: a race already satisfied it — never lay down a
-          // managed shadow copy over a bundled/system binary.
+          // External copies must satisfy explicit targets without creating a managed shadow.
           if (status === 'absent' && (source === 'bundled' || source === 'system')) {
+            if (targetVersion) {
+              if (source === 'system') {
+                return {
+                  kind: 'failed',
+                  error: `Cannot satisfy ${name}@${targetVersion}: source=system; installed version cannot be verified. Cherry Studio cannot update or replace this system installation. Manage it outside Cherry Studio, or omit the version target (requestedVersion in cli_install) to use the available executable.`
+                }
+              }
+              const version = availability.version
+              const requested = semverValid(targetVersion)
+              if (requested === null || !version || requested !== semverValid(version)) {
+                return {
+                  kind: 'failed',
+                  error: `Cannot satisfy ${name}@${targetVersion}: source=bundled; bundled version=${version ?? 'unknown (version marker missing or empty)'}. The requested version could not be verified as an exact semantic-version match. Omit the version target (requestedVersion in cli_install) to use the bundled copy, or update/reinstall Cherry Studio; bundled tools cannot be updated independently.`
+                }
+              }
+            }
             logger.info('Skipping managed install; tool already available from an external source', { name, source })
             return { kind: 'done' }
           }
@@ -1729,9 +1745,8 @@ export class BinaryManager extends BaseService {
       return
     }
     if (outcome.kind === 'failed') {
-      // Retain the update target so a Retry repeats the same targeted install; a
-      // name-only retry of a failed update would hit the applied no-op and falsely
-      // clear the failure without repeating the update.
+      // Retain the target so Retry cannot silently clear an unmet version
+      // through an applied or external name-only no-op.
       this.setOperation(name, {
         status: 'failed',
         action: 'install',

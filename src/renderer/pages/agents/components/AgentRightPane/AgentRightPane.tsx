@@ -39,7 +39,6 @@ import {
   BreadcrumbPage,
   Button,
   CircularProgress,
-  ConfirmDialog,
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
@@ -98,6 +97,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -112,6 +112,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
 import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotations'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -380,6 +381,7 @@ function AgentRightPaneActionsProvider({
 }: AgentRightPaneActionsProviderProps) {
   const { t } = useTranslation()
   const [openLinksInBrowser] = usePreference('app.browser.open_links_in_browser')
+  const [autoOpenPanel] = usePreference('app.browser.auto_open_panel')
   const panelActions = useRightPanelActions()
   const panelState = useRightPanelState()
   const isAgentToolFlowActive = useCallback(
@@ -396,6 +398,10 @@ function AgentRightPaneActionsProvider({
   )
   const openExternalUrl = useCallback(
     (url: string) => {
+      if (resolveSafeExternalUrl(url)?.requiresConfirmation) {
+        void openExternalWebsite(url)
+        return
+      }
       if (openLinksInBrowser && /^https?:\/\//i.test(url) && canOpenBrowser) {
         openBrowserPanel(url)
         return
@@ -407,7 +413,7 @@ function AgentRightPaneActionsProvider({
   useIpcOn('browser.pane.open_requested', (request) => {
     if (request.sessionId !== sessionId) return
     if (request.url) openBrowserUrl(request.url)
-    panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: false })
+    if (autoOpenPanel) panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: false })
   })
 
   // Invalidate in-flight artifact-open requests when the session or workspace
@@ -474,7 +480,7 @@ function AgentRightPaneActionsProvider({
         },
         openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return
-          await window.api.file.openPath(path)
+          await ipcApi.request('system.shell.open_path', path)
           if (artifactOpenRequestRef.current !== requestId) return
           requestFileSelection(null)
         },
@@ -606,17 +612,10 @@ function AgentRightPaneStateProvider({
   }, [browserOwnerTabId, sessionId])
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
   const previousSessionIdRef = useRef(sessionId)
   const artifactOpenRequestRef = useRef(0)
-  const pendingFileTransitionRef = useRef<(() => void) | null>(null)
-  const pendingWorkspaceCommitRef = useRef<(() => void) | null>(null)
-  // Decline follows one incoming request. A new session or workspace key starts another.
-  const declinedWorkspaceRequestRef = useRef<{ sessionId: string | undefined; workspaceKey: string } | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
-  // External route/session changes can update props before this subtree gets a
-  // chance to confirm. Keep the file tree and editor on one committed workspace
-  // until the transition is accepted so a new tree can never write an old path.
+  // Keep the tree and selection on the same workspace while incoming props reconcile.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
   const flowTabs = flowTabState.sessionId === sessionId ? flowTabState.tabs : []
   const flowTab = flowTabs.at(-1) ?? null
@@ -733,8 +732,7 @@ function AgentRightPaneStateProvider({
       ? getArtifactPaneSelectionPath(previewFileSelection)
       : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
-  const fileSession = useFileEditSession(editHandle)
-  const discardFileDraft = fileSession.discard
+  const fileSession = useFileEditSession(editHandle, `agent-artifact:${sessionId}`)
   const systemWorkspacePath = useMemo(() => {
     if (workspaceType !== AGENT_WORKSPACE_TYPE.SYSTEM || !workspacePath) return undefined
     const result = AbsoluteFilePathSchema.safeParse(workspacePath)
@@ -753,68 +751,29 @@ function AgentRightPaneStateProvider({
     setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tabs: [] }))
   }, [sessionId])
 
-  const requestFileTransition = useCallback(
-    (transition: () => void) => {
-      if (!fileSession.isDirty) {
-        transition()
-        return
-      }
-      pendingFileTransitionRef.current = transition
-      setShowDirtyLeaveConfirmation(true)
-    },
-    [fileSession.isDirty]
-  )
+  const requestFileTransition = useCallback((transition: () => void) => {
+    // Session detachment saves in the background; persistence never owns the next navigation.
+    transition()
+  }, [])
 
   useLayoutEffect(() => {
     onFileNavigationRequestChange?.(requestFileTransition)
     return () => onFileNavigationRequestChange?.(null)
   }, [onFileNavigationRequestChange, requestFileTransition])
 
-  const handleDirtyLeaveConfirmationChange = useCallback(
-    (open: boolean) => {
-      setShowDirtyLeaveConfirmation(open)
-      if (!open) {
-        if (
-          pendingWorkspaceCommitRef.current &&
-          pendingFileTransitionRef.current === pendingWorkspaceCommitRef.current
-        ) {
-          declinedWorkspaceRequestRef.current = { sessionId, workspaceKey }
-        }
-        pendingFileTransitionRef.current = null
-        pendingWorkspaceCommitRef.current = null
-      }
-    },
-    [sessionId, workspaceKey]
-  )
-
-  const handleDiscardAndContinue = useCallback(() => {
-    const transition = pendingFileTransitionRef.current
-    pendingFileTransitionRef.current = null
-    discardFileDraft()
-    transition?.()
-    setShowDirtyLeaveConfirmation(false)
-  }, [discardFileDraft])
-
-  // Every selection entry point (tree, artifact link, close, watcher cleanup)
-  // lands here, so leaving a dirty edit path always requires confirmation.
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => {
       if (isSameFileSelection(previewFileSelection, selection)) {
         onAccepted?.()
         return
       }
-      const requestId = artifactOpenRequestRef.current + 1
-      artifactOpenRequestRef.current = requestId
-      requestFileTransition(() => {
-        // The shared generation moves when a newer navigation starts, including while this confirm is open.
-        if (artifactOpenRequestRef.current !== requestId) return
-        setEditMode('preview')
-        setPreviewFileSelection(selection)
-        setSelectedFile(selection && selection.workspacePath === fileWorkspace.path ? selection.filePath : null)
-        onAccepted?.()
-      })
+      artifactOpenRequestRef.current += 1
+      setEditMode('preview')
+      setPreviewFileSelection(selection)
+      setSelectedFile(selection && selection.workspacePath === fileWorkspace.path ? selection.filePath : null)
+      onAccepted?.()
     },
-    [fileWorkspace.path, previewFileSelection, requestFileTransition]
+    [fileWorkspace.path, previewFileSelection]
   )
 
   useLayoutEffect(() => {
@@ -823,17 +782,9 @@ function AgentRightPaneStateProvider({
     if (sessionChanged && previewFileSelection?.previewType === 'file') requestFileSelection(null)
   }, [previewFileSelection?.previewType, requestFileSelection, sessionId])
 
-  const requestFileEditMode = useCallback(
-    (mode: AgentFileEditorMode) => {
-      if (mode === editMode) return
-      if (mode === 'preview') {
-        requestFileTransition(() => setEditMode(mode))
-        return
-      }
-      setEditMode(mode)
-    },
-    [editMode, requestFileTransition]
-  )
+  const requestFileEditMode = useCallback((mode: AgentFileEditorMode) => {
+    setEditMode(mode)
+  }, [])
 
   const replaceFlowTab = useCallback(
     (input: AgentToolFlowOpenInput, nested = false) => {
@@ -861,33 +812,14 @@ function AgentRightPaneStateProvider({
   )
 
   useLayoutEffect(() => {
-    if (fileWorkspace.key === workspaceKey) {
-      declinedWorkspaceRequestRef.current = null
-      return
-    }
-    const declined = declinedWorkspaceRequestRef.current
-    if (declined && declined.sessionId === sessionId && declined.workspaceKey === workspaceKey) return
-    // A different incoming request replaces the decline before it commits.
-    declinedWorkspaceRequestRef.current = null
-    const commitWorkspace = () => {
-      declinedWorkspaceRequestRef.current = null
-      pendingWorkspaceCommitRef.current = null
-      setFileWorkspace({ key: workspaceKey, path: workspacePath })
-      setEditMode('preview')
-      setSelectedFile(null)
-      setPreviewFileSelection(null)
-      setFileTreeExpandedIds(new Set())
-      setFileTreeSearchKeyword('')
-    }
-    if (!fileSession.isDirty) {
-      pendingFileTransitionRef.current = null
-      setShowDirtyLeaveConfirmation(false)
-      commitWorkspace()
-      return
-    }
-    pendingWorkspaceCommitRef.current = commitWorkspace
-    requestFileTransition(commitWorkspace)
-  }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, sessionId, workspaceKey, workspacePath])
+    if (fileWorkspace.key === workspaceKey) return
+    setFileWorkspace({ key: workspaceKey, path: workspacePath })
+    setEditMode('preview')
+    setSelectedFile(null)
+    setPreviewFileSelection(null)
+    setFileTreeExpandedIds(new Set())
+    setFileTreeSearchKeyword('')
+  }, [fileWorkspace.key, workspaceKey, workspacePath])
 
   const fileState = useMemo<AgentRightPaneFileState>(
     () => ({
@@ -996,17 +928,6 @@ function AgentRightPaneStateProvider({
                 workspaceCurrent={fileWorkspace.key === workspaceKey}>
                 {children}
               </AgentRightPaneActionsProvider>
-              <ConfirmDialog
-                open={showDirtyLeaveConfirmation}
-                onOpenChange={handleDirtyLeaveConfirmationChange}
-                title={t('agent.preview_pane.edit.leave.title')}
-                description={t('agent.preview_pane.edit.leave.description')}
-                confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
-                cancelText={t('common.cancel')}
-                destructive
-                confirmLoading={fileSession.isSaving}
-                onConfirm={handleDiscardAndContinue}
-              />
             </RightPanelProvider>
           </AgentRightPaneRuntimeContext>
         </AgentRightPaneFileStateContext>

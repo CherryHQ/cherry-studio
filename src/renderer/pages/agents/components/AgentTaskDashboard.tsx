@@ -43,7 +43,7 @@ import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 const TaskFormDialog = lazy(() =>
-  import('@renderer/components/TaskFormDialog').then((module) => ({ default: module.TaskFormDialog }))
+  import('@renderer/components/ScheduledTask/TaskFormDialog').then((module) => ({ default: module.TaskFormDialog }))
 )
 
 function useVisibleTime(enabled: boolean): number {

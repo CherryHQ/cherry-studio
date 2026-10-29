@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-22-code-highlights-virtualization.md
+2026-10-22-code-highlights-virtualization.md: d40e93cea6b83cf2034a8479315f420bed88043a
+2026-10-22-code-highlights-virtualization.zh.md: cfb9d5f9016846d4caa1e825edc176ca5ece83b3

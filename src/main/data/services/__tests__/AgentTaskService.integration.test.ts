@@ -13,6 +13,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { AgentTaskDashboardService } from '@main/ai/agents/AgentTaskDashboardService'
 import type { AgentSessionRuntimeSnapshot } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService, Emitter } from '@main/core/lifecycle'
 import { AGENT_TASK_DASHBOARD_CACHE_KEY, DASHBOARD_LONG_RUN_MS } from '@shared/ai/agentTaskDashboard'
 import type { InferSharedCacheValue, SharedCacheKey } from '@shared/data/cache/cacheSchemas'
@@ -54,8 +55,10 @@ describe('AgentTaskService active-Agent read contract', () => {
     expect(agentTaskService.listTasks('agent-trashed')).toEqual({ tasks: [], total: 0 })
     expect(agentTaskService.listTasks('agent-missing')).toEqual({ tasks: [], total: 0 })
     expect(agentTaskService.getTaskById(trashedTaskId)).toBeNull()
+    expect(agentTaskService.getTaskDetail(trashedTaskId)).toBeNull()
     expect(agentTaskService.getTask('agent-trashed', trashedTaskId)).toBeNull()
     expect(agentTaskService.getTaskById(missingTaskId)).toBeNull()
+    expect(agentTaskService.getTaskDetail(missingTaskId)).toBeNull()
     expect(agentTaskService.getTask('agent-missing', missingTaskId)).toBeNull()
 
     dbh.db.update(agentTable).set({ deletedAt: null }).where(eq(agentTable.id, 'agent-trashed')).run()
@@ -69,6 +72,73 @@ describe('AgentTaskService active-Agent read contract', () => {
       agentId: 'agent-trashed'
     })
     expect(agentTaskService.getTask('agent-trashed', trashedTaskId)).toMatchObject({ id: trashedTaskId })
+  })
+
+  it.each(['pending', 'delayed'])(
+    'reports %s as queued until execution starts, then reports its actual outcome',
+    (status) => {
+      seedAgent('agent-active')
+      const taskId = seedTask('task-active', 'agent-active')
+      expect(agentTaskService.getTaskDetail(taskId)?.runSummary).toBeNull()
+      const now = Date.now()
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: 'run',
+          type: 'agent.task',
+          queue: 'agent:agent-active',
+          scheduleId: taskId,
+          status,
+          scheduledAt: now,
+          input: {}
+        })
+        .run()
+      expect(agentTaskService.getTaskDetail(taskId)?.runSummary).toEqual({ status: 'queued' })
+
+      dbh.db.update(jobTable).set({ status: 'running', startedAt: now }).where(eq(jobTable.id, 'run')).run()
+      expect(agentTaskService.getTaskDetail(taskId)?.runSummary).toEqual({ status: 'running' })
+
+      dbh.db
+        .update(jobTable)
+        .set({ status: 'failed', finishedAt: now + 1000 })
+        .where(eq(jobTable.id, 'run'))
+        .run()
+      expect(agentTaskService.getTaskDetail(taskId)).toMatchObject({
+        status: 'active',
+        runSummary: { status: 'failed', finishedAt: new Date(now + 1000).toISOString() }
+      })
+    }
+  )
+
+  it('keeps an active execution visible when a newer run is queued', () => {
+    seedAgent('agent-active')
+    const taskId = seedTask('task-active', 'agent-active')
+    const now = Date.now()
+    dbh.db
+      .insert(jobTable)
+      .values([
+        {
+          id: 'running',
+          type: 'agent.task',
+          queue: 'agent:agent-active',
+          scheduleId: taskId,
+          status: 'running',
+          scheduledAt: now,
+          startedAt: now,
+          input: {}
+        },
+        {
+          id: 'queued',
+          type: 'agent.task',
+          queue: 'agent:agent-active',
+          scheduleId: taskId,
+          status: 'pending',
+          scheduledAt: now + 1000,
+          input: {}
+        }
+      ])
+      .run()
+    expect(agentTaskService.getTaskDetail(taskId)?.runSummary).toEqual({ status: 'running' })
   })
 })
 
@@ -176,6 +246,18 @@ describe('Agent dashboard running projection', () => {
     workChanged.fire(sessionId)
   }
 
+  function registerApproval(presentation: 'stream' | 'message'): void {
+    toolApprovalRegistry.register({
+      approvalId: 'approval',
+      sessionId: 'session',
+      toolCallId: 'ask-user',
+      toolName: 'AskUserQuestion',
+      originalInput: {},
+      presentation,
+      resolve: vi.fn()
+    })
+  }
+
   function finish(sessionId = 'session'): void {
     snapshots.set(sessionId, { ...snapshots.get(sessionId)!, busy: false, status: 'idle' })
     workChanged.fire(sessionId)
@@ -191,6 +273,7 @@ describe('Agent dashboard running projection', () => {
   }
 
   beforeEach(async () => {
+    toolApprovalRegistry.clear('test-reset')
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     vi.useFakeTimers()
@@ -253,6 +336,7 @@ describe('Agent dashboard running projection', () => {
   afterEach(async () => {
     await service?._doStop()
     await service?._doDestroy()
+    toolApprovalRegistry.clear('test-cleanup')
     restoreContainer?.()
     workChanged?.dispose()
     MockMainCacheServiceUtils.resetMocks()
@@ -285,23 +369,21 @@ describe('Agent dashboard running projection', () => {
     expect(entries()).toEqual([])
   })
 
-  it('counts an approval wait as continuous work and removes it when the idle approval is resolved', async () => {
-    start()
-    const startedAt = Date.now()
-    const approvalKey = 'topic.stream.statuses.agent-session:session' as const
-    emitShared(approvalKey, {
-      status: 'awaiting-approval',
-      activeExecutions: [],
-      awaitingApprovalAnchors: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'message-1' }]
-    })
-    finish()
-    await vi.advanceTimersByTimeAsync(DASHBOARD_LONG_RUN_MS)
-    expect(entries()).toHaveLength(1)
-    expect(entries()[0]).toMatchObject({ startedAt, blockedOn: 'approval' })
-    emitShared(approvalKey, null)
-    await refresh()
-    expect(entries()).toEqual([])
-  })
+  it.each(['stream', 'message'] as const)(
+    'counts a %s approval wait as continuous work and removes it when the idle approval is resolved',
+    async (presentation) => {
+      start()
+      const startedAt = Date.now()
+      registerApproval(presentation)
+      finish()
+      await vi.advanceTimersByTimeAsync(DASHBOARD_LONG_RUN_MS)
+      expect(entries()).toHaveLength(1)
+      expect(entries()[0]).toMatchObject({ startedAt, blockedOn: 'approval' })
+      toolApprovalRegistry.dispatch('approval', { approved: true })
+      await refresh()
+      expect(entries()).toEqual([])
+    }
+  )
 
   it('discovers live work on late initialization without reviving queued or stale running jobs', async () => {
     start()
@@ -321,37 +403,40 @@ describe('Agent dashboard running projection', () => {
     ).toEqual(['agent', 'scheduled'])
   })
 
-  it('groups scheduled runs without the long-run threshold and keeps elapsed time, newest session and approval', async () => {
-    const schedule = jobScheduleService.create({
-      type: 'agent.task',
-      name: 'Daily triage',
-      trigger: { kind: 'interval', ms: 60_000 },
-      jobInputTemplate: { agentId: 'agent', prompt: 'Scheduled task' },
-      catchUpPolicy: { kind: 'skip-missed' }
-    })
-    seedSession('newest')
-    const oldest = seedJob({ scheduleId: schedule.id, startedAt: 1000 })
-    start('session', { sourceJobId: oldest })
-    emitShared('topic.stream.statuses.agent-session:session', {
-      status: 'awaiting-approval',
-      activeExecutions: [],
-      awaitingApprovalAnchors: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'message-1' }]
-    })
-    const newest = seedJob({ scheduleId: schedule.id, startedAt: 3000, metadata: { sessionId: 'newest' } })
-    publishJob(newest)
-    await refresh()
-    expect(entries()).toHaveLength(1)
-    expect(entries()[0]).toMatchObject({
-      source: 'scheduled',
-      taskId: schedule.id,
-      nameSnapshot: 'Daily triage',
-      sessionId: 'newest',
-      startedAt: 1000,
-      blockedOn: 'approval',
-      runCount: 2
-    })
-    expect(new Set(entries()[0].runIds)).toEqual(new Set([`scheduled:${oldest}`, `scheduled:${newest}`]))
-  })
+  it.each(['stream', 'message'] as const)(
+    'groups scheduled runs without the long-run threshold and keeps elapsed time, newest session and %s approval',
+    async (presentation) => {
+      const schedule = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'Daily triage',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: 'agent', prompt: 'Scheduled task' },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      seedSession('newest')
+      const oldest = seedJob({ scheduleId: schedule.id, startedAt: 1000 })
+      start('session', { sourceJobId: oldest })
+      registerApproval(presentation)
+      const newest = seedJob({ scheduleId: schedule.id, startedAt: 3000, metadata: { sessionId: 'newest' } })
+      publishJob(newest)
+      await refresh()
+      expect(entries()).toHaveLength(1)
+      expect(entries()[0]).toMatchObject({
+        source: 'scheduled',
+        taskId: schedule.id,
+        nameSnapshot: 'Daily triage',
+        sessionId: 'newest',
+        startedAt: 1000,
+        blockedOn: 'approval',
+        runCount: 2
+      })
+      expect(new Set(entries()[0].runIds)).toEqual(new Set([`scheduled:${oldest}`, `scheduled:${newest}`]))
+      toolApprovalRegistry.dispatch('approval', { approved: true })
+      await refresh()
+      expect(entries()).toHaveLength(1)
+      expect(entries()[0]).toMatchObject({ blockedOn: null, runCount: 2 })
+    }
+  )
 
   it.each(['completed', 'failed', 'cancelled'] as const)('removes a scheduled run on %s', async (status) => {
     const id = seedJob()

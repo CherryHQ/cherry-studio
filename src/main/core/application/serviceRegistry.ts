@@ -26,6 +26,7 @@ import {
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
+import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -53,7 +54,7 @@ import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
+import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -71,6 +72,7 @@ import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
+import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfirmationService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionService } from '@main/services/selection/SelectionService'
@@ -133,11 +135,14 @@ export const services = {
   DeepSeekHarnessService,
   HermesDashboardService,
   FileManager,
+  FileEditService,
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,
   FileProcessingService,
   PowerService,
+  RuntimeActivityService,
+  RuntimeQuitConfirmationService,
   SelectionService,
   ShortcutService,
   ThemeService,

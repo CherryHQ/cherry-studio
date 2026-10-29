@@ -1,13 +1,18 @@
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { EventPayload } from '@shared/ipc/types'
 
 import { TopicRightPane } from '../TopicRightPane'
+
+const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
+let browserOpenListener: (payload: EventPayload<'browser.pane.open_requested'>) => void
 
 const useCommandHandlerMock = vi.hoisted(() => vi.fn())
 const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
@@ -89,6 +94,10 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
     payload ? <div data-testid="trace-pane" data-topic-id={payload.topicId} data-trace-id={payload.traceId} /> : null
 }))
 
+vi.mock('@renderer/components/SessionBrowserView', () => ({
+  SessionBrowserView: () => <div>Session browser</div>
+}))
+
 vi.mock('../TopicBranchPanel', () => {
   topicBranchPanelModuleState.importCount += 1
   return {
@@ -115,6 +124,12 @@ vi.mock('react-i18next', () => ({
 describe('TopicRightPane', () => {
   beforeEach(() => {
     useCommandHandlerMock.mockClear()
+    mockUsePreference.mockImplementation(defaultPreferenceImplementation)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
+    vi.spyOn(window.api.ipcApi, 'on').mockImplementation((event, listener) => {
+      if (event === 'browser.pane.open_requested') browserOpenListener = listener
+      return vi.fn()
+    })
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
   })
@@ -544,5 +559,79 @@ describe('TopicRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(screen.queryByTestId('resource-list')).toBeNull()
+  })
+
+  it.each([true, false])('respects tool-driven browser opening (auto-open=%s)', (autoOpen) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', autoOpen)
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+    act(() => browserOpenListener({ sessionId: 'topic-a', scope: 'topic' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', String(autoOpen))
+    if (autoOpen) expect(screen.getByText('Session browser')).toBeVisible()
+  })
+
+  it.each([true, false])('ignores other sessions and non-topic requests (auto-open=%s)', (autoOpen) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', autoOpen)
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+    for (const request of [
+      { sessionId: 'topic-b', scope: 'topic' },
+      { sessionId: 'topic-a', scope: 'agent' },
+      { sessionId: 'topic-a' }
+    ] as const) {
+      act(() => browserOpenListener(request))
+      expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    }
+  })
+
+  it('preserves another selected pane with auto-open off and still allows the browser shortcut', async () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    const user = userEvent.setup()
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Shortcuts browserEnabled />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+    await user.click(screen.getByRole('button', { name: 'chat.message.flow.title' }))
+    act(() => browserOpenListener({ sessionId: 'topic-a', scope: 'topic' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
+    expect(await screen.findByTestId('branch-pane')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'settings.browser.title' }))
+    expect(screen.getByText('Session browser')).toBeVisible()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('settings.browser.title')
+  })
+
+  it('uses committed preference changes through the original IPC listener', async () => {
+    const user = userEvent.setup()
+    const pane = () => (
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Shortcuts browserEnabled />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+    const view = render(pane())
+    const listener = browserOpenListener
+    act(() => listener({ sessionId: 'topic-a', scope: 'topic' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    view.rerender(pane())
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    await user.click(screen.getByRole('button', { name: 'settings.browser.title' }))
+    act(() => listener({ sessionId: 'topic-a', scope: 'topic' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', true)
+    view.rerender(pane())
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    act(() => listener({ sessionId: 'topic-a', scope: 'topic' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByText('Session browser')).toBeVisible()
   })
 })

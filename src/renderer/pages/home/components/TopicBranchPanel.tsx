@@ -63,8 +63,7 @@ const TopicBranchPanel: FC<Props> = ({
   const treeCachePath = `/topics/${topicId}/tree` as const
   const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
     enabled: open,
-    params: { topicId },
-    query: { depth: -1 }
+    params: { topicId }
   })
   useDataChange(
     '/topics/:topicId/tree',

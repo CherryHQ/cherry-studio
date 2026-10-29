@@ -1,17 +1,19 @@
 # Agent Sessions
 
 Covers `mcp__cherry-tools__session_list`, `mcp__cherry-tools__session_search`,
-`mcp__cherry-tools__session_create`, `mcp__cherry-tools__session_send`, and
-`mcp__cherry-tools__session_deliveries` — finding prior Agent work and coordinating a
-bounded task with another Session.
+`mcp__cherry-tools__session_create`, `mcp__cherry-tools__session_send`,
+`mcp__cherry-tools__session_deliveries`, and `mcp__cherry-tools__session_rename` —
+finding prior Agent work, renaming Sessions, and coordinating a bounded task with
+another Session.
 
 Get exact argument and result shapes from the live tool schema. This reference defines
 routing, sequencing, result interpretation, and the approval boundary.
 
 ## Resolve immutable IDs first
 
-Session and Agent names are display labels, not addresses. Before sending work, resolve
-the target's immutable `sessionId` with one of these read-only tools:
+Session and Agent names are display labels, not addresses. Before sending work or
+renaming another Session, resolve the target's immutable `sessionId` with one of
+these read-only tools:
 
 - **`session_list`** deterministically enumerates visible Sessions. Use it when browsing
   recent Sessions, selecting by Agent, or when the user refers to a Session by name.
@@ -33,8 +35,9 @@ optional Agent filter is applied before ranking and limiting.
 
 - **`session_create`** creates a new Session for the current Agent and submits its first
   completion request. Use it to isolate a substantial task that should have its own
-  timeline. The new Session inherits the Agent's model and workspace policy; do not try
-  to supply a model. The call returns immediately with the new IDs while the work runs.
+  timeline. The new Session uses the Agent's model; with `target_agent_id` it continues
+  that Agent's own most recent workspace. Do not try to supply a model. The call returns
+  immediately with the new IDs while the work runs.
 - **`session_send`** addresses an existing Session. Use immutable IDs obtained from
   list/search; never guess an ID from a name.
 
@@ -47,11 +50,23 @@ For `session_send`, choose the delivery contract by intent:
   frozen result back to the caller Session. Do not keep the tool call open or poll for
   the answer.
 
-All five Session tools require an interactive user turn. Headless, scheduled, channel, and
-delivery-triggered turns cannot discover, inspect, create, or message Sessions. In an interactive
+Session tools require an interactive user turn. Headless, scheduled, channel, and
+delivery-triggered turns cannot discover, inspect, rename, create, or message Sessions. In an interactive
 turn, `session_send` and `session_create` additionally require live per-call approval because they
 start another Agent Session turn. If approval is declined, stop; unattended multi-hop delegation
 is not available.
+
+## Rename a Session
+
+Use **`session_rename`** when the user asks to change a Session's display title.
+Omit the target to rename the current Session, or resolve the immutable ID first
+to rename another Agent Session, including one belonging to a different Agent.
+Missing Sessions and trashed Sessions cannot be renamed.
+
+The title is trimmed and must contain 1–255 characters. A successful rename is
+persisted as an explicit name edit, so automatic naming cannot overwrite it. The
+tool returns the Session ID and saved name without starting another turn. It is
+auto-approved, but still requires user intent and an interactive user turn.
 
 ## Inspect delivery state
 

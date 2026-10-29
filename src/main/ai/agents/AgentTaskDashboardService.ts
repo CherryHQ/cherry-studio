@@ -6,6 +6,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import {
   AGENT_TASK_DASHBOARD_CACHE_KEY,
@@ -24,7 +25,6 @@ interface TrackedWork {
   startedAt: number
   sourceJobId?: string
   timer?: ReturnType<typeof setTimeout>
-  unsubscribe: () => void
 }
 
 @Injectable('AgentTaskDashboardService')
@@ -39,6 +39,9 @@ export class AgentTaskDashboardService extends BaseService {
     this.stopped = false
     const runtime = application.get('AgentSessionRuntimeService')
     this.registerDisposable(runtime.onWorkChanged((sessionId) => this.observe(() => this.observeSession(sessionId))))
+    this.registerDisposable(
+      toolApprovalRegistry.onChanged((sessionId) => this.observe(() => this.observeSession(sessionId)))
+    )
     this.registerDisposable(
       application.get('CacheService').subscribeSharedChange('jobs.state.${jobId}', (job, previous) => {
         if ((job ?? previous)?.type === 'agent.task') this.schedulePublish()
@@ -58,11 +61,6 @@ export class AgentTaskDashboardService extends BaseService {
     }
   }
 
-  private awaitingApproval(sessionId: string): boolean {
-    return !!application.get('CacheService').getShared(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}`)
-      ?.awaitingApprovalAnchors?.length
-  }
-
   private observeSession(sessionId: string): void {
     const snapshot = application.get('AgentSessionRuntimeService').inspect(sessionId)
     let tracked = this.work.get(sessionId)
@@ -71,17 +69,12 @@ export class AgentTaskDashboardService extends BaseService {
       this.release(sessionId, tracked)
       tracked = undefined
     }
-    if (snapshot && (snapshot.busy || this.awaitingApproval(sessionId))) {
+    if (snapshot && (snapshot.busy || toolApprovalRegistry.hasSession(sessionId))) {
       if (!tracked) {
         const next: TrackedWork = {
           runId: `agent:${crypto.randomUUID()}`,
           startedAt: Date.now(),
-          sourceJobId: snapshot.sourceJobId,
-          unsubscribe: application
-            .get('CacheService')
-            .subscribeSharedChange(`topic.stream.statuses.${snapshot.topicId}`, () =>
-              this.observe(() => this.observeSession(sessionId))
-            )
+          sourceJobId: snapshot.sourceJobId
         }
         this.work.set(sessionId, next)
         if (!next.sourceJobId) {
@@ -130,7 +123,7 @@ export class AgentTaskDashboardService extends BaseService {
         agentNameSnapshot: agent?.name ?? '',
         messageAnchor: ownsSession ? (snapshot?.assistantMessageId ?? null) : null,
         startedAt,
-        blockedOn: ownsSession && session && this.awaitingApproval(session.id) ? 'approval' : null,
+        blockedOn: ownsSession && session && toolApprovalRegistry.hasSession(session.id) ? 'approval' : null,
         runIds: [runId],
         runCount: 1
       }
@@ -167,7 +160,7 @@ export class AgentTaskDashboardService extends BaseService {
           agentNameSnapshot: agent?.name ?? '',
           messageAnchor: snapshot.assistantMessageId ?? null,
           startedAt: tracked.startedAt,
-          blockedOn: this.awaitingApproval(sessionId) ? 'approval' : null,
+          blockedOn: toolApprovalRegistry.hasSession(sessionId) ? 'approval' : null,
           runIds: [tracked.runId],
           runCount: 1
         }
@@ -186,7 +179,6 @@ export class AgentTaskDashboardService extends BaseService {
 
   private release(sessionId: string, tracked: TrackedWork): void {
     clearTimeout(tracked.timer)
-    tracked.unsubscribe()
     this.work.delete(sessionId)
   }
 
