@@ -23,7 +23,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
-import { planBranchDeletion } from './topicBranchDeletion'
+import { planBranchDeletion } from '../utils/topicBranchDeletion'
 
 interface Props {
   open: boolean

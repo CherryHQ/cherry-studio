@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-分支管理在**持久化子树恰好只通向一条完整路径**的节点上提供删除操作。删除会移除该路径的独占后缀——叶节点以及它在最近分叉点下方的线性祖先——同时保留最近的共享祖先和所有存活的其他路径。选中该后缀中的线性祖先会删除同一范围，用户不必先找到末端消息。仍为空的预留分支可以单独删除，且不向上裁剪其祖先，因此尚未输入任何内容时的既有分支清理流程仍然可用。
+分支管理在**持久化子树恰好只通向一条完整路径**的节点上提供删除操作。删除会移除该路径的独占后缀——叶节点以及它在最近分叉点下方的线性祖先——同时保留最近的共享祖先和所有存活的其他路径。选中该后缀中的线性祖先会删除同一范围，用户不必先找到末端消息。仍为空的预留分支通过既有的 `DELETE /messages/:id?awaitingInputOnly=true` 路由单独删除，且不向上裁剪其祖先，因此尚未输入任何内容时的既有分支清理流程仍然可用。
 
 该规则由 `MessageService.deleteBranch` 在单个写事务中执行。它会拒绝：唯一的对话路径、虚拟根、子树含多个叶节点的选择，以及删除范围内仍在生成或仍在等待工具批准的消息。任一检查失败时不写入任何数据。当被删除范围持有话题的活动节点指针时，指针回退到一个存活的叶节点；否则保持不变。存活节点不会被重新挂载、重新分组，也不会被剥离上下文元数据。
 
@@ -31,7 +31,7 @@ Status: implemented
 
 ## 验证
 
-- AC1 — 分支列表在符合条件的节点上提供删除操作，并对分叉子树、唯一路径、被截断的子树边界以及仅存在于运行时的节点隐藏该操作：`src/renderer/pages/home/components/__tests__/topicBranchDeletion.test.ts`（11 条用例）以及 `src/renderer/pages/home/components/__tests__/TopicBranchPanel.test.tsx` 中的可用性用例。
+- AC1 — 分支列表在符合条件的节点上提供删除操作，并对分叉子树、唯一路径、被截断的子树边界以及仅存在于运行时的节点隐藏该操作：`src/renderer/pages/home/utils/__tests__/topicBranchDeletion.test.ts`（11 条用例）以及 `src/renderer/pages/home/components/__tests__/TopicBranchPanel.test.tsx` 中的可用性用例。
 - AC2 — 每次删除都需要确认，取消不会发送请求，重复点击确认只发送一次：`src/renderer/pages/home/components/__tests__/TopicBranchPanel.test.tsx`；冒烟用例先取消一次并断言消息仍可读取，然后再确认。
 - AC3 — 分支及其消息被永久移除，不安全的请求不产生任何改动：`src/main/data/services/__tests__/MessageService.test.ts`（`185 passed`，包含后缀删除、唯一路径、虚拟根、运行中与等待批准的拒绝用例），以及 `tests/e2e/smoke/deleteConversationBranch.test.ts` 中按 ID 返回 `NOT_FOUND` 与树中消失的断言。
 - AC4 — 共享前缀和其他分支保留各自的消息、分组标识与上下文元数据，受影响的活动指针落在存活叶节点上：`MessageService.test.ts` 中的保留行相等性与活动指针回退用例、`TopicBranchPanel.test.tsx` 中的存活预览用例，以及冒烟用例中保留消息的父节点、分组与内容断言。

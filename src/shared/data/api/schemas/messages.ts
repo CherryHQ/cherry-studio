@@ -145,8 +145,7 @@ export const DeleteMessageQuerySchema = z.strictObject({
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
 export const DeleteBranchQuerySchema = z.strictObject({
-  topicId: z.string().min(1),
-  awaitingInputOnly: z.boolean().optional()
+  topicId: z.string().min(1)
 })
 export type DeleteBranchQuery = z.infer<typeof DeleteBranchQuerySchema>
 

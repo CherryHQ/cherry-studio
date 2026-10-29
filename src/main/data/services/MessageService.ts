@@ -1890,9 +1890,9 @@ export class MessageService {
 
   /**
    * Delete one complete path's exclusive suffix, keeping the shared prefix and other paths.
-   * Empty reservations can be deleted alone without pruning their ancestors.
+   * Empty reservations go through `delete(id, false, 'parent', true)` instead.
    */
-  deleteBranch(selectedId: string, expectedTopicId: string, awaitingInputOnly = false): DeleteMessageResponse {
+  deleteBranch(selectedId: string, expectedTopicId: string): DeleteMessageResponse {
     const result = application.get('DbService').withWriteTx((tx) => {
       const message = this.getAddressableMessageRowTx(tx, selectedId)
       if (message.topicId !== expectedTopicId) throw DataApiErrorFactory.notFound('Message', selectedId)
@@ -1900,63 +1900,52 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
       }
 
-      let candidate = message
-      let descendantIds: string[] = []
-      if (awaitingInputOnly) {
-        if (!this.isAwaitingInputLeafTx(tx, rowToMessage(message))) {
+      const leaves = tx.all<{ id: string }>(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id FROM message WHERE id = ${selectedId} AND deleted_at IS NULL
+          UNION ALL
+          SELECT m.id FROM message m INNER JOIN subtree s ON m.parent_id = s.id
+          WHERE m.deleted_at IS NULL
+        )
+        SELECT s.id FROM subtree s
+        WHERE NOT EXISTS (
+          SELECT 1 FROM message c WHERE c.parent_id = s.id AND c.deleted_at IS NULL
+        )
+        LIMIT 2
+      `)
+      if (leaves.length !== 1) {
+        throw DataApiErrorFactory.invalidOperation('delete branch', 'select a branch that leads to a single path')
+      }
+
+      let candidate = this.getRowsInOrderTx(tx, [leaves[0].id])[0]
+      while (candidate.parentId !== null) {
+        const parent = this.getRowsInOrderTx(tx, [candidate.parentId])[0]
+        const children = tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(and(eq(messageTable.parentId, parent.id), isNull(messageTable.deletedAt)))
+          .limit(2)
+          .all()
+        if (children.length > 1) break
+        if (parent.parentId === null) {
           throw DataApiErrorFactory.invalidOperation(
-            'delete awaiting-input message',
-            'the message is no longer an empty user leaf'
+            'delete branch',
+            'the only conversation path cannot be deleted as a branch'
           )
         }
-      } else {
-        const leaves = tx.all<{ id: string }>(sql`
-          WITH RECURSIVE subtree AS (
-            SELECT id FROM message WHERE id = ${selectedId} AND deleted_at IS NULL
-            UNION ALL
-            SELECT m.id FROM message m INNER JOIN subtree s ON m.parent_id = s.id
-            WHERE m.deleted_at IS NULL
-          )
-          SELECT s.id FROM subtree s
-          WHERE NOT EXISTS (
-            SELECT 1 FROM message c WHERE c.parent_id = s.id AND c.deleted_at IS NULL
-          )
-          LIMIT 2
-        `)
-        if (leaves.length !== 1) {
-          throw DataApiErrorFactory.invalidOperation('delete branch', 'select a branch that leads to a single path')
-        }
+        candidate = parent
+      }
 
-        candidate = this.getRowsInOrderTx(tx, [leaves[0].id])[0]
-        while (candidate.parentId !== null) {
-          const parent = this.getRowsInOrderTx(tx, [candidate.parentId])[0]
-          const children = tx
-            .select({ id: messageTable.id })
-            .from(messageTable)
-            .where(and(eq(messageTable.parentId, parent.id), isNull(messageTable.deletedAt)))
-            .limit(2)
-            .all()
-          if (children.length > 1) break
-          if (parent.parentId === null) {
-            throw DataApiErrorFactory.invalidOperation(
-              'delete branch',
-              'the only conversation path cannot be deleted as a branch'
-            )
-          }
-          candidate = parent
+      const descendantIds = this.getDescendantIdsTx(tx, candidate.id)
+      for (const row of this.getRowsInOrderTx(tx, [candidate.id, ...descendantIds])) {
+        if (
+          row.status === 'pending' ||
+          row.data.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
+        ) {
+          throw DataApiErrorFactory.invalidOperation('delete branch', 'a message in this branch is still running')
         }
-
-        descendantIds = this.getDescendantIdsTx(tx, candidate.id)
-        for (const row of this.getRowsInOrderTx(tx, [candidate.id, ...descendantIds])) {
-          if (
-            row.status === 'pending' ||
-            row.data.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
-          ) {
-            throw DataApiErrorFactory.invalidOperation('delete branch', 'a message in this branch is still running')
-          }
-          if (row.topicId !== expectedTopicId) {
-            throw DataApiErrorFactory.invalidOperation('delete branch', 'the branch crosses topic boundaries')
-          }
+        if (row.topicId !== expectedTopicId) {
+          throw DataApiErrorFactory.invalidOperation('delete branch', 'the branch crosses topic boundaries')
         }
       }
 

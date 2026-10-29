@@ -25,7 +25,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/messages/:id/branch': {
     DELETE: async ({ params, query }) => {
       const q = DeleteBranchQuerySchema.parse(query ?? {})
-      return messageService.deleteBranch(params.id, q.topicId, q.awaitingInputOnly ?? false)
+      return messageService.deleteBranch(params.id, q.topicId)
     }
   },
 

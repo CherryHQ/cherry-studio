@@ -16,7 +16,8 @@ vi.mock('@cherrystudio/ui', async () => {
 
 const mocks = vi.hoisted(() => ({
   copyBranchToNewTopic: vi.fn().mockResolvedValue({ id: 'copied-topic' }),
-  deleteBranch: vi.fn().mockResolvedValue({ deletedIds: ['branch-empty-user'] }),
+  deleteBranch: vi.fn().mockResolvedValue({ deletedIds: ['L'] }),
+  deleteReservedBranch: vi.fn().mockResolvedValue({ deletedIds: ['branch-empty-user'] }),
   reserveBranch: vi.fn().mockResolvedValue({ id: 'reserved-user' }),
   refetchTree: vi.fn(),
   setActiveNode: vi.fn().mockResolvedValue(undefined),
@@ -246,6 +247,9 @@ describe('TopicBranchPanel', () => {
       }
       if (path === '/messages/:id/branch') {
         return { trigger: mocks.deleteBranch }
+      }
+      if (path === '/messages/:id') {
+        return { trigger: mocks.deleteReservedBranch }
       }
       if (path === '/messages/:id/branches') {
         return { trigger: mocks.reserveBranch }
@@ -601,15 +605,16 @@ describe('TopicBranchPanel', () => {
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-branch-empty-user'))
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: 'Delete branch' }))
-    expect(mocks.deleteBranch).not.toHaveBeenCalled()
+    expect(mocks.deleteReservedBranch).not.toHaveBeenCalled()
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete branch' }))
 
     await waitFor(() => {
-      expect(mocks.deleteBranch).toHaveBeenCalledWith({
+      expect(mocks.deleteReservedBranch).toHaveBeenCalledWith({
         params: { id: 'branch-empty-user' },
-        query: { topicId: 'topic-1', awaitingInputOnly: true }
+        query: { awaitingInputOnly: true }
       })
     })
+    expect(mocks.deleteBranch).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('common.delete_success')
   })
 
@@ -806,7 +811,7 @@ describe('TopicBranchPanel', () => {
     fireEvent.click(confirm)
     expect(mocks.deleteBranch).toHaveBeenCalledExactlyOnceWith({
       params: { id: 'L' },
-      query: { topicId: 'topic-1', awaitingInputOnly: false }
+      query: { topicId: 'topic-1' }
     })
     expect(mocks.useMutation).toHaveBeenCalledWith('DELETE', '/messages/:id/branch', {
       refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']

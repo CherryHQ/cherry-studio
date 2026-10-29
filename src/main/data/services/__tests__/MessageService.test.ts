@@ -2728,7 +2728,11 @@ describe('MessageService', () => {
     function expectRejected(id: string, expectedTopicId: string, reason?: string, awaitingInputOnly = false) {
       const before = dbh.sqlite.serialize()
       notifyDataApiDataChangeMock.mockClear()
-      expect(() => messageService.deleteBranch(id, expectedTopicId, awaitingInputOnly)).toThrowError(
+      const run = () =>
+        awaitingInputOnly
+          ? messageService.delete(id, false, 'parent', true)
+          : messageService.deleteBranch(id, expectedTopicId)
+      expect(run).toThrowError(
         expect.objectContaining({
           code: reason ? ErrorCode.INVALID_OPERATION : ErrorCode.NOT_FOUND,
           ...(reason ? { message: expect.stringContaining(reason) } : {})
@@ -2837,7 +2841,7 @@ describe('MessageService', () => {
       const { anchor, awaitingInput } = await seedAwaitingInputBranch(topicId)
       const reservation = messageService.reserveBranch(anchor.id)
       const before = [anchor.id, awaitingInput.id].map((id) => messageService.getById(id))
-      const result = messageService.deleteBranch(reservation.id, topicId, true)
+      const result = messageService.delete(reservation.id, false, 'parent', true)
       expect(result.deletedIds).toEqual([reservation.id])
       expect([anchor.id, awaitingInput.id].map((id) => messageService.getById(id))).toEqual(before)
       expect(() => messageService.getById(reservation.id)).toThrowError(
@@ -2863,7 +2867,7 @@ describe('MessageService', () => {
     it('deletes an empty reservation on the only path while preserving its ancestors', async () => {
       const { anchor, awaitingInput } = await seedAwaitingInputBranch(topicId)
       const before = messageService.getById(anchor.id)
-      expect(messageService.deleteBranch(awaitingInput.id, topicId, true)).toMatchObject({
+      expect(messageService.delete(awaitingInput.id, false, 'parent', true)).toMatchObject({
         deletedIds: [awaitingInput.id],
         newActiveNodeId: anchor.id
       })
@@ -2879,7 +2883,7 @@ describe('MessageService', () => {
         data: { parts: [] },
         status: 'success'
       })
-      expect(messageService.deleteBranch(reservation.id, topicId, true)).toMatchObject({
+      expect(messageService.delete(reservation.id, false, 'parent', true)).toMatchObject({
         deletedIds: [reservation.id],
         newActiveNodeId: null
       })
