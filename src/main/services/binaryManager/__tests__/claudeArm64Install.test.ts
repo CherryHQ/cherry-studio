@@ -58,6 +58,7 @@ describe('Claude native installation on Windows ARM64', () => {
     Object.defineProperty(process, 'arch', { value: 'arm64' })
     let installed = false
     execFileAsync.mockImplementation(async (_file, args: string[]) => {
+      if (args[0] === 'ls' && args[2] !== 'http:claude') throw new Error('Wrong mise identity')
       if (args[0] === 'use') {
         const spec = args.at(-1)!
         const encodedUrl = /url=("[^"]+")/.exec(spec)?.[1]
@@ -76,7 +77,10 @@ describe('Claude native installation on Windows ARM64', () => {
         installed = true
       }
       return {
-        stdout: args[0] === 'ls' && installed ? JSON.stringify({ claude: [{ version: '2.1.312', active: true }] }) : '',
+        stdout:
+          args[0] === 'ls' && installed
+            ? JSON.stringify({ 'http:claude': [{ version: '2.1.312', active: true }] })
+            : '',
         stderr: ''
       }
     })
@@ -88,6 +92,7 @@ describe('Claude native installation on Windows ARM64', () => {
     if (failure === 'metadata') vi.mocked(net.fetch).mockResolvedValueOnce(new Response(null, { status: 404 }))
     let officialInstalled = false
     execFileAsync.mockImplementation(async (_file, args: string[]) => {
+      if (args[0] === 'ls' && args[2] !== 'http:claude') throw new Error('Wrong mise identity')
       if (args[0] === 'use') {
         if (args.at(-1)!.includes('registry.npmmirror.com')) throw new Error('archive integrity mismatch')
         if (!args.at(-1)!.includes('registry.npmjs.org')) throw new Error('Unexpected download source')
@@ -96,7 +101,7 @@ describe('Claude native installation on Windows ARM64', () => {
       return {
         stdout:
           args[0] === 'ls' && officialInstalled
-            ? JSON.stringify({ claude: [{ version: '2.1.312', active: true }] })
+            ? JSON.stringify({ 'http:claude': [{ version: '2.1.312', active: true }] })
             : '',
         stderr: ''
       }
@@ -115,6 +120,48 @@ describe('Claude native installation on Windows ARM64', () => {
     await expect(installer.installWithMise({ name: 'claude', tool: 'claude' }, 'latest', [])).rejects.toThrow(
       'HTTP 404'
     )
+  })
+
+  it.each([
+    [true, 'arm64', 'applied'],
+    [true, 'x64', 'absent'],
+    [false, 'arm64', 'absent']
+  ])('matches the HTTP inventory only on isWin=%s arch=%s', async (isWin, arch, status) => {
+    platform.isWin = isWin
+    Object.defineProperty(process, 'arch', { value: arch })
+    const service = installer as any
+    vi.spyOn(service, 'getCustomDefinitions').mockReturnValue([])
+    vi.spyOn(service, 'listMiseInstalls').mockResolvedValue({
+      'http:claude': [{ version: '2.1.312', active: true }]
+    })
+    vi.spyOn(service, 'resolveRunnableShim').mockResolvedValue({ path: '/shim/claude', canonical: '/bin/claude' })
+    vi.spyOn(service, 'probeBundled').mockReturnValue({})
+    vi.spyOn(service, 'probeSystem').mockResolvedValue({})
+    const snapshots = await service.getToolSnapshots(['claude'])
+    expect(snapshots.claude.application.status).toBe(status)
+  })
+
+  it('removes the installed HTTP recipe and verifies that recipe is absent', async () => {
+    Object.defineProperty(process, 'arch', { value: 'arm64' })
+    const service = installer as any
+    vi.spyOn(service, 'getCustomDefinitions').mockReturnValue([])
+    vi.spyOn(service, 'getToolSnapshots').mockResolvedValue({ claude: { application: { status: 'broken' } } })
+    vi.spyOn(service, 'setOperation').mockImplementation(() => {})
+    let installed = true
+    execFileAsync.mockImplementation(async (_file, args: string[]) => {
+      if (args[0] === 'unuse' && args[2] !== 'http:claude') throw new Error('Wrong unuse identity')
+      if (args[0] === 'uninstall') {
+        if (args[2] !== 'http:claude') throw new Error('Wrong uninstall identity')
+        installed = false
+      }
+      if (args[0] === 'ls') {
+        if (args[2] !== 'http:claude') throw new Error('Wrong absence identity')
+        return { stdout: JSON.stringify(installed ? { 'http:claude': [{ version: '2.1.312' }] } : {}), stderr: '' }
+      }
+      return { stdout: '', stderr: '' }
+    })
+    await expect(service.removeToolImpl('claude', false)).resolves.toEqual({ status: 'removed' })
+    expect(installed).toBe(false)
   })
 
   it.each([

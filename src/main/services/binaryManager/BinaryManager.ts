@@ -470,6 +470,10 @@ export class BinaryManager extends BaseService {
     return parsed as Record<string, MiseInstallEntry[]>
   }
 
+  private miseIdentity(tool: string): string {
+    return tool === 'claude' && isWin && process.arch === 'arm64' ? 'http:claude' : tool
+  }
+
   /**
    * Return one weakly-consistent, main-computed view of custom definitions, live
    * availability, and session operations. This deliberately does not take the
@@ -517,7 +521,7 @@ export class BinaryManager extends BaseService {
     }
 
     const installedFor = (tool: string) => {
-      const normalized = normalizeToolIdentity(tool)
+      const normalized = normalizeToolIdentity(this.miseIdentity(tool))
       const runtimeName = isRuntimeDependency(tool) ? normalized.split('@')[0] : undefined
       return (
         installed[normalized] ??
@@ -582,13 +586,13 @@ export class BinaryManager extends BaseService {
         if (!activeEntry) {
           // Installed artifacts are not an applied recipe. A leftover shim counts
           // as runnable only when mise itself can still resolve its target.
-          const runnable = await this.resolveRunnableShim(name, tool)
+          const runnable = await this.resolveRunnableShim(name, this.miseIdentity(tool))
           return {
             application: { status: 'broken', ...(version ? { version } : {}) },
             ...(runnable ? { mise: { path: runnable.path, ...(version ? { version } : {}) } } : {})
           }
         }
-        const runnable = await this.resolveRunnableShim(name, tool)
+        const runnable = await this.resolveRunnableShim(name, this.miseIdentity(tool))
         if (!runnable) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
@@ -711,7 +715,7 @@ export class BinaryManager extends BaseService {
 
     const bundled = this.probeBundled()
     const installedFor = (tool: string): MiseInstallEntry[] | undefined => {
-      const normalized = normalizeToolIdentity(tool)
+      const normalized = normalizeToolIdentity(this.miseIdentity(tool))
       const runtimeName = isRuntimeDependency(tool) ? normalized.split('@')[0] : undefined
       return (
         installed[normalized] ??
@@ -740,7 +744,7 @@ export class BinaryManager extends BaseService {
         await Promise.all(
           shimlessTools.map(async (name) => {
             signal?.throwIfAborted()
-            const bins = await this.resolveToolBinNames(definitions.get(name)!.tool, signal)
+            const bins = await this.resolveToolBinNames(this.miseIdentity(definitions.get(name)!.tool), signal)
             if (bins === null) {
               unobservable.add(name)
               return null
@@ -1397,7 +1401,7 @@ export class BinaryManager extends BaseService {
           const pkg = await resolveClaudeNpmPackage(source, requested)
           await this.runMise(['use', '-g', pkg.toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
           await this.runMise(['reshim'])
-          return await this.getInstalledVersion(definition.tool, pkg.version)
+          return await this.getInstalledVersion(this.miseIdentity(definition.tool), pkg.version)
         } catch (error) {
           if (index === registries.length - 1) throw error
           logger.warn('Claude npm source failed; trying fallback', {
@@ -1442,7 +1446,7 @@ export class BinaryManager extends BaseService {
       })
     }
     await this.runMise(['reshim'])
-    return this.getInstalledVersion(definition.tool, requested)
+    return this.getInstalledVersion(this.miseIdentity(definition.tool), requested)
   }
 
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
@@ -1627,14 +1631,14 @@ export class BinaryManager extends BaseService {
     // installWithMise resolves the installed version as verification that mise
     // actually applied the request; the value itself is not consumed.
     await this.installWithMise(definition, targetVersion, definitions)
-    if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
+    if (!(await this.isRecipeRunnable(definition.name, this.miseIdentity(definition.tool)))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
     }
 
     // Only explicit updates clean versions no longer referenced by mise.
     if (targetVersion) {
       try {
-        await this.runMise(['prune', definition.tool])
+        await this.runMise(['prune', this.miseIdentity(definition.tool)])
       } catch (err) {
         logger.warn('Failed to prune obsolete mise tool versions', {
           name: definition.name,
@@ -1643,7 +1647,7 @@ export class BinaryManager extends BaseService {
         return
       }
       await this.runMise(['reshim'])
-      if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
+      if (!(await this.isRecipeRunnable(definition.name, this.miseIdentity(definition.tool)))) {
         throw new Error(`Tool not runnable after pruning obsolete versions: ${definition.name}`)
       }
     }
@@ -2223,10 +2227,10 @@ export class BinaryManager extends BaseService {
         // Invalidate before destructive commands because a later failure can leave
         // the backend partially changed.
         this.bumpMutationRevision()
-        await this.runMise(['unuse', '-g', definition.tool])
-        await this.runMise(['uninstall', '--all', definition.tool])
+        await this.runMise(['unuse', '-g', this.miseIdentity(definition.tool)])
+        await this.runMise(['uninstall', '--all', this.miseIdentity(definition.tool)])
         await this.runMise(['reshim'])
-        if (!(await this.isMiseToolAbsent(definition.tool))) {
+        if (!(await this.isMiseToolAbsent(this.miseIdentity(definition.tool)))) {
           this.setOperation(name, null)
           return {
             status: 'cleanup_blocked',
