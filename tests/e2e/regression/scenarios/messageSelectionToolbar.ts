@@ -369,7 +369,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       .getByRole('button', { name: 'Multi-select', exact: true })
     await multiSelect.click()
     await expect(multiSelect).toHaveAttribute('aria-pressed', 'true')
-    await selectVisibleModel(page, 'mock-grid')
+    await selectVisibleModel(page, 'mock-grid', providerId)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('mock-grid')
     const beforeGrid = (await readTopicMessages(page, topicId)).length

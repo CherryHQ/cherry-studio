@@ -197,7 +197,7 @@ export async function switchConversationModel(app: RegressionApp, page: Page, te
 
     // Chat applies a model switch to the current topic immediately. The context-impact
     // confirmation is an Agent-session contract (AgentChat), so no dialog may block Chat here.
-    await selectChatModel(page, nextModelId)
+    await selectChatModel(page, nextModelId, providerId)
     await expect(dialog, 'Chat must apply a model switch without an Agent-session confirmation').toBeHidden({
       timeout: 3000
     })

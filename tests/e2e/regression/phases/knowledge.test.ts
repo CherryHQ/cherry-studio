@@ -37,11 +37,11 @@ import { renameMoveDeleteKnowledge } from '../scenarios/renameMoveDeleteKnowledg
 test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
   let page = mainWindow
   await test.step('Create and index a knowledge base, then verify recall', async () => {
-    await ensureEmbeddingProvider(app, page)
+    const providerId = await ensureEmbeddingProvider(app, page)
     await expect(page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })).toBeVisible()
     await expect(page.getByText(app.config.customEmbeddingProvider.model, { exact: true })).toBeVisible()
     await closeSettings(page)
-    await ensureKnowledgeBase(app, page)
+    await ensureKnowledgeBase(app, page, providerId)
 
     await page.getByRole('button', { name: 'Recall Test', exact: true }).click()
     await page.getByRole('textbox').last().fill('What is the regression knowledge answer?')
@@ -241,7 +241,7 @@ test(...caseDefinition('MP-59'), async ({ app, mainWindow }, testInfo) => {
         .click()
       const dialog = page.getByRole('dialog', { name: 'New Knowledge Base', exact: true })
       await dialog.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-      await selectVisibleModel(page, modelId)
+      await selectVisibleModel(page, modelId, providerId)
       await dialog.getByRole('combobox').click()
       await page.getByRole('option', { name: groupName, exact: true }).click()
       await dialog.getByRole('button', { name: 'Create', exact: true }).click()
@@ -819,14 +819,14 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  await ensureEmbeddingProvider(app, page)
+  const providerId = await ensureEmbeddingProvider(app, page)
   await closeSettings(page)
   await selectSidebarApp(page, 'Knowledge Base')
   await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
   const create = page.getByRole('dialog', { name: 'New Knowledge Base' })
   await create.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
   await create.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-  await selectVisibleModel(page, app.config.customEmbeddingProvider.model)
+  await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
   await create.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(create).toBeHidden({ timeout: 120_000 })
   const bases = await page.evaluate(() =>

@@ -14,7 +14,7 @@ export function knowledgeName(app: RegressionApp): string {
   return app.resourceName('Cherry Regression Knowledge 31415')
 }
 
-export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): Promise<void> {
+export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): Promise<string> {
   const { baseUrl, apiKey, model } = app.config.customEmbeddingProvider
   await openSettingsSection(page, 'Model Provider')
   const providerItem = page
@@ -53,9 +53,15 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
     await page.getByRole('dialog', { name: 'Add Model' }).getByRole('button', { name: 'Add Model' }).click()
   }
   await expect(page.getByText(model, { exact: true })).toBeVisible()
+  const providerTestId = await providerItem.getAttribute('data-testid')
+  const providerTestIdPrefix = 'provider-list-item-'
+  if (!providerTestId?.startsWith(providerTestIdPrefix)) {
+    throw new Error('Embedding provider ID is unavailable')
+  }
+  return providerTestId.slice(providerTestIdPrefix.length)
 }
 
-export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promise<void> {
+export async function ensureKnowledgeBase(app: RegressionApp, page: Page, providerId: string): Promise<void> {
   const name = knowledgeName(app)
   await selectSidebarApp(page, 'Knowledge Base')
   const navigation = page.locator('[data-ui~="knowledge.navigation"]')
@@ -72,7 +78,7 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
       const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
       await page.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
       await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-      await selectVisibleModel(page, app.config.customEmbeddingProvider.model)
+      await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
       await page.getByRole('button', { name: 'Create', exact: true }).click()
       await expect(dialog).toBeHidden({ timeout: 2 * 60_000 })
       await expect(selectedBase).toBeVisible()

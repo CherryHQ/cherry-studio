@@ -450,7 +450,7 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
       await page.getByRole('option', { name: 'New Assistant', exact: true }).click()
       await page.getByPlaceholder('Enter a name', { exact: true }).fill(temporaryName)
       await page.locator('[aria-label="Model"]').click()
-      await selectVisibleModel(page, 'mp22-fixture')
+      await selectVisibleModel(page, 'mp22-fixture', providerId)
       await page.getByRole('button', { name: 'Next', exact: true }).click()
       await page.getByRole('button', { name: 'Next', exact: true }).click()
       await page.getByRole('button', { name: 'Create', exact: true }).click()

@@ -251,7 +251,7 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
     await page.keyboard.press('Escape')
     await expect(preview).toBeHidden()
 
-    await selectChatModel(page, textModelId)
+    await selectChatModel(page, textModelId, providerId)
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('MP32 Text Only')
     const effectiveModel = await page.evaluate(
       (id) => window.api.dataApi.request({ id: 'mp32-effective-text-model', method: 'GET', path: `/models/${id}` }),

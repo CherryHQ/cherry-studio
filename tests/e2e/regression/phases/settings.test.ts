@@ -908,7 +908,7 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
     for (const [index, row] of rows.entries()) {
       const setting = page.locator(`#setting-model-${row}-model`)
       await setting.locator('[data-selector-shell-root="true"] > button').click()
-      await selectVisibleModel(page, modelIds[index])
+      await selectVisibleModel(page, modelIds[index], providerId)
       await expect(setting).toContainText(modelIds[index])
       await expect
         .poll(() => page.evaluate((key) => window.api.preference.get(key), keys[index]))

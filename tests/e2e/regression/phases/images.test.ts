@@ -251,7 +251,7 @@ test(...caseDefinition('MP-91'), async ({ mainWindow: page }, testInfo) => {
     await editor.fill(original)
     await expect(editor).toHaveText(original)
     await view.locator('[data-selector-shell-root="true"] > button').first().click()
-    await selectVisibleModel(page, modelId)
+    await selectVisibleModel(page, modelId, providerId)
     await view.getByRole('button', { name: /^Settings(:|$)/ }).click()
     const panel = page.locator('[data-slot="popover-content"]:visible')
     const enhancement = panel

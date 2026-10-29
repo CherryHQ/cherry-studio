@@ -642,7 +642,7 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
     await openSettingsSection(page, 'Default Model')
     const row = page.locator('#setting-model-translate-model')
     await row.locator('[data-selector-shell-root="true"] > button').click()
-    await selectVisibleModel(page, modelId)
+    await selectVisibleModel(page, modelId, providerId)
     await expect(row).toContainText(modelId)
     await expect
       .poll(() => page.evaluate(() => window.api.preference.get('feature.translate.model_id')))
