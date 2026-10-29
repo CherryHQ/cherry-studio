@@ -212,6 +212,61 @@ describe('FileStorage', () => {
     })
   })
 
+  describe('retired-root mutation guards', () => {
+    let retiredSource: string
+    let liveTarget: string
+
+    beforeEach(() => {
+      retiredSource = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-guard-src-'))
+      liveTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-guard-tgt-'))
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: liveTarget, provenance: 'cache' }))
+      })
+      setNotesMigrationBlockedRoots(retiredSource, liveTarget)
+      releaseNotesMigrationSession()
+    })
+
+    afterEach(() => {
+      releaseNotesMigrationSession()
+      clearNotesMigrationPairsForTests()
+      MockApplicationUtils.resetServices()
+      fs.rmSync(retiredSource, { recursive: true, force: true })
+      fs.rmSync(liveTarget, { recursive: true, force: true })
+    })
+
+    it('rejects stale mkdir/rename/move/delete ops under the retired root and leaves it untouched', async () => {
+      // A stale renderer op (tree not yet refreshed after release) used to
+      // reach these entry points with only the in-flight barrier, silently
+      // mutating the retired tree after the migration had completed.
+      const note = path.join(retiredSource, 'note.md')
+      const dir = path.join(retiredSource, 'folder')
+      fs.writeFileSync(note, '# stale')
+      fs.mkdirSync(dir)
+
+      await expect(fileStorage.mkdir(event, path.join(retiredSource, 'new-folder'))).rejects.toThrow()
+      await expect(fileStorage.renameFile(event, note, 'renamed')).rejects.toThrow(/relocated/)
+      await expect(fileStorage.renameDir(event, dir, 'renamed-dir')).rejects.toThrow(/relocated/)
+      await expect(fileStorage.moveFile(event, note, path.join(liveTarget, 'moved.md'))).rejects.toThrow(/relocated/)
+      await expect(fileStorage.moveDir(event, dir, path.join(liveTarget, 'moved-dir'))).rejects.toThrow(/relocated/)
+      await expect(fileStorage.deleteExternalFile(event, note)).rejects.toThrow(/relocated/)
+      await expect(fileStorage.deleteExternalDir(event, dir)).rejects.toThrow(/relocated/)
+
+      // Nothing was created, renamed, moved, or trashed in either tree.
+      expect(fs.readFileSync(note, 'utf-8')).toBe('# stale')
+      expect(fs.existsSync(path.join(retiredSource, 'new-folder'))).toBe(false)
+      expect(fs.existsSync(path.join(retiredSource, 'renamed.md'))).toBe(false)
+      expect(fs.existsSync(path.join(liveTarget, 'moved.md'))).toBe(false)
+      expect(fs.existsSync(path.join(liveTarget, 'moved-dir'))).toBe(false)
+      expect(vi.mocked(shell.trashItem)).not.toHaveBeenCalled()
+    })
+
+    it('still accepts the same ops under the live canonical root', async () => {
+      const dir = path.join(liveTarget, 'new-folder')
+      await expect(fileStorage.mkdir(event, dir)).resolves.toBe(dir)
+      expect(fs.existsSync(dir)).toBe(true)
+    })
+  })
+
   describe('deleteExternalFile', () => {
     let tmpFile: string
 

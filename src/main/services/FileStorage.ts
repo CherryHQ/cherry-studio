@@ -318,6 +318,7 @@ class FileStorage {
         const nativePath = normalizeTrashPath(filePath)
         await assertOutsideManagedStorageMutation(nativePath)
         assertNotesPathNotMutatingDuringMigration(nativePath)
+        assertNotesPathNotRetired(nativePath)
         if (!fs.existsSync(nativePath)) {
           return
         }
@@ -338,6 +339,7 @@ class FileStorage {
         const nativePath = normalizeTrashPath(dirPath)
         await assertOutsideManagedStorageMutation(nativePath)
         assertNotesPathNotMutatingDuringMigration(nativePath)
+        assertNotesPathNotRetired(nativePath)
         if (!fs.existsSync(nativePath)) {
           return
         }
@@ -356,6 +358,8 @@ class FileStorage {
         await assertOutsideManagedStorageMutation(filePath, newPath)
         assertNotesPathNotMutatingDuringMigration(filePath)
         assertNotesPathNotMutatingDuringMigration(newPath)
+        assertNotesPathNotRetired(filePath)
+        assertNotesPathNotRetired(newPath)
         if (!fs.existsSync(filePath)) {
           throw new Error(`Source file does not exist: ${filePath}`)
         }
@@ -379,6 +383,8 @@ class FileStorage {
         await assertOutsideManagedStorageMutation(dirPath, newDirPath)
         assertNotesPathNotMutatingDuringMigration(dirPath)
         assertNotesPathNotMutatingDuringMigration(newDirPath)
+        assertNotesPathNotRetired(dirPath)
+        assertNotesPathNotRetired(newDirPath)
         if (!fs.existsSync(dirPath)) {
           throw new Error(`Source directory does not exist: ${dirPath}`)
         }
@@ -408,6 +414,8 @@ class FileStorage {
         await assertOutsideManagedStorageMutation(filePath, newFilePath)
         assertNotesPathNotMutatingDuringMigration(filePath)
         assertNotesPathNotMutatingDuringMigration(newFilePath)
+        assertNotesPathNotRetired(filePath)
+        assertNotesPathNotRetired(newFilePath)
 
         if (fs.existsSync(newFilePath)) {
           throw new Error(`Target file already exists: ${newFilePath}`)
@@ -433,6 +441,8 @@ class FileStorage {
         await assertOutsideManagedStorageMutation(dirPath, newDirPath)
         assertNotesPathNotMutatingDuringMigration(dirPath)
         assertNotesPathNotMutatingDuringMigration(newDirPath)
+        assertNotesPathNotRetired(dirPath)
+        assertNotesPathNotRetired(newDirPath)
 
         if (fs.existsSync(newDirPath)) {
           throw new Error(`Target directory already exists: ${newDirPath}`)
@@ -608,6 +618,7 @@ class FileStorage {
       try {
         await assertOutsideManagedStorageMutation(dirPath)
         assertNotesPathNotMutatingDuringMigration(dirPath)
+        assertNotesPathNotRetired(dirPath)
         logger.debug(`Attempting to create directory: ${dirPath}`)
         await fs.promises.mkdir(dirPath, { recursive: true })
         return dirPath
