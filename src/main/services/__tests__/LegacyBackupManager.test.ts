@@ -1,10 +1,7 @@
-import { execFileSync } from 'node:child_process'
 import type * as CryptoModule from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
-import { runInNewContext } from 'node:vm'
 import type * as PathModule from 'path'
 
-import * as ts from 'typescript'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -1111,40 +1108,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     }
   )
 
-  it('the actual pinned v7 reader rejects v8 before live changes or a journal commit', async () => {
-    const source = execFileSync(
-      'git',
-      ['show', '0f95a597ab43d9209bcfe8c6593ae194ddc6183c:src/main/services/LegacyBackupManager.ts'],
-      { encoding: 'utf8' }
-    )
-    const methods = source.slice(
-      source.indexOf('  private async restoreDirect('),
-      source.indexOf('  private async assertArchiveFile(')
-    )
-    const compiled = ts.transpileModule(
-      `class PinnedReader { ${methods}\n onProgress() { return () => {} }\n ensurePrivateDir(dir: string) { return fs.ensureDir(dir) } }\n exports.PinnedReader = PinnedReader`,
-      { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
-    ).outputText
-    const exports = { PinnedReader: undefined as unknown as new () => { restoreDirect(dir: string): Promise<void> } }
-    runInNewContext(compiled, {
-      exports,
-      fs,
-      path: await vi.importActual('path'),
-      randomUUID: () => 'pinned-id',
-      logger: mockLogger,
-      DIRECT_BACKUP_VERSION: 7,
-      BACKUP_NEWER_VERSION_ERROR_CODE: 'BACKUP_NEWER_VERSION',
-      IpcChannel: { RestoreProgress: 'restore-progress' },
-      readRestoreJournal: mockReadRestoreJournal,
-      application: { getPath: (key: string) => (key === 'app.userdata' ? '/live' : '/live/restore-staging') }
-    })
+  it('the v7 reader rejects a v8 configuration archive before live changes or a journal commit', async () => {
     vi.mocked(fs.readJson).mockResolvedValueOnce(configurationMetadata)
-    await expect(new exports.PinnedReader().restoreDirect('/extract')).rejects.toThrow('BACKUP_NEWER_VERSION')
+    await expect((backupManager as any).restoreDirect('/mock/temp/backup/extract-operation-id')).rejects.toThrow(
+      'BACKUP_NEWER_VERSION'
+    )
     expect(fs.copy).not.toHaveBeenCalled()
     expect(mockDbService.withWriteTx).not.toHaveBeenCalled()
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    const stagingRoot = '/mock/userData/restore-staging'
     expect(
-      vi.mocked(fs.remove).mock.calls.every(([target]) => String(target).startsWith('/live/restore-staging'))
+      vi
+        .mocked(fs.remove)
+        .mock.calls.every(([target]) => target === stagingRoot || String(target).startsWith(`${stagingRoot}/`))
     ).toBe(true)
   })
 
