@@ -38,13 +38,14 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   }
 
   // Real provider and runtime: neither tool output nor file contents are injected after the prompt.
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const agentName = app.resourceName(`File preview ${Date.now()}`)
   await createAgent(page, {
     name: agentName,
     runtime: 'Pi',
     permission: 'Full Access',
+    providerId,
     model: app.config.customProvider.chatModel
   })
   const registered = await page.evaluate(

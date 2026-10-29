@@ -21,12 +21,13 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
     body: 'Real configured custom provider; real Pi runtime and filesystem writes, no mocked permission decisions.',
     contentType: 'text/plain'
   })
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   await createAgent(page, {
     name: app.resourceName(`Permission decisions ${Date.now()}`),
     runtime: 'Pi',
     permission: 'Ask Before Acting',
+    providerId,
     model: app.config.customProvider.chatModel
   })
   await page.evaluate(({ path, name }) => window.api.ipcApi.request('ai.agent.workspace.register', { path, name }), {

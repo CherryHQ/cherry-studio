@@ -55,12 +55,13 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
     })
     await page.locator('#setting-appearance-send-shortcuts').scrollIntoViewIfNeeded()
     await screenshot('MP-144 input shortcut bindings')
-    await ensureCustomChatProvider(app, page)
+    const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await createAgent(page, {
       name,
       runtime: 'Pi',
       permission: 'Full Access',
+      providerId,
       model: app.config.customProvider.chatModel
     })
     await page.evaluate(({ path, name }) => window.api.ipcApi.request('ai.agent.workspace.register', { path, name }), {

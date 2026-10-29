@@ -38,11 +38,12 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     })
 
     // Real provider and real filesystem tools; no task, tool, or context events are injected.
-    await ensureCustomChatProvider(app, page)
+    const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await createAgent(page, {
       name: agentName,
       runtime: 'Claude Agent',
+      providerId,
       model: app.config.customProvider.chatModel,
       permission: 'Full Access'
     })

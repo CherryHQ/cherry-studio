@@ -57,12 +57,13 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   await writeFile(join(app.paths.fixtures, slidesName), await slides.generateAsync({ type: 'nodebuffer' }))
 
   // Preview uses real attachments and the configured provider; no response is injected.
-  await ensureCustomChatProvider(app, page)
+  const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const agentName = app.resourceName('Preview Agent')
   await createAgent(page, {
     name: agentName,
     runtime: 'Pi',
+    providerId,
     model: app.config.customProvider.chatModel,
     permission: 'Full Access'
   })

@@ -47,12 +47,13 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
 
   try {
     // Use the configured real provider: canned model text cannot prove tool-driven task creation.
-    await ensureCustomChatProvider(app, page)
+    const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await createAgent(page, {
       name: agentName,
       runtime: 'Pi',
       permission: 'Full Access',
+      providerId,
       model: app.config.customProvider.chatModel
     })
     const agents = await page.evaluate(() =>
