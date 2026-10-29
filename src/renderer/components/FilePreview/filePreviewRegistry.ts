@@ -4,6 +4,7 @@ import { normalizeExt } from '@shared/utils/file'
 
 import { htmlFilePreviewPlugin } from './plugins/html/htmlFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
+import { mermaidFilePreviewPlugin } from './plugins/mermaid/mermaidFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
 import { videoFilePreviewPlugin } from './plugins/video/videoFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
@@ -44,6 +45,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
     ...previewFormats.map((format) => ({ ...format, load: () => import('./ElectronFilePreview') })),
     htmlFilePreviewPlugin,
     markdownFilePreviewPlugin,
+    mermaidFilePreviewPlugin,
     textFilePreviewPlugin,
     videoFilePreviewPlugin
   ]

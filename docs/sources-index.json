@@ -207,7 +207,7 @@
     },
     {
       "path": "docs/references/components/image-preview.md",
-      "sources": ["src/renderer/components/Preview"]
+      "sources": ["packages/ui/src/lib/mermaid","src/renderer/components/Preview","src/renderer/services/MermaidRenderService.ts","src/renderer/workers/mermaid.worker.ts"]
     },
     {
       "path": "docs/references/components/README.md",

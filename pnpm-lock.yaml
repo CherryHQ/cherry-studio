@@ -1218,9 +1218,6 @@ importers:
       mdast-util-from-markdown:
         specifier: ^2.0.2
         version: 2.0.2(supports-color@8.1.1)
-      mermaid:
-        specifier: ^11.13.0
-        version: 11.13.0
       micromark-util-types:
         specifier: ^2.0.2
         version: 2.0.2
@@ -1982,6 +1979,9 @@ importers:
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
+      '@mermanjs/web-render':
+        specifier: 0.9.2
+        version: 0.9.2
       '@pierre/highlights':
         specifier: 0.2.0
         version: 0.2.0
@@ -2048,9 +2048,6 @@ importers:
       '@streamdown/math':
         specifier: ^1.0.2
         version: 1.0.2(react@19.2.3)(supports-color@8.1.1)
-      '@streamdown/mermaid':
-        specifier: ^1.0.2
-        version: 1.0.2(react@19.2.3)
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -2084,9 +2081,6 @@ importers:
       lucide-react:
         specifier: ^0.545.0
         version: 0.545.0(react@19.2.3)
-      mermaid:
-        specifier: ^11.13.0
-        version: 11.13.0
       react-day-picker:
         specifier: ^9.14.0
         version: 9.14.0(react@19.2.3)
@@ -4261,6 +4255,9 @@ packages:
 
   '@mermaid-js/parser@1.0.1':
     resolution: {integrity: sha512-opmV19kN1JsK0T6HhhokHpcVkqKpF+x2pPDKKM2ThHtZAB5F4PROopk0amuVYK5qMrIA4erzpNm8gmPNJgMDxQ==}
+
+  '@mermanjs/web-render@0.9.2':
+    resolution: {integrity: sha512-pE8Q+SaLRKmhsHgGddmJ7BrJ06MwkcmiOMQtO6qdVCzFqqBAaDJDAw+E3U8S/U8vk35QtU96cheEJ7ToyBVTJA==}
 
   '@mistralai/mistralai@1.11.0':
     resolution: {integrity: sha512-6/BVj2mcaggYbpMzNSxtqtM2Tv/Jb5845XFd2CMYFO+O5VBkX70iLjtkBBTI4JFhh1l9vTCIMYXBVOjLoBVHGQ==}
@@ -7058,11 +7055,6 @@ packages:
 
   '@streamdown/math@1.0.2':
     resolution: {integrity: sha512-r8Ur9/lBuFnzZAFdEWrLUF2s/gRwRRRwruqltdZibyjbCBnuW7SJbFm26nXqvpJPW/gzpBUMrBVBzd88z05D5g==}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-
-  '@streamdown/mermaid@1.0.2':
-    resolution: {integrity: sha512-Fr/4sBWnAeSnxM3PcrV/+DiZe5oPMq9gOkUIAH7ZauJeuwrZ/DVzD4g0zlav6AH0axh2m/sOfrfLtY5aLT7niw==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
@@ -18655,6 +18647,8 @@ snapshots:
     dependencies:
       langium: 4.2.1
 
+  '@mermanjs/web-render@0.9.2': {}
+
   '@mistralai/mistralai@1.11.0':
     dependencies:
       zod: 3.25.76
@@ -21179,11 +21173,6 @@ snapshots:
       remark-math: 6.0.0(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
-
-  '@streamdown/mermaid@1.0.2(react@19.2.3)':
-    dependencies:
-      mermaid: 11.13.0
-      react: 19.2.3
 
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0(@babel/core@7.28.5(supports-color@8.1.1))':
     dependencies:
