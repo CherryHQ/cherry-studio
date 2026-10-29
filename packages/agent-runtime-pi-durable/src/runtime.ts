@@ -33,8 +33,7 @@ import {
 import {
   runtimeId,
   type AgentRuntime,
-  type ContentItem,
-  type ItemRef,
+  type RuntimeMessage,
   type BackendId,
   type InputDraft,
   type InputId,
@@ -84,7 +83,6 @@ export interface PiDurableThreadHandle extends ThreadHandle {
     facts(): Promise<ConversationFacts>
     providerSessionId(): Promise<string | undefined>
     behaviorToolCallId(call: CallRef): Promise<string | undefined>
-    toolCallId(ref: ItemRef): string | undefined
     aliases(): Readonly<Record<string, string>>
     configure(change: AgentChange): Promise<void>
     compact(instructions?: string): Promise<OperationResult<void>>
@@ -96,7 +94,8 @@ export interface PiDurableThreadHandle extends ThreadHandle {
   archive(): Promise<OperationResult<PiDurableArchive>>
 }
 export interface PiDurableArchive {
-  readonly items: readonly ContentItem[]
+  readonly legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
+  readonly messages: readonly RuntimeMessage[]
   /** Proven committed-to-live identities within this observation source. */
   readonly aliases: Readonly<Record<string, string>>
 }
@@ -170,7 +169,7 @@ export async function createPiDurableRuntime(
           return async () => {
             try {
               for (const entry of live.values()) {
-                const content = new ContentProjection(entry.ref)
+                const content = new ContentProjection()
                 let cursor: Cursor | undefined
                 do {
                   const page = await owned.scanEntries(
@@ -183,7 +182,11 @@ export async function createPiDurableRuntime(
                     if (record.conversationId === entry.conversation.id) content.entry(record)
                   cursor = page.next
                 } while (cursor)
-                archives.set(entry.conversation.id, { items: content.items, aliases: { ...entry.projection.aliases } })
+                archives.set(entry.conversation.id, {
+                  messages: content.messages,
+                  legacy: content.legacy,
+                  aliases: { ...entry.projection.aliases }
+                })
               }
             } finally {
               await owned.close(context)
@@ -423,12 +426,6 @@ export async function createPiDurableRuntime(
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
         facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id), context),
         aliases: () => ({ ...entry.projection.aliases }),
-        toolCallId(ref) {
-          if (!sameSession(ref.session)) return undefined
-          const item = entry.projection.feed.snapshot.items.find((item) => item.ref.id === ref.id)
-          if (item?.type !== 'tool-call') return undefined
-          return item.ref.id.slice(item.ref.id.indexOf(':call:') + ':call:'.length)
-        },
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
           const task = await native.getTask(Number(call.key) as never, context)
@@ -469,9 +466,9 @@ export async function createPiDurableRuntime(
         return track(
           (async (): Promise<OperationResult<PiDurableArchive>> => {
             try {
-              const content = new ContentProjection(entry.ref)
+              const content = new ContentProjection()
               const head = (await entry.conversation.entries({ order: 'descending' }, 1, undefined, context)).items[0]
-              if (!head) return { status: 'confirmed', value: { items: [], aliases: {} } }
+              if (!head) return { status: 'confirmed', value: { messages: [], aliases: {} } }
               let cursor: Cursor | undefined
               do {
                 const page = await entry.conversation.entries(
@@ -484,11 +481,11 @@ export async function createPiDurableRuntime(
                   if (record.conversationId === entry.conversation.id) content.entry(record)
                 cursor = page.next
               } while (cursor)
-              const included = new Set(content.items.map((item) => item.ref.id as string))
+              const included = new Set(content.messages.map((message) => message.id))
               const aliases = Object.fromEntries(
                 Object.entries(entry.projection.aliases).filter(([id]) => included.has(id))
               )
-              return { status: 'confirmed', value: { items: content.items, aliases } }
+              return { status: 'confirmed', value: { messages: content.messages, legacy: content.legacy, aliases } }
             } catch (cause) {
               report(cause)
               return { status: 'unknown', error: error('archive', 'native-error') }

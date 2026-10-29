@@ -116,7 +116,7 @@ describe('Pi Durable runtime contract', () => {
           (item) =>
             item.role === 'assistant' &&
             item.metadata?.completeness === 'complete' &&
-            (item.parts[0]?.type === 'text' ? item.parts[0].text : undefined) === 'a sufficiently long streaming answer'
+            item.parts.find((part) => part.type === 'text')?.text === 'a sufficiently long streaming answer'
         )
       )
       .toBe(true)
@@ -133,12 +133,12 @@ describe('Pi Durable runtime contract', () => {
       parts: [{ type: 'text', text: 'a sufficiently long streaming answer' }]
     })
     const archive = confirmed(await second.archive())
-    const committed = archive.items.find((item) => item.ref.id === settled.input.response?.id)
+    const committed = archive.messages.find((item) => item.id === settled.input.response?.id)
     expect(committed).toEqual(response)
     const preview = right
-      .flatMap((event) => (event.type === 'snapshot' ? event.items : []))
-      .find((item) => item.type === 'message' && item.role === 'assistant' && item.completeness === 'partial')!
-    expect(archive.aliases[committed!.ref.id]).toBe(preview.ref.id)
+      .flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
+      .find((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')!
+    expect(archive.aliases[committed!.id]).toBe(preview.id)
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   })
 
@@ -160,13 +160,15 @@ describe('Pi Durable runtime contract', () => {
     )
     const archive = confirmed(await access.archive())
     expect(
-      archive.items.flatMap((item) => (item.type === 'message' ? item.parts.map((part) => part.text) : []))
+      archive.messages.flatMap((item) =>
+        item.parts.flatMap((part) => (part.type === 'text' || part.type === 'reasoning' ? [part.text] : []))
+      )
     ).toEqual(Array.from({ length: 260 }, (_, index) => `message-${index}`))
     expect(faux.state.callCount).toBe(0)
     await access.release()
     expect(await access.archive()).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     const reopened = confirmed(await runtime.open(access.thread))
-    expect(confirmed(await reopened.archive()).items).toEqual(archive.items)
+    expect(confirmed(await reopened.archive()).messages).toEqual(archive.messages)
   })
 
   it.each(['before', 'after'] as const)(
@@ -214,15 +216,15 @@ describe('Pi Durable runtime contract', () => {
       if (!root.found || !additional.found) throw new Error('Missing input receipt')
       expect(additional.input.response).not.toEqual(root.input.response)
       expect(
-        confirmed(await handle.archive()).items.find((item) => item.ref.id === additional.input.response?.id)
-      ).toMatchObject({ type: 'message', parts: [{ type: 'text', text: 'continued' }] })
+        confirmed(await handle.archive()).messages.find((item) => item.id === additional.input.response?.id)
+      ).toMatchObject({ parts: [{ type: 'text', text: 'continued' }] })
       expect(await handle.input.submit(input)).toMatchObject({
         status: 'acknowledged',
         nativeInput: receipt.status === 'acknowledged' ? receipt.nativeInput : undefined
       })
       expect(
-        confirmed(await handle.archive()).items.filter(
-          (item) => item.type === 'message' && item.parts.some((part) => part.text === input.text)
+        confirmed(await handle.archive()).messages.filter((item) =>
+          item.parts.some((part) => 'text' in part && part.text === input.text)
         )
       ).toHaveLength(1)
       expect(faux.state.callCount).toBe(2)
@@ -428,19 +430,25 @@ describe('Pi Durable runtime contract', () => {
         () =>
           current(events)?.messages.some(
             (item) =>
-              (item.parts[0]?.type === 'text' ? item.parts[0].text : undefined) === 'independent child output' &&
+              item.parts.find((part) => part.type === 'text')?.text === 'independent child output' &&
               item.metadata?.completeness === 'complete'
           ),
         { timeout: 5000 }
       )
       .toBe(true)
     expect(child.thread).not.toEqual(parent.thread)
-    const archived = confirmed(await child.archive()).items
-    expect(archived.some((item) => item.type === 'message' && item.parts[0]?.text === 'delegate now')).toBe(false)
-    expect(archived.some((item) => item.type === 'tool-call' && item.name === 'delegate')).toBe(false)
-    expect(archived.some((item) => item.type === 'message' && item.parts[0]?.text === 'independent child output')).toBe(
-      true
+    const archived = confirmed(await child.archive()).messages
+    expect(archived.some((item) => item.parts.find((part) => part.type === 'text')?.text === 'delegate now')).toBe(
+      false
     )
+    expect(
+      archived.some((message) =>
+        message.parts.some((part) => part.type === 'dynamic-tool' && part.toolName === 'delegate')
+      )
+    ).toBe(false)
+    expect(
+      archived.some((item) => item.parts.find((part) => part.type === 'text')?.text === 'independent child output')
+    ).toBe(true)
     await expect
       .poll(() =>
         current(parentEvents)?.messages.some(
@@ -536,7 +544,7 @@ describe('Pi Durable runtime contract', () => {
       .poll(() =>
         current(events)?.messages.some(
           (item) =>
-            (item.parts[0]?.type === 'text' ? item.parts[0].text : undefined) === 'resumed answer' &&
+            item.parts.find((part) => part.type === 'text')?.text === 'resumed answer' &&
             item.metadata?.completeness === 'complete'
         )
       )
@@ -549,7 +557,11 @@ describe('Pi Durable runtime contract', () => {
       await restored.shutdown()
     })
     const restoredAccess = confirmed(await restored.open(session.thread))
-    expect(confirmed(await restoredAccess.archive())).toEqual({ items: archive.items, aliases: {} })
+    expect(confirmed(await restoredAccess.archive())).toEqual({
+      messages: archive.messages,
+      legacy: archive.legacy,
+      aliases: {}
+    })
     expect(faux.state.callCount).toBe(before + 1)
   })
 })

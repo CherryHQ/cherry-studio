@@ -4,13 +4,7 @@ import type { Usage } from '@earendil-works/pi-ai'
 
 import { application } from '@application'
 import type { BehaviorEvent, CallRef, SubagentOrigin } from '@cherrystudio/agent-behavior'
-import {
-  runtimeId,
-  type ContentItem,
-  type InputState,
-  type Observation,
-  type ObservationPayload
-} from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState, type Observation, type ObservationPayload } from '@cherrystudio/agent-runtime'
 import type { PiDurableRuntime, PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -66,8 +60,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly steers = new Map<string, AgentRuntimeUserInput>()
   private readonly pendingInputs = new Set<string>()
   private readonly reportedInputs = new Set<string>()
-  private readonly toolIds = new Map<string, string>()
-  private readonly toolNames = new Map<string, string>()
   private readonly childHandles = new Map<string, Promise<PiDurableThreadHandle>>()
   private readonly childProjections = new Map<string, ChildThreadProjection>()
   private readonly childOrigins = new Map<string, { parent: string; origin: SubagentOrigin; toolCallId?: string }>()
@@ -78,16 +70,17 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   )
   private readonly projection = new ThreadProjection(
     (chunk) => this.events.push({ type: 'chunk', chunk }),
-    (item) => {
-      const ref = item.type === 'tool-call' ? item.ref : item.call
-      const id = ref && this.toolIds.get(ref.id)
-      if (!id) throw new Error('Durable tool result has no native call identity')
-      if (item.type === 'tool-call') {
-        this.toolNames.set(id, item.name)
-        this.adapter.handleToolStart(id, item.name, JSON.parse(item.argumentsText))
-      } else if (item.outcome !== 'unknown') {
-        this.adapter.handleToolEnd(id, this.toolNames.get(id) ?? '', item.data, item.outcome === 'error')
-      }
+    (part) => {
+      this.adapter.handleToolStart(part.toolCallId, part.toolName, part.input)
+      if (part.state === 'output-available')
+        this.adapter.handleToolEnd(part.toolCallId, part.toolName, part.output, false, part.preliminary)
+      else if (part.state === 'output-error')
+        this.adapter.handleToolEnd(
+          part.toolCallId,
+          part.toolName,
+          part.resultProviderMetadata?.pi?.result ?? part.errorText,
+          true
+        )
     }
   )
 
@@ -228,31 +221,17 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       if (event.type === 'snapshot') {
         const initial = !this.baseline
         const aliases = this.handle!.durable.aliases()
-        const canonical = (id: string) => runtimeId<'item'>(aliases[id] ?? id)
-        const items = event.items.map((item): ContentItem => {
-          if (item.type === 'tool-call') {
-            const call = this.handle!.durable.toolCallId(item.ref)
-            if (call) this.toolIds.set(canonical(item.ref.id), call)
-          }
-          return {
-            ...item,
-            ref: { ...item.ref, id: canonical(item.ref.id) },
-            ...(item.type === 'tool-result' && item.call && { call: { ...item.call, id: canonical(item.call.id) } })
-          }
-        })
+        const content = event.messages.map((message) => ({ ...message, id: aliases[message.id] ?? message.id }))
         const nowActive = event.activity.state === 'active'
         if (nowActive && !this.sending) this.beginAutonomous()
         if (!this.baseline) {
           this.projection.accept({
             ...event,
-            items: items.filter((item) => item.type === 'tool-result' || item.completeness === 'complete')
+            messages: content.filter((message) => message.metadata?.completeness === 'complete')
           })
           this.baseline = true
         }
-        for (const item of items) {
-          if (item.type === 'tool-result' && item.outcome === 'unknown') continue
-          this.projection.accept({ type: 'item.upsert', item })
-        }
+        for (const message of content) this.projection.accept({ type: 'message.upsert', message })
         this.active = nowActive
         for (const input of event.inputs) {
           if (initial && input.inputId && !input.outcome) this.pendingInputs.add(input.inputId)
