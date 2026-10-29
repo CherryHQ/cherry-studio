@@ -53,7 +53,6 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
   const keysSeen = keysOf(history)
   for (const job of adapter.jobs.values()) if (job.state === 'live' && job.thread === thread) keysSeen.add(job.key)
   const children = new Map<ThreadId, ChildFacts>()
-  let pendingLaunches = 0
   for (const child of adapter.conversations.values()) {
     if (child.lineage.kind !== 'subagent' || child.lineage.parent !== thread) continue
     children.set(child.thread, {
@@ -62,7 +61,6 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
       // Never empty: the child's origin record is written with it.
       lastItem: historyOf(child.manager.getBranch(), child.thread).at(-1)!.id
     })
-    if (!child.native) pendingLaunches += 1
   }
   const run = conv.active
   return {
@@ -78,8 +76,7 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
         conv.hostCompacts > 0 ||
         conv.native?.session.isCompacting === true ||
         (run?.pending === true && run.startedBy === undefined),
-      ...(conv.lastEnd && { runEnd: { outcome: conv.lastEnd } }),
-      pendingLaunches
+      ...(conv.lastEnd && { runEnd: { outcome: conv.lastEnd } })
     },
     children,
     keysSeen

@@ -460,7 +460,6 @@ describe('coding-agent behavior adapter', () => {
     const after = await read(pi, parent)
     expect(after.history).toEqual(before.history)
     expect(after.children.size).toBe(0)
-    expect(after.live.pendingLaunches).toBe(0)
     expect(readdirSync(sessions)).toEqual(files)
     expect(historyOf(SessionManager.open(file).getBranch(), parent)).toEqual(before.history)
     // The broken storage cannot take the rollback entry either; that is reported, the commit's own error rethrown.
@@ -942,6 +941,98 @@ describe('coding-agent behavior adapter', () => {
     )
   })
 
+  it('refuses every new execution entry while close is waiting for native disposal', async () => {
+    const disposing = latch()
+    const release = latch()
+    const pi = await openPiHarness(
+      () => {},
+      [],
+      async (request, open) => {
+        const native = await open(request)
+        return {
+          ...native,
+          dispose: async () => {
+            disposing.release()
+            await release.promise
+            await native.dispose()
+          }
+        }
+      }
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'must never run' }])
+    const closing = pi.harness.close()
+    await disposing.promise
+    try {
+      await expect(pi.behavior.submitUser(t, 'late')).rejects.toThrow('closed')
+      await expect(pi.behavior.compact(t)).rejects.toThrow('closed')
+      await expect(pi.harness.createThread()).rejects.toThrow('closed')
+      await pi.harness.withCall(t, async (ports) => {
+        await expect(ports.turns.start(t, input('late'), key('late'))).rejects.toThrow('closed')
+        await expect(ports.helpers.message(t, input('late'), key('late-child'))).rejects.toThrow('closed')
+        expect((await ports.ledger.read(t)).history).toEqual([])
+        await ports.turns.stop(t, 'user')
+      })
+      expect(pi.requests(t)).toEqual([])
+    } finally {
+      release.release()
+      await closing
+    }
+  })
+
+  it('waits for healthy sibling launches before starting jobs when another child fails', async () => {
+    const ready = latch()
+    const building = latch()
+    let child: ThreadId
+    let answer: unknown
+    const pi: PiHarness = await openPiHarness(
+      (ports) => {
+        ports.jobs.register('subagent-report', async (bound) => {
+          await bound.helpers.message(child, input('go'), key('healthy'))
+          answer = await bound.helpers.awaitAnswer(child, 1, key('healthy'))
+        })
+      },
+      [],
+      async (request, open) => {
+        if (request.child?.origin.description === 'broken') throw new Error('broken child')
+        if (request.child) {
+          child = runtimeId<'thread'>(request.sessionManager.getSessionId())
+          pi.harness.script(child, [{ text: 'healthy child result' }])
+          building.release()
+          await ready.promise
+        }
+        return open(request)
+      }
+    )
+    const parent = await pi.harness.createThread()
+    const transaction = pi.harness.withCall(parent, (ports) =>
+      ports.ledger.transact(parent, () => ({
+        ops: [
+          {
+            type: 'spawn-child',
+            spec: { ...spec, origin: { ...spec.origin, description: 'broken' } },
+            key: key('broken')
+          },
+          { type: 'spawn-child', spec, key: key('healthy-spawn') },
+          {
+            type: 'ensure-job',
+            job: { kind: 'subagent-report', scope: parent, input: null, onRestart: 'resume' },
+            key: key('report')
+          }
+        ],
+        effects: [],
+        result: null
+      }))
+    )
+    const failed = expect(transaction).rejects.toThrow('broken child')
+    await building.promise
+    ready.release()
+    await failed
+    await pi.harness.settle()
+    expect(answer).toEqual({ outcome: 'completed', text: 'healthy child result' })
+    expect(pi.errors).toEqual([])
+  })
+
   // Catches close() skipping a session still being built: once built, the session would start the text queued before
   // close() and ask the model, and nobody would dispose it.
   it('disposes a session that was still being built when close() began', async () => {
@@ -1201,9 +1292,104 @@ describe('coding-agent behavior adapter', () => {
     for (const failure of Object.values(failures)) expect(pi.errors).toContain(failure)
   })
 
-  // Catches a gate's replacement leaving the tool's original structured output for a caller that runs the tool through
-  // ctx.executeTool (codemode), which then reads what the gate replaced.
-  it('drops the structured content of a result the gate replaced', async () => {
+  it('offloads contiguous text spans without moving images or losing structured output', async () => {
+    const saved: string[] = []
+    const a = 'A'.repeat(4000)
+    const b = 'B'.repeat(4000)
+    const picture = { type: 'image' as const, mimeType: 'image/png', data: 'aGVsbG8=' }
+    let native: AgentRuntimeSession
+    const pi = await openPiHarness(
+      (ports) =>
+        installPackage(ports, (host) => ({
+          ...host,
+          settings: { ...host.settings, offloadThreshold: () => 3000 },
+          outputStore: {
+            save: async ({ content, name }) => {
+              saved.push(content)
+              return `/outputs/${name}`
+            }
+          }
+        })),
+      [
+        (api) =>
+          api.registerTool({
+            name: 'media',
+            label: 'media',
+            description: 'media',
+            parameters: { type: 'object', properties: {} },
+            execute: async () => ({
+              content: [{ type: 'text', text: a }, picture, { type: 'text', text: b }, picture],
+              details: { keep: true },
+              structuredContent: { records: [1, 2] }
+            })
+          })
+      ],
+      async (request, open) => (native = await open(request))
+    )
+    const manager = SessionManager.create(pi.cwd, join(pi.cwd, 'sessions'))
+    const t = await pi.behavior.openConversation(manager)
+    pi.harness.script(t, [{ text: '', toolCalls: [{ name: 'media', args: {} }] }, { text: 'done' }])
+    await pi.harness.sendUser(t, 'go')
+    await pi.harness.settle()
+    const result = native!.session.sessionManager
+      .getBranch()
+      .find((entry) => entry.type === 'message' && entry.message.role === 'toolResult')
+    expect(result).toMatchObject({
+      message: {
+        structuredContent: { records: [1, 2] },
+        details: { keep: true },
+        content: [
+          { type: 'text', text: expect.stringContaining('<persisted-output>') },
+          picture,
+          { type: 'text', text: expect.stringContaining('<persisted-output>') },
+          picture
+        ]
+      }
+    })
+    expect(saved).toEqual([a, b])
+    const reopened = SessionManager.open(manager.getSessionFile()!).getBranch()
+    expect(reopened.find((entry) => entry.id === result?.id)).toEqual(result)
+    expect(pi.errors).toEqual([])
+  })
+
+  it('persists summary usage once and includes it in the child run total', async () => {
+    const summaryUsage = { input: 10, output: 4, cacheRead: 2, cacheWrite: 1, totalTokens: 17, costUsd: 0.2 }
+    const tinyUsage = { input: 1, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 1, costUsd: 0 }
+    let child: ThreadId
+    const pi: PiHarness = await openPiHarness(
+      (ports) => {
+        ports.tools.register(tool('echo'))
+        installPackage(ports, (host) => ({
+          ...host,
+          summarizer: { summarize: async () => ({ summary: 'condensed', usage: summaryUsage }) }
+        }))
+      },
+      [],
+      async (request, open) => {
+        if (!request.child) return open(request)
+        child = runtimeId<'thread'>(request.sessionManager.getSessionId())
+        pi.harness.script(child, [
+          { text: '', toolCalls: [{ name: 'echo', args: {} }] },
+          { text: 'finished', usage: tinyUsage }
+        ])
+        return autoCompacting()(request, open)
+      }
+    )
+    const parent = await pi.harness.createThread()
+    pi.harness.script(parent, [spawnInBackground, { text: 'waiting' }, { text: 'received' }])
+    await pi.harness.sendUser(parent, 'go')
+    await pi.harness.settle()
+    expect((await read(pi, parent)).children.get(child!)?.runUsage).toEqual([
+      { ...summaryUsage, input: 11, totalTokens: 18 }
+    ])
+    const facts = await read(pi, child!)
+    expect(
+      facts.history.filter((entry) => entry.kind === 'record' && entry.record.type === 'summary-usage')
+    ).toHaveLength(1)
+    expect(pi.errors).toEqual([])
+  })
+
+  it('preserves structured content when the gate shortens native tool text', async () => {
     let seen: unknown = 'not called'
     const parameters = { type: 'object', properties: {} } as unknown as TSchema
     const pi = await openPiHarness(
@@ -1242,6 +1428,6 @@ describe('coding-agent behavior adapter', () => {
     pi.harness.script(t, [{ text: '', toolCalls: [{ name: 'caller', args: {} }] }, { text: 'done' }])
     await pi.harness.sendUser(t, 'go')
     await pi.harness.settle()
-    expect(seen).toBeUndefined()
+    expect(seen).toEqual({ raw: true })
   })
 })
