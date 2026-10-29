@@ -36,6 +36,8 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 - 事实：核心读取一个会话有序、全血缘的历史（包括被压缩折叠或被 reset 隐去的条目）、它的实时事实（是否空闲、有无排队的用户输入、运行结束、是否重开）、各子会话的事实（是否在跑、是否在等审批、每次运行的用量，由子会话自己的条目求和），以及已经出现的键。每次调用的输入在决策之前从宿主端口取得：时钟、设置快照、审批结局、模型候选、验证器判定，以及当前 goal 轮的调用窗口。
 - 决策：每个决策都是 JSON 值，因此可以 memo；所有决策都返回同一种形状，即「一步」：事务操作（追加记录、静默追加输入、创建子会话、确保作业存在）、提交之后执行的带键副作用（开始、撤回或停止回合；给子会话发消息或停止它；发出观察事件），以及给模型的结果或工具的 details。
 - 记录就是历史条目。goal 快照、子智能体运行记录、plan 状态和用户停止记录，都是与消息排在同一序列里的自定义 kind 条目；轮标记和通知是自定义 kind 的 input 条目。现有 `cherry.*` kind 的名称不变，当前会话无需迁移；`cherry.plan` 和 `cherry.turn-stop` 是新增的。适配器可以在同一次提交里把记录镜像成文档，供 UI 和钩子读取，但以条目为准。
+- 每个新接纳的子 run 记录目标归属，也包括明确没有归属。宿主输入不继承此前调用方的目标；来源仅用于展示，不用于计费。缺少该字段的旧记录保留原有历史解释。
+- 摘要保留真实报告的用量，以及请求发起时捕获的归属。压缩键使重放计费去重；复用已完成摘要不增加用量。纯文本摘要不虚构用量。
 - 子会话的用量由它自己的条目求和；工具结果和通知不再携带用量，展示用的缓存除外。用户停止是宿主入口在 harness 停止回合之前写下的记录，因此停止后的抑制期能跨重启保留。
 
 ### 一步：事务里的纯决策，之后是带键的副作用
@@ -128,12 +130,12 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 
 AC1–AC5 是评审的五条守则，AC6 概括边界守卫，AC7–AC11 是测试结果。
 
-- AC1 — `src/ports/` 里的每个端口和方法都以「动词 + 对象」命名，不出现 harness 名词（hook、commit、session、task、extension）；每个端口的 TSDoc 都写明 coding-agent、Durable 和 fake 三种实现，以及键和等待。 (verification: unit — 包负责人，针对 `src/ports/` 的端口命名测试：标识符不含 harness 名词，每个端口的 TSDoc 都带三种实现的说明)
+- AC1 — `src/ports/` 里的端口以能力命名，方法以「动词 + 对象」命名，不出现 harness 名词（hook、commit、session、task、extension）；每个端口的 TSDoc 都写明 coding-agent、Durable 和 fake 三种实现，以及键和等待。 (verification: unit — 包负责人，针对 `src/ports/` 的端口命名测试：标识符不含 harness 名词，每个端口的 TSDoc 都带三种实现的说明)
 - AC2 — 每个端口方法在 `src/orchestration/` 里都有调用点；harness 端口没有能力开关（`supports*`、`capabilities`），也没有可选方法，而模型的 `supportsTools` 仍是宿主端口上的领域事实；核心和编排从不按 harness 名字分支；新增能力与它的端口方法放在同一个 PR 里。 (verification: unit — 包负责人，端口用法检查与评审)
 - AC3 — 编排的每次写入都是 `Ledger.transact` 的操作，每个带键的副作用的键都来自 `core/keys.ts`，不带键的副作用（停止回合、停止子代理、发出观察）都是幂等的；`src/orchestration/` 没有模块级 `let`、没有在构造函数之外改写的实例字段、没有 `new Promise` 和计时器，只经 `Waits`、`Helpers.awaitAnswer` 和宿主端口等待。 (verification: unit — 包负责人，lint 规则与 fake 上的编排测试)
 - AC4 — 本包只从 `@cherrystudio/agent-runtime` 导入类型（ID、`JsonValue`、`ContentPart`）；两个适配器都用 `delegationStatus()` 设置 `Delegation.status`；公共层的 README 和 notes 链接到本包，不定义 goal 或子智能体语义。 (verification: unit — 包负责人负责导入，适配器负责人负责 `Delegation.status`；链接由 docs gate 检查)
 - AC5 — 每个端口方法至少有一个契约用例覆盖，fake 和两个适配器跑通同一组用例；改动端口方法集合却没有相应修改 fake 和契约用例的 PR，CI 不通过。 (verification: unit — 包负责人负责 fake 与覆盖检查；coding-agent 与 Durable 适配器负责人在各自包里运行)
-- AC6 — 本包在 `package.json` 及其 lockfile 依赖闭包里只依赖 `@cherrystudio/agent-runtime`；`src/**` 不能导入 Pi、Node、Electron、宿主、logger 或 AI SDK 模块；`src/core/**` 不导入其他层，不碰时钟、随机数、crypto、process、计时器、fetch 或 `globalThis`，也不含 `async`、`await`、`Promise` 或 `yield`；唯一导出是 `"."`；端口的键是 `core/keys.ts` 给出的品牌类型值；适配器里没有产品常量和停止码字面量。 (verification: unit — 包负责人，lint 与包检查；适配器负责人在评审中检查)
+- AC6 — 本包唯一声明的直接生产依赖是 `@cherrystudio/agent-runtime`，且只导入其类型；编译后的 JavaScript 导入图不包含外部运行时依赖。公共 runtime 可因共享内容读取器依赖 AI SDK；`src/**` 不能导入 Pi、Node、Electron、宿主、logger 或 AI SDK 模块；`src/core/**` 不导入其他层，不碰时钟、随机数、crypto、process、计时器、fetch 或 `globalThis`，也不含 `async`、`await`、`Promise` 或 `yield`；唯一导出是 `"."`；端口的键是 `core/keys.ts` 给出的品牌类型值；适配器里没有产品常量和停止码字面量。 (verification: unit — 包负责人，lint、manifest/lockfile 检查及编译代码的依赖遍历；适配器负责人在评审中检查)
 - AC7 — 核心决策是确定的，不修改输入，在 `Date.now`、`Math.random` 和 `crypto.randomUUID` 抛错时仍能完成，能经 JSON 往返，其中的每个 id 都能在输入里找到来处。 (verification: unit — 包负责人，核心纯度测试)
 - AC8 — 每个场景夹具在正常跑完、在每个 await 点崩溃、把历史重放给核心这三种跑法下，都满足重放不变式 I1–I5。 (verification: unit — 包负责人，fake 上的夹具)
 - AC9 — 同一个脚本化场景在 fake、coding-agent 和 Durable 上得到相同的事实序列和决策序列；每个适配器的「已声明差异」表只能引用受 harness 限制能力表的行、端口一节声明在该 harness 上不安装的端口，或 coding-agent 自身的重启限制。 (verification: unit — 包负责人与 coding-agent、Durable 适配器负责人，契约用例)
@@ -159,9 +161,9 @@ AC1–AC5 是评审的五条守则，AC6 概括边界守卫，AC7–AC11 是测�
 
 这个栈叠在 `feature/agent-runtime-background-subagent` 之上；如果那个栈先合进 `main`，就改为基于 `main`。Durable 适配器的工作叠在 PR-1 上，与 PR-2 同时进行；Pi 宿主接入跟随其适配器契约验证推进，Durable 宿主接入跟随其自身适配器验证推进，此后新增的每条契约用例同样约束 Durable 适配器，它只能按受 harness 限制能力表的行跳过。
 
-`PiSessionOptions.behavior` 为一个根会话及其子会话安装已有的 `HostPorts` 和公共规则。桌面连接现已通过 `piBehaviorHost.ts` 接入：审批和问答卡片使用现有 registry，模型选择使用模型目录，摘要和验收通过 Cherry 网关调用 Pi 原生模型，大输出使用应用管理的文件。审批结果仍存放在已有消息 part 中。`piApprovalFacts.ts` 提供环境事实；公共 gate 决定策略，包括已有的跨会话委派仅限交互式用户回合这一边界。
+`PiSessionOptions.behavior` 为一个根会话及其子会话安装已有的 `HostPorts` 和公共规则。下游 Pi 根集成层（#22107）通过 `piBehaviorHost.ts` 接入桌面连接；本设计层不实现这项集成：审批和问答卡片使用现有 registry，模型选择使用模型目录，摘要和验收通过 Cherry 网关调用 Pi 原生模型，大输出使用应用管理的文件。审批结果仍存放在已有消息 part 中。`piApprovalFacts.ts` 提供环境事实；公共 gate 决定策略，包括已有的跨会话委派仅限交互式用户回合这一边界。
 
-原生调用 ID 由适配器拥有：Pi facet 将 `CallRef` 解析为审批卡片和子 agent 输出锚点所需的 ID。活跃子会话各自订阅输出，通过现有 background-flow 传输渲染。`PiRuntimeConnection` 仍桥接产品持久化、分支绑定、UI chunk 和旧会话服务；退役它需要继续迁移这些消费者。重开根会话恢复历史和子会话关系，不会重建活跃子会话图。省略 `behavior` 时包内暂时保留旧扩展路径，但桌面旧审批扩展和 pi-vcc bundle 已移除。这些变更不代表 Durable behavior 验收完成。
+原生调用 ID 由适配器拥有：Pi facet 将 `CallRef` 解析为审批卡片和子 agent 输出锚点所需的 ID。活跃子会话各自订阅输出，通过现有 background-flow 传输渲染。`PiRuntimeConnection` 仍桥接产品持久化、分支绑定、UI chunk 和旧会话服务；退役它需要继续迁移这些消费者。重开根会话恢复历史和子会话关系，不会重建活跃子会话图。省略 `behavior` 时包内暂时保留旧扩展路径，桌面旧审批扩展和 pi-vcc bundle 则由下游 Pi 根集成层移除。这些变更不代表 Durable behavior 验收完成。
 
 ## Risks
 
