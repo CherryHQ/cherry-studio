@@ -1,5 +1,6 @@
 import {
   InboxDoc,
+  CompactionEntry,
   LiveDoc,
   type ConversationId,
   type Cursor,
@@ -42,6 +43,15 @@ export async function lineageEntries(tx: Tx, id: ConversationId): Promise<EntryR
   return pages((cursor) => tx.scanEntries({ conversationId: id, order: 'ascending' }, 256, cursor))
 }
 
+function summaryUsage(entry: EntryRecord) {
+  if (!CompactionEntry.is(entry)) return undefined
+  const metadata = entry.data.metadata
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || typeof metadata.kind !== 'string')
+    return undefined
+  const decoded = decodeEntry({ id: runtimeId(String(entry.id)), kind: metadata.kind, data: metadata.data })
+  return decoded?.kind === 'record' && decoded.record.type === 'summary-usage' ? decoded : undefined
+}
+
 export function historyOf(
   entries: readonly EntryRecord[],
   tasks: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[]
@@ -65,7 +75,10 @@ export function historyOf(
       .join('\n')
     const decoded = decodeEntry({ id, kind: entry.kind, data: entry.data, text })
     if (decoded) return [decoded]
-    if (entry.kind === 'pi.compaction') return [{ kind: 'compaction', id }]
+    if (entry.kind === 'pi.compaction') {
+      const accounting = summaryUsage(entry)
+      return [...(accounting ? [accounting] : []), { kind: 'compaction', id }]
+    }
     return model.flatMap((message): HistoryEntry[] => {
       if (message.role === 'user') return [{ kind: 'user', id, text }]
       if (message.role === 'assistant') {
@@ -153,6 +166,17 @@ export async function readFacts(
       if (runId === undefined) continue
       const run = ids.indexOf(runId)
       if (run < 0) continue
+      const summary = summaryUsage(entry)
+      if (summary?.record.type === 'summary-usage') {
+        const usage = runUsage[run]
+        const value = summary.record.value.usage
+        usage.input += value.input
+        usage.output += value.output
+        usage.cacheRead += value.cacheRead
+        usage.cacheWrite += value.cacheWrite
+        usage.totalTokens += value.totalTokens
+        usage.costUsd += value.costUsd
+      }
       for (const message of entry.model ?? []) {
         if (message.role !== 'assistant') continue
         const value = message.usage
@@ -199,7 +223,6 @@ export async function readFacts(
       leftoverInputs: live.run ? 0 : inbox.items.filter((item) => item.mode !== 'write').length,
       queuedUserInput: inbox.items.some((item) => item.mode !== 'write' && !item.entry),
       hostCallInFlight: false,
-      pendingLaunches: 0,
       ...(!live.run && outcome
         ? {
             runEnd: {

@@ -777,29 +777,43 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         },
         async afterTool(call, result, api, callContext) {
           if (!gate) return
-          const replaced = await gate.after(
-            {
-              key: callKeyOf(String(api.taskId)),
-              thread: threadId(api.conversationId),
-              tool: call.name,
-              args: call.arguments,
-              nested: !!call.parent
-            },
-            {
-              text: (result.output ?? []).flatMap((part) => (part.type === 'text' ? [part.text] : [])).join(''),
-              isError: result.isError ?? false,
-              details: result.details
-            },
-            gatePorts(api, callContext)
-          )
-          return (
-            replaced && {
-              ...result,
-              output: [{ type: 'text', text: replaced.text }],
-              isError: replaced.isError,
-              ...(replaced.details !== undefined && { details: nativeValue(replaced.details) })
+          const output: NonNullable<typeof result.output> = []
+          let isError = result.isError
+          let details = result.details
+          const blocks = result.output ?? []
+          for (let index = 0; index < blocks.length;) {
+            const block = blocks[index]
+            if (block.type !== 'text') {
+              output.push(block)
+              index += 1
+              continue
             }
-          )
+            const start = index
+            let text = ''
+            while (index < blocks.length) {
+              const next = blocks[index]
+              if (next.type !== 'text') break
+              text += next.text
+              index += 1
+            }
+            const replaced = await gate.after(
+              {
+                key: callKeyOf(String(api.taskId)),
+                thread: threadId(api.conversationId),
+                tool: call.name,
+                args: call.arguments,
+                nested: !!call.parent
+              },
+              { text, isError: isError ?? false, details },
+              gatePorts(api, callContext)
+            )
+            output.push(...(replaced ? [{ type: 'text' as const, text: replaced.text }] : blocks.slice(start, index)))
+            if (replaced) {
+              isError = replaced.isError
+              if (replaced.details !== undefined) details = nativeValue(replaced.details)
+            }
+          }
+          return { ...result, output, isError, details }
         }
       }),
       hook(CompactionTask, {
@@ -811,6 +825,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
             threadId(api.conversationId),
             {
               key: String(api.taskId),
+              history: (await read(threadId(api.conversationId))).history,
               reason: request.reason,
               messages: JSON.parse(JSON.stringify(request.messages)),
               instructions: request.instructions,
@@ -818,7 +833,14 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
             },
             gatePorts(api, callContext)
           )
-          return 'summary' in result ? result : { decline: true }
+          return 'summary' in result
+            ? {
+                summary: result.summary,
+                ...(result.accounting && {
+                  metadata: nativeValue(encodeEntry(result.accounting.record, result.accounting.key))
+                })
+              }
+            : { decline: true }
         }
       })
     ]

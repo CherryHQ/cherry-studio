@@ -100,6 +100,14 @@ cancelling; child interruption follows its current shared ownership. Opening ins
 model bindings and runs `onOpen` before scheduler resume. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.
 
+Compaction captures the behavior history before summarizing. The native dependency patch preserves
+opaque summary metadata on the compaction entry, including the keyed usage record returned by the
+shared lifecycle. Task memos expire at completion and are not the accounting archive. Reopening
+projects each stored summary charge once; a compaction during a child run retains that run's identity.
+
+Tool-result gates transform contiguous text spans and retain their positions among images. Native
+structured output, UI details and other result fields survive the transformation.
+
 The native dependency patch adds `runId` to consumed submissions and assistant entries.
 It names the first generation task and survives tool/model handovers within that run.
 Queued input acquires its run only when consumed. A late steer can therefore belong to
