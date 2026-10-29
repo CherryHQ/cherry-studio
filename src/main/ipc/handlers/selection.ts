@@ -31,5 +31,8 @@ export const selectionHandlers: IpcHandlersFor<typeof selectionRequestSchemas> =
   'selection.resize_agent_window': async (layout, ctx) => {
     if (ctx.senderId) application.get('SelectionAgentWindowService').resize(ctx.senderId, layout)
   },
+  'selection.set_agent_window_replaceable': async (replaceable, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').setReplaceable(ctx.senderId, replaceable)
+  },
   'selection.get_linux_env_info': async () => application.get('SelectionService').getLinuxEnvInfo()
 }

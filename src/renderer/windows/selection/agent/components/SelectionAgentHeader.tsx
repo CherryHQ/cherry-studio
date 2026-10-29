@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Slider, Tooltip } from '@cherrystudio/ui'
+import { BackToMainWindowIcon } from '@renderer/components/icons/WindowIcons'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -18,6 +19,8 @@ interface SelectionAgentHeaderProps {
   onTogglePin: () => void
   opacity: number
   onOpacityChange: (opacity: number) => void
+  /** Present once the session exists. */
+  onOpenInMainWindow?: () => void
 }
 
 /** The 44px header: drag region, agent and session names, then the window controls. */
@@ -28,7 +31,8 @@ export const SelectionAgentHeader: FC<SelectionAgentHeaderProps> = ({
   isPinned,
   onTogglePin,
   opacity,
-  onOpacityChange
+  onOpacityChange,
+  onOpenInMainWindow
 }) => {
   const { t } = useTranslation()
   const [showOpacitySlider, setShowOpacitySlider] = useState(false)
@@ -49,6 +53,13 @@ export const SelectionAgentHeader: FC<SelectionAgentHeaderProps> = ({
         {subtitle && <span className="truncate text-muted-foreground">{subtitle}</span>}
       </div>
       <div className="relative flex shrink-0 gap-0.5 [-webkit-app-region:no-drag]">
+        {onOpenInMainWindow && (
+          <Tooltip content={t('selection.agent.open_in_main_window')} placement="bottom">
+            <HeaderButton aria-label={t('selection.agent.open_in_main_window')} onClick={onOpenInMainWindow}>
+              <BackToMainWindowIcon size={14} />
+            </HeaderButton>
+          </Tooltip>
+        )}
         <Tooltip
           content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
           placement="bottom">
