@@ -36,11 +36,17 @@ export async function evaluateTaskGuard(
       return { proceed: true }
     }
     case 'command':
-      return await new Promise<TaskGuardOutcome>((resolve) => {
+      return await new Promise<TaskGuardOutcome>((resolve, reject) => {
         exec(
           guard.command,
           { timeout: GUARD_COMMAND_TIMEOUT_MS, signal: options.signal, windowsHide: true },
           (error) => {
+            // Cancellation is not a failed predicate: propagate it so the job
+            // finalizes as cancelled instead of recording a guard skip.
+            if (options.signal?.aborted) {
+              const reason = options.signal.reason
+              return reject(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+            }
             if (!error) return resolve({ proceed: true })
             const code = (error as { code?: unknown }).code
             const detail = error.killed ? 'timed out' : typeof code === 'number' ? `exit code ${code}` : error.message

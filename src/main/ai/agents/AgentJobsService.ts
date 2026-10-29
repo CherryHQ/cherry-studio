@@ -3,6 +3,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  writeLastExecutedRunStartedAt,
   agentTaskService,
   clearMissedTask,
   HEARTBEAT_PROMPT_SENTINEL,
@@ -548,6 +549,18 @@ export class AgentJobsService extends BaseService {
     })
     if (bound) agentTaskService.notifyReadModelChange([params.scheduleId])
     return bound
+  }
+
+  /**
+   * Persist the guard watermark when a scheduled run reaches the agent. Not
+   * part of the read model: the value only feeds fire-time guard evaluation.
+   */
+  recordTaskExecutionStart(params: { scheduleId: string; startedAtMs: number }): void {
+    const snapshot = jobScheduleService.getById(params.scheduleId)
+    if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+    jobScheduleService.update(params.scheduleId, {
+      metadata: writeLastExecutedRunStartedAt(snapshot.metadata, params.startedAtMs)
+    })
   }
 
   // Plain Errors on purpose: no renderer branch consumes an agent/channel

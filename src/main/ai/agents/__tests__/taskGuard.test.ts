@@ -71,5 +71,17 @@ describe('evaluateTaskGuard', () => {
       expect(failed).toMatchObject({ proceed: false })
       expect(failed.proceed === false && failed.reason).toContain('exit code 3')
     })
+
+    it('rejects on cancellation instead of resolving a guard skip', async () => {
+      const node = `"${process.execPath}"`
+      const controller = new AbortController()
+      const reason = new Error('cancelled by test')
+      const promise = evaluateTaskGuard(
+        { type: 'command', command: `${node} -e "setTimeout(() => {}, 10000)"` },
+        { lastRunStartedAt: null, signal: controller.signal }
+      )
+      setTimeout(() => controller.abort(reason), 20)
+      await expect(promise).rejects.toBe(reason)
+    })
   })
 })

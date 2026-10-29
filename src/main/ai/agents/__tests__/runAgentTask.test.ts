@@ -21,6 +21,7 @@ const {
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
+  mockRecordTaskExecutionStart,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
@@ -37,6 +38,7 @@ const {
       return { mode: 'started' as const }
     }),
     mockBindTaskSessionReuse: vi.fn(() => true),
+    mockRecordTaskExecutionStart: vi.fn(),
     mockIsSessionBusy: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
     mockSyncJobScheduleTimerById: vi.fn(),
@@ -52,7 +54,11 @@ vi.mock('@application', async () => {
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
-    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
+    AgentJobsService: {
+      bindTaskSessionReuse: mockBindTaskSessionReuse,
+      syncHeartbeat: syncHeartbeatScheduleMock,
+      recordTaskExecutionStart: mockRecordTaskExecutionStart
+    },
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
     // An untrusted agent directory pauses its heartbeat schedule.
@@ -290,6 +296,38 @@ describe('runAgentTask', () => {
       captured.listeners[0].onDone({ status: 'completed' })
 
       expect(await promise).toEqual({ result: 'Completed' })
+    })
+
+    it('advances the durable watermark when the run reaches the agent', async () => {
+      arrange()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      expect(mockRecordTaskExecutionStart).toHaveBeenCalledWith({
+        scheduleId: 's1',
+        startedAtMs: Date.parse('2026-05-20T00:00:00.000Z')
+      })
+      captured.listeners[0].onDone({ status: 'completed' })
+      await promise
+    })
+
+    it('prefers the schedule metadata watermark over disposable run history', async () => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        // Watermark one hour in the future: any real file reads as unchanged.
+        makeSchedule('task', { lastExecutedRunStartedAt: Date.now() + 3_600_000 }, taskTemplate)
+      )
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({}))
+
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toContain('unchanged')
+      expect(vi.mocked(jobService.list)).not.toHaveBeenCalled()
+      expect(agentSessionService.create).not.toHaveBeenCalled()
     })
   })
 
@@ -531,7 +569,8 @@ describe('runAgentTask', () => {
         makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
       )
 
-      expect(out).toEqual({ result: 'Skipped (session busy)' })
+      expect(out).toEqual({ result: 'Skipped (session busy)', skipped: true })
+      expect(mockRecordTaskExecutionStart).not.toHaveBeenCalled()
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-sticky' }))
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
       expect(mockAbort).not.toHaveBeenCalled()

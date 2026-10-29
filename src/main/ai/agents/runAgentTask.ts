@@ -29,6 +29,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  readLastExecutedRunStartedAt,
   HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
@@ -143,7 +144,12 @@ function resolveTaskSession(params: {
   return session
 }
 
-/** Start time of the newest earlier run of this schedule that actually reached the agent. */
+/**
+ * Start time of the newest earlier run of this schedule that actually reached
+ * the agent. Job history is disposable (hourly GC prunes terminal rows by TTL
+ * and count), so the durable watermark lives in schedule metadata; the history
+ * scan remains as a fallback for schedules that predate it.
+ */
 function findLastExecutedRunStart(scheduleId: string, currentJobId: string): number | null {
   for (const job of jobService.list({ scheduleId })) {
     if (job.id === currentJobId || !job.startedAt) continue
@@ -242,7 +248,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   }
 
   if (!isHeartbeat && ctx.input.guard && ctx.input.guard.type !== 'always') {
-    const lastRunStartedAt = scheduleId ? findLastExecutedRunStart(scheduleId, ctx.jobId) : null
+    const lastRunStartedAt = scheduleId
+      ? (readLastExecutedRunStartedAt(scheduleSnapshot?.metadata) ?? findLastExecutedRunStart(scheduleId, ctx.jobId))
+      : null
     const outcome = await evaluateTaskGuard(ctx.input.guard, { lastRunStartedAt, signal: ctx.signal })
     if (!outcome.proceed) {
       logger.debug('Task skipped by guard', { agentId, scheduleId, reason: outcome.reason })
@@ -365,7 +373,16 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         trustedNotifyChannels,
         requireIdle: { expectedAgentId: agentId }
       })
-      if (started.mode === 'started') break
+      if (started.mode === 'started') {
+        // The run reached the agent: advance the durable guard watermark.
+        if (scheduleId) {
+          const startedMs = jobSnapshot?.startedAt ? Date.parse(jobSnapshot.startedAt) : Number.NaN
+          application
+            .get('AgentJobsService')
+            .recordTaskExecutionStart({ scheduleId, startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now() })
+        }
+        break
+      }
       if (runSignal.aborted) {
         completionActive = false
         const reason = runSignal.reason
@@ -373,7 +390,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
-        return { result: 'Skipped (session busy)' }
+        // A busy skip never reached the agent: mark it skipped so it neither
+        // displays as an executed run nor advances the guard watermark.
+        return { result: 'Skipped (session busy)', skipped: true }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true

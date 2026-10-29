@@ -163,6 +163,27 @@ export function writeTaskSessionReuse(
   return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
 }
 
+const TASK_LAST_EXECUTED_METADATA_KEY = 'lastExecutedRunStartedAt'
+
+/**
+ * Durable guard watermark: start time (ms) of the newest run that reached the
+ * agent. Job history is pruned by hourly GC, so `file_changed` guards cannot
+ * derive their baseline from run rows alone without eventually rerunning an
+ * unchanged file.
+ */
+export function readLastExecutedRunStartedAt(metadata: Record<string, unknown> | undefined): number | null {
+  const raw = metadata?.[TASK_LAST_EXECUTED_METADATA_KEY]
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+}
+
+/** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
+export function writeLastExecutedRunStartedAt(
+  metadata: Record<string, unknown> | undefined,
+  startedAtMs: number
+): Record<string, unknown> {
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_LAST_EXECUTED_METADATA_KEY]: startedAtMs }
+}
+
 export function isMissedTask(metadata: Record<string, unknown>): boolean {
   return isPlainRecord(metadata.missed) && metadata.missed.reason === 'agent_archived'
 }
