@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 
+import { isEmoji } from '@renderer/utils/naming'
 import { emojiTabIcon } from '@renderer/utils/tabIcons'
 
 import { useCurrentTabId } from './useCurrentTab'
@@ -7,6 +8,7 @@ import { useOptionalTabsContext } from './useTabsContext'
 
 export interface TabSelfVisuals {
   title: string
+  /** An emoji glyph, or an image URL the same way `ConversationGreeting` classifies avatars. */
   emoji?: string | null
   icon?: string
   /** Only stamp while the current tab URL belongs to this caller-supplied route prefix. */
@@ -45,7 +47,12 @@ export function useTabSelfVisuals({
       !currentTab.url.startsWith(`${routePrefix}/`)
     )
       return
-    const icon = imageIcon ?? emojiTabIcon(emoji)
+    // An avatar may be an emoji glyph or an image URL (AgentConfigurationSchema
+    // accepts both; ConversationGreeting renders image values through AvatarImage).
+    // Only an actual emoji becomes an `emoji:` descriptor — a URL handed to
+    // EmojiIcon renders as clipped text.
+    const imageAvatar = emoji != null && !isEmoji(emoji) ? emoji : undefined
+    const icon = imageIcon ?? imageAvatar ?? emojiTabIcon(emoji)
     if (currentTab.title === title && currentTab.icon === icon) return
     updateTab(currentTabId, { title, icon })
   }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, routePrefix, preserveVisuals])
