@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+    <stop offset="0%" stop-color="#0f1f5c"/><stop offset="100%" stop-color="#0a0e27"/></radialGradient>
+  <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#1e40af"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient>
+  <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0891b2"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient>
+  <clipPath id="c1"><polygon points="170.0,132.0 141.0,182.2 83.0,182.2 54.0,132.0 83.0,81.8 141.0,81.8"/></clipPath>
+  <clipPath id="c2"><polygon points="246.0,132.0 217.0,182.2 159.0,182.2 130.0,132.0 159.0,81.8 217.0,81.8"/></clipPath>
+  <clipPath id="cc"><circle cx="150" cy="150" r="145"/></clipPath>
+</defs>
+<circle cx="150" cy="150" r="148" fill="url(#bg)" stroke="#22d3ee" stroke-width="2" opacity="0.7"/>
+<g clip-path="url(#cc)">
+  <polygon points="170.0,132.0 141.0,182.2 83.0,182.2 54.0,132.0 83.0,81.8 141.0,81.8" fill="url(#g1)"/>
+  <polygon points="246.0,132.0 217.0,182.2 159.0,182.2 130.0,132.0 159.0,81.8 217.0,81.8" fill="url(#g2)"/>
+  <polygon points="170.0,132.0 141.0,182.2 83.0,182.2 54.0,132.0 83.0,81.8 141.0,81.8" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.6"/>
+  <polygon points="246.0,132.0 217.0,182.2 159.0,182.2 130.0,132.0 159.0,81.8 217.0,81.8" fill="none" stroke="#22d3ee" stroke-width="2" opacity="0.6"/>
+  <g clip-path="url(#c1)"><text x="112" y="132" text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="87" fill="#ffffff">T</text></g>
+  <g clip-path="url(#c2)"><text x="188" y="132" text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="87" fill="#ffffff">D</text></g>
+  <text x="150" y="232" text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="36" fill="#ffffff">Token<tspan fill="#22d3ee">Dos</tspan></text>
+</g>
+</svg>
