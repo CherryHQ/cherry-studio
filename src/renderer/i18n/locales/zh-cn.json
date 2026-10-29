@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "支持 stream_options",
   "settings.provider.api.url.preview": "预览: {{url}}",
   "settings.provider.api.url.reset": "重置",
+  "settings.provider.api.url.reset_confirm": "确定将 API 主机重置为默认值吗？这将替换您的自定义 URL。",
   "settings.provider.api.url.tip": "在末尾添加 # 以禁用自动附加的API版本。",
   "settings.provider.api_host": "API 地址",
   "settings.provider.api_host_drawer_hint": "自定义 API 请求地址；留空则使用目录默认地址。",
