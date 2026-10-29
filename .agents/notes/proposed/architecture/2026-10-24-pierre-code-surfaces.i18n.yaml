@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-24-pierre-code-surfaces.md
+2026-10-24-pierre-code-surfaces.md: 3b939c84212701bd1cf5556b237bb721a5cdfe0d
+2026-10-24-pierre-code-surfaces.zh.md: cf54e3106e616523976d0ddf35244312591b9e52

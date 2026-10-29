@@ -38,7 +38,7 @@ import {
   useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
-import { defaultMessageRenderConfig } from './types'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
 import {
   getLatestAssistantGroupKey,
   getMessageGroupKey,
@@ -531,7 +531,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       const { exportService } = await import('@renderer/services/ExportService')
 
       if (action === 'copy') {
-        const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
+        const imageData = await exportService.captureScrollableAsDataUrl(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
         const blob = imageData ? dataUrlToBlob(imageData) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
@@ -544,7 +544,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
+      const imageData = await exportService.captureScrollableAsDataUrl(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -889,7 +889,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           aria-hidden="true"
           data-topic-image-capture
           className={classNames(
-            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-background text-foreground',
+            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-chat-message-well-solid text-foreground',
             !topicImageCaptureWidth && 'w-full'
           )}
           style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>

@@ -1,7 +1,9 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { ResourceCatalogView } from '@renderer/components/resourceCatalog/catalog'
 import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import { useSkillLauncher } from '@renderer/hooks/useSkillLauncher'
@@ -13,12 +15,19 @@ export function SkillsSettings() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const launchSkill = useSkillLauncher()
+  const [enabledOnly, setEnabledOnly] = usePersistCache('settings.skills.enabled_only')
   // The tab lives in the route search so it survives the round-trip through the detail route.
   const search = useSearch({ strict: false }) as { scope?: SkillScopeTab }
   const scope = search.scope ?? 'all'
   const setScope = (next: string) => void navigate({ to: '/settings/skills', search: { scope: next as SkillScopeTab } })
-  const filterResource = (resource: ResourceItem) =>
-    scope === 'all' || (resource.type === 'skill' && resource.raw.scope === scope)
+  const filterResource = useCallback(
+    (resource: ResourceItem) =>
+      resource.type === 'skill' &&
+      (!enabledOnly || resource.raw.isGlobalEnabled) &&
+      (scope === 'all' || resource.raw.scope === scope),
+    [enabledOnly, scope]
+  )
+  const enabledOnlyLabel = t('settings.skills.enabledOnly')
 
   return (
     <SettingsContentBody
@@ -37,6 +46,17 @@ export function SkillsSettings() {
             onLaunchSkill={launchSkill}
             filterResource={filterResource}
             allowColumnToggle
+            toolbarLeading={
+              <label className="flex cursor-pointer items-center gap-2 text-xs whitespace-nowrap text-muted-foreground">
+                <span>{enabledOnlyLabel}</span>
+                <Switch
+                  size="xs"
+                  checked={enabledOnly}
+                  aria-label={enabledOnlyLabel}
+                  onCheckedChange={setEnabledOnly}
+                />
+              </label>
+            }
             toolbarFooter={
               <TabsList className="shrink-0" aria-label={t('settings.skills.title')}>
                 <TabsTrigger value="all">{t('common.all')}</TabsTrigger>

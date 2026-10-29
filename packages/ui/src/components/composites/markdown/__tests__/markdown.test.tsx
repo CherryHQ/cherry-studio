@@ -325,3 +325,34 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('data-markdown-image-src')
   })
 })
+
+describe('additional link protocols', () => {
+  it('keeps mixed-case schemes clickable without changing the destination', () => {
+    const { getByRole } = render(
+      <Markdown
+        id="mixed-case-protocol"
+        preserveFileLinkHrefs
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={['zotero']}>
+        {'[Note](ZoTeRo://select/items/ABCD1234)'}
+      </Markdown>
+    )
+
+    const link = getByRole('link', { name: 'Note' })
+    expect(link.tagName).toBe('A')
+    expect(link.getAttribute('href')).toBe('zotero://select/items/ABCD1234')
+  })
+
+  it.each([false, true])('only preserves injected application links (injected: %s)', (injected) => {
+    const href = 'zotero://select/items/Note'
+    const { container } = render(
+      <Markdown
+        id="protocol"
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={injected ? ['zotero'] : undefined}>
+        {`[Note](${href})`}
+      </Markdown>
+    )
+    expect(container.querySelector('a')?.getAttribute('href') ?? null).toBe(injected ? href : null)
+  })
+})

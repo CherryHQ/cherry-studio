@@ -315,6 +315,17 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'proxy'
   }
 
+  // Embedded Claude Code runtime camel-case connection codes follow the proxy branch
+  // so proxy evidence keeps winning.
+  if (
+    msg.includes('connectionrefused') ||
+    msg.includes('connectionreset') ||
+    msg.includes('hostunreachable') ||
+    msg.includes('connectionaborted')
+  ) {
+    return 'network'
+  }
+
   // Server errors (5xx / overloaded)
   if (
     msg.includes('overloaded') ||
@@ -341,12 +352,16 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'knowledge'
   }
 
-  // Response parse errors
+  // Response parse errors. A "failed to parse" that names the REQUEST is the upstream
+  // rejecting our payload ("Failed to parse request body" — #22164), not a malformed AI
+  // response, so it falls through to the request-failure branch instead.
+  const requestParseFailure = msg.includes('failed to parse') && msg.includes('request')
+
   if (
     msg.includes('unexpected token') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
-    msg.includes('failed to parse') ||
+    (!requestParseFailure && msg.includes('failed to parse')) ||
     msg.includes('json parse') ||
     msg.includes('invalid json') ||
     msg.includes('malformed json') ||
