@@ -820,9 +820,9 @@ it('binds a child launched during session initialization to its ready parent', a
   expect(JSON.stringify(snapshot.messages)).toContain('child report')
   expect(JSON.stringify(snapshot.messages)).not.toContain('before initialization')
   expect(snapshot.subagents).toHaveLength(1)
-  const subagent = snapshot.subagents?.[0]
-  if (!subagent?.child) throw new Error('Missing child context')
-  const child = confirmed(await runtime.open(subagent.child))
+  const delegation = snapshot.subagents?.[0]
+  if (!delegation?.child) throw new Error('Missing child thread')
+  const child = confirmed(await runtime.open(delegation.child))
   expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
 })
 

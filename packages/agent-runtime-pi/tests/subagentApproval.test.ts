@@ -77,12 +77,15 @@ describe('subagent approvals', () => {
     const { model } = routedModel(({ userText, lastText, humanText }) => {
       if (userText.includes('TASK-A'))
         return lastText.includes('TASK-A')
-          ? ['first', 'second', 'free'].map((id) => toolCallPart(id, 'risky')).concat(finish('tool-calls'))
+          ? assistantReply(
+              ['first', 'second', 'free'].map((id) => toolCallPart(id, 'risky')),
+              'toolUse'
+            )
           : reply('REPORT-A')
-      return humanText === 'launch' ? [subagentCall('launch', BG_A), finish('tool-calls')] : reply('OK')
+      return humanText === 'launch' ? assistantReply([subagentCall('launch', BG_A)], 'toolUse') : reply('OK')
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [concurrent],
       subagents: { ...recording.port, onApproval: hub.onApproval },
       onEvent: parent.onEvent
