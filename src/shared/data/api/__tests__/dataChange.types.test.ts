@@ -45,6 +45,7 @@ describe('endpoint classification', () => {
       | '/mini-apps'
       | '/models'
       | '/notes'
+      | '/notifications'
       | '/paintings'
       | '/pins'
       | '/prompt-bindings'

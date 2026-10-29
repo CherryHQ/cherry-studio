@@ -37,6 +37,4 @@ type ConversationNotificationBase = Notification<ConversationNavigationTarget> &
   actionKey: typeof CONVERSATION_NOTIFICATION_ACTION_KEY
 }
 
-export type ConversationNotification =
-  | (ConversationNotificationBase & { kind: 'task-completion'; type: 'success' })
-  | (ConversationNotificationBase & { kind: 'approval-request'; type: 'warning' })
+export type ConversationNotification = ConversationNotificationBase & { kind: 'approval-request'; type: 'warning' }

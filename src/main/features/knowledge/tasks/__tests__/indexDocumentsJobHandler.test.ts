@@ -1,3 +1,4 @@
+import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
@@ -58,6 +59,57 @@ function lastRebuildInput(): RebuildMaterialInput & { embeddings: RebuildMateria
 }
 
 describe('index-documents job handler', () => {
+  it('records embedding completion only after the logical job settles successfully', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    const input = { baseId: 'kb-1', itemId: NOTE_ITEM_ID }
+    const output = await handler.execute(createCtx(input))
+    expect(mockNotificationService.publish).not.toHaveBeenCalled()
+    await handler.onSettled?.({
+      jobId: 'embedding-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'completed',
+      input,
+      output,
+      error: null,
+      attempt: 1,
+      metadata: {}
+    })
+    expect(mockNotificationService.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventKey: 'knowledge:embedding-job',
+        category: 'system',
+        kind: 'knowledge-complete',
+        message: `KB · ${NOTE_ITEM_ID}`,
+        target: { kind: 'knowledge', baseId: 'kb-1' }
+      }),
+      { source: 'knowledge' }
+    )
+  })
+
+  it('does not notify when indexing was skipped because the source disappeared', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue({ ...createNoteItem(NOTE_ITEM_ID), status: 'deleting' })
+    const input = { baseId: 'kb-1', itemId: NOTE_ITEM_ID }
+    const output = await handler.execute(createCtx(input))
+    await handler.onSettled?.({
+      jobId: 'skipped-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'completed',
+      input,
+      output,
+      error: null,
+      attempt: 1,
+      metadata: {}
+    })
+    expect(mockNotificationService.publish).not.toHaveBeenCalled()
+  })
+
   it('updates statuses, writes vectors, and completes the item', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))

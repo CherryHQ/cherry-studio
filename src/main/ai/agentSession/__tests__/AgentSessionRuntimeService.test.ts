@@ -1299,7 +1299,10 @@ describe('AgentSessionRuntimeService', () => {
       // The driver echoes the redirected input verbatim, so its attributes ride the round-trip.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-boundary',
-        inputs: [{ message: userMessage('user-2'), systemReminder: true, messageSnapshot: followUpSnapshot }]
+        inputs: [
+          { message: userMessage('user-2'), systemReminder: true, messageSnapshot: followUpSnapshot },
+          { message: userMessage('user-3'), systemReminder: true, messageSnapshot: followUpSnapshot }
+        ]
       })
       service.markTurnTerminal('session-1', 'success', sourceTurnId)
       await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
@@ -1308,6 +1311,7 @@ describe('AgentSessionRuntimeService', () => {
         .map((call) => call[0].message)
         .filter((m: any) => m.role === 'assistant')
       expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+      expect(mocks.startRuntimeTurn.mock.calls.at(-1)?.[0].taskIds).toEqual(['user-2', 'user-3'])
       void service.closeSession('session-1')
     })
 
@@ -3201,12 +3205,14 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
 
       const receiveOnlyRuntimeInput = mocks.startRuntimeTurn.mock.calls[0][0]
+      expect(receiveOnlyRuntimeInput.taskIds).toEqual([])
       void terminalListener(receiveOnlyRuntimeInput).onDone({ status: 'success', isTopicDone: true })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2)
       expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(mocks.startRuntimeTurn.mock.calls[1][0].taskIds).toEqual(['user-2'])
       expect(entry.runtimeState.queue).toEqual([])
       void service.closeSession('session-1')
     })
@@ -6313,6 +6319,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
+      taskIds: ['user-2'],
       topicId: 'agent-session:session-1',
       modelId: 'claude-code::claude-sonnet-4-5',
       rootSpan: expect.anything(),

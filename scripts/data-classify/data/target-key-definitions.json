@@ -303,11 +303,26 @@
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
-        { "id": "agents", "type": "app" },
-        { "id": "assistants", "type": "app" },
-        { "id": "translate", "type": "app" },
-        { "id": "paintings", "type": "app" },
-        { "id": "knowledge", "type": "app" }
+        {
+          "id": "agents",
+          "type": "app"
+        },
+        {
+          "id": "assistants",
+          "type": "app"
+        },
+        {
+          "id": "translate",
+          "type": "app"
+        },
+        {
+          "id": "paintings",
+          "type": "app"
+        },
+        {
+          "id": "knowledge",
+          "type": "app"
+        }
       ],
       "status": "classified",
       "description": "Legacy sidebar favorites, preserved as the source for shortcut migration"
@@ -318,27 +333,57 @@
       "defaultValue": [
         {
           "id": "sidebar-shortcut:core.app:agents",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "agents" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "agents"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:assistants",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "assistants" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "assistants"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:translate",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "translate"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:paintings",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "paintings" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "paintings"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:knowledge",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "knowledge" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "knowledge"
+            }
+          },
           "type": "shortcut"
         }
       ],
@@ -696,7 +741,10 @@
       "targetKey": "shortcut.chat.input.focus",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
-        "binding": ["CommandOrControl", "I"],
+        "binding": [
+          "CommandOrControl",
+          "I"
+        ],
         "enabled": true
       },
       "status": "classified",
@@ -1104,6 +1152,55 @@
       "defaultValue": 2,
       "status": "classified",
       "description": "Agent file pane: tab width in columns, one of 2, 4, or 8 (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.center.system.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new system notifications in the notification center"
+    },
+    {
+      "targetKey": "app.notification.center.usage.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new usage alerts in the notification center"
+    },
+    {
+      "targetKey": "app.notification.center.official.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new release announcements in the notification center"
+    },
+    {
+      "targetKey": "app.notification.usage.os.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show system notifications for usage alerts while the app is in the background"
+    },
+    {
+      "targetKey": "app.notification.completion_sound.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Play a sound when a task completes"
+    },
+    {
+      "targetKey": "app.notification.daily_budget.tokens",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "classified",
+      "description": "Daily token budget as a nonnegative integer; zero disables the budget alert"
+    },
+    {
+      "targetKey": "app.notification.daily_budget.threshold",
+      "type": "number",
+      "defaultValue": 80,
+      "status": "classified",
+      "description": "Daily budget warning percentage as an integer from 1 to 100"
     }
   ]
 }

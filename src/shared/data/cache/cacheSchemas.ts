@@ -121,7 +121,7 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 
 export type UseCacheSchema = {
   // App state
-  'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
+  'app.dist.update_state': Pick<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
 
   'app.path.resources': string
 
@@ -215,12 +215,6 @@ export type UseCacheSchema = {
 export const DefaultUseCache: UseCacheSchema = {
   // App state
   'app.dist.update_state': {
-    info: null,
-    checking: false,
-    downloading: false,
-    downloaded: false,
-    downloadProgress: 0,
-    available: false,
     ignore: false,
     manualCheck: false
   },
@@ -304,6 +298,7 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
+  'app.dist.update_status': Omit<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
@@ -376,6 +371,15 @@ export type SharedCacheSchema = {
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
+  'app.dist.update_status': {
+    lastErrorKey: null,
+    info: null,
+    checking: false,
+    downloading: false,
+    downloaded: false,
+    downloadProgress: 0,
+    available: false
+  },
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },

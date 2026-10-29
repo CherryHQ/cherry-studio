@@ -62,6 +62,7 @@ import { MediaProtocolService } from '@main/services/mediaProtocol'
 import { NetworkService } from '@main/services/network'
 import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
+import { OfficialAnnouncementService } from '@main/services/OfficialAnnouncementService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
@@ -167,6 +168,7 @@ export const services = {
   OAuthRuntimeService,
   MainWindowService,
   NotificationService,
+  OfficialAnnouncementService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,

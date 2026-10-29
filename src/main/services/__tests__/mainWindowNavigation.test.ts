@@ -35,6 +35,7 @@ import {
   isAllowedRoute,
   markMainRendererReadyForTabAttach,
   openRouteInMainWindow,
+  openNotificationInMainWindow,
   openSettingsInMainWindow,
   openTabInMainWindow,
   resetMainRendererTabAttachDelivery
@@ -53,6 +54,18 @@ describe('mainWindowNavigation', () => {
     windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
     windowManagerMock.getWindow.mockReturnValue(aliveWindow)
     windowManagerMock.getInitData.mockReturnValue(null)
+  })
+
+  it('delivers a release notification only after a cold main renderer has mounted its listeners', () => {
+    resetMainRendererTabAttachDelivery()
+    openNotificationInMainWindow('release-record')
+    expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+    windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+    markMainRendererReadyForTabAttach('main-1')
+    expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'notification.open', { id: 'release-record' })
+    ipcApiServiceMock.send.mockClear()
+    markMainRendererReadyForTabAttach('main-1')
+    expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
   })
 
   afterEach(() => {

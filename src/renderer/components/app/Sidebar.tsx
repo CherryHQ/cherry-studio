@@ -31,6 +31,7 @@ import { isMac } from '@renderer/utils/platform'
 import { CommandTooltip } from '../command'
 import { HelpMenu } from '../layout/HelpMenu'
 import { AppUpdateButton } from '../layout/ShellTabBarActions'
+import { NotificationCenterButton } from '../NotificationCenter'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
@@ -98,7 +99,11 @@ export default function Sidebar({
 
   useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
-  }, [activeSidebarWidth])
+    document.documentElement.style.setProperty(
+      '--notification-left',
+      layout === 'hidden' ? '0px' : `${getSidebarDisplayWidth(activeSidebarWidth)}px`
+    )
+  }, [activeSidebarWidth, layout])
 
   useEffect(() => {
     if (previewSidebarWidth !== null) return
@@ -296,8 +301,12 @@ export default function Sidebar({
       </>
     ),
     renderUserTrigger: renderSidebarUserTrigger,
-    actions: (footerLayout: SidebarVisibleLayout) =>
-      showUserInFooter && footerLayout === 'full' ? null : renderSettingsButton(footerLayout),
+    actions: (footerLayout: SidebarVisibleLayout) => (
+      <>
+        {showUserInFooter && footerLayout === 'full' ? null : renderSettingsButton(footerLayout)}
+        {layout !== 'hidden' && <NotificationCenterButton className={footerLayout === 'full' ? 'ml-1' : ''} />}
+      </>
+    ),
     onEntriesReorder: handleReorder
   }
 
