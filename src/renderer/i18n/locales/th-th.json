@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "รองรับ stream_options",
   "settings.provider.api.url.preview": "ตัวอย่าง: {{url}}",
   "settings.provider.api.url.reset": "รีเซ็ต",
+  "settings.provider.api.url.reset_confirm": "รีเซ็ตโฮสต์ API เป็นค่าเริ่มต้นหรือไม่? การดำเนินการนี้จะแทนที่ URL ที่คุณกำหนดเอง",
   "settings.provider.api.url.tip": "เพิ่ม # ต่อท้ายเพื่อปิดการผนวกเวอร์ชัน API อัตโนมัติ",
   "settings.provider.api_host": "โฮสต์ API",
   "settings.provider.api_host_drawer_hint": "URL คำขอ API ที่กำหนดเอง ปล่อยว่างเมื่อใช้ค่าจากแคตตาล็อก",

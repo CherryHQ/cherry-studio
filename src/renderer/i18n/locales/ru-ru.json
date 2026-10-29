@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Поддержка stream_options",
   "settings.provider.api.url.preview": "Предпросмотр: {{url}}",
   "settings.provider.api.url.reset": "Сброс",
+  "settings.provider.api.url.reset_confirm": "Сбросить хост API до значения по умолчанию? Это заменит ваш пользовательский URL.",
   "settings.provider.api.url.tip": "Добавьте # в конце, чтобы отключить автоматически добавляемую версию API.",
   "settings.provider.api_host": "Хост API",
   "settings.provider.api_host_drawer_hint": "Пользовательский URL запроса API; оставьте пустым, если применяется каталог по умолчанию.",

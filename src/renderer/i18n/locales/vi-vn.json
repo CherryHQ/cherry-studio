@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "Hỗ trợ stream_options",
   "settings.provider.api.url.preview": "Xem trước: {{url}}",
   "settings.provider.api.url.reset": "Đặt lại",
+  "settings.provider.api.url.reset_confirm": "Đặt lại máy chủ API về mặc định? Thao tác này sẽ thay thế URL tùy chỉnh của bạn.",
   "settings.provider.api.url.tip": "Thêm # vào cuối để vô hiệu hóa phiên bản API được thêm tự động.",
   "settings.provider.api_host": "Máy chủ API",
   "settings.provider.api_host_drawer_hint": "URL yêu cầu API tùy chỉnh; để trống khi áp dụng mặc định của danh mục.",

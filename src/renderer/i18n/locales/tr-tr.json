@@ -5167,6 +5167,7 @@
   "settings.provider.api.options.stream_options.label": "stream_options Desteği",
   "settings.provider.api.url.preview": "Önizleme: {{url}}",
   "settings.provider.api.url.reset": "Sıfırla",
+  "settings.provider.api.url.reset_confirm": "API ana bilgisayarını varsayılan değerine sıfırlamak istiyor musunuz? Bu işlem özel URL’nizi değiştirecektir.",
   "settings.provider.api.url.tip": "Otomatik olarak eklenen API sürümünü devre dışı bırakmak için sona # ekleyin.",
   "settings.provider.api_host": "API Sunucusu",
   "settings.provider.api_host_drawer_hint": "Özel API istek URL'si; katalog varsayılanı geçerliyse boş bırakın.",
