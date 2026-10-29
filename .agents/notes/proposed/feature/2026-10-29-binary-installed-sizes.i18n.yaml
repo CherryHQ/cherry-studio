@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-29-binary-installed-sizes.md
+2026-10-29-binary-installed-sizes.md: 354bfcaee75857775e1298c0cd95f772a0fd5396
+2026-10-29-binary-installed-sizes.zh.md: 5752df363b2df6e2e58f49ce7ae5bbbd06bd0c7c

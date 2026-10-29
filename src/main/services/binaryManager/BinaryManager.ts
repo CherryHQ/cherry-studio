@@ -42,12 +42,15 @@ import type {
   BinaryOperations,
   BinaryRemoveRequest,
   BinaryRemoveResult,
+  BinaryToolInstalledSizes,
   BinaryToolSnapshot
 } from '@shared/types/binary'
+import { Semaphore } from '@shared/utils/async'
 
 import { sanitizedCommandError } from './commandError'
 import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
+import { measureToolInstalledSize } from './toolInstalledSize'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -124,6 +127,14 @@ const MISE_REQUIRED_PEERS = new Map(
 // snapshots, so this belongs to CacheService's internal tier rather than its
 // cross-window shared mirror.
 const BINARY_OPERATIONS_CACHE_KEY = 'feature.binary.install_states'
+const INSTALLED_SIZES_CACHE_KEY = 'feature.binary.installed_sizes'
+const INSTALLED_SIZE_TTL_MS = 300_000
+const INSTALLED_SIZE_NULL_TTL_MS = 30_000
+
+type InstalledSizesCache = {
+  revision: number
+  entries: Record<string, { identity: string; sizeBytes: number | null; expiresAt: number }>
+}
 
 function parseInstallUrl(value: string, setting: string): string | undefined {
   const trimmed = value.trim()
@@ -318,6 +329,8 @@ export class BinaryManager extends BaseService {
     | { action: 'addCustom'; definition: CustomToolDefinition; promise: Promise<void> }
     | { action: 'remove'; definitionOnly: boolean; promise: Promise<BinaryRemoveResult> }
   >()
+  private readonly installedSizeSemaphore = new Semaphore(2)
+  private readonly installedSizeFlights = new Map<string, Promise<number | null>>()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
   // Monotonic counter bumped on every mutation that can change backend state or
   // durable definitions (add / install / update / remove / definition-only). A
@@ -383,6 +396,7 @@ export class BinaryManager extends BaseService {
 
   protected override async onStop(): Promise<void> {
     this.isShuttingDown = true
+    this.bumpMutationRevision()
     if (this.normalizationPromise) await this.normalizationPromise
     this.normalizationPromise = null
   }
@@ -657,6 +671,152 @@ export class BinaryManager extends BaseService {
       }
     }
     return snapshots
+  }
+
+  public async getToolInstalledSizes(names: string[]): Promise<BinaryToolInstalledSizes> {
+    const requested = [...new Set(names)]
+    const empty = (): BinaryToolInstalledSizes => Object.fromEntries(requested.map((name) => [name, null]))
+    const revision = this.mutationRevision
+    const isCurrent = () =>
+      revision === this.mutationRevision &&
+      !this.isShuttingDown &&
+      !this.mutationMutex.isLocked() &&
+      this.activeMutations.size === 0
+    if (!requested.length || !isCurrent()) return empty()
+
+    let snapshots: Record<string, BinaryToolSnapshot>
+    let installed: Record<string, MiseInstallEntry[]> = {}
+    try {
+      snapshots = await this.getToolSnapshots(requested)
+      if (!isCurrent()) return empty()
+      if (requested.some((name) => snapshots[name]?.availability.source === 'mise' && this.resolveDefinition(name))) {
+        try {
+          installed = await this.listMiseInstalls()
+        } catch {
+          // Leave attribution unproven so each mise candidate gets a negative cache entry.
+        }
+        if (!isCurrent()) return empty()
+      }
+    } catch {
+      if (isCurrent()) {
+        for (const name of requested)
+          logger.warn('Unable to measure installed tool size', { name, reason: 'query_failed' })
+      }
+      return empty()
+    }
+
+    const results = await Promise.all(
+      requested.map(async (name): Promise<[string, number | null]> => {
+        const snapshot = snapshots[name]
+        const definition = this.resolveDefinition(name)
+        const source = snapshot?.availability.source
+        if (
+          !isCurrent() ||
+          (!definition && source !== 'bundled') ||
+          source === 'system' ||
+          source === 'none' ||
+          !source ||
+          (definition && normalizeToolIdentity(definition.tool) === 'rust') ||
+          (source === 'mise' && snapshot.application?.status !== 'applied')
+        )
+          return [name, null]
+
+        let root: string | undefined
+        let reason: string | undefined
+        const entries = Object.entries(installed)
+          .filter(([tool]) => normalizeToolIdentity(tool) === normalizeToolIdentity(definition?.tool ?? name))
+          .flatMap(([, entries]) => entries)
+          .filter((entry) => entry.active)
+        try {
+          if (source === 'bundled') {
+            root = application.getPath('cherry.bin', getBinaryName(name))
+          } else {
+            const installPath = entries.length === 1 ? entries[0].install_path : undefined
+            if (!installPath || !path.isAbsolute(installPath)) throw new Error('unproven_root')
+            const dataRoot = application.getPath('feature.binary.data')
+            if (!this.isInstallationRoot(dataRoot, installPath)) throw new Error('unproven_root')
+            const canonicalData = await fsp.realpath(dataRoot)
+            if (!isCurrent()) return [name, null]
+            const canonicalRoot = await fsp.realpath(installPath)
+            if (!isCurrent()) return [name, null]
+            if (!this.isInstallationRoot(canonicalData, canonicalRoot)) throw new Error('unproven_root')
+            const runnable = await this.resolveRunnableShim(name, definition!.tool)
+            if (!isCurrent()) return [name, null]
+            if (!runnable || !isPathWithin(canonicalRoot, runnable.canonical)) throw new Error('unproven_runnable')
+            root = canonicalRoot
+          }
+        } catch {
+          reason = 'unproven_root'
+        }
+        if (!isCurrent()) return [name, null]
+        const identity = JSON.stringify([
+          source,
+          definition?.tool,
+          'version' in snapshot.availability ? snapshot.availability.version : null,
+          snapshot.application?.status === 'applied' ? snapshot.application.version : null,
+          entries,
+          root
+        ])
+        const cache = application.get('CacheService')
+        const cached = cache.get<InstalledSizesCache>(INSTALLED_SIZES_CACHE_KEY)
+        const entry =
+          cached?.revision === revision && Object.hasOwn(cached.entries, name) ? cached.entries[name] : undefined
+        if (entry !== undefined && entry.identity === identity && entry.expiresAt > Date.now())
+          return [name, entry.sizeBytes]
+
+        const key = JSON.stringify([revision, name, identity])
+        let flight = this.installedSizeFlights.get(key)
+        if (!flight) {
+          flight = this.installedSizeSemaphore.runExclusive(async () => {
+            if (!isCurrent()) return null
+            const measured = root
+              ? await measureToolInstalledSize(root, source === 'bundled' ? 'file' : 'directory', { isCurrent })
+              : { sizeBytes: null, reason: reason ?? 'unproven_root' }
+            if (!isCurrent()) return null
+            if (measured.sizeBytes === null) {
+              logger.warn('Unable to measure installed tool size', { name, reason: measured.reason })
+            }
+            const current = cache.get<InstalledSizesCache>(INSTALLED_SIZES_CACHE_KEY)
+            cache.set<InstalledSizesCache>(
+              INSTALLED_SIZES_CACHE_KEY,
+              {
+                revision,
+                entries: {
+                  ...(current?.revision === revision ? current.entries : {}),
+                  [name]: {
+                    identity,
+                    sizeBytes: measured.sizeBytes,
+                    expiresAt:
+                      Date.now() + (measured.sizeBytes === null ? INSTALLED_SIZE_NULL_TTL_MS : INSTALLED_SIZE_TTL_MS)
+                  }
+                }
+              },
+              INSTALLED_SIZE_TTL_MS
+            )
+            return measured.sizeBytes
+          })
+          this.installedSizeFlights.set(key, flight)
+          void flight
+            .finally(() => {
+              if (this.installedSizeFlights.get(key) === flight) this.installedSizeFlights.delete(key)
+            })
+            .catch(() => undefined)
+        }
+        return [name, await flight]
+      })
+    )
+    return isCurrent() ? Object.fromEntries(results) : empty()
+  }
+
+  private isInstallationRoot(dataRoot: string, candidate: string): boolean {
+    const relative = path.relative(dataRoot, candidate)
+    const components = relative.split(path.sep)
+    return (
+      !path.isAbsolute(relative) &&
+      components.length === 3 &&
+      components[0] === 'installs' &&
+      components.every((component) => component !== '' && component !== '..')
+    )
   }
 
   /**
@@ -1483,6 +1643,11 @@ export class BinaryManager extends BaseService {
       // Cache is derived session state. A failed invalidation must not turn an
       // already-committed backend/Preference mutation into a false failure.
       logger.warn('Failed to clear binary latest-version cache', { error: this.errorMessage(err) })
+    }
+    try {
+      application.get('CacheService').delete(INSTALLED_SIZES_CACHE_KEY)
+    } catch (err) {
+      logger.warn('Failed to clear binary installed-size cache', { error: this.errorMessage(err) })
     }
   }
 
