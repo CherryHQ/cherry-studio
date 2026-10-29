@@ -20,6 +20,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -131,7 +132,7 @@ const GeneralSettings: FC = () => {
     setTimeoutTimer(
       'handleHardwareAccelerationChange',
       () => {
-        void window.api.application.relaunch()
+        void ipcApi.request('app.relaunch')
       },
       500
     )
@@ -201,11 +202,8 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
         <SettingDivider />
-        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6 items-start gap-6">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-            <SettingDescription className="mt-1.5 leading-5">{t('settings.proxy.mode.description')}</SettingDescription>
-          </div>
+        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
           <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
         </SettingRow>
         {storeProxyMode === 'custom' && (

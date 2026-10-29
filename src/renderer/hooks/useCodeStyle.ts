@@ -1,4 +1,4 @@
-import { createContext, use, useEffect } from 'react'
+import { createContext, use, type CSSProperties } from 'react'
 
 import type { CodeMirrorTheme } from '@cherrystudio/ui'
 import type { HighlightRange, HighlightResult } from '@renderer/types/codeHighlight'
@@ -6,19 +6,21 @@ import type { HighlightRange, HighlightResult } from '@renderer/types/codeHighli
 interface CodeStyleContextType {
   highlightRange: (code: string, language: string, callerId: string, range: HighlightRange) => Promise<HighlightResult>
   cleanupTokenizers: (callerId: string) => void
-  getCodePreProperties: () => Promise<{ class: string; style: string }>
+  codeBlockStyle?: CSSProperties
   highlightCode: (code: string, language: string) => Promise<string>
   renderMarkdown: (code: string) => Promise<string>
   codeThemes: [string, string]
   activeCodeTheme: string
-  isCodeThemeDark: boolean
   activeCmTheme: CodeMirrorTheme
   requestCmTheme: () => void
+  isCodeThemeDark: boolean
 }
 
 interface CodeStyleThemeCatalogContextType {
   loadThemeNames: () => Promise<string[]>
   themeNames: string[]
+  loadCmThemeNames: () => Promise<string[]>
+  cmThemeNames: string[]
 }
 
 export const CodeStyleContext = createContext<CodeStyleContextType | null>(null)
@@ -38,17 +40,4 @@ export const useCodeStyleThemeCatalog = () => {
     throw new Error('useCodeStyleThemeCatalog must be used within a CodeStyleProvider')
   }
   return context
-}
-
-/**
- * Reads the active CodeMirror theme for an editor boundary being rendered (`active`).
- * Demanding the theme is what triggers catalog resolution, so windows without editors
- * never load it; the base light/dark string is returned until resolution lands.
- */
-export const useCmTheme = (active = true): CodeMirrorTheme => {
-  const { activeCmTheme, requestCmTheme } = useCodeStyle()
-  useEffect(() => {
-    if (active) requestCmTheme()
-  }, [active, requestCmTheme])
-  return activeCmTheme
 }

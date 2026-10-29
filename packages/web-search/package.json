@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/web-search",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "Portable web search provider protocols with host-owned transports and policies",
   "license": "AGPL-3.0-only",
   "author": "Cherry Studio",
@@ -258,6 +258,36 @@
         "default": "./dist/providers/deepseek.cjs"
       },
       "default": "./dist/providers/deepseek.mjs"
+    },
+    "./providers/searchapi": {
+      "react-native": {
+        "types": "./dist/providers/searchapi.d.mts",
+        "default": "./dist/providers/searchapi.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/searchapi.d.mts",
+        "default": "./dist/providers/searchapi.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/searchapi.d.cts",
+        "default": "./dist/providers/searchapi.cjs"
+      },
+      "default": "./dist/providers/searchapi.mjs"
+    },
+    "./providers/desearch": {
+      "react-native": {
+        "types": "./dist/providers/desearch.d.mts",
+        "default": "./dist/providers/desearch.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/desearch.d.mts",
+        "default": "./dist/providers/desearch.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/desearch.d.cts",
+        "default": "./dist/providers/desearch.cjs"
+      },
+      "default": "./dist/providers/desearch.mjs"
     },
     "./tools/config": {
       "react-native": {

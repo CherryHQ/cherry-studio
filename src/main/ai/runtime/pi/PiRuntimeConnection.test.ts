@@ -15,6 +15,7 @@ import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 import { forkPiSession } from './piFork'
@@ -529,6 +530,45 @@ describe('PiRuntimeConnection', () => {
         await connection.close()
         MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
       }
+    }
+  )
+
+  it.each<ReasoningEffortOption | undefined>(['max', 'ultra', 'default', 'auto', undefined])(
+    'forwards the turn selection %s instead of silently using the SDK default',
+    async (reasoningEffort) => {
+      const conn = await new PiRuntimeConnection({ ...input, reasoningEffort }).start()
+      expect(mocks.createOpts?.thinkingLevel).toBe(
+        reasoningEffort === 'max' || reasoningEffort === 'ultra' ? reasoningEffort : undefined
+      )
+      await conn.close()
+    }
+  )
+
+  it('uses explicit max rather than conflicting persisted high at session creation', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { reasoning_effort: 'high' } })
+    const conn = await new PiRuntimeConnection({ ...input, reasoningEffort: 'max' }).start()
+    expect(mocks.createOpts?.thinkingLevel).toBe('max')
+    await conn.close()
+  })
+
+  it.each<{
+    before: ReasoningEffortOption | undefined
+    after: ReasoningEffortOption
+    expected: 'current' | 'rebuild'
+  }>([
+    { before: 'default', after: 'max', expected: 'rebuild' },
+    { before: 'max', after: 'low', expected: 'rebuild' },
+    { before: undefined, after: 'default', expected: 'current' },
+    { before: 'auto', after: 'default', expected: 'current' },
+    { before: 'medium', after: 'medium', expected: 'current' },
+    { before: 'medium', after: 'high', expected: 'rebuild' }
+  ])(
+    'reconciles $before → $after as $expected with an unchanged Agent snapshot',
+    async ({ before, after, expected }) => {
+      const conn = await new PiRuntimeConnection({ ...input, reasoningEffort: before }).start()
+      Object.defineProperty(fakeSession, 'thinkingLevel', { configurable: true, value: 'high' })
+      await expect(conn.reconcile({ modelId: input.modelId, reasoningEffort: after })).resolves.toBe(expected)
+      await conn.close()
     }
   )
 

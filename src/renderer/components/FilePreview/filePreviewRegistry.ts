@@ -53,3 +53,9 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 export function canProduceSelectionReference(filePath: string): boolean {
   return resolveExtensionPlugin(filePath, filePreviewRegistry)?.supportsSelectionReference === true
 }
+
+/** Whether `filePath` gets a rendered preview (HTML, Markdown, images, documents) rather than plain text. */
+export function hasRenderedFilePreview(filePath: string): boolean {
+  const plugin = resolveExtensionPlugin(filePath, filePreviewRegistry)
+  return plugin !== null && plugin !== textFilePreviewPlugin
+}

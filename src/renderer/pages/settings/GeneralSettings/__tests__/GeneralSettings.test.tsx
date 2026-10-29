@@ -122,6 +122,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+const requestedRoutes = () => vi.mocked(window.api.ipcApi.request).mock.calls.map(([route]) => route)
+
 describe('GeneralSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -206,7 +208,7 @@ describe('GeneralSettings', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
     )
-    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    expect(requestedRoutes()).not.toContain('app.relaunch')
     expect(screen.queryByRole('button', { name: /restart/i })).not.toBeInTheDocument()
   })
 
@@ -221,7 +223,7 @@ describe('GeneralSettings', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(false)
     )
-    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    expect(requestedRoutes()).not.toContain('app.relaunch')
   })
 
   it('keeps the port disabled until CDP is enabled and saves a custom port on blur', async () => {
@@ -260,7 +262,7 @@ describe('GeneralSettings', () => {
     })
     rerender(<GeneralSettings />)
     expect(screen.queryByRole('switch', { name: 'Local automation (CDP)' })).not.toBeInTheDocument()
-    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    expect(requestedRoutes()).not.toContain('app.relaunch')
   })
 
   it('prevents a pending CDP enable from racing with disabling developer mode', async () => {
@@ -360,15 +362,6 @@ describe('GeneralSettings', () => {
     expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
     expect(screen.getByRole('switch', { name: 'Developer mode' })).toBeEnabled()
     expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeEnabled()
-  })
-
-  it('shows the TUN explanation in the proxy mode row', () => {
-    render(<GeneralSettings />)
-
-    const proxyRow = document.getElementById('setting-general-proxy-mode')
-    expect(proxyRow).not.toBeNull()
-    expect(within(proxyRow!).getByText('settings.proxy.mode.description')).toBeVisible()
-    expect(within(proxyRow!).getByText('settings.proxy.mode.title')).toBeVisible()
   })
 
   it('renders model retry settings in General and persists changes', async () => {

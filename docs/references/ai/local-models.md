@@ -294,9 +294,11 @@ hardware-acceleration preference.
 
 The `kokoro-multi-lang-v1.1` bundle pins the full-precision ONNX weights, all 103 voices,
 Chinese normalization rules, both Chinese and English lexicons, and the English eSpeak
-data needed for words absent from the lexicon. Every file is checksummed and fetched from
-an immutable Hugging Face revision, with hf-mirror as a fallback. The native runtime is
-shared with FunASR; removing either model retains it while the other is installed.
+data needed for words absent from the lexicons, including Mandarin language and dictionary
+data. Every file is checksummed and fetched from an immutable Hugging Face revision, with
+hf-mirror as a fallback. The worker sets `ESPEAK_DATA_PATH` to the bundle's eSpeak data
+directory before initializing the native runtime. The runtime is shared with FunASR;
+removing either model retains it while the other is installed.
 
 Kokoro runs through `inference.tts` on macOS arm64/x64, Linux arm64/x64 and Windows arm64/x64.
 Windows ARM64 shares the verified Sherpa runtime with FunASR. The worker loads both

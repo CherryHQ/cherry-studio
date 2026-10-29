@@ -78,12 +78,14 @@ const AzureExtension = ProviderExtension.create({
   create: async (settings): Promise<ProviderV3> => {
     const provider = (await import('@ai-sdk/azure')).createAzure(settings)
     // Default to chat mode (AI SDK defaults to responses API)
-    return customProvider({
+    const wrapper = customProvider({
       fallbackProvider: {
         ...provider,
         languageModel: (modelId: string) => provider.chat(modelId)
       }
     })
+    // customProvider drops the SDK provider's `.tools`, but toolFactories need it
+    return Object.assign(wrapper, { tools: provider.tools })
   },
   toolFactories: {
     webSearch:

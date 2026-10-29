@@ -7,7 +7,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
-import { getDefaultRouteTitle, isConversationRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -140,11 +140,11 @@ export const AppShell = () => {
     recordRouteVisit(activeTab)
   }, [activeTab, recordRouteVisit])
 
-  // Conversation visuals are normalized by TabsProvider; navigation only updates identity.
+  // Chat / agent tabs are page-titled (topic / session name + emoji), so navigation keeps them.
   const handleUrlChange = (tabId: string, url: string) => {
-    const isConversation = isConversationRoute(url)
+    const isPageTitled = isPageTitledRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
-    const patch = isConversation
+    const patch = isPageTitled
       ? { url, lastAccessTime: Date.now() }
       : {
           url,

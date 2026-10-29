@@ -475,6 +475,68 @@ describe('MainWindowService', () => {
   })
 
   describe('website links', () => {
+    it('waits for explicit confirmation before dispatching the normalized application URL', async () => {
+      let confirm!: (value: Electron.MessageBoxReturnValue) => void
+      vi.mocked(dialog.showMessageBox).mockReturnValue(
+        new Promise((resolve) => {
+          confirm = resolve
+        })
+      )
+      const pending = svc.openWebsite('SIYUAN://blocks/old/../Note?flag&x=1&x=2#Case', true, { activate: false })
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      expect(dialog.showMessageBox).toHaveBeenCalledWith({
+        type: 'warning',
+        message: 'Open this link in an external application?',
+        detail: 'siyuan://blocks/Note?flag&x=1&x=2#Case',
+        buttons: ['Cancel', 'Open application'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      confirm({ response: 1, checkboxChecked: false })
+      await pending
+      expect(shell.openExternal).toHaveBeenCalledTimes(1)
+      expect(shell.openExternal).toHaveBeenCalledWith('siyuan://blocks/Note?flag&x=1&x=2#Case', { activate: false })
+    })
+    it.each([0, -1])('does not dispatch on cancel/close (%s)', async (response) => {
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response, checkboxChecked: false })
+      await svc.openWebsite('obsidian://new?file=Private')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      expect(loggerMock.warn).toHaveBeenCalledWith('External URL opening cancelled', { protocol: 'obsidian:' })
+    })
+    it('does not prompt for invalid or web/mail URLs', async () => {
+      vi.mocked(dialog.showMessageBox).mockClear()
+      await svc.openWebsite('obsidian://daily')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      await svc.openWebsite('http://example.test')
+      await svc.openWebsite('https://example.test')
+      await svc.openWebsite('mailto:u@example.test')
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+      expect(shell.openExternal).toHaveBeenCalledTimes(3)
+    })
+    it('never treats an application query containing a legacy file URL as a local file', async () => {
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+      ;(svc as any).setupWebContentsHandlers(win)
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+      const getPath = applicationMock.getPath
+      getPath.mockClear()
+      expect(popup({ url: 'zotero://select/items/Note?redirect=http://file/a' })).toEqual({ action: 'deny' })
+      await nextImmediate()
+      expect(getPath).not.toHaveBeenCalled()
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: 'zotero://select/items/Note?redirect=http://file/a' })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+    it('delegates application popups from non-main windows while denying the new window', async () => {
+      await (svc as any).onInit()
+      windowManagerMock.onWindowCreated.mock.calls[0][0]({ type: WindowType.SubWindow, window: win })
+      const opener = vi.spyOn(svc, 'openWebsite').mockResolvedValue(undefined)
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+      expect(popup({ url: 'zotero://select/items/Note' })).toEqual({ action: 'deny' })
+      expect(opener).toHaveBeenCalledExactlyOnceWith('zotero://select/items/Note')
+    })
+
     beforeEach(async () => {
       const actual = await vi.importActual<typeof ExternalUrlSafety>('@main/utils/externalUrlSafety')
       vi.mocked(isSafeExternalUrl).mockImplementation(actual.isSafeExternalUrl)
@@ -491,7 +553,7 @@ describe('MainWindowService', () => {
       const navigate = win.webContents.on.mock.calls.find(([event]) => event === 'will-navigate')![1]
       prefValues['app.browser.open_links_in_browser'] = false
       expect(popup({ url: 'https://external.test/' })).toEqual({ action: 'deny' })
-      expect(shell.openExternal).toHaveBeenCalledWith('https://external.test/')
+      expect(shell.openExternal).toHaveBeenCalledWith('https://external.test/', undefined)
       vi.mocked(shell.openExternal).mockClear()
       popup({ url: 'file:///tmp/private.html' })
       navigate({}, 'https://app.local/same-origin')
@@ -546,7 +608,10 @@ describe('MainWindowService', () => {
       await svc.openWebsite('https://example.com', true)
       await svc.openWebsite('mailto:test@example.com')
       await svc.openWebsite('javascript:alert(1)')
-      expect(vi.mocked(shell.openExternal).mock.calls).toEqual([['https://example.com'], ['mailto:test@example.com']])
+      expect(vi.mocked(shell.openExternal).mock.calls).toEqual([
+        ['https://example.com', undefined],
+        ['mailto:test@example.com', undefined]
+      ])
     })
     it('keeps explicit browser-tab navigation internal regardless of the global website preference', () => {
       prefValues['app.browser.open_links_in_browser'] = false
@@ -579,7 +644,7 @@ describe('MainWindowService', () => {
     })
     it('uses the system browser by default', async () => {
       await svc.openWebsite('https://example.com')
-      expect(shell.openExternal).toHaveBeenCalledWith('https://example.com')
+      expect(shell.openExternal).toHaveBeenCalledWith('https://example.com', undefined)
     })
   })
 

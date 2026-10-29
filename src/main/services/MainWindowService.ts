@@ -29,6 +29,7 @@ import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/w
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/browserUrl'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -578,21 +579,37 @@ export class MainWindowService extends BaseService {
     }
   }
 
-  async openWebsite(url: string, external = false): Promise<void> {
-    if (!isSafeExternalUrl(url)) {
+  async openWebsite(url: string, external = false, options?: Electron.OpenExternalOptions): Promise<void> {
+    const resolved = resolveSafeExternalUrl(url)
+    if (!resolved) {
       logger.warn('Blocked website URL with an unsupported scheme')
       return
     }
-    const parsed = new URL(url)
+    const { url: destination, protocol, requiresConfirmation } = resolved
     if (
       !external &&
-      ['http:', 'https:'].includes(parsed.protocol) &&
+      ['http:', 'https:'].includes(protocol) &&
       application.get('PreferenceService').get('app.browser.open_links_in_browser')
     ) {
       this.openBrowserTab(url)
       return
     }
-    await shell.openExternal(url)
+    if (requiresConfirmation) {
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        message: t('dialog.external_link.message'),
+        detail: destination,
+        buttons: [t('dialog.screen_capture_permission.cancel'), t('dialog.external_link.open')],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      if (response !== 1) {
+        logger.warn('External URL opening cancelled', { protocol })
+        return
+      }
+    }
+    await shell.openExternal(destination, options)
   }
 
   openBrowserTab(url: string): void {
@@ -611,7 +628,7 @@ export class MainWindowService extends BaseService {
       void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
     }
     contents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) openWebsite(url)
+      if (resolveSafeExternalUrl(url)) openWebsite(url)
       return { action: 'deny' }
     })
     const navigate = (_event: Electron.Event, url: string) => {
@@ -677,7 +694,7 @@ export class MainWindowService extends BaseService {
         }
       }
 
-      if (url.includes('http://file/')) {
+      if (/^https?:/i.test(url) && url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
         if (!fileName) {
           logger.warn('Blocked empty file name in http://file/ URL')
