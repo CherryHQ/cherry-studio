@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-28-composer-input-history-recall.md
+2026-10-28-composer-input-history-recall.md: fd9126f1ff40b175cbce0666736d59ee80dc41f3
+2026-10-28-composer-input-history-recall.zh.md: bf7e3d7f5ebf53c0137fe8d44a56821756499f22

@@ -2,13 +2,52 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getNextInputHistoryIndex, shouldHandleInputHistoryNavigation } from '../inputHistoryNavigation'
+import {
+  getNextInputHistoryIndex,
+  matchesHistoryRecallShortcut,
+  shouldHandleInputHistoryNavigation
+} from '../inputHistoryNavigation'
 import type { ComposerSerializedDraft } from '../tokens'
 import { INPUT_HISTORY_LIMIT, useInputHistory } from '../useInputHistory'
+
+vi.mock('@renderer/utils/platform', () => ({ isMac: false, isWin: true }))
 
 beforeEach(() => {
   MockUseCacheUtils.resetMocks()
   vi.clearAllMocks()
+})
+
+describe('matchesHistoryRecallShortcut', () => {
+  it.each([{ key: 'ArrowUp', code: 'Numpad8' }, { key: 'ArrowDown', code: 'Numpad2' }, { key: 'ArrowUp' }])(
+    'matches logical $key ($code) with the configured modifiers',
+    (event) => {
+      expect(matchesHistoryRecallShortcut(event, 'arrow')).toBe(true)
+      expect(matchesHistoryRecallShortcut({ ...event, ctrlKey: true }, 'ctrl_arrow')).toBe(true)
+    }
+  )
+
+  it.each([{ shiftKey: true }, { ctrlKey: true }, { altKey: true }, { metaKey: true }])(
+    'rejects modified keypad arrows under arrow: %j',
+    (modifiers) => {
+      expect(matchesHistoryRecallShortcut({ key: 'ArrowUp', code: 'Numpad8', ...modifiers }, 'arrow')).toBe(false)
+    }
+  )
+
+  it.each([
+    {},
+    { metaKey: true },
+    { ctrlKey: true, shiftKey: true },
+    { ctrlKey: true, altKey: true },
+    { ctrlKey: true, metaKey: true }
+  ])('requires exactly the primary modifier under ctrl_arrow: %j', (modifiers) => {
+    expect(matchesHistoryRecallShortcut({ key: 'ArrowUp', code: 'Numpad8', ...modifiers }, 'ctrl_arrow')).toBe(false)
+  })
+
+  it('rejects keypad arrows when disabled and keypad digits under either enabled policy', () => {
+    expect(matchesHistoryRecallShortcut({ key: 'ArrowUp', code: 'Numpad8' }, 'off')).toBe(false)
+    expect(matchesHistoryRecallShortcut({ key: '8', code: 'Numpad8' }, 'arrow')).toBe(false)
+    expect(matchesHistoryRecallShortcut({ key: '8', code: 'Numpad8', ctrlKey: true }, 'ctrl_arrow')).toBe(false)
+  })
 })
 
 describe('getNextInputHistoryIndex', () => {
@@ -97,6 +136,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('handles ArrowUp when the composer is empty', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: false,
         isComposing: false,
         isCursorAtHistoryBoundary: false,
@@ -110,6 +150,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('handles ArrowDown when all text is selected', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: true,
         isComposing: false,
         isCursorAtHistoryBoundary: false,
@@ -123,6 +164,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('handles navigation when the cursor is at the history boundary of non-empty text', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: false,
         isComposing: false,
         isCursorAtHistoryBoundary: true,
@@ -136,6 +178,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('handles whitespace-only text (treats as empty for navigation)', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: false,
         isComposing: false,
         isCursorAtHistoryBoundary: false,
@@ -149,6 +192,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('handles navigation when all selection and history-boundary flags are simultaneously true', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: true,
         isComposing: false,
         isCursorAtHistoryBoundary: true,
@@ -162,6 +206,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('ignores navigation during IME composition', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: true,
         isComposing: true,
         isCursorAtHistoryBoundary: true,
@@ -175,6 +220,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('ignores navigation while the quick panel is visible', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: true,
         isComposing: false,
         isCursorAtHistoryBoundary: true,
@@ -188,6 +234,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('ignores non-arrow keys', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: true,
         isComposing: false,
         isCursorAtHistoryBoundary: true,
@@ -201,6 +248,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('ignores non-empty text when the cursor is not at the history boundary and text is not selected', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: false,
         isComposing: false,
         isCursorAtHistoryBoundary: false,
@@ -214,6 +262,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('prioritizes IME composition guard over an otherwise valid empty-text navigation', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: false,
         isComposing: true,
         isCursorAtHistoryBoundary: false,
@@ -227,6 +276,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
   it('prioritizes quick panel visibility guard over an otherwise valid history-boundary navigation', () => {
     expect(
       shouldHandleInputHistoryNavigation({
+        isHistoryShortcut: true,
         isAllSelected: false,
         isComposing: false,
         isCursorAtHistoryBoundary: true,
@@ -576,5 +626,20 @@ describe('useInputHistory', () => {
         expect(result.current.takeDraftBeforeHistory()).toBeNull()
       })
     })
+  })
+  it.each(['ArrowUp', 'ArrowDown'])('rejects an unmatched %s chord in every eligible state', (key) => {
+    for (const state of [
+      { text: '', isAllSelected: false, isCursorAtHistoryBoundary: false },
+      { text: 'draft', isAllSelected: true, isCursorAtHistoryBoundary: false },
+      { text: 'draft', isAllSelected: false, isCursorAtHistoryBoundary: true }
+    ]) {
+      for (const blocked of [
+        { isComposing: false, isQuickPanelVisible: false },
+        { isComposing: true, isQuickPanelVisible: false },
+        { isComposing: false, isQuickPanelVisible: true }
+      ]) {
+        expect(shouldHandleInputHistoryNavigation({ ...state, ...blocked, key, isHistoryShortcut: false })).toBe(false)
+      }
+    }
   })
 })

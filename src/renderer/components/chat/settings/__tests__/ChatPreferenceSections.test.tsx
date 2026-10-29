@@ -154,6 +154,18 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('auto')).toBeNull()
   })
 
+  it('offers all history recall policies in a searchable row independently of send shortcuts', () => {
+    render(<ChatPreferenceSections />)
+    const title = screen.getByText('settings.messages.input.history_recall')
+    expect(title.closest('[id]')).toHaveAttribute('id', 'setting-appearance-history-recall')
+    expect(screen.getByText('settings.messages.input.history_recall_arrow')).toHaveAttribute('data-value', 'arrow')
+    expect(screen.getByText('settings.messages.input.history_recall_ctrl_arrow')).toHaveAttribute(
+      'data-value',
+      'ctrl_arrow'
+    )
+    expect(screen.getByText('settings.messages.input.history_recall_off')).toHaveAttribute('data-value', 'off')
+  })
+
   it('does not render input translation controls', () => {
     mocks.preferenceValues['app.language'] = 'zh-cn'
 

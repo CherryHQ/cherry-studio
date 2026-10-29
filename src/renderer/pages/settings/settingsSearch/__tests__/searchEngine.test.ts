@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import en from '@renderer/i18n/locales/en-us.json'
+
+import { entries, route } from '../../AppearanceSettings/appearance.search'
 import { rankEntries } from '../searchEngine'
 import type { SettingsSearchSection } from '../types'
 
@@ -300,4 +303,20 @@ describe('text normalization in matching', () => {
     expect(rankEntries('plain row', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
     expect(rankEntries('plainrow', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
   })
+})
+
+describe('composer input history setting search', () => {
+  it.each(['Input history recall', 'recall', 'up arrow', 'ctrl+up', '入力履歴', '输入历史'])(
+    'finds the real appearance row for %s',
+    (query) => {
+      const results = rankEntries(
+        query,
+        [{ route, sectionTitleKey: 'settings.appearance.title', entries }],
+        (key) => en[key as keyof typeof en] ?? key
+      )
+      expect(results).toEqual(
+        expect.arrayContaining([expect.objectContaining({ focusId: 'setting-appearance-history-recall', route })])
+      )
+    }
+  )
 })
