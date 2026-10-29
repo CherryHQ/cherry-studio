@@ -139,6 +139,23 @@ describe('AgentTaskJobHandler', () => {
     })
   })
 
+  describe('resolveRetryPolicy', () => {
+    const base = { agentId: 'a1', prompt: 'x', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
+
+    it('keeps tasks without a retry config on the single-attempt default', () => {
+      expect(agentTaskJobHandler.resolveRetryPolicy?.(base)).toBeUndefined()
+    })
+
+    it('allows max extra attempts with a fixed backoff in milliseconds', () => {
+      expect(agentTaskJobHandler.resolveRetryPolicy?.({ ...base, retry: { max: 2, backoffSeconds: 30 } })).toEqual({
+        maxAttempts: 3,
+        backoff: 'fixed',
+        baseDelayMs: 30_000,
+        maxDelayMs: 30_000
+      })
+    })
+  })
+
   describe('onEnqueued', () => {
     it('announces log membership while a scheduled job is still pending', () => {
       agentTaskJobHandler.onEnqueued?.({ ...makeTerminal('completed', 'j1'), status: 'pending', startedAt: null })

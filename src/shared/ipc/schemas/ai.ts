@@ -19,6 +19,7 @@ import {
   AgentEntitySchema,
   AgentSkillIdSetSchema,
   ScheduledTaskEntitySchema,
+  TaskRetrySchema,
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
 import {
@@ -98,6 +99,8 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /** Retry failed runs; null clears it on update. */
+  retry: TaskRetrySchema.nullable().optional(),
   /**
    * Continue one sticky session across fires instead of creating a fresh one.
    * Defaults to off. To start a clean conversation, disable and save, then
