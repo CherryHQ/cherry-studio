@@ -31,6 +31,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
+  readTaskDependency,
   readTaskSessionReuse,
   type TaskSessionReuse
 } from '@data/services/AgentTaskService'
@@ -137,6 +138,24 @@ function resolveTaskSession(params: {
   return session
 }
 
+/** Returns why the dependency blocks this fire, or `null` when its latest run succeeded in the window. */
+function dependencyBlockReason(metadata: Record<string, unknown> | undefined): string | null {
+  const dependency = readTaskDependency(metadata)
+  if (!dependency) return null
+  if (!jobScheduleService.getById(dependency.taskId)) return 'dependency missing'
+  const last = jobService.listRecentTerminalByScheduleId(dependency.taskId, 1)[0]
+  if (!last) return 'dependency not run'
+  const result = (last.output as { result?: unknown } | null)?.result
+  if (last.status !== 'completed' || (typeof result === 'string' && result.startsWith('Skipped'))) {
+    return 'dependency failed'
+  }
+  const finishedAt = last.finishedAt ? Date.parse(last.finishedAt) : NaN
+  if (dependency.withinMinutes !== undefined && !(Date.now() - finishedAt <= dependency.withinMinutes * 60_000)) {
+    return 'dependency stale'
+  }
+  return null
+}
+
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
   const { agentId, prompt, timeoutMinutes } = ctx.input
 
@@ -146,6 +165,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const scheduleId = jobSnapshot?.scheduleId ?? null
   const scheduleSnapshot = scheduleId ? jobScheduleService.getById(scheduleId) : null
   const taskName = scheduleSnapshot?.name ?? null
+
+  const blockReason = dependencyBlockReason(scheduleSnapshot?.metadata)
+  if (blockReason) {
+    logger.info('Task skipped', { scheduleId, reason: blockReason })
+    return { result: `Skipped (${blockReason})` }
+  }
 
   const agent = agentService.getAgent(agentId)
   if (!agent) {

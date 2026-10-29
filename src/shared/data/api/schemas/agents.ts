@@ -165,6 +165,14 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
+export const TaskDependencySchema = z.strictObject({
+  /** Id of the `agent.task` schedule this task depends on. */
+  taskId: z.string().min(1),
+  /** Maximum age of the dependency's last successful run; unlimited when omitted. */
+  withinMinutes: z.number().positive().optional()
+})
+export type TaskDependency = z.infer<typeof TaskDependencySchema>
+
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -182,6 +190,8 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   reuseSession: z.boolean(),
   /** The sticky session bound by the last fire; null until the first fire (or while `reuseSession` is off). */
   reuseSessionId: z.string().nullable(),
+  /** Run only when the dependency task's latest run succeeded (optionally within `withinMinutes`). */
+  dependsOn: TaskDependencySchema.nullable().optional(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),

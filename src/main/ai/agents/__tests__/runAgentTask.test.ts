@@ -81,7 +81,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { getById: vi.fn() }
+  jobService: { getById: vi.fn(), listRecentTerminalByScheduleId: vi.fn() }
 }))
 vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
@@ -234,6 +234,7 @@ describe('runAgentTask', () => {
   beforeEach(() => {
     vi.mocked(application.getPath).mockReturnValue('/agent-data')
     vi.mocked(jobService.getById).mockReset()
+    vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(agentSessionService.create).mockReset()
@@ -369,6 +370,48 @@ describe('runAgentTask', () => {
     expect(out).toEqual({ result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).toHaveBeenCalledWith('/agent-data/a1')
+  })
+
+  describe('task dependency', () => {
+    const lastRun = (status: string, finishedAt: string, result = 'ok') =>
+      [{ status, finishedAt, output: { result } }] as never
+
+    function arm(dependsOn: Record<string, unknown>, runs: unknown[]) {
+      vi.mocked(jobService.getById).mockReturnValue(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockImplementation(((id: string) =>
+        id === 'dep' ? makeSchedule('dep') : makeSchedule('b', { dependsOn })) as never)
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValue(runs as never)
+      vi.mocked(agentService.getAgent).mockReturnValue(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValue(makeSession('/ws/a'))
+    }
+
+    const runTask = () => runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi' } }))
+
+    it('skips without starting a run when the dependency last failed', async () => {
+      arm({ taskId: 'dep' }, lastRun('failed', new Date().toISOString()))
+      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+    })
+
+    it('skips when the dependency has never run', async () => {
+      arm({ taskId: 'dep' }, [])
+      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency not run)' })
+    })
+
+    it('skips when the dependency succeeded outside the window', async () => {
+      arm({ taskId: 'dep', withinMinutes: 10 }, lastRun('completed', new Date(Date.now() - 3_600_000).toISOString()))
+      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency stale)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('runs when the dependency succeeded within the window', async () => {
+      arm({ taskId: 'dep', withinMinutes: 10 }, lastRun('completed', new Date().toISOString()))
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone()
+      await expect(promise).resolves.toBeDefined()
+    })
   })
 
   describe('session reuse', () => {
