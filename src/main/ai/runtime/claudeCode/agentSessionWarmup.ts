@@ -322,6 +322,7 @@ export async function deriveConnectionConfig(
   const effectiveModel = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
   if (!effectiveModel) return unroutable
   try {
+    await application.get('MemoryService').prepareAgent(agent.id)
     return {
       ok: true,
       config: await deriveConnectionConfigFromSnapshot(
@@ -438,6 +439,7 @@ async function deriveConnectionConfigFromSnapshot(
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
+    memoryMigrated: application.get('MemoryMigrationService').isMigrated(agent.id),
     skills: [...skills].sort(),
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
@@ -525,6 +527,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // override — only a session with no effective model is unroutable.
   const uniqueModelId = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
   if (!uniqueModelId) return undefined
+  await application.get('MemoryService').prepareAgent(agent.id)
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)

@@ -57,8 +57,8 @@ Before doing **any** filesystem reads or Bash calls, you MUST:
    - **Narrower scope**: scan only one directory the user names → smaller budget
    - **Verbal-only**: skip the scan, recommend based on what the user describes
      (project type, frameworks, pain points)
-   - **Defer**: note the request to memory/FACT.md so a future session can pick
-     it up without re-asking
+   - **Defer**: leave a summary in the current conversation. Do not save a
+     one-time scan request as long-term memory.
 
 5. **Skip Phase 0 only if** the user has already explicitly granted scan
    permission earlier in the same session (e.g. their first message was
