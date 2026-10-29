@@ -12,14 +12,17 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
 import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { IpcChannel } from '@shared/IpcChannel'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 interface OwnProps {
   forceFullBackup?: boolean
+  scope?: 'configuration'
 }
 
 type Props = OwnProps & PopupInjectedProps<void>
@@ -32,7 +35,7 @@ interface ProgressData {
   total: number
 }
 
-const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, scope, open, resolve }) => {
   const [progressData, setProgressData] = useState<ProgressData>()
   const [submitting, setSubmitting] = useState(false)
   const { t } = useTranslation()
@@ -51,7 +54,18 @@ const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolv
   const onOk = async () => {
     setSubmitting(true)
     try {
-      await backup(forceFullBackup ? false : skipBackupFile)
+      if (scope === 'configuration') {
+        const destinationPath = await window.api.file.selectFolder()
+        if (!destinationPath) {
+          setSubmitting(false)
+          return
+        }
+        await ipcApi.request('backup.export_configuration', {
+          destinationPath: AbsoluteFilePathSchema.parse(destinationPath)
+        })
+      } else {
+        await backup(forceFullBackup ? false : skipBackupFile)
+      }
       resolve()
     } catch (error) {
       toast.error(getLocalizedBackupErrorMessage(error))
@@ -77,9 +91,9 @@ const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolv
 
   const isDisabled = submitting || (progressData ? progressData.stage !== 'completed' : false)
 
-  const title = t('backup.title')
-  const okText = t('backup.confirm.button')
-  const content = t('backup.content')
+  const title = t(scope === 'configuration' ? 'backup.configuration.title' : 'backup.title')
+  const okText = t(scope === 'configuration' ? 'backup.configuration.confirm.button' : 'backup.confirm.button')
+  const content = t(scope === 'configuration' ? 'backup.configuration.content' : 'backup.content')
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
@@ -90,7 +104,9 @@ const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolv
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        {!progressData && <div>{content}</div>}
+        {!progressData && (
+          <div className={scope === 'configuration' ? 'max-h-[55vh] overflow-y-auto' : undefined}>{content}</div>
+        )}
         {progressData && (
           <div className="flex flex-col items-center gap-4 py-5 text-center">
             <CircularProgress

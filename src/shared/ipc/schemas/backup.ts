@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { AUTO_BACKUP_TYPES, type AutoBackupEvent } from '@shared/types/backup'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -20,6 +21,10 @@ const autoBackupEventSchema = z.discriminatedUnion('status', [
 ])
 
 export const backupRequestSchemas = {
+  'backup.export_configuration': defineRoute({
+    input: z.strictObject({ destinationPath: AbsoluteFilePathSchema }),
+    output: z.strictObject({ filePath: AbsoluteFilePathSchema })
+  }),
   'backup.get_auto_sync_state': defineRoute({
     input: z.void(),
     output: z.object({ pendingNotifications: z.array(autoBackupEventSchema) })

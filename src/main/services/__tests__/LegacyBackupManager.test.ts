@@ -1,7 +1,10 @@
+import { execFileSync } from 'node:child_process'
 import type * as CryptoModule from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
+import { runInNewContext } from 'node:vm'
 import type * as PathModule from 'path'
 
+import * as ts from 'typescript'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -80,6 +83,9 @@ const {
   mockZipExtract,
   mockZipClose,
   mockZipEntries,
+  mockZipOn,
+  mockZipStream,
+  mockApplyConfigurationTx,
   MockStreamZipAsync
 } = vi.hoisted(() => {
   const mockAgentIngressHold = { dispose: vi.fn() }
@@ -90,6 +96,8 @@ const {
   const mockZipExtract = vi.fn()
   const mockZipClose = vi.fn()
   const mockZipEntries = vi.fn(async () => ({}))
+  const mockZipOn = vi.fn()
+  const mockZipStream = vi.fn()
   return {
     mockLogger: {
       debug: vi.fn(),
@@ -97,7 +105,12 @@ const {
       warn: vi.fn(),
       error: vi.fn()
     },
-    mockDbService: { createSnapshot: vi.fn(), checkpointTruncate: vi.fn() },
+    mockDbService: {
+      createSnapshot: vi.fn(),
+      checkpointTruncate: vi.fn(),
+      getDb: vi.fn(),
+      withWriteTx: vi.fn((fn: (tx: unknown) => unknown) => fn({}))
+    },
     mockCacheService: { flushPersistForBackup: vi.fn() },
     mockAgentLifecycle: {
       pauseIngress: vi.fn(() => mockAgentIngressHold),
@@ -142,11 +155,27 @@ const {
     mockZipExtract,
     mockZipClose,
     mockZipEntries,
+    mockZipOn,
+    mockZipStream,
+    mockApplyConfigurationTx: vi.fn(),
     MockStreamZipAsync: vi.fn(function () {
-      return { entries: mockZipEntries, extract: mockZipExtract, close: mockZipClose }
+      return {
+        entries: mockZipEntries,
+        extract: mockZipExtract,
+        close: mockZipClose,
+        on: mockZipOn,
+        stream: mockZipStream
+      }
     })
   }
 })
+
+vi.mock('@main/data/db/restore/configurationBackup', () => ({
+  applyConfigurationTx: mockApplyConfigurationTx,
+  validateConfigurationPayload: (raw: unknown) => raw,
+  readConfigurationMigrationChain: vi.fn(),
+  captureConfiguration: vi.fn()
+}))
 
 vi.mock('node:crypto', async () => {
   const actual = await vi.importActual<typeof CryptoModule>('node:crypto')
@@ -405,6 +434,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined)
     vi.mocked(fs.pathExists).mockResolvedValue(false as never)
     vi.mocked(fs.existsSync).mockReturnValue(false)
+    mockZipStream.mockImplementation(async () => Readable.from(Buffer.from(JSON.stringify(slimDataMetadata))))
   })
 
   const mockArchiveClose = (pipeError?: Error) => {
@@ -971,6 +1001,151 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     expect(events).toContain('remove:/mock/temp/backup/extract-operation-id')
     expect(events.indexOf('remove:/mock/temp/backup/extract-operation-id')).toBeLessThan(events.indexOf('relaunch'))
+  })
+
+  const configurationMetadata = {
+    ...metadata,
+    version: 8,
+    scope: 'configuration',
+    resources: { database: false, cache: false, indexedDB: false, localStorage: false, appClaude: false, data: false }
+  }
+
+  function arrangeConfigurationRestore() {
+    const entryMap = Object.fromEntries(
+      ['metadata.json', 'Configuration/configuration.json'].map((name) => [
+        name,
+        {
+          name,
+          isFile: true,
+          encrypted: false,
+          attr: 0o100600 << 16
+        }
+      ])
+    )
+    mockZipEntries.mockImplementationOnce(async () => {
+      const listener = mockZipOn.mock.calls.find(([event]) => event === 'entry')?.[1]
+      for (const entry of Object.values(entryMap)) listener?.(entry)
+      return entryMap
+    })
+    mockZipStream.mockImplementation(async (name) =>
+      Readable.from(Buffer.from(JSON.stringify(name === 'metadata.json' ? configurationMetadata : {})))
+    )
+    vi.mocked(fs.createReadStream).mockImplementation(() => Readable.from(Buffer.from('zip')) as never)
+    vi.spyOn(backupManager as any, 'assertConfigurationCompatibility').mockReturnValue(undefined)
+  }
+
+  it('dispatches v8 before extraction and keeps writer holds through archive cleanup and relaunch', async () => {
+    arrangeConfigurationRestore()
+    const events: string[] = []
+    mockApplyConfigurationTx.mockImplementationOnce(() => {
+      events.push('apply')
+    })
+    mockZipClose.mockImplementationOnce(async () => {
+      events.push('cleanup')
+    })
+    mockRelaunch.mockImplementationOnce(() => {
+      events.push('relaunch')
+    })
+    const direct = vi.spyOn(backupManager as any, 'restoreDirect')
+    await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/configuration.zip')
+    expect(events).toEqual(['apply', 'cleanup', 'relaunch'])
+    expect(direct).not.toHaveBeenCalled()
+    expect(mockZipExtract).not.toHaveBeenCalled()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    for (const hold of [mockAgentIngressHold, mockAiStreamHold, mockAgentExecutionHold, mockHeartbeatHold, mockJobHold])
+      expect(hold.dispose).not.toHaveBeenCalled()
+    const stages = mockWindowManager.broadcastToType.mock.calls.map((call) => call[2].stage)
+    expect(stages).toEqual(['preparing', 'validating', 'restoring_database', 'completed'])
+  })
+
+  it('releases every writer hold and closes the archive on pre-commit failure without completion or relaunch', async () => {
+    arrangeConfigurationRestore()
+    mockApplyConfigurationTx.mockImplementationOnce(() => {
+      throw new Error('SQL failure')
+    })
+    await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/configuration.zip')).rejects.toThrow(
+      'BACKUP_CONFIGURATION_CONFLICT'
+    )
+    for (const hold of [mockAgentIngressHold, mockAiStreamHold, mockAgentExecutionHold, mockHeartbeatHold, mockJobHold])
+      expect(hold.dispose).toHaveBeenCalledOnce()
+    expect(mockZipClose).toHaveBeenCalledOnce()
+    expect(mockRelaunch).not.toHaveBeenCalled()
+    expect(mockWindowManager.broadcastToType.mock.calls.some((call) => call[2].stage === 'completed')).toBe(false)
+  })
+
+  it('releases already-acquired holds if a later pause fails before the transaction starts', async () => {
+    arrangeConfigurationRestore()
+    mockAgentLifecycle.pauseExecution.mockImplementationOnce(() => {
+      throw new Error('pause failed')
+    })
+    await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/configuration.zip')).rejects.toThrow(
+      'pause failed'
+    )
+    expect(mockAiStreamHold.dispose).toHaveBeenCalledOnce()
+    expect(mockAgentIngressHold.dispose).toHaveBeenCalledOnce()
+    expect(mockAgentJobs.pause).not.toHaveBeenCalled()
+    expect(mockDbService.withWriteTx).not.toHaveBeenCalled()
+    expect(mockRelaunch).not.toHaveBeenCalled()
+  })
+
+  it('still relaunches with holds retained if archive cleanup fails after configuration commits', async () => {
+    arrangeConfigurationRestore()
+    mockZipClose.mockRejectedValueOnce(new Error('close failed'))
+    await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/configuration.zip')
+    expect(mockRelaunch).toHaveBeenCalledOnce()
+    expect(mockAgentIngressHold.dispose).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  it.each([completeDataMetadata, slimDataMetadata])(
+    'dispatches v7 full/slim unchanged to direct restore',
+    async (raw) => {
+      mockZipEntries.mockResolvedValueOnce({ 'metadata.json': { name: 'metadata.json' } })
+      mockZipStream.mockImplementationOnce(async () => Readable.from(Buffer.from(JSON.stringify(raw))))
+      vi.mocked(fs.pathExists).mockResolvedValue(true as never)
+      const direct = vi.spyOn(backupManager as any, 'restoreDirect').mockResolvedValue(undefined)
+      const configuration = vi.spyOn(backupManager as any, 'restoreConfiguration')
+      await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/version7.zip')
+      expect(direct).toHaveBeenCalledWith('/mock/temp/backup/extract-operation-id')
+      expect(configuration).not.toHaveBeenCalled()
+    }
+  )
+
+  it('the actual pinned v7 reader rejects v8 before live changes or a journal commit', async () => {
+    const source = execFileSync(
+      'git',
+      ['show', '0f95a597ab43d9209bcfe8c6593ae194ddc6183c:src/main/services/LegacyBackupManager.ts'],
+      { encoding: 'utf8' }
+    )
+    const methods = source.slice(
+      source.indexOf('  private async restoreDirect('),
+      source.indexOf('  private async assertArchiveFile(')
+    )
+    const compiled = ts.transpileModule(
+      `class PinnedReader { ${methods}\n onProgress() { return () => {} }\n ensurePrivateDir(dir: string) { return fs.ensureDir(dir) } }\n exports.PinnedReader = PinnedReader`,
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+    ).outputText
+    const exports = { PinnedReader: undefined as unknown as new () => { restoreDirect(dir: string): Promise<void> } }
+    runInNewContext(compiled, {
+      exports,
+      fs,
+      path: await vi.importActual('path'),
+      randomUUID: () => 'pinned-id',
+      logger: mockLogger,
+      DIRECT_BACKUP_VERSION: 7,
+      BACKUP_NEWER_VERSION_ERROR_CODE: 'BACKUP_NEWER_VERSION',
+      IpcChannel: { RestoreProgress: 'restore-progress' },
+      readRestoreJournal: mockReadRestoreJournal,
+      application: { getPath: (key: string) => (key === 'app.userdata' ? '/live' : '/live/restore-staging') }
+    })
+    vi.mocked(fs.readJson).mockResolvedValueOnce(configurationMetadata)
+    await expect(new exports.PinnedReader().restoreDirect('/extract')).rejects.toThrow('BACKUP_NEWER_VERSION')
+    expect(fs.copy).not.toHaveBeenCalled()
+    expect(mockDbService.withWriteTx).not.toHaveBeenCalled()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(
+      vi.mocked(fs.remove).mock.calls.every(([target]) => String(target).startsWith('/live/restore-staging'))
+    ).toBe(true)
   })
 
   it('removes the WebDAV download directory before relaunching', async () => {

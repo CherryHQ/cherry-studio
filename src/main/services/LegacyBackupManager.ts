@@ -17,7 +17,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import type { Stats } from 'node:fs'
-import { Transform } from 'node:stream'
+import { type Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { setTimeout as delay } from 'node:timers/promises'
 import * as path from 'path'
@@ -30,14 +30,23 @@ import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
+import {
+  applyConfigurationTx,
+  captureConfiguration,
+  type ConfigurationPayload,
+  readConfigurationMigrationChain,
+  validateConfigurationPayload
+} from '@main/data/db/restore/configurationBackup'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
+import { getAppEdition } from '@main/utils/appEdition'
 import { type AtomicWriteStream, createAtomicWriteStream, ensureDir } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
@@ -47,6 +56,9 @@ import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
+  BACKUP_CONFIGURATION_CONFLICT,
+  BACKUP_CONFIGURATION_INCOMPATIBLE,
+  BACKUP_CONFIGURATION_INVALID,
   BACKUP_DISK_FULL_ERROR_CODE,
   BACKUP_NEWER_VERSION_ERROR_CODE,
   BACKUP_OPERATION_BUSY_ERROR_CODE,
@@ -54,13 +66,34 @@ import {
   type S3Config,
   type WebDavConfig
 } from '@shared/types/backup'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type S3Storage from './S3Storage'
 import type WebDav from './WebDav'
 
 const logger = loggerService.withContext('BackupManager')
 const DIRECT_BACKUP_VERSION = 7
+const CONFIGURATION_METADATA_LIMIT = 16 * 1024
+const CONFIGURATION_PAYLOAD_LIMIT = 32 * 1024 * 1024
+const CONFIGURATION_ARCHIVE_LIMIT = 34 * 1024 * 1024
+const CONFIGURATION_PAYLOAD_ENTRY = 'Configuration/configuration.json'
+const configurationMetadataSchema = z.strictObject({
+  version: z.literal(8),
+  timestamp: z.number().int().nonnegative(),
+  appName: z.literal('Cherry Studio'),
+  appVersion: z.string(),
+  platform: z.string(),
+  arch: z.string(),
+  scope: z.literal('configuration'),
+  resources: z.strictObject({
+    database: z.literal(false),
+    cache: z.literal(false),
+    indexedDB: z.literal(false),
+    localStorage: z.literal(false),
+    appClaude: z.literal(false),
+    data: z.literal(false)
+  })
+})
 const QUIESCE_TIMEOUT_MS = 30_000
 const REMOTE_UPLOAD_IDLE_TIMEOUT_MS = 5 * 60_000
 const STALE_TEMP_ARTIFACT_AGE_MS = 24 * 60 * 60 * 1000
@@ -261,6 +294,211 @@ class BackupManager {
 
   private runBackupWorkflow<T>(operation: () => Promise<T>): Promise<T> {
     return tryAcquire(this.operationMutex, new BackupOperationBusyError()).runExclusive(operation)
+  }
+
+  async exportConfiguration(destinationPath: string): Promise<AbsoluteFilePath> {
+    return this.runBackupWorkflow(async () => {
+      AbsoluteFilePathSchema.parse(destinationPath)
+      this.assertNoActiveDataWriters()
+      const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
+      onProgress({ stage: 'preparing', progress: 0, total: 100 })
+      const payload = await this.withConfigurationWritersPaused(() => {
+        const captured = captureConfiguration(application.get('DbService').getDb(), getAppEdition())
+        this.assertConfigurationCompatibility(captured, app.getVersion())
+        return captured
+      })
+      const metadata = configurationMetadataSchema.parse({
+        version: 8,
+        timestamp: Date.now(),
+        appName: 'Cherry Studio',
+        appVersion: app.getVersion(),
+        platform: process.platform,
+        arch: process.arch,
+        scope: 'configuration',
+        resources: {
+          database: false,
+          cache: false,
+          indexedDB: false,
+          localStorage: false,
+          appClaude: false,
+          data: false
+        }
+      })
+      const metadataBytes = Buffer.from(JSON.stringify(metadata))
+      const payloadBytes = Buffer.from(JSON.stringify(payload))
+      if (metadataBytes.length > CONFIGURATION_METADATA_LIMIT || payloadBytes.length > CONFIGURATION_PAYLOAD_LIMIT) {
+        throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Configuration exceeds archive limits`)
+      }
+      const fileName = this.createBackupFileName().replace('cherry-studio.', 'cherry-studio.configuration.')
+      const filePath = AbsoluteFilePathSchema.parse(resolveAndValidatePath(destinationPath, fileName))
+      await ensureDir(AbsoluteFilePathSchema.parse(destinationPath))
+      const { ZipArchive } = await import('archiver')
+      const output = createAtomicWriteStream(AbsoluteFilePathSchema.parse(filePath), { mode: BACKUP_ARCHIVE_FILE_MODE })
+      const archive = new ZipArchive({ zlib: { level: 1 } })
+      let bytes = 0
+      const bound = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          bytes += chunk.length
+          callback(
+            bytes > CONFIGURATION_ARCHIVE_LIMIT
+              ? new Error(`${BACKUP_CONFIGURATION_INVALID}: Archive exceeds size limit`)
+              : null,
+            chunk
+          )
+        }
+      })
+      try {
+        onProgress({ stage: 'compressing', progress: 80, total: 100 })
+        const writing = pipeline(archive, bound, output)
+        archive.append(metadataBytes, { name: 'metadata.json', mode: BACKUP_ARCHIVE_FILE_MODE })
+        archive.append(payloadBytes, { name: CONFIGURATION_PAYLOAD_ENTRY, mode: BACKUP_ARCHIVE_FILE_MODE })
+        await Promise.all([writing, archive.finalize()])
+        onProgress({ stage: 'completed', progress: 100, total: 100 })
+        return filePath
+      } catch (error) {
+        archive.abort()
+        await output.abort()
+        throw await this.withAvailableDiskSpace(error, destinationPath)
+      }
+    })
+  }
+
+  private async withConfigurationWritersPaused<T>(operation: () => T, keepOnSuccess = false): Promise<T> {
+    const reason = 'backup: configuration capture or restore'
+    const lifecycle = application.get('AgentLifecycleService')
+    const holds = [lifecycle.pauseIngress(reason)]
+    let succeeded = false
+    try {
+      this.assertWritersDrained([await lifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })])
+      const streams = application.get('AiStreamManager')
+      const agentJobs = application.get('AgentJobsService')
+      const jobs = application.get('JobManager')
+      holds.push(streams.pause(reason))
+      holds.push(lifecycle.pauseExecution(reason))
+      holds.push(agentJobs.pause(reason))
+      holds.push(jobs.pause(reason))
+      this.assertWritersDrained(
+        await Promise.all([
+          agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+          streams.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+          lifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+          jobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+        ])
+      )
+      this.assertNoActiveDataWriters()
+      const result = operation()
+      succeeded = true
+      return result
+    } finally {
+      if (!succeeded || !keepOnSuccess) for (const hold of holds.reverse()) hold.dispose()
+    }
+  }
+
+  private assertConfigurationCompatibility(payload: ConfigurationPayload, appVersion: string): void {
+    let compatible = false
+    try {
+      const live = readConfigurationMigrationChain(application.get('DbService').getDb())
+      const bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') }).map(
+        ({ folderMillis, hash }) => ({ folderMillis, hash })
+      )
+      compatible =
+        appVersion === app.getVersion() &&
+        payload.edition === getAppEdition() &&
+        live.length > 0 &&
+        live.every((item, index) => index === 0 || item.folderMillis > live[index - 1].folderMillis) &&
+        JSON.stringify(payload.migrationChain) === JSON.stringify(live) &&
+        JSON.stringify(live) === JSON.stringify(bundled)
+    } catch {
+      // Unreadable bookkeeping cannot establish compatibility.
+    }
+    if (!compatible)
+      throw new Error(`${BACKUP_CONFIGURATION_INCOMPATIBLE}: Version, edition or migration chain differs`)
+  }
+
+  private async readBackupJson(
+    zip: StreamZip.StreamZipAsync,
+    name: string,
+    limit: number,
+    canonical: boolean
+  ): Promise<unknown> {
+    try {
+      const stream = (await zip.stream(name)) as Readable
+      const chunks: Buffer[] = []
+      let bytes = 0
+      try {
+        for await (const chunk of stream) {
+          bytes += chunk.length
+          if (bytes > limit) throw new Error('Size limit')
+          chunks.push(Buffer.from(chunk))
+        }
+      } finally {
+        stream.destroy()
+      }
+      const content = Buffer.concat(chunks)
+      const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(content))
+      if (canonical && !content.equals(Buffer.from(JSON.stringify(parsed)))) throw new Error('Noncanonical JSON')
+      return parsed
+    } catch {
+      throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Invalid or oversized JSON entry`)
+    }
+  }
+
+  private async restoreConfiguration(
+    zip: StreamZip.StreamZipAsync,
+    entries: StreamZip.ZipEntry[],
+    backupPath: string
+  ): Promise<void> {
+    const expected = new Set(['metadata.json', CONFIGURATION_PAYLOAD_ENTRY])
+    for (const entry of entries) {
+      const fileType = (entry.attr >>> 16) & 0o170000
+      if (
+        !expected.delete(entry.name) ||
+        !entry.isFile ||
+        (entry.attr & 0x10) !== 0 ||
+        entry.encrypted ||
+        (fileType !== 0 && fileType !== 0o100000)
+      ) {
+        throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Unexpected or duplicate archive entry`)
+      }
+    }
+    if (entries.length !== 2 || expected.size) throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Incomplete container`)
+    let bytes = 0
+    for await (const chunk of fs.createReadStream(backupPath)) {
+      bytes += chunk.length
+      if (bytes > CONFIGURATION_ARCHIVE_LIMIT)
+        throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Archive exceeds size limit`)
+    }
+    const metadata = configurationMetadataSchema.safeParse(
+      await this.readBackupJson(zip, 'metadata.json', CONFIGURATION_METADATA_LIMIT, true)
+    )
+    if (!metadata.success) throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Invalid configuration metadata`)
+    const payload = validateConfigurationPayload(
+      await this.readBackupJson(zip, CONFIGURATION_PAYLOAD_ENTRY, CONFIGURATION_PAYLOAD_LIMIT, true)
+    )
+    this.assertConfigurationCompatibility(payload, metadata.data.appVersion)
+    const pending = readRestoreJournal()
+    if (
+      pending.kind === 'corrupt' ||
+      (pending.kind === 'ok' && ['staged', 'promoting'].includes(pending.journal.state))
+    ) {
+      throw new Error(`${BACKUP_CONFIGURATION_CONFLICT}: Another restore is pending`)
+    }
+    const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
+    onProgress({ stage: 'validating', progress: 25, total: 100 })
+    await this.withConfigurationWritersPaused(() => {
+      this.assertConfigurationCompatibility(payload, metadata.data.appVersion)
+      onProgress({ stage: 'restoring_database', progress: 95, total: 100 })
+      try {
+        application.get('DbService').withWriteTx((tx) => applyConfigurationTx(tx, payload))
+      } catch {
+        throw new Error(`${BACKUP_CONFIGURATION_CONFLICT}: Configuration transaction failed; no changes committed`)
+      }
+    }, true)
+    try {
+      onProgress({ stage: 'completed', progress: 100, total: 100 })
+    } catch {
+      logger.warn('Configuration committed; progress notification failed. Restart remains required.')
+    }
   }
 
   private createBackupFileName(): string {
@@ -713,7 +951,7 @@ class BackupManager {
 
   /**
    * Restore from a backup file
-   * Only the complete v2 direct format is accepted. Every v1 format — direct
+   * Accepts v7 full/slim backups and v8 configuration archives. Every v1 format — direct
    * version 6, metadata-less ZIP versions 1-5, and renderer-side .bak — is
    * intentionally incompatible with the v2 SQLite ownership model.
    * @param _ - Electron IPC event
@@ -728,20 +966,51 @@ class BackupManager {
 
   private async restoreUnlocked(backupPath: string): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
-    const extractionDir = await this.createOperationDir('extract')
+    let extractionDir: string | undefined
+    let configurationCommitted = false
 
     try {
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
-      logger.debug(`Extracting backup file into ${extractionDir}`)
 
       const zip = new StreamZip.async({ file: backupPath })
+      const entries: StreamZip.ZipEntry[] = []
+      zip.on('entry', (entry) => entries.push(entry))
+      let closeError: Error | undefined
       try {
+        const entryMap = await zip.entries().catch(() => {
+          throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Invalid ZIP container`)
+        })
+        try {
+          assertZipEntriesWithin(Object.keys(entryMap), this.backupDir)
+        } catch {
+          throw new Error(`${BACKUP_CONFIGURATION_INVALID}: Unsafe zip entry path (zip-slip)`)
+        }
+        const raw = entryMap['metadata.json']
+          ? await this.readBackupJson(zip, 'metadata.json', CONFIGURATION_METADATA_LIMIT, false)
+          : undefined
+        const metadata = raw as { version?: unknown; scope?: unknown } | undefined
+        if (metadata?.version === 8 || metadata?.scope === 'configuration' || entryMap[CONFIGURATION_PAYLOAD_ENTRY]) {
+          await this.restoreConfiguration(zip, entries, backupPath)
+          configurationCommitted = true
+          return
+        }
+        extractionDir = await this.createOperationDir('extract')
+        logger.debug(`Extracting backup file into ${extractionDir}`)
         onProgress({ stage: 'extracting', progress: 15, total: 100 })
-        assertZipEntriesWithin(Object.keys(await zip.entries()), extractionDir)
+        assertZipEntriesWithin(Object.keys(entryMap), extractionDir)
         await zip.extract(null, extractionDir)
       } finally {
-        await zip.close()
+        try {
+          await zip.close()
+        } catch {
+          if (configurationCommitted) {
+            logger.warn('Configuration committed; archive cleanup failed. Restart remains required.')
+          } else {
+            closeError = new Error(`${BACKUP_CONFIGURATION_INVALID}: Archive cleanup failed`)
+          }
+        }
       }
+      if (closeError) throw closeError
       onProgress({ stage: 'extracted', progress: 20, total: 100 })
 
       if (!(await fs.pathExists(path.join(extractionDir, 'metadata.json')))) {
@@ -753,10 +1022,10 @@ class BackupManager {
       await this.restoreDirect(extractionDir)
     } catch (error) {
       logger.error('Restore failed:', error as Error)
-      const reportedError = await this.withAvailableDiskSpace(error, extractionDir)
+      const reportedError = await this.withAvailableDiskSpace(error, extractionDir ?? this.backupDir)
       throw reportedError
     } finally {
-      await fs.remove(extractionDir).catch(() => {})
+      if (extractionDir) await fs.remove(extractionDir).catch(() => {})
     }
   }
 

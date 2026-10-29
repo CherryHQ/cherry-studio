@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
+  BACKUP_CONFIGURATION_CONFLICT,
+  BACKUP_CONFIGURATION_INCOMPATIBLE,
+  BACKUP_CONFIGURATION_INVALID,
   BACKUP_DISK_FULL_ERROR_CODE
 } from '@shared/types/backup'
 
@@ -19,6 +22,13 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 describe('getLocalizedBackupErrorMessage', () => {
+  it.each([
+    [BACKUP_CONFIGURATION_INVALID, 'backup.error.configuration_invalid'],
+    [BACKUP_CONFIGURATION_INCOMPATIBLE, 'backup.error.configuration_incompatible'],
+    [BACKUP_CONFIGURATION_CONFLICT, 'backup.error.configuration_conflict']
+  ])('maps %s to its configuration-specific localized message', (code, key) => {
+    expect(getLocalizedBackupErrorMessage(new Error(`IPC failure: ${code}: safe diagnostic`))).toBe(`localized:${key}`)
+  })
   it('maps a WebDAV upload size rejection after IPC without exposing the server response', () => {
     expect(
       getLocalizedBackupErrorMessage(new Error('Error invoking remote method: BACKUP_WEBDAV_TOO_LARGE: HTTP 413'))
