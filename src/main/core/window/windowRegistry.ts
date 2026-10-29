@@ -321,9 +321,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       alwaysOnTop: { level: 'floating' },
       // Quick window is visible across all workspaces and over fullscreen apps.
       // `skipTransformProcessType: true` prevents TransformProcessType(UIElement)
-      // during window creation on macOS (app deactivation + Dock icon loss);
-      // MainWindowService's boot-time `app.dock?.show()` hack only masks that
-      // transform on the startup path, not on runtime re-creates.
+      // during window creation on macOS (app deactivation + Dock icon loss).
       visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
       // Quick window is a floating helper, not a primary surface — never touch the Dock.
       macShowInDock: false
