@@ -60,6 +60,10 @@ flowchart TD
 
 `ThreadMessageProjection` 删除 `ContentItem` 解析、工具结果关联、文本前缀差分和每个 item 的 SDK reader。仅保留调用者仍需要的职责；简单的订阅转接可以直接收回调用者。Pi root 和 Durable root 改为消费权威消息视图后，删除 `ThreadProjection` 的“累积 item 转 chunk”逻辑。`RootMessageProjection` 仍有真实职责：多条原生消息可以属于一条产品回复，原生内容替换后也必须保留这个归属。
 
+后续增量优化保留这些所有权和现有 SDK/IPC 契约。普通 upsert 只投影发生变化的原生消息，reducer 将变化消息直接返回给 root 消费者。完整快照、替换和显式显示元数据失效仍保留完整协调语义。即使原生正文未变化，Claude 审批、提醒过滤、思考耗时和刷新的 MCP 标签也必须仍然可见。Root 组合按产品回复索引有序来源 ID，不存储第二份正文；恢复和 checkpoint 格式保持兼容。快照缺席绝不作为显式产品历史删除向下游转发。
+
+验证在优化前后使用相同的固定事件序列，覆盖短／长历史以及一个／十个独立投影。记录总耗时、CPU、单事件延迟、装饰工作量和转发消息数；时间数据作为证据，不作为 CI 阈值。契约测试覆盖顺序、规范 ID 替换、仅元数据变化、消费者失败及独立子任务生命周期，并用冻结的原生 transcript 语料重放验证持久化和重新打开。本轮保持共享发布复制、80 ms 周期及终态持久化屏障不变。这些测量不证明模型延迟、Electron 渲染成本或崩溃恢复。
+
 ### 3. 区分原生消息、part 和产品回复
 
 一条观察到的 SDK 消息对应一条原生会话消息，不对应 token、content block、工具结果、整个 Thread 或任意一次 run。文本、推理和工具调用在 `parts` 中保留原始顺序。工具结果更新拥有该调用的助手消息中的工具 part。工具进度使用带 `preliminary: true` 的 `tool-output-available`，最终结果清除此条件。一个工具结束不代表整条助手回复结束。
@@ -142,7 +146,8 @@ Main 必须对 root 和 child 使用相同的回复归属规则。已经放入�
 - 真实模型检查还发现了起始输入边界遗漏：Pi 现从原生 custom-message 条目保留 behavior 子任务输入；Claude 的实时 SDK feed 不转发起始 prompt，因此首次接入时读取一次原生 child 存档，后续仍由观察事件驱动。
 - Pi 后台活动不再保持父回复流打开。Pi 和 Durable 的本地 `/goal` 回答使用宿主消息投影，在移除旧内容 chunk 消费者后仍保留命令回复。修复前复现了三项回归；修复后，相关桌面与 root 投影的 39 项测试通过。
 - 通过网关调用真实 DeepSeek 模型，Pi、Durable 和 Claude 均通过后台子任务场景：父任务先结束，child 输出保持独立，组合后的一条 assistant 回复在窗口刷新后保留相同 ID 和内容。Pi 与 Durable 还呈现了部分文本和 preliminary Bash 输出；当前安装的 Claude SDK 转发完整 child 内容块，本轮未观察到 child 逐 token 增量或 preliminary Bash 输出。
-- 更完整的 Electron 场景矩阵仍待完成。不能从上述检查推导崩溃恢复、跨平台验收或性能提升；一个与十个 child 的对比测量仍待完成。
+- 增量投影验证补充了装饰／转发工作量上限、有序批量更新、装饰失败、仅元数据变化的 root/child 刷新和实时快照别名的契约覆盖。`projectionCost.test.ts` 在 20／1,000 条历史消息以及一个／十个独立投影下，为每个投影重放 40 次 upsert。1,000 条历史、十个投影场景中，装饰次数和转发消息数均从 400,400 降至 400，内容保持不变。这些是 Main 投影操作数，不包括原生 SDK 累积、IPC、数据库写入或 Renderer 成本。21 个可移植样本和 83 个本机 transcript 样本也通过了内容及持久化／重新打开检查。
+- 更完整的 Electron 场景矩阵仍待完成。不能从上述检查推导崩溃恢复或跨平台验收；一个与十个 child 的 Electron 对比测量仍待完成。
 
 ## 考虑过的替代方案
 

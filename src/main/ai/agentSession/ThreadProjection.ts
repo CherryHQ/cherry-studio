@@ -23,16 +23,11 @@ export class ThreadProjection {
     liveSnapshot = false,
     aliases: Readonly<Record<string, string>> = {}
   ): Promise<void> {
-    const before = new Map(this.view.snapshot().messages.map((message) => [message.id, message]))
-    await this.view.accept(event)
-    const messages = this.view.snapshot().messages
+    const changed = await this.view.accept(event)
     this.emit({
       contextId: this.contextId,
-      messages,
-      live:
-        event.type !== 'snapshot' || liveSnapshot
-          ? messages.filter((message) => before.get(message.id) !== message).map((message) => message.id)
-          : [],
+      messages: event.type === 'snapshot' && !liveSnapshot ? this.view.snapshot().messages : changed,
+      live: event.type !== 'snapshot' || liveSnapshot ? changed.map((message) => message.id) : [],
       replaces: {
         ...Object.fromEntries(Object.entries(aliases).map(([committed, live]) => [live, committed])),
         ...(event.type === 'message.upsert' &&

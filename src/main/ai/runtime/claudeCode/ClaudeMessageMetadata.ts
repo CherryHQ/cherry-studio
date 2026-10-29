@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util'
+
 import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 import type {
   BetaContentBlockParam,
@@ -36,10 +38,14 @@ export class ClaudeMessageMetadata {
   private readonly reminders = new Set<string>()
   private readonly denied = new Set<string>()
   private readonly thinking = new Map<string, { startedAt: number; elapsedFrom: number; thinkingMs?: number }>()
+  private catalog: Record<string, McpToolDisplayMetadata> = {}
 
   constructor(private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata> = {}) {}
 
-  accept(batch: ClaudeObservation): void {
+  accept(batch: ClaudeObservation): string[] {
+    let refreshAll = !isDeepStrictEqual(this.catalog, this.mcpToolMetadata)
+    if (refreshAll) this.catalog = structuredClone(this.mcpToolMetadata)
+    const denied = new Set<string>()
     if (batch.legacy) this.legacy = batch.legacy
     for (const native of batch.native) {
       const message = native.message
@@ -48,15 +54,20 @@ export class ClaudeMessageMetadata {
         message.type === 'system' &&
         'subtype' in message &&
         message.subtype === 'permission_denied'
-      )
+      ) {
+        if (!this.denied.has(message.tool_use_id)) denied.add(message.tool_use_id)
         this.denied.add(message.tool_use_id)
+      }
       if (message.type === 'user' && 'isSynthetic' in message && message.isSynthetic) {
         const body = message.message as { content?: string | BetaContentBlockParam[] }
         const content =
           typeof body.content === 'string' ? [{ type: 'text' as const, text: body.content }] : body.content
         for (const block of content ?? [])
           if (block.type === 'text')
-            for (const body of extractSystemReminderBodies(block.text)) this.reminders.add(body)
+            for (const body of extractSystemReminderBodies(block.text)) {
+              if (!this.reminders.has(body)) refreshAll = true
+              this.reminders.add(body)
+            }
       }
     }
     for (const event of batch.events) {
@@ -91,6 +102,14 @@ export class ClaudeMessageMetadata {
       }
     }
     for (const id of batch.retracted) this.removed.add(id)
+    if (refreshAll) return [...this.messages.keys()]
+    return denied.size
+      ? [...this.messages.values()]
+          .filter((message) =>
+            message.parts.some((part) => part.type === 'dynamic-tool' && denied.has(part.toolCallId))
+          )
+          .map((message) => message.id)
+      : []
   }
 
   readonly decorate: MessageDecorator = (message) => ({

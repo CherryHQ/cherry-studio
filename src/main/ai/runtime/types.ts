@@ -117,6 +117,8 @@ export interface RuntimeMessageProjection {
   contextId: string
   messages: readonly CherryUIMessage[]
   live: readonly string[]
+  /** Display-only refreshes update existing owners without admitting historical sources into a new reply. */
+  refresh?: readonly string[]
   replaces: Readonly<Record<string, string>>
   removed: readonly string[]
 }
