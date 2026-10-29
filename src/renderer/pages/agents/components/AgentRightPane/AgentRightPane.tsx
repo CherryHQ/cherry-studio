@@ -425,7 +425,7 @@ function AgentRightPaneActionsProvider({
     }
   }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
-  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen(FILES_PANE_ID)
+  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && conversationState === 'ready'
   const canPreviewInputFileInRightPane = conversationState === 'ready'
   const {
     captureInputPreviewReturnTarget,
@@ -476,6 +476,7 @@ function AgentRightPaneActionsProvider({
           if (artifactOpenRequestRef.current !== requestId) return
           requestFileSelection(selection, () => {
             if (fromPreview) captureInputPreviewReturnTarget()
+            panelActions.requestOpen(FILES_PANE_ID, { userInitiated: true })
           })
         },
         openPath: async (path) => {

@@ -2304,7 +2304,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-target-id', 'agent-browser:session-a')
   })
 
-  it('omits artifact opening from tool-flow messages when the files capability is unavailable', () => {
+  it('omits artifact opening from tool-flow messages without a workspace path', () => {
     const flowPart = {
       type: 'dynamic-tool',
       toolCallId: 'flow-1',
@@ -2316,12 +2316,7 @@ describe('AgentRightPane', () => {
     const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
 
     render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/system-workspace"
-        workspaceType="system"
-        messages={messages}
-        partsByMessageId={{ m1: [flowPart] }}>
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [flowPart] }}>
         <OpenFlowButton />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
