@@ -8,7 +8,7 @@ import { MEMORY_BACKUP_BYTES } from '../memoryBackups'
 import * as memoryFiles from '../memoryFiles'
 import { type MemoryAccess, type MemoryApproval, MemoryStore } from '../MemoryStore'
 
-const approve: MemoryApproval = async () => async () => undefined
+const approve: MemoryApproval = async () => () => undefined
 const access = (): MemoryAccess => ({ assertAuthorized: () => undefined })
 let fixture: string
 let root: string
@@ -89,7 +89,7 @@ describe('memory save contract', () => {
       expect(proposal).toEqual([{ path: 'MEMORY.md', expectedHash: read.hash, content: 'Approved content' }])
       expect(Object.isFrozen(proposal[0])).toBe(true)
       await writeFile(path.join(root, 'MEMORY.md'), 'External edit')
-      return async () => undefined
+      return () => undefined
     }
     await expect(
       store.commit(
@@ -106,7 +106,7 @@ describe('memory save contract', () => {
     const read = await store.read(caller, 'MEMORY.md')
     const revoke: MemoryApproval = async () => {
       store.invalidate(caller)
-      return async () => undefined
+      return () => undefined
     }
     await expect(
       store.commit(caller, [{ kind: 'write', receipt: read.receipt, content: 'Revoked' }], 'controlled', revoke)
@@ -210,6 +210,79 @@ describe('memory save contract', () => {
 })
 
 describe('limits, access, and recovery', () => {
+  it('rechecks approval revocation at the final replacement boundary', async () => {
+    let approved = true
+    const originalWrite = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes, assertCurrent) => {
+      if (directory === root) approved = false
+      await originalWrite(directory, relative, bytes, assertCurrent)
+    })
+    const read = await store.read(caller, 'MEMORY.md')
+    const result = await store.commit(
+      caller,
+      [{ kind: 'write', receipt: read.receipt, content: 'Revoked' }],
+      'controlled',
+      async () => () => {
+        if (!approved) throw new Error('Approval revoked')
+        return undefined
+      }
+    )
+    expect(result.error).toBe('Approval revoked')
+    expect(result.files[0].outcome).toBe('unchanged')
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('checks all maintenance inputs even when an unchanged input is not a write target', async () => {
+    await save('.memories/source.md', 'Original source')
+    const source = await store.read(caller, '.memories/source.md')
+    const destination = await store.read(caller, 'MEMORY.md')
+    await save('.memories/source.md', 'Changed source')
+    await expect(
+      store.commit(
+        caller,
+        [{ kind: 'write', receipt: destination.receipt, content: 'Stale summary' }],
+        'dreaming',
+        approve,
+        { readReceipts: [source.receipt] }
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    await expect(
+      store.commit(caller, [], 'dreaming', approve, { readReceipts: [source.receipt] })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('clears exactly the previewed managed files and can recover them without touching unknown content', async () => {
+    await save('MEMORY.md', 'Entry fact')
+    await save('.memories/topic.md', 'Topic fact')
+    await writeFile(path.join(root, 'JOURNAL.md'), 'Historical content')
+    await writeFile(path.join(root, '.memories', 'unknown.txt'), 'Unmanaged')
+    const preview = await store.previewClear(caller)
+    expect(preview.files.map((file) => file.path)).toEqual(['.memories/topic.md', 'MEMORY.md'])
+    await expect(store.clear(access(), preview.token, approve)).rejects.toMatchObject({ code: 'invalid-receipt' })
+    const cleared = await store.clear(caller, preview.token, approve)
+    expect(cleared.files.every((file) => file.outcome === 'applied')).toBe(true)
+    expect(await store.list(caller)).toEqual(['MEMORY.md'])
+    expect(await readFile(path.join(root, 'JOURNAL.md'), 'utf8')).toBe('Historical content')
+    expect(await readFile(path.join(root, '.memories', 'unknown.txt'), 'utf8')).toBe('Unmanaged')
+    const recovery = await store.previewRecovery(caller)
+    await store.recover(caller, recovery!.token, approve)
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Entry fact')
+    expect((await store.read(caller, '.memories/topic.md')).content).toBe('Topic fact')
+  })
+
+  it('rejects clear when the displayed file set or version changes before confirmation', async () => {
+    await save('MEMORY.md', 'Keep')
+    const preview = await store.previewClear(caller)
+    await save('.memories/new.md', 'New file')
+    await expect(store.clear(caller, preview.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    const updated = await store.previewClear(caller)
+    await save('MEMORY.md', 'New version')
+    await expect(store.clear(caller, updated.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await store.read(caller, '.memories/new.md')).content).toBe('New file')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('New version')
+  })
+
   it('rechecks live authority before replacement even without a revocation event', async () => {
     let allowed = true
     caller = {

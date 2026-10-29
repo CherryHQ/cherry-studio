@@ -61,7 +61,7 @@ export interface MemoryChangePreview {
 }
 
 /** Approval binds this exact immutable proposal and returns its live revocation check. */
-export type MemoryApproval = (changes: readonly Readonly<MemoryChangePreview>[]) => Promise<() => Promise<void>>
+export type MemoryApproval = (changes: readonly Readonly<MemoryChangePreview>[]) => Promise<() => undefined>
 
 export interface MemoryCommitResult {
   batchId: string | null
@@ -73,6 +73,16 @@ export interface MemoryRecoveryPreview {
   token: string
   batchId: string
   files: Array<{ path: string; currentHash: string | null; conflict: boolean }>
+}
+
+export interface MemoryClearPreview {
+  token: string
+  files: Array<{ path: string; hash: string | null }>
+}
+
+interface MemoryCommitConditions {
+  readReceipts?: readonly string[]
+  clearTargets?: readonly string[]
 }
 
 interface RecoveryBaseline {
@@ -87,6 +97,10 @@ export class MemoryStore {
   private readonly reads = new WeakMap<MemoryAccess, Map<string, ReadBaseline>>()
   private readonly recoveries = new WeakMap<MemoryAccess, Map<string, RecoveryBaseline>>()
   private readonly accessEpochs = new WeakMap<MemoryAccess, number>()
+  private readonly clears = new WeakMap<
+    MemoryAccess,
+    Map<string, Array<Pick<MemoryRead, 'path' | 'hash' | 'receipt'>>>
+  >()
   private generation = 0
 
   constructor(
@@ -125,6 +139,7 @@ export class MemoryStore {
       this.accessEpochs.set(access, (this.accessEpochs.get(access) ?? 0) + 1)
       this.reads.delete(access)
       this.recoveries.delete(access)
+      this.clears.delete(access)
     } else {
       this.generation++
     }
@@ -177,12 +192,15 @@ export class MemoryStore {
     access: MemoryAccess,
     mutations: readonly MemoryMutation[],
     source: MemoryMutationSource,
-    approve: MemoryApproval
+    approve: MemoryApproval,
+    conditions: MemoryCommitConditions = {}
   ): Promise<MemoryCommitResult> {
     const intent = mutations.map((mutation) => ({ ...mutation }))
     const epoch = this.accessEpochs.get(access) ?? 0
     access.assertAuthorized()
     const generation = this.generation
+    const dependencies = (conditions.readReceipts ?? []).map((receipt) => this.baseline(access, receipt))
+    const clearTargets = conditions.clearTargets ? [...conditions.clearTargets] : undefined
     const changes: MemoryFileChange[] = []
     for (const mutation of intent) {
       const baseline = this.baseline(access, mutation.receipt)
@@ -209,20 +227,55 @@ export class MemoryStore {
     }
     this.assertGeneration(generation)
     const approval = await approve(this.preview(changes))
-    const validateApproval = async () => {
+    const validateApproval = (): undefined => {
       this.assertAccessEpoch(access, epoch)
-      await approval()
+      approval()
       this.assertAccessEpoch(access, epoch)
+      return undefined
     }
     return this.lock.runExclusive(async () => {
       access.assertAuthorized()
-      await validateApproval()
+      validateApproval()
       this.assertGeneration(generation)
+      for (const baseline of dependencies) await this.readMatching(baseline)
+      if (clearTargets && JSON.stringify(await listMemoryFiles(this.root)) !== JSON.stringify(clearTargets)) {
+        throw new MemoryError('conflict', 'The managed file set changed since the clear preview')
+      }
       for (const change of changes)
         await this.readMatching({ path: change.path, hash: memoryHash(change.before), generation })
       if (source === 'clear' || source === 'recovery') this.invalidate()
       return this.apply(access, changes, source, validateApproval, epoch)
     })
+  }
+
+  async previewClear(access: MemoryAccess): Promise<MemoryClearPreview> {
+    return this.lock.runExclusive(async () => {
+      const files: Array<Pick<MemoryRead, 'path' | 'hash' | 'receipt'>> = []
+      for (const target of await this.list(access)) {
+        const { path, hash, receipt } = await this.read(access, target)
+        files.push({ path, hash, receipt })
+      }
+      access.assertAuthorized()
+      const token = randomUUID()
+      this.clears.set(access, new Map([[token, files]]))
+      return { token, files: files.map(({ path, hash }) => ({ path, hash })) }
+    })
+  }
+
+  async clear(access: MemoryAccess, token: string, approve: MemoryApproval): Promise<MemoryCommitResult> {
+    access.assertAuthorized()
+    const files = this.clears.get(access)?.get(token)
+    if (!files) throw new MemoryError('invalid-receipt', 'Clear requires this caller to preview the managed file set')
+    const mutations: MemoryMutation[] = files.map((file) =>
+      file.path === MEMORY_ENTRY
+        ? { kind: 'write', receipt: file.receipt, content: '' }
+        : { kind: 'delete', receipt: file.receipt }
+    )
+    const result = await this.commit(access, mutations, 'clear', approve, {
+      clearTargets: files.map((file) => file.path)
+    })
+    this.clears.delete(access)
+    return result
   }
 
   async previewRecovery(access: MemoryAccess): Promise<MemoryRecoveryPreview | undefined> {
@@ -272,14 +325,15 @@ export class MemoryStore {
       }
     }
     const approval = await approve(this.preview(changes))
-    const validateApproval = async () => {
+    const validateApproval = (): undefined => {
       this.assertAccessEpoch(access, epoch)
-      await approval()
+      approval()
       this.assertAccessEpoch(access, epoch)
+      return undefined
     }
     return this.lock.runExclusive(async () => {
       access.assertAuthorized()
-      await validateApproval()
+      validateApproval()
       this.assertGeneration(preview.generation)
       if ((await latestMemoryBackup(this.backupRoot))?.id !== preview.batch.id) {
         throw new MemoryError('conflict', 'A newer memory operation requires a new recovery preview')
@@ -299,7 +353,7 @@ export class MemoryStore {
     access: MemoryAccess,
     proposed: readonly MemoryFileChange[],
     source: MemoryMutationSource,
-    approval: () => Promise<void>,
+    approval: () => undefined,
     epoch: number
   ): Promise<MemoryCommitResult> {
     const changes = proposed.filter((change) => memoryHash(change.before) !== memoryHash(change.after))
@@ -318,11 +372,12 @@ export class MemoryStore {
     for (const [index, change] of changes.entries()) {
       try {
         access.assertAuthorized()
-        await approval()
+        approval()
         this.assertGeneration(generation)
         await this.readMatching({ path: change.path, hash: memoryHash(change.before), generation })
         await writeMemoryBytes(this.root, change.path, change.after, () => {
           access.assertAuthorized()
+          approval()
           this.assertGeneration(generation)
           this.assertAccessEpoch(access, epoch)
         })
