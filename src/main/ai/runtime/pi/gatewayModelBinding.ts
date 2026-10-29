@@ -18,7 +18,7 @@ export async function createPiGatewayModelBinding(
   input: Pick<AgentRuntimeConnectInput, 'sessionId' | 'reasoningEffort' | 'serviceTier' | 'fastMode' | 'trace'>,
   provider: Provider,
   model: Model,
-  onUsage?: (usage: Usage, nativeSessionId: string | undefined) => void,
+  onUsage?: (usage: Usage, nativeSessionId: string | undefined, responseId?: string) => void,
   sharedModels?: ModelRuntime
 ) {
   const injection = buildPiGatewayInjection(provider, model, await resolveApiGatewayRuntime(input.sessionId))
@@ -55,7 +55,7 @@ export async function createPiGatewayModelBinding(
       void stream
         .result()
         .then((message) => {
-          onUsage?.(message.usage, options?.sessionId)
+          onUsage?.(message.usage, options?.sessionId, message.responseId)
           const failed = message.stopReason === 'error' || message.stopReason === 'aborted'
           if (span) {
             span.setAttribute(
