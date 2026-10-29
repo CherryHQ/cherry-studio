@@ -23,12 +23,29 @@ import { fileEntryTable } from '@main/data/db/schemas/file'
 import { messageTable } from '@main/data/db/schemas/message'
 import { topicTable } from '@main/data/db/schemas/topic'
 import { translateHistoryTable } from '@main/data/db/schemas/translateHistory'
+import type * as FileModule from '@main/utils/file'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import BackupManager from '../LegacyBackupManager'
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 vi.mock('@main/utils/system', () => ({ getDeviceType: () => 'test-device', getHostname: () => 'test-host' }))
+
+const outputFailure = vi.hoisted(() => ({ directory: undefined as string | undefined }))
+
+vi.mock('@main/utils/file', async () => {
+  const actual = await vi.importActual<typeof FileModule>('@main/utils/file')
+  return {
+    ...actual,
+    createAtomicWriteStream: (...args: Parameters<typeof actual.createAtomicWriteStream>) => {
+      const output = actual.createAtomicWriteStream(...args)
+      if (outputFailure.directory && args[0].startsWith(`${outputFailure.directory}${path.sep}`)) {
+        output._write = (_chunk, _encoding, callback) => callback(new Error('injected archive output write failure'))
+      }
+      return output
+    }
+  }
+})
 
 describe('real configuration archives', () => {
   const dbh = setupTestDatabase()
@@ -269,28 +286,58 @@ describe('real configuration archives', () => {
     expect(holds.every((hold) => hold.dispose.mock.calls.length === 1)).toBe(true)
   })
 
-  it('releases the backup mutex when the destination rejects the archive output', async () => {
+  it.skipIf(process.platform === 'win32')(
+    'releases the backup mutex when the destination rejects the archive output',
+    async () => {
+      seed()
+      const unwritable = path.join(root, 'unwritable')
+      const writable = path.join(root, 'writable')
+      await fs.mkdir(unwritable)
+      await fs.mkdir(writable)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await fs.chmod(unwritable, 0o500)
+        const deadline = new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error('configuration export did not settle after an output failure'))
+          }, 15000)
+        })
+        await expect(Promise.race([manager.exportConfiguration(unwritable), deadline])).rejects.toThrow(/^EACCES:/)
+        expect((await fs.readdir(root, { recursive: true })).sort()).toEqual(['unwritable', 'writable'])
+        const output = await manager.exportConfiguration(writable)
+        expect((await fs.stat(output)).isFile()).toBe(true)
+        expect(await fs.readdir(unwritable)).toEqual([])
+      } finally {
+        clearTimeout(timer)
+        await fs.chmod(unwritable, 0o700)
+      }
+    }
+  )
+
+  it('releases the backup mutex after an archive output write failure on every platform', async () => {
     seed()
-    const unwritable = path.join(root, 'unwritable')
+    const failing = path.join(root, 'failing')
     const writable = path.join(root, 'writable')
-    await fs.mkdir(unwritable)
+    await fs.mkdir(failing)
     await fs.mkdir(writable)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      await fs.chmod(unwritable, 0o500)
+      outputFailure.directory = failing
       const deadline = new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
           reject(new Error('configuration export did not settle after an output failure'))
         }, 15000)
       })
-      await expect(Promise.race([manager.exportConfiguration(unwritable), deadline])).rejects.toThrow(/^EACCES:/)
-      expect((await fs.readdir(root, { recursive: true })).sort()).toEqual(['unwritable', 'writable'])
+      await expect(Promise.race([manager.exportConfiguration(failing), deadline])).rejects.toThrow(
+        'injected archive output write failure'
+      )
+      expect(await fs.readdir(failing)).toEqual([])
       const output = await manager.exportConfiguration(writable)
       expect((await fs.stat(output)).isFile()).toBe(true)
-      expect(await fs.readdir(unwritable)).toEqual([])
+      expect(await fs.readdir(failing)).toEqual([])
     } finally {
       clearTimeout(timer)
-      await fs.chmod(unwritable, 0o700)
+      outputFailure.directory = undefined
     }
   })
 
