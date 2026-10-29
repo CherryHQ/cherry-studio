@@ -155,7 +155,9 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
       '--args',
       ...args
     ],
-    { timeout: 30_000 }
+    // LaunchServices inherits this process's home; forward the prepared environment
+    // so packaged startup cannot read BootConfig from the controller profile.
+    { timeout: 30_000, env: environment }
   )
   await assertReused('MP-133 LaunchServices relaunch reuses original window')
   await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
