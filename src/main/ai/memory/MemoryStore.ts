@@ -407,7 +407,6 @@ export class MemoryStore {
           throw new MemoryError('conflict', 'Memory save result changed')
         batch.steps[index].outcome = 'applied'
         result.files[index] = { path: change.path, hash: memoryHash(actual), outcome: 'applied' }
-        await saveMemoryBackup(this.backupRoot, batch)
       } catch (error) {
         result.error = error instanceof Error ? error.message : String(error)
         try {
