@@ -23,6 +23,7 @@ describe('Claude npm platform package', () => {
     async (requested) => {
       const result = await resolveClaudeNpmPackage('https://registry.npmmirror.com/', requested)
       expect(result.version).toBe('2.1.312')
+      expect(result.toolSpec.startsWith('http:claude[')).toBe(true)
       const url = JSON.parse(/url=("[^"]+")/.exec(result.toolSpec)![1])
       expect(url).toBe(
         'https://registry.npmmirror.com/@anthropic-ai/claude-code-win32-arm64/-/claude-code-win32-arm64-{{ version }}.tgz'
