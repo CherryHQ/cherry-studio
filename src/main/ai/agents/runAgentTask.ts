@@ -436,11 +436,37 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         // The run reached the agent: advance the durable guard watermark.
         if (scheduleId) {
           const startedMs = jobSnapshot?.startedAt ? Date.parse(jobSnapshot.startedAt) : Number.NaN
-          application.get('AgentJobsService').recordTaskExecutionStart({
-            scheduleId,
-            startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now(),
-            jobId: ctx.jobId
-          })
+          try {
+            application.get('AgentJobsService').recordTaskExecutionStart({
+              scheduleId,
+              startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now(),
+              jobId: ctx.jobId
+            })
+          } catch (admissionError) {
+            // The stream is live but the admission bookkeeping failed and the
+            // job is about to fail: nothing else would cancel this run, and
+            // because the write transaction rolled back (SQLite is atomic) the
+            // watermark never advanced, so a recovery replay WILL re-face the
+            // guard and re-run the work. Stop the orphaned stream and await
+            // its durable teardown before settling the job, or the replay
+            // could overlap it (duplicate execution). Listeners come off
+            // first: the run is dead either way, and `complete()` must not
+            // settle `executionDone` for a run whose admission never landed.
+            completionActive = false
+            const manager = application.get('AiStreamManager')
+            for (const listener of channelListeners) manager.removeListener(topicId, listener.id)
+            manager.removeListener(topicId, sentinel.id)
+            try {
+              await manager.abortAndDrain(topicId, 'task-admission-failed')
+            } catch (drainError) {
+              logger.warn('Failed to drain the task run after an admission bookkeeping failure', {
+                scheduleId,
+                topicId,
+                error: drainError instanceof Error ? drainError.message : String(drainError)
+              })
+            }
+            throw admissionError
+          }
         }
         break
       }

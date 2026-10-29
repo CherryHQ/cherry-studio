@@ -21,6 +21,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const {
   mockAbort,
+  mockAbortAndDrain,
   mockRemoveListener,
   mockGetAdapter,
   mockStartRun,
@@ -36,6 +37,7 @@ const {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
   return {
     mockAbort: vi.fn(),
+    mockAbortAndDrain: vi.fn(async () => {}),
     mockRemoveListener: vi.fn(),
     mockGetAdapter: vi.fn(() => undefined),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
@@ -59,7 +61,7 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
-    AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
+    AiStreamManager: { abort: mockAbort, abortAndDrain: mockAbortAndDrain, removeListener: mockRemoveListener },
     AgentJobsService: {
       bindTaskSessionReuse: mockBindTaskSessionReuse,
       syncHeartbeat: syncHeartbeatScheduleMock,
@@ -260,6 +262,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
     mockStartRun.mockClear()
     mockAbort.mockClear()
+    mockAbortAndDrain.mockClear()
     mockRemoveListener.mockClear()
     mockGetAdapter.mockClear()
     captured.listeners = []
@@ -481,6 +484,56 @@ describe('runAgentTask', () => {
       })
       captured.listeners[0].onDone({ status: 'completed' })
       await promise
+    })
+
+    it('stops and drains the activated run when admission bookkeeping fails', async () => {
+      // Fault injection: the stream is live (start returned 'started') but the
+      // admission write throws. The job must cancel the orphaned stream and
+      // await its durable teardown before settling, or a recovery replay (the
+      // rolled-back write never advanced the watermark) could overlap it.
+      arrange()
+      const session = makeSession()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(session)
+      mockRecordTaskExecutionStart.mockImplementationOnce(() => {
+        throw new Error('admission store down')
+      })
+      let drainResolve!: () => void
+      const drainGate = new Promise<void>((resolve) => {
+        drainResolve = resolve
+      })
+      mockAbortAndDrain.mockReturnValueOnce(drainGate)
+
+      const promise = runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))
+      const assertion = expect(promise).rejects.toThrow('admission store down')
+
+      const topicId = buildAgentSessionTopicId(session.id)
+      await vi.waitFor(() => expect(mockAbortAndDrain).toHaveBeenCalledWith(topicId, 'task-admission-failed'))
+      // No settle while the orphaned stream is still draining.
+      let settled = false
+      void promise.catch(() => {
+        settled = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(settled).toBe(false)
+      // The dead run's listeners come off so no terminal event can settle the
+      // failed job as if it had completed.
+      expect(mockRemoveListener).toHaveBeenCalledWith(topicId, 'agent-task:s1')
+
+      drainResolve()
+      await assertion
+    })
+
+    it('still surfaces the admission failure when the drain itself fails', async () => {
+      arrange()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+      mockRecordTaskExecutionStart.mockImplementationOnce(() => {
+        throw new Error('admission store down')
+      })
+      mockAbortAndDrain.mockRejectedValueOnce(new Error('drain failed'))
+
+      await expect(
+        runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))
+      ).rejects.toThrow('admission store down')
     })
 
     it('derives the history fallback from positive execution evidence only', async () => {
