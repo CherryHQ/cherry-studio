@@ -31,7 +31,7 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method, and creates the shared per-base mutation lock (`KeyedMutex`). No domain logic. |
 | `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore), failed-base guard (`baseGuards.ts`). |
 | `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery, the reusable publication-free `prepareKnowledgeMaterial` kernel, and the existing `indexKnowledgeItem` Job composition that publishes material and lifecycle state. |
-| `external/` | External Knowledge connection foundation: shared connector credential references, Feishu user authorization, token refresh, and the runtime owned by `KnowledgeService`. Layer 2 adds source/document persistence elsewhere but does not traverse or ingest remote content. |
+| `external/` | External Knowledge connection and read boundary: shared connector credential references, Feishu user authorization, credential-scoped admission, trusted URL resolution, metadata traversal, and normalized Docx Markdown reads. Source synchronization and persistence remain outside this adapter. |
 | `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), and URL/note snapshot capture with Cherry OKF frontmatter. External snapshots are already-pinned provider-normalized Markdown and do not use Cherry frontmatter. |
 | `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
 | `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers. |
@@ -103,6 +103,9 @@ under it, and reindex activates its roots under the lock before re-copying them 
 
 External Knowledge uses a separate credential-scoped lane. Refreshes for one credential collapse
 into one token rotation, while different credentials keep independent request and backoff state.
+Feishu reads reserve the documented endpoint budget before each individual HTTP attempt; a retry of
+one page or body request does not replay completed traversal work. Preview is ephemeral and reads
+metadata only. The adapter holds no queue, token, limiter, or session state of its own.
 `FeishuCredentialMigrationService` converts legacy bindings before `KnowledgeService` starts this runtime and closes admission, aborts in-flight
 operations, and clears transient state during service shutdown.
 

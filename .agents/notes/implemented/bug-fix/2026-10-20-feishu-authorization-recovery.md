@@ -16,6 +16,8 @@ Both Feishu transports consume the body inside their transport error boundary, b
 
 HTTP 200 responses with Feishu error code `20005` invalidate the authorization through the same terminal path as HTTP 401. Transport success does not imply a usable token.
 
+Paginated reads check token freshness after each endpoint/backoff wait, including retries. They reuse the existing refresh single-flight directly inside the credential lane rather than enqueueing another request behind themselves. Numeric missing-application-scope errors use the terminal scope-missing path on all Wiki reads; resource ACL failures remain local.
+
 Registration accepts only the four recognized polling error statuses on HTTP 400 for the poll action; other non-success responses remain errors. This preserves pending/slow-down behavior without accepting credentials from an unsuccessful response.
 
 Starting reconnect does not invalidate a connected credential. Successful replacement accepts either connected or reauthorization-required state under the existing expected-reference CAS. All precommit candidate failures preserve working authorization, including denial, provider/local expiry, scope and identity validation, and persistence failure. They discard the candidate without changing the active credential or pausing dependent Sources. Only failures concerning the active credential invalidate it; scope validation itself has no mutation side effects, and refresh/startup own the invalidation decision.

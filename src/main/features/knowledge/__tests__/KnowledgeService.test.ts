@@ -61,7 +61,9 @@ const {
   probeKnowledgeFileMock,
   probeKnowledgeSourcePathMock,
   externalKnowledgeRuntimeStartMock,
-  externalKnowledgeRuntimeStopMock
+  externalKnowledgeRuntimeStopMock,
+  externalKnowledgeRuntimeResolveScopeMock,
+  externalKnowledgeRuntimePreviewScopeMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -106,7 +108,9 @@ const {
   probeKnowledgeFileMock: vi.fn(),
   probeKnowledgeSourcePathMock: vi.fn(),
   externalKnowledgeRuntimeStartMock: vi.fn(),
-  externalKnowledgeRuntimeStopMock: vi.fn()
+  externalKnowledgeRuntimeStopMock: vi.fn(),
+  externalKnowledgeRuntimeResolveScopeMock: vi.fn(),
+  externalKnowledgeRuntimePreviewScopeMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -222,6 +226,8 @@ vi.mock('../external/ExternalKnowledgeRuntime', () => ({
   ExternalKnowledgeRuntime: class {
     start = externalKnowledgeRuntimeStartMock
     stop = externalKnowledgeRuntimeStopMock
+    resolveFeishuScope = externalKnowledgeRuntimeResolveScopeMock
+    previewFeishuScope = externalKnowledgeRuntimePreviewScopeMock
   }
 }))
 
@@ -489,6 +495,8 @@ describe('KnowledgeService', () => {
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
     externalKnowledgeRuntimeStartMock.mockResolvedValue(undefined)
     externalKnowledgeRuntimeStopMock.mockResolvedValue(undefined)
+    externalKnowledgeRuntimeResolveScopeMock.mockResolvedValue({ provider: 'feishu' })
+    externalKnowledgeRuntimePreviewScopeMock.mockResolvedValue({ supportedDocxCount: 1 })
   })
 
   it('registers formal knowledge job handlers', () => {
