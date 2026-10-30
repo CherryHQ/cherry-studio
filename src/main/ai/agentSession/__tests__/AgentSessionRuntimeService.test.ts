@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   finalizeHeldTopicStream: vi.fn(async () => undefined),
   noteTurnSettled: vi.fn(),
   clearPendingChannelListeners: vi.fn(),
+  retireStashedWakeTaskIds: vi.fn(),
   // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
   stashedWakeRecipientsDischarged: vi.fn(() => true),
   renewClaimedWakeRecipients: vi.fn(),
@@ -577,7 +578,8 @@ describe('AgentSessionRuntimeService', () => {
           noteTurnSettled: mocks.noteTurnSettled,
           clearPendingChannelListeners: mocks.clearPendingChannelListeners,
           stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
-          renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients
+          renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients,
+          retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds
         }
       }
       if (name === 'CacheService')
@@ -1142,6 +1144,69 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       service.markTurnTerminal('session-1', 'success')
       expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
+    // An open stream does not prove consumption while OTHER work is still running: with an
+    // interactive subagent live, SDK 0.3.284 queues this task's own receive-only generation instead
+    // of folding its result into the streaming query — retiring the authority would leave that
+    // generation to inherit the subagent's interactive responder.
+    it('keeps the completion debt owed when other work is still live on an open stream', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      ;(service as any).rememberBackgroundTaskIds(entry, [
+        { id: 'task-subagent', status: 'running' },
+        { id: 'task-shell', status: 'running' }
+      ] as any)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      // The subagent is still running when the headless shell's notification lands: the streaming
+      // query did not consume it, and the shell receives its own generation afterward.
+      ;(service as any).publishBackgroundTaskEvent(entry, {
+        taskId: 'task-shell',
+        event: 'notification',
+        status: 'completed'
+      } as any)
+      const authorities = (service as any).backgroundTaskAuthorities.get('session-1') as Map<string, boolean>
+      expect(authorities.has('task-shell')).toBe(false)
+      const completed = (service as any).completedBackgroundTasks.get('session-1') as Map<string, boolean> | undefined
+      expect(completed?.has('task-shell')).toBe(true)
+      void service.closeSession('session-1')
+    })
+
+    // A foreground tool continuation consumes the completion even with other work live — the
+    // streaming turn is blocked on a tool whose output this very completion feeds — so the debt is
+    // retired AND the stashed recipient obligation it owed is reconciled in the same step.
+    it('retires the debt and its stash when a live tool continuation consumed the completion', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      ;(service as any).rememberBackgroundTaskIds(entry, [
+        { id: 'task-channel', status: 'running' },
+        { id: 'task-co-spawned', status: 'running' }
+      ] as any)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      getEntry(service).runtimeState.execution = {
+        ...(getEntry(service).runtimeState.execution as any),
+        stream: 'open',
+        admission: 'admitted'
+      }
+      // The foreground query is blocked on a tool the completion feeds.
+      const turn = (service as any).currentTurn(entry)
+      turn.activeToolIds.add('tool-call-1')
+      mocks.retireStashedWakeTaskIds.mockClear()
+
+      ;(service as any).publishBackgroundTaskEvent(entry, {
+        taskId: 'task-channel',
+        event: 'notification',
+        status: 'completed'
+      } as any)
+      const completed = (service as any).completedBackgroundTasks.get('session-1') as Map<string, boolean> | undefined
+      expect(completed?.has('task-channel')).toBe(false)
+      expect(mocks.retireStashedWakeTaskIds).toHaveBeenCalledWith('agent-session:session-1', new Set(['task-channel']))
       void service.closeSession('session-1')
     })
 

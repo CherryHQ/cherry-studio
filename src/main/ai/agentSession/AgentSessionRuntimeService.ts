@@ -2916,7 +2916,18 @@ export class AgentSessionRuntimeService extends BaseService {
       // the stashed recipients.
       const authorities = this.backgroundTaskAuthorities.get(entry.sessionId)
       const authority = authorities?.get(data.taskId)
-      if (hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {
+      // An open stream does not by itself prove this task's result was consumed: with OTHER work
+      // still running (an interactive subagent, a co-spawned shell), SDK 0.3.284 queues this task's
+      // own receive-only generation after the foreground settles instead of folding its result into
+      // the streaming query — unless the streaming turn is blocked on a tool whose output this very
+      // completion feeds, which is consumption. Retiring the authority on the open-stream edge alone
+      // then leaves that generation to inherit whatever responder the remaining work holds.
+      const published = this.listPublishedBackgroundTaskIds(entry.sessionId)
+      published.delete(data.taskId)
+      const otherWorkActive = published.size > 0
+      const turn = this.currentTurn(entry)
+      const feedingLiveTool = (turn?.activeToolIds.size ?? 0) > 0
+      if (hasAgentSessionRuntimeOpenStream(entry.runtimeState) && (!otherWorkActive || feedingLiveTool)) {
         // The open foreground query consumed the notification inside its own turn — no
         // receive-only generation follows, so no wake will ever pay this debt. Membership removal
         // may already have moved the authority into the completion ledger when the driver drained
@@ -2926,6 +2937,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // recorded before their own turn ended) are unaffected — each task retires only its own id.
         authorities?.delete(data.taskId)
         this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
+        application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
       } else if (authorities && authority !== undefined) {
         // A settled turn queued the result for the next generation: its receive-only wake pays
         // the stashed recipients, so the debt rides in `completedBackgroundTasks` until then.
