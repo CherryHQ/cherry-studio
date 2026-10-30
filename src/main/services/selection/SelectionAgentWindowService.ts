@@ -203,13 +203,14 @@ export class SelectionAgentWindowService extends BaseService {
     const wm = application.get('WindowManager')
     const window = wm.getWindow(windowId)
     if (window && !window.isDestroyed()) {
-      // [macOS] The Space the user is in now decides, not the one the window first opened over.
-      const isFullScreen = isMac && getSelectionNativePanel().isFrontmostFullScreen()
+      const display = this.resolveDisplay(entry.displayId)
+      // [macOS] What the capsule's display shows now decides, not what the window first opened over.
+      const isFullScreen = isMac && getSelectionNativePanel().isFullScreenAppInFront(display.bounds)
       if (this.shouldAnimate()) {
         const bounds = window.getBounds()
         window.setMinimumSize(0, 0)
         window.setOpacity(0)
-        window.setBounds(placeSelectionCapsuleSlot(this.resolveDisplay(entry.displayId).workArea))
+        window.setBounds(placeSelectionCapsuleSlot(display.workArea))
         this.show(window, isFullScreen)
         void this.animate(window, bounds, 1).then(() => {
           if (!window.isDestroyed()) this.applyLayoutLimits(window, 'conversation')
