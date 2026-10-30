@@ -8,10 +8,6 @@ import type { CherryCloudAccountPlans, CherryCloudStatus } from '@shared/ipc/sch
 
 import { UserAccountPanel } from '../UserAccountPanel'
 
-const showUserPopup = vi.hoisted(() => vi.fn())
-
-vi.mock('../UserPopup', () => ({ default: { show: showUserPopup } }))
-
 const request = vi.mocked(window.api.ipcApi.request)
 let session: CherryCloudStatus
 let plans: CherryCloudAccountPlans
@@ -49,37 +45,15 @@ describe('UserAccountPanel', () => {
     expect(screen.queryByText('输入您的姓名')).not.toBeInTheDocument()
   })
 
-  it('shows the signed-in account without a name prompt or subscription row in the CN account menu', async () => {
-    vi.stubGlobal('__APP_EDITION__', 'cn')
-
-    render(<UserAccountPanel />)
-
-    expect(await screen.findByText('c***@cherry-ai.com')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent('c***@cherry-ai.com')
-    expect(screen.getAllByText('c***@cherry-ai.com')).toHaveLength(1)
-    expect(screen.queryByText('输入您的姓名')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /去订阅|查看用量/ })).not.toBeInTheDocument()
-  })
-
-  it('opens the avatar and name dialog from the CN account menu', async () => {
-    vi.stubGlobal('__APP_EDITION__', 'cn')
+  it.each(['cn', 'global'])('offers subscription and personal information in the %s account menu', async (edition) => {
+    vi.stubGlobal('__APP_EDITION__', edition)
     const user = userEvent.setup()
 
     render(<UserAccountPanel />)
-    await user.click(await screen.findByRole('button', { name: '用户名' }))
 
-    expect(showUserPopup).toHaveBeenCalledOnce()
-    expect(request).not.toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
-  })
-
-  it('keeps the personal information page for the global account menu', async () => {
-    const user = userEvent.setup()
-
-    render(<UserAccountPanel />)
-    await user.click(await screen.findByRole('button', { name: '用户名' }))
-
+    expect(await screen.findByRole('button', { name: /去订阅/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '用户名' }))
     expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
-    expect(showUserPopup).not.toHaveBeenCalled()
   })
 
   it('offers subscription sign-in without querying plans when signed out', async () => {
