@@ -412,6 +412,12 @@ describe('runAgentTask', () => {
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
+    it('blocks when the dependency latest run was stopped externally (structured session-stop skip)', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session stopped)', true))
+      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
     it('keeps blocking on a legacy text-only skip marker persisted before the structured field', async () => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (disabled)'))
       await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
@@ -735,7 +741,9 @@ describe('runAgentTask', () => {
     const pausedResult = { status: 'paused' }
     await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onPaused?.(pausedResult as never))))
 
-    await expect(promise).resolves.toEqual({ result: 'partial summary', skipped: false })
+    // Externally stopped: the channel still gets the partial text with its stopped
+    // marker, but the job output is a structured skip, never a mislabelled success.
+    await expect(promise).resolves.toEqual({ result: 'Skipped (session stopped)', skipped: true })
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(Stopped)_', undefined)
     expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
@@ -847,6 +855,29 @@ describe('runAgentTask', () => {
     expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'cancelled by manager')
     expect(adapter.onStreamComplete).not.toHaveBeenCalled()
     expect(adapter.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('keeps the JobManager abort outcome when a late paused event lands after the abort', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
+
+    const controller = new AbortController()
+    const promise = runAgentTask(
+      makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } })
+    )
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    controller.abort(new Error('cancelled by manager'))
+    // The stream manager can still broadcast its paused terminal event after our
+    // abort settled the execution; it must not overwrite the abort outcome.
+    for (const listener of captured.listeners) {
+      await Promise.resolve(listener.onPaused?.({ status: 'paused' }))
+    }
+
+    await expect(promise).rejects.toThrow('cancelled by manager')
   })
 
   it('does not abort a queued successor after this task terminal listener has settled', async () => {

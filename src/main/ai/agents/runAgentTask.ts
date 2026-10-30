@@ -66,6 +66,12 @@ export type AgentTaskOutput = {
   skipped: boolean
 }
 
+/** Settles `executionDone` when the stream was stopped externally (stop button, idle timeout,
+ * another actor aborting the topic) rather than by JobManager cancel or the per-task timeout. */
+class TaskStreamStoppedError extends Error {
+  override readonly name = 'TaskStreamStoppedError'
+}
+
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
 function makeRunSignal(
   outerSignal: AbortSignal,
@@ -334,7 +340,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         complete(() => rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))))
         return
       }
-      complete(() => resolveExecution(accumulatedText.trim()))
+      // Stopped externally (stop button / idle timeout / another actor aborting the
+      // topic): the turn never finished. The truncated reply stays persisted on the
+      // session and channel listeners already delivered it with a stopped marker, so
+      // settle as a structured skip instead of passing partial text off as success -
+      // a half-finished upstream run must not release a dependent chain.
+      complete(() => rejectExecution(new TaskStreamStoppedError('Task stream stopped before completion')))
     },
     onError(result) {
       complete(() => rejectExecution(new Error(result.error.message ?? 'Execution failed')))
@@ -405,6 +416,13 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
     resultText = await executionDone
   } catch (err) {
+    if (err instanceof TaskStreamStoppedError) {
+      // A user stop is neither success nor schedule failure: the job settles
+      // 'completed' with a structured skip, which blocks dependents through the
+      // dependency gate without counting toward the consecutive-failure breaker
+      // that would auto-pause the schedule after three failures.
+      return { result: 'Skipped (session stopped)', skipped: true }
+    }
     runError = err instanceof Error ? err : new Error(String(err))
     if (!runSignal.aborted && subscribedChannels.length > 0) {
       await notifyTaskError(
