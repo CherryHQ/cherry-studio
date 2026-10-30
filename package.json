@@ -252,7 +252,6 @@
     "@floating-ui/dom": "1.7.3",
     "@fontsource/ubuntu": "5.2.8",
     "@google/genai": "^1.46.0",
-    "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.0.1",
     "@iconify-json/material-icon-theme": "^1.2.56",
     "@iconify/react": "^6.0.2",

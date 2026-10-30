@@ -132,7 +132,6 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@hello-pangea/dnd": "^18.0.1",
     "@lezer/common": "1.5.1",
     "@lezer/highlight": "1.2.3",
     "@mermanjs/web-render": "0.9.2",
