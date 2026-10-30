@@ -2936,7 +2936,7 @@ describe('AgentRightPane', () => {
 
     const sectionOrder = [
       screen.getByText('agent.right_pane.info.artifacts'),
-      screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' }).closest('section')!,
+      screen.getByRole('region', { name: 'agent.right_pane.info.context' }),
       screen.getByText('agent.right_pane.info.shell_tasks')
     ]
 

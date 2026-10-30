@@ -55,7 +55,7 @@ const usage: ThreadContextUsage = {
     {
       id: 'search',
       category: 'mcp-tools',
-      name: 'search',
+      name: 'mcp__docs__search_docs',
       source: 'docs',
       count: { tokens: 1217, precision: 'estimated' },
       state: 'deferred'
@@ -71,6 +71,8 @@ const usage: ThreadContextUsage = {
   ]
 }
 
+const expandSummary = () => userEvent.setup().click(screen.getByRole('button', { name: 'Context' }))
+
 const row = (name: string) => screen.getByRole('row', { name: new RegExp(name) })
 
 describe('AgentContextUsageSummary', () => {
@@ -78,8 +80,26 @@ describe('AgentContextUsageSummary', () => {
     await i18n.changeLanguage('en-US')
   })
 
-  it('uses the window denominator, retains reserves, and excludes deferred tools from occupancy', () => {
+  it('starts as a single summary row and reveals details through keyboard activation', async () => {
+    const user = userEvent.setup()
     renderSummary({ usage, percentage: 20 })
+    const trigger = screen.getByRole('button', { name: 'Context' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('20%')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    await user.tab()
+    await user.keyboard('{Enter}')
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('table')).toBeVisible()
+    expect(screen.getByText('Used 20%')).toBeVisible()
+    await user.keyboard('{Enter}')
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('uses the window denominator, retains reserves, and excludes deferred tools from occupancy', async () => {
+    renderSummary({ usage, percentage: 20 })
+    await expandSummary()
 
     expect(within(row('^Messages')).getByText('12.6%')).toBeInTheDocument()
     expect(within(row('^Compaction buffer')).getByText('3.3%')).toBeInTheDocument()
@@ -91,7 +111,7 @@ describe('AgentContextUsageSummary', () => {
     expect(within(meter).queryByTitle(/deferred/)).not.toBeInTheDocument()
   })
 
-  it('marks partial estimates and does not fabricate free space from missing reserves', () => {
+  it('keeps estimate provenance in the total tooltip without symbols or fabricated free space', async () => {
     renderSummary({
       usage: {
         ...usage,
@@ -102,8 +122,9 @@ describe('AgentContextUsageSummary', () => {
       },
       percentage: 20
     })
-    expect(screen.getByText('Partial breakdown')).toBeInTheDocument()
-    expect(screen.getByText('≈200,300 / 1,000,000 (20%)')).toBeInTheDocument()
+    await expandSummary()
+    expect(screen.getByTitle('200,300 / 1,000,000 · Estimated · Partial breakdown')).toBeInTheDocument()
+    expect(screen.queryByText(/[≈~～]/)).not.toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /^Free space/ })).not.toBeInTheDocument()
   })
 
@@ -113,36 +134,61 @@ describe('AgentContextUsageSummary', () => {
     expect(screen.queryByRole('meter')).not.toBeInTheDocument()
   })
 
-  it('expands native resource details with their ownership and loading status', async () => {
+  it('shows friendly tool names and file basenames without paths or repeated status lines', async () => {
     const user = userEvent.setup()
     renderSummary({ usage, percentage: 20 })
 
-    expect(screen.queryByText('search')).not.toBeInTheDocument()
+    await expandSummary()
+    expect(screen.queryByText('docs · Search Docs')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'MCP tools 1' }))
-    expect(screen.getByText('search')).toBeInTheDocument()
-    expect(screen.getByText('docs')).toBeInTheDocument()
-    expect(screen.getByText('Deferred')).toBeInTheDocument()
+    expect(screen.getByText('docs · Search Docs')).toBeInTheDocument()
+    expect(screen.getByTitle('1,217 · Estimated · Deferred')).toBeInTheDocument()
+    expect(screen.queryByText('mcp__docs__search_docs')).not.toBeInTheDocument()
+    expect(screen.queryByText('Deferred', { exact: true })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Memory files 1' }))
-    expect(screen.getByText('/workspace/AGENTS.md')).toBeInTheDocument()
+    expect(screen.getByText('AGENTS.md')).toBeInTheDocument()
+    expect(screen.queryByText('/workspace/AGENTS.md')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Custom agents 1' }))
     expect(screen.getByText('reviewer')).toBeInTheDocument()
-    expect(screen.getByText('project')).toBeInTheDocument()
+    expect(screen.queryByText('project')).not.toBeInTheDocument()
   })
 
   it('formats exact token details and percentages in the current interface language', async () => {
     renderSummary({ usage, percentage: 20 })
-    expect(within(row('^Messages')).getByTitle('125,700')).toBeInTheDocument()
+    await expandSummary()
+    expect(within(row('^Messages')).getByTitle('125,700 · Estimated')).toBeInTheDocument()
     await act(() => i18n.changeLanguage('de-DE'))
-    expect(screen.getByTitle('125.700')).toBeInTheDocument()
+    expect(screen.getByTitle(/125\.700/)).toBeInTheDocument()
     expect(screen.getByText('12,6%')).toBeInTheDocument()
   })
 
-  it('keeps total-only runtimes honest and suppresses details in the composer', () => {
+  it('shortens Windows paths and decodes camel-case MCP tools without host metadata', async () => {
+    const user = userEvent.setup()
+    renderSummary({
+      usage: {
+        ...usage,
+        resources: [
+          { id: 'win-memory', category: 'memory-files', name: 'C:\\Users\\alice\\project\\MEMORY.md' },
+          { id: 'tool', category: 'mcp-tools', name: 'mcp__github__searchIssues' }
+        ]
+      },
+      percentage: 20
+    })
+    await expandSummary()
+    await user.click(screen.getByRole('button', { name: 'Memory files 1' }))
+    expect(screen.getByText('MEMORY.md')).toBeVisible()
+    expect(screen.queryByText(/C:\\Users/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'MCP tools 1' }))
+    expect(screen.getByText('github · Search Issues')).toBeVisible()
+  })
+
+  it('keeps total-only runtimes honest and suppresses details in the composer', async () => {
     const { unmount } = renderSummary({
       usage: { ...usage, breakdown: undefined, reserved: undefined, free: undefined, resources: undefined },
       percentage: 20
     })
-    expect(screen.getByText('200,300 / 1,000,000 (20%)')).toBeInTheDocument()
+    await expandSummary()
+    expect(screen.getByText('200.3K / 1M')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     unmount()
     renderSummary({ usage, percentage: 20, showCategories: false })
