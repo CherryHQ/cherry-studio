@@ -50,7 +50,7 @@ export class MemoryService extends BaseService {
   private readonly invalidated = new Emitter<MemoryScope | undefined>()
   readonly onInvalidated = this.invalidated.event
 
-  protected onStart(): void {
+  protected override onReady(): void {
     this.stopped = false
   }
 

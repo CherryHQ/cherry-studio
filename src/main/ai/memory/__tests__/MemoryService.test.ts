@@ -48,6 +48,16 @@ afterEach(async () => {
 describe('lifecycle memory owner', () => {
   const dbh = setupTestDatabase()
 
+  it('reopens admission after lifecycle initialization without reviving old sessions', async () => {
+    await service._doInit()
+    const old = service.open(authority())
+    await old.read('MEMORY.md')
+    await service._doStop()
+    await service._doInit()
+    await expect(old.read('MEMORY.md')).rejects.toThrow('expired')
+    expect((await service.open(authority()).read('MEMORY.md')).content).toBe('')
+  })
+
   it('does not revive a stored edit after the real assistant setting is disabled and re-enabled', async () => {
     const assistantId = randomUUID()
     const topicId = randomUUID()
