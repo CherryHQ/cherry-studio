@@ -445,7 +445,7 @@
     "ky": "1.8.1",
     "linguist-languages": "^8.1.0",
     "lru-cache": "^11.1.0",
-    "lucide-react": "^0.525.0",
+    "lucide-react": "^0.545.0",
     "macos-release": "^3.4.0",
     "magic-string": "0.30.21",
     "markdown-it": "^14.1.1",
