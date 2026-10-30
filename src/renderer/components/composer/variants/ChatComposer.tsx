@@ -1658,7 +1658,12 @@ const ChatComposerInner = ({
       if (loading && !canSteer) return
 
       const payload = buildQueuedPayload(draft)
-      if (!payload) return
+      if (!payload) {
+        if (files.length > 0 || getComposerTokenIds(draft.tokens, 'file').size > 0) {
+          toast.errorFromException(new Error(t('chat.input.send_failed')))
+        }
+        return
+      }
 
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
@@ -1689,6 +1694,7 @@ const ChatComposerInner = ({
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,
+      files,
       handleModelSelect,
       loading,
       missingAssistantMessage,

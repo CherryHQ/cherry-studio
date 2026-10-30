@@ -2409,7 +2409,11 @@ describe('ChatComposer', () => {
     })
 
     expect(onSend).not.toHaveBeenCalled()
-    expect(toast.errorFromException).not.toHaveBeenCalled()
+    expect(mocks.files).toHaveLength(1)
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(toast.errorFromException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: 'chat.input.send_failed' })
+    )
   })
 
   it('does not submit a text draft before a newly attached file token is reflected in the editor', async () => {
@@ -2419,12 +2423,19 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await act(async () => {
+      mocks.surfaceProps?.onTextChange('summarize this')
+    })
+
+    await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'summarize this', tokens: [] })
     })
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toHaveLength(1)
-    expect(toast.errorFromException).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('summarize this')
+    expect(toast.errorFromException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: 'chat.input.send_failed' })
+    )
   })
 
   it('does not submit a text draft while only some attached file tokens are reflected in the editor', async () => {
@@ -2434,6 +2445,8 @@ describe('ChatComposer', () => {
     const onSend = vi.fn().mockResolvedValue(undefined)
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => mocks.surfaceProps?.onTextChange('summarize these'))
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({
@@ -2453,7 +2466,10 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toEqual([syncedFile, unsyncedFile])
-    expect(toast.errorFromException).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('summarize these')
+    expect(toast.errorFromException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: 'chat.input.send_failed' })
+    )
   })
 
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {

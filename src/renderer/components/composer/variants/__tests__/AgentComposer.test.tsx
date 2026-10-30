@@ -4815,6 +4815,8 @@ describe('AgentComposer', () => {
       />
     )
 
+    act(() => mocks.surfaceProps?.onTextChange('hello'))
+
     await act(async () => {
       fireEvent.click(screen.getByText('send'))
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -4823,6 +4825,10 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(mocks.setFiles).not.toHaveBeenCalledWith([])
     expect(mocks.files).toEqual([file, secondFile])
+    expect(mocks.surfaceProps?.text).toBe('hello')
+    expect(toast.errorFromException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: 'chat.input.send_failed' })
+    )
   })
 
   it('blocks sends while the parent session is switching', () => {

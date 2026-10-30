@@ -1390,7 +1390,12 @@ const AgentComposerInner = ({
         return
       }
       const payload = buildQueuedPayload(draft)
-      if (!payload) return
+      if (!payload) {
+        if (files.length > 0 || getAgentComposerTokenIds(draft.tokens, 'file').size > 0) {
+          toast.errorFromException(new Error(t('chat.input.send_failed')))
+        }
+        return
+      }
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
@@ -1415,6 +1420,7 @@ const AgentComposerInner = ({
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,
+      files,
       isStreaming,
       model,
       sendDisabled,

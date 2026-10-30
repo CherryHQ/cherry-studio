@@ -260,6 +260,7 @@ async function prepareChatMessage<T extends UIMessage>(
         displayName: part.filename ?? 'file',
         fileEntryId
       })
+      kept.push(noteOf(part.filename ?? 'file'))
       continue
     }
 

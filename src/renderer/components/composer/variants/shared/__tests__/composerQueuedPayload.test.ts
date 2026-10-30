@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { FILE_TYPE } from '@shared/types/file'
 
 import type * as ComposerDraftModule from '../../../composerDraft'
 import type { ComposerSerializedDraft } from '../../../tokens'
@@ -79,6 +80,47 @@ describe('buildComposerQueuedPayload', () => {
     })
 
     expect(result).toBeNull()
+  })
+
+  it.each([
+    { tokens: ['file:a'], files: [] },
+    { tokens: ['file:a', 'file:b'], files: [file('a')] },
+    { tokens: ['file:a'], files: [file('b')] }
+  ])('rejects a file token without matching attachment state: $tokens', ({ tokens, files }) => {
+    expect(buildComposerQueuedPayload(draft('summarize this', tokens), { files, fileTokenId })).toBeNull()
+  })
+
+  it('uses token kind rather than the id prefix to identify file tokens', () => {
+    const knowledgeDraft = draft('summarize this', ['file:a'])
+    knowledgeDraft.tokens[0].kind = 'knowledge'
+
+    expect(buildComposerQueuedPayload(knowledgeDraft, { files: [], fileTokenId })?.text).toBe('summarize this')
+    expect(buildComposerQueuedPayload(knowledgeDraft, { files: [file('a')], fileTokenId })).toBeNull()
+  })
+
+  it.each([
+    { ext: '.pdf', type: FILE_TYPE.DOCUMENT, text: 'summarize this' },
+    { ext: '.txt', type: FILE_TYPE.TEXT, text: 'summarize this' },
+    { ext: '.pdf', type: FILE_TYPE.DOCUMENT, text: '' },
+    { ext: '.txt', type: FILE_TYPE.TEXT, text: '' }
+  ])('carries a matched $ext attachment through with text "$text"', ({ ext, type, text }) => {
+    const attachment: ComposerAttachment = {
+      ...file('a'),
+      name: `sample${ext}`,
+      origin_name: `sample${ext}`,
+      ext,
+      type,
+      size: 42
+    }
+
+    const result = buildComposerQueuedPayload(draft(text, ['file:a']), {
+      files: [attachment],
+      fileTokenId,
+      requireText: false
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.attachments).toEqual([attachment])
   })
 
   it('attaches files when every current file is present as a draft token', () => {

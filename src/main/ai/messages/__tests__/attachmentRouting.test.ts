@@ -135,15 +135,20 @@ describe('prepareChatMessages — routing', () => {
     expect(ocrMock).toHaveBeenCalledOnce()
   })
 
-  it('ignores a modern managed image whose composer token no longer references its source id', async () => {
+  it('replaces an orphaned modern managed image with an unreadable-file note', async () => {
     const [out] = await run(
       [composerText('text only', 'different-source'), fileWithEntry('e1', 'stale.png', 'image/png', 'stale-source')],
       NONE
     )
 
-    expect(out.parts).toEqual([composerText('text only', 'different-source')])
+    expect(out.parts).toEqual([
+      composerText('text only', 'different-source'),
+      { type: 'text', text: 'Attached file "stale.png": [could not read this file].' }
+    ])
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(ocrMock).not.toHaveBeenCalled()
+    expect(extractMock).not.toHaveBeenCalled()
+    expect(resolveMock).not.toHaveBeenCalled()
   })
 
   it('does not OCR a stale retained attachment when the effective messages are text-only', async () => {
