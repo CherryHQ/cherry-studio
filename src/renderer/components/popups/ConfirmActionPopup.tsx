@@ -13,9 +13,8 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
-import { formatErrorMessage } from '@renderer/utils/error'
 
 export interface ConfirmActionParams {
   title?: React.ReactNode
@@ -62,9 +61,12 @@ const PopupContainer: React.FC<Props> = ({
     try {
       await action()
     } catch (error) {
-      // Pre-regression feedback (was AppModal's onOk catch): toast the failure and keep
-      // the dialog open + interactive so the user can retry or cancel.
-      toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
+      // Keep the dialog open for retry. The toast title is the localized wrapper; the
+      // thrown value stays the cause so details are not the raw string alone.
+      toastAppError(t('common.error'), error, {
+        operation: 'confirm_action.run',
+        source: 'popup.confirm_action'
+      })
       setLoading(false)
       return
     }
@@ -88,8 +90,7 @@ const PopupContainer: React.FC<Props> = ({
       <DialogContent
         showCloseButton={false}
         closeOnOverlayClick={!loading}
-        overlayClassName="z-[90]"
-        className={cn('confirm-popup z-[90] gap-5 sm:max-w-lg')}
+        className={cn('confirm-popup gap-5 sm:max-w-lg')}
         onInteractOutside={(event) => {
           if (loading) {
             event.preventDefault()

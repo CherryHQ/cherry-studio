@@ -14,6 +14,7 @@ import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDia
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
@@ -123,11 +124,10 @@ const MiniApp: FC<Props> = ({
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
-      toast.error(e.message || t(fallbackKey))
     } else {
       logger.error('mutation failed', err as Error)
-      toast.error(t(fallbackKey))
     }
+    toastAppError(t(fallbackKey), e, { source: 'miniApp', operation: fallbackKey })
   }
 
   const togglePinLabel = isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')
