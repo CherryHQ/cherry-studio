@@ -20,6 +20,7 @@ Cherry Cloud 订阅（全球版为 Flash）只能从账户面板的一行和个�
 - **额度用完提示条。** 一个通用提示条，位于对话和 Agent 输入框的正上方。当前模型是额度已用完的 Cherry Cloud 模型时出现，并说明额度何时恢复。免费模型提供「去订阅」（已订阅时不显示），付费模型提供「查看用量」，「切换模型」打开模型选择器。此时发送会被拦住、不发出请求，草稿保留。切换模型后，或刷新后的额度显示已恢复时，提示条消失。文案不提「升级」，因为目前没有更高档的套餐。
 - **红点。** 国内版用户没有有效付费权益时，侧边栏账户头像显示红点，直到第一次使用任意「去订阅」触点。消除状态重启后保留。
 - **用量页。** 30 天滚动窗口和 `subscription_month` 计费周期窗口都标为「月度用量」。恢复时间取 `next_recovery_at`，计费周期窗口取 `period_end`。区块标题旁的蓝色「FAQ 与帮助」链接打开 Cherry Cloud API 同源下的 `/account/faq`，在订阅 FAQ 页面提供之前先作为占位。
+- **订阅通知（国内版）。** 登录期间，客户端保持 SSE 通知流 `GET /api/v1/notifications/stream` 连接，每次连接都用 Product Session Bearer 加新生成的 v2 设备签名。首次连接不带游标；收到 `ready` 后保存游标，并刷新账户和模型。每条 `notification` 按 id 去重，按 `refresh` 字段刷新权益和模型，处理完再推进保存的游标。断线后先从保存的游标经 `GET /api/v1/notifications?after=<cursor>&limit=50` 静默补拉，再按退避重连。游标被拒（400 `INVALID_CURSOR`、410 `RESYNC_REQUIRED`）时重新建立基线；接口返回 404 时只保留切回窗口时的刷新。实时通知按类型弹一条轻提醒（开通、续费、自动续费变更、到期、退款后的权益变更），补拉到的历史从不弹出。通知流可用时，由它替代前端推断出的「{套餐} 已生效」；全球版和 404 时仍保留前端推断。权益以账户接口为准。
 - **开发后端。** 通过 `MAIN_VITE_CHERRY_CLOUD_API_ORIGIN` 配置的后端，可以在恰好这个 origin 上返回纯 HTTP 的授权链接，这样没有 HTTPS 的局域网后端也能用于联调。生产构建从不设置这个覆盖项。
 
 ## Alternatives considered
@@ -47,6 +48,9 @@ Cherry Cloud 订阅（全球版为 Flash）只能从账户面板的一行和个�
 - AC8 — 客户端任何界面都不出现写死的套餐名、价格、续费日期或首月优惠。 (verification: renderer)
 - AC9 — 账户面板未订阅时显示蓝色「去订阅」；订阅后显示套餐名、剩余最少的额度百分比，悬停弹出按窗口展示用量的卡片，并可跳到用量页。 (verification: renderer + Electron)
 - AC10 — 只有 `MAIN_VITE_CHERRY_CLOUD_API_ORIGIN` 配置的 origin 上，纯 HTTP 授权链接才会被接受；其他 HTTP origin 仍被拒绝。 (verification: unit)
+- AC11 — 国内版登录后，客户端打开签名的通知流，保存 `ready` 返回的游标，并刷新账户和模型；全球版不打开通知流。 (verification: unit)
+- AC12 — 通知按 id 去重，按 `refresh` 刷新权益和模型，并推进游标；重连时从保存的游标补拉，不弹出历史；400 `INVALID_CURSOR` 和 410 `RESYNC_REQUIRED` 时重建基线；404 时停止通知流，保留切回窗口时的刷新。 (verification: unit)
+- AC13 — 实时通知按类型弹一条提醒；通知流可用时，前端推断的开通提醒不再出现。 (verification: renderer)
 
 ## Risks
 
@@ -55,4 +59,5 @@ Cherry Cloud 订阅（全球版为 Flash）只能从账户面板的一行和个�
 - 国内版全新账号如果没有任何 Cloud 模型、后端也没给套餐模型清单，选择器里就没有 Cherry AI 分组，也就没有「去订阅」入口；账户面板和红点仍然有。
 - `/account/faq` 占位背后的 FAQ 页面和 `cherrystudio://` 回跳格式仍需与网页同学对齐；即使没有回跳链接，获得焦点时的刷新也能生效。
 - 红点会出现在所有没有付费权益的国内版用户面前，包括只用自己服务商的用户。
+- 通知的字段、通知类型，以及通知流本身是否接受 `after`，还在等后端的字段文档；接口在服务端默认关闭、尚未部署，在此之前客户端依赖 404 回退。
 - 开发用的 HTTP 豁免信任的是掌控构建时覆盖项的人，发布构建绝不能设置它。
