@@ -10,7 +10,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
 import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
 import { jobService } from '@data/services/JobService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { KeyedMutex } from '@shared/utils/async'
 
 const SCHEDULE_ID = '33333333-3333-4333-8333-333333333333'
 

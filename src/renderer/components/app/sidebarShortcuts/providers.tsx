@@ -1,5 +1,3 @@
-import { BotMessageSquare, Database, FileText, MessagesSquare, Package } from 'lucide-react'
-
 import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { CLI_TOOLS, CliIcon } from '@renderer/components/icons/CliIcon'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
@@ -23,7 +21,7 @@ import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/dat
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { CodeCli } from '@shared/types/codeCli'
 
-import { SIDEBAR_ICON_COMPONENTS } from '../sidebarIcons'
+import { SidebarIcon } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'
 
 const REVEAL_ACTIVATIONS = new Set<string | undefined>([undefined, 'reveal'])
@@ -119,10 +117,11 @@ const appProvider: SidebarShortcutProvider = {
     for (const target of targets) {
       const id = target.locator.resourceId
       if (!isSidebarAppId(id) || !getSidebarApp(id)) continue
-      const Icon = SIDEBAR_ICON_COMPONENTS[id]
       result.set(createSidebarShortcutId(target), {
         label: i18n.t(getSidebarIconLabelKey(id)),
-        renderIcon: ({ glyphSize }) => <Icon size={glyphSize} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize, active }) => (
+          <SidebarIcon icon={id} active={active} size={glyphSize} strokeWidth={1.6} />
+        ),
         supportsNewTab: true
       })
     }
@@ -163,11 +162,11 @@ const miniAppProvider: SidebarShortcutProvider = {
       (app) => app.appId,
       (app) => ({
         label: app.nameKey ? i18n.t(app.nameKey) : app.name,
-        renderIcon: ({ slotSize, glyphSize }) =>
+        renderIcon: ({ slotSize, glyphSize, active }) =>
           app.logo || app.logoSrc ? (
             <MiniAppIcon app={app} appearance="sidebar" size={slotSize} />
           ) : (
-            <Package size={glyphSize} strokeWidth={1.6} />
+            <SidebarIcon icon="miniApp" active={active} size={glyphSize} strokeWidth={1.6} />
           ),
         tabIcon: app.logoSrc ?? app.logo,
         supportsNewTab: true
@@ -277,7 +276,9 @@ const knowledgeBaseProvider: SidebarShortcutProvider = {
       (base) => base.id,
       (base) => ({
         label: base.name,
-        renderIcon: ({ glyphSize }) => <Database size={glyphSize} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize, active }) => (
+          <SidebarIcon icon="knowledgeBase" active={active} size={glyphSize} strokeWidth={1.6} />
+        ),
         supportsNewTab: true
       })
     ),
@@ -304,7 +305,9 @@ const topicProvider: SidebarShortcutProvider = {
       (topic) => topic.id,
       (topic) => ({
         label: topic.name.trim() || i18n.t('chat.conversation.new'),
-        renderIcon: ({ glyphSize }) => <MessagesSquare size={glyphSize} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize, active }) => (
+          <SidebarIcon icon="topic" active={active} size={glyphSize} strokeWidth={1.6} />
+        ),
         supportsNewTab: true
       })
     ),
@@ -332,7 +335,9 @@ const agentSessionProvider: SidebarShortcutProvider = {
       (session) => session.id,
       (session) => ({
         label: session.name.trim() || i18n.t('agent.session.new'),
-        renderIcon: ({ glyphSize }) => <BotMessageSquare size={glyphSize} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize, active }) => (
+          <SidebarIcon icon="agentSession" active={active} size={glyphSize} strokeWidth={1.6} />
+        ),
         supportsNewTab: true
       })
     ),
@@ -362,7 +367,9 @@ const fileEntryProvider: SidebarShortcutProvider = {
       (entry) => entry.id,
       (entry) => ({
         label: entry.ext ? `${entry.name}.${entry.ext}` : entry.name,
-        renderIcon: ({ glyphSize }) => <FileText size={glyphSize} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize, active }) => (
+          <SidebarIcon icon="fileEntry" active={active} size={glyphSize} strokeWidth={1.6} />
+        ),
         supportsNewTab: true
       })
     ),

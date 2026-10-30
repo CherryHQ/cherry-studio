@@ -14,7 +14,8 @@ const legacyChannelSchema = z.object({
   encrypt_key: z.string().optional(),
   verification_token: z.string().optional(),
   domain: z.enum(['feishu', 'lark']),
-  allowed_chat_ids: z.array(z.string()).optional()
+  allowed_chat_ids: z.array(z.string()).optional(),
+  mention_only: z.boolean().optional()
 })
 type ApplicationInput = z.infer<typeof FeishuApplicationInputSchema>
 type GrantTokens = Parameters<CredentialStoreService['rotateTokens']>[2]
@@ -71,7 +72,8 @@ export async function migrateFeishuCredentials(
           config: {
             applicationCredentialId: null,
             registrationDomain: config.domain,
-            allowed_chat_ids: config.allowed_chat_ids ?? []
+            allowed_chat_ids: config.allowed_chat_ids ?? [],
+            ...(config.mention_only !== undefined && { mention_only: config.mention_only })
           }
         })
         .where(and(eq(agentChannelTable.id, row.id), eq(agentChannelTable.config, row.config)))
@@ -232,7 +234,13 @@ export async function migrateFeishuCredentials(
               const parsed = legacyChannelSchema.parse(config)
               return tx
                 .update(agentChannelTable)
-                .set({ config: { applicationCredentialId: app.id, allowed_chat_ids: parsed.allowed_chat_ids ?? [] } })
+                .set({
+                  config: {
+                    applicationCredentialId: app.id,
+                    allowed_chat_ids: parsed.allowed_chat_ids ?? [],
+                    ...(parsed.mention_only !== undefined && { mention_only: parsed.mention_only })
+                  }
+                })
                 .where(and(eq(agentChannelTable.id, candidate.id), eq(agentChannelTable.config, config)))
                 .run().changes
             }

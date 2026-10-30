@@ -7,7 +7,6 @@ import {
   externalKnowledgeConnectionService
 } from '@data/services/ExternalKnowledgeConnectionService'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { isTerminalStatus } from '@shared/data/api/schemas/jobs'
 import type {
@@ -16,6 +15,7 @@ import type {
   ExternalKnowledgeSourceState,
   ExternalKnowledgeSyncTrigger
 } from '@shared/data/types/externalKnowledge'
+import { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeSyncExternalSourcePayload } from '../tasks/jobTypes'
 import { settleExternalSourceSync } from '../tasks/syncExternalSourceJobHandler'

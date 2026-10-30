@@ -169,6 +169,11 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'chat.settings.code.title'
   },
   {
+    anchorId: 'code-editor-style',
+    titleKey: 'chat.settings.code_editor.title',
+    groupKey: 'chat.settings.code.title'
+  },
+  {
     anchorId: 'code-fancy-block',
     titleKey: 'chat.settings.code_fancy_block.label',
     groupKey: 'chat.settings.code.title'

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { KeyedMutex } from '@shared/utils/async'
 
+import { FileProcessingWaitManager } from '../../ingestion/FileProcessingWaitManager'
 import type { KnowledgeIngestionService } from '../../ingestion/KnowledgeIngestionService'
 
 const {
@@ -45,7 +46,7 @@ function createService() {
 
   return {
     runExclusiveSpy,
-    service: new KnowledgeBaseAdminService(lock, {} as KnowledgeIngestionService, {
+    service: new KnowledgeBaseAdminService(lock, {} as KnowledgeIngestionService, new FileProcessingWaitManager(), {
       prepareExternalSourcesForBaseDeletion: prepareExternalSourcesForBaseDeletionMock,
       notifyExternalSourcesDeleted: notifyExternalSourcesDeletedMock
     })
@@ -71,16 +72,15 @@ describe('KnowledgeBaseAdminService deleteBase', () => {
     deleteStoreMock.mockImplementation(async () => events.push('delete-base-artifacts'))
     deleteBaseRowMock.mockImplementation(() => events.push('delete-base'))
     notifyExternalSourcesDeletedMock.mockImplementation(() => events.push('notify-source-deletion'))
-    const { runExclusiveSpy, service } = createService()
+    const { service } = createService()
 
     await service.deleteBase('kb-1')
 
     expect(cancelActiveKnowledgeJobsMock).toHaveBeenCalledWith('kb-1', 'delete-base', {
-      onCancelTimeout: 'throw'
+      onCancelTimeout: 'throw',
+      fileProcessingWaits: expect.any(FileProcessingWaitManager)
     })
     expect(prepareExternalSourcesForBaseDeletionMock).toHaveBeenCalledWith('kb-1')
-    expect(runExclusiveSpy).toHaveBeenCalledTimes(1)
-    expect(runExclusiveSpy).toHaveBeenCalledWith('kb-1', expect.any(Function))
     expect(notifyExternalSourcesDeletedMock).toHaveBeenCalledWith('kb-1', ['source-1'])
     expect(events).toEqual([
       'cancel-jobs',

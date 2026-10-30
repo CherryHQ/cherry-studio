@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-23-independent-file-edit-lifecycle.md
+2026-10-23-independent-file-edit-lifecycle.md: da172bbf71339416ae976bc720237fdac6598c1e
+2026-10-23-independent-file-edit-lifecycle.zh.md: a1137215b16d90d832f221c8356b6e16329dbea9

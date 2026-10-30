@@ -10,11 +10,13 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   getMessageTitle: vi.fn(),
   processMessageContent: vi.fn(),
-  submitKnowledgeItems: vi.fn()
+  submitKnowledgeItems: vi.fn(),
+  ipcRequest: vi.fn()
 }))
 
 // This suite renders the real popup under a real PopupHost, so opt out of the
@@ -27,6 +29,10 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
@@ -201,6 +207,23 @@ describe('SaveToKnowledgePopup', () => {
       submit: mocks.submitKnowledgeItems
     })
     mocks.submitKnowledgeItems.mockResolvedValue(undefined)
+    mocks.ipcRequest.mockImplementation(async (route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') {
+        return undefined
+      }
+      const path = handle?.path
+      if (!path || path.includes('missing')) {
+        return null
+      }
+      return {
+        kind: 'file',
+        type: 'document',
+        mime: 'application/pdf',
+        size: 1024,
+        createdAt: 0,
+        modifiedAt: 0
+      }
+    })
     Object.assign(window, {
       api: {
         file: {
@@ -412,9 +435,9 @@ describe('SaveToKnowledgePopup', () => {
     await expect(mockPreferenceService.get('chat.save.knowledge.last_base_id')).resolves.toBe('base-2')
   })
 
-  it('does not persist the last-used base when a save produces zero knowledge items', async () => {
+  it('reports failure and does not persist the last-used base when a save produces zero knowledge items', async () => {
     // Every file fails metadata resolution and the message has no text, so the
-    // save "succeeds" while producing zero knowledge items.
+    // save produces zero knowledge items and must not report success.
     const { promise } = renderPopup(createMessageWithFiles([createFile('bad.pdf', 'bad')]))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
@@ -425,8 +448,143 @@ describe('SaveToKnowledgePopup', () => {
 
     expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
     expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
-    await expect(promise).resolves.toEqual({ success: true, savedCount: 0 })
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
     expect(mockPreferenceService.set).not.toHaveBeenCalled()
     await expect(mockPreferenceService.get('chat.save.knowledge.last_base_id')).resolves.toBeNull()
+  })
+
+  it('saves remaining text and files when an absolute referenced file is missing', async () => {
+    const files = [createFile('/tmp/ok.pdf', 'ok'), createFile('E:\\Documents\\missing.docx', 'missing')]
+    const message = {
+      ...createMessageWithFiles(files),
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Keep this conversation note' }]
+    } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({
+      text: 'Keep this conversation note',
+      files
+    })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'note',
+        data: {
+          source: 'All tools are working',
+          content: 'Keep this conversation note'
+        }
+      },
+      {
+        type: 'file',
+        data: {
+          source: '/tmp/ok.pdf',
+          path: '/tmp/ok.pdf'
+        }
+      }
+    ])
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+    expect(toast.error).not.toHaveBeenCalled()
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 2 })
+  })
+
+  it('does not treat an IPC probe failure as a skippable missing file', async () => {
+    const files = [createFile('/tmp/ok.pdf', 'ok'), createFile('/tmp/probe-fail.pdf', 'probe-fail')]
+    mocks.ipcRequest.mockImplementation(async (route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') {
+        return undefined
+      }
+      if (handle?.path?.includes('probe-fail')) {
+        throw new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result')
+      }
+      return {
+        kind: 'file',
+        type: 'document',
+        mime: 'application/pdf',
+        size: 1024,
+        createdAt: 0,
+        modifiedAt: 0
+      }
+    })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(createMessageWithFiles(files))
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('settles a file-only transport failure instead of leaving the save promise pending', async () => {
+    mocks.ipcRequest.mockRejectedValue(new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result'))
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(
+        createMessageWithFiles([createFile('/tmp/probe-fail.pdf', 'probe')])
+      )
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
+    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+  })
+
+  it('does not save conversation notes when a file probe fails with a transport error', async () => {
+    const files = [createFile('/tmp/probe-fail.pdf', 'probe-fail')]
+    const message = {
+      ...createMessageWithFiles(files),
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Keep this conversation note' }]
+    } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({
+      text: 'Keep this conversation note',
+      files
+    })
+    mocks.ipcRequest.mockRejectedValue(new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result'))
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(toast.warning).not.toHaveBeenCalled()
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
   })
 })
