@@ -89,6 +89,7 @@ describe('SubscriptionSettings', () => {
   it('opens the production account center on the cloud origin', async () => {
     vi.stubEnv('DEV', false)
     requestMock.mockImplementation((route: string) => {
+      if (route === 'cherry_cloud.status.get') return Promise.resolve(session.status)
       if (route === 'cherry_cloud.api_origin.get') return Promise.resolve('https://cloud.cherryai.com')
       if (route === 'cherry_cloud.account_plans.get') {
         return Promise.resolve({ measured_at: '2026-09-21T00:00:00Z', entitlements: [], available_plans: [] })

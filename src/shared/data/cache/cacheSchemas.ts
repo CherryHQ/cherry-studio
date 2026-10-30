@@ -495,6 +495,8 @@ export type RendererPersistCacheSchema = {
   'ui.screenshot.annotation_color': string
   'ui.screenshot.annotation_stroke_width': number
   'ui.screenshot.annotation_font_size': number
+  // Set once any Subscribe touchpoint is used; hides the account-avatar subscription dot for good.
+  'ui.cherry_cloud.subscribe_prompt_seen': boolean
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -546,7 +548,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   // or the overlay opens with no swatch, width or size marked as current.
   'ui.screenshot.annotation_color': '#F54A45',
   'ui.screenshot.annotation_stroke_width': 4,
-  'ui.screenshot.annotation_font_size': 20
+  'ui.screenshot.annotation_font_size': 20,
+  'ui.cherry_cloud.subscribe_prompt_seen': false
 }
 
 /**

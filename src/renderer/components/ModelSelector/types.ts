@@ -82,6 +82,8 @@ export interface ModelSelectorGroupItem {
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
+  /** The merged CherryAI + Cherry Cloud group, which carries the subscription entry. */
+  isCherryAiGroup?: boolean
 }
 
 export interface ModelSelectorModelItem {
@@ -94,6 +96,8 @@ export interface ModelSelectorModelItem {
   modelIdentifier: string
   isPinned: boolean
   showIdentifier: boolean
+  /** A plan model the account does not own; choosing it starts Subscribe instead of selecting. */
+  locked?: boolean
 }
 
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
@@ -115,6 +119,9 @@ export interface UseModelSelectorDataOptions {
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
   getModelDescription: (model: Model) => string | undefined
+  isModelFree: (model: Model) => boolean
+  /** The account's active paid plan, shown on the CherryAI group header. */
+  subscribedPlanName?: string
   isModelUnavailable: (model: Model) => boolean
   isLoading: boolean
   isPinActionDisabled: boolean

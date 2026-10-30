@@ -14,18 +14,25 @@ import type * as SidebarFooterModule from '../../Sidebar/SidebarFooter'
 
 const mocks = vi.hoisted(() => ({
   activate: vi.fn(),
+  edition: 'cn' as 'cn' | 'global',
   openSettingsTab: vi.fn(),
   registryResolve: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
   resolutions: [] as any[],
   sidebarWidth: 170,
+  subscribePromptSeen: true,
   shortcuts: [] as any[],
   showUpdatePopup: vi.fn()
 }))
 
+vi.mock('@renderer/utils/appEdition', () => ({ getAppEdition: () => mocks.edition }))
+
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [mocks.sidebarWidth, vi.fn()],
+  usePersistCache: (key: string) => [
+    key === 'ui.cherry_cloud.subscribe_prompt_seen' ? mocks.subscribePromptSeen : mocks.sidebarWidth,
+    vi.fn()
+  ],
   useCache: () => [{ available: false, downloaded: false, info: null }, vi.fn()]
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
@@ -95,7 +102,7 @@ vi.mock('../../Sidebar', async () => {
       onHoverChange?: (visible: boolean) => void
       actions?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
       renderUserTrigger?: (trigger: ReactElement) => ReactElement
-      user?: { name: string; avatar?: string; onClick?: () => void }
+      user?: { name: string; avatar?: string; badgeLabel?: string; onClick?: () => void }
       userAction?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
     }) => {
       const shellLayout = constants.getSidebarLayout(width)
@@ -161,6 +168,7 @@ describe('app Sidebar', () => {
     mocks.shortcuts = []
     mocks.resolutions = []
     mocks.sidebarWidth = 170
+    mocks.subscribePromptSeen = true
     mocks.registryResolve.mockReturnValue({ activate: mocks.activate })
     mocks.reorder.mockResolvedValue(undefined)
   })
@@ -177,6 +185,44 @@ describe('app Sidebar', () => {
 
     await user.click(screen.getByTestId('account-menu'))
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('marks the account avatar until a Subscribe touchpoint has been used', async () => {
+    mocks.subscribePromptSeen = false
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
+      route === 'cherry_cloud.status.get'
+        ? { ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } }
+        : { ok: true, data: undefined }
+    )
+    const { unmount } = render(<Sidebar />)
+
+    expect(await screen.findByRole('status', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+
+    unmount()
+    mocks.subscribePromptSeen = true
+    render(<Sidebar />)
+
+    expect(screen.queryByRole('status', { name: 'settings.subscription.go_to_subscribe' })).not.toBeInTheDocument()
+  })
+
+  it('does not mark the account avatar in the global edition', async () => {
+    mocks.subscribePromptSeen = false
+    mocks.edition = 'global'
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
+      route === 'cherry_cloud.status.get'
+        ? { ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } }
+        : { ok: true, data: undefined }
+    )
+
+    try {
+      render(<Sidebar />)
+      // A signed-out status would light the dot in the China edition as soon as it resolves.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+
+      expect(screen.queryByRole('status', { name: 'settings.subscription.go_to_subscribe' })).not.toBeInTheDocument()
+    } finally {
+      mocks.edition = 'cn'
+    }
   })
 
   it('does not reopen the account menu after resizing the sidebar to hidden', async () => {

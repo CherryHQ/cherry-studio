@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 
@@ -50,6 +50,8 @@ export function useCherryCloudModelAvailability(enabled = true) {
       isModelHidden: (model: Model, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&
         !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** The built-in CherryAI models and Cloud models granted only by a free plan. */
+      isModelFree: (model: Model) => isManagedCherryAiProviderId(model.providerId) || freeModelIds.has(model.id),
       isModelUnavailable: (model: Model) =>
         isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
       getModelDescription: (model: Model): string | undefined => {

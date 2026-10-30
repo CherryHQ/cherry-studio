@@ -18,8 +18,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 
 import { HelpMenu } from '../layout/HelpMenu'
 import { AppUpdateButton, SidebarSettingsButton } from '../layout/ShellTabBarActions'
@@ -91,6 +93,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [layout])
 
   const avatar = useAvatar()
+  const [subscribePromptSeen] = usePersistCache('ui.cherry_cloud.subscribe_prompt_seen')
+  // The subscribe reminder dot is China-edition only for now.
+  const remindToSubscribe = getAppEdition() === 'cn' && !subscribePromptSeen
+  const { session: cloudSession, plansQuery, activePaid } = useCherryCloudPlans(remindToSubscribe)
+  // Wait for the plans of a signed-in account so a paying user never sees the dot flash.
+  const showSubscribeDot =
+    remindToSubscribe && (cloudSession.status?.phase === 'signed-out' || (plansQuery.data !== undefined && !activePaid))
   const handleUserMenuOpenChange = useCallback(
     (open: boolean) => {
       setUserMenuOpen(open)
@@ -106,9 +115,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     () => ({
       name: userName || t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
       avatar: avatar || undefined,
+      badgeLabel: showSubscribeDot ? t('settings.subscription.go_to_subscribe') : undefined,
       onClick: handleUserMenuToggle
     }),
-    [avatar, handleUserMenuToggle, t, userName]
+    [avatar, handleUserMenuToggle, showSubscribeDot, t, userName]
   )
   const renderSidebarUserTrigger = useCallback(
     (trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>,
