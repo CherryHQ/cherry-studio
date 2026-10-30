@@ -160,6 +160,12 @@ mac:
     NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
     NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCalendarsUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsWriteOnlyAccessUsageDescription: Cherry Studio allows local MCP servers to create calendar events.
+    NSRemindersUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSRemindersFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSAppleEventsUsageDescription: Cherry Studio allows local MCP servers to control other applications using AppleScript.
   target:
     - target: dmg
     - target: zip

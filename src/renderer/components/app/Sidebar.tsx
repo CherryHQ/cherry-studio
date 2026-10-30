@@ -280,11 +280,11 @@ export default function Sidebar({
           onClick={() => openSettingsTab()}
           className={
             footerLayout === 'icon'
-              ? 'sidebar-action size-9 rounded-full'
-              : 'sidebar-action w-full justify-start rounded-lg'
+              ? 'shell-navigation-item size-9 rounded-full'
+              : 'shell-navigation-item flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px]'
           }>
-          <Settings className="size-4.5" strokeWidth={1.6} />
-          {footerLayout === 'full' && <span>{t('settings.title')}</span>}
+          <Settings className={footerLayout === 'icon' ? 'size-4.5' : 'size-4'} strokeWidth={1.6} />
+          {footerLayout === 'full' && <span className="min-w-0 truncate">{t('settings.title')}</span>}
         </Button>
       </CommandTooltip>
     ),

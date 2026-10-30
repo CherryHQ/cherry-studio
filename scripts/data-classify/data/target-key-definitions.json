@@ -1048,6 +1048,62 @@
       "defaultValue": "AltLeft+ControlLeft",
       "status": "classified",
       "description": "Physical key codes for application-local toggle dictation; empty disables the shortcut"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.tree_position",
+      "type": "PreferenceTypes.AgentFilePaneTreePosition",
+      "defaultValue": "left",
+      "status": "classified",
+      "description": "Agent file pane: side of a wide pane that holds the file tree (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.auto_save",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Agent file pane: save edits automatically while typing; off shows Save/Cancel and asks before discarding (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.tab_indent",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Agent file pane: Tab indents in the editor; off lets Tab move focus (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.word_wrap",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Agent file pane: wrap long lines in the editor (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.indent_guides",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Agent file pane: draw indent guides in the editor (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.show_whitespace",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Agent file pane: mark spaces and tabs in the editor (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.scroll_past_end",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Agent file pane: let the last line scroll to the top of the editor (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.agent.file_pane.tab_size",
+      "type": "number",
+      "defaultValue": 2,
+      "status": "classified",
+      "description": "Agent file pane: tab width in columns, one of 2, 4, or 8 (v2 new feature, no v1 source)"
     }
   ]
 }

@@ -124,6 +124,8 @@ export class KnowledgeBaseAdminService {
       fileProcessorId: sourceBase.fileProcessorId,
       chunkSize: sourceBase.chunkSize,
       chunkOverlap: sourceBase.chunkOverlap,
+      chunkStrategy: sourceBase.chunkStrategy,
+      chunkSeparator: sourceBase.chunkSeparator,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
       groupId: sourceBase.groupId ?? undefined

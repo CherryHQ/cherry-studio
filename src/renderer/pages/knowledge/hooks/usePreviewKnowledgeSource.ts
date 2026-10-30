@@ -74,7 +74,7 @@ export const usePreviewKnowledgeSource = (
           return
         }
 
-        await window.api.file.openPath(source)
+        await ipcApi.request('system.shell.open_path', source)
       } catch (error) {
         if (!isCurrentRequest()) return
         const previewError = normalizeKnowledgeError(error)

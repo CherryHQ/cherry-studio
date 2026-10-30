@@ -58,6 +58,11 @@ export interface FileTreeProps {
   /** Optional command-system context menu items for the whole row (Cherry/Native presentation). */
   getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 
+  /**
+   * When false, folders show only the chevron and file icons take the chevron column,
+   * so sibling folder and file names align. Default: true.
+   */
+  showFolderIcons?: boolean
   /** Override default folder/file icons. */
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
