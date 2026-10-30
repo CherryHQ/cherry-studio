@@ -1205,3 +1205,73 @@ it('keeps a newer same-file model draft when the older departing write completes
   expect(newer.result.current.isDirty).toBe(true)
   act(() => newer.result.current.discard())
 })
+
+it('keeps refreshed metadata in cache before save and fast reopen', async () => {
+  let disk = 'before',
+    mtime = 1
+  ipcMocks.request.mockImplementation(async (route: string, p: any) => {
+    if (route === 'file.read') return readResult(utf8(disk), mtime)
+    if (route === 'file.write_if_unchanged') {
+      disk = new TextDecoder().decode(p.data)
+      mtime = 3
+      return writeResult(mtime, p.data.length)
+    }
+  })
+  const cache = new Map()
+  const shared = ({ children }: { children: ReactNode }) => (
+    <SWRConfig value={{ provider: () => cache, dedupingInterval: 60000 }}>{children}</SWRConfig>
+  )
+  const first = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+  await waitFor(() => expect(first.result.current.status).toBe('ready'))
+  mtime = 2
+  await act(async () => {
+    await first.result.current.refreshFromDiskIfIdle()
+  })
+  act(() => first.result.current.setDraft('saved after refresh'))
+  await act(async () => {
+    await first.result.current.flush()
+  })
+  expect(disk).toBe('saved after refresh')
+  first.unmount()
+  const second = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+  await waitFor(() => expect(second.result.current.status).toBe('ready'))
+  expect(second.result.current.draft).toBe('saved after refresh')
+  expect(second.result.current.isDirty).toBe(false)
+})
+
+it('metadata-only refresh cannot replace a genuinely newer-content cached snapshot', async () => {
+  let resolveRefresh!: (value: any) => void,
+    reads = 0
+  ipcMocks.request.mockImplementation(async (route: string) => {
+    if (route === 'file.read') {
+      reads++
+      if (reads === 1) return readResult(utf8('before'), 1)
+      return await new Promise((r) => (resolveRefresh = r))
+    }
+  })
+  const cache = new Map()
+  const shared = ({ children }: { children: ReactNode }) => (
+    <SWRConfig value={{ provider: () => cache, dedupingInterval: 60000 }}>{children}</SWRConfig>
+  )
+  const first = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+  await waitFor(() => expect(first.result.current.status).toBe('ready'))
+  let refresh!: Promise<void>
+  act(() => {
+    refresh = first.result.current.refreshFromDiskIfIdle()
+  })
+  await waitFor(() => expect(reads).toBe(2))
+  const key = 'file-edit-session/path/' + path
+  cache.set(key, {
+    ...cache.get(key),
+    data: { content: 'newer external', version: { mtime: 3, size: 14 }, lineEnding: 'lf', hasBom: false }
+  })
+  await act(async () => {
+    resolveRefresh(readResult(utf8('before'), 2))
+    await refresh
+  })
+  expect(cache.get(key).data.content).toBe('newer external')
+  first.unmount()
+  const returning = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+  await waitFor(() => expect(returning.result.current.status).toBe('ready'))
+  expect(returning.result.current.draft).toBe('newer external')
+})

@@ -523,7 +523,9 @@ export function useFileEditSession(
       if (model.draft !== draftBefore || model.draft !== model.snapshot.content) return
       if (disk.version.mtime < model.snapshot.version.mtime) return
       if (disk.content === model.snapshot.content) {
+        const baseline = model.snapshot
         model.snapshot = disk
+        await cacheCompletedWrite(model, disk, baseline)
         return
       }
       model.snapshot = disk
@@ -533,7 +535,7 @@ export function useFileEditSession(
     } catch (reloadError) {
       logger.error('Idle disk refresh failed', reloadError as Error)
     }
-  }, [cacheSnapshotIfActive, syncFromModel])
+  }, [cacheCompletedWrite, cacheSnapshotIfActive, syncFromModel])
 
   const notifyExternalChange = useCallback(
     (eventMtimeMs?: number) => {
