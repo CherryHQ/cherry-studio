@@ -38,7 +38,7 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
   const view = page.locator('[data-ui~="paintings.view"]:visible')
   await view.getByRole('button', { name: 'New Image', exact: true }).click()
   await view.locator('[data-selector-shell-root="true"] > button').first().click()
-  await selectVisibleModel(page, app.config.cherryIn.imageModel)
+  await selectVisibleModel(page, app.config.cherryIn.imageModel, 'cherryin')
   await view
     .locator('[contenteditable="true"]')
     .fill(
