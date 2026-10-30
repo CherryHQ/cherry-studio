@@ -1,6 +1,6 @@
 # 记忆存储底座
 
-本模块实现 [共享记忆 Spec](../../../../.agents/notes/proposed/feature/2026-10-29-shared-memory.md) 的文件提交、访问权限、入口加载、编辑、最近操作恢复、旧 FACT 迁移和 Dreaming。Pi 已接入受控读取、写入和编辑。后续测试按用户要求跳过，行为验收尚未完成，Spec 保持 proposed。
+本模块实现 [共享记忆 Spec](../../../../.agents/notes/proposed/feature/2026-10-29-shared-memory.md) 的文件提交、访问权限、入口加载、编辑、最近操作恢复、旧 FACT 迁移和 Dreaming。Pi 已接入受控读取、写入和编辑。已恢复定向测试并补充迁移、整理和生命周期回归。完整行为验收尚未完成，Spec 保持 proposed。
 
 - `MemoryStore.ts`：一个作用域由一个实例串行提交。调用方身份使用主进程持有的 `MemoryAccess` 对象，不能从模型或 IPC 输入反序列化。
 - `MemoryService.ts`：生命周期服务。按作用域复用存储实例，绑定调用方凭据，提供暂停、排空和恢复失效入口。
@@ -14,6 +14,8 @@
 - `memoryBackups.ts`：保存原始字节、预期哈希和逐项结果。备份位于活动目录之外。
 
 服务从路径注册表获取根目录。私有范围检查现有 Agent 目录。`read()` 返回完整正文与调用方绑定的凭据。`entry()` 可能截断，因此不返回编辑凭据。
+
+启动监听与开放服务使用 `override onReady()`。生命周期不会调用 `onStart()`。测试通过 `_doInit()` 和 `_doStop()` 验证真实入口，不能直接调用自定义启动方法。
 
 Agent 的 `configuration.shared_memory_enabled` 缺省为开启。持久助手的 `settings.enableSharedMemory` 缺省为关闭。临时、辅助和普通 headless 助手不开放记忆。渠道 Agent 只能访问所属私有范围。编辑器要求真实的主窗口身份。Pi 在新轮次、结束和关闭时释放文件会话及读取关联。
 
