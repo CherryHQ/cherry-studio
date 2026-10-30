@@ -7,6 +7,7 @@ import { MarkdownLinkRenderer } from '@renderer/components/markdown'
 import type { Citation } from '@renderer/types/message'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
+import { isSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
 import CitationTooltip from './CitationTooltip'
@@ -16,17 +17,6 @@ interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   citationRegistry?: ReadonlyMap<number, Citation>
   /** When set, schemeless hrefs that look like workspace files route here instead of navigating. */
   openFilePath?: (path: string) => void | Promise<void>
-}
-
-function getWebHostname(href?: string): string {
-  if (!href) return ''
-
-  try {
-    const url = new URL(href)
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.hostname : ''
-  } catch {
-    return ''
-  }
 }
 
 function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
@@ -45,7 +35,6 @@ const Link: React.FC<LinkProps> = (props) => {
     const number = Number(findCitationInChildren(props.children))
     return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
   }, [props.children, props.citationRegistry])
-  const hostname = useMemo(() => getWebHostname(props.href), [props.href])
   const handleWebsiteClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.stopPropagation()
     props.onClick?.(event)
@@ -56,7 +45,7 @@ const Link: React.FC<LinkProps> = (props) => {
       event.ctrlKey ||
       event.shiftKey ||
       event.altKey ||
-      !hostname ||
+      !isSafeExternalUrl(props.href ?? '') ||
       !openExternalUrl
     )
       return

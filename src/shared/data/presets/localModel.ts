@@ -49,6 +49,7 @@ export const LOCAL_MODEL_BUNDLE_IDS = [
   'qwen3-embedding-0.6b',
   'pp-ocrv6-medium',
   'funasr-nano-int8',
+  'qwen3-asr-1.7b-8bit',
   'qwen3-tts-0.6b-customvoice-8bit',
   'kokoro-multi-lang-v1.1'
 ] as const

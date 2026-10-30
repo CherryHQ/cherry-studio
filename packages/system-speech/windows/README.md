@@ -1,10 +1,11 @@
 # Windows SAPI helper
 
 Windows x64 system ASR uses installed SAPI 5 recognizers, selected by exact locale.
-The model `local-voice::windows-system-asr` must be explicitly selected; Windows
-does not select an ASR model by default. Main accepts the same recorded WebM/Opus
+On Windows x64, `resolveDefaultAsrModel` recommends `local-voice::windows-system-asr`
+when no model is explicitly selected. An explicit selection is preserved. Main accepts the same recorded WebM/Opus
 as Apple ASR and decodes it to mono 16 kHz PCM16 WAV in `voice.audio` before calling
-the helper. The helper never selects a different language, downloads a model or
+the helper. Canonical PCM16 mono 16 kHz WAV is validated with `inspectCanonicalWav`
+and passed through unchanged. The helper never selects a different language, downloads a model or
 uses cloud recognition. An omitted language uses `en-US` for both readiness and
 transcription. Windows ASR has no asset installation operation.
 
@@ -64,8 +65,9 @@ voice enumeration with an unsupported ASR locale, malformed requests, required
 speed bounds, invalid ASR probes and exact missing-voice/recognizer failure. The TTS smoke **requires an installed
 SAPI voice** and fails explicitly if none exists. It checks actual PCM data and
 metadata, a Unicode path and text, 0.5/1/2 speed settings, cancellation and timeout,
-then removes its temporary files. It does not play audio. The Windows workflow
-runs both smokes; only a successful Windows run is native execution evidence.
+then removes its temporary files. It does not play audio. The Windows workflow runs the adapter unit regression and both native smokes.
+The regression mocks the helper and does not recognize speech; only a successful
+Windows run of the native smokes is native execution evidence.
 
 The ASR smoke **requires a usable en-US SAPI dictation recognizer and an en-US
 SAPI voice**. It probes the engine, synthesizes a known sentence, transcribes it

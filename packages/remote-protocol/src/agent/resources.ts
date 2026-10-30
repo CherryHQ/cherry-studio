@@ -85,12 +85,11 @@ export const modelSummarySchema = z.looseObject({
   name: unicodeText.min(1).max(2048)
 })
 
-export const messageSchema = z
+const messageMetadataSchema = z
   .looseObject({
     messageId: opaqueId,
     revision: decimal,
     role: z.enum(['user', 'assistant', 'system']),
-    partIds: z.array(opaqueId).max(4096),
     status: z.enum(['pending', 'success', 'error', 'paused']),
     usage: messageUsageSchema.optional(),
     model: modelSummarySchema.optional(),
@@ -100,6 +99,15 @@ export const messageSchema = z
     if ((value.status === 'error') !== Boolean(value.failure))
       ctx.addIssue({ code: 'custom', message: 'Error messages require a failure; other outcomes cannot carry one' })
   })
+export const messageSchema = messageMetadataSchema.safeExtend({ partIds: z.array(opaqueId).max(4096) })
+export const messageSummarySchema = messageMetadataSchema.safeExtend({
+  partsMode: z.literal('paged'),
+  partIds: z.never().optional()
+})
+export const messageListItemSchema = z.union([
+  messageSchema.safeExtend({ partsMode: z.never().optional() }),
+  messageSummarySchema
+])
 const partBase = {
   partId: opaqueId,
   revision: decimal,
@@ -192,6 +200,8 @@ export type AgentAuthorization = z.infer<typeof agentAuthorizationSchema>
 export type AgentCursor = z.infer<typeof agentCursorSchema>
 export type AgentSession = z.infer<typeof sessionSchema>
 export type AgentMessage = z.infer<typeof messageSchema>
+export type AgentMessageSummary = z.infer<typeof messageSummarySchema>
+export type AgentMessageListItem = z.infer<typeof messageListItemSchema>
 export type AgentPart = z.infer<typeof partSchema>
 export type AgentExecution = z.infer<typeof executionSchema>
 export type AgentInteraction = z.infer<typeof interactionSchema>

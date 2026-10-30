@@ -11,8 +11,8 @@ unstaged, and untracked files. `--base <parent>` supports stacked branches.
 `--committed --base <commit> --head <commit>` compares exact commits for CI;
 renames include both old and new paths. Missing history falls back to full validation.
 
-Ordinary Markdown under docs, agent notes, and changesets, root Markdown, and source
-READMEs select format and documentation checks. Runtime Markdown under resources
+Ordinary Markdown under docs, agent notes, and changesets, root Markdown, source
+READMEs, and translation-pairing `.i18n.yaml` sidecars select format and documentation checks. Runtime Markdown under resources
 retains full checks. Skill files select the skill gate as well. Unknown inputs,
 root configuration, workflow changes, and the planner itself select all tasks.
 

@@ -13,6 +13,7 @@ import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/sc
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
@@ -36,7 +37,7 @@ export interface DataSourcePanelProps {
   isLoadingMore?: boolean
   onLoadMore?: () => void
   updatedAt: string
-  onAdd: (source?: KnowledgeItemType, files?: File[]) => void
+  onAdd: (source?: KnowledgeItemType, files?: File[], directoryPaths?: AbsoluteFilePath[]) => void
   onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
   /** View an item's indexed chunks in-app (the row's context menu). */
   onItemClick?: (itemId: string) => void
@@ -301,11 +302,35 @@ const DataSourcePanelContent = ({
   const handleFileDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       const files = Array.from(event.dataTransfer.files)
-      if (files.length > 0) {
+      const directoryFiles = new Set<File>()
+      const directoryPaths: AbsoluteFilePath[] = []
+      try {
+        for (const item of Array.from(event.dataTransfer.items ?? [])) {
+          if (item.kind !== 'file' || !item.webkitGetAsEntry?.()?.isDirectory) {
+            continue
+          }
+          const file = item.getAsFile()
+          if (!file) {
+            throw new Error('Failed to capture a dropped directory')
+          }
+          directoryPaths.push(AbsoluteFilePathSchema.parse(window.api.file.getPathForFile(file)))
+          directoryFiles.add(file)
+        }
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+        return
+      }
+      if (directoryPaths.length > 0) {
+        onAdd(
+          'file',
+          files.filter((file) => !directoryFiles.has(file)),
+          directoryPaths
+        )
+      } else if (files.length > 0) {
         onAdd('file', files)
       }
     },
-    [onAdd]
+    [onAdd, t]
   )
   const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
     useDrag<HTMLDivElement>(handleFileDrop)

@@ -230,6 +230,11 @@ and exposes the session tools below:
 - `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
   using the existing storage query rules. The caller does not supply a conversation type;
   ambiguous IDs fail rather than selecting the first matching store;
+- `session_rename` — rename the current Session by default, or an explicit `session_id`,
+  including another Agent's Session. The trimmed `title` must contain 1–255 characters.
+  Missing and trashed Sessions are rejected. The saved name is marked manually
+  edited so automatic naming cannot overwrite it; existing read-model notifications
+  refresh the Session list and detail views;
 - `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
   availability, and whether a model is configured;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
@@ -259,18 +264,24 @@ durable request reaches `accepted`; it never waits for scheduling or target exec
 
 `session_create` reuses the same completion-request path. Omitting `target_agent_id` creates a
 same-Agent Session; providing it creates a Session owned by the selected Agent. The sender remains
-the trusted calling Agent/Session, and the current workspace policy is retained. The model is not a
-tool argument because Sessions use their owning Agent's model.
+the trusted calling Agent/Session. A same-Agent Session continues the sender's workspace; a
+cross-Agent Session continues the target Agent's most recent workspace, falling back to the
+sender's workspace when that Agent has no Session. The model is not a tool argument because
+Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
-`session_send` and `session_create` always require a live per-call user approval because both start
-another Agent Session turn. A headless delivery, channel turn, scheduled turn, or other execution
-without an approval responder is denied before either tool runs. Runtime-generated completion
+`session_send` and `session_create` follow the calling Session's permission mode: interactive calls
+are auto-approved in `auto` and `bypassPermissions`, including the first send; other modes require
+per-call approval. Existing Agents in either automatic mode adopt this behavior without migration.
+Claude SDK approval requests, including explicit `permissions.ask` rules, still require a user
+decision in automatic modes; ordinary delegation is approved by `PreToolUse` before that callback.
+A headless delivery, channel turn, scheduled turn, or execution without an approval responder is
+denied in every mode before either tool runs. Runtime-generated completion
 results do not call a model tool and route only to the immutable sender Session stored on the
 accepted request.
 
-This deliberately limits the first version to one user-approved delegation hop. A Session started
+This deliberately limits delegation to one hop from an interactive Session. A Session started
 by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
 request and let the runtime return the result. The limit prevents unattended A -> B -> A loops and a
 prompt-injected Agent from using a more privileged Agent as a confused deputy without introducing a
@@ -278,10 +289,13 @@ speculative ACL subsystem. Upgrade only when the product requires unattended mul
 collaboration; that upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace
 ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
 
-List, search, send, create, and delivery-query visibility share one authorization boundary. Channel,
+List, search, rename, send, create, and delivery-query visibility share one authorization boundary. Channel,
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
-but still require a live approval for delegation. Knowing a Session or message id never grants
+and delegate under the calling Session's permission mode and interaction boundary. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+
+`session_rename` is auto-approved within this interactive boundary. It changes only
+Session name metadata and does not create a delivery or start a target turn.
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
 cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
@@ -1007,7 +1021,7 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
 - deleting a target Session first creates failure results for pending completion requests;
 - deleting an accepted request cannot leave an in-memory entry because delivery has no runtime FIFO;
 - a missing `delivery_turn_ref` target fails recovery without replaying model/tool work;
-- interactive `session_send` and `session_create` request approval, while headless calls are denied
+- interactive `session_send` and `session_create` follow the permission mode, while headless calls are denied in every mode
   and runtime-generated completion delivery remains allowed;
 - concurrent dispatch attempts for one durable message atomically persist one placeholder plus one
   CAS owner before producing one send;

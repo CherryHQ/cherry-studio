@@ -8,9 +8,10 @@ import type {
   WebviewTag
 } from 'electron'
 import type { ReactNode } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ipcApi } from '@renderer/ipc'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -80,6 +81,22 @@ export function WebviewBrowser({
   const [loadFailed, setLoadFailed] = useState(false)
   const [pageTitle, setPageTitle] = useState('')
   const guestAuthorizationKey = getGuestAuthorizationKey(securityProfile, initialUrl)
+
+  // An <Activity>-hidden tab runs this cleanup too: main freezes a guest left hidden.
+  useEffect(() => {
+    const webview = webviewRef.current
+    if (!isHostActive || !webview) return
+    let webviewId: number
+    try {
+      webviewId = webview.getWebContentsId()
+    } catch {
+      return // A new guest has no contents until dom-ready, which re-runs this effect.
+    }
+    const report = (visible: boolean) =>
+      void ipcApi.request('webview.set_visible', { webviewId, visible }).catch(() => {})
+    report(true)
+    return () => report(false)
+  }, [isHostActive, isReady, webviewRevision])
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
     webviewRef.current = webview

@@ -5,7 +5,7 @@
  * Groups, left to right: annotation tools · undo/redo · OCR affordance · save/cancel/ok.
  */
 
-import { Check, Download, MessageSquare, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
+import { Check, Copy, Download, MessageSquare, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
 import type { ComponentType, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +30,7 @@ interface ToolbarProps {
   onRedo: () => void
   onOk: () => void
   onSave: () => void
+  onCopy: () => void
   onSubmitResult?: (text: string) => Promise<void>
   onCancel: () => void
   /**
@@ -96,6 +97,7 @@ export const Toolbar = memo(function Toolbar({
   onRedo,
   onOk,
   onSave,
+  onCopy,
   onSubmitResult,
   onCancel,
   ocrSlot,
@@ -188,6 +190,7 @@ export const Toolbar = memo(function Toolbar({
 
       <SubmitResult text={resultMessage} setText={onResultMessageChange} onSend={onSubmitResult} />
       <ToolbarButton icon={<Download className="size-5" />} label={t('screenshot.action.save')} onClick={onSave} />
+      <ToolbarButton icon={<Copy className="size-5" />} label={t('screenshot.action.copy')} onClick={onCopy} />
       <ToolbarButton
         icon={<X className="size-5" />}
         label={t('screenshot.action.cancel')}

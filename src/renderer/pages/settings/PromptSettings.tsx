@@ -425,8 +425,6 @@ function PromptRow({
         type="button"
         variant="ghost"
         size="icon-sm"
-        {...dragHandleProps?.attributes}
-        {...dragHandleProps?.listeners}
         aria-label={t('settings.prompts.reorder', { title: prompt.title })}
         onClick={(event) => event.stopPropagation()}
         className="shrink-0 cursor-grab text-foreground-tertiary active:cursor-grabbing">

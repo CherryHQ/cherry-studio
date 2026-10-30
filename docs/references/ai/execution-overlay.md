@@ -74,6 +74,13 @@ class that owns:
   arrived between `register` and the reader's first `read()` are
   already buffered in the stream's internal queue — late readers never
   miss replayed chunks.
+- **Attach selects covered output once.** Incoming chunks and terminal events
+  wait in arrival order. If queued live delivery covers the entire retained
+  `replayFrom`–`replayThrough` interval, consume it instead of replay; otherwise
+  apply replay and skip covered live chunks. This preserves a queued prefix
+  that Main's ring already evicted. Identical text beyond the cutoff remains
+  valid output. Terminal attach responses and request failures drain queued
+  output before settling; a queued terminal is not reported twice.
 - **Terminal demux.** `ai.stream.done` / `ai.stream.error` close the
   matching branch and fan out an `ExecutionTerminal` (`{ isAbort,
   isError }`) to listeners; if the payload carries `isTopicDone` or no
@@ -109,7 +116,7 @@ const { overlay, liveAssistants, disposeOverlay, reset, clear } = useExecutionOv
   topicId,
   activeExecutions,      // ActiveExecution[] from useTopicStreamStatus
   uiMessages,            // current DB snapshot
-  { onFinish }
+  { onUpdate, onFinish, onLeave }
 )
 ```
 
@@ -119,6 +126,13 @@ rAF batching keyed by `topicId`. The hook only acquires/releases a
 refcounted view and reads it via `useSyncExternalStore` — unmounting
 (route/tab/conversation switch) does **not** tear the stream down,
 and remounting restores the live overlay synchronously.
+
+`onUpdate(executionId, { attemptId, message })` receives each assembled live snapshot,
+including typed text/reasoning/tool parts. Consumers select their eligible attempt and
+body parts; the transport does not depend on voice services. `onFinish` supplies the
+terminal snapshot once. `onLeave` runs when this view releases its topic subscription;
+view-owned work such as automatic reading stops while the retained overlay and Main
+chat generation continue. Callback updates do not reattach the stream.
 
 ### One reader per turn, zero cross-turn state
 
