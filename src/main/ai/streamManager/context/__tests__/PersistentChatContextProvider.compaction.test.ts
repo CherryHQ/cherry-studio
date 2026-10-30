@@ -157,7 +157,16 @@ vi.mock('../modelResolution', () => ({
 
 vi.mock('../../../observability', () => ({
   startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn(), setStatus: vi.fn() } })),
-  applyTurnInputAttributes: vi.fn()
+  applyTurnInputAttributes: vi.fn(),
+  // The public aiSdk barrel pulled in by attachmentBudget evaluates the
+  // web-search barrel (WebSearchService) and agent params at import time, so
+  // these observability exports must exist on the mock for module linking
+  // even though these suites never invoke them.
+  applyTurnOutputAttributes: vi.fn(),
+  applyHttpTrace: vi.fn(),
+  AdapterTracer: vi.fn(),
+  TRACER_NAME: 'test-tracer',
+  TraceMethod: () => (_target: unknown, _propertyKey?: unknown, descriptor?: PropertyDescriptor) => descriptor
 }))
 
 vi.mock('@data/services/TopicService', () => ({
