@@ -1,4 +1,4 @@
-import { ChevronRight, CreditCard, Gauge, RotateCcw, Settings } from 'lucide-react'
+import { ChevronRight, CreditCard, Gauge, LogIn, RotateCcw, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
@@ -127,7 +127,14 @@ export function UserAccountPanel({ onRequestClose, children }: { onRequestClose?
             onClick: loadCloudStatus,
             icon: <RotateCcw className="!text-muted-foreground size-4" aria-hidden />
           }
-        : null
+        : !isGlobalEdition
+          ? {
+              label: t('settings.provider.cherry_cloud.login'),
+              loading: cloudStatusLoadState === 'loading',
+              onClick: handleCloudLogin,
+              icon: <LogIn className="!text-muted-foreground size-4" aria-hidden />
+            }
+          : null
 
   return (
     <ColFlex className="w-56 p-1.5">

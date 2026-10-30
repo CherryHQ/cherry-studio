@@ -5292,6 +5292,7 @@
   "settings.provider.check_all_keys": "检测所有密钥",
   "settings.provider.check_multiple_keys": "检测多个 API 密钥",
   "settings.provider.cherry_cloud.logged_in": "已登录",
+  "settings.provider.cherry_cloud.login": "登录",
   "settings.provider.cherry_cloud.logout": "退出登录",
   "settings.provider.cherry_cloud.logout_confirm_account": "退出账号 {{displayName}}？",
   "settings.provider.cherry_cloud.logout_confirm_description": "退出登录后订阅套餐内的模型将无法使用",

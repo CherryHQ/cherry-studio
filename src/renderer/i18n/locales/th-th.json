@@ -5292,6 +5292,7 @@
   "settings.provider.check_all_keys": "ตรวจสอบคีย์ทั้งหมด",
   "settings.provider.check_multiple_keys": "ตรวจสอบหลาย API Keys",
   "settings.provider.cherry_cloud.logged_in": "เข้าสู่ระบบแล้ว",
+  "settings.provider.cherry_cloud.login": "เข้าสู่ระบบ",
   "settings.provider.cherry_cloud.logout": "ออกจากระบบ",
   "settings.provider.cherry_cloud.logout_confirm_account": "ออกจากระบบบัญชี {{displayName}} หรือไม่?",
   "settings.provider.cherry_cloud.logout_confirm_description": "หลังออกจากระบบ จะไม่สามารถใช้งานโมเดลที่รวมอยู่ในแพ็กเกจการสมัครสมาชิกของคุณได้",

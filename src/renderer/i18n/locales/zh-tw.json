@@ -5292,6 +5292,7 @@
   "settings.provider.check_all_keys": "檢查所有金鑰",
   "settings.provider.check_multiple_keys": "檢查多個 API 金鑰",
   "settings.provider.cherry_cloud.logged_in": "已登入",
+  "settings.provider.cherry_cloud.login": "登入",
   "settings.provider.cherry_cloud.logout": "登出",
   "settings.provider.cherry_cloud.logout_confirm_account": "登出帳號 {{displayName}}？",
   "settings.provider.cherry_cloud.logout_confirm_description": "登出後將無法使用訂閱方案內的模型",

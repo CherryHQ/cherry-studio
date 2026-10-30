@@ -5292,6 +5292,7 @@
   "settings.provider.check_all_keys": "Vérifier toutes les clés",
   "settings.provider.check_multiple_keys": "Vérifier plusieurs clés API",
   "settings.provider.cherry_cloud.logged_in": "Connecté",
+  "settings.provider.cherry_cloud.login": "Se connecter",
   "settings.provider.cherry_cloud.logout": "Se déconnecter",
   "settings.provider.cherry_cloud.logout_confirm_account": "Se déconnecter de {{displayName}} ?",
   "settings.provider.cherry_cloud.logout_confirm_description": "Les modèles inclus dans votre abonnement ne seront plus disponibles après la déconnexion.",

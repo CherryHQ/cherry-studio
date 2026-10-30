@@ -5292,6 +5292,7 @@
   "settings.provider.check_all_keys": "Проверить все ключи",
   "settings.provider.check_multiple_keys": "Проверить несколько ключей API",
   "settings.provider.cherry_cloud.logged_in": "Вход выполнен",
+  "settings.provider.cherry_cloud.login": "Войти",
   "settings.provider.cherry_cloud.logout": "Выйти",
   "settings.provider.cherry_cloud.logout_confirm_account": "Выйти из аккаунта {{displayName}}?",
   "settings.provider.cherry_cloud.logout_confirm_description": "После выхода модели, включённые в вашу подписку, будут недоступны.",

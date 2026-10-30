@@ -5292,6 +5292,7 @@
   "settings.provider.check_all_keys": "Verificar todas las claves",
   "settings.provider.check_multiple_keys": "Verificar múltiples claves API",
   "settings.provider.cherry_cloud.logged_in": "Sesión iniciada",
+  "settings.provider.cherry_cloud.login": "Iniciar sesión",
   "settings.provider.cherry_cloud.logout": "Cerrar sesión",
   "settings.provider.cherry_cloud.logout_confirm_account": "¿Cerrar la sesión de {{displayName}}?",
   "settings.provider.cherry_cloud.logout_confirm_description": "Los modelos incluidos en tu suscripción no estarán disponibles después de cerrar sesión.",

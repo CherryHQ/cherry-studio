@@ -5292,6 +5292,7 @@
   "settings.provider.check_all_keys": "Έλεγχος όλων των κλειδιών",
   "settings.provider.check_multiple_keys": "Έλεγχος πολλαπλών κλειδιών API",
   "settings.provider.cherry_cloud.logged_in": "Συνδεδεμένος",
+  "settings.provider.cherry_cloud.login": "Σύνδεση",
   "settings.provider.cherry_cloud.logout": "Αποσύνδεση",
   "settings.provider.cherry_cloud.logout_confirm_account": "Αποσύνδεση από τον λογαριασμό {{displayName}};",
   "settings.provider.cherry_cloud.logout_confirm_description": "Τα μοντέλα που περιλαμβάνονται στη συνδρομή σας δεν θα είναι διαθέσιμα μετά την αποσύνδεση.",

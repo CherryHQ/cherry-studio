@@ -209,6 +209,37 @@ describe('UserAccountPanel', () => {
     expect(screen.queryByRole('button', { name: /去订阅|查看用量/ })).not.toBeInTheDocument()
   })
 
+  it('offers CN sign-in in production without a subscription entry', async () => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    vi.stubEnv('DEV', false)
+    session = { phase: 'signed-out', accountId: null, displayName: null }
+    const user = userEvent.setup()
+    renderAccount(<UserAccountPanel />)
+
+    const login = await screen.findByRole('button', { name: '登录' })
+    await waitFor(() => expect(login).toBeEnabled())
+    expect(screen.queryByRole('button', { name: /去订阅/ })).not.toBeInTheDocument()
+    await user.click(login)
+
+    expect(await screen.findByRole('button', { name: '取消' })).toBeEnabled()
+    expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+    expect(request).not.toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined)
+  })
+
+  it('restores CN sign-in after the account signs out', async () => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    renderAccount(<UserAccountPanel />)
+    await screen.findByText(session.displayName!)
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+    const listener = vi
+      .mocked(window.api.ipcApi.on)
+      .mock.calls.find(([event]) => event === 'cherry_cloud.status_changed')![1]
+
+    act(() => listener({ phase: 'signed-out', accountId: null, displayName: null }))
+
+    expect(await screen.findByRole('button', { name: '登录' })).toBeEnabled()
+  })
+
   it('opens the avatar and name dialog from the CN account menu', async () => {
     vi.stubGlobal('__APP_EDITION__', 'cn')
     const user = userEvent.setup()
