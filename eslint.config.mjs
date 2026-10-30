@@ -599,7 +599,7 @@ export default defineConfig([
   ...oxlint.configs['flat/typescript'],
   ...oxlint.configs['flat/unicorn'],
   // Custom rules should be after oxlint to overwrite
-  // LoggerService Custom Rules - only apply to src directory
+  // LoggerService and lifecycle Emitter Custom Rules - only apply to src directory
   {
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
@@ -609,6 +609,11 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message: '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
+        },
+        {
+          selector: 'CallExpression[callee.property.name="registerDisposable"] > NewExpression[callee.name="Emitter"]',
+          message:
+            '❗Do not registerDisposable() an Emitter the service owns: stop would dispose it for good. Dispose it in onDestroy(): 📖 docs/references/lifecycle/lifecycle-usage.md\n\n'
         }
       ]
     }
