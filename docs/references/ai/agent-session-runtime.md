@@ -230,6 +230,11 @@ and exposes the session tools below:
 - `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
   using the existing storage query rules. The caller does not supply a conversation type;
   ambiguous IDs fail rather than selecting the first matching store;
+- `session_rename` — rename the current Session by default, or an explicit `session_id`,
+  including another Agent's Session. The trimmed `title` must contain 1–255 characters.
+  Missing and trashed Sessions are rejected. The saved name is marked manually
+  edited so automatic naming cannot overwrite it; existing read-model notifications
+  refresh the Session list and detail views;
 - `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
   availability, and whether a model is configured;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
@@ -284,10 +289,13 @@ speculative ACL subsystem. Upgrade only when the product requires unattended mul
 collaboration; that upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace
 ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
 
-List, search, send, create, and delivery-query visibility share one authorization boundary. Channel,
+List, search, rename, send, create, and delivery-query visibility share one authorization boundary. Channel,
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
 and delegate under the calling Session's permission mode and interaction boundary. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+
+`session_rename` is auto-approved within this interactive boundary. It changes only
+Session name metadata and does not create a delivery or start a target turn.
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
 cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries

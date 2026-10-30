@@ -1,0 +1,16 @@
+{
+  "organic_results": [
+    {
+      "position": 1,
+      "title": " SearchApi Title ",
+      "link": "https://searchapi.example/result",
+      "snippet": " SearchApi Snippet "
+    },
+    {
+      "position": 2,
+      "title": "Second Title",
+      "link": "https://searchapi.example/second",
+      "snippet": "Second Snippet"
+    }
+  ]
+}

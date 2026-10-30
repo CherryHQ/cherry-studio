@@ -17,7 +17,6 @@ import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledge
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
 import {
@@ -25,6 +24,7 @@ import {
   isCompletedVectorKnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import { prepareKnowledgeMaterial } from '../ingestion/indexKnowledgeItem'
 import { enqueueKnowledgeSubtreeDeletionTx, recoverDeletingKnowledgeItems } from '../ingestion/subtreeDeletion'

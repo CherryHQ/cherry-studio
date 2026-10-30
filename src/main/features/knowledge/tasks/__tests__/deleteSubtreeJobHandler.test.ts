@@ -16,6 +16,7 @@ import {
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
   FILE_ITEM_ID,
+  FileProcessingWaitManager,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeLockManager,
@@ -25,7 +26,7 @@ import {
 
 describe('delete-subtree job handler', () => {
   it('cancels active subtree jobs, clears vectors, detaches refs, and hard deletes rows', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -49,8 +50,6 @@ describe('delete-subtree job handler', () => {
           baseId: 'kb-1',
           itemId: 'note-1',
           fileProcessingJobId: 'fp-job-1',
-          pollRound: 0,
-          firstScheduledAt: 1779811200000,
           processedRelativePath: 'source.md'
         }
       }),
@@ -65,7 +64,6 @@ describe('delete-subtree job handler', () => {
 
     expect(cancelMock).toHaveBeenCalledWith('index-job', 'knowledge-delete-subtree')
     expect(cancelMock).toHaveBeenCalledWith('check-job', 'knowledge-delete-subtree')
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
     expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
@@ -74,7 +72,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('does not cancel an overlapping delete-subtree job and no-ops after that sibling wins the lock', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const subtreeItems: KnowledgeItem[] = [createNoteItem('note-1', null, 'deleting')]
     knowledgeItemGetSubtreeItemsMock
       .mockReturnValueOnce(subtreeItems)
@@ -95,8 +93,24 @@ describe('delete-subtree job handler', () => {
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
+  it('cancels the file processing a deleted file is still waiting on, before removing its files', async () => {
+    const fileProcessingWaits = new FileProcessingWaitManager()
+    fileProcessingWaits.add('kb-1', FILE_ITEM_ID, 'fp-job-1')
+    fileProcessingWaits.add('kb-1', 'file-elsewhere', 'fp-job-elsewhere')
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, fileProcessingWaits)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createFileItem(FILE_ITEM_ID, 'deleting')])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }, 'delete-job'))
+
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
+    expect(cancelMock).not.toHaveBeenCalledWith('fp-job-elsewhere', expect.anything())
+    expect(cancelMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteKnowledgeItemFilesBestEffortMock.mock.invocationCallOrder[0]
+    )
+  })
+
   it('routes file cleanup through best-effort delete before hard-deleting rows', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createFileItem(FILE_ITEM_ID, 'deleting')
@@ -117,7 +131,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('keeps deleting external rows when strict snapshot cleanup fails', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const externalItem = createExternalItem('external-1', 'deleting')
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([externalItem])
     deleteKnowledgeItemFilesMock.mockRejectedValue(new Error('snapshot cleanup failed'))
@@ -131,7 +145,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('uses strict cleanup for external items and best-effort cleanup for ordinary items', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const directory = createDirectoryItem('dir-1', 'deleting')
     const file = createFileItem(FILE_ITEM_ID, 'deleting')
     const externalItem = createExternalItem('external-1', 'deleting')
@@ -148,7 +162,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('deletes deleting rows by id', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -161,7 +175,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('stops before cleanup when subtree job cancellation fails', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -185,7 +199,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('stops before cleanup when subtree job cancellation times out', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -209,7 +223,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('completes when the subtree is already gone', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['missing-root'] }, 'delete-job'))
@@ -221,7 +235,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('no-ops when a stale job targets visible rows', async () => {
-    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, new FileProcessingWaitManager())
     const subtreeItems: KnowledgeItem[] = [createDirectoryItem('dir-1'), createNoteItem('note-1', 'dir-1')]
     knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
 

@@ -112,6 +112,13 @@ export const normalizeArtifactPaneFilePath = (workspacePath: string, rawPath: st
   return normalized.replace(/^\/+/, '')
 }
 
+/** Workspace-relative path of the selection's file, or null when the file lies outside `workspacePath`. */
+export const getArtifactPaneSelectionRelativePath = (
+  workspacePath: string | undefined,
+  selection: ArtifactPaneFileSelection
+): string | null =>
+  workspacePath ? normalizeArtifactPaneFilePath(workspacePath, getArtifactPaneSelectionPath(selection)) : null
+
 export const resolveArtifactPaneFileSelection = (
   workspacePath: string | undefined,
   rawPath: string
