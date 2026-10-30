@@ -125,6 +125,30 @@ describe('AnthropicImporter', () => {
   })
 
   describe('parse', () => {
+    it('links flat multi-turn exports into one conversation path', async () => {
+      const result = await importer.parse(
+        JSON.stringify([
+          conversation({
+            chat_messages: [
+              textMessage('human', 'Q1', { uuid: 'q1' }),
+              textMessage('assistant', 'A1', { uuid: 'a1' }),
+              textMessage('human', 'Q2', { uuid: 'q2' }),
+              textMessage('assistant', 'A2', { uuid: 'a2' })
+            ]
+          })
+        ])
+      )
+
+      const imported = result.conversations[0]
+      expect(imported.messages.map(({ sourceId, parentSourceId }) => ({ sourceId, parentSourceId }))).toEqual([
+        { sourceId: 'q1', parentSourceId: undefined },
+        { sourceId: 'a1', parentSourceId: 'q1' },
+        { sourceId: 'q2', parentSourceId: 'a1' },
+        { sourceId: 'a2', parentSourceId: 'q2' }
+      ])
+      expect(imported.activeSourceId).toBe('a2')
+    })
+
     it('converts a basic text conversation into v2 message parts', async () => {
       const result = await importer.parse(JSON.stringify([conversation()]))
 
@@ -142,6 +166,78 @@ describe('AnthropicImporter', () => {
       expect(assistantMessage.role).toBe('assistant')
       expect(assistantMessage.parts).toEqual([{ type: 'text', text: 'Hi there' }])
       expect(assistantMessage.model).toMatchObject({ provider: 'anthropic', id: 'claude-sonnet-4-6' })
+    })
+
+    it('links flat messages across filtered empty turns without crossing conversations', async () => {
+      const result = await importer.parse(
+        JSON.stringify([
+          conversation({
+            chat_messages: [
+              textMessage('human', '   ', { uuid: 'empty-root' }),
+              textMessage('human', 'question', { uuid: 'q1' }),
+              textMessage('assistant', '   ', { uuid: 'empty-middle' }),
+              textMessage('assistant', 'answer', { uuid: 'a1' }),
+              textMessage('human', '   ', { uuid: 'empty-leaf' })
+            ]
+          }),
+          conversation({ uuid: 'conv-2' })
+        ])
+      )
+
+      expect(
+        result.conversations[0].messages.map(({ sourceId, parentSourceId }) => ({ sourceId, parentSourceId }))
+      ).toEqual([
+        { sourceId: 'q1', parentSourceId: undefined },
+        { sourceId: 'a1', parentSourceId: 'q1' }
+      ])
+      expect(result.conversations[0].activeSourceId).toBe('a1')
+      expect(result.conversations[1].messages[0].parentSourceId).toBeUndefined()
+      expect(result.conversations[1].messages[1].parentSourceId).toBe('msg-human-Hello')
+    })
+
+    it('preserves explicit null roots and missing parents in partially linked trees', async () => {
+      const result = await importer.parse(
+        JSON.stringify([
+          conversation({
+            chat_messages: [
+              textMessage('human', 'first root', { uuid: 'q1', parent_message_uuid: null }),
+              textMessage('assistant', 'first reply', { uuid: 'a1', parent_message_uuid: 'q1' }),
+              textMessage('human', 'another root', { uuid: 'q2', parent_message_uuid: null }),
+              textMessage('human', 'missing parent', { uuid: 'q3' })
+            ]
+          })
+        ])
+      )
+
+      expect(
+        result.conversations[0].messages.map(({ sourceId, parentSourceId }) => ({ sourceId, parentSourceId }))
+      ).toEqual([
+        { sourceId: 'q1', parentSourceId: undefined },
+        { sourceId: 'a1', parentSourceId: 'q1' },
+        { sourceId: 'q2', parentSourceId: undefined },
+        { sourceId: 'q3', parentSourceId: undefined }
+      ])
+    })
+
+    it('does not infer a flat chain when only filtered messages carry parent metadata', async () => {
+      const result = await importer.parse(
+        JSON.stringify([
+          conversation({
+            chat_messages: [
+              textMessage('human', '   ', { uuid: 'empty-root', parent_message_uuid: null }),
+              textMessage('human', 'first root', { uuid: 'q1' }),
+              textMessage('human', 'second root', { uuid: 'q2' })
+            ]
+          })
+        ])
+      )
+
+      expect(
+        result.conversations[0].messages.map(({ sourceId, parentSourceId }) => ({ sourceId, parentSourceId }))
+      ).toEqual([
+        { sourceId: 'q1', parentSourceId: undefined },
+        { sourceId: 'q2', parentSourceId: undefined }
+      ])
     })
 
     it('keeps text content blocks separate and ignores the flat text field', async () => {

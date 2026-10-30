@@ -8,20 +8,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 
 import { createSidebarShortcutTarget } from '../../../utils/sidebar'
-import type * as ShellTabBarActionsModule from '../../layout/ShellTabBarActions'
 import type * as SidebarConstantsModule from '../../Sidebar/constants'
 import type * as SidebarFooterModule from '../../Sidebar/SidebarFooter'
 
 const mocks = vi.hoisted(() => ({
+  isMac: false,
   activate: vi.fn(),
-  openSettingsTab: vi.fn(),
   registryResolve: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
   resolutions: [] as any[],
   sidebarWidth: 170,
   shortcuts: [] as any[],
-  showUpdatePopup: vi.fn()
+  showUpdatePopup: vi.fn(),
+  openSettingsTab: vi.fn()
+}))
+
+vi.unmock('@cherrystudio/ui')
+
+vi.mock(import('@renderer/utils/platform'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  get isMac() {
+    return mocks.isMac
+  }
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -30,6 +39,7 @@ vi.mock('@data/hooks/useCache', () => ({
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
 vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({ useOpenReleaseNotes: () => vi.fn() }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
@@ -42,27 +52,22 @@ vi.mock('../sidebarShortcuts', () => ({
   useSidebarShortcutRegistry: () => ({ resolve: mocks.registryResolve })
 }))
 vi.mock('../../UserAccountPanel', () => ({
-  UserAccountPanel: ({ onRequestClose }: { onRequestClose?: () => void }) => (
-    <button type="button" data-testid="account-menu" onClick={onRequestClose}>
-      account-menu
+  UserAccountPanel: ({ onRequestClose, children }: { onRequestClose?: () => void; children?: ReactNode }) => (
+    <>
+      <button type="button" data-testid="account-menu" onClick={onRequestClose}>
+        account-menu
+      </button>
+      {children}
+    </>
+  )
+}))
+vi.mock('../../layout/ShellTabBarActions', () => ({
+  AppUpdateButton: () => (
+    <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
+      update
     </button>
   )
 }))
-vi.mock('@renderer/services/mainWindowNavigation', () => ({
-  openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
-}))
-vi.mock('../../layout/ShellTabBarActions', async () => {
-  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../../layout/ShellTabBarActions')
-
-  return {
-    AppUpdateButton: () => (
-      <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
-        update
-      </button>
-    ),
-    SidebarSettingsButton: actual.SidebarSettingsButton
-  }
-})
 vi.mock('../../Sidebar', async () => {
   const constants = await vi.importActual<typeof SidebarConstantsModule>('../../Sidebar/constants')
   const { SidebarFooter } = await vi.importActual<typeof SidebarFooterModule>('../../Sidebar/SidebarFooter')
@@ -158,6 +163,7 @@ function renderedShortcutLabels(): Array<string | null> {
 describe('app Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isMac = false
     mocks.shortcuts = []
     mocks.resolutions = []
     mocks.sidebarWidth = 170
@@ -165,7 +171,39 @@ describe('app Sidebar', () => {
     mocks.reorder.mockResolvedValue(undefined)
   })
 
-  it('opens and closes the anchored account menu from the footer identity', async () => {
+  it.each([50, 170, 0])('dismisses the account menu on window blur at sidebar width %s', async (width) => {
+    mocks.sidebarWidth = width
+    const user = userEvent.setup()
+    render(<Sidebar />)
+    if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+    const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
+    await user.click(within(sidebar).getByRole('button', { name: 'User' }))
+    expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
+    fireEvent.blur(within(screen.getByLabelText('sidebar.account_menu')).getAllByRole('button')[0])
+    expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
+    fireEvent.blur(window)
+    expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument()
+    fireEvent.focus(window)
+    expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { isMac: false, isFullscreen: false },
+    { isMac: true, isFullscreen: false },
+    { isMac: true, isFullscreen: true }
+  ])('opens settings independently on macOS=$isMac fullscreen=$isFullscreen', async ({ isMac, isFullscreen }) => {
+    mocks.isMac = isMac
+    const user = userEvent.setup()
+    render(<Sidebar isFullscreen={isFullscreen} />)
+    const settingsButton = screen.getByRole('button', { name: 'settings.title' })
+    if (isMac && !isFullscreen) expect(settingsButton).not.toHaveTextContent('settings.title')
+    else expect(settingsButton).toHaveTextContent('settings.title')
+    await user.click(settingsButton)
+    expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('opens and closes the anchored account menu from the sidebar identity', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)
 
@@ -177,6 +215,22 @@ describe('app Sidebar', () => {
 
     await user.click(screen.getByTestId('account-menu'))
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('keeps pointer focus on the avatar and focuses the first account action for keyboard access', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+    const avatar = screen.getByRole('button', { name: 'User' })
+
+    await user.click(avatar)
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+    expect(avatar).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument())
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(screen.getByTestId('account-menu')).toHaveFocus())
   })
 
   it('does not reopen the account menu after resizing the sidebar to hidden', async () => {
@@ -210,72 +264,59 @@ describe('app Sidebar', () => {
     expect(screen.getByTestId('floating-sidebar')).toBeVisible()
   })
 
-  it('keeps settings and update actions independent from the account menu', async () => {
+  it('keeps the update action independent from the account menu', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)
-    const footer = screen.getByTestId('sidebar-footer-user')
 
-    await user.click(within(footer).getByRole('button', { name: 'settings.title' }))
-    await user.click(within(footer).getByRole('button', { name: 'Install update' }))
+    await user.click(screen.getByRole('button', { name: 'Install update' }))
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
     expect(mocks.showUpdatePopup).toHaveBeenCalledOnce()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
-  it('renders the full footer layout through the production Help action', () => {
+  it.each([170, 50, 0])('moves help into the account menu at sidebar width %s', async (width) => {
+    mocks.sidebarWidth = width
+    const user = userEvent.setup()
     render(<Sidebar />)
-    const footer = screen.getByTestId('sidebar-footer-user')
+    if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+    const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
 
-    expect(within(footer).getByRole('button', { name: 'help.title' })).toHaveTextContent('help.title')
-    expect(within(footer).getByRole('button', { name: 'settings.title' })).toHaveTextContent('settings.title')
+    expect(within(sidebar).getByRole('button', { name: 'settings.title' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'help.title' })).not.toBeInTheDocument()
+
+    await user.click(within(sidebar).getByRole('button', { name: 'User' }))
+    const accountMenu = screen.getByLabelText('sidebar.account_menu')
+    await user.click(within(accountMenu).getByRole('button', { name: 'help.title' }))
+
+    expect(screen.getByRole('button', { name: 'help.whats_new' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'help.guide' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.about.feedback.diagnostics.title' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'help.feedback' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.doctor.entry.title' })).toBeVisible()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('button', { name: 'help.whats_new' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
+    expect(within(accountMenu).getByRole('button', { name: 'help.title' })).toHaveFocus()
+
+    await user.click(within(accountMenu).getByRole('button', { name: 'help.title' }))
+    await user.click(screen.getByRole('button', { name: 'help.whats_new' }))
+    await waitFor(() => expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument())
   })
 
-  it('propagates full and icon footer layouts to Settings and Help outside the account row', () => {
-    mocks.sidebarWidth = 170
-    const view = render(<Sidebar />)
-    const footer = screen.getByTestId('sidebar-footer-user')
-    const settings = within(footer).getByRole('button', { name: 'settings.title' })
-    const help = within(footer).getByRole('button', { name: 'help.title' })
-    const account = within(footer).getByRole('button', { name: 'User' })
-    const update = within(footer).getByRole('button', { name: 'Install update' })
-    // The trigger mock wraps the identity button, so the account row is the ancestor that also holds the update control.
-    let accountRow: HTMLElement | null = account
-    while (accountRow && !accountRow.contains(update)) accountRow = accountRow.parentElement
-
-    expect(settings).toHaveTextContent('settings.title')
-    expect(help).toHaveTextContent('help.title')
-    expect(help.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(help.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(accountRow).toContainElement(update)
-    expect(accountRow).not.toContainElement(settings)
-    expect(accountRow).not.toContainElement(help)
-
-    mocks.sidebarWidth = 50
-    view.rerender(<Sidebar />)
-
-    const iconFooter = screen.getByTestId('sidebar-footer-user')
-    const iconSettings = within(iconFooter).getByRole('button', { name: 'settings.title' })
-    const iconHelp = within(iconFooter).getByRole('button', { name: 'help.title' })
-
-    expect(iconSettings).not.toHaveTextContent('settings.title')
-    expect(iconHelp).not.toHaveTextContent('help.title')
-    expect(within(iconFooter).getByRole('button', { name: 'User' })).toBeVisible()
-    expect(within(iconFooter).queryByRole('button', { name: 'Install update' })).not.toBeInTheDocument()
-  })
-
-  it('places help above settings in the compact sidebar footer', () => {
-    mocks.sidebarWidth = 50
+  it('closes both menus and gives focus to the feedback dialog', async () => {
+    const user = userEvent.setup()
     render(<Sidebar />)
 
-    const footer = screen.getByTestId('sidebar-footer-user')
-    const actions = within(footer)
-      .getAllByRole('button')
-      .map((button) => button.getAttribute('aria-label'))
-    expect(actions.filter((label) => label === 'help.title' || label === 'settings.title')).toEqual([
-      'help.title',
-      'settings.title'
-    ])
+    await user.click(screen.getByRole('button', { name: 'User' }))
+    await user.click(screen.getByRole('button', { name: 'help.title' }))
+    await user.click(screen.getByRole('button', { name: 'help.feedback' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'settings.about.feedback.dialog.title' })
+    expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })).toHaveFocus()
+    )
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {

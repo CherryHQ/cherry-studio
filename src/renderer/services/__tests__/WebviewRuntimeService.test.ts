@@ -23,7 +23,7 @@ describe('WebView resource lifetime', () => {
     service.sync([demand('b')], 10)
     expect(service.get('a')).toBeUndefined()
     expect(service.get('b')).toMatchObject({ instance: b.instance, element: guest, loaded: true })
-    service.sync([], 10)
+    service.release('b')
     expect(service.getSnapshot()).toEqual([])
   })
 

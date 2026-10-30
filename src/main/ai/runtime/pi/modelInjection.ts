@@ -44,6 +44,7 @@ import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGatew
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
+import { withGoogleReplayIdentity } from './piGoogleReplay'
 import { projectPiReasoningCompat } from './piReasoningCompat'
 import { withReasoningSummarySuppressed } from './piResponsesReasoning'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple, loadPiOpenAiResponsesApi } from './piSdk'
@@ -132,9 +133,13 @@ export async function materializePiProviderStream(injection: PiProviderInjection
       : injection.suppressReasoningSummary
         ? withReasoningSummarySuppressed(injection.providerConfig, (await loadPiOpenAiResponsesApi()).streamSimple)
         : injection.providerConfig
+  const streamSimple = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
   return {
     providerConfig,
-    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+    streamSimple:
+      injection.api === 'google-generative-ai'
+        ? withGoogleReplayIdentity(streamSimple, injection.providerName)
+        : streamSimple
   }
 }
 

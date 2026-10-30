@@ -26,6 +26,12 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn() }
 }))
 
+vi.mock('@cherrystudio/ui', async () => {
+  const { Button } = await import('@cherrystudio/ui/components/primitives/button')
+  const { Input } = await import('@cherrystudio/ui/components/primitives/input')
+  return { Button, Input }
+})
+
 // A real element, because guest keys route by the replayed event's `target`.
 const createWebviewMock = (webContentsId = 1) => {
   const findInPageMock = vi.fn()
@@ -279,6 +285,56 @@ describe('WebviewSearch', () => {
     })
   })
 
+  it.each([
+    { query: '', split: false },
+    { query: 'Cherry', split: false },
+    { query: '', split: true },
+    { query: 'Cherry', split: true }
+  ])('lets the address form submit while find is open ($query, split=$split)', async ({ query, split }) => {
+    const owner = createWebviewMock(1)
+    const other = createWebviewMock(2)
+    const user = userEvent.setup()
+    const submitted: (FormDataEntryValue | null)[] = []
+
+    render(
+      <>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            submitted.push(new FormData(event.currentTarget).get('address'))
+          }}>
+          <label>
+            Web address
+            <input name="address" />
+          </label>
+        </form>
+        <WebviewSearch webviewRef={{ current: owner.webview }} isWebviewReady targetId="app-1" />
+        {split && (
+          <WebviewSearch
+            webviewRef={{ current: other.webview }}
+            isWebviewReady
+            targetId="app-2"
+            hostShortcutEnabled={false}
+          />
+        )}
+      </>
+    )
+    await openSearchOverlay()
+    if (split) pressGuestKey(other.webview, { key: 'f', ctrlKey: true })
+    for (const input of screen.getAllByPlaceholderText('Search')) {
+      if (query) await user.type(input, query)
+    }
+    owner.findInPageMock.mockClear()
+    other.findInPageMock.mockClear()
+
+    await user.type(screen.getByRole('textbox', { name: 'Web address' }), 'https://example.com/new{Enter}')
+
+    expect(submitted).toEqual(['https://example.com/new'])
+    expect(owner.findInPageMock).not.toHaveBeenCalled()
+    expect(other.findInPageMock).not.toHaveBeenCalled()
+    expect(screen.getAllByPlaceholderText('Search')).toHaveLength(split ? 2 : 1)
+  })
+
   it('clears search state when targetId changes', async () => {
     const { findInPageMock, stopFindInPageMock, webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
@@ -410,7 +466,7 @@ describe('WebviewSearch', () => {
     expect(other.stopFindInPageMock).not.toHaveBeenCalled()
   })
 
-  it('falls back to pane ownership for Enter and Escape when no overlay holds focus', async () => {
+  it('leaves Enter alone but routes Escape by pane ownership when no overlay holds focus', async () => {
     const user = userEvent.setup()
     const { other, owner } = renderSplitView()
     await openBothOverlays(other.webview)
@@ -432,7 +488,7 @@ describe('WebviewSearch', () => {
       fireEvent.keyDown(window, { key: 'Enter' })
     })
 
-    expect(owner.findInPageMock).toHaveBeenCalledWith('Cherry', { forward: true, findNext: true })
+    expect(owner.findInPageMock).not.toHaveBeenCalled()
     expect(other.findInPageMock).not.toHaveBeenCalled()
 
     await act(async () => {

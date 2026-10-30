@@ -89,7 +89,7 @@ export function SidebarIcon({
     return (
       <Icon
         {...props}
-        viewBox={icon === 'code_tools' ? '-2 -2 28 28' : '0 0 24 24'}
+        viewBox={icon === 'code_tools' ? '-2 -2 28 28' : '-1 -1 26 26'}
         iconNode={[['path', { d: filledPath, key: 'fill' }]]}
         fill="currentColor"
         fillRule={icon === 'translate' ? 'nonzero' : 'evenodd'}
@@ -97,5 +97,5 @@ export function SidebarIcon({
       />
     )
   }
-  return <Outline {...props} fill="currentColor" />
+  return <Outline {...props} viewBox="-1 -1 26 26" fill="currentColor" />
 }

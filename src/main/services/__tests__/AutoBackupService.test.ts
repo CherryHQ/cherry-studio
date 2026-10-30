@@ -304,6 +304,21 @@ describe('AutoBackupService', () => {
     expect(legacyBackupManager.backupToLocalDir).not.toHaveBeenCalled()
   })
 
+  it.each([
+    '/mock/userData',
+    '/mock/userData/..backup',
+    ...(process.platform === 'darwin' || process.platform === 'win32' ? ['/MOCK/USERDATA/backups'] : [])
+  ])('rejects %s as a local backup directory', async (directory) => {
+    setPreference('data.backup.webdav.auto_sync', false)
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    setPreference('data.backup.local.dir', directory)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(legacyBackupManager.backupToLocalDir).not.toHaveBeenCalled()
+  })
+
   it('warns without uploading again when old backup cleanup fails', async () => {
     setPreference('data.backup.webdav.auto_sync', false)
     setPreference('data.backup.s3.auto_sync', false)

@@ -282,7 +282,7 @@ describe('sidebar conversation navigation', () => {
     expect(state.tabs.find((tab) => tab.id === 'current')?.url).toBe('/app/chat?topicId=topic-1')
   })
 
-  it('opens a new tab for an app shortcut while a mini app tab stays alive instead of focusing a sibling', async () => {
+  it('replaces the active mini app for an app shortcut without opening or focusing a sibling tab', async () => {
     const { context, state } = statefulTabContext([
       { id: 'mini-app', type: 'route', url: '/app/mini-app/foo', title: 'Mini App' },
       { id: 'sibling', type: 'route', url: '/app/translate', title: 'Translate' }
@@ -290,10 +290,11 @@ describe('sidebar conversation navigation', () => {
 
     await activateShortcut(context, 'core.app', 'translate')
 
-    expect(state.activeTabId).not.toBe('sibling')
-    expect(state.tabs.find((tab) => tab.id === state.activeTabId)?.url).toBe('/app/translate')
-    expect(state.tabs.find((tab) => tab.id === 'mini-app')?.url).toBe('/app/mini-app/foo')
-    expect(state.tabs).toHaveLength(3)
+    expect(state.activeTabId).toBe('mini-app')
+    expect(state.tabs).toEqual([
+      { id: 'mini-app', type: 'route', url: '/app/translate', title: expect.any(String), metadata: {} },
+      { id: 'sibling', type: 'route', url: '/app/translate', title: 'Translate' }
+    ])
   })
 
   it.each([
@@ -436,7 +437,7 @@ describe('sidebar conversation navigation', () => {
 
     await activateShortcut(context, 'core.agent', 'owner-1')
 
-    const opensNew = pinned || url.includes('mini-app')
+    const opensNew = pinned
     expect(state.tabs).toHaveLength(opensNew ? 2 : 1)
     expect(state.activeTabId).toBe(opensNew ? 'opened-1' : 'current')
     expect(state.tabs.find((tab) => tab.id === state.activeTabId)).toMatchObject({

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-29-account-menu-cache.md
+2026-10-29-account-menu-cache.md: bc08d42b911bf73b84a41771b3a0386f986ebad7
+2026-10-29-account-menu-cache.zh.md: 59b78f92737c4815778e878e43bc8cec2f65759a
