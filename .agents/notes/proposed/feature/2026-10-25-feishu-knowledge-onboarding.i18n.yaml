@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-25-feishu-knowledge-onboarding.md
+2026-10-25-feishu-knowledge-onboarding.md: 4af5ae9d677e91a4282e84e85a4c0244e569fb71
+2026-10-25-feishu-knowledge-onboarding.zh.md: 9453b8a9b6e5ef84c787ae9b7e3a626dcd3b7bfc

@@ -8,11 +8,32 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { ExternalKnowledgeConnectionListItem } from '@shared/data/api/schemas/externalKnowledgeConnections'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import { knowledgeRequestSchemas } from '@shared/ipc/schemas/knowledge'
 
 import FeishuWikiWizard from '../FeishuWikiWizard'
+import NewKnowledgeBaseDialog from '../NewKnowledgeBaseDialog'
+
+vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
+    value,
+    onChange,
+    disabled
+  }: {
+    value: string | null
+    onChange: (value: string | null) => void
+    disabled?: boolean
+  }) => (
+    <input
+      aria-label="Embedding model"
+      disabled={disabled}
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value || null)}
+    />
+  )
+}))
 
 const mockRequest = vi.fn()
 const mockSharedRequest = vi.fn()
@@ -49,7 +70,8 @@ vi.mock('@cherrystudio/ui', async () => ({
   ...(await import('@cherrystudio/ui/components/primitives/select')),
   ...(await import('@cherrystudio/ui/components/primitives/field')),
   ...(await import('@cherrystudio/ui/components/primitives/label')),
-  ...(await import('@cherrystudio/ui/components/primitives/segmented-control')),
+  ...(await import('@cherrystudio/ui/components/primitives/tabs')),
+  ...(await import('@cherrystudio/ui/components/primitives/switch')),
   ...(await import('@cherrystudio/ui/components/primitives/tooltip')),
   ...(await import('@cherrystudio/ui/components/composites/icon-tooltips'))
 }))
@@ -124,6 +146,26 @@ const preview = {
   ],
   warnings: []
 }
+const newKnowledgeBase: KnowledgeBase = {
+  orderKey: 'a0',
+  id: 'base-1',
+  name: 'Base 1',
+  groupId: null,
+  dimensions: null,
+  embeddingModelId: null,
+  rerankModelId: undefined,
+  fileProcessorId: undefined,
+  chunkSize: 1024,
+  chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
+  documentCount: undefined,
+  status: 'completed',
+  error: null,
+  createdAt: '2026-04-15T09:00:00+08:00',
+  updatedAt: '2026-04-15T09:00:00+08:00'
+}
+
 const createdSource = { id: '0199c87a-1200-7000-8000-000000000002' }
 const space = { spaceId: 'space-1', name: 'Project Wiki', description: 'Shared project documents' }
 const spacePreview = {
@@ -173,11 +215,11 @@ async function selectApplication(user: ReturnType<typeof userEvent.setup>, name:
 async function reachReview(user: ReturnType<typeof userEvent.setup>) {
   await selectApplication(user)
   await user.click(screen.getByRole('button', { name: 'Next' }))
-  await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
-  await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
+  await user.click(screen.getByRole('tab', { name: 'Paste a link' }))
+  await user.type(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' }), url)
   await user.click(screen.getByRole('button', { name: 'Next' }))
-  await screen.findByRole('heading', { name: 'Add Feishu Wiki' })
-  await screen.findByRole('radio', { name: 'Daily' })
+  await screen.findByRole('heading', { name: 'Import from Feishu' })
+  await screen.findByRole('switch', { name: 'Sync daily' })
 }
 
 describe('FeishuWikiWizard', () => {
@@ -217,6 +259,173 @@ describe('FeishuWikiWizard', () => {
       return undefined
     })
     Object.assign(window.api, { shell: { openExternal: mockOpenExternal } })
+  })
+
+  it('offers blank creation and Feishu import from the new knowledge base entry', async () => {
+    const user = userEvent.setup()
+    const createBase = vi.fn().mockResolvedValue(newKnowledgeBase)
+    render(
+      <NewKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onCreated={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Import from Feishu/ })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Blank knowledge base/ }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Local notes')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'Local notes' }))
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.create', expect.anything())
+  })
+
+  it('cancels Feishu onboarding before confirmation without creating a base, source, or model usage', async () => {
+    const user = userEvent.setup()
+    const createBase = vi.fn().mockResolvedValue(newKnowledgeBase)
+    const onOpenChange = vi.fn()
+    render(
+      <NewKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onCreated={vi.fn()}
+        onOpenChange={onOpenChange}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /Import from Feishu/ }))
+    await reachReview(user)
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Team handbook')
+    await user.type(screen.getByRole('textbox', { name: 'Embedding model' }), 'openai::text-embedding-3-small')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(createBase).not.toHaveBeenCalled()
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.create', expect.anything())
+    expect(mockRequest).not.toHaveBeenCalledWith('ai.embedding.embed_many', expect.anything())
+  })
+
+  it('allows adding another account and returning to existing accounts without closing the wizard', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
+    await user.click(screen.getByRole('button', { name: 'Add account' }))
+    expect(await screen.findByRole('img', { name: i18n.t('agent.channels.feishu.qrTitle') })).toBeVisible()
+    expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
+    await selectSavedApplication(user)
+    expect(screen.getByRole('button', { name: 'Connect to Feishu' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Enter App ID and Secret' }))
+    expect(screen.getByLabelText('App Secret')).toBeVisible()
+    expect(screen.queryByRole('combobox', { name: 'Application' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Connect to Feishu' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Add account' })).toBeVisible()
+    await selectApplication(user)
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(await screen.findByRole('combobox', { name: 'Available Feishu Wikis' })).toBeVisible()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('blocks import when a model probe fails and retries after correcting the model', async () => {
+    const user = userEvent.setup()
+    const createBase = vi.fn().mockResolvedValue(newKnowledgeBase)
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.scope.preview') return preview
+      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+      if (route === 'ai.embedding.embed_many') throw new Error('Model is unavailable')
+      if (route === 'knowledge.external_source.create') return createdSource
+      return undefined
+    })
+    render(<FeishuWikiWizard open newBase={{ groups: [], createBase, onCreated: vi.fn() }} onOpenChange={vi.fn()} />)
+    await reachReview(user)
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    expect(screen.getByRole('button', { name: 'Create and import' })).toBeDisabled()
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Research')
+    await user.type(screen.getByRole('textbox', { name: 'Embedding model' }), 'openai::text-embedding-3-small')
+    await user.click(screen.getByRole('button', { name: 'Create and import' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Model is unavailable')
+    expect(createBase).not.toHaveBeenCalled()
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.create', expect.anything())
+    await user.clear(screen.getByRole('textbox', { name: 'Embedding model' }))
+    await user.click(screen.getByRole('button', { name: 'Create and import' }))
+    await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'Research' }))
+  })
+
+  it('retains the new base and successful sources when retrying a partially failed import', async () => {
+    const user = userEvent.setup()
+    const createBase = vi.fn().mockResolvedValue(newKnowledgeBase)
+    const onCreated = vi.fn()
+    const onOpenChange = vi.fn()
+    const research = { spaceId: 'space-2', name: 'Research Wiki' }
+    const imported: string[] = []
+    let failed = false
+    mockRequest.mockImplementation(async (route: string, input?: { spaceId?: string; baseId?: string }) => {
+      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space, research] }
+      if (route === 'knowledge.feishu.space.preview')
+        return { ...spacePreview, space: input?.spaceId === space.spaceId ? space : research }
+      if (route === 'ai.embedding.embed_many') return { embeddings: [[0.1, 0.2, 0.3]] }
+      if (route === 'knowledge.external_source.create') {
+        expect(input?.baseId).toBe(newKnowledgeBase.id)
+        if (input?.spaceId === research.spaceId && !failed) {
+          failed = true
+          throw new Error('Temporary failure')
+        }
+        imported.push(input?.spaceId ?? '')
+        return { id: `source-${input?.spaceId}` }
+      }
+      return undefined
+    })
+    render(<FeishuWikiWizard open newBase={{ groups: [], createBase, onCreated }} onOpenChange={onOpenChange} />)
+    await selectApplication(user)
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await openWikiOptions(user)
+    await user.click(await screen.findByRole('option', { name: /Project Wiki/ }))
+    await user.click(screen.getByRole('option', { name: 'Research Wiki' }))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Embedding model' }), 'openai::text-embedding-3-small')
+    await user.click(screen.getByRole('button', { name: 'Create and import' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Temporary failure')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'Embedding model' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+    expect(imported).toEqual([space.spaceId])
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(imported).toEqual([space.spaceId, research.spaceId])
+    expect(createBase).toHaveBeenCalledExactlyOnceWith({
+      name: 'Project Wiki',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 3
+    })
+    expect(mockRequest.mock.calls.filter(([route]) => route === 'ai.embedding.embed_many')).toHaveLength(1)
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith(newKnowledgeBase)
+  })
+
+  it('keeps the created base accessible when every source fails and the user closes', async () => {
+    const user = userEvent.setup()
+    const createBase = vi.fn().mockResolvedValue(newKnowledgeBase)
+    const onCreated = vi.fn()
+    const onOpenChange = vi.fn()
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.scope.preview') return preview
+      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+      if (route === 'knowledge.external_source.create') throw new Error('Source unavailable')
+      return undefined
+    })
+    render(<FeishuWikiWizard open newBase={{ groups: [], createBase, onCreated }} onOpenChange={onOpenChange} />)
+    await reachReview(user)
+    await user.click(screen.getByRole('button', { name: 'Create and import' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Source unavailable')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Source unavailable')
+    expect(createBase).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith(newKnowledgeBase)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('starts with a QR code and preserves an optional manual application draft across account refreshes', async () => {
@@ -268,7 +477,7 @@ describe('FeishuWikiWizard', () => {
         i18n.t('knowledge.external.wizard.verification_code', { code: authorizationStart.userCode })
       )
     ).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Add Feishu Wiki' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Import from Feishu' })).toBeVisible()
     expect(screen.getByRole('status').textContent).toBe(i18n.t('knowledge.external.wizard.authorizing'))
     expect(screen.queryByLabelText('App ID')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
@@ -358,11 +567,11 @@ describe('FeishuWikiWizard', () => {
       expect(
         screen.getByText(i18n.t('knowledge.external.wizard.verification_code', { code: replacement.userCode }))
       ).toBeVisible()
-      expect(screen.queryByRole('radio', { name: 'Choose Wikis' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('tab', { name: 'Choose Wikis' })).not.toBeInTheDocument()
       expect(mockOpenExternal).not.toHaveBeenCalled()
       expect(onOpenChange).not.toHaveBeenCalled()
       await act(async () => finishReplacement())
-      expect(await screen.findByRole('radio', { name: 'Choose Wikis' })).toBeChecked()
+      expect(await screen.findByRole('tab', { name: 'Choose Wikis' })).toHaveAttribute('aria-selected', 'true')
     }
   )
 
@@ -488,10 +697,10 @@ describe('FeishuWikiWizard', () => {
       ).toBeVisible()
       await act(async () => completeAuthorization(connection))
       expect(
-        await screen.findByRole('radio', { name: scopeMode === 'url' ? 'Paste a link' : 'Choose Wikis' })
-      ).toBeChecked()
+        await screen.findByRole('tab', { name: scopeMode === 'url' ? 'Paste a link' : 'Choose Wikis' })
+      ).toHaveAttribute('aria-selected', 'true')
       if (scopeMode === 'url') {
-        expect(screen.getByRole('textbox', { name: 'Feishu Wiki URL' })).toBeVisible()
+        expect(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' })).toBeVisible()
         expect(mockRequest).not.toHaveBeenCalledWith('knowledge.feishu.spaces.list', expect.anything())
       } else {
         expect(await screen.findByRole('combobox', { name: 'Available Feishu Wikis' })).toBeVisible()
@@ -635,7 +844,7 @@ describe('FeishuWikiWizard', () => {
     render(<FeishuWikiWizard open baseId="00000000-0000-4000-8000-000000000001" onOpenChange={onOpenChange} />)
 
     await reachReview(user)
-    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Sync daily' })).not.toBeChecked()
     expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
     expect(screen.getByText('Documents to sync: 3')).toBeInTheDocument()
     expect(screen.getByText('Items to skip: 1')).toBeInTheDocument()
@@ -660,25 +869,12 @@ describe('FeishuWikiWizard', () => {
     expect(mockInvalidate).toHaveBeenCalledWith('/knowledge-bases/:id/external-knowledge-sources')
   })
 
-  it.each(['hover', 'keyboard focus'])('reveals synchronization costs through icon %s', async (interaction) => {
+  it('discloses embedding model charges before importing without requiring a tooltip', async () => {
     const user = userEvent.setup()
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
     await reachReview(user)
-
-    const explanation =
-      "Syncing documents with a paid model may incur charges. The amount depends on the volume of document content and the model's pricing."
-    const costInfo = screen.getByRole('img', { name: 'Synchronization costs' })
-    expect(screen.queryByText(explanation)).not.toBeInTheDocument()
-
-    if (interaction === 'hover') {
-      await user.hover(costInfo)
-    } else {
-      await user.click(screen.getByRole('radio', { name: 'Manual' }))
-      await user.tab({ shift: true })
-      expect(costInfo).toHaveFocus()
-    }
-
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(explanation)
+    expect(screen.getByText(i18n.t('knowledge.external.wizard.preview_exact_cost'))).toBeVisible()
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.create', expect.anything())
   })
 
   it('keeps preview details collapsed until the user expands documents or skipped reasons', async () => {
@@ -776,8 +972,8 @@ describe('FeishuWikiWizard', () => {
     const onOpenChange = vi.fn()
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
     await reachReview(user)
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
-    expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
+    await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
+    expect(screen.getByRole('switch', { name: 'Sync daily' })).toBeChecked()
     expect(screen.getByLabelText('Daily sync time')).toHaveValue('09:00')
     await user.click(screen.getByRole('button', { name: 'Add' }))
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -802,12 +998,12 @@ describe('FeishuWikiWizard', () => {
 
     await selectApplication(user)
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
-    await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
+    await user.click(screen.getByRole('tab', { name: 'Paste a link' }))
+    await user.type(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' }), url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not preview this Feishu Wiki URL')
-    expect(screen.getByRole('textbox', { name: 'Feishu Wiki URL' })).toHaveValue(url)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not preview this Feishu link')
+    expect(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' })).toHaveValue(url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByText('Team handbook')).toBeVisible()
   })
@@ -825,7 +1021,7 @@ describe('FeishuWikiWizard', () => {
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
 
     await reachReview(user)
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
     await user.clear(screen.getByLabelText('Daily sync time'))
     await user.type(screen.getByLabelText('Daily sync time'), '10:30')
     await user.click(screen.getByRole('button', { name: 'Add' }))
@@ -844,16 +1040,16 @@ describe('FeishuWikiWizard', () => {
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
     await reachReview(user)
 
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
-    expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
+    await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
+    expect(screen.getByRole('switch', { name: 'Sync daily' })).toBeChecked()
     const time = screen.getByLabelText('Daily sync time')
     await user.clear(time)
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
     expect(time).toBeInvalid()
     await user.type(time, '10:30')
-    await user.click(screen.getByRole('radio', { name: 'Manual' }))
+    await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
     expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
     expect(screen.getByLabelText('Daily sync time')).toHaveValue('10:30')
     expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled()
   })
@@ -885,10 +1081,10 @@ describe('FeishuWikiWizard', () => {
       )
       const { rerender, unmount } = render(wizard('visible'))
       await reachReview(user)
-      await user.click(screen.getByRole('radio', { name: 'Daily' }))
+      await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
       await user.click(screen.getByRole('button', { name: 'Add' }))
 
-      expect(screen.getByRole('radio', { name: 'Manual' })).toBeDisabled()
+      expect(screen.getByRole('switch', { name: 'Sync daily' })).toBeDisabled()
       expect(screen.getByLabelText('Daily sync time')).toBeDisabled()
       expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
@@ -1047,8 +1243,8 @@ describe('FeishuWikiWizard', () => {
     await selectApplication(user)
     await user.click(screen.getByRole('button', { name: 'Next' }))
     if (mode === 'url') {
-      await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
-      await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
+      await user.click(screen.getByRole('tab', { name: 'Paste a link' }))
+      await user.type(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' }), url)
     } else await selectWiki(user, /Project Wiki/)
     await user.click(screen.getByRole('button', { name: 'Next' }))
     rerender(wizard('hidden'))
@@ -1116,7 +1312,7 @@ describe('FeishuWikiWizard', () => {
 
     expect(await screen.findByText('Project Wiki')).toBeVisible()
     expect(screen.getByText('Documents to sync: 5')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Sync daily' })).not.toBeChecked()
     expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add' }))
 
@@ -1201,7 +1397,7 @@ describe('FeishuWikiWizard', () => {
         spaceId
       })
     }
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
     await user.clear(screen.getByLabelText('Daily sync time'))
     await user.type(screen.getByLabelText('Daily sync time'), '10:30')
     await user.click(screen.getByRole('button', { name: 'Add' }))
@@ -1271,7 +1467,7 @@ describe('FeishuWikiWizard', () => {
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await screen.findByRole('button', { name: 'Add' })
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    await user.click(screen.getByRole('switch', { name: 'Sync daily' }))
     await user.click(screen.getByRole('button', { name: 'Add' }))
 
     rerender(wizard('hidden'))
@@ -1283,8 +1479,7 @@ describe('FeishuWikiWizard', () => {
     )
     expect(screen.getByText('Created 2 of 3 sources.')).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent('Research Wiki')
-    expect(screen.getByRole('radio', { name: 'Manual' })).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'Daily' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Sync daily' })).toBeDisabled()
     expect(screen.getByLabelText('Daily sync time')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
@@ -1481,8 +1676,8 @@ describe('FeishuWikiWizard', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Permission is required to load the Wiki list')
     expect(screen.queryByText('Available Feishu Wikis')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
-    await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
+    await user.click(screen.getByRole('tab', { name: 'Paste a link' }))
+    await user.type(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' }), url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(await screen.findByText('Team handbook')).toBeVisible()
@@ -1528,11 +1723,11 @@ describe('FeishuWikiWizard', () => {
     expect(
       screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.open_authorization_page') })
     ).toBeEnabled()
-    expect(screen.getByRole('heading', { name: 'Add Feishu Wiki' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Import from Feishu' })).toBeVisible()
     expect(screen.getByRole('status').textContent).toBe(i18n.t('knowledge.external.wizard.authorizing'))
     expect(screen.getByRole('img', { name: i18n.t('knowledge.external.wizard.authorization_help') })).toBeVisible()
-    expect(screen.queryByRole('radio', { name: 'Choose Wikis' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('radio', { name: 'Paste a link' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Choose Wikis' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Paste a link' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Authorize Wiki listing' })).not.toBeInTheDocument()
@@ -1583,8 +1778,8 @@ describe('FeishuWikiWizard', () => {
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
 
     expect(await screen.findByRole('combobox', { name: 'Available Feishu Wikis' })).toBeVisible()
-    expect(screen.getByRole('radio', { name: 'Choose Wikis' })).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Paste a link' })).toBeEnabled()
+    expect(screen.getByRole('tab', { name: 'Choose Wikis' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Paste a link' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.begin', {
       kind: 'saved-application',
@@ -1618,9 +1813,9 @@ describe('FeishuWikiWizard', () => {
     expect(mockRequest.mock.calls.filter(([route]) => route === 'knowledge.feishu.authorization.begin')).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Continue with a link only' }))
 
-    expect(await screen.findByRole('textbox', { name: 'Feishu Wiki URL' })).toBeVisible()
-    expect(screen.getByRole('radio', { name: 'Paste a link' })).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Choose Wikis' })).toBeEnabled()
+    expect(await screen.findByRole('textbox', { name: 'Feishu document or Wiki URL' })).toBeVisible()
+    expect(screen.getByRole('tab', { name: 'Paste a link' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Choose Wikis' })).toBeEnabled()
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.begin', {
       kind: 'saved-application',
       applicationCredentialId: savedApplication.id,
@@ -1634,7 +1829,7 @@ describe('FeishuWikiWizard', () => {
     await selectApplication(user, /Team Wiki.*Bob/)
     await user.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByRole('combobox', { name: 'Available Feishu Wikis' })).toBeVisible()
-    expect(screen.getByRole('radio', { name: 'Choose Wikis' })).toBeChecked()
+    expect(screen.getByRole('tab', { name: 'Choose Wikis' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 
@@ -1655,7 +1850,7 @@ describe('FeishuWikiWizard', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('missing required permissions')
     expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
-    expect(screen.queryByRole('radio', { name: 'Paste a link' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Paste a link' })).not.toBeInTheDocument()
     expect(mockRequest).not.toHaveBeenCalledWith('knowledge.feishu.authorization.complete', expect.anything())
     await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
     expect(mockRequest).toHaveBeenLastCalledWith('knowledge.feishu.authorization.begin', {
@@ -1681,16 +1876,16 @@ describe('FeishuWikiWizard', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await selectWiki(user, /Project Wiki/)
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
-    await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
+    await user.click(screen.getByRole('tab', { name: 'Paste a link' }))
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
-    await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
-    await user.click(screen.getByRole('radio', { name: 'Choose Wikis' }))
+    await user.type(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' }), url)
+    await user.click(screen.getByRole('tab', { name: 'Choose Wikis' }))
     await openWikiOptions(user)
     expect(screen.getByRole('option', { name: /Project Wiki/ })).toHaveAttribute('aria-checked', 'true')
     await user.keyboard('{Escape}')
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
-    await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
-    expect(screen.getByRole('textbox', { name: 'Feishu Wiki URL' })).toHaveValue(url)
+    await user.click(screen.getByRole('tab', { name: 'Paste a link' }))
+    expect(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' })).toHaveValue(url)
   })
 
   it.each(['loading', 'empty'])('keeps the link path available when the Wiki list is %s', async (state) => {
@@ -1712,9 +1907,9 @@ describe('FeishuWikiWizard', () => {
     expect(screen.queryByText('Available Feishu Wikis')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'Choose Wikis' })).toBeChecked()
-    await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
-    await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
+    if (state === 'loading') await user.click(screen.getByRole('tab', { name: 'Paste a link' }))
+    else expect(screen.getByRole('tab', { name: 'Paste a link' })).toHaveAttribute('aria-selected', 'true')
+    await user.type(screen.getByRole('textbox', { name: 'Feishu document or Wiki URL' }), url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByText('Team handbook')).toBeVisible()
   })

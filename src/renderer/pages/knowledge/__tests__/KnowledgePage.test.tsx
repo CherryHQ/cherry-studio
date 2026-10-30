@@ -424,7 +424,7 @@ vi.mock('../components/AddKnowledgeItemDialog', () => {
   }
 })
 
-vi.mock('../components/CreateKnowledgeBaseDialog', () => {
+vi.mock('../components/NewKnowledgeBaseDialog', () => {
   mockCreateBaseDialogModuleLoad()
   return {
     default: ({

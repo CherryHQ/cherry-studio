@@ -1,3 +1,4 @@
+import { ExternalLink } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -53,7 +54,7 @@ export function FeishuRegistrationPanel({
   }, [domain, purpose, applicationCredentialId, attempt])
 
   return (
-    <div className="flex flex-col items-center gap-3 py-3">
+    <div className="flex min-h-64 flex-col items-center justify-center gap-3 py-2">
       {failed ? (
         <>
           <p role="alert" className="text-sm text-destructive">
@@ -68,7 +69,8 @@ export function FeishuRegistrationPanel({
           <QRCodeSVG
             role="img"
             value={uri}
-            size={192}
+            size={160}
+            className="max-w-full shrink-0 rounded-md"
             marginSize={4}
             level="M"
             title={t('agent.channels.feishu.qrTitle')}
@@ -76,6 +78,7 @@ export function FeishuRegistrationPanel({
           <p className="text-center text-sm text-muted-foreground">{t('agent.channels.qrSetup.pending')}</p>
           <Button type="button" variant="link" onClick={() => void window.api.shell.openExternal(uri)}>
             {t('chat.artifacts.button.openExternal')}
+            <ExternalLink className="size-3.5" aria-hidden />
           </Button>
         </>
       ) : (
