@@ -132,7 +132,7 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(JSON.stringify(dbh.db.select().from(appStateTable).all())).not.toContain('Keep this complete fact')
   })
 
-  it.each(['cancel', 'disable', 'generation-off-on', 'foreground', 'external-edit', 'clear'] as const)(
+  it.each(['cancel', 'disable', 'foreground', 'external-edit', 'clear'] as const)(
     'does not publish delayed model output after %s',
     async (action) => {
       await save('Original fact')
@@ -143,10 +143,6 @@ describe('memory organization lifecycle and commit fences', () => {
       await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
       if (action === 'cancel') dreaming.cancel(scope)
       if (action === 'disable') await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
-      if (action === 'generation-off-on') {
-        await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
-        await application.get('PreferenceService').set('feature.memory.generation.enabled', true)
-      }
       if (action === 'foreground') busy.mockReturnValue(true)
       if (action === 'external-edit')
         await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'External edit')
@@ -162,18 +158,29 @@ describe('memory organization lifecycle and commit fences', () => {
     }
   )
 
-  it('blocks automatic and manual organization under the parent switch without changing the automatic preference', async () => {
-    await save('A fact to retain')
-    const prefs = application.get('PreferenceService')
-    await prefs.set('feature.memory.generation.enabled', false)
-    expect(() => dreaming.request(scope)).toThrow('unavailable')
-    expect(await dreaming.execute(job())).toEqual({ deferred: true })
-    expect(generate).not.toHaveBeenCalled()
-    expect(prefs.get('feature.memory.dreaming.enabled')).toBe(true)
-    expect((await session.read('MEMORY.md')).content).toBe('A fact to retain')
-    await prefs.set('feature.memory.generation.enabled', true)
+  it.each(['automatic', 'manual'] as const)('allows %s organization while chat generation is off', async (mode) => {
+    await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
+    for (let i = 0; i < 10; i++) await save(`Fact ${i}`)
+    if (mode === 'manual') {
+      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+      dreaming.request(scope)
+    }
+    expect(await dreaming.execute(job())).toMatchObject({ checked: 1, changed: 0 })
+    expect((await session.read('MEMORY.md')).content).toBe('Fact 9')
+    expect(dreaming.status(scope).lastResult?.outcome).toBe('completed')
+  })
+
+  it('does not cancel in-flight organization when chat generation is disabled', async () => {
+    await save('Original fact')
+    const response = Promise.withResolvers<{ text: string; finishReason: string }>()
+    generate.mockImplementationOnce(() => response.promise)
     dreaming.request(scope)
-    expect(await dreaming.execute(job())).toMatchObject({ checked: 1 })
+    const outcome = dreaming.execute(job())
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
+    response.resolve({ text: '{"writes":[],"deletes":[]}', finishReason: 'stop' })
+    expect(await outcome).toMatchObject({ checked: 1, changed: 0 })
+    expect((await session.read('MEMORY.md')).content).toBe('Original fact')
   })
 
   it('keeps the last failed result after disabling organization instead of reporting idle as success', async () => {
@@ -183,9 +190,9 @@ describe('memory organization lifecycle and commit fences', () => {
     await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
     const failed = dreaming.status(scope).lastResult
     expect(failed).toMatchObject({ outcome: 'failed', reason: 'output', finishedAt: expect.any(Number) })
-    await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
     expect(dreaming.status(scope)).toMatchObject({ status: 'idle', lastResult: failed })
-    await application.get('PreferenceService').set('feature.memory.generation.enabled', true)
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', true)
     dreaming.request(scope)
     await dreaming.execute(job())
     expect(dreaming.status(scope).lastResult?.outcome).toBe('completed')
@@ -204,6 +211,47 @@ describe('memory organization lifecycle and commit fences', () => {
     dreaming.request(scope)
     await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
     expect((await session.read('.memories/old.md')).content).toBe('Fact with its exception')
+    expect((await session.read('.memories/new.md')).content).toBeNull()
+  })
+
+  it.each(['MEMORY.md', '../outside.md', '.memories/old.md', '.memories/nested/new.md'])(
+    'rejects invalid transfer destination %s before any write',
+    async (transferTo) => {
+      const original = 'Fact with its exception\n'
+      await save('[Details](.memories/old.md)')
+      await save(original, '.memories/old.md')
+      generate.mockResolvedValueOnce({
+        text: JSON.stringify({
+          writes: [{ path: transferTo, content: original }],
+          deletes: [{ path: '.memories/old.md', transferTo }]
+        }),
+        finishReason: 'stop'
+      })
+      dreaming.request(scope)
+      await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
+      expect((await session.read('MEMORY.md')).content).toBe('[Details](.memories/old.md)')
+      expect((await session.read('.memories/old.md')).content).toBe(original)
+      expect(await session.list()).toEqual(['.memories/old.md', 'MEMORY.md'])
+    }
+  )
+
+  it('rejects a rewritten transfer that omits part of the source', async () => {
+    await save('[Details](.memories/old.md)')
+    await save('Prefer concise answers, except when debugging.\n', '.memories/old.md')
+    generate.mockResolvedValueOnce({
+      text: JSON.stringify({
+        writes: [
+          { path: '.memories/new.md', content: 'Prefer concise answers.\n' },
+          { path: 'MEMORY.md', content: '[Details](.memories/new.md)' }
+        ],
+        deletes: [{ path: '.memories/old.md', transferTo: '.memories/new.md' }]
+      }),
+      finishReason: 'stop'
+    })
+    dreaming.request(scope)
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
+    expect((await session.read('MEMORY.md')).content).toBe('[Details](.memories/old.md)')
+    expect((await session.read('.memories/old.md')).content).toBe('Prefer concise answers, except when debugging.\n')
     expect((await session.read('.memories/new.md')).content).toBeNull()
   })
 

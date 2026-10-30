@@ -33,7 +33,8 @@ If you relied on Global Memory in v1:
 ### Managed File Memory
 
 - `MEMORY.md` contains complete common facts and selected topic links. `.memories/*.md` contains related details. Each request reloads only eligible entries; topics require a full controlled read before editing.
-- Settings → Shared Memory lists managed filenames without fetching or previewing their contents. It exposes confirmed topic deletion, global/shared clearing, and recovery. Agent private-memory entry points are removed. File feedback comes only from actual commit results, not index state or item counts; recoverable backups remain after clearing.
+- Settings → Shared Memory shows generation and automatic organization as independent options with the same information tooltips as Default Models → Quick Model. It has no file section, content preview, or Agent private-memory entry. Restore backup and the red Clear global memory button remain, with confirmation. Clear hides filenames while its backend token binds the exact files and versions; recovery retains its preview. Recovery shows Saved and clearing shows Cleared successfully, both on the left of the actions row and vertically aligned with its buttons. Feedback comes only from actual commit results; recoverable backups remain after clearing.
+- Agent and Assistant forms retain Use shared memory in their existing configuration, defaulting on and off respectively. Both use the basic-field layout and compact switch; the Agent row follows the complete heartbeat section. Presets carry the switch without memory bodies.
 - Entries allow 200 lines and 25,000 UTF-8 bytes; topics allow 25,000 bytes. Oversized external originals are preserved. These limits are save protections, not additional configuration fields.
 - Pi native reads, writes, and edits bind caller-specific read receipts to exact approved proposals. Backups precede writes, and actual results are checked. Unsupported Claude native operations and identity-free filesystem MCP access to managed memory are rejected. Shell and external tools remain outside this cooperative protection.
 - Each scope retains up to five recovery batches within 20 MiB. Protected batches are retained; insufficient backup capacity rejects a write. Recovery protects later changes and reports conflicts or partial results.
@@ -43,7 +44,7 @@ Legacy FACT migration preserves complete Markdown sections and original bytes, t
 
 ### Organization (Dreaming)
 
-The global "Generate memory in chats" switch defaults on and controls Dreaming through the existing preference configuration. "Automatically organize memory" is its subordinate switch and also defaults on. Turning off the parent prevents automatic and manual tasks and invalidates pending output. Turning off only the child still allows manual organization. The switches control existing-file organization, not chat-history extraction. The application default model is used; no separate model selector is added.
+"Generate memory in chats" and "Automatically organize memory" are independent global switches in existing preferences, both defaulting on. The generation option is reserved for the next conversation-extraction layer and does not stop organization. Turning off automatic organization still allows manual requests. Organization uses the application default model; no separate selector is added.
 
 Settings show the last recorded completed, failed, or cancelled result and its time. This record is separate from the current task state, so disabling a switch or becoming idle cannot report a failed attempt as successful.
 
@@ -53,7 +54,7 @@ Eligible changes are ten controlled content edits to a file, seven days since it
 
 Durable progress lives in module-owned `app_state`; JobManager history can be removed independently. Each unchanged input is included in the commit baseline. Failures allow at most two attempts per unchanged input with a ten-minute delay; a manual request or new input creates another opportunity. Cancellation, shutdown, clearing, recovery, and deleted owners fence uncommitted output. A foreground conversation interrupts active organization.
 
-Topic deletion is conservative: all active files must have been supplied, source text must remain verbatim in a written topic destination, and remaining Markdown/wiki links must no longer target the source. HTML links require manual review. Destinations and link edits save before removal. Partial saves remain recoverable. This does not prove semantic equivalence of model rewrites.
+Topic deletion is conservative: both source and destination must be distinct managed topics; `MEMORY.md` cannot serve as either. The prompt and proposal schema use the same path rule; all active files must have been supplied, source text must remain verbatim in a written topic destination, and remaining Markdown/wiki links must no longer target the source. HTML links require manual review. Destinations and link edits save before removal. Partial saves remain recoverable. This does not prove semantic equivalence of model rewrites.
 
 The implementation remains a Draft stack. Focused lifecycle, migration, file-commit, settings, and cancellation regressions are covered. Native-platform, representative-model, and packaged-build acceptance remain incomplete. See [the module contract](../../../src/main/ai/memory/README.md) for boundaries.
 

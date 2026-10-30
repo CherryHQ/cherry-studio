@@ -1,10 +1,10 @@
 import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Switch } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
 import type { OutputFor } from '@shared/ipc/types'
 import type { MemoryScope } from '@shared/types/memory'
@@ -68,8 +68,9 @@ export function MemoryDreamingControls({ scope }: { scope: MemoryScope }) {
   return (
     <div>
       <SettingRow className="flex-nowrap">
-        <SettingRowTitle className="flex-1">
+        <SettingRowTitle className="flex-1 gap-1">
           <label id={generationLabelId}>{t('settings.memory.generation')}</label>
+          <InfoTooltip content={t('settings.memory.generation.tooltip')} />
         </SettingRowTitle>
         <Switch
           checked={generation}
@@ -78,16 +79,18 @@ export function MemoryDreamingControls({ scope }: { scope: MemoryScope }) {
           onCheckedChange={(value) => void run(() => setGeneration(value))}
         />
       </SettingRow>
-      <div className="mt-4 ml-1 border-l border-border-subtle pl-4">
+      <SettingDivider />
+      <div>
         <SettingRow className="flex-nowrap">
           {kind === 'shared' ? (
             <>
-              <SettingRowTitle className="flex-1">
+              <SettingRowTitle className="flex-1 gap-1">
                 <label id={labelId}>{t('settings.memory.dreaming.automatic')}</label>
+                <InfoTooltip content={t('settings.memory.dreaming.tooltip')} />
               </SettingRowTitle>
               <Switch
                 checked={automatic}
-                disabled={busy || !generation}
+                disabled={busy}
                 aria-labelledby={labelId}
                 onCheckedChange={(value) => void run(() => setAutomatic(value))}
               />
@@ -98,7 +101,7 @@ export function MemoryDreamingControls({ scope }: { scope: MemoryScope }) {
         </SettingRow>
         <SettingRow className="mt-3">
           <div className="min-w-0 flex-1 space-y-1">
-            {failed || (generation && status?.status === 'failed') ? (
+            {failed || status?.status === 'failed' ? (
               <p role="alert" className="text-sm text-error">
                 {t(
                   status?.reason === 'model'
@@ -108,7 +111,7 @@ export function MemoryDreamingControls({ scope }: { scope: MemoryScope }) {
                       : 'settings.memory.dreaming.failed'
                 )}
               </p>
-            ) : generation && active ? (
+            ) : active ? (
               <p role="status" className="text-sm text-muted-foreground">
                 {t(
                   status.status === 'queued' ? 'settings.memory.dreaming.waiting' : 'settings.memory.dreaming.running'
@@ -135,7 +138,7 @@ export function MemoryDreamingControls({ scope }: { scope: MemoryScope }) {
           <Button
             variant="outline"
             className="ml-auto"
-            disabled={busy || !status || !generation}
+            disabled={busy || !status}
             onClick={() =>
               void run(() => ipcApi.request(active ? 'memory.dreaming.cancel' : 'memory.dreaming.request', scope))
             }>
