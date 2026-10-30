@@ -1,3 +1,4 @@
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
@@ -9,17 +10,21 @@ import {
   allocateAttachmentBudget,
   allocateInlineCaps,
   buildFallbackOllamaNumCtxSnapshots,
-  resolveAttachmentBudgetContextWindow
+  resolveAttachmentBudgetContextWindow,
+  isFallbackCallWithinWindow
 } from '../attachmentBudget'
 
 vi.mock('node:os', () => ({
   default: { freemem: () => 8 * 1024 ** 3, totalmem: () => 16 * 1024 ** 3, homedir: () => 'C:\\Users\\test' }
 }))
 
-const { mockGetProviderById, mockGetModelByKey } = vi.hoisted(() => ({
+const { mockGetProviderById, mockGetModelByKey, mockBudgetWarn } = vi.hoisted(() => ({
+  mockBudgetWarn: vi.fn(),
   mockGetProviderById: vi.fn(),
   mockGetModelByKey: vi.fn()
 }))
+
+vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ warn: mockBudgetWarn }) } }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
@@ -32,6 +37,11 @@ vi.mock('@main/data/services/ModelService', () => ({
 /** One token per character, so allocations read directly as character counts. */
 const charTokenizer = { id: 'chars', count: (text: string) => text.length }
 const budgetOf = (tokens: number) => ({ tokens, tokenizer: charTokenizer })
+
+vi.mock('@main/ai/tokens/profiles', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/ai/tokens/profiles')>()),
+  getTextTokenizer: async () => charTokenizer
+}))
 
 describe('allocateAttachmentBudget', () => {
   // The defect this replaces: the cap was `max(READ_FILE_PAGE_SIZE, share)` per
@@ -446,4 +456,113 @@ describe('buildFallbackOllamaNumCtxSnapshots', () => {
       [fallbackUniqueId, { uniqueModelId: fallbackUniqueId, trainedContextWindow: 131_072, numCtx: 32_768 }]
     ])
   })
+})
+
+describe('actual SDK fallback capacity', () => {
+  it('keeps unknown/pricing-failure policy and logs only a fixed warning', async () => {
+    mockBudgetWarn.mockClear()
+    const provider = makeProvider({ id: 'openai' })
+    expect(
+      await isFallbackCallWithinWindow({
+        call: { prompt: [] },
+        fallbackProvider: provider,
+        fallbackModel: makeModel({ contextWindow: null })
+      })
+    ).toBe(true)
+    expect(mockBudgetWarn).not.toHaveBeenCalled()
+    const call = {
+      get prompt() {
+        throw new Error('private payload must not be logged')
+      }
+    } as LanguageModelV3CallOptions
+    expect(
+      await isFallbackCallWithinWindow({
+        call,
+        fallbackProvider: provider,
+        fallbackModel: makeModel({ contextWindow: 1000 })
+      })
+    ).toBe(true)
+    expect(mockBudgetWarn).toHaveBeenCalledExactlyOnceWith(
+      'Fallback call capacity could not be priced; allowing dispatch'
+    )
+  })
+
+  it('prices prompt-only calls, system, later tool results, retained schemas and output reservation', async () => {
+    const provider = makeProvider({ id: 'openai' })
+    const model = makeModel({ id: 'openai::small', providerId: 'openai', contextWindow: 1000 })
+    const check = (call: LanguageModelV3CallOptions) =>
+      isFallbackCallWithinWindow({ call, fallbackProvider: provider, fallbackModel: model })
+    const prompt: LanguageModelV3CallOptions['prompt'] = [
+      { role: 'user', content: [{ type: 'text', text: 'x'.repeat(500) }] }
+    ]
+    expect(await check({ prompt })).toBe(true)
+    expect(await check({ prompt, maxOutputTokens: 800 })).toBe(false)
+    expect(await check({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(4000) }] }] })).toBe(false)
+    expect(await check({ prompt: [...prompt, { role: 'system', content: 'x'.repeat(4000) }] })).toBe(false)
+    expect(
+      await check({
+        prompt: [
+          ...prompt,
+          {
+            role: 'tool',
+            content: [
+              {
+                type: 'tool-result',
+                toolName: 'read',
+                toolCallId: '1',
+                output: { type: 'text', value: 'x'.repeat(4000) }
+              }
+            ]
+          }
+        ]
+      })
+    ).toBe(false)
+    expect(
+      await check({
+        prompt,
+        tools: [{ type: 'function', name: 'read', inputSchema: { description: 'x'.repeat(4000) } }]
+      })
+    ).toBe(false)
+  })
+})
+
+describe('resolved audio/video fallback budget parity', () => {
+  it.each([
+    ['audio', ENDPOINT_TYPE.OPENAI_RESPONSES, MODEL_CAPABILITY.AUDIO_RECOGNITION],
+    ['video', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, MODEL_CAPABILITY.VIDEO_RECOGNITION]
+  ] as const)(
+    'does not shrink primary budget for converter-incompatible native %s',
+    (modality, endpoint, capability) => {
+      const provider = makeProvider({ id: 'google', presetProviderId: 'google' })
+      const model = makeModel({ id: 'google::large', providerId: 'google', contextWindow: 131072 })
+      const fallback = makeProvider({
+        id: 'openai',
+        defaultChatEndpoint: endpoint,
+        endpointConfigs: { [endpoint]: { adapterFamily: 'openai' } }
+      })
+      const small = makeModel({
+        id: 'openai::small',
+        providerId: 'openai',
+        contextWindow: 8192,
+        capabilities: [capability],
+        endpointTypes: [endpoint]
+      })
+      mockGetProviderById.mockReturnValue(fallback)
+      mockGetModelByKey.mockReturnValue(small)
+      expect(
+        resolveAttachmentBudgetContextWindow({
+          provider,
+          model,
+          fallbackModelIds: [createUniqueModelId('openai', 'small')],
+          primaryHasTools: false,
+          requiredNativeFileSupport: {
+            image: false,
+            pdf: false,
+            audio: modality === 'audio',
+            video: modality === 'video'
+          }
+        })
+      ).toBe(131072)
+    }
+  )
 })

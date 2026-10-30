@@ -1,3 +1,4 @@
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ToolSet, UIMessage, ModelMessage } from 'ai'
 
 /**
@@ -9,19 +10,23 @@ import type { ToolSet, UIMessage, ModelMessage } from 'ai'
  * spends (system prompt, tool definitions, history, native media) against the
  * model's window and hands the remainder to the attachments as one shared pool.
  *
- * It also owns {@link isReplayWithinFallbackWindow}: retry fallbacks are only
- * dispatchable when the prompt ai-retry replays (the primary call's prepared
- * history + system + retained tool schemas) fits their effective window.
+ * It also owns {@link isFallbackCallWithinWindow}: retry fallbacks are only
+ * dispatchable when the actual SDK call (including later tool-loop history,
+ * tool schemas, and output reservation) fits their effective window.
  *
  * Every number here is an estimate with a safety ratio on top, not a ledger:
  * erring small costs a `read_file` page, erring large fails the request.
  */
+import { loggerService } from '@logger'
 import { ATTACHMENT_INPUT_SAFETY_RATIO } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveMinContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
-import { supportsNativePdf, type NativeFileSupport } from '@main/ai/runtime/aiSdk'
+import {
+  resolveFallbackNativeFileSupport,
+  type NativeFileSupport
+} from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
 import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
@@ -85,7 +90,10 @@ export function buildFallbackOllamaNumCtxSnapshots(
         eligibility &&
         !isFallbackEligibleForRequestShape({
           fallbackModel,
-          fallbackSupportsNativePdf: supportsNativePdf(fallbackProvider, fallbackModel, fallbackAiSdkId),
+          fallbackNativeFileSupport: resolveFallbackNativeFileSupport(fallbackProvider, fallbackModel, {
+            endpointType: fallbackEndpoint.endpointType,
+            aiSdkProviderId: fallbackAiSdkId
+          }),
           primaryHasTools: eligibility.primaryHasTools,
           requiredNativeFileSupport: eligibility.requiredNativeFileSupport
         })
@@ -149,7 +157,10 @@ export function resolveAttachmentBudgetContextWindow(input: {
         input.requiredNativeFileSupport &&
         !isFallbackEligibleForRequestShape({
           fallbackModel,
-          fallbackSupportsNativePdf: supportsNativePdf(fallbackProvider, fallbackModel, fallbackAiSdkId),
+          fallbackNativeFileSupport: resolveFallbackNativeFileSupport(fallbackProvider, fallbackModel, {
+            endpointType: fallbackEndpoint.endpointType,
+            aiSdkProviderId: fallbackAiSdkId
+          }),
           primaryHasTools: input.primaryHasTools,
           requiredNativeFileSupport: input.requiredNativeFileSupport
         })
@@ -293,51 +304,16 @@ async function countToolSetTokens(tools: ToolSet | undefined, tokenizer: TextTok
 // ── Dispatch-time fallback capacity ─────────────────────────────────
 
 /**
- * The primary call's prompt as ai-retry replays it to a fallback: the
- * already-prepared history plus the system prompt, tool schemas, and
- * `max_tokens` that call declared. ai-retry keeps that prompt wire-intact —
- * only the model and call options change — so a fallback can serve the
- * request only if this shape fits its effective window.
+ * Prices the actual converted SDK call, including later tool-loop history.
+ * Existing policy allows an unknown window or unpriceable call rather than
+ * silently disabling a healthy fallback. Pricing failures emit a fixed warning.
  */
-export type ReplayPrompt =
-  | {
-      /** History prepared by `streamText`: attachment text already inlined. */
-      kind: 'ui'
-      messages: UIMessage[]
-      mediaCapabilities: MediaCapabilities
-      system: string | undefined
-      tools: ToolSet | undefined
-      maxOutputTokens: number | undefined
-    }
-  | {
-      /** History already converted to model messages — `generateText`. */
-      kind: 'model'
-      messages: ModelMessage[]
-      system: string | undefined
-      tools: ToolSet | undefined
-      maxOutputTokens: number | undefined
-    }
-
-/**
- * Dispatch-time capacity gate for retry fallbacks: whether the prompt ai-retry
- * replays fits the fallback's effective request window.
- *
- * Enforced here, not via the fallback's `prepareStep` — the agent captured its
- * step hooks before the fallback activates, so the FIRST replayed step runs
- * without the fallback's compaction, and history compaction cannot shrink the
- * retained tool schemas either way. Skips, never rewrites (ai-retry advances
- * to the next fallback or surfaces the original error).
- *
- * `true` also when either side cannot be priced (no declared window, tokenizer
- * unavailable): the gate stays open rather than skip a healthy fallback.
- */
-export async function isReplayWithinFallbackWindow(input: {
-  replay: ReplayPrompt
+export async function isFallbackCallWithinWindow(input: {
+  call: LanguageModelV3CallOptions
   fallbackProvider: Provider
   fallbackModel: Model
   fallbackEndpointType?: EndpointType
   fallbackRuntimeProviderId?: string
-  /** The fallback's sanitized per-request Ollama snapshot, as built for its wire options. */
   fallbackOllamaNumCtx?: OllamaNumCtxRequestSnapshot | null
 }): Promise<boolean> {
   try {
@@ -351,19 +327,28 @@ export async function isReplayWithinFallbackWindow(input: {
     if (window == null) return true
     const dialect = resolveModelTokenDialect(input.fallbackProvider, input.fallbackModel)
     const tokenizer = await getTextTokenizer(dialect)
-    // Same conversion the agent runs before dispatch, so a prepared history is
-    // priced as the wire will read it — folded tool outputs, media routing, etc.
-    const history =
-      input.replay.kind === 'ui'
-        ? await toModelMessages(input.replay.messages, input.replay.mediaCapabilities, input.replay.tools)
-        : input.replay.messages
-    const replayTokens =
-      estimateModelMessagesSync(history, { dialect, tokenizer }) +
-      tokenizer.count(input.replay.system ?? '') +
-      (await countToolSetTokens(input.replay.tools, tokenizer))
-    const usable = Math.floor(resolveInputRoom(window, input.replay.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
-    return replayTokens <= usable
+    // SDK v3 prompt content shares the footprint walker's text/media/tool-result
+    // structure. Tools here are already JSON schemas, not the original ToolSet.
+    const tokens =
+      estimateModelMessagesSync(input.call.prompt as ModelMessage[], { dialect, tokenizer }) +
+      (input.call.tools ?? []).reduce(
+        (total, tool) =>
+          total +
+          10 +
+          countToolTokens(
+            {
+              name: tool.type === 'function' ? tool.name : tool.id,
+              description: tool.type === 'function' ? tool.description : undefined,
+              schema: tool.type === 'function' ? tool.inputSchema : tool.args
+            },
+            tokenizer
+          ),
+        0
+      )
+    const usable = Math.floor(resolveInputRoom(window, input.call.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
+    return tokens <= usable
   } catch {
+    loggerService.withContext('AttachmentBudget').warn('Fallback call capacity could not be priced; allowing dispatch')
     return true
   }
 }

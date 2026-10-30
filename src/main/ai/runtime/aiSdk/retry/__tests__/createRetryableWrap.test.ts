@@ -1,4 +1,4 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -408,5 +408,69 @@ describe('createRetryableWrap', () => {
       expect.objectContaining({ type: 'text-delta', delta: 'partial' }),
       { type: 'error', error: streamError }
     ])
+  })
+
+  it('checks each actual fallback call after option overrides, including later expanded tool turns', async () => {
+    const fallbackGenerate = vi.fn().mockResolvedValue(okResult)
+    const canDispatch = vi.fn(async (call: LanguageModelV3CallOptions) => JSON.stringify(call.prompt).length < 100)
+    const resolve = vi.fn(async () => ({
+      model: makeFakeLanguageModel('small', fallbackGenerate),
+      options: { maxOutputTokens: 40 },
+      canDispatch
+    }))
+    const wrapped = createRetryableWrap({ fallbacks: [resolve], retryPolicy: policy() })!(
+      makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401)))
+    )
+    const short = {
+      prompt: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'hello' }] }],
+      maxOutputTokens: 10
+    }
+    await wrapped.doGenerate(short)
+    expect(fallbackGenerate).toHaveBeenCalledTimes(1)
+    expect(canDispatch).toHaveBeenCalledWith(expect.objectContaining({ prompt: short.prompt, maxOutputTokens: 40 }))
+    const expanded = {
+      prompt: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'x'.repeat(1000) }] }]
+    }
+    await expect(wrapped.doGenerate(expanded)).rejects.toThrow()
+    expect(canDispatch).toHaveBeenCalledTimes(2)
+    expect(fallbackGenerate).toHaveBeenCalledTimes(1)
+  })
+
+  it('checks actual streaming fallback calls without dropping an inherited output reservation', async () => {
+    const fallbackStream = vi.fn().mockResolvedValue(streamResult([]))
+    const canDispatch = vi.fn(async (call: LanguageModelV3CallOptions) => call.maxOutputTokens !== 900)
+    const wrapped = createRetryableWrap({
+      fallbacks: [
+        async () => ({
+          model: makeFakeLanguageModel('small-stream', vi.fn(), fallbackStream),
+          options: { maxOutputTokens: undefined },
+          canDispatch
+        })
+      ],
+      retryPolicy: policy()
+    })!(makeFakeLanguageModel('primary', vi.fn(), vi.fn().mockRejectedValue(makeApiError(401))))
+    await expect(wrapped.doStream({ prompt: [], maxOutputTokens: 900 })).rejects.toThrow()
+    expect(canDispatch).toHaveBeenCalledWith(expect.objectContaining({ maxOutputTokens: 900 }))
+    expect(fallbackStream).not.toHaveBeenCalled()
+    await wrapped.doStream({ prompt: [], maxOutputTokens: 20 })
+    expect(fallbackStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('prices a later fallback against operation options rather than previous fallback overrides', async () => {
+    const secondGenerate = vi.fn().mockResolvedValue(okResult)
+    const canDispatch = vi.fn(async (call: LanguageModelV3CallOptions) => call.maxOutputTokens !== 900)
+    const wrapped = createRetryableWrap({
+      fallbacks: [
+        async () => ({
+          model: makeFakeLanguageModel('first', vi.fn().mockRejectedValue(makeApiError(401))),
+          options: { maxOutputTokens: 10 }
+        }),
+        async () => ({ model: makeFakeLanguageModel('second', secondGenerate), canDispatch })
+      ],
+      retryPolicy: policy()
+    })!(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401))))
+    await expect(wrapped.doGenerate({ prompt: [], maxOutputTokens: 900 })).rejects.toThrow()
+    expect(canDispatch).toHaveBeenCalledWith(expect.objectContaining({ maxOutputTokens: 900 }))
+    expect(secondGenerate).not.toHaveBeenCalled()
   })
 })

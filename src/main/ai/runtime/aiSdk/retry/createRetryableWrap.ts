@@ -15,7 +15,7 @@
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
   isErrorAttempt,
@@ -47,6 +47,8 @@ export type FallbackCallOptions = LanguageModelRetryCallOptions
 /** A resolved fallback: a fully-resolved (middleware-applied) model + its own params. */
 export interface RetryFallback {
   model: LanguageModelV3
+  /** Checked on every actual retry dispatch, even when resolution was cached. */
+  canDispatch?: (options: LanguageModelV3CallOptions) => Promise<boolean>
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
   /**
@@ -101,6 +103,20 @@ function lazyFallbackRetryable(
     const fallback = await cached
     if (!fallback) {
       cached = undefined
+      return undefined
+    }
+    // ai-retry merges each fallback against the operation's original call,
+    // not the previous fallback's overrides. The first attempt retains that
+    // exact prompt/reservation for this operation (including later tool turns).
+    const operationOptions = context.attempts[0]?.options ?? context.current.options
+    if (
+      fallback.canDispatch &&
+      !(await fallback.canDispatch({
+        ...operationOptions,
+        prompt: fallback.options?.prompt ?? operationOptions.prompt,
+        maxOutputTokens: fallback.options?.maxOutputTokens ?? operationOptions.maxOutputTokens
+      }))
+    ) {
       return undefined
     }
     onFallbackActivated?.(fallback)

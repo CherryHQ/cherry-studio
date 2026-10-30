@@ -1990,8 +1990,6 @@ describe('AiService tool approval', () => {
         primaryUniqueModelId: 'test-provider::test-model',
         primaryHasTools: true,
         requiredNativeFileSupport: { image: true, pdf: false, audio: false, video: false },
-        // The converted history drives the dispatch-time capacity gate.
-        primaryReplay: expect.objectContaining({ kind: 'model' }),
         retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 })
       })
     )
@@ -2031,9 +2029,7 @@ describe('AiService tool approval', () => {
 
     expect(mockBuildFallbackModels).toHaveBeenCalledWith(
       expect.objectContaining({
-        primaryHasTools: true,
-        // The PREPARED history (attachment text inlined) drives the gate.
-        primaryReplay: expect.objectContaining({ kind: 'ui' })
+        primaryHasTools: true
       })
     )
     mockCreateRetryableWrap.mockReturnValue(undefined)

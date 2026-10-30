@@ -1,4 +1,3 @@
-import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -241,6 +240,13 @@ describe('buildFallbackModels', () => {
     })
     expect(await resolveUnsupported()).toBeNull()
 
+    getByProviderId.mockReturnValue(
+      makeProvider({
+        id: 'anthropic',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+      })
+    )
     getByKey.mockReturnValue(
       makeModel({ id: `anthropic::${type}`, providerId: 'anthropic', capabilities: [capability] })
     )
@@ -296,17 +302,6 @@ describe('buildFallbackModels', () => {
       })
     }
 
-    function uiReplay(system: string) {
-      return {
-        kind: 'ui' as const,
-        messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }] as UIMessage[],
-        mediaCapabilities: { image: true, video: true, audio: true },
-        system,
-        tools: undefined,
-        maxOutputTokens: undefined
-      }
-    }
-
     it('gates PDF-ineligible fallbacks before resolving their parameters', async () => {
       // A relay provider resolves `openai-compatible`, which is outside the
       // first-party PDF set — the gate must skip before `buildAgentParams`.
@@ -334,14 +329,18 @@ describe('buildFallbackModels', () => {
         ...baseArgs,
         primaryUniqueModelId: 'openai::gpt-4',
         requiredNativeFileSupport: { ...NO_NATIVE_SUPPORT },
-        retryPolicy: policy(['ollama::tiny']),
-        primaryReplay: uiReplay('x'.repeat(40_000))
+        retryPolicy: policy(['ollama::tiny'])
       })
 
       // 40,000 billed tokens against a 32,768-token window (29,491 usable after
       // the input-safety ratio) — the fallback can never take the replayed call.
-      expect(await resolve()).toBeNull()
-      expect(resolveLanguageModel).not.toHaveBeenCalled()
+      const fallback = await resolve()
+      expect(fallback).not.toBeNull()
+      expect(
+        await fallback!.canDispatch!({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(40_000) }] }]
+        })
+      ).toBe(false)
     })
 
     it('keeps a fallback whose effective window holds the retained prompt', async () => {
@@ -362,8 +361,7 @@ describe('buildFallbackModels', () => {
         ...baseArgs,
         primaryUniqueModelId: 'openai::gpt-4',
         requiredNativeFileSupport: { ...NO_NATIVE_SUPPORT, pdf: true },
-        retryPolicy: policy(['anthropic::claude']),
-        primaryReplay: uiReplay('x'.repeat(20_000))
+        retryPolicy: policy(['anthropic::claude'])
       })
 
       expect(await resolve()).not.toBeNull()
@@ -377,8 +375,7 @@ describe('buildFallbackModels', () => {
         ...baseArgs,
         primaryUniqueModelId: 'openai::gpt-4',
         requiredNativeFileSupport: { ...NO_NATIVE_SUPPORT },
-        retryPolicy: policy(['anthropic::unknown-window']),
-        primaryReplay: uiReplay('x'.repeat(2_000_000))
+        retryPolicy: policy(['anthropic::unknown-window'])
       })
 
       expect(await resolve()).not.toBeNull()

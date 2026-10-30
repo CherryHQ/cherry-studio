@@ -15,7 +15,7 @@
  */
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { isReplayWithinFallbackWindow, type ReplayPrompt } from '@main/ai/messages/attachmentBudget'
+import { isFallbackCallWithinWindow } from '@main/ai/messages/attachmentBudget'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { isFallbackEligibleForRequestShape } from '@main/ai/utils/fallbackEligibility'
@@ -35,7 +35,7 @@ import { buildAgentParams } from '../params/buildAgentParams'
 import { composeHooks } from '../params/composeHooks'
 import type { RequestFeature } from '../params/feature'
 import type { NativeFileSupport } from '../params/nativeFileSupport'
-import { supportsNativePdf } from '../params/nativeFileSupport'
+import { resolveFallbackNativeFileSupport } from '../params/nativeFileSupport'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -53,13 +53,6 @@ export interface BuildFallbackModelsArgs {
   primaryHasTools: boolean
   /** Native attachment shapes preserved for the primary and replayed to fallbacks. */
   requiredNativeFileSupport: NativeFileSupport
-  /**
-   * The primary call's prompt ai-retry replays to a fallback (prepared history +
-   * system + retained tool schemas). Drives the dispatch-time capacity gate in
-   * `resolveFallback`; absent when the caller cannot price it (tests, callers
-   * without the prepared history) and enforcement stays open.
-   */
-  primaryReplay?: ReplayPrompt
   extraFeatures: readonly RequestFeature[]
   retryPolicy: RetryPolicy
   /** Frozen when attachments were budgeted; avoids re-sampling Ollama RAM on activation. */
@@ -156,7 +149,10 @@ async function resolveFallback(
   if (
     !isFallbackEligibleForRequestShape({
       fallbackModel: model,
-      fallbackSupportsNativePdf: supportsNativePdf(provider, model, aiSdkProviderId),
+      fallbackNativeFileSupport: resolveFallbackNativeFileSupport(provider, model, {
+        endpointType: endpoint.endpointType,
+        aiSdkProviderId
+      }),
       primaryHasTools: args.primaryHasTools,
       requiredNativeFileSupport: args.requiredNativeFileSupport
     })
@@ -189,26 +185,6 @@ async function resolveFallback(
   }
 
   const requestContext = options.context as RequestContext | undefined
-  // Dispatch-time capacity: the prompt ai-retry is about to replay — the
-  // primary's prepared history, system, and RETAINED tool schemas — must fit
-  // this fallback's effective window. The fallback's own prepareStep cannot
-  // protect this first replayed step (the agent captured its hooks), and
-  // history compaction cannot shrink the retained schemas.
-  if (
-    args.primaryReplay &&
-    !(await isReplayWithinFallbackWindow({
-      replay: args.primaryReplay,
-      fallbackProvider: provider,
-      fallbackModel: model,
-      fallbackEndpointType: endpoint.endpointType,
-      fallbackRuntimeProviderId: sdkConfig.providerId,
-      fallbackOllamaNumCtx: requestContext?.ollamaNumCtx ?? null
-    }))
-  ) {
-    logger.info('skipping fallback whose retained prompt exceeds its effective window', { uniqueModelId })
-    return null
-  }
-
   const usagePlugin = args.createUsagePlugin({ provider, model, sdkModelId: sdkConfig.modelId, credentialReceipt })
   repairUsagePlugins.current = [usagePlugin]
   const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
@@ -220,6 +196,15 @@ async function resolveFallback(
   const fallbackHooks = composeHooks(hookParts)
   return {
     model: resolved,
+    canDispatch: (call) =>
+      isFallbackCallWithinWindow({
+        call,
+        fallbackProvider: provider,
+        fallbackModel: model,
+        fallbackEndpointType: endpoint.endpointType,
+        fallbackRuntimeProviderId: sdkConfig.providerId,
+        fallbackOllamaNumCtx: requestContext?.ollamaNumCtx ?? null
+      }),
     options: pickFallbackCallOptions(options),
     repairToolCall: options.repairToolCall,
     streamErrorSerialization: requestContext?.ollamaNumCtx ? { ollamaNumCtx: requestContext.ollamaNumCtx } : null,
