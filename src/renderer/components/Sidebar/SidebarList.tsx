@@ -2,8 +2,6 @@ import type { ReactNode } from 'react'
 
 import { Button, MenuItem, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
-import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { cn } from '@renderer/utils/style'
 
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
@@ -26,16 +24,11 @@ export interface SidebarListProps {
  * drag can move an item to any position regardless of its resource provider.
  */
 export function SidebarList({ layout, ...props }: SidebarListProps) {
-  const isMacTransparentWindow = useMacTransparentWindow()
-  const activeBackgroundClassName = isMacTransparentWindow
-    ? 'data-[active=true]:bg-white/78! dark:data-[active=true]:bg-white/10!'
-    : 'data-[active=true]:bg-black/8! dark:data-[active=true]:bg-sidebar-accent!'
-
-  if (layout === 'icon') return <IconList {...props} activeBackgroundClassName={activeBackgroundClassName} />
-  return <FullList {...props} activeBackgroundClassName={activeBackgroundClassName} />
+  if (layout === 'icon') return <IconList {...props} />
+  return <FullList {...props} />
 }
 
-type ListProps = Omit<SidebarListProps, 'layout'> & { activeBackgroundClassName: string }
+type ListProps = Omit<SidebarListProps, 'layout'>
 
 function EntryContextMenu({
   children,
@@ -87,7 +80,7 @@ function SidebarEntryIcon({
   )
 }
 
-function IconList({ entries, onReorder, onContextMenuOpenChange, activeBackgroundClassName }: ListProps) {
+function IconList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
       items={entries}
@@ -114,10 +107,7 @@ function IconList({ entries, onReorder, onContextMenuOpenChange, activeBackgroun
                 onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className={cn(
-                  "sidebar-action relative flex h-9 w-9 items-center justify-center rounded-full border-[0.5px] border-transparent aria-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4.5",
-                  activeBackgroundClassName
-                )}>
+                className="shell-navigation-item relative flex h-9 w-9 items-center justify-center rounded-full border-[0.5px] border-transparent aria-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4.5">
                 <SidebarEntryIcon entry={entry} presentation={ICON_ICON_PRESENTATION} />
               </Button>
             </EntryContextMenu>
@@ -128,7 +118,7 @@ function IconList({ entries, onReorder, onContextMenuOpenChange, activeBackgroun
   )
 }
 
-function FullList({ entries, onReorder, onContextMenuOpenChange, activeBackgroundClassName }: ListProps) {
+function FullList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
       items={entries}
@@ -159,10 +149,7 @@ function FullList({ entries, onReorder, onContextMenuOpenChange, activeBackgroun
                   onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                   onMouseDown={preventMiddleClickAutoscroll}
                   onAuxClick={createAuxClickHandler(entry, guardClick)}
-                  className={cn(
-                    'sidebar-action rounded-full border-[0.5px] aria-disabled:cursor-not-allowed',
-                    activeBackgroundClassName
-                  )}
+                  className="shell-navigation-item rounded-full border-[0.5px] aria-disabled:cursor-not-allowed"
                 />
               </EntryContextMenu>
             </Tooltip>

@@ -44,7 +44,8 @@ describe('useDownloadTool', () => {
       pan: vi.fn(),
       zoom: vi.fn(),
       copy: vi.fn().mockResolvedValue(true),
-      download: vi.fn()
+      download: vi.fn(),
+      dialog: vi.fn().mockResolvedValue(undefined)
     } satisfies BasicPreviewHandles
     const previewRef: { current: BasicPreviewHandles | null } = { current: null }
     const { result } = renderHook(() => {

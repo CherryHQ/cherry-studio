@@ -595,10 +595,6 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
-      this.relaunch(options)
-    })
-
     handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
       const hold = this.preventQuit(reason)
       this.ipcQuitHolds.set(hold.id, hold)

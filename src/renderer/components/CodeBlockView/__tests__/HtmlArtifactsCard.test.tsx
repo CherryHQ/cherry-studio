@@ -13,13 +13,18 @@ const mocks = vi.hoisted(() => ({
     open ? <div role="dialog" aria-label={title} /> : null
   ),
   loadHtmlArtifactsPopup: vi.fn(),
-  openPath: vi.fn(),
+  ipcRequest: vi.fn(),
   save: vi.fn(),
   t: (key: string, fallback?: string) => fallback ?? key,
   write: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal()),
+  ipcApi: { request: mocks.ipcRequest }
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -40,7 +45,7 @@ describe('HtmlArtifactsCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createTempFile.mockResolvedValue('/tmp/artifacts-preview.html')
-    mocks.openPath.mockResolvedValue(undefined)
+    mocks.ipcRequest.mockResolvedValue(undefined)
     mocks.save.mockResolvedValue('/tmp/Sample-Page.html')
     mocks.write.mockResolvedValue(undefined)
 
@@ -50,7 +55,6 @@ describe('HtmlArtifactsCard', () => {
       value: {
         file: {
           createTempFile: mocks.createTempFile,
-          openPath: mocks.openPath,
           save: mocks.save,
           write: mocks.write
         }
@@ -64,14 +68,16 @@ describe('HtmlArtifactsCard', () => {
 
     await user.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
 
-    await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/artifacts-preview.html'))
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_path', '/tmp/artifacts-preview.html')
+    )
     expect(mocks.createTempFile).toHaveBeenCalledWith('artifacts-preview.html')
     expect(mocks.write).toHaveBeenCalledWith('/tmp/artifacts-preview.html', html)
   })
 
   it('reports a failure to open the generated file', async () => {
     const user = userEvent.setup()
-    mocks.openPath.mockRejectedValueOnce(new Error('open failed'))
+    mocks.ipcRequest.mockRejectedValueOnce(new Error('open failed'))
     render(<HtmlArtifactsCard html={html} />)
 
     await user.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))

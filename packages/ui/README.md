@@ -227,6 +227,17 @@ viewer paint; it returns `null` when that range is not parsed, without starting 
 Grammar modules can still depend on CodeMirror runtime modules and are cached separately
 in the worker and renderer.
 
+### Mermaid Diagrams
+
+`@cherrystudio/ui/mermaid` renders Mermaid source with Merman (`@mermanjs/web-render`, Mermaid
+compiled from Rust to WASM). `renderMermaidSvg(source, { theme, diagramId })` loads the runtime once
+per realm on first use and measures labels with an `OffscreenCanvas`, so it runs on the page or in a
+Web Worker; the app runs it in a worker. A worker must load the theme's `fontFaces` first, which
+`renderMermaidSvg` does. `resolveMermaidTheme(element)`
+maps the design tokens and the background actually painted behind `element` to Merman's semantic
+roles, so diagrams follow light/dark mode and sit on their surface. The Markdown `withMermaid()`
+preset uses the same renderer for Streamdown.
+
 ### Icon Generation
 
 Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.

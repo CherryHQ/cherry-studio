@@ -46,9 +46,7 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
   application: {
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
-    allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
-    relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
+    allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId)
   },
   system: {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
@@ -114,7 +112,6 @@ const api = {
     mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
-    openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: (options?: OpenDialogOptions): Promise<string | null> =>
@@ -136,8 +133,7 @@ const api = {
     // to `DirectoryTreeBuilder` (see docs/references/file/directory-tree.md).
     // mutations via `window.api.tree.onMutation` instead.
     batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
-      ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
-    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
+      ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
