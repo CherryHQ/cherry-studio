@@ -3,7 +3,6 @@ import type { FileHandle } from '@shared/data/types/file'
 import type { FileProcessingOutputTarget, FileProcessingTask } from '@shared/data/types/fileProcessing'
 export type {
   FileProcessingArtifact,
-  FileProcessingJobOutput,
   FileProcessingTask,
   FileProcessingTaskId,
   ListAvailableFileProcessorsResult

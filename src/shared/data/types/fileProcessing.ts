@@ -31,13 +31,6 @@ export const FileProcessingOutputTargetSchema = z
   .strict()
 export type FileProcessingOutputTarget = z.infer<typeof FileProcessingOutputTargetSchema>
 
-export const FileProcessingJobOutputSchema = z
-  .object({
-    artifact: FileProcessingArtifactSchema
-  })
-  .strict()
-export type FileProcessingJobOutput = z.infer<typeof FileProcessingJobOutputSchema>
-
 export const FileProcessingTaskIdSchema = z.string().min(1).brand<'FileProcessingTaskId'>()
 export type FileProcessingTaskId = z.infer<typeof FileProcessingTaskIdSchema>
 

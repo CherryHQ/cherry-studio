@@ -1,6 +1,8 @@
+import * as z from 'zod'
+
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
-import type { FileProcessingOutputTarget } from '@shared/data/types/fileProcessing'
+import { FileProcessingArtifactSchema, type FileProcessingOutputTarget } from '@shared/data/types/fileProcessing'
 
 /**
  * JobRegistry declaration merging for file-processing job types.
@@ -33,6 +35,10 @@ export interface FileProcessingJobPayload {
   }
   processorId: FileProcessorId
 }
+
+/** What a file-processing job stores as its output; a completed task carries the artifact. */
+export const FileProcessingJobOutputSchema = z.object({ artifact: FileProcessingArtifactSchema }).strict()
+export type FileProcessingJobOutput = z.infer<typeof FileProcessingJobOutputSchema>
 
 /**
  * Dispatch queue for a processor, one per processor so a slow one never blocks

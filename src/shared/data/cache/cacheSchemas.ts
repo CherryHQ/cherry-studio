@@ -371,8 +371,8 @@ export type SharedCacheSchema = {
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
   // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
-  // mirrors the progress of the job the item waits on here when it changes, so the row can
-  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  // mirrors the progress of the task the item waits on here when it changes, so the row can
+  // show a percentage during the 'processing' wait; absence means the conversion has not started.
   'knowledge.item.file_processing_progress.${itemId}': number | null
   // A file-processing task's latest state, main -> all windows. FileProcessingService rewrites it on
   // every change and lets only a terminal state expire; after that, ask `file_processing.get_task`.

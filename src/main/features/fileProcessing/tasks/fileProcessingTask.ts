@@ -1,13 +1,9 @@
 import type { JobHandler, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import {
-  FileProcessingJobOutputSchema,
-  type FileProcessingTask,
-  type FileProcessingTaskId
-} from '@shared/data/types/fileProcessing'
+import type { FileProcessingTask, FileProcessingTaskId } from '@shared/data/types/fileProcessing'
 
 import type { SettledFileProcessingTask } from '../types'
-import type { FileProcessingJobPayload } from './shared'
+import { type FileProcessingJobPayload, FileProcessingJobOutputSchema } from './shared'
 
 type TaskJob = Pick<FileProcessingJobPayload, 'feature' | 'processorId'>
 type SettledJob = Pick<JobSettledEvent, 'status' | 'output' | 'error'>

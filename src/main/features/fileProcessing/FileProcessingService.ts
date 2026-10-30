@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { TerminalJobStatus } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
@@ -74,7 +73,45 @@ export class FileProcessingService extends BaseService {
    * add reuse later, scope it to a contentHash plus processor/config/version.
    */
   async startTask(input: StartFileProcessingTaskInput): Promise<StartedFileProcessingTask> {
-    const { handle, payload } = await this.enqueueJob(input)
+    const { feature, file, output, context, processorId } = input
+    // `document_to_markdown` always produces a markdown/zip artifact that needs a
+    // path output target. Reject the illegal state here, before enqueueing (and
+    // before any remote API call), instead of failing late in artifact persistence.
+    if (feature === 'document_to_markdown' && output?.kind !== 'path') {
+      throw new Error("File processing feature 'document_to_markdown' requires a path output target")
+    }
+    const config = resolveProcessorConfigByFeature(feature, processorId)
+    const handler = getCapabilityHandler(config.id, feature)
+    const fileInfo = await resolveFileProcessingFileInfo(file)
+    assertFileTypeSupported(fileInfo, feature, config)
+
+    const payload: FileProcessingJobPayload = {
+      feature,
+      file,
+      processorId: config.id,
+      ...(output ? { output } : {}),
+      ...(context ? { context } : {})
+    }
+
+    // The capability handler's mode picks the job type (background vs remote-poll), and for
+    // background the processor's `runtime` picks the local or remote half — no `prepare()` needed.
+    const type =
+      handler.mode === 'remote-poll'
+        ? 'file-processing.remote-poll'
+        : processorRegistry[config.id].runtime === 'local'
+          ? 'file-processing.background-local'
+          : 'file-processing.background'
+    const handle = application.get('JobManager').enqueue(type, payload)
+
+    logger.debug('Enqueued file processing job', {
+      jobId: handle.id,
+      type,
+      feature,
+      processorId: config.id,
+      file,
+      output
+    })
+
     const id = toFileProcessingTaskId(handle.id)
     const task = toQueuedTask(id, payload)
     this.publishTask(task)
@@ -103,74 +140,6 @@ export class FileProcessingService extends BaseService {
       return 'not-cancellable'
     }
     return (await jobManager.cancel(id, reason)).outcome
-  }
-
-  /**
-   * Enqueue a file-processing job.
-   *
-   * `options.recovery` overrides the handler's restart behavior.
-   *
-   * @returns The job's handle. Its `finished` promise lives in this process only.
-   */
-  async startJob(
-    input: StartFileProcessingTaskInput,
-    options: Pick<EnqueueOptions, 'parentId' | 'recovery'> = {}
-  ): Promise<JobHandle> {
-    return (await this.enqueueJob(input, options)).handle
-  }
-
-  /**
-   * The handler.mode field on the capability handler determines the JobRegistry
-   * type to enqueue under (background vs remote-poll), and for background the
-   * processor's `runtime` picks the local or remote half. Both are synchronous
-   * lookups — no `await prepare()` is needed at enqueue time.
-   */
-  private async enqueueJob(
-    input: StartFileProcessingTaskInput,
-    options: Pick<EnqueueOptions, 'parentId' | 'recovery'> = {}
-  ): Promise<{ handle: JobHandle; payload: FileProcessingJobPayload }> {
-    const { feature, file, output, context, processorId } = input
-    // `document_to_markdown` always produces a markdown/zip artifact that needs a
-    // path output target. Reject the illegal state here, before enqueueing (and
-    // before any remote API call), instead of failing late in artifact persistence.
-    if (feature === 'document_to_markdown' && output?.kind !== 'path') {
-      throw new Error("File processing feature 'document_to_markdown' requires a path output target")
-    }
-    const config = resolveProcessorConfigByFeature(feature, processorId)
-    const handler = getCapabilityHandler(config.id, feature)
-    const fileInfo = await resolveFileProcessingFileInfo(file)
-    assertFileTypeSupported(fileInfo, feature, config)
-
-    const payload: FileProcessingJobPayload = {
-      feature,
-      file,
-      processorId: config.id,
-      ...(output ? { output } : {}),
-      ...(context ? { context } : {})
-    }
-
-    const type =
-      handler.mode === 'remote-poll'
-        ? 'file-processing.remote-poll'
-        : processorRegistry[config.id].runtime === 'local'
-          ? 'file-processing.background-local'
-          : 'file-processing.background'
-    const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue(type, payload, {
-      ...(options.parentId ? { parentId: options.parentId } : {}),
-      recovery: options.recovery
-    })
-
-    logger.debug('Enqueued file processing job', {
-      jobId: handle.id,
-      type,
-      feature,
-      processorId: config.id,
-      file,
-      output
-    })
-
-    return { handle, payload }
   }
 
   private publishTask(task: FileProcessingTask): void {
