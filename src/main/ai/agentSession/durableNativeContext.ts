@@ -21,6 +21,7 @@ async function loadDurableStorage() {
     kind: 'cherry.runtime-backend',
     version: 1,
     scope: 'session',
+    checkpointWhen: () => false,
     initial: () => ({ backendId: '' })
   })
   return { ...native, ...sqlite, ...node, nativeContext: BACKGROUND_CONTEXT, backendDocument }
@@ -123,6 +124,7 @@ export async function prepareDurableRoot(contextId: string) {
     scope: 'conversation',
     history: 'latest',
     fork: 'initial',
+    checkpointWhen: () => false,
     initial: () => ({ contextId: '' })
   })
   try {

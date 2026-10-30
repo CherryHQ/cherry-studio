@@ -156,7 +156,13 @@ export async function createPiDurableRuntime(
     }
     syncRegistry()
     stopRegistry = options.harness.registry.subscribe(syncRegistry)
-    harnessOptions = { ...options.harness, registry, models: meteredModels(options.harness.models, behavior) }
+    const models = options.harness.models
+    const meter = behavior
+    harnessOptions = {
+      ...options.harness,
+      registry,
+      models: typeof models === 'function' ? () => meteredModels(models(), meter) : meteredModels(models, meter)
+    }
   }
   const live = new Map<number, Entry>()
   const archives = new Map<number, PiDurableArchive>()

@@ -18,9 +18,9 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { t } from '@main/i18n'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import { AsyncEventQueue } from '@shared/utils/async'
 
 import { buildAgentUserContent } from '../agentUserContent'
-import { AsyncEventQueue } from '@shared/utils/async'
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'

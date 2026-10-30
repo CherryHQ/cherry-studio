@@ -74,6 +74,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     scope: 'conversation',
     history: 'latest',
     fork: 'initial',
+    checkpointWhen: () => false,
     initial: () => ({ run: 0, count: 0 })
   })
   const hostMemo = defineDoc({
@@ -82,6 +83,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     scope: 'conversation',
     history: 'latest',
     fork: 'initial',
+    checkpointWhen: () => false,
     initial: (): { values: Record<string, NativeJson> } => ({ values: {} })
   })
   const providers = new Map<string, ThreadId>()
