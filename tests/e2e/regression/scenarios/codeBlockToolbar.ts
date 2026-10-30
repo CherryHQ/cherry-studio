@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join } from 'node:path'
 
-import { expect, type Page, type TestInfo } from '@playwright/test'
+import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -234,13 +234,27 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
 
     await block.hover()
     const run = block.getByRole('button', { name: 'Run', exact: true })
-    if (await run.isVisible()) {
-      await run.click()
-      await expect(block.getByText(/Hello, MP40!|Unexpected error:|Error:|Traceback/).last()).toBeVisible({
-        timeout: 90_000
-      })
-      await attachScreenshot('MP-40 Python execution result')
+    if (!(await run.isVisible())) {
+      test.skip(true, 'UNCOVERED: this build exposes no Run control for the Python block')
     }
+    await run.click()
+    const execution = block.getByText(/Hello, MP40!|Unexpected error:|Error:|Traceback/).last()
+    await expect(execution).toBeVisible({ timeout: 90_000 })
+    await attachScreenshot('MP-40 Python execution result')
+    const executionText = ((await execution.textContent()) ?? '').trim()
+    if (!executionText.includes('Hello, MP40!')) {
+      // A missing interpreter is a prerequisite gap; any other message is a real Run failure.
+      if (/ENOENT|not found|not recognized|command not found|No such file|cannot find/i.test(executionText)) {
+        test.skip(
+          true,
+          `UNCOVERED: Python execution prerequisites are unavailable in this environment (${executionText.slice(0, 200)})`
+        )
+      }
+      throw new Error(
+        `MP-40 expected the Python block to print "Hello, MP40!" but the app displayed: ${executionText.slice(0, 300)}`
+      )
+    }
+    await expect(execution).toContainText('Hello, MP40!')
     await block.getByRole('button', { name: 'Edit', exact: true }).click()
     await expect(viewer).toBeHidden()
     await expect(block.locator('.cm-editor')).toBeVisible()
