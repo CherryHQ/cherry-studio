@@ -10,6 +10,7 @@ const editor = { editorId: 'editor', maxBytes: 25000, maxLines: 200, warningByte
 let disk: Map<string, string>
 let active: Set<string>
 let conflict: boolean
+let recoverable: boolean
 
 beforeEach(() => {
   disk = new Map([
@@ -18,6 +19,7 @@ beforeEach(() => {
   ])
   active = new Set()
   conflict = false
+  recoverable = false
   vi.mocked(window.api.ipcApi.request).mockImplementation(async (route, input) => {
     const args = input as { editorId?: string; path?: string; receipt?: string; token?: string }
     let data: unknown
@@ -29,29 +31,19 @@ beforeEach(() => {
       case 'memory.editor.close':
         active.delete(args.editorId!)
         break
-      case 'memory.file.list':
-        data = [...disk.keys()]
-        break
-      case 'memory.file.read':
-        data = { path: args.path, content: disk.get(args.path!) ?? null, hash: 'hash', receipt: args.path }
-        break
-      case 'memory.file.delete':
-        if (conflict)
-          data = {
-            batchId: 'partial',
-            error: 'conflict',
-            files: [{ path: args.receipt, hash: 'hash', outcome: 'conflict' }]
-          }
-        else {
-          disk.delete(args.receipt!)
-          data = { batchId: 'delete', files: [{ path: args.receipt, hash: null, outcome: 'applied' }] }
-        }
-        break
       case 'memory.clear.preview':
         data = { token: 'clear-preview', files: [...disk.keys()].map((path) => ({ path, hash: 'hash' })) }
         break
       case 'memory.clear.confirm':
         if (args.token !== 'clear-preview') throw new Error('Preview required')
+        if (conflict) {
+          data = {
+            batchId: 'partial',
+            error: 'conflict',
+            files: [{ path: '.memories/topic.md', hash: 'hash', outcome: 'conflict' }]
+          }
+          break
+        }
         disk.set('MEMORY.md', '')
         disk.delete('.memories/topic.md')
         data = {
@@ -63,7 +55,12 @@ beforeEach(() => {
         }
         break
       case 'memory.recovery.preview':
-        data = undefined
+        data = recoverable ? { token: 'recover-preview', files: [{ path: 'MEMORY.md', conflict: false }] } : undefined
+        break
+      case 'memory.recovery.confirm':
+        if (args.token !== 'recover-preview') throw new Error('Recovery preview required')
+        disk.set('MEMORY.md', 'Recovered fact')
+        data = { batchId: 'recovery', files: [{ path: 'MEMORY.md', hash: 'recovered', outcome: 'applied' }] }
         break
       default:
         throw new Error(`Unexpected route: ${route}`)
@@ -73,55 +70,70 @@ beforeEach(() => {
 })
 
 describe('shared memory file controls', () => {
-  it('shows file names without fetching or previewing memory bodies', async () => {
+  it('shows only recovery and clear actions without reading or listing files', async () => {
     render(<MemoryFileControls />)
-    expect(await screen.findByText('topic')).toBeVisible()
+    await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
+    expect(screen.queryByText('topic')).not.toBeInTheDocument()
+    expect(screen.queryByText('记忆文件')).not.toBeInTheDocument()
+    expect(screen.queryByText('记忆概览')).not.toBeInTheDocument()
     expect(screen.queryByText('Private content must not appear')).not.toBeInTheDocument()
     expect(screen.queryByText('Topic body')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(vi.mocked(window.api.ipcApi.request).mock.calls.some(([route]) => route === 'memory.file.read')).toBe(false)
+    expect(vi.mocked(window.api.ipcApi.request).mock.calls.some(([route]) => route.startsWith('memory.file.'))).toBe(
+      false
+    )
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('binds global clearing to the displayed file set and leaves content intact on cancel', async () => {
+  it('confirms clearing without displaying files and leaves content intact on cancel', async () => {
     const user = userEvent.setup()
     render(<MemoryFileControls />)
-    await screen.findByText('topic')
+    await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
     await user.click(screen.getByRole('button', { name: '清除全局记忆' }))
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText('MEMORY.md')).toBeVisible()
-    expect(within(dialog).getByText('.memories/topic.md')).toBeVisible()
+    expect(within(dialog).getByText('确定清除本地所有记忆文件么？')).toBeVisible()
+    expect(within(dialog).queryByRole('list')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('MEMORY.md')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('.memories/topic.md')).not.toBeInTheDocument()
     expect(disk.get('MEMORY.md')).toBe('Private content must not appear')
     await user.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(dialog).toHaveTextContent('确定清除本地所有记忆文件么？')
+    expect(dialog).not.toHaveTextContent('恢复备份')
+    expect(dialog).not.toHaveTextContent('MEMORY.md')
     expect(disk.get('.memories/topic.md')).toBe('Topic body')
     await user.click(screen.getByRole('button', { name: '清除全局记忆' }))
-    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
+    const confirmation = await screen.findByRole('dialog')
+    await user.click(within(confirmation).getByRole('button', { name: '确认' }))
+    expect(confirmation).toHaveTextContent('确定清除本地所有记忆文件么？')
+    expect(confirmation).not.toHaveTextContent('恢复备份')
     await waitFor(() => expect(disk.get('MEMORY.md')).toBe(''))
     expect(disk.has('.memories/topic.md')).toBe(false)
-    expect(await screen.findByRole('status')).toHaveTextContent('已保存')
+    await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
+    expect(screen.getByRole('status')).toHaveTextContent('清除成功')
+    expect(screen.getByRole('status')).not.toHaveTextContent('已保存')
   })
 
-  it('does not delete a selected topic until confirmation and never displays its read body', async () => {
+  it('requires confirmation before recovering the last operation', async () => {
     const user = userEvent.setup()
+    recoverable = true
     render(<MemoryFileControls />)
-    await screen.findByText('topic')
-    await user.click(screen.getByRole('button', { name: '删除' }))
-    expect(within(await screen.findByRole('dialog')).getByText('.memories/topic.md')).toBeVisible()
-    expect(screen.queryByText('Topic body')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: '恢复备份' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '恢复备份' }))
+    expect(within(await screen.findByRole('dialog')).getByText('MEMORY.md')).toBeVisible()
     await user.click(screen.getByRole('button', { name: '取消' }))
-    expect(disk.get('.memories/topic.md')).toBe('Topic body')
-    await user.click(screen.getByRole('button', { name: '删除' }))
-    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
-    await waitFor(() => expect(screen.queryByText('topic')).not.toBeInTheDocument())
     expect(disk.get('MEMORY.md')).toBe('Private content must not appear')
+    await user.click(screen.getByRole('button', { name: '恢复备份' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
+    await waitFor(() => expect(disk.get('MEMORY.md')).toBe('Recovered fact'))
+    expect(await screen.findByRole('status')).toHaveTextContent('已保存')
   })
 
   it('reports a conflicting file instead of a successful save', async () => {
     const user = userEvent.setup()
     conflict = true
     render(<MemoryFileControls />)
-    await screen.findByText('topic')
-    await user.click(screen.getByRole('button', { name: '删除' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '清除全局记忆' }))
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
     expect(await screen.findByRole('alert')).toBeVisible()
     expect(screen.getByRole('list', { name: '文件结果' })).toHaveTextContent('.memories/topic.md')
@@ -129,22 +141,42 @@ describe('shared memory file controls', () => {
     expect(disk.get('.memories/topic.md')).toBe('Topic body')
   })
 
-  it('keeps recovery available when listing files fails', async () => {
-    const request = vi.mocked(window.api.ipcApi.request)
-    const normal = request.getMockImplementation()!
-    request.mockImplementation((route, input) =>
-      route === 'memory.file.list'
-        ? Promise.resolve({ ok: false, error: { code: 'MEMORY_OPERATION_FAILED', message: 'Unavailable' } })
-        : normal(route, input)
-    )
+  it('clears the previous success while clearing is pending and does not report a failed clear as successful', async () => {
+    const user = userEvent.setup()
+    recoverable = true
     render(<MemoryFileControls />)
+    await waitFor(() => expect(screen.getByRole('button', { name: '恢复备份' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '恢复备份' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('已保存')
+    await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '清除全局记忆' }))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    const saved = Promise.withResolvers<unknown>()
+    vi.mocked(window.api.ipcApi.request).mockImplementationOnce(() => saved.promise)
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await act(async () => {
+      saved.resolve({ ok: true, data: { error: 'conflict', files: [] } })
+    })
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(disk.get('MEMORY.md')).toBe('Recovered fact')
+  })
+
+  it('reports when there is no recoverable operation without claiming a save', async () => {
+    const user = userEvent.setup()
+    render(<MemoryFileControls />)
+    await waitFor(() => expect(screen.getByRole('button', { name: '恢复备份' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '恢复备份' }))
     await screen.findByRole('alert')
-    expect(screen.getByRole('button', { name: '恢复最近一次操作' })).toBeEnabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '恢复备份' })).toBeEnabled()
   })
 
   it('releases a late editor handle after the settings page has unmounted', async () => {
     const opened = Promise.withResolvers<unknown>()
-    vi.mocked(window.api.ipcApi.request).mockImplementationOnce(() => opened.promise as never)
+    vi.mocked(window.api.ipcApi.request).mockImplementationOnce(() => opened.promise)
     const view = render(<MemoryFileControls />)
     view.unmount()
     await act(async () => {

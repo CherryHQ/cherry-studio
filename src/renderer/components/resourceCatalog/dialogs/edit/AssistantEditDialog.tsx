@@ -423,18 +423,6 @@ function AssistantEditDialogContent({
             onCreateGroup={() => setCreateGroupDialogOpen(true)}
             onSettingsNavigate={closeBeforeAction}
           />
-          <FormField
-            control={form.control}
-            name="enableSharedMemory"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between gap-3 py-4">
-                <FormLabel>{t('settings.memory.use')}</FormLabel>
-                <FormControl>
-                  <Switch checked={field.value} onCheckedChange={field.onChange} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
         </TabsContent>
         <TabsContent
           value="prompt"
@@ -603,6 +591,25 @@ function AssistantBasicFields({
               triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
             />
             <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="enableSharedMemory"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.memory.use')}</FormLabel>
+            <div className="flex h-9 items-center">
+              <FormControl>
+                <Switch
+                  size="sm"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  aria-label={t('settings.memory.use')}
+                />
+              </FormControl>
+            </div>
           </FormItem>
         )}
       />
