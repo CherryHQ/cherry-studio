@@ -69,7 +69,7 @@ describe('Feishu channel credential binding', () => {
       ...input,
       config: { applicationCredentialId: app.id, mention_only: false }
     })
-    expect(agentChannelService.getChannel(channel.id)?.config.mention_only).toBe(false)
+    expect(agentChannelService.getChannel(channel.id)?.config).toMatchObject({ mention_only: false })
     agentChannelService.updateChannel(channel.id, { configPatch: { allowed_chat_ids: ['new-chat'] } })
     expect(agentChannelService.getChannel(channel.id)?.config).toMatchObject({
       applicationCredentialId: app.id,
