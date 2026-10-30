@@ -21,6 +21,7 @@ import {
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
+import { createScriptedHost } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime, type PiDurableRuntimeOptions, type PiDurableThreadHandle } from '../src'
@@ -77,7 +78,7 @@ async function setup(openStorage: PiDurableRuntimeOptions['openStorage'] = async
   onTestFinished(async () => {
     await runtime.shutdown()
   })
-  return { runtime, faux, options, errors, registry }
+  return { runtime, faux, options, errors, registry, models }
 }
 async function observe(access: PiDurableThreadHandle) {
   const events: ObservationPayload[] = []
@@ -597,7 +598,7 @@ describe('Pi Durable runtime contract', () => {
 })
 
 it('reads the native compaction estimate passively without resuming the scheduler or writing usage', async () => {
-  const { runtime, options } = await setup()
+  const { runtime, models } = await setup()
   const access = confirmed(await runtime.create(sessionOptions))
   const events = await observe(access)
   const before = confirmed(await access.contextUsage())
@@ -606,7 +607,7 @@ it('reads the native compaction estimate passively without resuming the schedule
     basis: 'current-context',
     used: { tokens: 0, precision: 'estimated' }
   })
-  expect(before.contextWindow).toBe(options.harness.models.getModel('faux', 'faux-1')!.contextWindow)
+  expect(before.contextWindow).toBe(models.getModel('faux', 'faux-1')!.contextWindow)
   const archive = confirmed(await access.archive())
   expect(confirmed(await access.contextUsage())).toEqual(before)
   expect(confirmed(await access.archive())).toEqual(archive)
@@ -680,4 +681,62 @@ it('measures committed prompt sources and codemode-only tools without executing 
   )
   memory = 'Uncommitted new memory '.repeat(100)
   expect(confirmed(await handle.contextUsage())).toEqual(before)
+})
+
+// Catches eagerly capturing a registry factory or dropping request metering when native models are refreshed.
+it('resolves a fresh model registry for each request with shared behavior enabled', async () => {
+  const first = fauxProvider()
+  first.setResponses([fauxAssistantMessage('first registry')])
+  const second = fauxProvider()
+  second.setResponses([fauxAssistantMessage('replacement registry')])
+  let models = createModels()
+  models.setProvider(first.provider)
+  const host = createScriptedHost({
+    settings: {
+      goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+      autonomy: 'auto',
+      permissionMode: 'default',
+      attendance: 'stream',
+      maxBackground: 2,
+      offloadThreshold: 4000
+    }
+  })
+  const runtime = confirmed(
+    await createPiDurableRuntime({
+      backendId: runtimeId('dynamic-models'),
+      openStorage: async () => new MemoryStorage(),
+      harness: { models: () => models, registry: createRegistry() },
+      behavior: { host, configureChild: () => ({ model: sessionOptions.agent.model }) }
+    })
+  )
+  onTestFinished(async () => {
+    await runtime.shutdown()
+  })
+  const access = confirmed(await runtime.create(sessionOptions))
+  const events = await observe(access)
+  confirmed(await runtime.resume())
+  await access.input.submit(draft('first request'))
+  await expect
+    .poll(() =>
+      current(events)?.messages.some(
+        (message) =>
+          message.parts.some((part) => part.type === 'text' && part.text === 'first registry') &&
+          message.metadata?.completeness === 'complete'
+      )
+    )
+    .toBe(true)
+  models = createModels()
+  models.setProvider(second.provider)
+  await access.input.submit(draft('second request', 'follow-up'))
+  await expect
+    .poll(() =>
+      current(events)?.messages.some(
+        (message) =>
+          message.parts.some((part) => part.type === 'text' && part.text === 'replacement registry') &&
+          message.metadata?.completeness === 'complete'
+      )
+    )
+    .toBe(true)
+  expect(first.state.callCount).toBe(1)
+  expect(second.state.callCount).toBe(1)
 })
