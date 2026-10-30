@@ -1,11 +1,12 @@
 import { ChevronRight } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
 import { getContextUsageColor, normalizeContextUsagePercentage } from './contextUsageColor'
+import { ContextUsageMeter } from './ContextUsageMeter'
 
 export interface ContextUsageSummaryData {
   estimated?: boolean
@@ -39,6 +40,7 @@ export function ContextUsageSummary({
 }: ContextUsageSummaryProps) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
+  const summaryId = useId()
   const percentage = data ? normalizeContextUsagePercentage(data.percentage) : null
   const color = percentage === null ? undefined : getContextUsageColor(percentage)
 
@@ -63,6 +65,7 @@ export function ContextUsageSummary({
         <div
           role="meter"
           aria-label={title}
+          title={details || undefined}
           aria-valuemin={0}
           aria-valuemax={data.maxTokens}
           aria-valuenow={Math.min(data.maxTokens, Math.max(0, data.usedTokens))}
@@ -112,6 +115,7 @@ export function ContextUsageSummary({
           <AccordionItem value="context" className="border-0 first:border-t-0">
             <AccordionTrigger
               aria-label={title}
+              aria-describedby={open ? undefined : summaryId}
               className="group gap-2 py-1 text-xs font-normal text-foreground [&>svg]:hidden">
               <span className="flex items-center gap-1">
                 {title}
@@ -122,14 +126,9 @@ export function ContextUsageSummary({
               </span>
               {!open && (
                 <span className="flex items-center gap-2 text-muted-foreground tabular-nums">
-                  {percentage === null ? emptyLabel : `${percentage}%`}
+                  <span id={summaryId}>{percentage === null ? emptyLabel : `${percentage}%`}</span>
                   {percentage !== null && (
-                    <span aria-hidden className="h-1.5 w-6 overflow-hidden rounded-full bg-background-subtle">
-                      <span
-                        className={cn('block h-full rounded-full bg-chart-1', isBusy && 'animate-pulse')}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </span>
+                    <ContextUsageMeter label={title} percentage={percentage} isBusy={isBusy} tabIndex={-1} />
                   )}
                 </span>
               )}

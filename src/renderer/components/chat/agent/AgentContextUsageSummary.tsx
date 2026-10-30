@@ -103,9 +103,7 @@ export function AgentContextUsageSummary({
           maxTokens: windowTokens,
           percentage,
           modelName: modelName || usage.model,
-          ...(usage.breakdown?.coverage === 'complete' && {
-            segments: categories.filter((category) => category.kind === 'used' || category.kind === 'buffer')
-          })
+          segments: categories.filter((category) => category.kind === 'used' || category.kind === 'buffer')
         }
       : null
   const groups = RESOURCE_GROUP_ORDER.map((id) => ({
