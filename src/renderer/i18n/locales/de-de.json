@@ -1310,6 +1310,7 @@
   "common.required_field": "Pflichtfeld",
   "common.reset": "Zurücksetzen",
   "common.resize_panel": "Größe des Bedienfelds ändern",
+  "common.restore": "Wiederherstellen",
   "common.retry": "Wiederholen",
   "common.save": "Speichern",
   "common.save_failed": "Speichern fehlgeschlagen",

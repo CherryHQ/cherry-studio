@@ -1310,6 +1310,7 @@
   "common.required_field": "必須項目",
   "common.reset": "リセット",
   "common.resize_panel": "パネルのサイズを変更",
+  "common.restore": "復元",
   "common.retry": "リトライ",
   "common.save": "保存",
   "common.save_failed": "保存に失敗しました",

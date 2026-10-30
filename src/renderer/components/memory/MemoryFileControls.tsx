@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
@@ -100,19 +101,37 @@ export function MemoryFileControls() {
   const previewFiles = pending?.preview.files ?? []
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {!error && result && (
-          <p role="status" className="mr-auto text-sm text-muted-foreground">
-            {t(pending?.kind === 'clear' ? 'settings.memory.clear_success' : 'common.saved')}
+      <SettingRow className="flex-nowrap">
+        <SettingRowTitle className="flex-1">{t('settings.memory.recover')}</SettingRowTitle>
+        {!error && result && pending?.kind === 'recover' && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t('common.saved')}
           </p>
         )}
-        <Button variant="outline" disabled={busy || !editorId} onClick={() => void run(() => preview('recover'))}>
-          {t('settings.memory.recover')}
+        <Button
+          variant="outline"
+          aria-label={t('settings.memory.recover')}
+          disabled={busy || !editorId}
+          onClick={() => void run(() => preview('recover'))}>
+          {t('common.restore')}
         </Button>
-        <Button variant="destructive" disabled={busy || !editorId} onClick={() => void run(() => preview('clear'))}>
-          {t('settings.memory.clear')}
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow className="flex-nowrap">
+        <SettingRowTitle className="flex-1">{t('settings.memory.clear')}</SettingRowTitle>
+        {!error && result && pending?.kind === 'clear' && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t('settings.memory.clear_success')}
+          </p>
+        )}
+        <Button
+          variant="destructive"
+          aria-label={t('settings.memory.clear')}
+          disabled={busy || !editorId}
+          onClick={() => void run(() => preview('clear'))}>
+          {t('common.clear')}
         </Button>
-      </div>
+      </SettingRow>
       {error ? (
         <p role="alert" className="mt-3 text-sm text-error">
           {t(error)}

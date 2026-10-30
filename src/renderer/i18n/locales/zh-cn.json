@@ -1310,6 +1310,7 @@
   "common.required_field": "必填字段",
   "common.reset": "重置",
   "common.resize_panel": "调整面板宽度",
+  "common.restore": "恢复",
   "common.retry": "重试",
   "common.save": "保存",
   "common.save_failed": "保存失败",

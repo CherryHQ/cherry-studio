@@ -1310,6 +1310,7 @@
   "common.required_field": "Required field",
   "common.reset": "Reset",
   "common.resize_panel": "Resize panel",
+  "common.restore": "Restore",
   "common.retry": "Retry",
   "common.save": "Save",
   "common.save_failed": "Save failed",

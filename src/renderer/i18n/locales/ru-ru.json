@@ -1310,6 +1310,7 @@
   "common.required_field": "Обязательное поле",
   "common.reset": "Сбросить",
   "common.resize_panel": "Изменить размер панели",
+  "common.restore": "Восстановить",
   "common.retry": "Повторить",
   "common.save": "Сохранить",
   "common.save_failed": "Сохранение не удалось",

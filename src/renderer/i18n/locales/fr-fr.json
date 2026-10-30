@@ -1310,6 +1310,7 @@
   "common.required_field": "Champ obligatoire",
   "common.reset": "Réinitialiser",
   "common.resize_panel": "Redimensionner le panneau",
+  "common.restore": "Restaurer",
   "common.retry": "Réessayer",
   "common.save": "Enregistrer",
   "common.save_failed": "Échec de la sauvegarde",
