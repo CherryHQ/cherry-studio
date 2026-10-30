@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, cleanup, render, renderHook, waitFor } from '@testing-library/react'
+import { Activity, type ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1056,4 +1056,152 @@ describe('useFileEditSession', () => {
       vi.useRealTimers()
     }
   })
+})
+
+describe('successful hidden Agent editor saves', () => {
+  it('reopens saved text from the shared SWR cache after a pending write completes while hidden', async () => {
+    let disk = 'before',
+      finish!: () => void
+    ipcMocks.request.mockImplementation(async (route: string, p: any) => {
+      if (route === 'file.read') return readResult(utf8(disk))
+      if (route === 'file.write_if_unchanged') {
+        await new Promise<void>((r) => (finish = r))
+        disk = new TextDecoder().decode(p.data)
+        return writeResult(2, p.data.length)
+      }
+    })
+    const cache = new Map()
+    const shared = ({ children }: { children: ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache, dedupingInterval: 60000 }}>{children}</SWRConfig>
+    )
+    const first = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+    await waitFor(() => expect(first.result.current.status).toBe('ready'))
+    act(() => first.result.current.setDraft('saved edit'))
+    let save!: Promise<void>
+    act(() => {
+      save = first.result.current.flush()
+    })
+    await waitFor(() => expect(writeCalls()).toHaveLength(1))
+    first.unmount()
+    await act(async () => {
+      finish()
+      await save
+    })
+    expect(disk).toBe('saved edit')
+    const returning = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+    await waitFor(() => expect(returning.result.current.status).toBe('ready'))
+    expect(returning.result.current.draft).toBe('saved edit')
+    expect(returning.result.current.isDirty).toBe(false)
+  })
+})
+
+it('does not replace a newer same-file cache snapshot when a departing write settles', async () => {
+  let finish!: () => void
+  ipcMocks.request.mockImplementation(async (route: string, p: any) => {
+    if (route === 'file.read') return readResult(utf8('before'))
+    if (route === 'file.write_if_unchanged') {
+      await new Promise<void>((r) => (finish = r))
+      return writeResult(2, p.data.length)
+    }
+  })
+  const cache = new Map()
+  const shared = ({ children }: { children: ReactNode }) => (
+    <SWRConfig value={{ provider: () => cache, dedupingInterval: 60000 }}>{children}</SWRConfig>
+  )
+  const first = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+  await waitFor(() => expect(first.result.current.status).toBe('ready'))
+  act(() => first.result.current.setDraft('older completed write'))
+  let pending!: Promise<void>
+  act(() => {
+    pending = first.result.current.flush()
+  })
+  await waitFor(() => expect(writeCalls()).toHaveLength(1))
+  first.unmount()
+  const key = 'file-edit-session/path/' + path
+  cache.set(key, {
+    ...cache.get(key),
+    data: { content: 'newer snapshot', version: { mtime: 3, size: 14 }, lineEnding: 'lf', hasBom: false }
+  })
+  await act(async () => {
+    finish()
+    await pending
+  })
+  expect(cache.get(key).data.content).toBe('newer snapshot')
+})
+
+it('updates the resumed Activity consumer after a successful hidden save', async () => {
+  let disk = 'before',
+    finish!: () => void,
+    current: any
+  ipcMocks.request.mockImplementation(async (route: string, p: any) => {
+    if (route === 'file.read') return readResult(utf8(disk))
+    if (route === 'file.write_if_unchanged') {
+      await new Promise<void>((r) => (finish = r))
+      disk = new TextDecoder().decode(p.data)
+      return writeResult(2, p.data.length)
+    }
+  })
+  const cache = new Map()
+  const Consumer = () => {
+    current = useFileEditSession(handle)
+    return <div>{current.draft}</div>
+  }
+  const App = ({ visible }: { visible: boolean }) => (
+    <SWRConfig value={{ provider: () => cache, dedupingInterval: 60000 }}>
+      <Activity mode={visible ? 'visible' : 'hidden'}>
+        <Consumer />
+      </Activity>
+    </SWRConfig>
+  )
+  const ui = render(<App visible />)
+  await waitFor(() => expect(current.status).toBe('ready'))
+  act(() => current.setDraft('activity saved'))
+  let pending!: Promise<void>
+  act(() => {
+    pending = current.flush()
+  })
+  await waitFor(() => expect(writeCalls()).toHaveLength(1))
+  ui.rerender(<App visible={false} />)
+  await act(async () => {
+    finish()
+    await pending
+  })
+  ui.rerender(<App visible />)
+  await waitFor(() => expect(current.status).toBe('ready'))
+  expect(current.draft).toBe('activity saved')
+  expect(current.isDirty).toBe(false)
+})
+
+it('keeps a newer same-file model draft when the older departing write completes', async () => {
+  let finish!: () => void
+  ipcMocks.request.mockImplementation(async (route: string, p: any) => {
+    if (route === 'file.read') return readResult(utf8('before'))
+    if (route === 'file.write_if_unchanged') {
+      await new Promise<void>((r) => (finish = r))
+      return writeResult(2, p.data.length)
+    }
+  })
+  const cache = new Map()
+  const shared = ({ children }: { children: ReactNode }) => (
+    <SWRConfig value={{ provider: () => cache, dedupingInterval: 60000 }}>{children}</SWRConfig>
+  )
+  const old = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+  await waitFor(() => expect(old.result.current.status).toBe('ready'))
+  act(() => old.result.current.setDraft('old saved'))
+  let pending!: Promise<void>
+  act(() => {
+    pending = old.result.current.flush()
+  })
+  await waitFor(() => expect(writeCalls()).toHaveLength(1))
+  old.unmount()
+  const newer = renderHook(() => useFileEditSession(handle), { wrapper: shared })
+  await waitFor(() => expect(newer.result.current.status).toBe('ready'))
+  act(() => newer.result.current.setDraft('newer unsaved'))
+  await act(async () => {
+    finish()
+    await pending
+  })
+  expect(newer.result.current.draft).toBe('newer unsaved')
+  expect(newer.result.current.isDirty).toBe(true)
+  act(() => newer.result.current.discard())
 })

@@ -153,7 +153,7 @@ export function useFileEditSession(
   const suppressAutosaveRef = useRef(options?.suppressAutosave)
   suppressAutosaveRef.current = options?.suppressAutosave
   const trackDepartingWritesForRelocation = options?.trackDepartingWritesForRelocation ?? false
-  const { mutate } = useSWRConfig()
+  const { cache, mutate } = useSWRConfig()
   const handleKey = handle ? keyOf(handle) : null
   const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(handleKey, () => readFile(handle!), {
     revalidateOnFocus: false,
@@ -179,6 +179,34 @@ export function useFileEditSession(
       void mutate(model.key, snapshot, { revalidate: false })
     },
     [mutate]
+  )
+
+  // A completed write owns the saved bytes even after its editor leaves. Publish
+  // only over its own cached baseline, never over another model's newer snapshot.
+  const cacheCompletedWrite = useCallback(
+    async (model: FileEditModel, snapshot: FileEditSnapshot, baseline: FileEditSnapshot) => {
+      const replaceBaseline = (cached: FileEditSnapshot | undefined) => {
+        const isBaseline =
+          !cached ||
+          (cached.content === baseline.content &&
+            cached.version.mtime === baseline.version.mtime &&
+            cached.version.size === baseline.version.size &&
+            cached.lineEnding === baseline.lineEnding &&
+            cached.hasBom === baseline.hasBom)
+        return isBaseline ? snapshot : cached
+      }
+      try {
+        await mutate(model.key, replaceBaseline, { revalidate: false })
+      } catch (error) {
+        // A provider can be disposed while its final disk write is pending.
+        // Its retained cache still needs the committed snapshot on re-mount.
+        const cachedState = cache.get(model.key)
+        const next = replaceBaseline(cachedState?.data as FileEditSnapshot | undefined)
+        cache.set(model.key, { ...cachedState, data: next })
+        logger.warn('Saved file cache notification failed after departure', error as Error)
+      }
+    },
+    [cache, mutate]
   )
 
   // Mirror a model into React state — only while it is still the active model.
@@ -223,7 +251,7 @@ export function useFileEditSession(
           model.lastWriteError = null
           syncFromModel(model)
           // Keep the SWR cache in step so a later reopen sees the saved bytes.
-          cacheSnapshotIfActive(model, model.snapshot)
+          await cacheCompletedWrite(model, model.snapshot, baseline)
         } catch (writeError) {
           if (writeError instanceof IpcError && writeError.code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
             logger.warn('Autosave bytes committed; metadata recovery is pending', {
@@ -235,7 +263,7 @@ export function useFileEditSession(
               model.snapshot = disk
               model.lastWriteError = writeError
               syncFromModel(model)
-              cacheSnapshotIfActive(model, disk)
+              await cacheCompletedWrite(model, disk, baseline)
               // The bytes did land. Stop this write loop so the same payload
               // is never retried merely because metadata finalization failed.
               // A later user edit may start a new save against the refreshed
@@ -263,14 +291,14 @@ export function useFileEditSession(
               // Disk already holds exactly what we tried to write.
               model.snapshot = disk
               syncFromModel(model)
-              cacheSnapshotIfActive(model, disk)
+              await cacheCompletedWrite(model, disk, baseline)
               continue
             }
             if (disk.content === baseline.content && ++rebases <= MAX_STALE_REBASES) {
               // Metadata-only touch (mtime advanced, content identical) —
               // rebase onto the new version and retry the write.
               model.snapshot = disk
-              cacheSnapshotIfActive(model, disk)
+              await cacheCompletedWrite(model, disk, baseline)
               continue
             }
             model.conflict = true
