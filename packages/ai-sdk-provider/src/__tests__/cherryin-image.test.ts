@@ -1,4 +1,5 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { generateImage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createCherryIn } from '../cherryin-provider'
@@ -108,6 +109,20 @@ describe('CherryIN OpenAI image responses', () => {
       .mockImplementation(fetchReturning(() => jsonResponse({ results: [{ result: payload }] })))
     expect((await imageModel(fetchMock).doGenerate(generateOptions('a cat'))).images).toEqual([payload])
   })
+
+  it.each(['DATA:image/png;base64,', 'data:image/png;base64,'])(
+    'canonicalizes recovered URI for real SDK consumption: %s',
+    async (prefix) => {
+      const payload = PNG_BASE64.slice(0, 20) + '\u00a0' + PNG_BASE64.slice(20)
+      const fetchMock = vi
+        .fn<FetchFunction>()
+        .mockImplementation(fetchReturning(() => jsonResponse({ results: [{ result: prefix + payload }] })))
+      const result = await generateImage({ model: imageModel(fetchMock), prompt: 'a cat', maxRetries: 0 })
+      expect(result.image.base64).toBe(PNG_BASE64)
+      expect(result.image.uint8Array.slice(0, 8)).toEqual(PNG_BYTES)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it('recovers a top-level images url response', async () => {
     const url = 'https://cdn.example.com/generated.png'

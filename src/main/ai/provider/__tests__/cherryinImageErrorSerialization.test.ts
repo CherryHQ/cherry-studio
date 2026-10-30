@@ -32,6 +32,18 @@ const catchNoImage = async (fetchImpl: FetchFunction): Promise<unknown> => {
 const asProviderErrorSource = (error: unknown) => error as { message?: unknown; responseBody?: unknown; data?: unknown }
 
 describe('CherryIN image no-image errors survive provider serialization', () => {
+  it('keeps the billing warning for a successfully captured empty HTTP 200 body', async () => {
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(async () => new Response('', { status: 200 }))
+    const error = await catchNoImage(fetchMock)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(getSafeProviderErrorMessage(asProviderErrorSource(error))).toContain('may have been billed')
+    expect(serializeNestedProviderError(error)).toMatchObject({
+      statusCode: 200,
+      isRetryable: false,
+      message: expect.stringContaining('may have been billed')
+    })
+  })
+
   it('keeps the billing warning after provider-error serialization for an HTTP 200 empty-data response', async () => {
     const fetchMock = vi.fn<FetchFunction>().mockImplementation(async () => jsonResponse({ created: 123, data: [] }))
 

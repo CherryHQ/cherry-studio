@@ -283,7 +283,9 @@ function normalizeImageString(value: string): string | undefined {
   } catch {
     return undefined
   }
-  return /^data:/i.test(trimmed) ? trimmed : compact
+  return /^data:/i.test(trimmed)
+    ? `${trimmed.slice(0, trimmed.indexOf(',')).replace(/^data:/i, 'data:')},${compact}`
+    : compact
 }
 
 function extractSingleImage(item: unknown): string | undefined {
@@ -511,7 +513,7 @@ function withTolerantOpenAIImageResponse(
       return inner.maxImagesPerCall
     },
     async doGenerate(options) {
-      let capture: Promise<string> | undefined
+      let capture: Promise<string | undefined> | undefined
       let captureHeaders: Record<string, string> = {}
       let captureUrl = ''
       let captureStatus = 200
@@ -541,11 +543,11 @@ function withTolerantOpenAIImageResponse(
             (read) => {
               if ('skippedBytes' in read) {
                 skippedBytes = read.skippedBytes
-                return ''
+                return undefined
               }
               return read.text
             },
-            () => ''
+            () => undefined
           )
         } catch {
           // Capture is best-effort; the SDK response stays usable without it.
@@ -594,8 +596,9 @@ function withTolerantOpenAIImageResponse(
       const parseCapturedBody = async (): Promise<
         { rawText: string; parsed: unknown } | { rawText: string; unparsable: true } | undefined
       > => {
-        const rawText = capture ? await capture : ''
-        if (!rawText) return undefined
+        if (!capture) return undefined
+        const rawText = await capture
+        if (rawText === undefined) return undefined
         try {
           return { rawText, parsed: JSON.parse(rawText) }
         } catch {
