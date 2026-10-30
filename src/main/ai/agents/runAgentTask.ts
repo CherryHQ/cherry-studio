@@ -62,6 +62,8 @@ export type AgentTaskInput = {
 export type AgentTaskOutput = {
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
+  /** Structured skip marker: true on every skip path, false on a genuinely attempted run. */
+  skipped: boolean
 }
 
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
@@ -145,8 +147,16 @@ function dependencyBlockReason(metadata: Record<string, unknown> | undefined): s
   if (!jobScheduleService.getById(dependency.taskId)) return 'dependency missing'
   const last = jobService.listRecentTerminalByScheduleId(dependency.taskId, 1)[0]
   if (!last) return 'dependency not run'
-  const result = (last.output as { result?: unknown } | null)?.result
-  if (last.status !== 'completed' || (typeof result === 'string' && result.startsWith('Skipped'))) {
+  const output = last.output as { result?: unknown; skipped?: unknown } | null
+  // The structured marker wins. The text-prefix fallback only classifies runs
+  // persisted before the marker existed (every historical skip marker used the
+  // `Skipped (` form), so old skipped runs keep blocking dependents while a
+  // genuine reply that happens to start with "Skipped" no longer suppresses
+  // the whole chain.
+  const skipped =
+    output?.skipped === true ||
+    (output?.skipped === undefined && typeof output?.result === 'string' && output.result.startsWith('Skipped ('))
+  if (last.status !== 'completed' || skipped) {
     return 'dependency failed'
   }
   const finishedAt = last.finishedAt ? Date.parse(last.finishedAt) : NaN
@@ -169,7 +179,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const blockReason = dependencyBlockReason(scheduleSnapshot?.metadata)
   if (blockReason) {
     logger.info('Task skipped', { scheduleId, reason: blockReason })
-    return { result: `Skipped (${blockReason})` }
+    return { result: `Skipped (${blockReason})`, skipped: true }
   }
 
   const agent = agentService.getAgent(agentId)
@@ -190,7 +200,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   if (isHeartbeat) {
     if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
-      return { result: 'Skipped (disabled)' }
+      return { result: 'Skipped (disabled)', skipped: true }
     }
     // Runtime changes may bypass heartbeat configuration events; recheck capabilities at execution.
     const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
@@ -198,7 +208,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       : undefined
     if (capabilities?.heartbeat !== true) {
       logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
-      return { result: 'Skipped (capability)' }
+      return { result: 'Skipped (capability)', skipped: true }
     }
     const agentsDataRoot = application.getPath('feature.agents.data')
     const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
@@ -231,12 +241,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
             logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
           })
       }
-      return { result: 'Skipped (untrusted agent data path)' }
+      return { result: 'Skipped (untrusted agent data path)', skipped: true }
     }
     const content = await readHeartbeat(agentDataPath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
-      return { result: 'Skipped (no file)' }
+      return { result: 'Skipped (no file)', skipped: true }
     }
     effectivePrompt = [
       '[Heartbeat]',
@@ -371,7 +381,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
-        return { result: 'Skipped (session busy)' }
+        return { result: 'Skipped (session busy)', skipped: true }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
@@ -409,7 +419,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     dispose()
   }
 
-  return { result: resultText.slice(0, 200) || 'Completed' }
+  return { result: resultText.slice(0, 200) || 'Completed', skipped: false }
 }
 
 async function notifyTaskError(
