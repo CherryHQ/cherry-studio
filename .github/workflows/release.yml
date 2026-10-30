@@ -200,6 +200,7 @@ jobs:
       CHERRY_BUILD_CACHE: ${{ inputs.incremental && '1' || '0' }}
       CHERRY_EDITION: ${{ matrix.edition }}
       RELEASE_BUILD_CONTRACT: ${{ needs.prepare.outputs.build-contract }}
+      ENCRYPTED_CACHE_ENABLED: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY != '' }}
     runs-on: ${{ matrix.os == 'windows-latest' && fromJSON('["self-hosted", "windows-signing"]') || matrix.os }}
     permissions:
       contents: read
@@ -260,6 +261,16 @@ jobs:
           restore-keys: |
             release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-
 
+      - name: Restore encrypted JavaScript results
+        if: env.ENCRYPTED_CACHE_ENABLED == 'true' && needs.prepare.outputs.build-contract == 'true'
+        uses: actions/cache/restore@v6
+        continue-on-error: true
+        with:
+          path: .cache/release-build-encrypted
+          key: release-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            release-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-
+
       - name: Clean signing runner dependencies
         if: matrix.os == 'windows-latest' && inputs.clean
         shell: bash
@@ -296,6 +307,7 @@ jobs:
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           SENTRY_SOURCE_MAP_UPLOAD: "true"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          CHERRY_BUILD_CACHE_KEY: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
@@ -325,6 +337,7 @@ jobs:
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           SENTRY_SOURCE_MAP_UPLOAD: "true"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          CHERRY_BUILD_CACHE_KEY: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
@@ -352,6 +365,7 @@ jobs:
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           SENTRY_SOURCE_MAP_UPLOAD: "true"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          CHERRY_BUILD_CACHE_KEY: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
@@ -373,6 +387,14 @@ jobs:
         with:
           path: .cache/release-build
           key: release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ inputs.expected_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save encrypted JavaScript results
+        if: env.ENCRYPTED_CACHE_ENABLED == 'true' && needs.prepare.outputs.build-contract == 'true'
+        uses: actions/cache/save@v6
+        continue-on-error: true
+        with:
+          path: .cache/release-build-encrypted
+          key: release-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload build timings
         if: always() && needs.prepare.outputs.build-contract == 'true'

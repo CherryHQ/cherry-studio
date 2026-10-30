@@ -60,6 +60,38 @@ describe('Sentry production build', () => {
     expect(builds.renderer.build.sourcemap).toBe('hidden')
   })
 
+  it('allows credential-free compilation when the release builder owns Sentry upload', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('SENTRY_SOURCE_MAP_UPLOAD', 'true')
+    vi.stubEnv('CHERRY_SENTRY_DEFER_UPLOAD', '1')
+    for (const key of ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT']) vi.stubEnv(key, undefined)
+    vi.resetModules()
+    const { default: config } = await import('../../electron.vite.config')
+    for (const target of ['main', 'preload', 'renderer'] as const) {
+      const output = (config as Record<string, { build: { sourcemap: unknown }; plugins: { name: string }[] }>)[target]
+      expect(output.build.sourcemap).toBe('hidden')
+      expect(output.plugins.flat().some((plugin) => plugin?.name?.startsWith('sentry'))).toBe(false)
+    }
+  })
+
+  it('exposes the encryption key only to trusted platform builds and caches only the encrypted directory', () => {
+    const workflow = parse(readFileSync(path.join(projectRoot, '.github/workflows/release.yml'), 'utf8'))
+    const release = workflow.jobs.release
+    expect(workflow.jobs.prepare.if).toContain("github.ref == 'refs/heads/main'")
+    expect(release.env).not.toHaveProperty('CHERRY_BUILD_CACHE_KEY')
+    expect(
+      release.steps
+        .filter((step: { env?: Record<string, string> }) => step.env?.CHERRY_BUILD_CACHE_KEY)
+        .map((step: { name: string }) => step.name)
+    ).toEqual(['Build Linux', 'Build Mac', 'Build Windows'])
+    const encrypted = release.steps.filter((step: { name: string }) => /encrypted JavaScript/.test(step.name))
+    expect(encrypted).toHaveLength(2)
+    for (const step of encrypted) {
+      expect(step.with.path).toBe('.cache/release-build-encrypted')
+      expect(step.if).toContain("env.ENCRYPTED_CACHE_ENABLED == 'true'")
+    }
+  })
+
   it.each(workflowFiles)('%s provides credentials for steps that enable source-map upload', (filename) => {
     type BuildEnvironment = Record<string, string>
     const workflow = parse(readFileSync(path.join(projectRoot, '.github/workflows', filename), 'utf8')) as {

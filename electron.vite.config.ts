@@ -43,7 +43,10 @@ const SENTRY_UPLOAD_ENV_KEYS = ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJE
 
 export function resolveSentryBuildSettings(env: NodeJS.ProcessEnv) {
   const sourceMapUploadEnabled = env.NODE_ENV === 'production' && env.SENTRY_SOURCE_MAP_UPLOAD === 'true'
-  const missingUploadEnv = sourceMapUploadEnabled ? SENTRY_UPLOAD_ENV_KEYS.filter((key) => !env[key]?.trim()) : []
+  const missingUploadEnv =
+    sourceMapUploadEnabled && env.CHERRY_SENTRY_DEFER_UPLOAD !== '1'
+      ? SENTRY_UPLOAD_ENV_KEYS.filter((key) => !env[key]?.trim())
+      : []
 
   if (missingUploadEnv.length > 0) {
     throw new Error(`Sentry production builds require: ${missingUploadEnv.join(', ')}`)
@@ -63,7 +66,7 @@ const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, renderer
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
 const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
-  sourceMapUploadEnabled
+  sourceMapUploadEnabled && process.env.CHERRY_SENTRY_DEFER_UPLOAD !== '1'
     ? sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
         org: process.env.SENTRY_ORG,

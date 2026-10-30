@@ -106,5 +106,6 @@ YOUR_MEMORY_FILE_PATH
 
 # Disposable incremental release outputs
 .cache/release-build/
+.cache/release-build-encrypted/
 .cache/release-build-metrics/
 resources/cherry-studio/release-info.json

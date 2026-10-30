@@ -4,13 +4,18 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { build } from 'vite'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { cacheBypassReason, hasDeclaredInputs, javascriptTask } from '../release/build-app'
+import { cacheBypassReason, hasDeclaredInputs, javascriptTask, taskEnvironment } from '../release/build-app'
 import { restoreTask, saveTask } from '../release/build-cache'
 import { buildInputGuard } from '../release/buildInputGuard'
 
 const roots: string[] = []
+beforeEach(() => {
+  for (const key of Object.keys(process.env)) {
+    if (/(^|_)VITE_/.test(key)) vi.stubEnv(key, undefined)
+  }
+})
 function write(root: string, file: string, content: string) {
   mkdirSync(dirname(join(root, file)), { recursive: true })
   writeFileSync(join(root, file), content)
@@ -35,7 +40,10 @@ function fixture() {
     write(root, file, 'original')
   return root
 }
-afterEach(() => roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true })))
+afterEach(() => {
+  roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true }))
+  vi.unstubAllEnvs()
+})
 
 describe('release build input boundaries', () => {
   it('does not rebuild renderer for a main-only hotfix and release notes', () => {
@@ -72,16 +80,49 @@ describe('release build input boundaries', () => {
     expect(hasDeclaredInputs(root, 'renderer')).toBe(true)
   })
 
-  it('bypasses secret-bearing builds, upload side effects, and local dotenv files', () => {
+  it('requires encryption for injected values, Sentry maps and local dotenv files', () => {
     const root = fixture()
     expect(cacheBypassReason(root, {})).toBe('disabled')
     expect(cacheBypassReason(root, { CHERRY_BUILD_CACHE: '1' })).toBeNull()
-    expect(cacheBypassReason(root, { CHERRY_BUILD_CACHE: '1', SENTRY_SOURCE_MAP_UPLOAD: 'true' })).toBe('sentry-upload')
+    expect(cacheBypassReason(root, { CHERRY_BUILD_CACHE: '1', SENTRY_SOURCE_MAP_UPLOAD: 'true' })).toBe(
+      'encryption-key-required'
+    )
     expect(cacheBypassReason(root, { CHERRY_BUILD_CACHE: '1', MAIN_VITE_CLIENT_SECRET: 'secret' })).toBe(
-      'build-environment'
+      'encryption-key-required'
     )
     write(root, '.env.production', 'MAIN_VITE_CLIENT_SECRET=secret')
     expect(cacheBypassReason(root, { CHERRY_BUILD_CACHE: '1' })).toBe('dotenv')
+    expect(cacheBypassReason(root, { CHERRY_BUILD_CACHE: '1', CHERRY_BUILD_CACHE_KEY: 'a'.repeat(64) })).toBeNull()
+  })
+
+  it('invalidates only the relevant task for effective configuration and excludes upload credentials', () => {
+    const root = fixture()
+    const env = { CHERRY_BUILD_CACHE_KEY: 'a'.repeat(64), MAIN_VITE_CLIENT_SECRET: 'first' }
+    const main = javascriptTask(root, 'main', env)
+    const renderer = javascriptTask(root, 'renderer', env)
+    const changed = { ...env, MAIN_VITE_CLIENT_SECRET: 'rotated' }
+    expect(javascriptTask(root, 'main', changed).key).not.toBe(main.key)
+    expect(javascriptTask(root, 'renderer', changed).key).toBe(renderer.key)
+    expect(javascriptTask(root, 'main', { ...env, SENTRY_AUTH_TOKEN: 'new-upload-token' }).key).toBe(main.key)
+    expect(javascriptTask(root, 'main', { ...env, SENTRY_SOURCE_MAP_UPLOAD: 'true' }).key).not.toBe(main.key)
+    expect(javascriptTask(root, 'main', { ...env, CHERRY_BUILD_CACHE_KEY: 'b'.repeat(64) }).key).not.toBe(main.key)
+    expect(JSON.stringify(main)).not.toContain('first')
+    expect(JSON.stringify(main)).not.toContain(env.CHERRY_BUILD_CACHE_KEY)
+    expect(main.cacheRoot).toBe(join(root, '.cache/release-build-encrypted'))
+  })
+
+  it('uses Vite dotenv precedence, expansion and process overrides for cache invalidation', () => {
+    const root = fixture()
+    const env = { CHERRY_BUILD_CACHE_KEY: 'a'.repeat(64) }
+    write(root, '.env', 'HOST=base\nRENDERER_VITE_URL=https://${HOST}')
+    write(root, '.env.production', 'HOST=production')
+    expect(taskEnvironment(root, 'renderer', env)).toEqual({ RENDERER_VITE_URL: 'https://production' })
+    const initial = javascriptTask(root, 'renderer', env)
+    write(root, '.env.production.local', 'HOST=local')
+    expect(taskEnvironment(root, 'renderer', env)).toEqual({ RENDERER_VITE_URL: 'https://local' })
+    expect(javascriptTask(root, 'renderer', env).key).not.toBe(initial.key)
+    vi.stubEnv('RENDERER_VITE_URL', 'https://override')
+    expect(taskEnvironment(root, 'renderer', process.env)).toEqual({ RENDERER_VITE_URL: 'https://override' })
   })
   it('restores executable output and rebuilds after adding a new import', async () => {
     const root = fixture()
