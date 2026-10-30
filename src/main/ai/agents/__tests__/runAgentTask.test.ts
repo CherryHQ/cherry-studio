@@ -378,8 +378,9 @@ describe('runAgentTask', () => {
 
     function arm(dependsOn: Record<string, unknown>, runs: unknown[]) {
       vi.mocked(jobService.getById).mockReturnValue(makeJobSnapshot())
-      vi.mocked(jobScheduleService.getById).mockImplementation(((id: string) =>
-        id === 'dep' ? makeSchedule('dep') : makeSchedule('b', { dependsOn })) as never)
+      vi.mocked(jobScheduleService.getById).mockImplementation((id: string) =>
+        id === 'dep' ? makeSchedule('dep') : makeSchedule('b', { dependsOn })
+      )
       vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValue(runs as never)
       vi.mocked(agentService.getAgent).mockReturnValue(makeAgent())
       vi.mocked(agentSessionService.create).mockReturnValue(makeSession('/ws/a'))
