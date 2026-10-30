@@ -58,6 +58,9 @@ Used only by `reindexItems`.
 
 - Runs after selected item ids have been collapsed to top-level roots.
 - Loads each selected root subtree with roots included.
+- Rejects active document ownership only for non-root descendants that a
+  selected container rebuild would delete. A directly selected external leaf
+  remains owned by the same document and may rebuild from its pinned snapshot.
 - Allows reindex only when every item in every selected subtree is terminal: `completed` or `failed`.
 - Rejects active or deleting subtree state: `idle`, `preparing`, `processing`, `reading`, `embedding`, or `deleting`.
 - Probes each selected root before vector deletion. A confirmed missing file or
@@ -147,13 +150,21 @@ deleteItems(baseId, itemIds)
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
   -> under same-base mutation lock and one DB transaction:
+       reject if any selected root's recursive subtree has an active document owner
        mark selected root subtrees deleting
        enqueue knowledge.delete-subtree
        idempotency key = knowledge:${baseId}:${sorted root ids}:delete
   -> if the transaction or enqueue throws:
-       roll back the deleting status write
+       roll back every deleting status write and the enqueue
        rethrow
 ```
+
+The ownership check projects matches back to the selected roots with one
+recursive query before the status update. It therefore does not materialize an
+unbounded descendant list into a SQLite `IN` clause. The check, status update,
+and enqueue share one synchronous `BEGIN IMMEDIATE` transaction, so ownership
+cannot race the accepted delete intent. If an active owner is found, no item
+status is changed and no job becomes durable.
 
 ### Why Enqueue Failure Rolls Back `deleting`
 
@@ -199,6 +210,7 @@ reindexItems(baseId, itemIds)
   -> reject items outside baseId
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
+  -> reject active-owned descendants that container cleanup would delete
   -> reject unless every selected root source is available
   -> under the base mutation lock:
        reject unless every selected root subtree is completed or failed
@@ -225,6 +237,8 @@ The reindex entrypoint only accepts the durable jobs, one per selected root. It 
 
 The reindex job owns the destructive and stateful work:
 
+- recheck active external ownership for descendants that selected container
+  roots would delete;
 - clear vectors for resolved leaf items;
 - delete previous container descendants when selected roots are containers;
 - keep selected leaf root source-file metadata because those root items still own their source files;
@@ -261,6 +275,25 @@ Because those active statuses are written before `scheduleItem`, the handler mus
 Knowledge source files are Knowledge-owned raw files, not FileManager refs. Reindex must not detach FileManager refs for selected leaf roots because there are none to detach; the root `knowledge_item` rows remain alive and read `data.relativePath` / `data.indexedRelativePath`.
 
 Leaf indexing reads from the current `knowledge_item.data` and rewrites derived vector material. Stale descendants from a container expansion are removed through the delete-subtree cleanup path, which purges vectors/files and then deletes rows.
+
+### Ownership Admission On Every Purge Path
+
+Every ordinary subtree purge rejects active `ExternalKnowledgeDocument`
+ownership before deleting vectors, Knowledge-owned files, or rows. This covers
+add-with-replace, stale descendant cleanup in `prepare-root`, and container
+descendant cleanup during reindex. The already-admitted delete job is distinct:
+its ownership check was part of the transaction that marked the subtree
+`deleting` and enqueued the job.
+
+Reindex checks active ownership only for descendants that selected container
+roots would delete, and repeats that check under the base mutation lock before
+status or artifact mutation. A directly selected active-owned external leaf is
+not deleted: its row and pinned snapshot remain in place while its derived
+index is rebuilt, so ownership does not reject that operation. The locked
+descendant check closes the race in which a future owner writer binds an item
+after admission but before container cleanup. The future writer must
+independently reject `deleting` items so ownership cannot be introduced after
+delete admission.
 
 ## `enableEmbeddingModel`
 
@@ -313,6 +346,7 @@ knowledge.prepare-root(baseId, itemId)
   -> under same-base mutation lock:
        find previous descendants
        ignore descendants already deleting
+       reject active document-owned removable descendants
        clear vectors for removable leaf descendants
        purge Knowledge-owned raw/indexed files for removable leaf descendants
        delete removable descendants by resolved id
@@ -349,8 +383,8 @@ When changing these operations, check the operation-specific failure behavior be
 | Operation | Failed base | Root collapse | Extra status guard | State before enqueue | Enqueue failure |
 | --- | --- | --- | --- | --- | --- |
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
-| `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
-| `reindexItems` | Reject | Yes | Selected root sources available; entire subtree terminal, re-checked under the base lock | None | Throw; no active state was written |
+| `deleteItems` | Allow | Yes | No active document-owned item in any selected subtree | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
+| `reindexItems` | Reject | Yes | No active external owner among descendants container cleanup would delete; selected root sources available; entire subtree terminal, re-checked under the base lock | None | Throw; no active state was written |
 | `enableEmbeddingModel` | Reject | All `completed` leaves | BM25-only base; every root subtree terminal (no source check); no active reindex job; both read under the base lock | Model/dimensions and every `completed` leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 

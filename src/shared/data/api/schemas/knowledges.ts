@@ -137,8 +137,12 @@ export type ReorderKnowledgeBaseDto = z.infer<typeof ReorderKnowledgeBaseSchema>
 export type ListKnowledgeItemsQueryParams = z.input<typeof ListKnowledgeItemsQuerySchema>
 export type ListKnowledgeItemsQuery = z.output<typeof ListKnowledgeItemsQuerySchema>
 
-export interface KnowledgeItemListResponse extends CursorPaginationResponse<KnowledgeItem> {
-  items: KnowledgeItem[]
+export type KnowledgeItemListItem = KnowledgeItem & {
+  canDelete: boolean
+}
+
+export interface KnowledgeItemListResponse extends CursorPaginationResponse<KnowledgeItemListItem> {
+  items: KnowledgeItemListItem[]
   total: number
 }
 

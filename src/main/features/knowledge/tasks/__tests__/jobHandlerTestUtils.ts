@@ -5,6 +5,7 @@ import type { JobContext } from '@main/core/job/types'
 import type * as FsUtils from '@main/utils/file'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
@@ -224,7 +225,11 @@ vi.mock('../../pipeline/indexing/localEmbeddingTokenLimit', () => ({
 export const { createCopySourcesJobHandler } = await import('../copySourcesJobHandler')
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
 export const { createCheckFileProcessingResultJobHandler } = await import('../checkFileProcessingResultJobHandler')
-export const { createIndexDocumentsJobHandler } = await import('../indexDocumentsJobHandler')
+export const { createIndexKnowledgeItem, prepareKnowledgeMaterial } = await import('../../ingestion/indexKnowledgeItem')
+const { createIndexDocumentsJobHandler: createActualIndexDocumentsJobHandler } =
+  await import('../indexDocumentsJobHandler')
+export const createIndexDocumentsJobHandler = (lockManager: KeyedMutex) =>
+  createActualIndexDocumentsJobHandler(createIndexKnowledgeItem(lockManager))
 export const { createPrepareRootJobHandler } = await import('../prepareRootJobHandler')
 export const { createReindexSubtreeJobHandler } = await import('../reindexSubtreeJobHandler')
 export const { FileProcessingWaitManager } = await import('../../ingestion/FileProcessingWaitManager')
@@ -309,6 +314,24 @@ export function createFileItem(
     type: 'file',
     data: { source: '/docs/source.pdf', relativePath: FILE_RELATIVE_PATH },
     status,
+    error: null,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+export function createExternalItem(id = 'external-1'): KnowledgeItemOf<'external'> {
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId: null,
+    type: 'external',
+    data: {
+      source: 'feishu://document/doc-1',
+      title: 'External doc',
+      relativePath: 'external.md' as PosixRelativeFilePath
+    },
+    status: 'processing',
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'

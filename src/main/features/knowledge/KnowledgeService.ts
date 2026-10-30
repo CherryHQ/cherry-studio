@@ -26,6 +26,7 @@ import {
 } from './external/ExternalKnowledgeRuntime'
 import { FEISHU_REQUIRED_USER_SCOPES } from './external/feishuKnowledgeProvider'
 import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
+import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
@@ -63,6 +64,7 @@ const FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS = 5_000
 ])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
+  private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)
   private readonly fileProcessingWaits = new FileProcessingWaitManager()
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager, this.fileProcessingWaits)
   private readonly baseAdmin = new KnowledgeBaseAdminService(
@@ -86,7 +88,7 @@ export class KnowledgeService extends BaseService {
       'knowledge.prepare-root',
       createPrepareRootJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
-    jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.knowledgeLockManager))
+    jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.indexKnowledgeItem))
     jobManager.registerHandler(
       'knowledge.check-file-processing-result',
       createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.ingestionService)

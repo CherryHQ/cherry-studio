@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   type CreateKnowledgeBaseDto,
-  type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
   type KnowledgeBase,
   type KnowledgeItem,
@@ -15,7 +14,7 @@ import {
 import type { KeyedMutex } from '@shared/utils/async'
 
 import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
-import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
+import type { KnowledgeIngestionService, KnowledgeRestoreItemInput } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemRestoreSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
@@ -163,7 +162,7 @@ export class KnowledgeBaseAdminService {
     const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
-      await this.ingestionService.addItems(restoredBase.id, inputs, undefined, { copyInline: true })
+      await this.ingestionService.restoreItems(restoredBase.id, inputs)
     } catch (error) {
       try {
         await this.deleteBase(restoredBase.id)
@@ -199,7 +198,7 @@ export class KnowledgeBaseAdminService {
     return total > 0
   }
 
-  private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeAddItemInput {
+  private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeRestoreItemInput {
     try {
       if (item.type === 'file') {
         return KnowledgeAddItemInputSchema.parse({
@@ -244,6 +243,17 @@ export class KnowledgeBaseAdminService {
           // free and deterministic, so there is no snapshot file to carry across.
           data: { source: item.data.source, content: item.data.content }
         })
+      }
+
+      if (item.type === 'external') {
+        return {
+          type: 'external',
+          data: {
+            source: item.data.source,
+            title: item.data.title,
+            snapshotPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath)
+          }
+        }
       }
 
       return KnowledgeAddItemInputSchema.parse({
