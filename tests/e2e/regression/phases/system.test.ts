@@ -319,11 +319,18 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
 
 test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(180_000)
-  const permission = await page.evaluate(() => window.api.ipcApi.request('system.mac.screen_capture_status'))
-  expect(permission, 'UNCOVERED: screen recording permission is required').toMatchObject({
-    ok: true,
-    data: 'authorized'
-  })
+  const permission = (await page.evaluate(() => window.api.ipcApi.request('system.mac.screen_capture_status'))) as {
+    ok: boolean
+    data?: string
+    error?: { message: string }
+  }
+  // A transport failure is a real defect; an unavailable grant is a missing prerequisite.
+  expect(permission.ok, permission.error?.message ?? 'system.mac.screen_capture_status failed').toBe(true)
+  if (permission.data !== 'authorized') {
+    // Controller-screen-capture availability says nothing about Electron's own TCC grant, so an
+    // unavailable permission must be blocked rather than reported as a regression (see MP-127).
+    test.skip(true, `UNCOVERED: macOS screen recording permission is ${permission.data ?? 'unknown'}`)
+  }
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
 
   const original = await page.evaluate(async () => ({
