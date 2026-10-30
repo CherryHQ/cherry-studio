@@ -52,7 +52,7 @@ export class MemoryDreamingService extends BaseService {
     application.get('JobManager').registerHandler('memory.dreaming', memoryDreamingJobHandler)
   }
 
-  protected onStart(): void {
+  protected override onReady(): void {
     this.stopped = false
     for (const state of readDreamingStates()) {
       state.generation++
