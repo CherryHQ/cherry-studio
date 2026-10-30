@@ -332,7 +332,7 @@ export class AiStreamManager extends BaseService {
   public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
   private readonly completedBatchTasks = new Map<string, Set<string>>()
-  private readonly failedCompletionTopics = new Set<string>()
+  private readonly failedCompletionAttempts = new Map<string, Set<number>>()
   /** Serialises `prepareDispatch → send` per topic so concurrent `ai.stream.open` requests can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
@@ -649,7 +649,7 @@ export class AiStreamManager extends BaseService {
 
   protected onDestroy(): void {
     this.completedBatchTasks.clear()
-    this.failedCompletionTopics.clear()
+    this.failedCompletionAttempts.clear()
     this._onApprovalRequested.dispose()
     this._onConversationCompleted.dispose()
   }
@@ -788,6 +788,10 @@ export class AiStreamManager extends BaseService {
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
       existing.executions.set(model.modelId, nextExecution)
+      const failures = this.failedCompletionAttempts.get(input.topicId)
+      if (previous && failures?.delete(previous.attemptId) && failures.size === 0) {
+        this.failedCompletionAttempts.delete(input.topicId)
+      }
       existing.isMultiModel = existing.executions.size > 1
       existing.status = hasLiveSibling ? 'streaming' : 'pending'
       existing.lifecycle.onActiveExecutionsChanged(existing)
@@ -1448,7 +1452,7 @@ export class AiStreamManager extends BaseService {
         for (const taskId of execution.taskIds ?? [stream.turnId]) tasks.add(taskId)
       }
       this.completedBatchTasks.set(topicId, tasks)
-      stream.completedTaskCount = this.failedCompletionTopics.has(topicId) ? 0 : tasks.size
+      stream.completedTaskCount = this.failedCompletionAttempts.has(topicId) ? 0 : tasks.size
     }
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
@@ -1480,7 +1484,7 @@ export class AiStreamManager extends BaseService {
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
 
     // Mixed done/aborted topics resolve to done, but cancelled work cannot complete a notification batch.
-    this.failedCompletionTopics.add(topicId)
+    this.markCompletionFailed(topicId, exec.attemptId)
     stream.completedTaskCount = 0
 
     // A turn torn down while a tool is still `approval-requested` (or any
@@ -1569,7 +1573,7 @@ export class AiStreamManager extends BaseService {
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
+      await this.dispatchToListeners(stream, exec, 'onError', (listener) => listener.onError(result))
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
       if (this.activeStreams.get(topicId) !== stream) return
@@ -1589,7 +1593,7 @@ export class AiStreamManager extends BaseService {
    *  rows in the renderer is the renderer slice's responsibility, not handled here. */
   private dropPendingSteers(topicId: string, reason: 'aborted' | 'error'): void {
     this.completedBatchTasks.delete(topicId)
-    this.failedCompletionTopics.delete(topicId)
+    this.failedCompletionAttempts.delete(topicId)
     const dropped = this.pendingSteers.get(topicId)
     if (dropped?.length) {
       logger.warn('Dropping queued steers without answering', {
@@ -1702,7 +1706,7 @@ export class AiStreamManager extends BaseService {
     stream.lifecycle.onTerminal(stream)
     if (stream.status !== 'awaiting-approval') {
       this.completedBatchTasks.delete(stream.topicId)
-      this.failedCompletionTopics.delete(stream.topicId)
+      this.failedCompletionAttempts.delete(stream.topicId)
     }
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
@@ -2126,7 +2130,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
+    await this.dispatchToListeners(stream, exec, 'onDone', (listener) => listener.onDone(result))
   }
 
   private async broadcastExecutionPaused(
@@ -2146,7 +2150,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
+    await this.dispatchToListeners(stream, exec, 'onPaused', (listener) => listener.onPaused(result))
   }
 
   private getTopicAttemptWatermark(stream: ActiveStream): number {
@@ -2157,12 +2161,19 @@ export class AiStreamManager extends BaseService {
     return watermark
   }
 
+  private markCompletionFailed(topicId: string, attemptId: number): void {
+    const failures = this.failedCompletionAttempts.get(topicId) ?? new Set<number>()
+    failures.add(attemptId)
+    this.failedCompletionAttempts.set(topicId, failures)
+  }
+
   /**
    * Skips dead listeners and isolates throws. Persistence finishes before renderer/runtime
    * notification, while cleanup work remains last.
    */
   private async dispatchToListeners(
     stream: ActiveStream,
+    exec: StreamExecution,
     event: 'onDone' | 'onPaused' | 'onError',
     invoke: (listener: StreamListener) => void | Promise<void>
   ): Promise<void> {
@@ -2192,7 +2203,7 @@ export class AiStreamManager extends BaseService {
         await invoke(listener)
       } catch (err) {
         if (listener.terminalPhase === 'persistence' && err instanceof TerminalPersistenceError) {
-          this.failedCompletionTopics.add(stream.topicId)
+          this.markCompletionFailed(stream.topicId, exec.attemptId)
           stream.completedTaskCount = 0
           suppressNotification = true
           continue

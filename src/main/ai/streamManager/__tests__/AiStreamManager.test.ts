@@ -3927,6 +3927,59 @@ describe('AiStreamManager', () => {
       expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 7 })
     })
 
+    it.each(['none', 'paused', 'persistence'] as const)(
+      'reports a successful retry only when no sibling failure remains: %s',
+      async (remaining) => {
+        const topicId = 'retry-completion'
+        const aborted = new AbortController()
+        const siblingAbort = new AbortController()
+        const listener = new FakeListener('retry-observer')
+        const persistence = new FakeListener('retry-persistence', 'persistence')
+        persistence.onDoneImpl = (result) => {
+          if (remaining === 'persistence' && result.modelId === 'p::b')
+            throw new TerminalPersistenceError('write failed')
+        }
+        mockGetMessageById.mockImplementation((id) => ({
+          id,
+          role: 'assistant',
+          topicId,
+          parentId: 'user-1',
+          siblingsGroupId: 7
+        }))
+        mgr.send({
+          topicId,
+          isPersistentConversation: true,
+          siblingsGroupId: 7,
+          models: [
+            { modelId: 'p::a', request: { ...req(topicId), messageId: 'assistant-a' }, abortController: aborted },
+            { modelId: 'p::b', request: { ...req(topicId), messageId: 'assistant-b' }, abortController: siblingAbort },
+            ...(remaining === 'none' ? [] : [{ modelId: 'p::c' as const, request: req(topicId) }])
+          ],
+          listeners: [listener, persistence]
+        })
+        aborted.abort('user-requested')
+        await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(1))
+        if (remaining === 'paused') {
+          siblingAbort.abort('user-requested')
+          await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(2))
+        } else if (remaining === 'persistence') await mgr.onExecutionDone(topicId, 'p::b')
+        await expect(mgr.awaitExecutionRetry(topicId, 'p::a', 'assistant-a', 'user-1', 7)).resolves.toMatchObject({
+          mode: 'replace-live'
+        })
+        mgr.send({
+          topicId,
+          siblingsGroupId: 7,
+          models: [{ modelId: 'p::a', request: { ...req(topicId), messageId: 'assistant-a' } }],
+          listeners: [],
+          liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 }
+        })
+        await mgr.onExecutionDone(topicId, 'p::a')
+        expect(conversationCompletedEvents).toEqual([])
+        await mgr.onExecutionDone(topicId, remaining === 'none' ? 'p::b' : 'p::c')
+        expect(conversationCompletedEvents).toHaveLength(remaining === 'none' ? 1 : 0)
+      }
+    )
+
     it('reports one persistent assistant completion after all models finish', async () => {
       vi.setSystemTime(1_234)
 
