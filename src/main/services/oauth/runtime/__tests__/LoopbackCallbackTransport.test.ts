@@ -1,6 +1,6 @@
 import type { Server } from 'node:http'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LoopbackCallbackTransport } from '../LoopbackCallbackTransport'
 
@@ -86,13 +86,32 @@ describe('LoopbackCallbackTransport', () => {
     const blocked = new LoopbackCallbackTransport({ ...CONFIG, port })
     try {
       const code = blocked.waitForAuthorizationCode('other', AbortSignal.timeout(5000))
-      const rejection = expect(code).rejects.toThrow(/Failed to start OAuth callback server/)
-      await expect(blocked.ready).rejects.toThrow(/Failed to start OAuth callback server/)
+      const rejection = expect(code).rejects.toMatchObject({ failure: { reason: 'callback_unavailable' } })
+      await expect(blocked.ready).rejects.toMatchObject({ failure: { reason: 'callback_unavailable' } })
       await rejection
     } finally {
       blocked.close()
       await fetch(`http://127.0.0.1:${port}/callback?code=ok&state=expected`)
       await first
+    }
+  })
+
+  it('classifies a callback listener close failure without copying its message', async () => {
+    const code = transport.waitForAuthorizationCode('expected', new AbortController().signal)
+    await transport.ready
+    const servers = (transport as unknown as { activeServers: Server[] }).activeServers
+    const close = vi.spyOn(servers[0], 'close').mockImplementationOnce(() => {
+      throw new Error('TOKEN_MARKER')
+    })
+    try {
+      expect(() => transport.close()).toThrowError(
+        expect.objectContaining({ failure: { reason: 'callback_unavailable', phase: 'callback' } })
+      )
+    } finally {
+      close.mockRestore()
+      const port = await activePort(transport)
+      await fetch(`http://127.0.0.1:${port}/callback?code=ok&state=expected`)
+      await code
     }
   })
 
@@ -104,7 +123,7 @@ describe('LoopbackCallbackTransport', () => {
 
     controller.abort()
 
-    await expect(transport.ready).rejects.toThrow(/closed before it started listening/)
+    await expect(transport.ready).rejects.toMatchObject({ failure: { reason: 'callback_unavailable' } })
     await codeRejection
     expect(transport.isActive).toBe(false)
     expect(transport.tryAcquire()).toBe(true)
@@ -114,7 +133,7 @@ describe('LoopbackCallbackTransport', () => {
     const promise = transport.waitForAuthorizationCode('expected', AbortSignal.timeout(5000))
     const port = await activePort(transport)
 
-    const rejection = expect(promise).rejects.toThrow(/access_denied/)
+    const rejection = expect(promise).rejects.toMatchObject({ failure: { reason: 'authorization_denied' } })
     await fetch(`http://127.0.0.1:${port}/callback?error=access_denied&state=expected`)
     await rejection
   })

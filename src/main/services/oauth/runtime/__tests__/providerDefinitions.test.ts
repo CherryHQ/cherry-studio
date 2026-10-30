@@ -15,10 +15,7 @@ import { oauthProviderDefinitions } from '../providerDefinitions'
 import { cherryInOAuthProvider } from '../providers/cherryin'
 
 function discoveryResponse(authorizationEndpoint: string, tokenEndpoint: string): Response {
-  return {
-    ok: true,
-    json: async () => ({ authorization_endpoint: authorizationEndpoint, token_endpoint: tokenEndpoint })
-  } as unknown as Response
+  return Response.json({ authorization_endpoint: authorizationEndpoint, token_endpoint: tokenEndpoint })
 }
 
 function base64UrlJson(value: unknown): string {
@@ -54,7 +51,9 @@ describe('Grok OIDC discovery host-pinning', () => {
     vi.mocked(net.fetch).mockResolvedValue(
       discoveryResponse('https://auth.x.ai/oauth2/auth', 'https://evil.example/token')
     )
-    await expect(oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()).rejects.toThrow(/unexpected endpoint/)
+    await expect(oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()).rejects.toMatchObject({
+      failure: { reason: 'invalid_response' }
+    })
   })
 
   it('forwards the sign-in cancellation signal to the discovery request', async () => {
@@ -65,11 +64,45 @@ describe('Grok OIDC discovery host-pinning', () => {
 
     await expect(
       oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient({ signal: controller.signal })
-    ).rejects.toThrow(/unexpected endpoint/)
+    ).rejects.toMatchObject({ failure: { reason: 'invalid_response' } })
     expect(net.fetch).toHaveBeenCalledWith('https://auth.x.ai/.well-known/openid-configuration', {
       headers: { Accept: 'application/json' },
       signal: controller.signal
     })
+    const combined = vi.mocked(net.fetch).mock.calls[0][1]?.signal
+    controller.abort()
+    expect(combined?.aborted).toBe(true)
+  })
+
+  it.each([400, 408, 503])('retains a real discovery HTTP status %s', async (status) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(new Response('TOKEN_MARKER', { status }))
+    await expect(oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()).rejects.toMatchObject({ status })
+  })
+
+  it('classifies discovery fetch rejection without treating parse errors as network', async () => {
+    vi.mocked(net.fetch).mockRejectedValueOnce(new TypeError('TOKEN_MARKER'))
+    await expect(oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()).rejects.toMatchObject({
+      failure: { reason: 'network' }
+    })
+    vi.mocked(net.fetch).mockResolvedValueOnce(new Response('{TOKEN_MARKER'))
+    await expect(oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()).rejects.toMatchObject({
+      failure: { reason: 'invalid_response' }
+    })
+    vi.mocked(net.fetch).mockResolvedValueOnce(Response.json({ token_endpoint: 123 }))
+    await expect(oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()).rejects.toMatchObject({
+      failure: { reason: 'invalid_response' }
+    })
+  })
+
+  it('distinguishes an expired discovery signal from a transport failure', async () => {
+    const deadline = new AbortController()
+    vi.mocked(net.fetch).mockImplementationOnce(async () => {
+      deadline.abort()
+      throw deadline.signal.reason
+    })
+    await expect(
+      oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient({ signal: deadline.signal })
+    ).rejects.toMatchObject({ failure: { reason: 'request_timeout' } })
   })
 
   it('caches discovery after the first successful fetch', async () => {

@@ -75,7 +75,12 @@ vi.mock('../providerDefinitions', () => ({
   }
 }))
 
-import { OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../../errors'
+import {
+  OAuthSignInFailureError,
+  OAuthServiceError,
+  OAuthSignInCancelledError,
+  OAuthTransientError
+} from '../../errors'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
 import { OAuthHttpError } from '../PkceOAuthClient'
 
@@ -530,6 +535,101 @@ describe('OAuthRuntimeService', () => {
     expect(error).toBeInstanceOf(OAuthServiceError)
     expect(error).not.toBeInstanceOf(OAuthSignInCancelledError)
     expect(error).toHaveProperty('cause', expect.objectContaining({ message: 'token exchange failed' }))
+    expect(error).toHaveProperty('failure', { reason: 'unknown', phase: 'exchange' })
+  })
+
+  it.each(['before-ready', 'after-ready', 'pending-browser', 'discovery'])(
+    'reports a deadline as timeout rather than cancellation: %s',
+    async (stage) => {
+      const deadline = new AbortController()
+      const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal)
+      let listening!: () => void
+      h.transportMock.ready = new Promise<void>((resolve) => {
+        listening = resolve
+      })
+      h.transportMock.waitForAuthorizationCode.mockImplementation(
+        (_state, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+      if (stage === 'discovery') {
+        h.createClientMock.mockImplementationOnce(
+          (context) =>
+            new Promise((_resolve, reject) => {
+              context?.signal?.addEventListener('abort', () => reject(context.signal?.reason), { once: true })
+            })
+        )
+      }
+      if (stage === 'pending-browser') vi.mocked(shell.openExternal).mockReturnValueOnce(new Promise(() => {}))
+      try {
+        const outcome = service.signIn('win-1', 'codex', 'deadline').catch((error: unknown) => error)
+        if (stage !== 'discovery')
+          await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledOnce())
+        if (stage === 'after-ready' || stage === 'pending-browser') {
+          listening()
+          await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledOnce())
+        }
+        deadline.abort(new DOMException('deadline', 'TimeoutError'))
+        listening()
+        expect(await outcome).toMatchObject({
+          failure: {
+            reason: stage === 'discovery' ? 'request_timeout' : 'callback_timeout',
+            phase: stage === 'discovery' ? 'discovery' : 'callback'
+          }
+        })
+        expect(await outcome).not.toBeInstanceOf(OAuthSignInCancelledError)
+        expect(timeout).toHaveBeenCalledWith(600_000)
+      } finally {
+        timeout.mockRestore()
+      }
+    }
+  )
+
+  it('classifies only the rejected browser promise, preserving a callback failure that wins the race', async () => {
+    vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error('browser blocked'))
+    h.transportMock.waitForAuthorizationCode.mockReturnValueOnce(new Promise(() => {}))
+    await expect(service.signIn('win-1', 'codex', 'browser')).rejects.toMatchObject({
+      failure: { reason: 'browser_open_failed', phase: 'callback' }
+    })
+    vi.mocked(shell.openExternal).mockReturnValueOnce(new Promise(() => {}))
+    h.transportMock.waitForAuthorizationCode.mockRejectedValueOnce(
+      new OAuthSignInFailureError({ reason: 'authorization_denied' })
+    )
+    await expect(service.signIn('win-1', 'codex', 'callback')).rejects.toMatchObject({
+      failure: { reason: 'authorization_denied', phase: 'callback' }
+    })
+  })
+
+  it('retains a callback rejection that wins the race with the sign-in deadline', async () => {
+    const deadline = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal)
+    let rejectCode!: (error: Error) => void
+    h.transportMock.waitForAuthorizationCode.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectCode = reject
+      })
+    )
+    vi.mocked(shell.openExternal).mockReturnValueOnce(new Promise(() => {}))
+    try {
+      const outcome = service.signIn('win-1', 'codex', 'race').catch((error: unknown) => error)
+      await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledOnce())
+      rejectCode(new OAuthSignInFailureError({ reason: 'authorization_denied' }))
+      deadline.abort()
+      expect(await outcome).toMatchObject({ failure: { reason: 'authorization_denied', phase: 'callback' } })
+    } finally {
+      timeout.mockRestore()
+    }
+  })
+
+  it('does not label a persistence TypeError as a transport failure', async () => {
+    h.clientMock.exchangeCode.mockResolvedValueOnce({ access_token: 'token' })
+    h.providerServiceMock.getAuthConfig.mockImplementationOnce(() => {
+      throw new TypeError('persistence failed')
+    })
+    await expect(service.signIn('win-1', 'codex', 'persist')).rejects.toMatchObject({
+      failure: { reason: 'unknown', phase: 'persist' }
+    })
   })
 
   it('joins an in-flight exchange on stop and does not persist its late result', async () => {

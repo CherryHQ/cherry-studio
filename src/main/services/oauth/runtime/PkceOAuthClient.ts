@@ -3,6 +3,10 @@ import { createHash, randomBytes } from 'node:crypto'
 import { net } from 'electron'
 import * as z from 'zod'
 
+import { OAuthHttpError, OAuthSignInFailureError } from '../errors'
+
+export { OAuthHttpError } from '../errors'
+
 // Bound every token-endpoint call (code exchange + refresh). Electron's `net.fetch`
 // has no default timeout, so a hung/unreachable token endpoint would otherwise
 // block indefinitely — stalling both the aiSdk chat path and the pi runtime's
@@ -38,21 +42,6 @@ export interface AuthorizationRequest {
   authUrl: string
   state: string
   codeVerifier: string
-}
-
-/**
- * Thrown when the token endpoint returns a non-2xx response. Carries the raw
- * status and body so callers can redact/log them however they need.
- */
-export class OAuthHttpError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly body: string
-  ) {
-    super(message)
-    this.name = 'OAuthHttpError'
-  }
 }
 
 function base64UrlEncode(buffer: Buffer): string {
@@ -125,18 +114,29 @@ export class PkceOAuthClient {
   }
 
   private async postToken(params: Record<string, string>, errorPrefix: string): Promise<OAuthTokenResponse> {
-    const response = await net.fetch(this.config.tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(params).toString(),
-      signal: AbortSignal.timeout(TOKEN_HTTP_TIMEOUT_MS)
-    })
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '')
-      throw new OAuthHttpError(`${errorPrefix}: ${response.status}`, response.status, body)
+    const timeoutSignal = AbortSignal.timeout(TOKEN_HTTP_TIMEOUT_MS)
+    let response: Response
+    let body: string
+    try {
+      response = await net.fetch(this.config.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(params).toString(),
+        signal: timeoutSignal
+      })
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '')
+        throw new OAuthHttpError(`${errorPrefix}: ${response.status}`, response.status, errorBody)
+      }
+      body = await response.text()
+    } catch (error) {
+      if (error instanceof OAuthHttpError) throw error
+      throw new OAuthSignInFailureError({ reason: timeoutSignal.aborted ? 'request_timeout' : 'network' }, error)
     }
-
-    return OAuthTokenResponseSchema.parse(await response.json())
+    try {
+      return OAuthTokenResponseSchema.parse(JSON.parse(body))
+    } catch (error) {
+      throw new OAuthSignInFailureError({ reason: 'invalid_response' }, error)
+    }
   }
 }

@@ -16,6 +16,7 @@ import {
   type ModelCapability,
   parseUniqueModelId
 } from '@shared/data/types/model'
+import { normalizeSignInFailure, type SignInFailure, type SignInPhase } from '@shared/ipc/errors/signIn'
 import type {
   CherryCloudAccountPlans,
   CherryCloudModelSyncResult,
@@ -92,16 +93,26 @@ function accessExpiresAt(expiresIn: number): number {
   return Date.now() + expiresIn * 1000
 }
 
-export class CherryCloudLoginUnavailableError extends Error {
-  constructor() {
-    super('Cherry Cloud login service is unavailable')
+export class CherryCloudSignInFailureError extends Error {
+  readonly failure: SignInFailure
+
+  constructor(failure: SignInFailure, message = 'Cherry Cloud sign-in failed') {
+    super(message)
+    this.name = 'CherryCloudSignInFailureError'
+    this.failure = normalizeSignInFailure(failure) ?? { reason: 'unknown' }
+  }
+}
+
+export class CherryCloudLoginUnavailableError extends CherryCloudSignInFailureError {
+  constructor(failure: SignInFailure = { reason: 'service_unavailable' }) {
+    super(failure, 'Cherry Cloud login service is unavailable')
     this.name = 'CherryCloudLoginUnavailableError'
   }
 }
 
-export class CherryCloudUpgradeRequiredError extends Error {
-  constructor() {
-    super('Update Cherry Studio to sign in to Cherry Cloud')
+export class CherryCloudUpgradeRequiredError extends CherryCloudSignInFailureError {
+  constructor(failure: SignInFailure = { reason: 'upgrade_required' }) {
+    super(failure, 'Update Cherry Studio to sign in to Cherry Cloud')
     this.name = 'CherryCloudUpgradeRequiredError'
   }
 }
@@ -285,7 +296,8 @@ export class CherryCloudService extends BaseService {
           ...(loopbackCallback ? { callback_port: loopbackCallback.port } : {})
         },
         createDesktopAuthorizationResponseSchema,
-        operation.controller.signal
+        operation.controller.signal,
+        'authorization'
       )
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
@@ -301,7 +313,9 @@ export class CherryCloudService extends BaseService {
       this.schedulePendingExpiry(pending)
       this.emitStatus()
 
-      await shell.openExternal(created.authorization_url)
+      await shell.openExternal(created.authorization_url).catch(() => {
+        throw new CherryCloudSignInFailureError({ reason: 'browser_open_failed', phase: 'callback' })
+      })
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
     } catch (error) {
@@ -327,7 +341,9 @@ export class CherryCloudService extends BaseService {
     const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
       await this.handleCallback(url)
       if (this.loopbackCallback === receiver) this.loopbackCallback = null
-    }, resolveCherryCloudApiOrigin())
+    }, resolveCherryCloudApiOrigin()).catch(() => {
+      throw new CherryCloudSignInFailureError({ reason: 'callback_unavailable', phase: 'authorization' })
+    })
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       receiver.dispose()
       this.assertLifecycleGeneration(lifecycleGeneration)
@@ -1123,11 +1139,17 @@ export class CherryCloudService extends BaseService {
     })
   }
 
-  private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
+  private async postJson<T>(
+    path: string,
+    body: unknown,
+    schema: ZodType<T>,
+    signal?: AbortSignal,
+    phase?: SignInPhase
+  ): Promise<T> {
     const clientSecret = import.meta.env.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET
     if (!clientSecret) {
       logger.warn('Cherry Cloud client secret is not configured')
-      throw new CherryCloudLoginUnavailableError()
+      throw new CherryCloudLoginUnavailableError({ reason: 'configuration_missing', phase })
     }
     const bodyString = JSON.stringify(body)
     const signature = new SignatureClient('cherry-studio', clientSecret).generateSignature({
@@ -1136,8 +1158,8 @@ export class CherryCloudService extends BaseService {
       body: bodyString
     })
     let response: Response
+    const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
     try {
-      const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
       response = await net.fetch(`${resolveCherryCloudApiOrigin()}${path}`, {
         method: 'POST',
         redirect: 'error',
@@ -1151,19 +1173,39 @@ export class CherryCloudService extends BaseService {
         path,
         reason: error instanceof Error ? error.message : String(error)
       })
-      throw new CherryCloudLoginUnavailableError()
+      throw new CherryCloudLoginUnavailableError({
+        reason: timeoutSignal.aborted ? 'request_timeout' : 'network',
+        phase
+      })
     }
-    if (response.status === 426) throw new CherryCloudUpgradeRequiredError()
+    if (response.status === 426)
+      throw new CherryCloudUpgradeRequiredError({ reason: 'upgrade_required', phase, httpStatus: response.status })
     if (response.status === 404 || response.status >= 500) {
       logger.warn('Cherry Cloud login service returned an unavailable response', { path, status: response.status })
-      throw new CherryCloudLoginUnavailableError()
+      throw new CherryCloudLoginUnavailableError({ reason: 'service_unavailable', phase, httpStatus: response.status })
     }
     if (!response.ok) {
-      throw new Error(`Cherry Cloud login request failed (${response.status})`)
+      const message = `Cherry Cloud login request failed (${response.status})`
+      if (phase)
+        throw new CherryCloudSignInFailureError({ reason: 'http_error', phase, httpStatus: response.status }, message)
+      throw new Error(message)
+    }
+    let responseBody: string
+    try {
+      responseBody = await response.text()
+    } catch (error) {
+      if (signal?.aborted) throw error
+      if (phase)
+        throw new CherryCloudLoginUnavailableError({
+          reason: timeoutSignal.aborted ? 'request_timeout' : 'network',
+          phase
+        })
+      throw new Error('Cherry Cloud login response was invalid')
     }
     try {
-      return schema.parse(await response.json())
+      return schema.parse(JSON.parse(responseBody))
     } catch {
+      if (phase) throw new CherryCloudSignInFailureError({ reason: 'invalid_response', phase })
       throw new Error('Cherry Cloud login response was invalid')
     }
   }
