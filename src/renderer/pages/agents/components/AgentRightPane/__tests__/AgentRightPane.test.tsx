@@ -206,10 +206,6 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
-vi.mock('@renderer/components/chat/agent/AgentContextUsageSummary', () => ({
-  AgentContextUsageSummary: () => <div data-testid="context-usage" />
-}))
-
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => <div data-testid="message-list" />
 }))
@@ -2318,6 +2314,9 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'open flow' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
+    expect(screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' })).toBeInTheDocument()
+    expect(screen.getByText('common.unknown')).toBeVisible()
+    expect(screen.queryByRole('meter')).toBeNull()
     expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {
       target: { kind: 'child', sessionId: 'claude-owner', toolCallId: 'native-agent-tool' },
@@ -2935,7 +2934,7 @@ describe('AgentRightPane', () => {
 
     const sectionOrder = [
       screen.getByText('agent.right_pane.info.artifacts'),
-      screen.getByTestId('context-usage'),
+      screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' }).closest('section')!,
       screen.getByText('agent.right_pane.info.shell_tasks')
     ]
 

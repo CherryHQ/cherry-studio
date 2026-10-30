@@ -250,9 +250,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.captureInput(result)
   }
 
+  async getContextUsage() {
+    return this.handle
+      ? this.handle.contextUsage()
+      : {
+          status: 'unknown' as const,
+          error: { operation: 'contextUsage', code: 'not-connected', message: 'Runtime not connected' }
+        }
+  }
+
   private async onObservation(batch: DurableObservation): Promise<void> {
     try {
       for (const event of batch.events) {
+        if (event.type === 'context.changed') this.events.push({ type: 'context-usage', result: event.result })
+        if (event.type === 'snapshot' && event.contextUsage)
+          this.events.push({ type: 'context-usage', result: event.contextUsage })
         if (event.type === 'snapshot') {
           const nowActive = event.activity.state === 'active'
           if (nowActive && !this.sending && !this.closing)

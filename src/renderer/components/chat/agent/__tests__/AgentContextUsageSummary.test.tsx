@@ -5,9 +5,9 @@ import type { ComponentProps } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ThreadContextUsage } from '@cherrystudio/agent-runtime'
 import de from '@renderer/i18n/locales/de-de.json'
 import en from '@renderer/i18n/locales/en-us.json'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 
 import { AgentContextUsageSummary } from '../AgentContextUsageSummary'
 
@@ -27,22 +27,48 @@ const renderSummary = (props: ComponentProps<typeof AgentContextUsageSummary>) =
     </I18nextProvider>
   )
 
-const usage: AgentSessionContextUsage = {
-  categories: [
-    { id: 'messages', name: 'Messages', tokens: 125_700, kind: 'used' },
-    { id: 'mcp_tools', name: 'MCP tools', tokens: 20_600, kind: 'used' },
-    { id: 'system_prompt', name: 'System prompt', tokens: 54_000, kind: 'used' },
-    { id: 'autocompact_buffer', name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
-    { id: 'free_space', name: 'Free space', tokens: 766_700, kind: 'free' },
-    { id: 'mcp_tools_deferred', name: 'MCP tools (deferred)', tokens: 121_700, kind: 'deferred' }
-  ],
-  totalTokens: 200_300,
-  maxTokens: 1_000_000,
-  percentage: 20,
-  model: 'claude-opus-4-8',
-  mcpTools: [{ name: 'search', serverName: 'docs', tokens: 1217, isLoaded: false }],
-  memoryFiles: [{ path: '/workspace/AGENTS.md', type: 'Project', tokens: 700 }],
-  agents: [{ agentType: 'reviewer', source: 'project', tokens: 487 }]
+const usage: ThreadContextUsage = {
+  model: 'native-model',
+  revision: 'r1',
+  contextWindow: 1_000_000,
+  basis: 'current-context',
+  used: { tokens: 200_300, precision: 'reported' },
+  reserved: { tokens: 33_000, precision: 'estimated' },
+  free: { tokens: 766_700, precision: 'estimated' },
+  breakdown: {
+    coverage: 'complete',
+    categories: [
+      { id: 'messages', key: 'messages', tokens: 125_700, occupancy: 'included', precision: 'estimated' },
+      { id: 'mcp', key: 'mcp-tools', tokens: 20_600, occupancy: 'included', precision: 'estimated' },
+      { id: 'system', key: 'system-prompt', tokens: 54_000, occupancy: 'included', precision: 'estimated' },
+      {
+        id: 'deferred',
+        key: 'other',
+        label: 'Deferred schemas',
+        tokens: 121_700,
+        occupancy: 'deferred',
+        precision: 'estimated'
+      }
+    ]
+  },
+  resources: [
+    {
+      id: 'search',
+      category: 'mcp-tools',
+      name: 'search',
+      source: 'docs',
+      count: { tokens: 1217, precision: 'estimated' },
+      state: 'deferred'
+    },
+    { id: 'memory', category: 'memory-files', name: '/workspace/AGENTS.md', source: 'Project' },
+    {
+      id: 'reviewer',
+      category: 'agents',
+      name: 'reviewer',
+      source: 'project',
+      count: { tokens: 487, precision: 'estimated' }
+    }
+  ]
 }
 
 const row = (name: string) => screen.getByRole('row', { name: new RegExp(name) })
@@ -56,56 +82,35 @@ describe('AgentContextUsageSummary', () => {
     renderSummary({ usage, percentage: 20 })
 
     expect(within(row('^Messages')).getByText('12.6%')).toBeInTheDocument()
-    expect(within(row('^Autocompact buffer')).getByText('3.3%')).toBeInTheDocument()
+    expect(within(row('^Compaction buffer')).getByText('3.3%')).toBeInTheDocument()
     expect(within(row('^Free space')).getByText('76.7%')).toBeInTheDocument()
-    expect(within(row('^MCP tools \\(deferred\\)')).getByText('—')).toBeInTheDocument()
+    expect(within(row('^Deferred schemas')).getByText('—')).toBeInTheDocument()
     const meter = screen.getByRole('meter')
     expect(meter).toHaveAttribute('aria-valuenow', '200300')
     expect(meter).toHaveAttribute('aria-valuemax', '1000000')
     expect(within(meter).queryByTitle(/deferred/)).not.toBeInTheDocument()
   })
 
-  it('uses native classification and stable IDs even if names change', () => {
+  it('marks partial estimates and does not fabricate free space from missing reserves', () => {
     renderSummary({
       usage: {
         ...usage,
-        categories: [
-          { id: 'messages', name: 'Renamed messages', tokens: 200_300, kind: 'used' },
-          { name: 'Free space', tokens: 500, kind: 'deferred' }
-        ]
+        reserved: undefined,
+        free: undefined,
+        used: { tokens: 200_300, precision: 'estimated' },
+        breakdown: { ...usage.breakdown!, coverage: 'partial' }
       },
       percentage: 20
     })
-
-    expect(within(row('^Messages')).getByText('20.0%')).toBeInTheDocument()
-    expect(within(row('^Free space')).getByText('—')).toBeInTheDocument()
+    expect(screen.getByText('Partial breakdown')).toBeInTheDocument()
+    expect(screen.getByText('≈200,300 / 1,000,000 (20%)')).toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: /^Free space/ })).not.toBeInTheDocument()
   })
 
-  it('retains legacy categories and unknown native IDs without inventing usage for deferred tools', () => {
-    renderSummary({
-      usage: {
-        ...usage,
-        categories: [
-          { id: 'future_category', name: 'Future content', tokens: 200_300 },
-          { name: 'Autocompact buffer', tokens: 33_000 },
-          { name: 'Free space', tokens: 766_700 },
-          { name: 'Future tools', tokens: 10_000, isDeferred: true }
-        ]
-      },
-      percentage: 20
-    })
-    expect(within(row('^Future content')).getByText('20.0%')).toBeInTheDocument()
-    expect(within(row('^Autocompact buffer')).getByText('3.3%')).toBeInTheDocument()
-    expect(within(row('^Free space')).getByText('76.7%')).toBeInTheDocument()
-    expect(within(row('^Future tools')).getByText('—')).toBeInTheDocument()
-  })
-
-  it('reconciles free space when the displayed model window differs from the compaction budget', () => {
-    renderSummary({ usage, percentage: 10, maxTokens: 2_000_000 })
-
-    expect(within(row('^Messages')).getByText('6.3%')).toBeInTheDocument()
-    expect(within(row('^Free space')).getByText('88.3%')).toBeInTheDocument()
-    expect(within(row('^Free space')).getByTitle('1,766,700')).toBeInTheDocument()
+  it('shows unknown after compaction instead of a zero-percent meter', () => {
+    renderSummary({ usage: { ...usage, used: undefined }, percentage: null })
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.queryByRole('meter')).not.toBeInTheDocument()
   })
 
   it('expands native resource details with their ownership and loading status', async () => {
@@ -134,7 +139,7 @@ describe('AgentContextUsageSummary', () => {
 
   it('keeps total-only runtimes honest and suppresses details in the composer', () => {
     const { unmount } = renderSummary({
-      usage: { ...usage, categories: [], mcpTools: undefined, memoryFiles: undefined, agents: undefined },
+      usage: { ...usage, breakdown: undefined, reserved: undefined, free: undefined, resources: undefined },
       percentage: 20
     })
     expect(screen.getByText('200,300 / 1,000,000 (20%)')).toBeInTheDocument()

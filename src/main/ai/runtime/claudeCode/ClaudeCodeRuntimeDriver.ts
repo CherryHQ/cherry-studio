@@ -32,7 +32,6 @@ import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -67,7 +66,6 @@ import type { ConsumedWarmQuery } from './ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
 import { claudeControlEvents, ClaudeCodeResultError } from './ClaudeRuntimeState'
-import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import { canSalvageClaudeOutput } from './processExitDiagnostics'
 import {
@@ -242,6 +240,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.runtime = createClaudeCodeRuntime({
       backendId: runtimeId(this.context.backendId),
       configDir: resolveClaudeConfigDirectory(options.env),
+      contextWindow: request.contextWindow,
       load: async () => config,
       onError: (error) => {
         this.nativeError = error
@@ -437,38 +436,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return patched ? 'patched' : 'current'
   }
 
-  async getContextUsage(): Promise<AgentSessionContextUsage | null> {
-    if (!this.handle) return null
-    try {
-      const result = await this.handle.claude.contextUsage()
-      return result.status === 'confirmed' ? result.value : null
-    } catch (error) {
-      logger.warn('getContextUsage failed', { sessionId: this.input.sessionId, error })
-      return null
-    }
-  }
-
-  /**
-   * Project a top-level `message_start`/`message_delta`'s input usage into a live reading: the
-   * request the CLI just sent carries exactly the tokens now occupying the window. `categories` stays
-   * empty (only the CLI's probe produces the breakdown); the host's post-turn pull remains authoritative.
-   */
-  private emitLiveContextUsage(usage: Extract<ClaudeControl, { type: 'context-usage' }>['usage']): void {
-    const totalTokens =
-      (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0)
-    if (totalTokens <= 0) return
-    const model = this.sdkModelId ?? this.input.modelId
-    const maxTokens = effectiveContextWindowTokens(model)
-    this.eventQueue.push({
-      type: 'context-usage',
-      usage: {
-        categories: [],
-        totalTokens,
-        maxTokens,
-        percentage: Math.min(100, (totalTokens / maxTokens) * 100),
-        model
-      }
-    })
+  async getContextUsage() {
+    return this.handle
+      ? this.handle.contextUsage()
+      : {
+          status: 'unknown' as const,
+          error: { operation: 'contextUsage', code: 'not-connected', message: 'Runtime not connected' }
+        }
   }
 
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
@@ -631,6 +605,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const terminal: AgentRuntimeEvent[] = []
     for (const event of batch.events) {
       if (event.type === 'input.changed') this.eventQueue.push({ type: 'input-state', contextId, input: event.input })
+      if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
+      if (event.type === 'snapshot' && event.contextUsage)
+        this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
       if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
       if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
       if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing) {
@@ -695,8 +672,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.updateResumeToken(control.sessionId)
     } else if (control.type === 'archive-changed') {
       await this.handle!.claude.archive()
-    } else if (control.type === 'context-usage') {
-      this.emitLiveContextUsage(control.usage)
     } else if (control.type === 'diagnostic') {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {

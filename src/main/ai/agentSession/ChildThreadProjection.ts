@@ -11,6 +11,7 @@ import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 import { loggerService } from '@logger'
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
+import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { ChildProjectionState } from '@shared/ai/messageProjection'
 import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 
@@ -54,6 +55,7 @@ export class ChildThreadProjection {
   private readonly projection: ThreadMessageProjection
   private observation?: Observation
   private source?: object
+  private contextVersion = 0
   private attaching?: Promise<void>
   private view: AgentChildView
   private readonly productIds = new Map<string, string>()
@@ -119,6 +121,19 @@ export class ChildThreadProjection {
     this.source = source
     const result = await this.handle.observe(async (event) => {
       if (this.stopped || this.source !== source) return
+      if (event.type === 'context.changed') {
+        this.contextVersion++
+        application
+          .get('CacheService')
+          .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: event.result })
+        return
+      }
+      if (event.type === 'snapshot' && event.contextUsage) {
+        this.contextVersion++
+        application
+          .get('CacheService')
+          .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: event.contextUsage })
+      }
       if (event.type === 'message.remove') this.removed.add(event.ref.id)
       if (event.type === 'message.upsert') {
         for (const ref of event.replaces ?? []) {
@@ -154,6 +169,12 @@ export class ChildThreadProjection {
       throw new Error(result.error.message)
     }
     this.observation = result.value
+    const contextVersion = this.contextVersion
+    const usage = await this.handle.contextUsage()
+    if (!this.stopped && this.source === source && contextVersion === this.contextVersion)
+      application
+        .get('CacheService')
+        .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: usage })
     await this.flush()
   }
 
@@ -426,6 +447,7 @@ export class ChildThreadProjection {
     await this.attaching
     await this.observation?.drain()
     this.stopped = true
+    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId))
     this.source = undefined
     this.needsHistory = true
     await this.observation?.stop()
