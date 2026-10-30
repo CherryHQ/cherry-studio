@@ -342,7 +342,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // (the preserved corrections replay into it) instead of joining the buffer behind it.
     const runtimeService = application.get('AgentSessionRuntimeService')
     const handoffFollowUp =
-      req.planExecutionFollowUp === true && runtimeService.isHandoffReplacementPending(validated.sessionId)
+      req.trigger === 'submit-message' &&
+      req.planExecutionFollowUp === true &&
+      runtimeService.isHandoffReplacementPending(validated.sessionId)
     if (!handoffFollowUp && runtimeService.isSessionBusy(validated.sessionId)) {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
