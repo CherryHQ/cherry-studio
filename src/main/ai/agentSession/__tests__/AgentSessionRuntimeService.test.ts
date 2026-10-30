@@ -3424,7 +3424,16 @@ describe('AgentSessionRuntimeService', () => {
 
     it('keeps a receive-only wake interactive when the background work started from an interactive turn', async () => {
       const service = new AgentSessionRuntimeService()
-      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-1', ['kb-1']),
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'Original Agent',
+          emoji: '🧠',
+          model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
+        }
+      })
       const entry = getEntry(service)
       const send = vi.fn()
       const refreshTraceContext = vi.fn()
@@ -3456,6 +3465,12 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
       const wakeTurn = entry.currentTurn
       expect(wakeTurn).toMatchObject({ headless: false, knowledgeBaseIds: ['kb-1'] })
+      entry.messageSnapshot.name = 'Renamed after wake'
+      expect(service.getActiveUsageContext('session-1')).toMatchObject({
+        agentSessionId: 'session-1',
+        assistantMessageId: wakeTurn.assistantMessageId,
+        source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+      })
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: wakeTurn })
       expect(refreshTraceContext).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -278,6 +278,43 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(0)
   })
 
+  // A freshly allocated Durable root must not resolve the verifier's initialization ID as a child.
+  it('verifies and completes a goal in a newly created native root', async () => {
+    script = respondingModel((call) => {
+      if (call.systemPrompt.startsWith('Evaluate whether the objective'))
+        return assistantReply('{"verdict":"met","reason":"Output is present"}')
+      const results = call.messages.filter((entry) => entry.role === 'toolResult')
+      const completed = results.find((entry) => entry.toolName === 'update_goal')
+      if (completed) return assistantReply('GOAL_VERIFIED')
+      const lookup = results.find((entry) => entry.toolName === 'get_goal')
+      if (!lookup) return assistantReply([toolCallPart('get-goal', 'get_goal', {})], 'toolUse')
+      const body = lookup.content.find((part) => part.type === 'text')!
+      if (body.type !== 'text') throw new Error('Goal result has no text')
+      const { goal } = JSON.parse(body.text.split('\n')[0])
+      return assistantReply(
+        [
+          toolCallPart('complete-goal', 'update_goal', {
+            goal_id: goal.id,
+            revision: goal.revision,
+            action: 'complete',
+            evidence: 'The requested output has been produced.'
+          })
+        ],
+        'toolUse'
+      )
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal Produce the requested output') })
+    await expect.poll(() => text(events)).toContain('GOAL_VERIFIED')
+    expect(script.calls.filter((call) => call.systemPrompt.startsWith('Evaluate whether the objective'))).toHaveLength(
+      1
+    )
+    const completion = projected(events)
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
+    expect(completion).toMatchObject({ state: 'output-available' })
+  })
+
   // Locally handled commands must keep their answer when the desktop consumes message projections.
   it('shows the goal command answer without starting a model turn', async () => {
     const { connection, events } = await connect()
