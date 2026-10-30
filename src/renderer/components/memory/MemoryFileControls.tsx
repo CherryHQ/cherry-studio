@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
@@ -107,18 +108,20 @@ export function MemoryFileControls() {
 
   const previewFiles = pending?.kind === 'delete' ? [pending] : (pending?.preview.files ?? [])
   return (
-    <section className="space-y-3" aria-label={t('settings.memory.files')}>
+    <SettingGroup role="region" aria-label={t('settings.memory.files')}>
+      <SettingTitle>{t('settings.memory.files')}</SettingTitle>
+      <SettingDivider />
       {files.length > 0 && (
         <ul className="divide-y divide-border-subtle">
           {files.map((path) => (
-            <li key={path} className="flex items-center justify-between gap-3 py-2">
-              <span className="text-sm">
+            <li key={path} className="flex min-h-8 items-center justify-between gap-4 py-2 first:pt-0 last:pb-0">
+              <span className="min-w-0 flex-1 break-all text-sm">
                 {path === 'MEMORY.md'
                   ? t('settings.memory.overview')
                   : path.replace(/^\.memories\//, '').replace(/\.md$/, '')}
               </span>
               {path !== 'MEMORY.md' && (
-                <Button variant="ghost" disabled={busy} onClick={() => void run(() => previewDelete(path))}>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void run(() => previewDelete(path))}>
                   {t('common.delete')}
                 </Button>
               )}
@@ -126,25 +129,26 @@ export function MemoryFileControls() {
           ))}
         </ul>
       )}
-      <div className="flex flex-wrap gap-2">
+      {files.length > 0 && <SettingDivider />}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" disabled={busy || !editorId} onClick={() => void run(() => preview('recover'))}>
+          {t('settings.memory.recover')}
+        </Button>
         <Button variant="outline" disabled={busy || !editorId} onClick={() => void run(() => preview('clear'))}>
           {t('settings.memory.clear')}
         </Button>
-        <Button variant="ghost" disabled={busy || !editorId} onClick={() => void run(() => preview('recover'))}>
-          {t('settings.memory.recover')}
-        </Button>
       </div>
       {error ? (
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className="mt-3 text-sm text-error">
           {t(error)}
         </p>
       ) : result ? (
-        <p role="status" className="text-sm text-muted-foreground">
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
           {t('common.saved')}
         </p>
       ) : null}
       {!!incomplete?.length && (
-        <ul aria-label={t('settings.memory.result')} className="text-sm text-muted-foreground">
+        <ul aria-label={t('settings.memory.result')} className="mt-2 break-all text-sm text-muted-foreground">
           {incomplete.map((file) => (
             <li key={file.path}>
               {file.path}:{' '}
@@ -182,6 +186,6 @@ export function MemoryFileControls() {
           </ul>
         }
       />
-    </section>
+    </SettingGroup>
   )
 }
