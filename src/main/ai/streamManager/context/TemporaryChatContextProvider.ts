@@ -15,7 +15,7 @@ import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, getSkillFolderNamesFromParts } from '@shared/data/types/uiParts'
 
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -124,6 +124,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       })
     ]
 
+    const skillFolderNames = getSkillFolderNamesFromParts(req.userMessageParts)
+
     const streamRequest: AiStreamRequest = {
       conversation: { id: req.topicId, topicId: req.topicId },
       trigger: 'submit-message',
@@ -132,6 +134,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       messageId,
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
+      ...(skillFolderNames?.length ? { skillFolderNames } : {}),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
       serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})

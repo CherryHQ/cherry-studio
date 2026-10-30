@@ -122,6 +122,7 @@ import {
   agentFileToComposerToken,
   agentKnowledgeBaseToComposerToken,
   agentSkillToComposerToken,
+  findSkillByTokenId,
   getAgentComposerTokenIds
 } from './agentComposerTokens'
 import { createEditableMessageDraft } from './chat/messageEditingDraft'
@@ -287,6 +288,8 @@ const createSkillQuickPanelItems = (
     label: skill.name,
     description: skill.description ?? undefined,
     icon: <ToolCase size={16} />,
+    // Root-panel search treats filterText as authoritative (label/description are excluded once
+    // it is set), so description must be folded in to honor "search by name and description".
     filterText: [skill.name, skill.description].filter(Boolean).join(' '),
     searchAliases: [options.skillLabel],
     action: ({ inputAdapter }) => {
@@ -907,6 +910,7 @@ const AgentComposerInner = ({
   const {
     skills: availableSkills,
     loading: isAvailableSkillsLoading,
+    refreshing: isAvailableSkillsRefreshing,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
   } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
@@ -933,7 +937,7 @@ const AgentComposerInner = ({
   )
 
   useEffect(() => {
-    if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
+    if (!shouldValidateSkills || isAvailableSkillsLoading || isAvailableSkillsRefreshing || availableSkillsError) return
 
     const draft = { text, tokens: draftTokens }
     const validatedDraft = excludeComposerDraftTokens(draft, (token) => {
@@ -958,6 +962,7 @@ const AgentComposerInner = ({
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
+    isAvailableSkillsRefreshing,
     setText,
     shouldValidateSkills,
     skillByFilename,
@@ -977,9 +982,8 @@ const AgentComposerInner = ({
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
 
       if (options.source === 'history') {
-        // A recalled entry is plain text with no tokens, so every managed pick steps aside — skills
-        // and files already do. A live knowledge selection would re-insert its chip on top of the
-        // sentence the entry already carries, sending the same attachment claim twice.
+        // Recalled entries carry at most skill tokens; other managed picks step aside. A live
+        // knowledge selection would re-send its attachment claim on top of the entry's sentence.
         inputHistoryToolsRef.current ??= {
           files: filesRef.current,
           selectedKnowledgeBases: selectedKnowledgeBasesRef.current
@@ -1465,10 +1469,7 @@ const AgentComposerInner = ({
         let changed = next.length !== prev.length
 
         for (const token of skillTokens) {
-          const skill = availableSkills.find((candidate) => {
-            const candidateId = agentComposerTokenId.skill(candidate)
-            return candidateId === token.id || candidate.name === token.label || candidate.filename === token.label
-          })
+          const skill = findSkillByTokenId(token, availableSkills)
           if (!skill) continue
 
           const skillId = agentComposerTokenId.skill(skill)
@@ -1517,7 +1518,9 @@ const AgentComposerInner = ({
         .map((base) => base.id)
       return {
         ...payload,
-        userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
+        userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds),
+        // Spread into plain objects: the shared payload carries these loosely for history recall.
+        skillTokens: draft.tokens.filter((token) => token.kind === 'skill').map((token) => ({ ...token }))
       }
     },
     [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope, serviceTier]
@@ -1554,7 +1557,9 @@ const AgentComposerInner = ({
         )
         if (sent === false) return false
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
-        saveHistory(getComposerHistoryText(payload.userMessageParts))
+        // Round-tripped through the loosely-typed shared payload; we wrote it in buildQueuedPayload.
+        const historySkillTokens = payload.skillTokens as ComposerSerializedToken[] | undefined
+        saveHistory(getComposerHistoryText(payload.userMessageParts), historySkillTokens)
         launchOptions?.onSent?.()
         return true
       } catch (error: unknown) {
