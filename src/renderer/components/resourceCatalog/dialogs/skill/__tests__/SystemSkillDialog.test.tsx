@@ -59,8 +59,8 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
   EmptyState: ({ description, title }: { description?: string; title?: string }) => (
     <div>
-      {title}
-      {description}
+      {title ? <div>{title}</div> : null}
+      {description ? <div>{description}</div> : null}
     </div>
   ),
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
@@ -205,5 +205,23 @@ describe('SystemSkillDialog', () => {
     expect(screen.queryByText('System Skill')).not.toBeInTheDocument()
     expect(screen.queryByText('Other Skill')).not.toBeInTheDocument()
     expect(screen.getByText('common.no_results')).toBeInTheDocument()
+  })
+
+  it('shows a translated discover failure and details without the raw cause', () => {
+    const failure = new Error('discover down')
+    useSystemSkillsMock.mockReturnValue({
+      skills: [],
+      loading: false,
+      error: failure.message,
+      cause: failure,
+      importSkill: importSkillMock,
+      importing: new Set<string>()
+    })
+
+    render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText('error.unexpected')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.queryByText('discover down')).not.toBeInTheDocument()
   })
 })

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -17,7 +18,7 @@ interface Props {
   onOpenChange: (open: boolean) => void
 }
 
-type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string }
+type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string; cause?: unknown }
 type InstallingKey = null | 'zip' | 'directory'
 type ImportKind = 'zip' | 'directory'
 type ImportItemStatus = 'pending' | 'installing' | 'success' | 'error'
@@ -173,7 +174,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       )
       await runImportQueue(zipItems, 'zip')
     } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
+      setStatus({ kind: 'error', message: getInstallErrorMessage(e), cause: e })
     }
   }
 
@@ -189,7 +190,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       )
       await runImportQueue(directoryItems, 'directory')
     } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
+      setStatus({ kind: 'error', message: getInstallErrorMessage(e), cause: e })
     }
   }
 
@@ -238,7 +239,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       const installingKey = droppedItems.some((item) => item.kind === 'zip') ? 'zip' : 'directory'
       await runImportQueue(droppedItems, installingKey)
     } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
+      setStatus({ kind: 'error', message: getInstallErrorMessage(e), cause: e })
     }
   }
 
@@ -379,7 +380,22 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           className="mt-4">
-          <Alert type="error" showIcon message={status.message} className="rounded-md px-3 py-2 text-xs shadow-none" />
+          <Alert
+            type="error"
+            showIcon
+            message={status.message}
+            className="rounded-md px-3 py-2 text-xs shadow-none"
+            action={
+              status.cause ? (
+                <ErrorDetailAction
+                  error={status.cause}
+                  message={status.message}
+                  source="resource.skill"
+                  operation="skill.import"
+                />
+              ) : undefined
+            }
+          />
         </motion.div>
       )}
     </AnimatePresence>

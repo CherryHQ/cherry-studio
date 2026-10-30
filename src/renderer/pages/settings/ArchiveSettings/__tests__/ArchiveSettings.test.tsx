@@ -10,6 +10,15 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
+}))
+
 import type { ArchiveItem } from '../archive'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
@@ -122,7 +131,13 @@ async function openFileDelete(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Open file permanent delete' }))
 }
 
-afterEach(cleanup)
+afterEach(async () => {
+  cleanup()
+  // Radix FocusScope restores focus on a timeout. Flush it while jsdom is still alive.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+})
 
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
@@ -420,8 +435,9 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
 
   it('keeps confirmation disabled after a preview error and retries explicitly', async () => {
     const user = userEvent.setup()
+    const cause = new Error('ref counts unavailable')
     vi.mocked(dataApiService.get)
-      .mockRejectedValueOnce(new Error('ref counts unavailable'))
+      .mockRejectedValueOnce(cause)
       .mockResolvedValueOnce([{ entryId: 'file-1', refCount: 0 }])
     render(<ArchiveSettings />)
     await chooseCategory(user, i18n.language === 'zh-CN' ? '话题' : 'Topics')
@@ -430,6 +446,17 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
 
     expect(await screen.findByText('Could not check file references.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: cause,
+          message: 'Could not check file references.',
+          source: 'settings.archive',
+          operation: 'archive.file_refs'
+        })
+      )
+    )
     await user.click(screen.getByRole('button', { name: 'Retry reference check' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeEnabled())

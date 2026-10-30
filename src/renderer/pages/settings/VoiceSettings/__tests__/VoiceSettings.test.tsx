@@ -8,6 +8,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import * as appErrorDetail from '@renderer/services/AppErrorDetailService'
 import { type SpeechPlaybackSnapshot, VoiceDomainError } from '@renderer/services/voice'
 import { SpeechPlaybackService } from '@renderer/services/voice/SpeechPlaybackService'
 import { VoiceService } from '@renderer/services/voice/VoiceService'
@@ -144,6 +145,13 @@ function publishAsrInstallation(snapshot: LocalModelStatusSnapshot) {
       [DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr]: snapshot
     })
   })
+}
+
+async function openedVoiceDetail(button: HTMLElement) {
+  const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+  fireEvent.click(button)
+  await waitFor(() => expect(open).toHaveBeenCalled())
+  return open.mock.calls.at(-1)?.[0]
 }
 
 async function renderPreviewTest() {
@@ -1405,6 +1413,20 @@ describe('VoiceSettings', () => {
     expect(play).toHaveAccessibleDescription(/operation failed/i)
 
     expect(playbackTest.getByRole('alert')).toHaveTextContent(/operation failed/i)
+    const detail = await openedVoiceDetail(playbackTest.getByRole('button', { name: i18n.t('error.details') }))
+    expect(detail).toEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          message: 'Preview preparation failed',
+          operation: 'voice.speech.preview',
+          source: 'voice'
+        }),
+        error: expect.objectContaining({ message: 'Preview preparation failed' }),
+        localizedErrorMessage: i18n.t('settings.voice.status.operation_failed')
+      })
+    )
+    expect(playbackTest.getByRole('alert')).toHaveTextContent(/operation failed/i)
+    expect(play).toHaveAccessibleDescription(/operation failed/i)
     await user.click(screen.getByRole('button', { name: /^stop$/i }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -1483,6 +1505,270 @@ describe('VoiceSettings', () => {
     render(<VoiceSettings />)
 
     await user.click(await screen.findByRole('button', { name: /open microphone settings/i }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(/operation failed/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/operation failed/i)
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    expect(detail).toEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          message: 'settings unavailable',
+          operation: 'voice.action',
+          source: 'voice'
+        }),
+        error: expect.objectContaining({ message: 'settings unavailable' }),
+        localizedErrorMessage: i18n.t('settings.voice.status.operation_failed')
+      })
+    )
+    expect(screen.getByRole('button', { name: /open microphone settings/i })).toBeEnabled()
+    expect(alert).toHaveTextContent(/operation failed/i)
+  })
+
+  it('opens load details for the catalog cause without settling retry', async () => {
+    voice.listModels.mockRejectedValue(new Error('model catalog unavailable'))
+    render(<VoiceSettings />)
+
+    expect(await screen.findByText(i18n.t('settings.voice.status.operation_failed'))).toBeInTheDocument()
+    const retry = await screen.findByRole('button', { name: i18n.t('common.retry') })
+    await waitFor(() => expect(retry).toBeEnabled())
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    expect(detail).toEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          message: 'model catalog unavailable',
+          operation: 'voice.load',
+          source: 'voice'
+        }),
+        error: expect.objectContaining({ message: 'model catalog unavailable' }),
+        localizedErrorMessage: i18n.t('settings.voice.status.operation_failed')
+      })
+    )
+    expect(retry).toBeEnabled()
+  })
+
+  it('keeps a failed speech status reason when the resolver returns no thrown error', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'voice.exact',
+      'feature.voice.speech.language': 'en-US'
+    })
+    voice.resolveSpeech.mockResolvedValue({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'voice.exact',
+      status: { status: 'failed', reason: 'model_load_failed' }
+    })
+    render(<VoiceSettings />)
+
+    expect(await screen.findByText(i18n.t('settings.voice.status.operation_failed'))).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: i18n.t('common.retry') })).toBeEnabled())
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    expect(detail?.context.message).toBe('model_load_failed')
+    expect(detail?.context.operation).toBe('voice.load')
+    expect(detail?.localizedErrorMessage).toBe(i18n.t('settings.voice.status.operation_failed'))
+    expect(screen.getByRole('button', { name: i18n.t('common.retry') })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /preview voice/i })).toBeDisabled()
+  })
+
+  it('opens microphone details for a device-list failure and a permission denial', async () => {
+    voice.enumerateMicrophones.mockRejectedValue(new Error('device list unavailable'))
+    render(<VoiceSettings />)
+
+    const listed = await screen.findByRole('alert')
+    expect(listed).toHaveTextContent(/operation failed/i)
+    const listDetail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    expect(listDetail).toEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          message: 'device list unavailable',
+          operation: 'voice.microphone',
+          source: 'voice'
+        }),
+        localizedErrorMessage: i18n.t('settings.voice.status.operation_failed')
+      })
+    )
+    expect(screen.getByRole('button', { name: 'Test microphone' })).toBeEnabled()
+  })
+
+  it('keeps the microphone permission cause beside the translated denial', async () => {
+    voice.microphone.mockResolvedValue('denied')
+    voice.testMicrophone.mockRejectedValue(new VoiceDomainError('microphone_permission'))
+    render(<VoiceSettings />)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Test microphone' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('settings.voice.status.microphone_permission'))
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    expect(detail).toEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          message: 'microphone_permission',
+          operation: 'voice.microphone',
+          source: 'voice'
+        }),
+        error: expect.objectContaining({ message: 'microphone_permission', name: 'VoiceDomainError' }),
+        localizedErrorMessage: i18n.t('settings.voice.status.microphone_permission')
+      })
+    )
+    expect(screen.getByRole('button', { name: 'Open microphone settings' })).toBeEnabled()
+    expect(alert).toHaveTextContent(i18n.t('settings.voice.status.microphone_permission'))
+  })
+
+  it('replaces the load cause after retry instead of keeping the earlier failure', async () => {
+    voice.listModels.mockRejectedValueOnce(new Error('model catalog unavailable'))
+    const user = userEvent.setup()
+    render(<VoiceSettings />)
+    const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+
+    const retry = await screen.findByRole('button', { name: i18n.t('common.retry') })
+    await waitFor(() => expect(retry).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('model catalog unavailable'))
+
+    voice.listModels.mockResolvedValue({
+      models,
+      defaultAsrModelId: APPLE_ASR_MODEL_ID,
+      defaultSpeechModelId: APPLE_TTS_MODEL_ID
+    })
+    voice.listVoices.mockRejectedValue(new Error('voice list unavailable'))
+    await user.click(retry)
+    await waitFor(() => expect(voice.listVoices).toHaveBeenCalled())
+    open.mockClear()
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('voice list unavailable'))
+    expect(screen.getByRole('button', { name: i18n.t('common.retry') })).toBeEnabled()
+  })
+
+  it('reports a later voice-list failure after the page has recovered', async () => {
+    render(<VoiceSettings />)
+    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('common.retry') })).not.toBeInTheDocument())
+
+    voice.listVoices.mockRejectedValue(new Error('voice list unavailable'))
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+    await waitFor(() => expect(screen.getByRole('button', { name: i18n.t('error.details') })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('voice list unavailable'))
+    expect(screen.getByRole('button', { name: i18n.t('common.retry') })).toBeEnabled()
+  })
+
+  it('shows the automatic voice failure while the explicit voice stays ready', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'voice.exact',
+      'feature.voice.speech.language': 'en-US'
+    })
+    let automaticFailure: unknown = new Error('automatic voice unavailable')
+    voice.resolveSpeech.mockImplementation(async (input: { voice?: string }) => {
+      if (input.voice) {
+        return {
+          modelId: APPLE_TTS_MODEL_ID,
+          voice: input.voice,
+          language: 'en-US',
+          speed: 1,
+          status: { status: 'ready' }
+        }
+      }
+      if (automaticFailure) throw automaticFailure
+      return {
+        modelId: APPLE_TTS_MODEL_ID,
+        voice: 'voice.exact',
+        language: 'en-US',
+        speed: 1,
+        status: { status: 'ready' }
+      }
+    })
+    const user = userEvent.setup()
+    render(<VoiceSettings />)
+    const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+
+    const preview = screen.getByRole('button', { name: 'Preview voice' })
+    await waitFor(() => {
+      expect(preview).toBeEnabled()
+      expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Exact Voice')
+    })
+    expect(screen.getByTestId('speech-status')).toHaveTextContent(i18n.t('settings.voice.status.ready'))
+    expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Exact Voice')
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('automatic voice unavailable'))
+    expect(open.mock.calls.at(-1)?.[0]?.context.operation).toBe('voice.load')
+    await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
+    expect(
+      await screen.findByRole('option', {
+        name: `Language default · ${i18n.t('settings.voice.status.failed')}`
+      })
+    ).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    automaticFailure = new Error('automatic voice renamed')
+    open.mockClear()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('automatic voice renamed'))
+    expect(preview).toBeEnabled()
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Exact Voice'))
+
+    automaticFailure = undefined
+    await user.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('error.details') })).not.toBeInTheDocument())
+    expect(preview).toBeEnabled()
+    await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
+    expect(await screen.findByRole('option', { name: 'Language default · Exact Voice' })).toBeInTheDocument()
+  })
+
+  it('reports a failed automatic voice status without disabling the explicit voice', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'voice.exact',
+      'feature.voice.speech.language': 'en-US'
+    })
+    voice.resolveSpeech.mockImplementation(async (input: { voice?: string }) =>
+      input.voice
+        ? {
+            modelId: APPLE_TTS_MODEL_ID,
+            voice: input.voice,
+            language: 'en-US',
+            speed: 1,
+            status: { status: 'ready' }
+          }
+        : {
+            modelId: APPLE_TTS_MODEL_ID,
+            language: 'en-US',
+            speed: 1,
+            status: { status: 'failed', reason: 'model_load_failed' }
+          }
+    )
+    const user = userEvent.setup()
+    render(<VoiceSettings />)
+    const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+
+    const voiceSelect = screen.getByRole('combobox', { name: 'Speech voice' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled())
+    expect(screen.getByTestId('speech-status')).toHaveTextContent(i18n.t('settings.voice.status.ready'))
+    expect(voiceSelect).toHaveTextContent('Exact Voice')
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('model_load_failed'))
+    expect(open.mock.calls.at(-1)?.[0]?.context.operation).toBe('voice.load')
+    await user.click(voiceSelect)
+    expect(
+      await screen.findByRole('option', {
+        name: `Language default · ${i18n.t('settings.voice.status.model_load_failed')}`
+      })
+    ).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+  })
+
+  it('drops a recognition cause when the selected model is no longer inspected', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.resolveTranscription.mockRejectedValue(new Error('recognition resolve failed'))
+    const view = render(<VoiceSettings />)
+    const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('recognition resolve failed'))
+
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'not-a-model')
+    view.rerender(<VoiceSettings />)
+    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('error.details') })).not.toBeInTheDocument())
+    expect(screen.queryByText('recognition resolve failed')).not.toBeInTheDocument()
   })
 })

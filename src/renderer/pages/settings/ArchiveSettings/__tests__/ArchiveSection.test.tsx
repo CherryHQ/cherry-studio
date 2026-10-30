@@ -9,6 +9,15 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
+}))
+
 import type { ArchiveBatchOutcome, ArchiveItem } from '../archive'
 import ArchiveSection, { type PendingPermanentDelete } from '../ArchiveSection'
 
@@ -44,13 +53,42 @@ async function selectRows(user: ReturnType<typeof userEvent.setup>, ...names: st
   }
 }
 
-afterEach(cleanup)
+afterEach(async () => {
+  cleanup()
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+})
 
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
 })
 
 describe('ArchiveSection selection and batch actions', () => {
+  it('keeps section load retry and the original error', async () => {
+    const user = userEvent.setup()
+    const cause = new Error('archive index unavailable')
+    const onRetry = vi.fn()
+    const view = render(<ArchiveSection {...createProps({ error: cause, onRetry, items: [] })} />)
+
+    expect(screen.getByText(i18n.t('settings.data.trash.error.load'))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
+    expect(onRetry).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: cause,
+          message: i18n.t('settings.data.trash.error.load'),
+          source: 'settings.archive',
+          operation: 'archive.load'
+        })
+      )
+    )
+    view.rerender(<ArchiveSection {...createProps()} />)
+    expect(screen.queryByRole('button', { name: i18n.t('error.details') })).not.toBeInTheDocument()
+  })
+
   it('restores selected current-page rows once and keeps only failures selected', async () => {
     const user = userEvent.setup()
     const onRestoreMany = vi.fn<(_: ArchiveItem[]) => Promise<ArchiveBatchOutcome>>().mockResolvedValue({
