@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 
 import { application } from '@application'
 import { readRestoreJournal } from '@data/db/restore/restoreJournal'
@@ -11,6 +11,7 @@ import {
   runRestorePromotion
 } from '@data/db/restore/restorePromotion'
 import { loggerService } from '@logger'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('BackupRestoreGate')
@@ -80,7 +81,19 @@ export async function runBackupRestoreGate(isolatedSession = false): Promise<'ha
   if (result.kind === 'ok' && (result.journal.state === 'failed' || result.journal.state === 'expired')) {
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
-    dialog.showErrorBox(t('backup.restore.failed', undefined, language), t('backup.restore.retry', undefined, language))
+    const title = t('backup.restore.failed', undefined, language)
+    const message = t('backup.restore.retry', undefined, language)
+    await showSupportedMessageBox({
+      box: {
+        type: 'error',
+        title,
+        message,
+        buttons: [t('dialog.support.ok', undefined, language)],
+        defaultId: 0,
+        cancelId: 0
+      },
+      technicalDetail: message
+    })
   }
   cleanupTerminalRestoreArtifacts()
   if (isolatedSession) {
