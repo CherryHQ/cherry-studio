@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "Operação de mensagem indisponível. Tente novamente.",
   "message.error.siyuan.export": "Falha ao exportar nota do Siyuan, verifique o estado da conexão e confira a configuração no documento",
   "message.error.siyuan.no_config": "Endereço da API ou token do Siyuan não configurado",
+  "message.error.still_syncing": "A mensagem ainda está a sincronizar — tente novamente dentro de momentos",
   "message.error.stream_admission.execution_changed": "A resposta mudou antes de a nova tentativa começar. Por favor, tente novamente.",
   "message.error.stream_admission.execution_not_ready": "Esta resposta ainda está sendo gerada e não pode ser tentada novamente.",
   "message.error.stream_admission.model_already_in_live_group": "Este modelo já está gerando no grupo de respostas ativo.",

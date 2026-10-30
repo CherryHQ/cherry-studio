@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 
 /**
  * Reports a background refresh that failed while the last good list is still on
@@ -8,19 +9,33 @@ import { Alert, Button } from '@cherrystudio/ui'
  * failure must not be silent: nothing revalidates on its own, so the list stays
  * stale until the user retries.
  */
-export function ResourceRefreshErrorBanner({ onRetry, retrying }: { onRetry: () => void; retrying?: boolean }) {
+export function ResourceRefreshErrorBanner({
+  error,
+  onRetry,
+  retrying
+}: {
+  error?: unknown
+  onRetry: () => void
+  retrying?: boolean
+}) {
   const { t } = useTranslation()
+  const message = t('common.refresh_failed')
 
   return (
     <Alert
       type="warning"
       showIcon
       className="mb-2 shrink-0 rounded-md px-3 py-2 text-xs shadow-none"
-      message={t('common.refresh_failed')}
+      message={message}
       action={
-        <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
-          {t('common.retry')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
+            {t('common.retry')}
+          </Button>
+          {error ? (
+            <ErrorDetailAction error={error} message={message} source="resource.list" operation="resource.refresh" />
+          ) : null}
+        </div>
       }
     />
   )

@@ -8,6 +8,7 @@ import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -131,7 +132,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [clipboardText, isFirstMessage, userInputText])
 
   const [isPreparing, setIsPreparing] = useState(false)
-  const [flowError, setFlowError] = useState<string | null>(null)
+  const [flowError, setFlowError] = useState<{ message: string; cause: unknown } | null>(null)
 
   const {
     messages: chatMessages,
@@ -144,7 +145,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     experimental_throttle: 50,
     onError: (err) => {
       setIsPreparing(false)
-      setFlowError(err.message)
+      setFlowError({ message: err.message, cause: err })
     }
   })
 
@@ -414,12 +415,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           void sendMessage(message)
         }
       } catch (streamError) {
-        const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
-        setFlowError(resolvedError.message)
-        logger.error('Error fetching result:', resolvedError)
+        const message = streamError instanceof Error ? streamError.message : t('error.unexpected')
+        setFlowError({ message, cause: streamError })
+        logger.error(
+          'Error fetching result:',
+          streamError instanceof Error
+            ? streamError
+            : new Error(typeof streamError === 'string' ? streamError : 'An error occurred')
+        )
       }
     },
-    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
+    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, t, temporaryTopicId]
   )
 
   const handlePause = useCallback(() => {
@@ -583,7 +589,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           </Suspense>
           {flowError && (
             <div className="mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
-              {flowError}
+              <div>{flowError.message}</div>
+              <ErrorDetailAction
+                error={flowError.cause}
+                message={flowError.message}
+                source="quickAssistant"
+                operation="quick_assistant.send"
+              />
             </div>
           )}
 

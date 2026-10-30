@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "当前消息操作不可用，请重试。",
   "message.error.siyuan.export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
   "message.error.siyuan.no_config": "未配置思源笔记 API 地址或令牌",
+  "message.error.still_syncing": "消息仍在同步，请稍后再试",
   "message.error.stream_admission.execution_changed": "回复在重试开始前发生了变化，请重试。",
   "message.error.stream_admission.execution_not_ready": "该回复仍在生成，暂时无法重试。",
   "message.error.stream_admission.model_already_in_live_group": "该模型已在当前回复组中生成。",

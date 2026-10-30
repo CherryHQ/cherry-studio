@@ -9,6 +9,7 @@ import MessageContent from '@renderer/components/chat/messages/frame/MessageCont
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
@@ -409,8 +410,15 @@ export function GlobalSearchMessagePreviewPanel({
         </div>
       ) : error && messageItems.length === 0 ? (
         <div className="min-h-0 flex-1 px-6 pt-5 pb-20">
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-            {t('globalSearch.error')}
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground text-sm">
+            <span>{t('globalSearch.error')}</span>
+            <ErrorDetailAction
+              error={error}
+              message={t('globalSearch.error')}
+              operation="globalSearch.messages"
+              recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
+              source="globalSearch"
+            />
           </div>
         </div>
       ) : messageItems.length === 0 ? (
@@ -440,8 +448,15 @@ export function GlobalSearchMessagePreviewPanel({
                 {error && (
                   <div
                     role="alert"
-                    className="mb-4 rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
-                    {t('globalSearch.error')}
+                    className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
+                    <span>{t('globalSearch.error')}</span>
+                    <ErrorDetailAction
+                      error={error}
+                      message={t('globalSearch.error')}
+                      operation="globalSearch.messages"
+                      recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
+                      source="globalSearch"
+                    />
                   </div>
                 )}
                 {isLoadingMore && (

@@ -75,6 +75,7 @@ import {
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
@@ -682,7 +683,13 @@ export function Topics({
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
+        else {
+          toastAppError(t('chat.topics.manage.delete.error'), err, {
+            source: 'chat',
+            operation: 'topic.delete',
+            recordId: topic.id
+          })
+        }
         return
       }
 
@@ -1602,7 +1609,9 @@ export function Topics({
           )}
         </ResourceList.Header>
 
-        {refreshError && <ResourceRefreshErrorBanner onRetry={refetchTopics} retrying={isRefreshing} />}
+        {refreshError && (
+          <ResourceRefreshErrorBanner error={refreshError} onRetry={refetchTopics} retrying={isRefreshing} />
+        )}
         <SessionHoverPreviewGroup enabled={dataEnabled}>
           <TopicListBody
             activeTopic={activeTopic}

@@ -481,6 +481,109 @@ required service tier.`
     expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
   })
 
+  it('sends the visible summary to the detail and drops it when the fault identity changes', async () => {
+    const resolvers: Array<(value: string) => void> = []
+    const diagnoseMessageError = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolvers.push(resolve)
+        })
+    )
+    const openErrorDetail = vi.fn()
+    mocks.actions = { diagnoseMessageError, openErrorDetail }
+    const error = {
+      name: 'UnknownError',
+      message: 'unmapped provider failure',
+      stack: null
+    }
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+
+    await waitFor(() => expect(resolvers).toHaveLength(1))
+    resolvers[0]?.('Visible conclusion.')
+    expect(await screen.findByText('Visible conclusion.')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('common.detail'))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ aiSummary: 'Visible conclusion.', message, partId: 'message-1-part-0' })
+    )
+    expect(openErrorDetail.mock.calls[0]?.[0]).not.toHaveProperty('modelId')
+    expect(openErrorDetail.mock.calls[0]?.[0]).not.toHaveProperty('runId')
+
+    rerender(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={error}
+        message={{ ...message, updatedAt: '2026-02-01T00:00:00.000Z' }}
+      />
+    )
+    expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
+    await waitFor(() => expect(resolvers).toHaveLength(2))
+    resolvers[0]?.('Late attempt summary.')
+    resolvers[1]?.('Current attempt summary.')
+    expect(await screen.findByText('Current attempt summary.')).toBeInTheDocument()
+    expect(screen.queryByText('Late attempt summary.')).not.toBeInTheDocument()
+
+    mocks.language = 'zh-CN'
+    rerender(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={error}
+        message={{ ...message, updatedAt: '2026-02-01T00:00:00.000Z' }}
+      />
+    )
+    expect(screen.queryByText('Current attempt summary.')).not.toBeInTheDocument()
+    await waitFor(() => expect(resolvers).toHaveLength(3))
+    resolvers[1]?.('Late language summary.')
+    resolvers[2]?.('Current language summary.')
+    expect(await screen.findByText('Current language summary.')).toBeInTheDocument()
+    expect(screen.queryByText('Late language summary.')).not.toBeInTheDocument()
+
+    rerender(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ ...error, message: 'a different failure' }}
+        message={{ ...message, updatedAt: '2026-02-01T00:00:00.000Z' }}
+      />
+    )
+    expect(screen.queryByText('Current language summary.')).not.toBeInTheDocument()
+    await waitFor(() => expect(resolvers).toHaveLength(4))
+    resolvers[2]?.('Late error summary.')
+    expect(screen.queryByText('Late error summary.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Current language summary.')).not.toBeInTheDocument()
+  })
+
+  it('hides a stored summary when the same text becomes classifiable', async () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('Visible conclusion.')
+    const openErrorDetail = vi.fn()
+    mocks.actions = { diagnoseMessageError, openErrorDetail }
+    mocks.translations.set('error.diagnosis.auth', 'Not signed in')
+    const error = {
+      name: 'UnknownError',
+      message: 'unmapped provider failure',
+      stack: null
+    }
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    expect(await screen.findByText('Visible conclusion.')).toBeInTheDocument()
+
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error, statusCode: 401 }} message={message} />)
+    expect(await screen.findByText('Not signed in')).toBeInTheDocument()
+    expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('common.detail'))
+    expect(openErrorDetail.mock.calls.at(-1)?.[0]).not.toHaveProperty('aiSummary')
+
+    mocks.i18nKeys.add('error.tool_call_limit_reached')
+    rerender(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ ...error, i18nKey: 'tool_call_limit_reached' }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('error.tool_call_limit_reached')).toBeInTheDocument()
+    expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('common.detail'))
+    expect(openErrorDetail.mock.calls.at(-1)?.[0]).not.toHaveProperty('aiSummary')
+  })
+
   it('offers network settings for a client-certificate authentication failure', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()

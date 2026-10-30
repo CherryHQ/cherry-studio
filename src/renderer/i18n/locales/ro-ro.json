@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "Operațiunea asupra mesajului nu este disponibilă. Încearcă din nou.",
   "message.error.siyuan.export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
   "message.error.siyuan.no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate",
+  "message.error.still_syncing": "Mesajul se sincronizează încă — încearcă din nou peste un moment",
   "message.error.stream_admission.execution_changed": "Răspunsul s-a schimbat înainte de începerea reîncercării. Vă rugăm să încercați din nou.",
   "message.error.stream_admission.execution_not_ready": "Acest răspuns este încă în curs de generare și nu poate fi reîncercat încă.",
   "message.error.stream_admission.model_already_in_live_group": "Acest model generează deja în grupul de răspuns activ.",

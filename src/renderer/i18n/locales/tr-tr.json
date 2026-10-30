@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "Mesaj işlemi kullanılamıyor. Lütfen tekrar deneyin.",
   "message.error.siyuan.export": "Siyuan Note'a aktarılamadı, lütfen belgelere göre bağlantı durumunu ve yapılandırmayı kontrol edin",
   "message.error.siyuan.no_config": "Siyuan Note API adresi veya token'ı yapılandırılmamış",
+  "message.error.still_syncing": "İleti hâlâ eşitleniyor — bir süre sonra tekrar deneyin",
   "message.error.stream_admission.execution_changed": "Yeniden deneme başlamadan önce yanıt değişti. Lütfen tekrar deneyin.",
   "message.error.stream_admission.execution_not_ready": "Bu yanıt hâlâ oluşturuluyor ve henüz yeniden denenemez.",
   "message.error.stream_admission.model_already_in_live_group": "Bu model etkin yanıt grubunda zaten yanıt oluşturuyor.",

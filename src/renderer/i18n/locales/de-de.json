@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "Nachrichtenoperation nicht verfügbar. Bitte versuchen Sie es erneut.",
   "message.error.siyuan.export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
   "message.error.siyuan.no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert",
+  "message.error.still_syncing": "Die Nachricht wird noch synchronisiert — versuchen Sie es gleich noch einmal",
   "message.error.stream_admission.execution_changed": "Die Antwort hat sich geändert, bevor der erneute Versuch gestartet wurde. Bitte versuchen Sie es erneut.",
   "message.error.stream_admission.execution_not_ready": "Diese Antwort wird noch generiert und kann noch nicht erneut versucht werden.",
   "message.error.stream_admission.model_already_in_live_group": "Dieses Modell generiert bereits in der aktiven Antwortgruppe.",

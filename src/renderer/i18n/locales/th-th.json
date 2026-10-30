@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "การดำเนินการข้อความไม่พร้อมใช้งาน โปรดลองอีกครั้ง",
   "message.error.siyuan.export": "ไม่สามารถส่งออกไปยัง Siyuan Note โปรดตรวจสอบสถานะการเชื่อมต่อและการตั้งค่าตามเอกสาร",
   "message.error.siyuan.no_config": "ไม่ได้กำหนดค่าที่อยู่ API หรือโทเค็นของ Siyuan Note",
+  "message.error.still_syncing": "ข้อความยังซิงค์อยู่ — โปรดลองอีกครั้งในอีกสักครู่",
   "message.error.stream_admission.execution_changed": "การตอบสนองเปลี่ยนไปก่อนที่การลองใหม่จะเริ่ม โปรดลองอีกครั้ง",
   "message.error.stream_admission.execution_not_ready": "การตอบสนองนี้ยังคงสร้างอยู่ ยังไม่สามารถลองใหม่ได้",
   "message.error.stream_admission.model_already_in_live_group": "โมเดลนี้กำลังสร้างในกลุ่มคำตอบที่ใช้งานอยู่แล้ว",

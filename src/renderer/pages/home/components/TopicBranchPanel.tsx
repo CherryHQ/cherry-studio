@@ -17,6 +17,7 @@ import {
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -291,8 +292,15 @@ const TopicBranchPanel: FC<Props> = ({
       </div>
       <div className="min-h-0 flex-1">
         {error ? (
-          <div className="flex h-full min-h-80 items-center justify-center text-destructive text-sm" role="alert">
-            {t('common.error')}
+          <div className="flex h-full min-h-80 items-center justify-center gap-2 text-destructive text-sm" role="alert">
+            <span>{t('common.error')}</span>
+            <ErrorDetailAction
+              error={error}
+              message={t('common.error')}
+              source="chat.topic"
+              operation="topic.tree"
+              recordId={topicId}
+            />
           </div>
         ) : isLoading ? (
           <div className="flex h-full min-h-80 items-center justify-center text-foreground-tertiary text-sm">
