@@ -2,17 +2,25 @@ import { useTranslation } from 'react-i18next'
 
 import { MemoryDreamingControls } from '@renderer/components/memory/MemoryDreamingControls'
 import { MemoryFileControls } from '@renderer/components/memory/MemoryFileControls'
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 
 export function MemorySettings() {
   const { t } = useTranslation()
   return (
     <SettingsContentColumn>
-      <div className="space-y-4">
-        <h2 className="font-semibold">{t('settings.memory.title')}</h2>
+      <SettingGroup>
+        <SettingTitle role="heading" aria-level={2}>
+          {t('settings.memory.title')}
+        </SettingTitle>
+        <SettingDivider />
         <MemoryDreamingControls scope={{ kind: 'shared' }} />
-        <MemoryFileControls />
-      </div>
+      </SettingGroup>
+      <MemoryFileControls />
     </SettingsContentColumn>
   )
 }
