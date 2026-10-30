@@ -11,19 +11,18 @@ import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionBudget } from '../resolveCompressionBudget'
 import { resolveCompressionModel } from '../resolveCompressionModel'
 
-const { providerLookup, modelLookup, providerConfig, compressionExecutor } = vi.hoisted(() => ({
+const { providerLookup, modelLookup, providerConfig, compressionExecutor, defaultExecutor } = vi.hoisted(() => ({
   providerLookup: vi.fn(),
   modelLookup: vi.fn(),
   providerConfig: vi.fn(),
-  compressionExecutor: vi.fn()
+  compressionExecutor: vi.fn(),
+  defaultExecutor: vi.fn()
 }))
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => {
   const actual = await importOriginal<typeof AiCoreModule>()
-  return {
-    ...actual,
-    createExecutor: (...args: unknown[]) =>
-      compressionExecutor(...args) ?? actual.createExecutor(...(args as Parameters<typeof actual.createExecutor>))
-  }
+  defaultExecutor.mockImplementation(actual.createExecutor)
+  compressionExecutor.mockImplementation(defaultExecutor)
+  return { ...actual, createExecutor: compressionExecutor }
 })
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: providerLookup } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: modelLookup } }))
@@ -173,7 +172,11 @@ describe('Ollama compressor request window', () => {
       })
     })
     providerLookup.mockReturnValue(
-      makeProvider({ id: 'ollama', apiHost: 'http://localhost:11434', defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT })
+      makeProvider({
+        id: 'ollama',
+        endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://localhost:11434' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT
+      })
     )
     modelLookup.mockReturnValue(
       makeModel({ id: 'ollama::qwen3', providerId: 'ollama', apiModelId: 'qwen3', contextWindow: 32768 })
