@@ -1,18 +1,16 @@
-import type { DraggableProvided } from '@hello-pangea/dnd'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type React from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, type SortableDragHandleProps } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 interface ActionItemProps {
   item: SelectionActionItem
-  provided: DraggableProvided
-  listType: 'enabled' | 'disabled'
+  dragHandleProps?: SortableDragHandleProps
   isLastEnabledItem: boolean
   onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
@@ -20,15 +18,16 @@ interface ActionItemProps {
 }
 
 const ActionsListItem = memo(
-  ({ item, provided, listType, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo }: ActionItemProps) => {
+  ({ item, dragHandleProps, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo }: ActionItemProps) => {
     const { t } = useTranslation()
-    const isEnabled = listType === 'enabled'
+    const isEnabled = item.enabled
+    const handleProps = isLastEnabledItem ? undefined : dragHandleProps
 
     return (
       <Item
-        ref={provided.innerRef}
-        {...provided.draggableProps}
-        {...(isLastEnabledItem ? {} : provided.dragHandleProps)}
+        ref={handleProps?.ref}
+        {...handleProps?.attributes}
+        {...handleProps?.listeners}
         disabled={!isEnabled}
         className={isLastEnabledItem ? 'non-draggable' : ''}>
         <ItemLeft>
@@ -92,7 +91,7 @@ const Item = ({
   <div
     ref={ref as React.Ref<HTMLDivElement>}
     className={cn(
-      'group/action-item mb-2 flex min-h-11 cursor-move items-center justify-between rounded-md border border-border-subtle bg-transparent px-4 py-2 transition-colors last:mb-0 hover:border-border hover:bg-muted/50',
+      'group/action-item flex min-h-11 cursor-move items-center justify-between rounded-md border border-border-subtle bg-transparent px-4 py-2 transition-colors hover:border-border hover:bg-muted/50',
       disabled && 'opacity-70 hover:bg-muted/30',
       className === 'non-draggable' && 'relative cursor-default border-border bg-muted/50 hover:bg-muted/50',
       className
