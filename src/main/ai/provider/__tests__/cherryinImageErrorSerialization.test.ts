@@ -54,6 +54,27 @@ describe('CherryIN image no-image errors survive provider serialization', () => 
     expect(serialized.statusCode).toBe(200)
   })
 
+  it.each([
+    { data: [], message: 'Generation completed' },
+    { data: [], error: { message: 'No image returned' } },
+    { data: [], detail: { error: { message: 'Generation finished' } } }
+  ])('keeps the billing warning when the empty response contains upstream text: %j', async (body) => {
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(async () => jsonResponse(body))
+    const error = await catchNoImage(fetchMock)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(getSafeProviderErrorMessage(asProviderErrorSource(error))).toContain('may have been billed')
+    const serialized = serializeNestedProviderError(error) as {
+      message?: string
+      statusCode?: number
+      isRetryable?: boolean
+    }
+    expect(serialized.message).toContain('no recognizable image data')
+    expect(serialized.message).toContain('retrying starts a new billable generation')
+    expect(serialized.statusCode).toBe(200)
+    expect(serialized.isRetryable).toBe(false)
+  })
+
   it('keeps the billing warning for a successful response whose parsed body has no images', async () => {
     const fetchMock = vi.fn<FetchFunction>().mockImplementation(async () => jsonResponse({ data: [] }))
 

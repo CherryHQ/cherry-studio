@@ -523,11 +523,7 @@ function withTolerantOpenAIImageResponse(
         return response
       }
       const delegate = new OpenAIImageModel(modelId, { ...config, fetch: capturingFetch })
-      const noImageError = (
-        shape: Record<string, unknown>,
-        rawText: string | undefined,
-        cause: unknown
-      ): APICallError =>
+      const noImageError = (shape: Record<string, unknown>, cause: unknown): APICallError =>
         new APICallError({
           // Plain text without JSON containers: getSafeProviderErrorMessage discards
           // any message matching a brace/bracket container pattern, which would
@@ -536,11 +532,9 @@ function withTolerantOpenAIImageResponse(
           statusCode: captureStatus,
           url: captureUrl,
           responseHeaders: captureHeaders,
-          // Sanitized shape diagnostics (keys/lengths, or capture metadata) travel in
-          // `data`, separately from the user-facing message; the capped upstream body
-          // stays in responseBody.
+          // Keep only shape diagnostics. The shared serializer prefers upstream text
+          // in responseBody over message, which could hide this billing warning.
           data: shape,
-          ...(rawText && rawText.length <= 2000 ? { responseBody: rawText } : {}),
           requestBodyValues: {},
           isRetryable: false,
           ...(cause === undefined ? {} : { cause: cause instanceof Error ? cause : new Error(String(cause)) })
@@ -582,18 +576,18 @@ function withTolerantOpenAIImageResponse(
         const captured = await parseCapturedBody()
         if (captured && 'unparsable' in captured) {
           // A successful status with a non-JSON body may still have been billed.
-          throw noImageError({ capture: 'unparsable', length: captured.rawText.length }, captured.rawText, cause)
+          throw noImageError({ capture: 'unparsable', length: captured.rawText.length }, cause)
         }
         if (captured) {
           const entries = extractImageEntries(captured.parsed)
           if (entries.length > 0) return recoveredResult(entries, captured.parsed, warnings)
-          throw noImageError(summarizeImageBody(captured.parsed), captured.rawText, cause)
+          throw noImageError(summarizeImageBody(captured.parsed), cause)
         }
         if (skippedBytes !== undefined) {
-          throw noImageError({ bytes: skippedBytes, capture: 'skipped-over-cap' }, undefined, cause)
+          throw noImageError({ bytes: skippedBytes, capture: 'skipped-over-cap' }, cause)
         }
         if (cause !== undefined) throw cause
-        throw noImageError({ capture: 'unavailable' }, undefined, cause)
+        throw noImageError({ capture: 'unavailable' }, cause)
       }
       let result: TolerantImageResult
       try {
