@@ -1,5 +1,5 @@
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import type { ToolSet, UIMessage, ModelMessage } from 'ai'
+import type { ToolSet, UIMessage } from 'ai'
 
 /**
  * Request-level token budget for attachment text inlined into the prompt.
