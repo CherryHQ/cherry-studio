@@ -17,12 +17,16 @@ import {
   DialogTitle,
   Field,
   FieldLabel,
-  InfoTooltip,
   Input,
   Label,
-  SegmentedControl
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
 } from '@cherrystudio/ui'
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -32,17 +36,26 @@ import type {
   FeishuWikiSpacePage,
   FeishuWikiSpacePreview
 } from '@shared/data/types/externalKnowledgeRead'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 
+import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
+import type { CreateKnowledgeBaseDialogProps } from './CreateKnowledgeBaseDialog'
 import FeishuAuthorizationStatus from './FeishuAuthorizationStatus'
 import FeishuConnectionForm from './FeishuConnectionForm'
+import { KnowledgeBaseCreationFields, type KnowledgeBaseFormValues } from './KnowledgeBaseCreationFields'
 
-interface FeishuWikiWizardProps {
+type FeishuWikiWizardProps = {
   open: boolean
-  baseId: string
   onOpenChange: (open: boolean) => void
-}
+} & (
+  | { baseId: string; newBase?: never }
+  | {
+      baseId?: never
+      newBase: Pick<CreateKnowledgeBaseDialogProps, 'groups' | 'initialGroupId' | 'createBase' | 'onCreated'>
+    }
+)
 
 type AuthorizationStart = {
   authorizationSessionId: string
@@ -63,8 +76,16 @@ const documentTypeKeys = {
   other: 'knowledge.external.wizard.document_types.other'
 } satisfies Record<ExternalKnowledgeDocumentKind, string>
 
-const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps) => {
+const FeishuWikiWizard = ({ open, baseId, newBase, onOpenChange }: FeishuWikiWizardProps) => {
   const { t } = useTranslation()
+  const { fetchDimensions } = useEmbeddingDimensions()
+  const [baseValues, setBaseValues] = useState<KnowledgeBaseFormValues>({
+    name: '',
+    groupId: newBase?.initialGroupId,
+    embeddingModelId: null
+  })
+  const createdBase = useRef<KnowledgeBase | null>(null)
+  const [addingAccount, setAddingAccount] = useState(false)
   const invalidate = useInvalidateCache()
   const {
     data: connections,
@@ -91,7 +112,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const closed = useRef(false)
   const createdScopes = useRef(new Set<string>())
   const isCreating = busy && step === 3
-  const reviewLocked = busy || createdCount > 0
+  const reviewLocked = busy || createdCount > 0 || createdBase.current !== null
   const previewEntries = preview
     ? preview.kind === 'space'
       ? preview.data.map((data) => ({ key: data.space.spaceId, title: data.space.name, data }))
@@ -99,7 +120,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
     : []
   const hasConnectedConnections =
     !connectionsError && connections?.some((connection) => connection.authorizationStatus === 'connected')
-  const showAppForm = connectingNewApp || !hasConnectedConnections
+  const showAppForm = addingAccount || connectingNewApp || !hasConnectedConnections
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
   // Discovery cache belongs to this wizard; reopening must observe current permissions.
@@ -141,6 +162,9 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
       : 'other'
     : null
 
+  const emptySpaces = Boolean(spacePages) && !spacesLoading && !spacesError && spaces.length === 0 && !nextPageToken
+  const effectiveScopeMode = emptySpaces ? 'url' : scopeMode
+
   const selectConnection = (connectionId: string | null) => {
     setScopeMode('space')
     setSelectedConnectionId(connectionId)
@@ -176,8 +200,10 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
     closed.current = true
     cancelPendingAuthorization()
     setAuthorization(null)
+    if (createdBase.current) newBase?.onCreated(createdBase.current)
     onOpenChange(false)
   }
+  const handleSettingsNavigate = useCloseBeforeAction(() => close())
 
   const formatAuthorizationError = (cause: unknown) => {
     if (cause instanceof IpcError) {
@@ -232,11 +258,11 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   }
 
   const previewScope = async () => {
-    if (!selectedConnectionId || (scopeMode === 'space' ? selectedSpaceIds.length === 0 : !url.trim())) return
+    if (!selectedConnectionId || (effectiveScopeMode === 'space' ? selectedSpaceIds.length === 0 : !url.trim())) return
     setBusy(true)
     setError(null)
     try {
-      if (scopeMode === 'space') {
+      if (effectiveScopeMode === 'space') {
         const results: FeishuWikiSpacePreview[] = []
         for (const spaceId of selectedSpaceIds) {
           const result = await ipcApi.request('knowledge.feishu.space.preview', {
@@ -247,6 +273,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
           results.push(result)
         }
         setPreview({ kind: 'space', data: results })
+        setBaseValues((values) => ({ ...values, name: values.name || results[0]?.space.name || '' }))
       } else {
         const result = await ipcApi.request('knowledge.feishu.scope.preview', {
           connectionId: selectedConnectionId,
@@ -254,6 +281,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
         })
         if (closed.current) return
         setPreview({ kind: 'url', data: result })
+        setBaseValues((values) => ({ ...values, name: values.name || result.resolution.selected.title }))
       }
       setStep(3)
     } catch (cause) {
@@ -262,7 +290,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
           formatErrorMessageWithPrefix(
             cause,
             t(
-              scopeMode === 'space'
+              effectiveScopeMode === 'space'
                 ? 'knowledge.external.wizard.preview_space_error'
                 : 'knowledge.external.wizard.preview_error'
             )
@@ -287,11 +315,32 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
         : [{ key: 'url', scope: { url: url.trim() }, name: preview.data.resolution.selected.title.trim() }]
     const failures: string[] = []
     try {
+      let destinationId = baseId ?? createdBase.current?.id
+      if (!destinationId && newBase) {
+        const name = baseValues.name.trim()
+        if (!name) {
+          setError(t('knowledge.name_required'))
+          return
+        }
+        const embedding = baseValues.embeddingModelId
+          ? {
+              embeddingModelId: baseValues.embeddingModelId,
+              dimensions: await fetchDimensions(baseValues.embeddingModelId)
+            }
+          : {}
+        createdBase.current = await newBase.createBase({
+          name,
+          ...(newBase.groups.some((group) => group.id === baseValues.groupId) ? { groupId: baseValues.groupId } : {}),
+          ...embedding
+        })
+        destinationId = createdBase.current.id
+      }
+      if (!destinationId) return
       for (const scope of scopes) {
         if (createdScopes.current.has(scope.key)) continue
         try {
           const source = await ipcApi.request('knowledge.external_source.create', {
-            baseId,
+            baseId: destinationId,
             connectionId: selectedConnectionId,
             ...scope.scope,
             name: scope.name.slice(0, 256)
@@ -327,6 +376,8 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
         return
       }
       if (!closed.current) close()
+    } catch (cause) {
+      setError(formatErrorMessageWithPrefix(cause, t('knowledge.external.wizard.create_error')))
     } finally {
       setBusy(false)
       if (createdScopes.current.size > 0) void invalidate('/knowledge-bases/:id/external-knowledge-sources')
@@ -340,7 +391,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
     connections?.some(
       (connection) => connection.authorizationStatus === 'reauthorization-required' && connection.authorizedAt
     ) ? (
-      <div className="space-y-4 py-2">
+      <div className="space-y-4">
         {isLoadingConnections ? <p role="status">{t('common.loading')}</p> : null}
         {connectionsError ? (
           <div role="alert" className="text-error-subtle-foreground space-y-2 text-sm">
@@ -389,6 +440,11 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
             />
           </Field>
         ) : null}
+        {hasConnectedConnections && !showAppForm ? (
+          <Button type="button" variant="outline" disabled={busy} onClick={() => setAddingAccount(true)}>
+            {t('knowledge.external.wizard.add_account')}
+          </Button>
+        ) : null}
         {!connectionsError &&
           connections
             ?.filter(
@@ -418,13 +474,14 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && !isCreating && close()}>
       <DialogContent
+        size="sm"
         closeLabel={t('common.close')}
         closeOnOverlayClick={false}
         showCloseButton={!isCreating}
         aria-describedby={undefined}
         className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
         <DialogHeader className="shrink-0 pr-8">
-          <DialogTitle>{t('knowledge.external.wizard.title')}</DialogTitle>
+          <DialogTitle>{t(newBase ? 'knowledge.add.from_feishu' : 'knowledge.external.wizard.title')}</DialogTitle>
         </DialogHeader>
         {authorization ? (
           <FeishuAuthorizationStatus
@@ -438,8 +495,9 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
             <FeishuConnectionForm
               disabled={busy}
               onBusyChange={setConnectingNewApp}
-              onCancel={close}
+              onCancel={() => (hasConnectedConnections ? setAddingAccount(false) : close())}
               onConnected={(connectionId, initialScopeMode) => {
+                setAddingAccount(false)
                 selectConnection(connectionId)
                 setScopeMode(initialScopeMode)
                 setStep(2)
@@ -454,126 +512,147 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                 {step === 1 ? (
                   connectionSelection
                 ) : step === 2 ? (
-                  <div className="space-y-3 py-2">
-                    <SegmentedControl<'space' | 'url'>
-                      aria-label={t('knowledge.external.wizard.scope')}
-                      value={scopeMode}
-                      disabled={busy}
-                      options={[
-                        { value: 'space', label: t('knowledge.external.wizard.choose_space') },
-                        { value: 'url', label: t('knowledge.external.wizard.paste_link') }
-                      ]}
+                  <div className="space-y-4">
+                    <Tabs
+                      variant="underline"
+                      value={effectiveScopeMode}
                       onValueChange={(value) => {
-                        setScopeMode(value)
+                        setScopeMode(value as 'space' | 'url')
                         setPreview(null)
                         setError(null)
-                      }}
-                    />
-                    {scopeMode === 'space' ? (
-                      <div className="space-y-2">
-                        {spacesLoading && spaces.length === 0 ? <p role="status">{t('common.loading')}</p> : null}
-                        {spacesError ? (
-                          <div role="alert" className="text-error-subtle-foreground space-y-2 text-sm">
-                            <p>
-                              {t(
-                                spacesError === 'permission'
-                                  ? 'knowledge.external.wizard.spaces_permission_error'
-                                  : 'knowledge.external.wizard.spaces_error'
-                              )}
-                            </p>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={busy || spacesLoading}
-                              onClick={() => void refreshSpaces()}>
-                              {t('knowledge.external.wizard.retry_spaces')}
-                            </Button>
-                            {spacesError === 'permission' && selectedConnectionId ? (
-                              <div className="space-y-2">
-                                <p>{t('knowledge.external.wizard.spaces_reconnect_help')}</p>
+                      }}>
+                      <TabsList aria-label={t('knowledge.external.wizard.scope')} className="justify-start">
+                        <TabsTrigger value="space" disabled={busy || emptySpaces}>
+                          {t('knowledge.external.wizard.choose_space')}
+                        </TabsTrigger>
+                        <TabsTrigger value="url" disabled={busy}>
+                          {t('knowledge.external.wizard.paste_link')}
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value={effectiveScopeMode} className="space-y-4 pt-2">
+                        {emptySpaces ? (
+                          <p className="text-sm text-muted-foreground">{t('knowledge.external.wizard.no_spaces')}</p>
+                        ) : null}
+                        {effectiveScopeMode === 'space' ? (
+                          <div className="space-y-2">
+                            {spacesLoading && spaces.length === 0 ? <p role="status">{t('common.loading')}</p> : null}
+                            {spacesError ? (
+                              <div role="alert" className="text-error-subtle-foreground space-y-2 text-sm">
+                                <p>
+                                  {t(
+                                    spacesError === 'permission'
+                                      ? 'knowledge.external.wizard.spaces_permission_error'
+                                      : 'knowledge.external.wizard.spaces_error'
+                                  )}
+                                </p>
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  disabled={busy}
-                                  onClick={() => void reconnect(selectedConnectionId, true)}>
-                                  {t('knowledge.external.wizard.authorize_spaces')}
+                                  disabled={busy || spacesLoading}
+                                  onClick={() => void refreshSpaces()}>
+                                  {t('knowledge.external.wizard.retry_spaces')}
                                 </Button>
+                                {spacesError === 'permission' && selectedConnectionId ? (
+                                  <div className="space-y-2">
+                                    <p>{t('knowledge.external.wizard.spaces_reconnect_help')}</p>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={busy}
+                                      onClick={() => void reconnect(selectedConnectionId, true)}>
+                                      {t('knowledge.external.wizard.authorize_spaces')}
+                                    </Button>
+                                  </div>
+                                ) : null}
                               </div>
                             ) : null}
+                            {!spacesLoading && !spacesError && spaces.length === 0 && !nextPageToken ? (
+                              <p className="text-muted-foreground text-sm">
+                                {t('knowledge.external.wizard.no_spaces')}
+                              </p>
+                            ) : null}
+                            {spaces.length > 0 ? (
+                              <Field>
+                                <FieldLabel id="feishu-available-spaces">
+                                  {t('knowledge.external.wizard.available_spaces')}
+                                </FieldLabel>
+                                <Combobox
+                                  multiple
+                                  portalContainer={document.body}
+                                  aria-labelledby="feishu-available-spaces"
+                                  width="100%"
+                                  disabled={busy}
+                                  value={selectedSpaceIds}
+                                  options={spaces.map((space) => ({
+                                    value: space.spaceId,
+                                    label: space.name,
+                                    description: space.description ?? undefined
+                                  }))}
+                                  placeholder={t('knowledge.external.wizard.choose_space')}
+                                  searchPlaceholder={t('common.search')}
+                                  emptyText={t('common.no_results')}
+                                  renderValue={(value, options) => (
+                                    <span className="min-w-0 flex-1 truncate">
+                                      {options
+                                        .filter((option) => value.includes(option.value))
+                                        .map((option) => option.label)
+                                        .join(', ') || t('knowledge.external.wizard.choose_space')}
+                                    </span>
+                                  )}
+                                  onChange={(value) => {
+                                    setSelectedSpaceIds(Array.isArray(value) ? value : [])
+                                    setPreview(null)
+                                    setError(null)
+                                  }}
+                                />
+                              </Field>
+                            ) : null}
+                            {nextPageToken && !spacesError ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={busy || spacesLoading}
+                                onClick={() => void setSpacesSize((spacePages?.length ?? 0) + 1)}>
+                                {spacesLoading ? t('common.loading') : t('knowledge.external.wizard.load_more_spaces')}
+                              </Button>
+                            ) : null}
                           </div>
-                        ) : null}
-                        {!spacesLoading && !spacesError && spaces.length === 0 && !nextPageToken ? (
-                          <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.no_spaces')}</p>
-                        ) : null}
-                        {spaces.length > 0 ? (
-                          <Field>
-                            <FieldLabel id="feishu-available-spaces">
-                              {t('knowledge.external.wizard.available_spaces')}
-                            </FieldLabel>
-                            <Combobox
-                              multiple
-                              portalContainer={document.body}
-                              aria-labelledby="feishu-available-spaces"
-                              width="100%"
+                        ) : (
+                          <div className="space-y-2">
+                            <Label htmlFor="feishu-wiki-url">{t('knowledge.external.wizard.url')}</Label>
+                            <Input
+                              id="feishu-wiki-url"
+                              type="url"
+                              value={url}
+                              placeholder={t('knowledge.external.wizard.url_placeholder')}
                               disabled={busy}
-                              value={selectedSpaceIds}
-                              options={spaces.map((space) => ({
-                                value: space.spaceId,
-                                label: space.name,
-                                description: space.description ?? undefined
-                              }))}
-                              placeholder={t('knowledge.external.wizard.choose_space')}
-                              searchPlaceholder={t('common.search')}
-                              emptyText={t('common.no_results')}
-                              renderValue={(value, options) => (
-                                <span className="min-w-0 flex-1 truncate">
-                                  {options
-                                    .filter((option) => value.includes(option.value))
-                                    .map((option) => option.label)
-                                    .join(', ') || t('knowledge.external.wizard.choose_space')}
-                                </span>
-                              )}
-                              onChange={(value) => {
-                                setSelectedSpaceIds(Array.isArray(value) ? value : [])
+                              onChange={(event) => {
+                                setUrl(event.target.value)
                                 setPreview(null)
                                 setError(null)
                               }}
                             />
-                          </Field>
-                        ) : null}
-                        {nextPageToken && !spacesError ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={busy || spacesLoading}
-                            onClick={() => void setSpacesSize((spacePages?.length ?? 0) + 1)}>
-                            {spacesLoading ? t('common.loading') : t('knowledge.external.wizard.load_more_spaces')}
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Label htmlFor="feishu-wiki-url">{t('knowledge.external.wizard.url')}</Label>
-                        <Input
-                          id="feishu-wiki-url"
-                          type="url"
-                          value={url}
-                          placeholder={t('knowledge.external.wizard.url_placeholder')}
-                          disabled={busy}
-                          onChange={(event) => {
-                            setUrl(event.target.value)
-                            setPreview(null)
-                            setError(null)
-                          }}
-                        />
-                      </div>
-                    )}
+                          </div>
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 ) : (
-                  <div className="space-y-4 py-2">
+                  <div className="space-y-6 py-2">
+                    {newBase ? (
+                      <fieldset disabled={reviewLocked} className="space-y-4">
+                        <KnowledgeBaseCreationFields
+                          values={baseValues}
+                          disabled={reviewLocked}
+                          setValues={setBaseValues}
+                          groups={newBase.groups}
+                          onSettingsNavigate={handleSettingsNavigate}
+                        />
+                      </fieldset>
+                    ) : null}
                     {previewEntries.map((entry) => (
                       <section key={entry.key} aria-label={entry.title} className="space-y-2">
                         <div className="space-y-1 text-sm break-words">
@@ -665,25 +744,20 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                         ) : null}
                       </section>
                     ))}
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-1.5">
-                        <Label id="feishu-sync-frequency">{t('knowledge.external.wizard.sync_frequency')}</Label>
-                        <InfoTooltip
-                          ariaLabel={t('knowledge.external.wizard.preview_cost_label')}
-                          content={t('knowledge.external.wizard.preview_exact_cost')}
-                          portalContainer={document.body}
+                    <div className="space-y-3">
+                      <p className="text-muted-foreground text-sm">
+                        {t('knowledge.external.wizard.preview_exact_cost')}
+                      </p>
+                      <div className="flex items-center justify-between gap-4">
+                        <Label htmlFor="feishu-sync-daily">{t('knowledge.external.wizard.daily')}</Label>
+                        <Switch
+                          id="feishu-sync-daily"
+                          checked={policy === 'daily'}
+                          disabled={reviewLocked}
+                          onCheckedChange={(checked) => setPolicy(checked ? 'daily' : 'manual')}
                         />
                       </div>
-                      <SegmentedControl<'manual' | 'daily'>
-                        aria-labelledby="feishu-sync-frequency"
-                        value={policy}
-                        disabled={reviewLocked}
-                        options={[
-                          { value: 'manual', label: t('knowledge.external.wizard.manual') },
-                          { value: 'daily', label: t('knowledge.external.wizard.daily') }
-                        ]}
-                        onValueChange={setPolicy}
-                      />
+                      <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.sync_help')}</p>
                     </div>
                     {policy === 'daily' ? (
                       <div className="space-y-2">
@@ -744,7 +818,8 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                     type="button"
                     loading={busy}
                     disabled={
-                      busy || (scopeMode === 'space' ? spacesLoading || selectedSpaceIds.length === 0 : !url.trim())
+                      busy ||
+                      (effectiveScopeMode === 'space' ? spacesLoading || selectedSpaceIds.length === 0 : !url.trim())
                     }
                     onClick={() => void previewScope()}>
                     {t('knowledge.external.wizard.next')}
@@ -753,9 +828,15 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                   <Button
                     type="button"
                     loading={busy}
-                    disabled={busy || (policy === 'daily' && !dailyTime)}
+                    disabled={busy || (policy === 'daily' && !dailyTime) || Boolean(newBase && !baseValues.name.trim())}
                     onClick={() => void createSource()}>
-                    {t(createdCount > 0 ? 'common.retry' : 'common.add')}
+                    {t(
+                      createdCount > 0 || createdBase.current
+                        ? 'common.retry'
+                        : newBase
+                          ? 'knowledge.add.create_and_import'
+                          : 'common.add'
+                    )}
                   </Button>
                 )}
               </DialogFooter>

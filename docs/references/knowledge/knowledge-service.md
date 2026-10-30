@@ -368,6 +368,29 @@ one handoff into user authorization, and cancellation also fences an in-flight h
 can publish a pending connection. Channel activation never implicitly registers an application;
 UI setup and the explicit agent QR command register before binding through the credential store.
 
+## Creating a base from Feishu
+
+The new knowledge base entry offers blank creation or import from Feishu. Import reuses the
+existing connection and scope wizard: select or add an account, select Wiki spaces or paste a
+`/wiki/` or `/docx/` link, then review the content and configure the local base. Existing-base
+imports use the same wizard without the creation fields. Adding an account exposes QR application
+selection even when connected accounts already exist. An empty Wiki list with no further pages
+displays the document/Wiki link form directly; a failed or still-loading list remains distinguishable
+from an empty result. Saved applications and manual credentials
+remain available through the shared application picker.
+
+Before final confirmation, no knowledge base or source is created and no embedding dimension
+probe runs. Confirmation resolves the optional embedding model dimensions, creates one base, and
+adds the selected sources to it. Without an embedding model the base uses keyword retrieval.
+Daily sync is an optional switch, disabled by default. The review explains that importing and
+updating documents can incur charges from the configured embedding model provider.
+
+Base creation and source creation are separate operations. If source creation fails, the wizard
+retains the created base and successful sources, locks the import configuration, and retries only
+failed sources. Closing after such a failure selects the retained base so recovery remains
+available. Cancelling before confirmation leaves no base or source; authorized accounts remain
+available for future imports.
+
 ## Caller Contract
 
 Current Data API knowledge endpoints are read/update-only for database state that has no vector-store side effect:

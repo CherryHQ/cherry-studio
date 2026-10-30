@@ -46,6 +46,8 @@ export function FeishuApplicationPicker({
         (purpose === 'channel' || entry.domain === 'feishu')
     ) ?? []
 
+  const selectedApplication = applications.find((app) => app.id === value)
+
   async function save() {
     setSaving(true)
     setFailed(false)
@@ -71,23 +73,38 @@ export function FeishuApplicationPicker({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <Label htmlFor={id}>{t('credentials.feishu.application')}</Label>
-      <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-col gap-4">
+      <Label hidden={adding} htmlFor={id}>
+        {t('credentials.feishu.application')}
+      </Label>
+      <div hidden={adding} className="min-w-0 space-y-2">
         <Select
           value={value ?? '__none'}
           onValueChange={(next) => {
             if (next) onChange(next === '__none' ? null : next)
           }}
           disabled={isLoading || saving}>
-          <SelectTrigger id={id} className="flex-1">
-            <SelectValue />
+          <SelectTrigger id={id} className="w-full min-w-0 [&_[data-slot=select-value]]:min-w-0">
+            <SelectValue>
+              <span className="truncate">
+                {selectedApplication?.label ||
+                  selectedApplication?.appId ||
+                  t(value ? 'common.error' : 'credentials.feishu.choose')}
+              </span>
+            </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            align="start"
+            className="w-(--radix-select-trigger-width) max-w-(--radix-select-content-available-width)">
             <SelectItem value="__none">{t('credentials.feishu.choose')}</SelectItem>
             {applications.map((app) => (
-              <SelectItem key={app.id} value={app.id}>
-                {app.label} · {app.appId}
+              <SelectItem key={app.id} value={app.id} textValue={app.label || app.appId}>
+                <span className="min-w-0 whitespace-normal wrap-anywhere">
+                  <span className="block">{app.label || app.appId}</span>
+                  {app.label && app.label !== app.appId ? (
+                    <span className="block text-xs text-muted-foreground">{app.appId}</span>
+                  ) : null}
+                </span>
               </SelectItem>
             ))}
             {value && !applications.some((app) => app.id === value) && (
@@ -97,17 +114,6 @@ export function FeishuApplicationPicker({
             )}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setAdding(!adding)
-            setFields({ appId: '', appSecret: '', encryptKey: '', verificationToken: '' })
-            setFailed(false)
-          }}
-          disabled={saving}>
-          {t(adding ? 'common.back' : 'credentials.feishu.manual')}
-        </Button>
       </div>
       {error && (
         <div role="alert" className="text-sm text-destructive">
@@ -129,18 +135,35 @@ export function FeishuApplicationPicker({
           }}
         />
       )}
+      <Button
+        type="button"
+        variant="link"
+        className="h-auto self-start px-0 text-sm text-muted-foreground"
+        onClick={() => {
+          setAdding(!adding)
+          if (!adding) onChange(null)
+          setFields({ appId: '', appSecret: '', encryptKey: '', verificationToken: '' })
+          setFailed(false)
+        }}
+        disabled={saving}>
+        {t(adding ? 'common.back' : 'credentials.feishu.manual')}
+      </Button>
       {adding && (
         <div className="flex flex-col gap-3">
-          <Label htmlFor={`${id}-domain`}>{t('agent.channels.feishu.domain')}</Label>
-          <Select value={domain} onValueChange={(next) => setDomain(next as 'feishu' | 'lark')} disabled={saving}>
-            <SelectTrigger id={`${id}-domain`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="feishu">{t('agent.channels.feishu.domainFeishu')}</SelectItem>
-              {purpose === 'channel' && <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>}
-            </SelectContent>
-          </Select>
+          {purpose === 'channel' ? (
+            <>
+              <Label htmlFor={`${id}-domain`}>{t('agent.channels.feishu.domain')}</Label>
+              <Select value={domain} onValueChange={(next) => setDomain(next as 'feishu' | 'lark')} disabled={saving}>
+                <SelectTrigger id={`${id}-domain`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="feishu">{t('agent.channels.feishu.domainFeishu')}</SelectItem>
+                  <SelectItem value="lark">{t('agent.channels.feishu.domainLark')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          ) : null}
           {(purpose === 'knowledge'
             ? (['appId', 'appSecret'] as const)
             : (['appId', 'appSecret', 'encryptKey', 'verificationToken'] as const)
