@@ -86,6 +86,8 @@ describe('AgentContextUsageSummary', () => {
     const trigger = screen.getByRole('button', { name: 'Context' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('20%')).toBeInTheDocument()
+    expect(screen.getByRole('meter', { name: 'Context 20%' })).toHaveAttribute('aria-valuenow', '20')
+    expect(screen.getByRole('meter', { name: 'Context 20%' })).toHaveAttribute('tabindex', '-1')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     await user.tab()
     await user.keyboard('{Enter}')
@@ -126,6 +128,11 @@ describe('AgentContextUsageSummary', () => {
     expect(screen.getByTitle('200,300 / 1,000,000 · Estimated · Partial breakdown')).toBeInTheDocument()
     expect(screen.queryByText(/[≈~～]/)).not.toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /^Free space/ })).not.toBeInTheDocument()
+    const meter = screen.getByRole('meter')
+    expect(meter).toHaveAttribute('aria-valuenow', '200300')
+    expect(within(meter).getByTitle('MCP tools')).toBeInTheDocument()
+    expect(within(meter).getByTitle('System prompt')).toBeInTheDocument()
+    expect(within(meter).queryByTitle(/Deferred/)).not.toBeInTheDocument()
   })
 
   it('shows unknown after compaction instead of a zero-percent meter', () => {
