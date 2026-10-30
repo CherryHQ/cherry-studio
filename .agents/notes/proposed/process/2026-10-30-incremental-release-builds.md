@@ -84,7 +84,7 @@ Split `main`, `renderer`, `preload`, and `utility-process` into independently ow
 
 Use a small, versioned release-task input/output manifest under `scripts/release/`, with conservative source and configuration sets, rather than a second general dependency engine. Include imported workspace packages, shared types/runtime code, generated assets, filesystem-read resources, build-plugin sources, and resolver inputs. Unknown or unclassified build inputs invalidate the relevant tasks conservatively. False misses are acceptable; undocumented false hits are not. Changes to a shared manifest initially invalidate all tasks.
 
-Start with OS- and edition-scoped JS caches. Include host architecture/toolchain where they influence resolution; include target architecture when output depends on it. Do not share across OSes or claim a pure cross-platform JS build until a separate equivalence investigation supports it.
+Start with OS- and edition-scoped JS caches. Include the actual Node version and host architecture; pinned dependencies, patches and build configuration remain task inputs. Record the runner image label for diagnostics, but do not invalidate JS solely because that label changes. Native tasks retain their compiler/SDK/ABI identities; include target architecture when output depends on it. Do not share across OSes or claim a pure cross-platform JS build until a separate equivalence investigation supports it.
 
 Separate source-map upload from compilation. A cache hit must either restore the exact JS/map/debug-ID pair and perform the required upload, or bypass caching for that task when no approved map store is available. Delete maps only from packaging staging after upload, not from a reusable input. Authentication tokens belong to the upload step; output-affecting Sentry identity belongs to the task key.
 
@@ -157,7 +157,7 @@ Benchmark three scenarios: same inputs on a new commit, AiHubMix-style Main-only
 
 ## Risks
 
-Undeclared filesystem/configuration inputs can create false hits. Large caches can cost more than rebuilding. Runner image changes reduce hit rates but cannot justify omitting toolchain identity. Native ABI switches within mutable installations can race; target staging must be isolated. Existing source-map plugins have side effects, and cached output may contain injected build values. Local release information becomes asynchronous at the UI boundary and needs an explicit loading/error contract without a network dependency.
+Undeclared filesystem/configuration inputs can create false hits. Large caches can cost more than rebuilding. Actual toolchain changes invalidate affected tasks; a runner image label change alone does not invalidate JS. Native ABI switches within mutable installations can race; target staging must be isolated. Existing source-map plugins have side effects, and cached output may contain injected build values. Local release information becomes asynchronous at the UI boundary and needs an explicit loading/error contract without a network dependency.
 
 Cross-version reuse, cross-OS JS reuse, broader concurrency, private cache infrastructure, publication transfer changes, and automatic hotfix batching are outside this proposal. This plan promises correct reuse and measured adoption, not a fixed end-to-end release duration. Packaging, signing, notarization, runner queueing and asset transfer remain possible lower bounds.
 

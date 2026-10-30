@@ -179,10 +179,11 @@ describe('release cache and Sentry delivery', () => {
     expect(compilations()).toHaveLength(4)
   }, 60_000)
 
-  it('uploads matching JS/maps on cold and warm builds, rebuilds changed configuration and fails closed on upload errors', async () => {
+  it('reuses JS/maps across runner image labels, rebuilds changed configuration and fails closed on upload errors', async () => {
     const sentry = await sentryServer()
     const { root, env, run, compilations } = fixture()
     env.SENTRY_URL = sentry.url
+    env.ImageVersion = '20261021.0445.8'
     await run()
     expect(compilations()).toEqual(['main', 'preload', 'renderer', 'utility-process'])
     expect(sentry.chunks.size).toBeGreaterThan(0)
@@ -199,8 +200,11 @@ describe('release cache and Sentry delivery', () => {
     expect(javascript).toContain('first-private-value')
     const deliveries = sentry.releases.length
     rmSync(join(root, 'out'), { recursive: true })
+    env.ImageVersion = '20261026.0455.2'
     const warm = await run()
-    expect(warm.stdout).toContain('[release-build] main: hit')
+    for (const target of ['main', 'preload', 'renderer', 'utility-process']) {
+      expect(warm.stdout).toContain(`[release-build] ${target}: hit`)
+    }
     expect(compilations()).toHaveLength(4)
     expect(readFileSync(join(root, 'out/main/main.cjs'), 'utf8')).toBe(javascript)
     expect(sentry.releases.length).toBeGreaterThan(deliveries)

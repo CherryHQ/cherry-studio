@@ -72,6 +72,27 @@ describe('release build input boundaries', () => {
     expect(javascriptTask(root, 'renderer', {}).key).not.toBe(previous)
   })
 
+  it.each([
+    ['version', 'v0.0.0'],
+    ['platform', process.platform === 'win32' ? 'darwin' : 'win32'],
+    ['arch', process.arch === 'arm64' ? 'x64' : 'arm64']
+  ] as const)('rejects cached JS when runtime %s changes', (property, value) => {
+    const root = fixture()
+    const initial = javascriptTask(root, 'renderer', {})
+    write(root, 'out/renderer/entry.js', 'module.exports = "original"')
+    saveTask(initial)
+    rmSync(join(root, 'out'), { recursive: true })
+    const descriptor = Object.getOwnPropertyDescriptor(process, property)!
+    let changed
+    try {
+      Object.defineProperty(process, property, { ...descriptor, value })
+      changed = javascriptTask(root, 'renderer', {})
+    } finally {
+      Object.defineProperty(process, property, descriptor)
+    }
+    expect(restoreTask(changed)).toBe(false)
+  })
+
   it('refuses to save a bundle that imports an undeclared process', () => {
     const root = fixture()
     write(root, 'out/renderer/.build-inputs.json', JSON.stringify(['src/renderer/a.ts', 'src/main/a.ts']))
@@ -124,7 +145,7 @@ describe('release build input boundaries', () => {
     vi.stubEnv('RENDERER_VITE_URL', 'https://override')
     expect(taskEnvironment(root, 'renderer', process.env)).toEqual({ RENDERER_VITE_URL: 'https://override' })
   })
-  it('restores executable output and rebuilds after adding a new import', async () => {
+  it('restores executable output across runner image labels and rebuilds after adding a new import', async () => {
     const root = fixture()
     write(root, 'package.json', '{}')
     write(root, 'src/renderer/a.ts', 'export const result: string = "first"')
@@ -150,13 +171,13 @@ describe('release build input boundaries', () => {
         ],
         { encoding: 'utf8' }
       )
-    const initial = javascriptTask(root, 'renderer', {})
+    const initial = javascriptTask(root, 'renderer', { ImageVersion: '20261021.0445.8' })
     await compile()
     expect(hasDeclaredInputs(root, 'renderer')).toBe(true)
     expect(execute()).toBe('first')
     saveTask(initial)
     rmSync(join(root, 'out'), { recursive: true })
-    expect(restoreTask(initial)).toBe(true)
+    expect(restoreTask(javascriptTask(root, 'renderer', { ImageVersion: '20261026.0455.2' }))).toBe(true)
     expect(execute()).toBe('first')
     write(root, 'src/renderer/value.ts', 'export const value = "from new import"')
     write(root, 'src/renderer/a.ts', 'export { value as result } from "./value"')

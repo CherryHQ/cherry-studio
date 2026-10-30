@@ -84,8 +84,7 @@ function javascriptTask(root, target, env = process.env) {
       edition: env.CHERRY_EDITION || 'global',
       environment: key ? createHmac('sha256', key).update(JSON.stringify(values)).digest('hex') : null,
       sentry: env.SENTRY_SOURCE_MAP_UPLOAD === 'true',
-      mode: 'production',
-      image: env.ImageVersion || null
+      mode: 'production'
     }
   })
   return { ...task, encrypted: Boolean(key) }
