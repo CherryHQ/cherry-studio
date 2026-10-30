@@ -112,16 +112,18 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
   process.kill(-record.runnerPid, signal)
 }
 
+export function hasLiveMacProcessGroupMembers(groupId: number): boolean {
+  return execFileSync('ps', ['-axo', 'pgid=,stat='], { encoding: 'utf8', timeout: 10_000 })
+    .split(/\r?\n/)
+    .some((line) => {
+      const [group, state] = line.trim().split(/\s+/)
+      return Number(group) === groupId && Boolean(state) && !state.startsWith('Z')
+    })
+}
+
 export async function waitForMacProcessGroupExit(groupId: number, timeoutMs = 8_000): Promise<boolean> {
-  const hasLiveMembers = () =>
-    execFileSync('ps', ['-axo', 'pgid=,stat='], { encoding: 'utf8', timeout: 10_000 })
-      .split(/\r?\n/)
-      .some((line) => {
-        const [group, state] = line.trim().split(/\s+/)
-        return Number(group) === groupId && Boolean(state) && !state.startsWith('Z')
-      })
   const deadline = Date.now() + timeoutMs
-  while (hasLiveMembers()) {
+  while (hasLiveMacProcessGroupMembers(groupId)) {
     if (Date.now() >= deadline) return false
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
   }

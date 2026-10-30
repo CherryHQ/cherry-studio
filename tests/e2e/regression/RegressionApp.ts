@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync } from 'node:fs'
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 
 import type { Browser, Page } from '@playwright/test'
@@ -10,8 +10,10 @@ import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/e2e/
 import { assertOwnedAppIsolation, prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
 import {
   adoptRelaunchedApp,
+  assertNoLaunchFailure,
   ensureProfile,
   readAppRecord,
+  readOwnedRecord,
   restartApp,
   type AppRecord
 } from '../../../scripts/e2e/regression/lifecycle'
@@ -74,6 +76,7 @@ export class RegressionApp {
 
   private async connect(): Promise<Browser> {
     if (this.browser?.isConnected()) return this.browser
+    assertNoLaunchFailure(this.paths)
     let record = this.record
     try {
       await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
@@ -84,7 +87,23 @@ export class RegressionApp {
       this.recoveredOwnership = true
       try {
         await this.disconnect()
-        record = await restartApp(this.paths)
+        try {
+          record = await restartApp(this.paths)
+        } catch (launchError) {
+          const reason = launchError instanceof Error ? launchError.message : String(launchError)
+          let runnerPid = record.runnerPid
+          try {
+            runnerPid = readOwnedRecord(this.paths).runnerPid
+          } catch {
+            // The previous record still identifies the failed recovery attempt.
+          }
+          mkdirSync(join(this.paths.root, 'state'), { recursive: true })
+          writeFileSync(
+            this.paths.appLaunchFailure,
+            JSON.stringify({ reason, recordedAt: new Date().toISOString(), runnerPid })
+          )
+          throw launchError
+        }
         await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
       } catch (recoveryError) {
         if (error instanceof Error) error.cause = recoveryError

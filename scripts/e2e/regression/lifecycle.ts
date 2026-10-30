@@ -1,5 +1,14 @@
 import { spawn } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 import type { InstallationRecord } from './installation'
@@ -9,7 +18,9 @@ import {
   assertOwnedProcess,
   CDP_PORT,
   findCdpPid,
+  findListeningPid,
   findProcessGroupId,
+  hasLiveMacProcessGroupMembers,
   isAlive,
   isDescendant,
   MAIN_INSPECTOR_PORT,
@@ -63,12 +74,18 @@ export async function readCdpTargets(): Promise<Array<{ title: string; type: str
 async function waitForCdp(
   runnerPid: number,
   platform: Platform,
+  port: number,
+  logPath: string,
   timeout = 180_000
 ): Promise<{ electronPid: number; targetUrl: string }> {
   const deadline = Date.now() + timeout
   let lastError = 'CDP did not respond'
   while (Date.now() < deadline) {
-    if (!isAlive(runnerPid)) throw new Error(`Application runner ${runnerPid} exited before CDP became ready`)
+    if (!isAlive(runnerPid)) {
+      const snapshot = `CDP port ${port} listener pid: ${findListeningPid(platform, port) ?? 'none'}; inspector port ${MAIN_INSPECTOR_PORT} listener pid: ${findListeningPid(platform, MAIN_INSPECTOR_PORT) ?? 'none'}${platform === 'macos' ? `; process group ${runnerPid} has live members: ${hasLiveMacProcessGroupMembers(runnerPid)}` : ''}`
+      appendFileSync(logPath, `[launch-failure] ${snapshot}\n`)
+      throw new Error(`Application runner ${runnerPid} exited before CDP became ready; ${snapshot}`)
+    }
     try {
       const targets = await readCdpTargets()
       const mainTarget = targets.find(
@@ -169,6 +186,13 @@ function getLaunchSpec(
   }
 }
 
+export function assertNoLaunchFailure(paths: RunPaths): void {
+  if (existsSync(paths.appLaunchFailure)) {
+    const failure = readJson<{ reason: string }>(paths.appLaunchFailure)
+    throw new Error(`Previous application relaunch failed: ${failure.reason}`)
+  }
+}
+
 export async function launchApp(
   paths: RunPaths,
   options: {
@@ -183,7 +207,14 @@ export async function launchApp(
   }
 ): Promise<AppRecord> {
   if (existsSync(paths.appRecord)) await stopOwnedApp(paths)
+  assertNoLaunchFailure(paths)
   if (findCdpPid(options.platform)) throw new Error(`CDP port ${CDP_PORT} is already owned by another process`)
+  const inspectorPid = findListeningPid(options.platform, MAIN_INSPECTOR_PORT)
+  if (inspectorPid) {
+    throw new Error(
+      `Main-process inspector port ${MAIN_INSPECTOR_PORT} is still held by pid ${inspectorPid}; the previous instance did not exit`
+    )
+  }
   const targetRoot = resolve(options.targetRoot)
   const spec = getLaunchSpec(paths, options.mode, targetRoot, options.profile, options.runKey, options.locale)
   const logFd = openSync(spec.logPath, 'a', 0o600)
@@ -223,9 +254,10 @@ export async function launchApp(
     writeJson(paths.appRecord, launchRecord)
     const record: AppRecord = {
       ...launchRecord,
-      ...(await waitForCdp(child.pid, options.platform, options.readyTimeoutMs))
+      ...(await waitForCdp(child.pid, options.platform, launchRecord.cdpPort, spec.logPath, options.readyTimeoutMs))
     }
     writeJson(paths.appRecord, record)
+    rmSync(paths.appLaunchFailure, { force: true })
     return record
   } catch (error) {
     try {
@@ -280,6 +312,11 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
     if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
       throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
     }
+    if (!(await waitForPortRelease(record.platform, MAIN_INSPECTOR_PORT))) {
+      throw new Error(
+        `Main-process inspector port ${MAIN_INSPECTOR_PORT} was not released after stopping the owned application`
+      )
+    }
     return
   }
   const currentCdpPid = findCdpPid(record.platform)
@@ -319,6 +356,11 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   }
   if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
     throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
+  }
+  if (!(await waitForPortRelease(record.platform, MAIN_INSPECTOR_PORT))) {
+    throw new Error(
+      `Main-process inspector port ${MAIN_INSPECTOR_PORT} was not released after stopping the owned application`
+    )
   }
 }
 

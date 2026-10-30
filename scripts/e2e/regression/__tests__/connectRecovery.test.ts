@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -113,6 +113,16 @@ it('throws the original ownership error when the relaunch itself fails', async (
   expect((await failure)?.cause).toEqual(new Error('CDP port 9222 is already owned by another process'))
   expect(restartAppMock).toHaveBeenCalledTimes(1)
   expect(connectOverCdpMock).not.toHaveBeenCalled()
+  expect(JSON.parse(readFileSync(app.paths.appLaunchFailure, 'utf8'))).toMatchObject({
+    reason: 'CDP port 9222 is already owned by another process',
+    runnerPid: 42000,
+    recordedAt: expect.any(String)
+  })
+  const nextCase = new RegressionApp(app.paths.root, 'MCP-02')
+  await expect(nextCase.window('/windows/main/index.html')).rejects.toThrow(
+    'Previous application relaunch failed: CDP port 9222 is already owned by another process'
+  )
+  expect(restartAppMock).toHaveBeenCalledTimes(1)
 })
 
 it('refuses to connect when the relaunched instance still fails the ownership gate', async () => {

@@ -147,10 +147,17 @@ it('retains launch ownership and both errors so cleanup can retry after the runn
   ensureRunDirectories(paths)
   let childAlive = true
   let denyTermination = true
-  spawn.mockReturnValue({ pid: 42000, unref() {} })
-  execFileSync.mockImplementation((file: string) =>
-    file === 'ps' && childAlive ? `42001 42000 electron ${directory}` : ''
-  )
+  let launched = false
+  spawn.mockImplementation(() => {
+    launched = true
+    return { pid: 42000, unref() {} }
+  })
+  execFileSync.mockImplementation((file: string, args: string[]) => {
+    if (file === 'lsof' && launched && childAlive) return args.some((arg) => arg.includes('9229')) ? '42003' : '42002'
+    if (file === 'ps' && childAlive)
+      return args.includes('pgid=,stat=') ? '42000 S' : `42001 42000 electron ${directory}`
+    return ''
+  })
   vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
     if (pid === -42000 && signal === 'SIGTERM') {
       if (denyTermination) throw new Error('Termination denied')
@@ -170,7 +177,7 @@ it('retains launch ownership and both errors so cleanup can retry after the runn
     }).catch((error: unknown) => error)
     expect(error).toBeInstanceOf(AggregateError)
     expect((error as AggregateError).errors.map((cause: Error) => cause.message)).toEqual([
-      'Application runner 42000 exited before CDP became ready',
+      'Application runner 42000 exited before CDP became ready; CDP port 9222 listener pid: 42002; inspector port 9229 listener pid: 42003; process group 42000 has live members: true',
       'Termination denied'
     ])
     expect(JSON.parse(readFileSync(paths.appRecord, 'utf8'))).toMatchObject({
@@ -178,6 +185,9 @@ it('retains launch ownership and both errors so cleanup can retry after the runn
       runKey: 'failed-launch'
     })
     expect(() => readAppRecord(paths)).toThrow('has not finished launching')
+    expect(readFileSync(join(paths.logs, 'electron-clean.log'), 'utf8')).toContain(
+      '[launch-failure] CDP port 9222 listener pid: 42002; inspector port 9229 listener pid: 42003; process group 42000 has live members: true\n'
+    )
     expect(childAlive).toBe(true)
     denyTermination = false
     await stopOwnedApp(paths)
@@ -297,3 +307,59 @@ it.each([
     }
   }
 )
+
+it('rejects an occupied main-process inspector before spawning', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-inspector-guard-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  execFileSync.mockImplementation((_file: string, args: string[]) =>
+    args.some((arg) => arg.includes('9229')) ? '43000' : ''
+  )
+  try {
+    await expect(
+      launchApp(paths, { mode: 'branch', platform: 'macos', profile: 'clean', targetRoot: directory, runKey: 'test' })
+    ).rejects.toThrow('Main-process inspector port 9229 is still held by pid 43000; the previous instance did not exit')
+    expect(spawn).not.toHaveBeenCalled()
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('blocks a recorded recovery failure and clears a failure recorded during a successful launch', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-launch-marker-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  const options = {
+    mode: 'branch',
+    platform: 'macos',
+    profile: 'clean',
+    targetRoot: directory,
+    runKey: 'test'
+  } as const
+  const { mkdirSync } = await import('node:fs')
+  mkdirSync(join(directory, 'state'))
+  writeFileSync(paths.appLaunchFailure, JSON.stringify({ reason: 'runner exited', recordedAt: 'now', runnerPid: 42 }))
+  try {
+    await expect(launchApp(paths, options)).rejects.toThrow('Previous application relaunch failed: runner exited')
+    expect(spawn).not.toHaveBeenCalled()
+    rmSync(paths.appLaunchFailure)
+    let launched = false
+    execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+    spawn.mockImplementation(() => {
+      launched = true
+      writeFileSync(paths.appLaunchFailure, JSON.stringify({ reason: 'old failure' }))
+      return { pid: 42001, unref() {} }
+    })
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => [{ type: 'page', url: 'http://localhost/windows/main/index.html' }]
+    }))
+    await launchApp(paths, options)
+    expect(existsSync(paths.appLaunchFailure)).toBe(false)
+  } finally {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

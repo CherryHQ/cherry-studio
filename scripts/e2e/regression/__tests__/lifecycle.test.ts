@@ -291,3 +291,42 @@ describe('owned application lifecycle', () => {
     }
   })
 })
+
+it.each(['macos', 'windows'] as const)(
+  'reports an inspector port that remains held after %s cleanup',
+  async (platform) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-inspector-release-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    writeFileSync(
+      paths.appRecord,
+      JSON.stringify({
+        schemaVersion: 1,
+        ownership: 'regression-driver',
+        policy: 'ephemeral',
+        mode: 'branch',
+        platform,
+        runnerPid: 42000,
+        targetRoot: directory,
+        cdpPort: 9222,
+        logPath: join(paths.logs, 'electron.log')
+      })
+    )
+    vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw new Error('Process not found')
+    })
+    execFileSyncMock.mockImplementation((_file: string, args: string[]) =>
+      args.some((arg) => arg.includes('9229')) ? '43000' : ''
+    )
+    vi.useFakeTimers()
+    try {
+      const result = expect(stopOwnedApp(paths)).rejects.toThrow(
+        'Main-process inspector port 9229 was not released after stopping the owned application'
+      )
+      await vi.runAllTimersAsync()
+      await result
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  }
+)
