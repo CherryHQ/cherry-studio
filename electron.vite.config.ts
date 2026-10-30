@@ -1,4 +1,4 @@
-import { readdirSync } from 'fs'
+import { readdirSync, readFileSync } from 'fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'path'
 
@@ -10,6 +10,7 @@ import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
 import { visualizer } from 'rollup-plugin-visualizer'
 import type { Plugin } from 'vite'
+import { parse } from 'yaml'
 
 // Import attributes are not supported by the current Electron config loader.
 // import pkg from './package.json' assert { type: 'json' }
@@ -18,23 +19,41 @@ import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { claudeCodeBinaryManifest } from './scripts/claudeCodeBinaryManifest'
 import { piVccBundlePlugin } from './scripts/piVccBundle'
-import { buildInputGuard } from './scripts/release/buildInputGuard'
-import { generateBundledReleaseInfo } from './scripts/release/bundled-release-info'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
+import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 import { getSentryBuildContext } from './src/shared/utils/sentry'
+
+const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(import.meta.url)(
+  './native/darwin/build'
+)
 
 const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
   './native/external-app/build.cjs'
 )
 
+type ElectronBuilderConfig = {
+  releaseInfo?: {
+    releaseNotes?: unknown
+  }
+}
+
+const electronBuilderConfig = parse(
+  readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
+) as ElectronBuilderConfig
+const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+const bundledReleaseHistory = parseReleaseHistory(
+  readFileSync(resolve(__dirname, 'resources/cherry-studio/release-history.json'), 'utf8')
+)
+
+if (typeof bundledReleaseNotes !== 'string' || !bundledReleaseNotes.trim()) {
+  throw new Error('electron-builder.yml must define non-empty releaseInfo.releaseNotes')
+}
+validateCurrentReleaseHistory({ releaseNotes: bundledReleaseNotes, version: pkg.version }, bundledReleaseHistory)
+
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
-
-const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(import.meta.url)(
-  './native/darwin/build.js'
-)
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
@@ -43,10 +62,7 @@ const SENTRY_UPLOAD_ENV_KEYS = ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJE
 
 export function resolveSentryBuildSettings(env: NodeJS.ProcessEnv) {
   const sourceMapUploadEnabled = env.NODE_ENV === 'production' && env.SENTRY_SOURCE_MAP_UPLOAD === 'true'
-  const missingUploadEnv =
-    sourceMapUploadEnabled && env.CHERRY_SENTRY_DEFER_UPLOAD !== '1'
-      ? SENTRY_UPLOAD_ENV_KEYS.filter((key) => !env[key]?.trim())
-      : []
+  const missingUploadEnv = sourceMapUploadEnabled ? SENTRY_UPLOAD_ENV_KEYS.filter((key) => !env[key]?.trim()) : []
 
   if (missingUploadEnv.length > 0) {
     throw new Error(`Sentry production builds require: ${missingUploadEnv.join(', ')}`)
@@ -66,7 +82,7 @@ const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, renderer
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
 const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
-  sourceMapUploadEnabled && process.env.CHERRY_SENTRY_DEFER_UPLOAD !== '1'
+  sourceMapUploadEnabled
     ? sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
         org: process.env.SENTRY_ORG,
@@ -166,24 +182,18 @@ export const mainResolveAlias = {
   '@test-helpers': resolve('tests/helpers')
 }
 
-const config = defineConfig({
+export default defineConfig({
   main: {
     define: {
       __APP_EDITION__: JSON.stringify(rendererEdition),
       __CLAUDE_CODE_BINARY_MANIFEST__: JSON.stringify(claudeCodeBinaryManifest(__dirname))
     },
     plugins: [
-      buildInputGuard(),
       {
-        name: 'cherry-bundled-release-info',
+        name: 'cherry-selection-panel',
         buildStart() {
-          generateBundledReleaseInfo(__dirname)
-          if (!process.env.CHERRY_BUILD_TARGET) {
-            this.addWatchFile(selectionPanelSource)
-            buildSelectionPanel()
-          }
-          this.addWatchFile(resolve(__dirname, 'electron-builder.yml'))
-          this.addWatchFile(resolve(__dirname, 'resources/cherry-studio/release-history.json'))
+          this.addWatchFile(selectionPanelSource)
+          buildSelectionPanel()
         }
       },
       {
@@ -236,7 +246,7 @@ const config = defineConfig({
     }
   },
   preload: {
-    plugins: [buildInputGuard(), ...sentrySourceMapPlugins('preload')],
+    plugins: [...sentrySourceMapPlugins('preload')],
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
@@ -265,10 +275,12 @@ const config = defineConfig({
   },
   renderer: {
     define: {
-      __APP_EDITION__: JSON.stringify(rendererEdition)
+      __APP_EDITION__: JSON.stringify(rendererEdition),
+      __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
+      __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
     },
     plugins: [
-      buildInputGuard(),
       uiContractPlugin(),
       tanstackRouter({
         target: 'react',
@@ -381,9 +393,3 @@ const config = defineConfig({
     }
   }
 })
-
-const target = process.env.CHERRY_BUILD_TARGET
-if (target && target !== 'main' && target !== 'renderer' && target !== 'preload') {
-  throw new Error(`Unknown Electron build target: ${target}`)
-}
-export default target ? { [target]: config[target] } : config

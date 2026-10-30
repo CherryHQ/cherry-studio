@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/process/2026-10-30-incremental-release-builds.md
-2026-10-30-incremental-release-builds.md: 7e25cd9b05ae697354b1326cff9d3aa9bceb8e58
-2026-10-30-incremental-release-builds.zh.md: dc5d3f9777b37d44cdcda79e52cfa44e16907942

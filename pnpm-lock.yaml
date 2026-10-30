@@ -705,9 +705,6 @@ importers:
       '@react-aria/live-announcer':
         specifier: 3.4.4
         version: 3.4.4
-      '@sentry/cli':
-        specifier: 2.58.6
-        version: 2.58.6(encoding@0.1.13)(supports-color@8.1.1)
       '@sentry/vite-plugin':
         specifier: 5.4.0
         version: 5.4.0(encoding@0.1.13)(supports-color@8.1.1)

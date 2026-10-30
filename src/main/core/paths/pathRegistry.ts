@@ -274,8 +274,6 @@ export function buildPathRegistry() {
     // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
     'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
-    'feature.updater.bundled_release_file': path.join(appRootResources, 'cherry-studio', 'release-info.json'),
-
     // Version log
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
@@ -417,7 +415,6 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
-  'feature.updater.bundled_release_file',
   // Namespace prefixes
   'sys.',
   'external.',

@@ -1,7 +1,6 @@
 import { resolve } from 'path'
 
 import { mainExternalModules, mainResolveAlias } from './electron.vite.config'
-import { buildInputGuard } from './scripts/release/buildInputGuard'
 import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
 
 /**
@@ -17,7 +16,7 @@ import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
  */
 export default {
   main: {
-    plugins: [hermeticEntryGuardPlugin(), buildInputGuard()],
+    plugins: [hermeticEntryGuardPlugin()],
     resolve: { alias: mainResolveAlias },
     build: {
       externalizeDeps: { include: mainExternalModules },

@@ -8,7 +8,6 @@ const { parse } = require('yaml')
 const { ensureLinuxNativeArtifact } = require('../linux-native/download')
 const { buildSelectionPanel } = require('../../native/darwin/build')
 const { buildExternalApp } = require('../../native/external-app/build.cjs')
-const { cachedNativeBuild, selectionPanelOptions } = require('../release/native-build-cache')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -128,36 +127,15 @@ async function prepareNativeModulesForElectron(
 
   // electron-builder's automatic pnpm rebuild can retain the host Node prebuild.
   // Force the ABI-sensitive addon from source for the exact target before app files are copied.
-  const sqliteRoot = path.dirname(require.resolve('better-sqlite3/package.json'))
-  await cachedNativeBuild(
-    {
-      root: projectRoot,
-      name: 'sqlite',
-      platform,
-      arch,
-      electronVersion,
-      inputs: [
-        path.relative(projectRoot, path.join(sqliteRoot, 'src')),
-        path.relative(projectRoot, path.join(sqliteRoot, 'deps')),
-        path.relative(projectRoot, path.join(sqliteRoot, 'binding.gyp')),
-        'scripts/packaging/before-pack.js'
-      ],
-      outputs: [
-        path.relative(projectRoot, path.join(sqliteRoot, 'build/Release/better_sqlite3.node')),
-        path.relative(projectRoot, path.join(sqliteRoot, 'build/Release/.forge-meta'))
-      ]
-    },
-    () =>
-      rebuildFn({
-        buildPath: projectRoot,
-        electronVersion,
-        platform,
-        arch,
-        onlyModules: ['better-sqlite3'],
-        force: true,
-        buildFromSource: true
-      })
-  )
+  await rebuildFn({
+    buildPath: projectRoot,
+    electronVersion,
+    platform,
+    arch,
+    onlyModules: ['better-sqlite3'],
+    force: true,
+    buildFromSource: true
+  })
 }
 exports.prepareNativeModulesForElectron = prepareNativeModulesForElectron
 
@@ -234,31 +212,10 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
-  const root = path.join(__dirname, '../..')
-  if (platform === 'darwin') {
-    await cachedNativeBuild(
-      {
-        root,
-        name: 'system-speech',
-        platform,
-        arch,
-        electronVersion: 'standalone',
-        inputs: [
-          'packages/system-speech/native/Package.swift',
-          'packages/system-speech/native/Info.plist',
-          'packages/system-speech/native/Sources',
-          'packages/system-speech/scripts/build-native.cjs'
-        ],
-        outputs: [`packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech`]
-      },
-      () => prepareSystemSpeechHelper(context)
-    )
-  } else {
-    prepareSystemSpeechHelper(context)
-  }
+  prepareSystemSpeechHelper(context)
 
   await prepareNativeModulesForElectron(context)
-  await cachedNativeBuild(selectionPanelOptions(root, platform, arch), () => buildSelectionPanel({ platform, arch }))
+  buildSelectionPanel({ platform, arch })
   buildExternalApp({ platform, arch, packaging: true })
   assertPrebuiltPackages(platform, arch)
 

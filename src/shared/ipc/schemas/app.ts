@@ -30,11 +30,6 @@ const cacheCleanupGroupsInputSchema = z
     path: ['groups']
   })
 
-export const bundledReleaseInfoSchema = z.object({
-  version: z.string().min(1),
-  releases: z.array(z.object({ version: z.string().min(1), releaseNotes: z.string().min(1) })).min(1)
-})
-
 export const appRequestSchemas = {
   'app.mobile.get_android_download_url': defineRoute({ input: z.void(), output: z.url() }),
   'app.get_info': defineRoute({
@@ -95,7 +90,6 @@ export const appRequestSchemas = {
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
-  'app.updater.bundled_release_notes.get': defineRoute({ input: z.void(), output: bundledReleaseInfoSchema }),
   'app.updater.release_notes.get': defineRoute({
     input: z.void(),
     output: z

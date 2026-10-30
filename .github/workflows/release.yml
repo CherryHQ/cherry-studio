@@ -24,10 +24,6 @@ on:
         description: "Clean signing runner node_modules before build"
         type: boolean
         default: false
-      incremental:
-        description: "Use eligible intermediate build caches (experimental; false bypasses all task caches)"
-        type: boolean
-        default: false
       platform:
         description: "Build platform"
         required: true
@@ -51,7 +47,6 @@ permissions:
 env:
   RELEASE_SHA: ${{ inputs.expected_sha }}
   RELEASE_BRANCH: release/${{ inputs.tag }}
-  WORKFLOW_SHA: ${{ github.workflow_sha }}
 
 jobs:
   prepare:
@@ -69,7 +64,6 @@ jobs:
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
-      build-contract: ${{ steps.release-ref.outputs.build-contract }}
     steps:
       - name: Validate release selection
         shell: bash
@@ -114,8 +108,6 @@ jobs:
             exit 1
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          CONTRACT="$(node -p "require('./release-source/package.json').scripts['build:release'] === 'node scripts/release/build-app.js'")"
-          echo "build-contract=$CONTRACT" >> "$GITHUB_OUTPUT"
 
       - name: Verify release commit passed CI
         shell: bash
@@ -171,36 +163,9 @@ jobs:
           WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
 
-  validate-build:
-    name: Validate release types once
-    needs: prepare
-    if: needs.prepare.outputs.build-contract == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.expected_sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-      - uses: pnpm/action-setup@v5
-      - run: pnpm install --frozen-lockfile
-      # The successful affected CI run does not prove every type project ran.
-      - run: pnpm typecheck
-
   release:
     name: Build ${{ matrix.edition }} (${{ matrix.os }})
-    needs: [prepare, validate-build]
-    if: >-
-      !cancelled() && needs.prepare.result == 'success' &&
-      (needs.validate-build.result == 'success' ||
-      (needs.prepare.outputs.build-contract != 'true' && needs.validate-build.result == 'skipped'))
-    env:
-      CHERRY_BUILD_CACHE: ${{ inputs.incremental && '1' || '0' }}
-      CHERRY_EDITION: ${{ matrix.edition }}
-      RELEASE_BUILD_CONTRACT: ${{ needs.prepare.outputs.build-contract }}
-      ENCRYPTED_CACHE_ENABLED: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY != '' }}
+    needs: prepare
     runs-on: ${{ matrix.os == 'windows-latest' && fromJSON('["self-hosted", "windows-signing"]') || matrix.os }}
     permissions:
       contents: read
@@ -240,36 +205,15 @@ jobs:
       - name: Get pnpm store directory
         id: pnpm-cache
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - name: Restore pnpm dependencies
-        id: dependencies-cache
-        uses: actions/cache/restore@v6
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-
-
-      - name: Restore eligible build results
-        if: inputs.incremental && needs.prepare.outputs.build-contract == 'true'
-        uses: actions/cache/restore@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build
-          key: release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ inputs.expected_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-
-
-      - name: Restore encrypted JavaScript results
-        if: env.ENCRYPTED_CACHE_ENABLED == 'true' && needs.prepare.outputs.build-contract == 'true'
-        uses: actions/cache/restore@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build-encrypted
-          key: release-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            release-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-
 
       - name: Clean signing runner dependencies
         if: matrix.os == 'windows-latest' && inputs.clean
@@ -278,10 +222,10 @@ jobs:
 
       - name: Clean build output
         shell: bash
-        run: rm -rf dist .cache/release-build-metrics
+        run: rm -rf dist
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Enable Linux ARM64 addon builds
         if: matrix.os == 'ubuntu-latest'
@@ -290,15 +234,10 @@ jobs:
           platforms: arm64
 
       - name: Build Linux
-        shell: bash
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          if [ "$RELEASE_BUILD_CONTRACT" = "true" ]; then
-            pnpm build:release linux
-          else
-            pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
-          fi
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -307,7 +246,6 @@ jobs:
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           SENTRY_SOURCE_MAP_UPLOAD: "true"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          CHERRY_BUILD_CACHE_KEY: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
@@ -315,15 +253,10 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Mac
-        shell: bash
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          if [ "$RELEASE_BUILD_CONTRACT" = "true" ]; then
-            pnpm build:release mac
-          else
-            pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
-          fi
+          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -337,7 +270,6 @@ jobs:
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           SENTRY_SOURCE_MAP_UPLOAD: "true"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          CHERRY_BUILD_CACHE_KEY: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
@@ -345,14 +277,9 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        shell: bash
         if: matrix.os == 'windows-latest'
         run: |
-          if [ "$RELEASE_BUILD_CONTRACT" = "true" ]; then
-            pnpm build:release win
-          else
-            pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
-          fi
+          pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           WIN_SIGN: true
@@ -365,45 +292,11 @@ jobs:
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           SENTRY_SOURCE_MAP_UPLOAD: "true"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          CHERRY_BUILD_CACHE_KEY: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
-
-      - name: Save pnpm dependencies
-        if: matrix.edition == 'global' && steps.dependencies-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        continue-on-error: true
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ steps.dependencies-cache.outputs.cache-primary-key }}
-
-      - name: Save eligible build results
-        if: inputs.incremental && needs.prepare.outputs.build-contract == 'true'
-        uses: actions/cache/save@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build
-          key: release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ inputs.expected_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Save encrypted JavaScript results
-        if: env.ENCRYPTED_CACHE_ENABLED == 'true' && needs.prepare.outputs.build-contract == 'true'
-        uses: actions/cache/save@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build-encrypted
-          key: release-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Upload build timings
-        if: always() && needs.prepare.outputs.build-contract == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-timings-${{ matrix.os }}-${{ matrix.edition }}
-          path: .cache/release-build-metrics/
-          if-no-files-found: ignore
-          retention-days: 14
 
       - name: Validate edition release artifacts
         run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
@@ -1075,7 +968,7 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [prepare, validate-build, release, finalize-build, cleanup-artifacts, approve, publish, sync-to-gitcode]
+    needs: [prepare, release, finalize-build, cleanup-artifacts, approve, publish, sync-to-gitcode]
     if: >-
       always() && !(inputs.mode == 'sync-only' && inputs.dry_run) &&
       (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))

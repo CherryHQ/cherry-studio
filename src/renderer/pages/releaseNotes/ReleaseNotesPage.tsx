@@ -1,61 +1,45 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-  PageHeader,
-  Scrollbar,
-  Spinner
-} from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, PageHeader, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
 import { ipcApi } from '@renderer/ipc'
 import type { ReleaseNotesEntry } from '@shared/utils/releaseNotes'
-import { localizeReleaseNotes, mergeReleaseHistory } from '@shared/utils/releaseNotes'
+import { localizeReleaseNotes, mergeReleaseHistory, mergeReleaseNotes } from '@shared/utils/releaseNotes'
 
 const logger = loggerService.withContext('ReleaseNotesPage')
 
 export default function ReleaseNotesPage() {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? i18n.language
-  const [bundledReleases, setBundledReleases] = useState<ReleaseNotesEntry[]>([])
-  const [remoteReleases, setRemoteReleases] = useState<ReleaseNotesEntry[]>([])
-  const [localSettled, setLocalSettled] = useState(false)
-  const [expandedVersions, setExpandedVersions] = useState<string[]>([])
-  const releases = mergeReleaseHistory(remoteReleases, bundledReleases)
-  const newestVersion = releases[0]?.version
-
-  useEffect(() => {
-    if (newestVersion) setExpandedVersions([newestVersion])
-  }, [newestVersion])
+  const [bundledReleases] = useState(() =>
+    mergeReleaseNotes(
+      { releaseNotes: __APP_RELEASE_NOTES__, version: __APP_RELEASE_VERSION__ },
+      __APP_RELEASE_HISTORY__
+    )
+  )
+  const [remoteReleases, setRemoteReleases] = useState<ReleaseNotesEntry[] | null>(null)
+  const [expandedVersions, setExpandedVersions] = useState<string[]>([__APP_RELEASE_VERSION__])
+  const releases = remoteReleases ? mergeReleaseHistory(remoteReleases, bundledReleases) : bundledReleases
 
   useEffect(() => {
     let active = true
 
     void ipcApi
-      .request('app.updater.bundled_release_notes.get')
-      .then((info) => {
-        if (active) setBundledReleases(info.releases)
-      })
-      .catch((error) => logger.warn('Failed to read bundled release history', error as Error))
-      .finally(() => {
-        if (active) setLocalSettled(true)
-      })
-
-    void ipcApi
       .request('app.updater.release_notes.get')
-      .then((history) => {
-        if (active && history) setRemoteReleases(history)
+      .then((releaseHistory) => {
+        if (!active || !releaseHistory) return
+
+        setRemoteReleases(releaseHistory)
+        setExpandedVersions([mergeReleaseHistory(releaseHistory, bundledReleases)[0].version])
       })
       .catch((error) => logger.warn('Failed to fetch release history', error as Error))
 
     return () => {
       active = false
     }
-  }, [])
+  }, [bundledReleases])
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -63,12 +47,10 @@ export default function ReleaseNotesPage() {
         bordered
         className="mb-0"
         title={t('settings.about.releases.title')}
-        action={newestVersion && <span className="text-foreground-tertiary text-xs">v{newestVersion}</span>}
+        action={<span className="text-foreground-tertiary text-xs">v{releases[0].version}</span>}
       />
       <Scrollbar className="min-h-0 flex-1 overflow-x-hidden">
         <main className="mx-auto w-full min-w-0 max-w-3xl px-6 py-6">
-          {!newestVersion &&
-            (localSettled ? <p role="alert">{t('common.error')}</p> : <Spinner text={t('common.loading')} />)}
           <Accordion type="multiple" value={expandedVersions} onValueChange={setExpandedVersions} className="min-w-0">
             {releases.map(({ releaseNotes, version }) => (
               <AccordionItem key={version} value={version} className="min-w-0 border-border-subtle first:border-t-0">

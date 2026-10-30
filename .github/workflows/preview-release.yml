@@ -8,10 +8,6 @@ on:
         description: "Repository branch to build"
         required: true
         default: "main"
-      incremental:
-        description: "Use intermediate build caches for supported source branches (experimental)"
-        type: boolean
-        default: false
       platform:
         description: "Build platform"
         required: true
@@ -58,11 +54,6 @@ jobs:
     name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
     needs: resolve
     runs-on: ${{ matrix.os }}
-    env:
-      CHERRY_EDITION: ${{ matrix.edition }}
-      RELEASE_SHA: ${{ needs.resolve.outputs.source_sha }}
-      WORKFLOW_SHA: ${{ github.workflow_sha }}
-      ENCRYPTED_CACHE_ENABLED: ${{ inputs.incremental && secrets.RELEASE_BUILD_CACHE_KEY != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -109,25 +100,7 @@ jobs:
             ${{ runner.os }}-pnpm-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Resolve incremental build support
-        id: build-contract
-        shell: bash
-        env:
-          INCREMENTAL: ${{ inputs.incremental }}
-        run: |
-          SUPPORTED="$(node -p "Boolean(require('./package.json').scripts?.['build:release'] && require('node:fs').existsSync('scripts/release/build-app.js'))")"
-          if [ "$INCREMENTAL" = "true" ] && [ "$SUPPORTED" = "true" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Using the existing full preview build"
-          fi
-
-      - name: Validate incremental preview types
-        if: steps.build-contract.outputs.enabled == 'true'
-        run: pnpm typecheck
+        run: pnpm install
 
       - name: Set preview version
         shell: bash
@@ -137,26 +110,6 @@ jobs:
           npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
           echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
 
-      - name: Restore preview native results
-        if: steps.build-contract.outputs.enabled == 'true'
-        uses: actions/cache/restore@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build
-          key: preview-release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            preview-release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-
-
-      - name: Restore preview encrypted JavaScript results
-        if: steps.build-contract.outputs.enabled == 'true' && env.ENCRYPTED_CACHE_ENABLED == 'true'
-        uses: actions/cache/restore@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build-encrypted
-          key: preview-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            preview-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-
-
       - name: Enable Linux ARM64 addon builds
         if: matrix.os == 'ubuntu-latest'
         uses: docker/setup-qemu-action@v3
@@ -164,21 +117,11 @@ jobs:
           platforms: arm64
 
       - name: Build Linux
-        shell: bash
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          if [ "$PREVIEW_INCREMENTAL" = "true" ]; then
-            pnpm build:release
-            unset CHERRY_BUILD_CACHE_KEY SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT
-            time pnpm exec electron-builder --linux --x64 --arm64 ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }} --publish never
-          else
-            pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }} --publish never
-          fi
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }} --publish never
         env:
-          PREVIEW_INCREMENTAL: ${{ steps.build-contract.outputs.enabled }}
-          CHERRY_BUILD_CACHE: ${{ steps.build-contract.outputs.enabled == 'true' && '1' || '0' }}
-          CHERRY_BUILD_CACHE_KEY: ${{ steps.build-contract.outputs.enabled == 'true' && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           SENTRY_SOURCE_MAP_UPLOAD: "true"
@@ -187,21 +130,11 @@ jobs:
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
       - name: Build Mac
-        shell: bash
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          if [ "$PREVIEW_INCREMENTAL" = "true" ]; then
-            pnpm build:release
-            unset CHERRY_BUILD_CACHE_KEY SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT
-            time pnpm exec electron-builder --mac --x64 --arm64 ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }} --publish never
-          else
-            pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }} --publish never
-          fi
+          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }} --publish never
         env:
-          PREVIEW_INCREMENTAL: ${{ steps.build-contract.outputs.enabled }}
-          CHERRY_BUILD_CACHE: ${{ steps.build-contract.outputs.enabled == 'true' && '1' || '0' }}
-          CHERRY_BUILD_CACHE_KEY: ${{ steps.build-contract.outputs.enabled == 'true' && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -220,20 +153,9 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        shell: bash
         if: matrix.os == 'windows-latest'
-        run: |
-          if [ "$PREVIEW_INCREMENTAL" = "true" ]; then
-            pnpm build:release
-            unset CHERRY_BUILD_CACHE_KEY SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT
-            time pnpm exec electron-builder --win --x64 --arm64 ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }} --publish never
-          else
-            pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }} --publish never
-          fi
+        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }} --publish never
         env:
-          PREVIEW_INCREMENTAL: ${{ steps.build-contract.outputs.enabled }}
-          CHERRY_BUILD_CACHE: ${{ steps.build-contract.outputs.enabled == 'true' && '1' || '0' }}
-          CHERRY_BUILD_CACHE_KEY: ${{ steps.build-contract.outputs.enabled == 'true' && secrets.RELEASE_BUILD_CACHE_KEY || '' }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
@@ -241,31 +163,6 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-
-      - name: Save preview native results
-        if: steps.build-contract.outputs.enabled == 'true'
-        uses: actions/cache/save@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build
-          key: preview-release-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Save preview encrypted JavaScript results
-        if: steps.build-contract.outputs.enabled == 'true' && env.ENCRYPTED_CACHE_ENABLED == 'true'
-        uses: actions/cache/save@v6
-        continue-on-error: true
-        with:
-          path: .cache/release-build-encrypted
-          key: preview-js-encrypted-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.edition }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Upload preview build timings
-        if: always() && steps.build-contract.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: preview-build-timings-${{ matrix.os }}-${{ matrix.edition }}
-          path: .cache/release-build-metrics/
-          if-no-files-found: ignore
-          retention-days: 14
 
       - name: Validate edition preview artifacts
         run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"

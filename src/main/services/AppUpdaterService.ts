@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises'
-
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
@@ -18,7 +16,7 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { type AppUpdaterNotAvailablePayload, bundledReleaseInfoSchema } from '@shared/ipc/schemas/app'
+import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
 import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
@@ -306,15 +304,6 @@ export class AppUpdaterService extends BaseService {
       logger.warn('Failed to fetch latest release notes', error as Error)
       return null
     }
-  }
-
-  public async getBundledReleaseInfo() {
-    const source = await readFile(application.getPath('feature.updater.bundled_release_file'), 'utf8')
-    const info = bundledReleaseInfoSchema.parse(JSON.parse(source))
-    if (info.version !== app.getVersion() || info.releases[0].version !== info.version) {
-      throw new Error('Bundled release information does not match the application version')
-    }
-    return info
   }
 
   public async getReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
