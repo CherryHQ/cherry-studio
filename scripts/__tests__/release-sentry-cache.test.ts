@@ -81,9 +81,22 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'release-sentry-cache-'))
   roots.push(root)
   execFileSync('git', ['init', '-q', root])
-  writeFileSync(join(root, '.gitignore'), 'out/\n.cache/\n.context/\n')
+  writeFileSync(join(root, '.gitignore'), 'out/\n.cache/\n.context/\nresources/binaries/\n')
   writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture', version: '1.2.3' }))
   mkdirSync(join(root, '.context'))
+  for (const [script, addon] of [
+    ['darwin/build.js', 'selection-panel'],
+    ['external-app/build.cjs', 'external-app']
+  ]) {
+    mkdirSync(join(root, 'native', script, '..'), { recursive: true })
+    writeFileSync(
+      join(root, 'native', script),
+      `const fs = require('node:fs');
+      const output = 'resources/binaries/' + process.platform + '-' + process.arch;
+      fs.mkdirSync(output, { recursive: true });
+      fs.writeFileSync(output + '/${addon}.node', '${addon} fixture');`
+    )
+  }
   for (const target of ['main', 'preload', 'renderer']) {
     mkdirSync(join(root, 'src', target), { recursive: true })
     writeFileSync(
@@ -97,6 +110,10 @@ function fixture() {
     `
     const fs = require('node:fs'), path = require('node:path');
     if (process.env.CHERRY_BUILD_CACHE_KEY || process.env.SENTRY_AUTH_TOKEN) throw new Error('Build credential leak');
+    if (process.argv[3] === 'node') {
+      require('node:child_process').execFileSync(process.execPath, process.argv.slice(4), {stdio:'inherit'});
+      process.exit(0);
+    }
     if (!process.argv.includes('electron-vite')) process.exit(0);
     const target = process.env.CHERRY_BUILD_TARGET || 'utility-process';
     const source = target === 'utility-process' ? 'main' : target;
@@ -137,6 +154,31 @@ function fixture() {
 }
 
 describe('release cache and Sentry delivery', () => {
+  it('prepares host addons on clean builds and restores missing addons even when every JS target hits cache', async () => {
+    const { root, env, run, compilations } = fixture()
+    env.SENTRY_SOURCE_MAP_UPLOAD = 'false'
+    const addons = ['selection-panel', 'external-app'].map((name) =>
+      join(root, 'resources/binaries', `${process.platform}-${process.arch}`, `${name}.node`)
+    )
+    await run()
+    for (const [index, name] of ['selection-panel', 'external-app'].entries()) {
+      expect(readFileSync(addons[index], 'utf8')).toBe(`${name} fixture`)
+      rmSync(addons[index])
+    }
+    rmSync(join(root, 'out'), { recursive: true })
+    const warm = await run()
+    for (const target of ['main', 'preload', 'renderer', 'utility-process']) {
+      expect(warm.stdout).toContain(`[release-build] ${target}: hit`)
+    }
+    expect(compilations()).toHaveLength(4)
+    for (const [index, name] of ['selection-panel', 'external-app'].entries()) {
+      expect(readFileSync(addons[index], 'utf8')).toBe(`${name} fixture`)
+    }
+    writeFileSync(join(root, 'native/darwin/build.js'), 'process.exit(1)')
+    await expect(run()).rejects.toMatchObject({ code: 1 })
+    expect(compilations()).toHaveLength(4)
+  }, 60_000)
+
   it('uploads matching JS/maps on cold and warm builds, rebuilds changed configuration and fails closed on upload errors', async () => {
     const sentry = await sentryServer()
     const { root, env, run, compilations } = fixture()

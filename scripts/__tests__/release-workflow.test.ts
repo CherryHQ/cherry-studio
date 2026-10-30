@@ -1100,6 +1100,17 @@ describe('release publication state', () => {
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
+  it('exposes typecheck failures and cancellations to release notifications even when downstream jobs skip', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const notify = workflow.jobs.notify
+    expect(notify.needs).toContain('validate-build')
+    expect(notify.if).toContain('always()')
+    expect(notify.if).toContain("contains(needs.*.result, 'failure')")
+    expect(notify.if).toContain("contains(needs.*.result, 'cancelled')")
+    expect(notify.if).not.toContain("contains(needs.*.result, 'skipped')")
+    expect(notify.steps[0].env.JOB_RESULTS).toBe('${{ toJSON(needs) }}')
+  })
+
   it('publishes npm packages without creating remote tags or GitHub releases', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release-packages.yml'), 'utf8'))
     const changesets = workflow.jobs.release.steps.find((step: { id?: string }) => step.id === 'changesets')

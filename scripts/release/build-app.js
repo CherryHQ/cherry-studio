@@ -137,6 +137,10 @@ async function buildApplication(root, env = process.env) {
   timed(root, 'release-info', () =>
     runPnpm(root, ['exec', 'tsx', 'scripts/release/bundled-release-info.ts'], compileEnv)
   )
+  timed(root, 'prepare-selection-panel', () => runPnpm(root, ['exec', 'node', 'native/darwin/build.js'], compileEnv))
+  timed(root, 'prepare-external-app', () =>
+    runPnpm(root, ['exec', 'node', 'native/external-app/build.cjs'], compileEnv)
+  )
   const bypass = cacheBypassReason(root, buildEnv)
   const key = encryptionKey(buildEnv)
   for (const target of targets) {
