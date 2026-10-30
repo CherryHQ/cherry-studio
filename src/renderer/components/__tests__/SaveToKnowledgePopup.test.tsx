@@ -453,6 +453,73 @@ describe('SaveToKnowledgePopup', () => {
     await expect(mockPreferenceService.get('chat.save.knowledge.last_base_id')).resolves.toBeNull()
   })
 
+  it('shows a translated explanation when a note is empty', async () => {
+    Object.assign(window.api.file, { readExternal: vi.fn().mockResolvedValue('   ') })
+    render(<PopupHost />)
+    act(() => {
+      void SaveToKnowledgePopup.showForNote({
+        createdAt: '2026-05-27T00:00:00.000Z',
+        externalPath: '/tmp/Empty.md',
+        id: 'note-1',
+        name: 'Empty',
+        treePath: 'Empty.md',
+        type: 'file',
+        updatedAt: '2026-05-27T00:00:00.000Z'
+      })
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ localizedErrorMessage: 'chat.save.knowledge.error.note_empty' }),
+          title: 'chat.save.knowledge.error.note_empty'
+        })
+      )
+    })
+    expect(toast.error).not.toHaveBeenCalledWith('Note content is empty. Cannot export empty notes to knowledge base.')
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+  })
+
+  it('keeps the original read error when a note file cannot be opened', async () => {
+    const readError = new Error('EACCES /tmp/note.md')
+    Object.assign(window.api.file, { readExternal: vi.fn().mockRejectedValue(readError) })
+    render(<PopupHost />)
+    act(() => {
+      void SaveToKnowledgePopup.showForNote({
+        createdAt: '2026-05-27T00:00:00.000Z',
+        externalPath: '/tmp/note.md',
+        id: 'note-1',
+        name: 'Note',
+        treePath: 'note.md',
+        type: 'file',
+        updatedAt: '2026-05-27T00:00:00.000Z'
+      })
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: readError,
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'EACCES /tmp/note.md',
+              operation: 'knowledge.note.read'
+            }),
+            localizedErrorMessage: 'chat.save.knowledge.error.note_read_failed'
+          }),
+          title: 'chat.save.knowledge.error.note_read_failed'
+        })
+      )
+    })
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+  })
+
   it('saves remaining text and files when an absolute referenced file is missing', async () => {
     const files = [createFile('/tmp/ok.pdf', 'ok'), createFile('E:\\Documents\\missing.docx', 'missing')]
     const message = {
@@ -531,7 +598,9 @@ describe('SaveToKnowledgePopup', () => {
 
     await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
     expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'chat.save.knowledge.error.save_failed' })
+    )
     expect(toast.warning).not.toHaveBeenCalled()
   })
 
@@ -553,7 +622,9 @@ describe('SaveToKnowledgePopup', () => {
     })
 
     await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
-    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'chat.save.knowledge.error.save_failed' })
+    )
     expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
   })
 
@@ -583,7 +654,9 @@ describe('SaveToKnowledgePopup', () => {
     })
 
     expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'chat.save.knowledge.error.save_failed' })
+    )
     expect(toast.warning).not.toHaveBeenCalled()
     await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
   })

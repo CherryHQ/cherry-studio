@@ -75,7 +75,7 @@ export async function runPainting(
       const detail = aiErrorDetail(error)
       logger.error('Image generation failed:', detail ?? error)
       if (detail) {
-        throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail) })
+        throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail), cause: error })
       }
       throw normalizePaintingGenerateError(error)
     }

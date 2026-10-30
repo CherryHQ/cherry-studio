@@ -24,6 +24,11 @@ vi.mock('@cherrystudio/ui', () => ({
       <div>{description}</div>
     </div>
   ),
+  Button: ({ children, onClick }: ComponentPropsWithoutRef<'button'>) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
   Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))
 

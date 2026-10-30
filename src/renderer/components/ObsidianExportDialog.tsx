@@ -25,6 +25,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -218,7 +219,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const [selectedVault, setSelectedVault] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{ message: string; cause?: unknown; operation?: string } | null>(null)
   const [exportReasoning, setExportReasoning] = useState(false)
 
   useEffect(() => {
@@ -244,7 +245,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         setError(null)
         const vaultsData = await ipcApi.request('export.obsidian.get_vaults')
         if (vaultsData.length === 0) {
-          setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
+          setError({ message: i18n.t('chat.topics.export.obsidian_no_vaults') })
           setLoading(false)
           return
         }
@@ -255,7 +256,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         }
       } catch (error) {
         logger.error('获取Obsidian Vault失败:', error as Error)
-        setError(i18n.t('chat.topics.export.obsidian_fetch_error'))
+        setError({
+          message: i18n.t('chat.topics.export.obsidian_fetch_error'),
+          cause: error,
+          operation: 'obsidian.vaults'
+        })
       } finally {
         setLoading(false)
       }
@@ -273,7 +278,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           setFiles(filesData)
         } catch (error) {
           logger.error('获取Obsidian文件失败:', error as Error)
-          setError(i18n.t('chat.topics.export.obsidian_fetch_folders_error'))
+          setError({
+            message: i18n.t('chat.topics.export.obsidian_fetch_folders_error'),
+            cause: error,
+            operation: 'obsidian.folders'
+          })
         } finally {
           setLoading(false)
         }
@@ -284,7 +293,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
 
   const handleOk = async () => {
     if (!selectedVault) {
-      setError(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
+      setError({ message: i18n.t('chat.topics.export.obsidian_no_vault_selected') })
       return
     }
     setSubmitting(true)
@@ -457,7 +466,24 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         <DialogHeader className="shrink-0">
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>
-        {error && <Alert className="mb-1 shrink-0" message={error} type="error" showIcon />}
+        {error && (
+          <Alert
+            className="mb-1 shrink-0"
+            message={error.message}
+            type="error"
+            showIcon
+            action={
+              error.cause ? (
+                <ErrorDetailAction
+                  error={error.cause}
+                  message={error.message}
+                  source="export.obsidian"
+                  operation={error.operation ?? 'obsidian.export'}
+                />
+              ) : undefined
+            }
+          />
+        )}
         <div className="min-h-0 space-y-4 overflow-y-auto">
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
