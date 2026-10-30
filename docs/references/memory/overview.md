@@ -26,14 +26,14 @@ Cherry Studio v1.x had **Global Memory**: a Settings toggle (`feature.memory.ena
 If you relied on Global Memory in v1:
 
 - Agents can use shared preferences and their own private knowledge. Shared access defaults on for desktop Agents; external channels cannot access shared memory.
-- Persistent Assistants can opt in to shared entry references. Temporary and auxiliary requests remain ineligible. Assistant and Claude Code memory editing requires a supported execution adapter; currently use the memory editor.
+- Persistent Assistants can opt in to shared entry references. Temporary and auxiliary requests remain ineligible. Assistant and Claude Code memory editing requires a supported execution adapter.
 
 ## Details
 
 ### Managed File Memory
 
 - `MEMORY.md` contains complete common facts and selected topic links. `.memories/*.md` contains related details. Each request reloads only eligible entries; topics require a full controlled read before editing.
-- Settings → Shared Memory provides content editing, topic selection, and a compact maintenance menu. Agent settings open the Agent's private scope. Conflicts preserve unsaved drafts. Clear and recovery require preview and confirmation; recoverable backups remain after clearing.
+- Settings → Shared Memory lists managed filenames without fetching or previewing their contents. It exposes confirmed topic deletion, global/shared clearing, and recovery. Agent private-memory entry points are removed. File feedback comes only from actual commit results, not index state or item counts; recoverable backups remain after clearing.
 - Entries allow 200 lines and 25,000 UTF-8 bytes; topics allow 25,000 bytes. Oversized external originals are preserved. These limits are save protections, not additional configuration fields.
 - Pi native reads, writes, and edits bind caller-specific read receipts to exact approved proposals. Backups precede writes, and actual results are checked. Unsupported Claude native operations and identity-free filesystem MCP access to managed memory are rejected. Shell and external tools remain outside this cooperative protection.
 - Each scope retains up to five recovery batches within 20 MiB. Protected batches are retained; insufficient backup capacity rejects a write. Recovery protects later changes and reports conflicts or partial results.
@@ -43,7 +43,9 @@ Legacy FACT migration preserves complete Markdown sections and original bytes, t
 
 ### Organization (Dreaming)
 
-Automatic organization defaults on and uses the application default model. Shared settings expose the automatic switch, a manual action, and the last run or an actionable failure. The manual action remains available when automatic organization is off; no separate model selector is added.
+The global "Generate memory in chats" switch defaults on and controls Dreaming through the existing preference configuration. "Automatically organize memory" is its subordinate switch and also defaults on. Turning off the parent prevents automatic and manual tasks and invalidates pending output. Turning off only the child still allows manual organization. The switches control existing-file organization, not chat-history extraction. The application default model is used; no separate model selector is added.
+
+Settings show the last recorded completed, failed, or cancelled result and its time. This record is separate from the current task state, so disabling a switch or becoming idle cannot report a failed attempt as successful.
 
 One global queue runs only while conversations are idle. A batch includes at most ten complete memory files and 50,000 UTF-8 bytes, then reduces inputs further to fit the model's declared limits. It makes one model call with tools disabled. Unknown or insufficient model capacity pauses work. No chat history, JOURNAL, identity files, other scopes, or network retrieval is supplied.
 
@@ -53,7 +55,7 @@ Durable progress lives in module-owned `app_state`; JobManager history can be re
 
 Topic deletion is conservative: all active files must have been supplied, source text must remain verbatim in a written topic destination, and remaining Markdown/wiki links must no longer target the source. HTML links require manual review. Destinations and link edits save before removal. Partial saves remain recoverable. This does not prove semantic equivalence of model rewrites.
 
-The implementation remains a Draft stack. Platform, runtime, migration, and model acceptance are unverified; tests were skipped at the user's request. See [the module contract](../../../src/main/ai/memory/README.md) for boundaries.
+The implementation remains a Draft stack. Focused lifecycle, migration, file-commit, settings, and cancellation regressions are covered. Native-platform, representative-model, and packaged-build acceptance remain incomplete. See [the module contract](../../../src/main/ai/memory/README.md) for boundaries.
 
 ### Knowledge Base (Assistant + Agent)
 

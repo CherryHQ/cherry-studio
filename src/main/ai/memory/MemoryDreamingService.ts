@@ -28,6 +28,7 @@ import type { MemoryCommitResult, MemoryRead } from './MemoryStore'
 
 const logger = loggerService.withContext('MemoryDreamingService')
 const AUTO_KEY = 'feature.memory.dreaming.enabled'
+const GENERATION_KEY = 'feature.memory.generation.enabled'
 const manualReady = (state: DreamingState, now: number) =>
   state.manual && (state.manualAttempts === 0 || now - (state.lastRunAt ?? 0) >= 10 * 60_000)
 
@@ -57,6 +58,7 @@ export class MemoryDreamingService extends BaseService {
     for (const state of readDreamingStates()) {
       state.generation++
       state.manual = false
+      if (state.status === 'running') state.lastResult = { outcome: 'cancelled', finishedAt: Date.now() }
       if (state.status === 'running' || state.status === 'queued') state.status = 'cancelled'
       writeDreamingState(state)
     }
@@ -77,6 +79,15 @@ export class MemoryDreamingService extends BaseService {
     this.registerDisposable(
       agentService.onMemoryAccessRevoked((agentId) => {
         if (!agentService.getAgent(agentId)) this.invalidate({ kind: 'private', agentId }, true)
+      })
+    )
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange(GENERATION_KEY, (enabled) => {
+        if (!enabled) {
+          this.epoch++
+          for (const state of readDreamingStates()) this.invalidate(state.scope, false)
+          this.active?.controller.abort('disabled')
+        } else this.wake()
       })
     )
     this.registerDisposable(
@@ -121,16 +132,17 @@ export class MemoryDreamingService extends BaseService {
   }
 
   status(scope: MemoryScope) {
-    const { status, reason, lastRunAt, manual, files } = readDreamingState(scope)
+    const { status, reason, lastRunAt, lastResult, manual, files } = readDreamingState(scope)
     const preferences = application.get('PreferenceService')
+    if (!preferences.get(GENERATION_KEY)) return { status, reason, lastRunAt, lastResult, pending: false }
     if ((manual || preferences.get(AUTO_KEY)) && !preferences.get('chat.default_model_id'))
-      return { status: 'failed' as const, reason: 'model' as const, lastRunAt, pending: manual }
+      return { status: 'failed' as const, reason: 'model' as const, lastRunAt, lastResult, pending: manual }
     const blocked = Object.values(files).find(
       (file) => file.pendingSince !== undefined && file.attempts >= 2 && file.reason
     )
     if (blocked && status === 'idle')
-      return { status: 'failed' as const, reason: blocked.reason, lastRunAt, pending: manual }
-    return { status, reason, lastRunAt, pending: manual || status === 'running' }
+      return { status: 'failed' as const, reason: blocked.reason, lastRunAt, lastResult, pending: manual }
+    return { status, reason, lastRunAt, lastResult, pending: manual || status === 'running' }
   }
 
   request(scope: MemoryScope): void {
@@ -158,7 +170,8 @@ export class MemoryDreamingService extends BaseService {
     return this.work.track(
       this.queue.runExclusive(async () => {
         ctx.signal.throwIfAborted()
-        if (this.stopped || this.foregroundBusy()) return { deferred: true }
+        if (this.stopped || !application.get('PreferenceService').get(GENERATION_KEY) || this.foregroundBusy())
+          return { deferred: true }
         const states = new Map(readDreamingStates().map((state) => [memoryScopeKey(state.scope), state]))
         const scopes: MemoryScope[] = [
           { kind: 'shared' },
@@ -193,12 +206,16 @@ export class MemoryDreamingService extends BaseService {
   }
 
   private assertScope(scope: MemoryScope): void {
-    if (this.stopped || (scope.kind === 'private' && !agentService.getAgent(scope.agentId)))
+    if (
+      this.stopped ||
+      !application.get('PreferenceService').get(GENERATION_KEY) ||
+      (scope.kind === 'private' && !agentService.getAgent(scope.agentId))
+    )
       throw new DOMException('Memory maintenance is unavailable', 'AbortError')
   }
 
   private wake(): void {
-    if (this.stopped) return
+    if (this.stopped || !application.get('PreferenceService').get(GENERATION_KEY)) return
     try {
       application
         .get('JobManager')
@@ -210,6 +227,7 @@ export class MemoryDreamingService extends BaseService {
 
   private invalidate(scope: MemoryScope, cancelled: boolean): void {
     const state = readDreamingState(scope)
+    if (state.status === 'running') state.lastResult = { outcome: 'cancelled', finishedAt: Date.now() }
     state.generation++
     state.manual = false
     state.cancelled = cancelled
@@ -391,6 +409,7 @@ export class MemoryDreamingService extends BaseService {
       latest.status = 'idle'
       latest.reason = undefined
       latest.lastRunAt = Date.now()
+      latest.lastResult = { outcome: 'completed', finishedAt: latest.lastRunAt }
       writeDreamingState(latest)
       return {
         scope: memoryScopeKey(scope),
@@ -421,6 +440,11 @@ export class MemoryDreamingService extends BaseService {
                   ? 'budget'
                   : 'conflict'
               : 'unavailable'
+        latest.lastResult = {
+          outcome: controller.signal.aborted || ctx.signal.aborted ? 'cancelled' : 'failed',
+          finishedAt: Date.now(),
+          reason: latest.reason
+        }
         if (attempted)
           for (const read of inputs) {
             const file = latest.files[read.path]

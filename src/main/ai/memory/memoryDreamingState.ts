@@ -41,6 +41,7 @@ const stateSchema = z.strictObject({
   cancelled: z.boolean(),
   lastScanAt: z.number(),
   lastRunAt: z.number().optional(),
+  lastResult: MemoryDreamingStatusSchema.shape.lastResult,
   status: MemoryDreamingStatusSchema.shape.status,
   reason: MemoryDreamingStatusSchema.shape.reason
 })
