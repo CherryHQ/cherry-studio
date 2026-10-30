@@ -694,6 +694,18 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[0].text.startsWith('hello')).toBe(true)
   })
 
+  it('does not carry a wrapped label of whitespace alone', () => {
+    // `[]: /url` has no label the parser would register — the single-line path rejects one of
+    // whitespace alone, and the wrapped path must too, or the empty definition rides in the
+    // carried prefix of every chunk.
+    const content = ['[]: /url', '', 'see []'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(joined(chunks)).toBe(content)
+    expect(chunks[0].text.startsWith('[]: /url')).toBe(true)
+  })
+
   it('carries a wrapped label whose destination sits a line below the closing one', () => {
     // The label spans two lines and the second carries the colon, so the destination is the line
     // below it. Reading that line from the first line's index rebuilt `[foo\nbar]:\nbar]:`, whose
@@ -2664,6 +2676,21 @@ describe('a definition shape that is paragraph text', () => {
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[label]: /right')
     }
+  })
+
+  it('carries the definition in a later paragraph of a non-empty list item', () => {
+    // The item's content starts at column three, so the blank it spans holds the boundary and the
+    // definition-shaped line below it reads as the item's content — not the top-level indented
+    // code its four columns would be outside the list. Missing it left the carried prefix empty
+    // and a reference in another chunk resolving to nothing, or to a later shadowing definition.
+    const content = '1. item\n\n    [label]: /right\n\n' + 'filler\n\n'.repeat(4000) + 'see [label]'
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [label]'))
+    expect(referencing).toHaveLength(1)
+    expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['/right'])
   })
 
   it('carries the definition below a heading that follows a long stretch of paragraphs', () => {

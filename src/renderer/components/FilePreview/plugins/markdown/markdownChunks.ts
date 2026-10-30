@@ -2003,11 +2003,16 @@ function wrappedLinkLabel(
       // write the closing syntax twice.
       const labelLines = [definitionSource.slice(1), ...parts]
       labelLines[labelLines.length - 1] = content.slice(0, run.counted)
+      const label = labelLines.join('\n')
+      // The single-line path above rejects a label of whitespace alone; the wrapped path must too,
+      // or `[]: /url` — a label the parser refuses — rides as a definition and the prose the line
+      // belongs to prints it a second time.
+      if (!/[^\s]/.test(label)) return null
       return {
         // The label is carried the way it was written, line endings included — the parser reads
         // and normalizes it whole again wherever the definition lands.
-        text: `[${labelLines.join('\n')}]:${after[1]}${after[2]}`,
-        label: labelLines.join('\n'),
+        text: `[${label}]:${after[1]}${after[2]}`,
+        label: label,
         tail: after[2],
         lines: span
       }
@@ -2845,13 +2850,22 @@ export function splitMarkdownChunks(
     // item — leaves the definition standing behind it.
     // An empty item's content sits on the line below it, at the item's own column: `-` then
     // `    [label]: /url` is a definition inside the item, not the top-level indented code it looks like.
+    // A loose item's later paragraphs read the same way: the blank the item spans holds the
+    // boundary, so a definition-shaped line indented into the open item is the item's content —
+    // four columns past the item whose content starts at three — and not the top-level indented
+    // code its indent alone would suggest. Past four columns the parser reads indented code again,
+    // and one to three columns short of the item leave the line outside it.
+    const inOpenItem =
+      run !== null && !blank && leadingColumns(line) >= run.content && leadingColumns(line) < run.content + 4
     const itemSource =
       emptyItemColumn !== null &&
       !blank &&
       leadingColumns(line) >= emptyItemColumn &&
       leadingColumns(line) < emptyItemColumn + 4
         ? afterColumns(emptyItemColumn, line)
-        : undefined
+        : inOpenItem
+          ? afterColumns(run.content, line)
+          : undefined
     const definition =
       (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode
         ? null
