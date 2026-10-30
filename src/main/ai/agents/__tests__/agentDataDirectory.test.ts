@@ -32,7 +32,9 @@ describe('agentDataDirectory', () => {
     expect(result).toBe(agentPath)
     expect(lstatSync(path.join(agentPath, 'SOUL.md')).isFile()).toBe(true)
     expect(lstatSync(path.join(agentPath, 'USER.md')).isFile()).toBe(true)
-    expect(lstatSync(path.join(agentPath, 'memory')).isDirectory()).toBe(true)
+    expect(lstatSync(path.join(agentPath, '.memories')).isDirectory()).toBe(true)
+    expect(await readFile(path.join(agentPath, 'MEMORY.md'), 'utf8')).toBe('')
+    expect(existsSync(path.join(agentPath, 'memory'))).toBe(false)
     expect(await readFile(path.join(agentPath, 'SOUL.md'), 'utf-8')).toBe('')
   })
 

@@ -49,7 +49,7 @@ export class MemoryMigrationService extends BaseService {
   private stopped = false
   private generation = 0
 
-  protected onStart(): void {
+  protected override onReady(): void {
     this.stopped = false
     this.failed.clear()
     this.registerDisposable(

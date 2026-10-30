@@ -6,6 +6,7 @@
 
 import type * as NodeFs from 'node:fs'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -15,7 +16,6 @@ const {
   mockMkdir,
   mockRealpath,
   mockGetPath,
-  mockApplicationGet,
   mockGetBuiltinAgentPluginDirectory,
   mockLoadBuiltinAgentDefinition,
   mockProvisionBuiltinAgent,
@@ -28,7 +28,6 @@ const {
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
-  mockApplicationGet: vi.fn(),
   mockGetBuiltinAgentPluginDirectory: vi.fn(),
   mockLoadBuiltinAgentDefinition: vi.fn(),
   mockProvisionBuiltinAgent: vi.fn(),
@@ -53,9 +52,10 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
-vi.mock('@application', () => ({
-  application: { get: mockApplicationGet, getPath: mockGetPath }
-}))
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  return { application: { ...createMockApplication(), getPath: mockGetPath } }
+})
 
 vi.mock('@main/i18n', () => ({
   getAppLanguage: mockGetAppLanguage,
@@ -97,7 +97,7 @@ const { buildSystemPrompt } = await import('../settingsBuilder')
 
 beforeEach(() => {
   vi.unstubAllGlobals()
-  mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
+  MockMainPreferenceServiceUtils.resetMocks()
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
   mockProvisionBuiltinAgent.mockReset()
