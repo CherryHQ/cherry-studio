@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -13,6 +14,7 @@ import {
   ExternalKnowledgeSourceSyncError,
   type ExternalKnowledgeSourceSyncSummary
 } from '../../external/ExternalKnowledgeSyncService'
+import type { KnowledgeSyncExternalSourcePayload } from '../jobTypes'
 
 const { notifyDataChangeMock } = vi.hoisted(() => ({ notifyDataChangeMock: vi.fn() }))
 
@@ -24,12 +26,14 @@ const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_ID = '0198f3f2-7d11-7abc-8def-123456789abc'
 const JOB_ID = '0198f3f2-7d12-7abc-8def-123456789abc'
 
-const payload = {
+const payload: KnowledgeSyncExternalSourcePayload = {
   baseId: BASE_ID,
   sourceId: SOURCE_ID,
   sourceRevision: 3,
-  trigger: 'manual' as const
+  trigger: 'manual'
 }
+
+const scheduleEnvelope = { ...payload, trigger: 'scheduled' as const, dispatch: 'schedule' as const }
 
 const summary = (overrides: Partial<ExternalKnowledgeSourceSyncSummary> = {}): ExternalKnowledgeSourceSyncSummary => ({
   scannedCount: 4,
@@ -41,7 +45,7 @@ const summary = (overrides: Partial<ExternalKnowledgeSourceSyncSummary> = {}): E
   ...overrides
 })
 
-const createJobRun = (signal = new AbortController().signal): JobContext<typeof payload> => ({
+const createJobRun = (signal = new AbortController().signal): JobContext<KnowledgeSyncExternalSourcePayload> => ({
   jobId: JOB_ID,
   input: payload,
   attempt: 0,
@@ -53,7 +57,9 @@ const createJobRun = (signal = new AbortController().signal): JobContext<typeof 
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as JobContext['logger']
 })
 
-const settledEvent = (overrides: Partial<JobSettledEvent<typeof payload>> = {}): JobSettledEvent<typeof payload> => ({
+const settledEvent = (
+  overrides: Partial<JobSettledEvent<KnowledgeSyncExternalSourcePayload>> = {}
+): JobSettledEvent<KnowledgeSyncExternalSourcePayload> => ({
   jobId: JOB_ID,
   type: 'knowledge.sync-external-source',
   scheduleId: null,
@@ -151,6 +157,37 @@ describe('sync-external-source job handler', () => {
     expect(handler.cancelTimeoutMs).toBeGreaterThan(0)
     expect(handler.cancelTimeoutMs).toBeLessThanOrEqual(SERVICE_STOP_TIMEOUT_MS / 2)
     expect(handler.defaultQueue?.(payload)).toBe(`base.${BASE_ID}`)
+  })
+
+  it.each([
+    [{}, 'scheduled'],
+    [{ scheduleTrigger: 'startup' }, 'startup']
+  ] as const)('persists the correct source trigger from durable envelope metadata %j', async (metadata, trigger) => {
+    const handler = createSyncExternalSourceJobHandler(
+      {
+        syncSource: async () => {
+          throw new Error('Envelope must dispatch a source job')
+        }
+      },
+      {
+        now: () => 123,
+        dispatchScheduledEnvelope: async (input, origin) => {
+          const admitted = externalKnowledgeSourceService.beginSyncTx(dbh.db, {
+            sourceId: input.sourceId,
+            expectedRevision: input.sourceRevision,
+            expectedActiveJobId: JOB_ID,
+            jobId: JOB_ID,
+            trigger: origin,
+            startedAt: 123
+          })
+          expect(admitted).toBe(true)
+        }
+      }
+    )
+    await handler.execute({ ...createJobRun(), input: scheduleEnvelope, metadata })
+    await handler.onSettled?.(settledEvent({ input: scheduleEnvelope, scheduleId: 'schedule-1' }))
+
+    expect(source()).toMatchObject({ lastTrigger: trigger, lastStartedAt: 123, lastFinishedAt: null })
   })
 
   it('publishes a final content reconciliation signal after synchronization finishes', async () => {
@@ -348,19 +385,26 @@ describe('sync-external-source job handler', () => {
     }
   )
 
-  it('does not notify when a stale revision or active job loses the settle fence', async () => {
-    dbh.db
-      .update(externalKnowledgeSourceTable)
-      .set({ revision: 4 })
-      .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
-      .run()
-    const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
+  it.each([JOB_ID, '0198f3f2-7d12-7abc-8def-123456789abd'])(
+    'releases only its own terminal binding after a revision change: %s',
+    async (activeJobId) => {
+      dbh.db
+        .update(externalKnowledgeSourceTable)
+        .set({ revision: 4, activeJobId })
+        .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+        .run()
+      const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
 
-    await handler.onSettled?.(settledEvent())
+      await handler.onSettled?.(settledEvent())
 
-    expect(notifyDataChangeMock).not.toHaveBeenCalled()
-    expect(source()).toMatchObject({ revision: 4, activeJobId: JOB_ID, lastFinishedAt: null })
-  })
+      expect(source()).toMatchObject({
+        revision: 4,
+        activeJobId: activeJobId === JOB_ID ? null : activeJobId,
+        lastFinishedAt: null
+      })
+      if (activeJobId !== JOB_ID) expect(notifyDataChangeMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('projects a structured handler timeout ahead of stale cancellation metadata', async () => {
     const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })

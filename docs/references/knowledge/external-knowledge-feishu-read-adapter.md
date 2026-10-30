@@ -74,7 +74,7 @@ supported remote object before returning. It still performs no durable
 deduplication or reconciliation: the Layer 4 synchronization workflow compares
 the scan with persisted Documents and publishes the resulting changes.
 
-## Source creation and manual synchronization
+## Source creation, synchronization, and lifecycle
 
 `knowledge.external_source.create` accepts only a base id, connection id, raw
 URL, and name. Main re-runs trusted scope resolution rather than accepting a
@@ -87,6 +87,22 @@ Source, rejects paused Sources and failed bases, and enqueues the same
 `knowledge.sync-external-source` Job used by initial synchronization. The
 per-Source idempotency key coalesces repeated requests while a Job remains
 non-terminal.
+
+Sources default to manual-only scheduling. `knowledge.external_source.schedule.update`
+can attach one daily schedule with a local time and IANA timezone, update that
+schedule, or return the Source to manual-only mode. The Source owns provider-work
+admission through its active/paused state; the JobManager schedule separately owns
+its trigger, timezone, enabled state, and next run. Daily fires and startup catch-up
+use a lightweight `knowledge.sync-external-source` dispatch envelope, then admit a
+fresh provider-work Job through the same per-Source idempotency key used by initial
+and manual synchronization.
+
+Startup projects persisted terminal provider-work results and finish times into
+the Source only while its identity, revision, and active Job still match, then
+emits a read-model notification after commit. Missing, stale, or unrelated
+`activeJobId` correlations are only cleared. Previous-process non-terminal work
+waits for JobManager recovery before provider admission opens. A restart never
+resumes an abandoned scan; a later trigger starts a complete new scan.
 
 One Job owns the full scan → per-document read/prepare/publication → missing
 document reconciliation run. Provider reads and embedding preparation happen
@@ -105,8 +121,28 @@ The Job output and metadata contain only validated counts, stable error/warning
 codes, and remote object ids. Credentials, account details, raw provider
 payloads, and provider error messages are not written to Job rows or Source
 summaries. Job settlement updates the Source only while its revision and
-`activeJobId` still match, and DataApi read-model notifications are emitted
-only after the owning transaction commits.
+`activeJobId` still match. If a lifecycle change advances the revision, the terminal
+Job only clears its own active reference; it cannot overwrite the summary or clear
+a replacement Job. DataApi read-model notifications are emitted only after the
+owning transaction commits.
+
+Terminal credential failures mark the Connection `reauthorization-required`,
+pause every dependent Source, and disable their schedules. Successful
+reauthorization restores those Sources and schedules without starting a sync.
+Startup credential reconciliation applies the same paused state before provider
+admission opens.
+
+`knowledge.external_source.disconnect` has two local-only modes. Keep-local
+removes Source/Document ownership while preserving completed snapshots, chunks,
+vectors, and ownerless external items. Remove-local first marks every owned item
+`deleting` and enqueues the existing durable subtree cleanup before removing the
+ownership rows. Both modes unregister the schedule and settle active work before
+destructive cleanup, preserve the shared Connection, and never mutate Feishu.
+After settlement, deletion accepts either the original Job binding or its cleared
+value. It still requires the captured Source revision, paused state, and absent
+schedule, and rejects any replacement Job binding.
+Keep-local does not retain a reattachment key, so connecting the same scope
+again can create duplicate local content; merge and reattach remain unsupported.
 
 ## Docx Markdown
 

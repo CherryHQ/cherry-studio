@@ -22,12 +22,18 @@ import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from '
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
-/** Knowledge base lifecycle: create (with rollback), delete, and restore — everything about the base row + its on-disk artifacts, not about items. */
+export interface KnowledgeBaseExternalSourceCleanup {
+  prepareExternalSourcesForBaseDeletion(baseId: string): Promise<string[]>
+  notifyExternalSourcesDeleted(baseId: string, sourceIds: readonly string[]): void
+}
+
+/** Knowledge base lifecycle: create (with rollback), delete, and restore — including ordered teardown of rows and on-disk artifacts. */
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
     private readonly ingestionService: KnowledgeIngestionService,
-    private readonly fileProcessingWaits: FileProcessingWaitManager
+    private readonly fileProcessingWaits: FileProcessingWaitManager,
+    private readonly externalSourceCleanup: KnowledgeBaseExternalSourceCleanup
   ) {}
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -68,9 +74,10 @@ export class KnowledgeBaseAdminService {
 
   async deleteBase(baseId: string): Promise<void> {
     await cancelActiveKnowledgeJobs(baseId, 'delete-base', {
-      onCancelTimeout: 'proceed',
+      onCancelTimeout: 'throw',
       fileProcessingWaits: this.fileProcessingWaits
     })
+    const externalSourceIds = await this.externalSourceCleanup.prepareExternalSourcesForBaseDeletion(baseId)
 
     await this.knowledgeLockManager.runExclusive(baseId, async () => {
       try {
@@ -95,6 +102,8 @@ export class KnowledgeBaseAdminService {
         )
       }
     })
+
+    this.externalSourceCleanup.notifyExternalSourcesDeleted(baseId, externalSourceIds)
   }
 
   /** Remove vector artifacts only when the base is still absent while holding its lifecycle lock. */

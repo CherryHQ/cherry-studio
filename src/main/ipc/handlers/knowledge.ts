@@ -124,6 +124,11 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     externalKnowledgeAdmissionCommand(() =>
       application.get('KnowledgeService').requestExternalKnowledgeSourceSync(input)
     ),
+  'knowledge.external_source.schedule.update': async (input) =>
+    application.get('KnowledgeService').updateExternalKnowledgeSourceSchedule(input),
+  'knowledge.external_source.disconnect': async (input) => {
+    await application.get('KnowledgeService').disconnectExternalKnowledgeSource(input)
+  },
   'knowledge.feishu.registration.begin': async (input, { senderId }) =>
     externalKnowledgeCommand(
       () =>

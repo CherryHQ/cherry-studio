@@ -731,6 +731,20 @@ describe('JobManager pause / drainInFlight', () => {
   }
 
   describe('startup recovery under pause', () => {
+    it('persists catch-up origin before a delayed job can execute', async () => {
+      await insertOverdueSchedule('pause.catchup-origin', 'origin', { kind: 'after-startup', minutes: 1 })
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['pause.catchup-origin', makeCountingHandler({ count: 0 })]]
+      })
+      try {
+        const rows = jobService.list({ type: 'pause.catchup-origin' })
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({ status: 'delayed', metadata: { scheduleTrigger: 'startup' } })
+      } finally {
+        await teardownManager(scheduler, jobManager)
+      }
+    })
+
     it('reports startupRecoveryPending=true when drain times out inside an unfinished onMissed', async () => {
       await insertOverdueSchedule('pause.recov1', 's1', { kind: 'after-startup', minutes: 0 })
 
