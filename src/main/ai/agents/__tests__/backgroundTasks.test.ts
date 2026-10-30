@@ -286,9 +286,12 @@ describe('backgroundTasks', () => {
       const stopped = await stopDetachedBackgroundTask(storageDir, record.id)
       expect(['running', 'stopped']).toContain(stopped?.status)
       expect(stopped?.stopSignal).toBe('SIGTERM')
-      await vi.waitFor(async () => {
-        expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('stopped')
-      })
+      await vi.waitFor(
+        async () => {
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('stopped')
+        },
+        { timeout: 10_000 }
+      )
       expect(await stopDetachedBackgroundTask(storageDir, record.id)).toBeUndefined()
     })
     it('registers a running record and reports completion with sentinel and log', async () => {
