@@ -12,10 +12,17 @@ import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
+import type { FileProcessingStage } from '../types/fileProcessing'
 import type { McpServer } from '../types/mcpServer'
 import type { UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
+
+export type CacheKnowledgeItemFileProcessingState = {
+  stage: FileProcessingStage | null
+  progress: number | null
+  elapsedMs: number
+}
 
 export type CacheAppUpdateState = {
   info: UpdateInfo | null

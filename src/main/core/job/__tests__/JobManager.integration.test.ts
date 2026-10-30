@@ -186,6 +186,38 @@ describe('JobManager integration', () => {
     BaseService.resetInstances()
   })
 
+  it('preserves the handler diagnostic on timeout', async () => {
+    const diagnostic = 'cooperative handler diagnostic after execution budget expired'
+    let executions = 0
+    const handler: JobHandler = {
+      recovery: 'abandon',
+      async execute(ctx) {
+        executions++
+        await new Promise<void>((_resolve, reject) => {
+          const onAbort = () => reject(new Error(diagnostic))
+          if (ctx.signal.aborted) onAbort()
+          else ctx.signal.addEventListener('abort', onAbort, { once: true })
+        })
+      }
+    }
+    const { scheduler, jobManager } = await bootstrapManager({ handlers: [['test.timeout-diagnostic', handler]] })
+    try {
+      const handle = jobManager.enqueue('test.timeout-diagnostic' as never, {} as never, {
+        timeoutMs: 25,
+        maxAttempts: 1
+      })
+      const settled = await handle.finished
+      expect(settled.status).toBe('failed')
+      expect(settled.error).toMatchObject({ code: 'JOB_HANDLER_TIMEOUT', message: diagnostic })
+      const persisted = await jobManager.get(handle.id)
+      expect(persisted?.status).toBe('failed')
+      expect(persisted?.error).toMatchObject({ code: 'JOB_HANDLER_TIMEOUT', message: diagnostic })
+      expect(executions).toBe(1)
+    } finally {
+      await teardownManager(scheduler, jobManager)
+    }
+  })
+
   describe('startup recovery', () => {
     it('abandon: turns every non-terminal job into cancelled', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType

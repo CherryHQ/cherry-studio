@@ -4,6 +4,8 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
 
+export type FileProcessingStage = 'uploading' | 'queued' | 'parsing' | 'converting'
+
 export const FileProcessingTextArtifactSchema = z
   .object({
     kind: z.literal('text'),
