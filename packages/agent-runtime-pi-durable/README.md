@@ -124,6 +124,12 @@ A starting input also retains the behavior run reservation in its native entry. 
 reconstructs skipped numbers with zero usage, so stopping a child before its first input
 does not shift the identity of its next run. Reservations never restrict steer admission.
 
+Common `contextUsage()` uses the patched native `Conversation.contextUsage()` API. It reads
+an immutable committed context range, the resolved model, and the native compaction estimator
+without resuming work or evaluating generation hooks. Partial categories describe that committed
+context; deferred tools remain outside occupancy. Automatic compaction thresholds are present
+only when enabled. This estimate is separate from native billable usage records.
+
 The concrete `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay
 outside the harness-neutral Runtime contract. `onInputPlaced` runs synchronously at

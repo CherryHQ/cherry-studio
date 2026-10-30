@@ -6,6 +6,7 @@ import { cn } from '@renderer/utils/style'
 import { getContextUsageColor, normalizeContextUsagePercentage } from './contextUsageColor'
 
 export interface ContextUsageSummaryData {
+  estimated?: boolean
   usedTokens: number
   maxTokens: number
   percentage: number
@@ -67,6 +68,7 @@ export function ContextUsageSummary({
           </div>
           <div className="flex items-center justify-between gap-3 text-muted-foreground">
             <span className="shrink-0">
+              {data.estimated ? '≈' : ''}
               {data.usedTokens.toLocaleString(i18n.resolvedLanguage)} /{' '}
               {data.maxTokens.toLocaleString(i18n.resolvedLanguage)} ({percentage}%)
             </span>

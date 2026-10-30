@@ -1,14 +1,13 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { UIMessageChunk } from 'ai'
 
-import type { InputState } from '@cherrystudio/agent-runtime'
+import type { InputState, OperationResult, ThreadContextUsage } from '@cherrystudio/agent-runtime'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { Tool } from '@shared/ai/tool'
@@ -175,7 +174,7 @@ export type AgentRuntimeEvent =
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
   | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
-  | { type: 'context-usage'; usage: AgentSessionContextUsage }
+  | { type: 'context-usage'; result: OperationResult<ThreadContextUsage> }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
@@ -249,11 +248,10 @@ export interface AgentRuntimeConnection {
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**
-   * Read the live context-window usage for this connection's session. Returns null when the
-   * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
-   * Optional ⇒ the host treats the runtime as unable to report usage.
+   * Read passive, thread-scoped context usage from the harness. Unknown and unsupported
+   * results remain explicit; omitting this operation means the connection cannot report usage.
    */
-  getContextUsage?(): Promise<AgentSessionContextUsage | null>
+  getContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
   /**
    * Read this session's available slash command catalog (`query.supportedCommands()`), including
    * any custom project/user commands the SDK discovered. Returns null when the runtime can't report

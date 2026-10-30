@@ -595,3 +595,25 @@ describe('Pi Durable runtime contract', () => {
     expect(faux.state.callCount).toBe(before + 1)
   })
 })
+
+it('reads the native compaction estimate passively without resuming the scheduler or writing usage', async () => {
+  const { runtime, options } = await setup()
+  const access = confirmed(await runtime.create(sessionOptions))
+  const events = await observe(access)
+  const before = confirmed(await access.contextUsage())
+  expect(before).toMatchObject({
+    model: 'faux-1',
+    basis: 'current-context',
+    used: { tokens: 0, precision: 'estimated' }
+  })
+  expect(before.contextWindow).toBe(options.harness.models.getModel('faux', 'faux-1')!.contextWindow)
+  const archive = confirmed(await access.archive())
+  expect(confirmed(await access.contextUsage())).toEqual(before)
+  expect(confirmed(await access.archive())).toEqual(archive)
+  expect(events.filter((event) => event.type === 'input.changed')).toEqual([])
+  expect(events.filter((event) => event.type === 'snapshot').every((event) => event.activity.state === 'idle')).toBe(
+    true
+  )
+  await access.release()
+  expect(await access.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+})

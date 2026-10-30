@@ -4,6 +4,7 @@ import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import type { CompactionSummarizer, CompactionSummaryRequest } from '../src'
+import { readContextUsage } from '../src/contextUsage'
 import type { ModelCall } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
 import {
@@ -82,7 +83,19 @@ describe('Pi compaction with native providers', () => {
     await session.prompt('Question one, my name is Li')
     await session.prompt('Question two, I live in Paris')
     const result = await session.compact('keep the user facts')
+    const compacted = readContextUsage(session)
+    expect(compacted.status).toBe('confirmed')
+    if (compacted.status !== 'confirmed') throw new Error('Missing context reading')
+    expect(compacted.value.used).toBeUndefined()
+    const requests = calls.length
+    expect(readContextUsage(session)).toEqual(compacted)
+    expect(calls).toHaveLength(requests)
     await session.prompt('Question three')
+    const resumed = readContextUsage(session)
+    expect(resumed.status).toBe('confirmed')
+    if (resumed.status !== 'confirmed') throw new Error('Missing context reading')
+    expect(resumed.value.used?.tokens).toBeGreaterThan(0)
+    expect(resumed.value.revision).not.toBe(compacted.value.revision)
 
     expect(result.summary).toMatch(/Li from Paris/)
     const lastPrompt = JSON.stringify(calls.at(-1)!.messages)

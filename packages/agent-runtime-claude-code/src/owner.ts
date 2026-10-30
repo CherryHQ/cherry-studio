@@ -19,10 +19,12 @@ import {
   type ObservationPayload,
   type OperationResult,
   type ShutdownReceipt,
+  type ThreadContextUsage,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
 import { readArchive } from './archive'
+import { normalizeContextUsage } from './contextUsage'
 import { claudeThread, isCommandLifecycle, isUuid, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'
 import type {
@@ -56,6 +58,14 @@ export class ClaudeOwner {
   private readonly logicalInputs = new Set<InputId>()
   private readonly queue: Input[] = []
   private wake?: () => void
+  private readonly contextWindows = new Map<string, number>()
+  private contextEpoch = 0
+  private contextModel?: string
+  private liveInputUsage: {
+    input_tokens?: number
+    cache_read_input_tokens?: number | null
+    cache_creation_input_tokens?: number | null
+  } = {}
   private sdk?: Query
   private pump?: Promise<void>
   private exited = false
@@ -144,6 +154,39 @@ export class ClaudeOwner {
     } catch (error) {
       this.report(error)
       return { status: 'unknown', error: runtimeError(operation, 'native-error') }
+    }
+  }
+
+  private contextWindow(model: string): number | undefined {
+    const declared = this.runtime.contextWindow
+    const normalize = (id: string) => id.replace(/\[1m\]$/i, '')
+    if (declared && normalize(declared.model) === normalize(model)) return declared.tokens
+    return this.contextWindows.get(model)
+  }
+
+  async contextUsage(projection: ClaudeProjection): Promise<OperationResult<ThreadContextUsage>> {
+    if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
+      return rejected('contextUsage', 'closed')
+    if (!this.sdk) return { status: 'unknown', error: runtimeError('contextUsage', 'not-connected') }
+    const epoch = this.contextEpoch
+    try {
+      const native = await this.sdk.getContextUsage()
+      if (this.closing || this.lost || this.resetFrom) return rejected('contextUsage', 'closed')
+      if (epoch !== this.contextEpoch || projection.thread.id !== this.activeSession)
+        return { status: 'unknown', error: runtimeError('contextUsage', 'context-changed') }
+      const window = this.contextWindow(native.model)
+      if (!window) return { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
+      const value = normalizeContextUsage(native, window)
+      const result = {
+        status: 'confirmed' as const,
+        value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
+      }
+      if (JSON.stringify(projection.feed.snapshot.contextUsage) !== JSON.stringify(result))
+        projection.publish([{ type: 'context.changed', result }])
+      return result
+    } catch (error) {
+      this.report(error)
+      return { status: 'unknown', error: runtimeError('contextUsage', 'native-error') }
     }
   }
 
@@ -367,6 +410,10 @@ export class ClaudeOwner {
       return
     }
     if (message.type === 'conversation_reset') {
+      this.contextEpoch++
+      this.projection(this.activeSession).publish([
+        { type: 'context.changed', result: { status: 'unknown', error: runtimeError('contextUsage', 'reset') } }
+      ])
       this.resetFrom = this.activeSession
       this.projection(this.activeSession).publish([{ type: 'gap', reason: 'mapping-reset' }], {
         source: 'live',
@@ -404,6 +451,65 @@ export class ClaudeOwner {
       return
     }
     const events: ObservationPayload[] = []
+    const nextModel =
+      !agentId && message.type === 'system' && message.subtype === 'init'
+        ? message.model
+        : !agentId && message.type === 'stream_event' && message.event.type === 'message_start'
+          ? message.event.message.model
+          : undefined
+    if (nextModel && nextModel !== this.contextModel) {
+      this.contextModel = nextModel
+      this.contextEpoch++
+      events.push({
+        type: 'context.changed',
+        result: { status: 'unknown', error: runtimeError('contextUsage', 'model-changed') }
+      })
+    }
+    if (message.type === 'result' && 'modelUsage' in message)
+      for (const [model, usage] of Object.entries(message.modelUsage))
+        if (usage.contextWindow > 0) this.contextWindows.set(model, usage.contextWindow)
+    if (!agentId && message.type === 'stream_event') {
+      const event = message.event
+      const usage =
+        event.type === 'message_start' ? event.message.usage : event.type === 'message_delta' ? event.usage : undefined
+      const model =
+        event.type === 'message_start'
+          ? event.message.model
+          : projection.feed.snapshot.contextUsage?.status === 'confirmed'
+            ? projection.feed.snapshot.contextUsage.value.model
+            : this.config.model
+      const window = model ? this.contextWindow(model) : undefined
+      if (event.type === 'message_start') this.liveInputUsage = {}
+      if (usage) {
+        for (const key of ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'] as const)
+          if (usage[key] != null) this.liveInputUsage[key] = usage[key]
+      }
+      const tokens =
+        (this.liveInputUsage.input_tokens ?? 0) +
+        (this.liveInputUsage.cache_read_input_tokens ?? 0) +
+        (this.liveInputUsage.cache_creation_input_tokens ?? 0)
+      if ((event.type === 'message_start' || event.type === 'message_delta') && model && window && tokens > 0)
+        events.push({
+          type: 'context.changed',
+          result: {
+            status: 'confirmed',
+            value: {
+              model,
+              contextWindow: window,
+              revision: `${this.activeSession}:${this.contextEpoch}:${message.uuid}`,
+              basis: 'last-request',
+              used: { tokens, precision: 'reported' }
+            }
+          }
+        })
+    }
+    if (!agentId && message.type === 'system' && message.subtype === 'compact_boundary') {
+      this.contextEpoch++
+      events.push({
+        type: 'context.changed',
+        result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') }
+      })
+    }
     if (message.type === 'assistant') {
       events.push(...projection.remove(message.supersedes ?? []))
       events.push(...projection.message(message, { live: !agentId, aborted: message.aborted }))

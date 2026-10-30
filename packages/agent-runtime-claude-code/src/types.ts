@@ -38,6 +38,8 @@ export type ClaudeSessionOptions = Omit<
 export interface ClaudeCodeRuntimeOptions {
   readonly backendId: BackendId
   readonly configDir: string
+  /** Authoritative capacity supplied for an externally routed model. */
+  readonly contextWindow?: { readonly model: string; readonly tokens: number }
   /** Resolve the configuration of this exact saved root, without starting execution. */
   readonly load?: (root: Thread) => Promise<ClaudeSessionOptions | undefined>
   readonly onError?: (error: unknown) => void
@@ -91,7 +93,6 @@ export interface ClaudeThreadHandle extends ThreadHandle {
     /** Start the native connection without submitting input; a warm handoff transfers sole ownership. */
     start(warm?: { query: WarmQuery; exited: Promise<void> }): OperationResult<void>
     supportedCommands(): Promise<OperationResult<Awaited<ReturnType<Query['supportedCommands']>>>>
-    contextUsage(): Promise<OperationResult<Awaited<ReturnType<Query['getContextUsage']>>>>
     setPermissionMode(mode: Parameters<Query['setPermissionMode']>[0]): Promise<OperationResult<void>>
     submit(inputId: InputId, content: SDKUserMessage['message']['content'], whenBusy: BusyPolicy): Promise<SubmitResult>
     observe(sink: ClaudeObservationSink): Promise<OperationResult<Observation>>

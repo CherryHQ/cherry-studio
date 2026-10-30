@@ -145,6 +145,64 @@ index c088f3c..5ba7218 100644
 -//# sourceMappingURL=generation.js.map
 +//# sourceMappingURL=generation.js.map
 \ No newline at end of file
+diff --git a/dist/harness/harness.js b/dist/harness/harness.js
+index 1c763bb..6339d6f 100644
+--- a/dist/harness/harness.js
++++ b/dist/harness/harness.js
+@@ -6,8 +6,8 @@ import { contained, SessionImpl } from "../session/session.js";
+ import { hostTimers } from "../timers.js";
+ import { ROOT_CONVERSATION_ID } from "../types.js";
+ import { AgentDoc, configure, createAgent, resolveAgent, resolveSettings } from "./agent.js";
+-import { createCompaction } from "./compaction.js";
+-import { readContext } from "./context.js";
++import { createCompaction, estimateContext } from "./compaction.js";
++import { readContext, readContextFrom } from "./context.js";
+ import { InboxDoc, withdrawQueuedInputs } from "./inbox.js";
+ import { LiveDoc, settleSchedulerOutcome } from "./live.js";
+ import { ProviderDoc } from "./provider.js";
+@@ -25,6 +25,7 @@ export const SCHEDULER_INDEX_SIZES = Symbol.for("pi-durable.schedulerIndexSizes"
+ class ConversationImpl {
+     id;
+     #host;
++    #contextRange;
+     constructor(id, host) {
+         this.id = id;
+         this.#host = host;
+@@ -56,6 +57,25 @@ class ConversationImpl {
+     context(context, options) {
+         return readContext(this.#host.harness, this.#host.storage, this.id, context, options?.at);
+     }
++    async contextUsage(context) {
++        const before = await this.agent(context);
++        const model = before.model && this.#host.models.getModel(before.model.provider, before.model.modelId);
++        if (!model || model.contextWindow <= 0) return undefined;
++        const { view, range } = await readContextFrom(this.#host.harness, this.#host.storage, this.id, context, undefined, this.#contextRange);
++        const after = await this.agent(context);
++        if (JSON.stringify(before) !== JSON.stringify(after)) return undefined;
++        this.#contextRange = range;
++        const policy = this.#host.settings().compaction;
++        return {
++            model: before.model,
++            revision: JSON.stringify([range?.bounds.head?.id, range?.bounds.tail, before, policy]),
++            contextWindow: model.contextWindow,
++            tokens: estimateContext(view, []),
++            ...(policy.enabled ? { compactionThreshold: Math.max(0, model.contextWindow - policy.reserveTokens) } : {}),
++            messages: view.messages,
++            deferred: before.deferred,
++        };
++    }
+     entries(query, limit, cursor, context) {
+         const bounded = {
+             conversationId: this.id,
+@@ -154,6 +174,8 @@ class HarnessImpl extends SessionImpl {
+             tasks: this.#tasks,
+             submissions: this.#submissions,
+             views: new ConversationViews(this, storage),
++            models: options.models,
++            settings,
+             now,
+             create: (target, createOptions, context) => this.#create(target, createOptions, context),
+         };
 diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
 index 0fe5579..307527f 100644
 --- a/dist/harness/live.d.ts
@@ -159,10 +217,30 @@ index 0fe5579..307527f 100644
          inputs: SubmissionId[];
      };
 diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
-index faf4ae4..d4007bf 100644
+index faf4ae4..b253c31 100644
 --- a/dist/harness/types.d.ts
 +++ b/dist/harness/types.d.ts
-@@ -830,6 +830,8 @@ export interface CompactionHooks {
+@@ -668,8 +668,19 @@ export type ContextView = {
+     readonly messages: readonly Message[];
+ };
+ /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
++export interface ConversationContextUsage {
++    readonly model: { readonly provider: string; readonly modelId: string };
++    readonly revision: string;
++    readonly contextWindow: number;
++    readonly tokens: number;
++    readonly compactionThreshold?: number;
++    readonly deferred: readonly Tool[];
++    readonly messages: readonly Message[];
++}
+ export interface Conversation {
+     readonly id: ConversationId;
++    /** Passive committed-context estimate, using the same accounting as threshold compaction. Does not resume tasks. */
++    contextUsage(context: Context): Promise<ConversationContextUsage | undefined>;
+     /** Resolved with the current registry snapshot and settings. */
+     agent(context: Context): Promise<Agent>;
+     /** `configure()` in its own commit. */
+@@ -830,6 +841,8 @@ export interface CompactionHooks {
          readonly decline: true;
      } | {
          readonly summary: string;

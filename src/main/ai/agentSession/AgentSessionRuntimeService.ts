@@ -312,6 +312,8 @@ type AgentSessionRuntimeEntry = {
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
   contextUsageRefresh?: { connection: AgentRuntimeConnection; pending: boolean }
+  contextUsageEpoch?: number
+  contextUsageModel?: UniqueModelId
   /** Root/nested tool call → persisted assistant row that owns its FlowTab projection. */
   flowMessageIdsByToolCallId?: Map<string, string>
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
@@ -903,7 +905,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
       // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
       // live turn keeps its captured `turn.modelId` regardless.
-      if (agent.model) entry.modelId = agent.model
+      if (agent.model && entry.modelId !== agent.model) {
+        entry.modelId = agent.model
+        this.invalidateContextUsage(entry)
+      }
       reconciles.push(this.reconcileEntryConnection(entry, agent))
     }
     await Promise.all(reconciles)
@@ -2009,6 +2014,7 @@ export class AgentSessionRuntimeService extends BaseService {
       await this.closeRuntimeConnection(connection, entry.sessionId)
       return false
     }
+    entry.contextUsageModel = target.modelId
     entry.usageCapture = connection.usageCapture
     this.resetConnectionRuntimeState(entry, connection)
     // Priming opens an idle connection only to populate connection-local metadata such as slash
@@ -2181,7 +2187,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.handleApiRetry(entry, event.retry)
         break
       case 'context-usage':
-        this.persistContextUsage(entry, event.usage)
+        this.persistContextUsage(entry, event.result)
         break
       case 'supported-commands':
         // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
@@ -2259,6 +2265,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     trigger: AgentSessionCompactionTrigger | undefined
   ): void {
+    this.invalidateContextUsage(entry)
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'compacting',
@@ -2387,22 +2394,14 @@ export class AgentSessionRuntimeService extends BaseService {
     const refresh = { connection, pending: false }
     entry.contextUsageRefresh = refresh
     void (async () => {
-      const read = async () => {
-        const usage = await connection.getContextUsage?.()
-        if (!usage) return
-        // A reading belongs to the session, not the connection — persist even after the connection
-        // was replaced/closed mid-read (renderer filters stale-model readings via usage.model).
-        if (!this.isCurrentEntry(entry)) return
-        this.persistContextUsage(entry, usage)
-      }
-
-      await read()
-      // Collapse every semantic invalidation that arrived during the first read into one trailing
-      // post-turn reading. Invalidations during that trailing read intentionally collapse into it.
-      if (refresh.pending && this.isCurrentEntry(entry) && this.currentConnection(entry) === connection) {
+      do {
         refresh.pending = false
-        await read()
-      }
+        const epoch = entry.contextUsageEpoch
+        const result = await connection.getContextUsage!()
+        if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
+        if (epoch === entry.contextUsageEpoch && !refresh.pending) this.persistContextUsage(entry, result)
+        else refresh.pending = true
+      } while (refresh.pending)
     })()
       .catch((error) => {
         logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
@@ -2412,9 +2411,17 @@ export class AgentSessionRuntimeService extends BaseService {
       })
   }
 
-  private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
+  private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
+    entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
+    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
+  }
+
+  private persistContextUsage(entry: AgentSessionRuntimeEntry, result: AgentSessionContextUsage['result']): void {
     if (!this.isCurrentEntry(entry)) return
-    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+    if (entry.contextUsageModel !== entry.modelId) return
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), { modelId: entry.modelId, result })
   }
 
   /**
@@ -2866,6 +2873,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
+    this.invalidateContextUsage(entry)
     void this.finishBackgroundFlows(entry)
     entry.flowMessageIdsByToolCallId?.clear()
     entry.persistedFlowMessageIds?.clear()

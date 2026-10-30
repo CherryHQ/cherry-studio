@@ -2604,11 +2604,17 @@ describe('AgentComposer', () => {
       name: 'MiniMax M3'
     }
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
-      categories: [],
-      totalTokens: 42,
-      maxTokens: 100,
-      percentage: 42,
-      model: 'minimax:MiniMax-M3'
+      modelId: 'minimax::MiniMax-M3',
+      result: {
+        status: 'confirmed',
+        value: {
+          model: 'minimax:MiniMax-M3',
+          revision: 'r1',
+          contextWindow: 100,
+          used: { tokens: 42, precision: 'reported' },
+          basis: 'current-context'
+        }
+      }
     })
     mocks.sessionLayout = 'time'
 
@@ -2642,11 +2648,17 @@ describe('AgentComposer', () => {
     expect(within(sendAccessory).queryByText('minimax:MiniMax-M3')).not.toBeInTheDocument()
 
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
-      categories: [],
-      totalTokens: 24,
-      maxTokens: 100,
-      percentage: 24,
-      model: 'openai:gpt-4o'
+      modelId: 'openai::gpt-4o',
+      result: {
+        status: 'confirmed',
+        value: {
+          model: 'openai:gpt-4o',
+          revision: 'r1',
+          contextWindow: 100,
+          used: { tokens: 24, precision: 'reported' },
+          basis: 'current-context'
+        }
+      }
     })
     view.rerender(
       <AgentComposer

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readdirSync, lstatSync } from 'node:fs'
 
 import type { Usage } from '@earendil-works/pi-ai'
-import type { ContextUsage, CreateAgentSessionOptions, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import type { CreateAgentSessionOptions, ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
 import * as z from 'zod'
 
@@ -35,7 +35,6 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import {
   KB_READ_TOOL_NAME,
@@ -47,7 +46,7 @@ import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
@@ -423,6 +422,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async handleObservation(event: ObservationPayload): Promise<void> {
+    if (event.type === 'context.changed') {
+      this.eventQueue.push({ type: 'context-usage', result: event.result })
+      return
+    }
+    if (event.type === 'snapshot' && event.contextUsage)
+      this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
     try {
       this.projection ??= new ThreadProjection(
         this.handle!.thread,
@@ -722,8 +727,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.endToolSpans('Pi turn ended before tool completion')
     if (this.failure) this.eventQueue.push({ type: 'error', error: this.failure })
     else {
-      const usage = this.handle?.pi.contextUsage()
-      if (usage?.tokens != null) this.eventQueue.push({ type: 'context-usage', usage: this.projectContextUsage(usage) })
       const checkpoint = PiForkCheckpointSchema.safeParse({
         runtime: 'pi',
         runtimeSessionId: this.handle?.thread.id,
@@ -846,19 +849,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
   }
 
-  async getContextUsage(): Promise<AgentSessionContextUsage | null> {
-    const usage = this.handle?.pi.contextUsage()
-    return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
-  }
-
-  private projectContextUsage(usage: ContextUsage): AgentSessionContextUsage {
-    return {
-      categories: [],
-      totalTokens: usage.tokens ?? 0,
-      maxTokens: usage.contextWindow,
-      percentage: usage.percent ?? 0,
-      model: parseUniqueModelId(this.input.modelId).modelId
-    }
+  async getContextUsage() {
+    return this.handle
+      ? this.handle.contextUsage()
+      : {
+          status: 'unknown' as const,
+          error: { operation: 'contextUsage', code: 'not-connected', message: 'Runtime not connected' }
+        }
   }
 
   private endToolSpans(message: string): void {

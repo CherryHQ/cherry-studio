@@ -22,7 +22,7 @@ root submission starts or resumes its Query. Concurrent opens share that owner.
 The host may supply a reserved `sessionId` to `create`. `claude.start()` initializes
 the connection without model input, optionally taking exclusive ownership of a
 matching SDK `WarmQuery` and its process-exit Promise. The host must match its
-captured configuration and credentials. Command discovery, context usage and
+captured configuration and credentials. Command discovery and
 permission-mode updates use typed native methods on `claude`, without exposing
 the Query iterator to a second reader.
 
@@ -37,6 +37,16 @@ to close, joins its event reader and subprocess exit, and reconciles available
 archives before ending feeds. An unconfirmed exit returns `unknown` and retains
 the owner; retry shutdown after the host resolves process termination. Handles
 may still read archives after shutdown until released. Native history is not deleted.
+
+## Context usage
+
+Common `contextUsage()` reads the existing Query's native context report without starting a
+process or sending model input. Root readings use the authoritative gateway model capacity when
+provided, otherwise the native result's model capacity. Before either is available the reading
+is unknown. A native compact threshold is never substituted for the full window. Categories and
+resources are estimates; partial coverage and missing reserve/free counts remain explicit.
+Root stream input usage is marked `last-request` and excludes output and cumulative billing.
+Child controls are unsupported because the SDK exposes no child-scoped context report.
 
 ## Input and control
 

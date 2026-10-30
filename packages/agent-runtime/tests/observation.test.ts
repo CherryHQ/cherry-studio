@@ -174,3 +174,31 @@ describe('normalized observation delivery', () => {
     expect(initial.messages).toEqual([])
   })
 })
+
+it('deduplicates unchanged context readings and includes the latest value for a new observer', async () => {
+  const feed = new ThreadFeed(snapshot(), () => {})
+  const events: ObservationPayload[] = []
+  feed.observe((event) => {
+    events.push(event)
+  })
+  const result = {
+    status: 'confirmed' as const,
+    value: {
+      model: 'model',
+      revision: 'native-revision',
+      contextWindow: 1000,
+      used: { tokens: 100, precision: 'estimated' as const },
+      basis: 'current-context' as const
+    }
+  }
+  for (let i = 0; i < 120; i++) feed.publish({ type: 'context.changed', result })
+  await tick()
+  expect(events.map((event) => event.type)).toEqual(['snapshot', 'context.changed'])
+  expect(feed.snapshot.contextUsage).toEqual(result)
+  const invalid = {
+    status: 'unknown' as const,
+    error: { operation: 'contextUsage', code: 'compacted', message: 'Unknown after compaction' }
+  }
+  feed.publish({ type: 'context.changed', result: invalid })
+  expect(feed.snapshot.contextUsage).toEqual(invalid)
+})

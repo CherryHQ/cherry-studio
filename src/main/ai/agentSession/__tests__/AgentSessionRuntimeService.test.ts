@@ -197,6 +197,19 @@ function persistenceListener(handle: { listeners: any[] }) {
   return listener
 }
 
+function contextReading(tokens: number, model = 'native-model') {
+  return {
+    status: 'confirmed' as const,
+    value: {
+      model,
+      revision: `r${tokens}`,
+      contextWindow: 100,
+      used: { tokens, precision: 'reported' as const },
+      basis: 'current-context' as const
+    }
+  }
+}
+
 function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
   const entry = (service as any).entries.get('session-1')
   if (!entry || Object.hasOwn(entry, 'currentTurn')) return entry
@@ -233,6 +246,7 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
         return connection.kind === 'connected' ? connection.connection : undefined
       },
       set: (connection) => {
+        entry.contextUsageModel = entry.modelId
         entry.runtimeState.connection = connection
           ? { kind: 'connected', connection, occupancy: {} }
           : { kind: 'disconnected' }
@@ -4484,20 +4498,7 @@ describe('AgentSessionRuntimeService', () => {
 
   it('publishes runtime context usage through persist cache', async () => {
     const events = createAsyncQueue<any>()
-    const usage = {
-      categories: [],
-      totalTokens: 42,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage: 42,
-      gridRows: [],
-      model: 'claude-sonnet-4-5',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: false,
-      apiUsage: null
-    }
+    const usage = contextReading(42)
     const connection = {
       events: events.iterable,
       send: vi.fn(),
@@ -4524,7 +4525,10 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
     await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+        modelId: baseTurnInput.modelId,
+        result: usage
+      })
     )
 
     events.push({ type: 'turn-complete' })
@@ -4533,19 +4537,7 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('on-demand context usage', () => {
-    const usageAt = (percentage: number) => ({
-      categories: [],
-      totalTokens: percentage,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage,
-      gridRows: [],
-      model: 'claude-sonnet-4-5',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      apiUsage: null
-    })
+    const usageAt = contextReading
 
     // Hovering the composer must not turn into a control-request flood, and must never be a reason
     // to spawn a subprocess for a session that has already been torn down.
@@ -4572,7 +4564,11 @@ describe('AgentSessionRuntimeService', () => {
       const latestUsage = usageAt(9)
       const first = createDeferred<typeof firstUsage>()
       const trailing = createDeferred<typeof latestUsage>()
-      const getContextUsage = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(trailing.promise)
+      const getContextUsage = vi
+        .fn()
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(trailing.promise)
+        .mockResolvedValue(latestUsage)
       entry.connection = { getContextUsage } as any
 
       ;(service as any).refreshContextUsage(entry)
@@ -4584,28 +4580,19 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).refreshContextUsage(entry)
       trailing.resolve(latestUsage)
       await vi.waitFor(() =>
-        expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', latestUsage)
+        expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', {
+          modelId: baseTurnInput.modelId,
+          result: latestUsage
+        })
       )
-      expect(getContextUsage).toHaveBeenCalledTimes(2)
+      expect(getContextUsage).toHaveBeenCalledTimes(3)
     })
   })
 
   describe('post-turn context usage pull — session-scoped persistence', () => {
-    const reading = (percentage: number, model: string) => ({
-      categories: [],
-      totalTokens: percentage,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage,
-      gridRows: [],
-      model,
-      memoryFiles: [],
-      agents: [],
-      isAutoCompactEnabled: false,
-      apiUsage: null
-    })
+    const reading = contextReading
 
-    it('persists a late reading after the connection was replaced mid-read', async () => {
+    it('discards a late reading after the connection was replaced mid-read', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -4617,9 +4604,8 @@ describe('AgentSessionRuntimeService', () => {
       entry.connection = { getContextUsage: vi.fn().mockResolvedValue(reading(99, 'new-model')) } as any
       late.resolve(lateReading)
 
-      await vi.waitFor(() =>
-        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', lateReading)
-      )
+      await vi.waitFor(() => expect(entry.contextUsageRefresh).toBeUndefined())
+      expect(mocks.cacheSetShared).not.toHaveBeenCalled()
     })
 
     it('drops the reading once the session entry is gone', async () => {
@@ -4637,15 +4623,22 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).not.toHaveBeenCalled()
     })
 
-    it('skips publishing when the probe answers null (cancelled by close)', async () => {
+    it('publishes unavailable state instead of retaining a previous reading', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
-      entry.connection = { getContextUsage: vi.fn().mockResolvedValue(null) } as any
+      const unavailable = {
+        status: 'unknown',
+        error: { operation: 'contextUsage', code: 'compacted', message: 'Unknown after compaction' }
+      }
+      entry.connection = { getContextUsage: vi.fn().mockResolvedValue(unavailable) } as any
 
       ;(service as any).refreshContextUsage(entry)
       await vi.waitFor(() => expect(entry.contextUsageRefresh).toBeUndefined())
-      expect(mocks.cacheSetShared).not.toHaveBeenCalled()
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+        modelId: baseTurnInput.modelId,
+        result: unavailable
+      })
     })
   })
 
@@ -4909,26 +4902,17 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('persists context usage events from the runtime', () => {
-    const usage = {
-      categories: [],
-      totalTokens: 64,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage: 64,
-      gridRows: [],
-      model: 'claude-sonnet-4-5',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: true,
-      apiUsage: null
-    }
+    const usage = contextReading(64)
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
 
-    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
+    getEntry(service).contextUsageModel = baseTurnInput.modelId
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', result: usage })
 
-    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+      modelId: baseTurnInput.modelId,
+      result: usage
+    })
   })
 
   it('clears session-scoped shared cache entries when closing a session', () => {
@@ -4939,27 +4923,12 @@ describe('AgentSessionRuntimeService', () => {
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
     ;(service as any).handleRuntimeEvent(getEntry(service), {
       type: 'context-usage',
-      usage: {
-        categories: [],
-        totalTokens: 1,
-        maxTokens: 100,
-        rawMaxTokens: 100,
-        percentage: 1,
-        gridRows: [],
-        model: 'claude-sonnet-4-5',
-        memoryFiles: [],
-        mcpTools: [],
-        agents: [],
-        apiUsage: null
-      }
+      result: contextReading(1)
     })
 
     void service.closeSession('session-1')
 
-    // Context usage outlives the connection — no turn can run without one, so the last reading is
-    // still true. An in-flight compaction is settled to idle (not deleted) so a re-open doesn't
-    // briefly observe a stale compacting status.
-    expect(mocks.cacheDeleteShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1')
+    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
     const compactionPublishes = mocks.cacheSetShared.mock.calls.filter(
       ([key]) => key === 'agent.session.compaction.session-1'
     )
@@ -4968,20 +4937,7 @@ describe('AgentSessionRuntimeService', () => {
 
   it('enqueues a compaction anchor into the current turn and refreshes context usage on completion', async () => {
     const events = createAsyncQueue<any>()
-    const usage = {
-      categories: [],
-      totalTokens: 24,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage: 24,
-      gridRows: [],
-      model: 'claude-sonnet-4-5',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: true,
-      apiUsage: null
-    }
+    const usage = contextReading(24)
     const connection = {
       events: events.iterable,
       send: vi.fn(),
@@ -5039,7 +4995,10 @@ describe('AgentSessionRuntimeService', () => {
       status: 'idle'
     })
     await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+        modelId: baseTurnInput.modelId,
+        result: usage
+      })
     )
 
     events.push({ type: 'turn-complete' })
