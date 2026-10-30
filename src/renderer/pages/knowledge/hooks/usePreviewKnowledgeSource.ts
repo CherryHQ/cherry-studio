@@ -53,7 +53,7 @@ export const usePreviewKnowledgeSource = (
       }
 
       try {
-        if (item.type === 'file' || (item.type === 'url' && item.data.relativePath)) {
+        if (item.type === 'file' || item.type === 'external' || (item.type === 'url' && item.data.relativePath)) {
           const physicalPath = await ipcApi.request('knowledge.get_file_path', { itemId: item.id })
           if (!isCurrentRequest()) return
           onPreviewFile({

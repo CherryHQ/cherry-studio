@@ -1,3 +1,4 @@
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useState } from 'react'
@@ -238,17 +239,24 @@ vi.mock('../components/DetailHeader', () => ({
   default: ({
     base,
     onOpenRagConfig,
-    onOpenRecallTest
+    onOpenRecallTest,
+    onOpenExternalSources
   }: {
     base: KnowledgeBase
     onOpenRagConfig: () => void
     onOpenRecallTest: () => void
+    onOpenExternalSources?: () => void
   }) => {
     mockDetailHeaderRender()
 
     return (
       <div>
         <div data-testid="detail-header">{base.name}</div>
+        {onOpenExternalSources ? (
+          <button type="button" onClick={onOpenExternalSources}>
+            OpenExternalSources
+          </button>
+        ) : null}
         <button type="button" onClick={onOpenRagConfig}>
           OpenRagConfig
         </button>
@@ -263,6 +271,8 @@ vi.mock('../components/DetailHeader', () => ({
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
   default: ({
     embeddingModelId,
+    externalSourcesOpen,
+    onExternalSourcesOpenChange,
     items,
     isLoading,
     onAdd,
@@ -276,6 +286,8 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onReindex,
     onReindexItems
   }: {
+    externalSourcesOpen: boolean
+    onExternalSourcesOpenChange: (open: boolean) => void
     embeddingModelId?: string | null
     items: KnowledgeItem[]
     isLoading: boolean
@@ -294,6 +306,13 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
 
     return (
       <div>
+        {externalSourcesOpen ? (
+          <div role="dialog" aria-label="Sync sources">
+            <button type="button" onClick={() => onExternalSourcesOpenChange(false)}>
+              CloseSyncSources
+            </button>
+          </div>
+        ) : null}
         <div data-testid="data-source-panel" data-current-directory={currentDirectory?.id ?? 'root'}>
           {`${items.length}:${isLoading ? 'loading' : 'idle'}`}
         </div>
@@ -891,6 +910,32 @@ describe('KnowledgePage', () => {
     )
   })
 
+  it('opens source management from the title and closes it when switching or reselecting a base', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    render(<RoutedKnowledgePage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'OpenExternalSources' }))
+    expect(screen.getByRole('dialog', { name: 'Sync sources' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'CloseSyncSources' }))
+    expect(screen.queryByRole('dialog', { name: 'Sync sources' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'OpenExternalSources' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Base 2' }))
+    expect(screen.queryByRole('dialog', { name: 'Sync sources' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'OpenExternalSources' }))
+    expect(screen.getByRole('dialog', { name: 'Sync sources' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Base 2' }))
+    expect(screen.queryByRole('dialog', { name: 'Sync sources' })).not.toBeInTheDocument()
+  })
+
   it('selects the knowledge base from the route and publishes later selections', async () => {
     const onBaseIdChange = vi.fn()
     mockUseKnowledgeBases.mockReturnValue({
@@ -1137,6 +1182,8 @@ describe('KnowledgePage', () => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     })
 
+    fireEvent.click(screen.getByRole('button', { name: 'OpenExternalSources' }))
+    expect(screen.getByRole('dialog', { name: 'Sync sources' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
 
     expect(await screen.findByTestId('chunk-detail-panel')).toHaveTextContent('chunks:item-1')
@@ -1147,6 +1194,7 @@ describe('KnowledgePage', () => {
 
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
+    expect(screen.queryByRole('dialog', { name: 'Sync sources' })).not.toBeInTheDocument()
   })
 
   it('opens an embedded file preview and preserves navigator state when returning', async () => {
@@ -1183,6 +1231,8 @@ describe('KnowledgePage', () => {
     fireEvent.mouseUp(document)
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
 
+    fireEvent.click(screen.getByRole('button', { name: 'OpenExternalSources' }))
+    expect(screen.getByRole('dialog', { name: 'Sync sources' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'PreviewFile item-1' }))
 
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/knowledge/item-1.pdf')
@@ -1200,6 +1250,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('base-navigator')).toBeVisible()
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
     expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
+    expect(screen.queryByRole('dialog', { name: 'Sync sources' })).not.toBeInTheDocument()
   })
 
   it('returns from an embedded preview to the current directory', async () => {
@@ -1220,7 +1271,9 @@ describe('KnowledgePage', () => {
 
     render(<RoutedKnowledgePage />)
 
+    expect(await screen.findByRole('button', { name: 'OpenExternalSources' })).toBeVisible()
     fireEvent.click(await screen.findByRole('button', { name: 'DrillDirectory directory-1' }))
+    expect(screen.queryByRole('button', { name: 'OpenExternalSources' })).not.toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveAttribute('data-current-directory', 'directory-1')
     })
@@ -2105,6 +2158,14 @@ describe('KnowledgePage', () => {
       vi.spyOn(ui, 'Dialog').mockImplementation((props) => <realUi.Dialog {...props} />)
       vi.spyOn(ui, 'DialogContent').mockImplementation((props) => <realUi.DialogContent {...props} />)
       vi.spyOn(ui, 'DialogTitle').mockImplementation((props) => <realUi.DialogTitle {...props} />)
+      mockUseQuery.mockReturnValue({
+        data: [] as never,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      })
       const realPanel = await vi.importActual<typeof DataSourcePanelModule>('../panels/dataSource/DataSourcePanel')
       const realDialog = await vi.importActual<typeof AddDialogModule>('../components/AddKnowledgeItemDialog')
       const panelModule = await import('../panels/dataSource/DataSourcePanel')
@@ -2149,7 +2210,7 @@ describe('KnowledgePage', () => {
       })
       render(<RoutedKnowledgePage />)
 
-      fireEvent.drop(await screen.findByText('上传第一个数据源'), {
+      fireEvent.drop(await screen.findByRole('heading', { name: 'knowledge.data_source.empty_description' }), {
         dataTransfer: {
           files: [directory, plain],
           items: [

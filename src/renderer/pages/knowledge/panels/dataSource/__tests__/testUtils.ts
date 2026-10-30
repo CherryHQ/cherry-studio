@@ -1,3 +1,4 @@
+import type { KnowledgeItemListItem } from '@shared/data/api/schemas/knowledges'
 import { getKnowledgeNoteFirstLine, getKnowledgePathBasename, type KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
@@ -12,7 +13,8 @@ const baseFields = {
   baseId: 'base-1',
   groupId: null,
   createdAt: '2026-04-21T10:00:00+08:00',
-  updatedAt: '2026-04-21T10:00:00+08:00'
+  updatedAt: '2026-04-21T10:00:00+08:00',
+  canDelete: true
 } as const
 
 const createLeafLifecycle = (status: KnowledgeItemOf<'note'>['status']): LeafKnowledgeItemLifecycle => {
@@ -73,7 +75,7 @@ export const createNoteItem = ({
   content?: string
   source?: string
   status?: KnowledgeItemOf<'note'>['status']
-}): KnowledgeItemOf<'note'> => ({
+}): KnowledgeItemOf<'note'> & KnowledgeItemListItem => ({
   ...baseFields,
   ...createLeafLifecycle(status),
   id,
@@ -94,7 +96,7 @@ export const createFileItem = ({
   originName?: string
   source?: string
   status?: KnowledgeItemOf<'file'>['status']
-}): KnowledgeItemOf<'file'> => ({
+}): KnowledgeItemOf<'file'> & KnowledgeItemListItem => ({
   ...baseFields,
   ...createFileLifecycle(status),
   id,
@@ -115,7 +117,7 @@ export const createUrlItem = ({
   source?: string
   relativePath?: PosixRelativeFilePath
   status?: KnowledgeItemOf<'url'>['status']
-}): KnowledgeItemOf<'url'> => ({
+}): KnowledgeItemOf<'url'> & KnowledgeItemListItem => ({
   ...baseFields,
   ...createLeafLifecycle(status),
   id,
@@ -137,12 +139,32 @@ export const createDirectoryItem = ({
   source?: string
   status?: KnowledgeItemOf<'directory'>['status']
   error?: string
-}): KnowledgeItemOf<'directory'> => ({
+}): KnowledgeItemOf<'directory'> & KnowledgeItemListItem => ({
   ...baseFields,
   ...createContainerLifecycle(status, error),
   id,
   type: 'directory',
   data: {
     source
+  }
+})
+
+export const createExternalItem = ({
+  id,
+  canDelete = false
+}: {
+  id: string
+  canDelete?: boolean
+}): KnowledgeItemOf<'external'> & KnowledgeItemListItem => ({
+  ...baseFields,
+  id,
+  canDelete,
+  type: 'external',
+  status: 'completed',
+  error: null,
+  data: {
+    source: 'Team handbook',
+    title: 'External doc',
+    relativePath: 'external.md' as PosixRelativeFilePath
   }
 })

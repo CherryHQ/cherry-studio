@@ -176,9 +176,10 @@ The schema enforces one document per `(sourceId, remoteObjectId)` and at most
 one document owner per knowledge item. Sources belong to one base and one
 connection; deleting a base cascades through the complete ownership graph,
 while deleting an independently owned item is rejected. Synchronization uses
-durable JobManager rows rather than a separate sync-run entity. Sources default
-to manual-only and may own one daily JobManager schedule; arbitrary intervals,
-custom Cron, and scheduling UI remain out of scope. Public
+durable JobManager rows rather than a separate sync-run entity. The create command
+defaults to manual-only, as does the Feishu wizard. Selecting daily synchronization
+starts at 09:00 local time and applies the schedule after creation. Sources may own one daily
+JobManager schedule; arbitrary intervals and custom Cron remain out of scope. Public
 `KnowledgeAddItemInput` also remains limited to user-owned source types; only
 the trusted external synchronization path may create an external item after
 its local snapshot is pinned.
@@ -188,7 +189,9 @@ schedules in one synchronous main-database transaction. Successful
 reauthorization likewise commits the Connection replacement, Source revision
 and state changes, and schedule eligibility atomically. Timer synchronization
 and read-model notifications run only after commit, and reauthorization does
-not enqueue an immediate synchronization.
+not enqueue an immediate synchronization. Sources with an in-flight disconnect
+are excluded from authorization-driven state changes; schedule mutations share
+the base deletion mutex and admission fence.
 
 Connection removal has a durable-delete-first contract. The runtime first runs
 a no-side-effect Source-reference preflight, closes admission for that
@@ -224,7 +227,10 @@ mark the old owner deleting, and enqueue cleanup atomically. A successful sync
 means prior content is hidden and its cleanup Job is durably accepted; physical
 artifact deletion may finish later. Stage failure preserves the deleting row as
 the durable artifact locator and attempts cleanup admission separately. A failed
-or cancelled scan never treats unseen documents as deleted.
+or cancelled scan never treats unseen documents as deleted. Unchanged revisions
+or content hashes skip indexing only for completed local owners, checked under
+the mutation lock; failed owners rebuild through the same staged publication path.
+External preview paths are returned only for completed items.
 
 ## External Connection Authorization
 
@@ -245,6 +251,10 @@ match that application. If the remotely selected application is already saved lo
 secret must match before reuse, preserving its label and optional encryption settings.
 Both QR selection paths use the `custom-app` permission policy because the registration result
 does not distinguish newly created applications from existing ones.
+The Knowledge form reuses the Channel application picker and shared registration panel.
+It shows a registration QR code immediately, offers saved applications without secret re-entry,
+and keeps manual App ID/Secret entry optional. The user authorization step shows its own QR
+code and an explicit browser link; it never opens the browser automatically.
 Connection DataApi and IPC results exclude the main-only credential reference,
 App Secret, tokens, and raw provider payloads.
 
@@ -267,12 +277,14 @@ contact:user.employee_id:readonly
 ```
 
 Existing Connections with the `personal-agent` policy retain its restrictions when reauthorizing.
-Their grants may additionally contain the historical `auth:user.id:read`
+Their grants may additionally contain optional space discovery and the historical `auth:user.id:read`
 grant. That historical grant is accepted for existing cumulative consent but is
 never requested and cannot satisfy the required identity permission. Connections using the
 `custom-app` policy may grant additional scopes.
 The runtime reports `scope-missing` for missing required scopes and
 `automatic-scope-mismatch` for unexpected PersonalAgent grants.
+See [Feishu Read Adapter](./external-knowledge-feishu-read-adapter.md#trust-and-ipc-boundary)
+for space discovery consent and the link-only path.
 
 For a previously authorized Connection, reauthorization compares `tenantKey + accountUserId`; an application-scoped
 `accountOpenId` change alone does not change identity. A tenant or user mismatch
@@ -445,8 +457,10 @@ reindex-items(baseId, itemIds)
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. Chunks are derived index rows and are replaced wholesale by reindexing; there is no chunk-delete mutation.
 
-External Source creation accepts only a base id, connection id, URL, and name.
-Main resolves the URL again, then re-reads the base and connection and validates
+External Source creation accepts only a base id, connection id, name, and either
+a URL or selected Wiki space id. The wizard derives the name from the resolved
+Wiki or document title and does not expose renaming. Main resolves the URL again
+or rechecks access to the selected space, then re-reads the base and connection and validates
 base availability, provider, authorization, resolved tenant, and provider-scope
 uniqueness inside the same write transaction that creates the Source, enqueues
 its initial synchronization Job, and binds `activeJobId`. Domain conflicts and

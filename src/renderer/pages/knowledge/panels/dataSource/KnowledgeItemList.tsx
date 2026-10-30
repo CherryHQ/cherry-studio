@@ -7,16 +7,16 @@ import { Button, Checkbox } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { KNOWLEDGE_ITEMS_PAGE_SIZE } from '@renderer/hooks/useKnowledgeItems'
-import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemListItem, KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import KnowledgeItemRow from './KnowledgeItemRow'
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 
 export interface KnowledgeItemListProps {
+  items: KnowledgeItemListItem[]
   sort?: KnowledgeItemSort | null
   onSortChange?: (sortBy: KnowledgeItemSortBy) => void
-  items: KnowledgeItem[]
   isLoading: boolean
   hasMore: boolean
   isLoadingMore: boolean
@@ -84,7 +84,7 @@ const KnowledgeItemList = ({
   )
 
   const renderItemRow = useCallback(
-    (item: KnowledgeItem) => (
+    (item: KnowledgeItemListItem) => (
       <KnowledgeItemRow
         item={item}
         selected={selectedIds.has(item.id)}

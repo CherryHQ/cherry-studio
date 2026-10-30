@@ -15,9 +15,11 @@ export const FEISHU_KNOWLEDGE_USER_SCOPES = [
 ] as const
 
 export const FEISHU_IDENTITY_USER_SCOPE = 'contact:user.employee_id:readonly' as const
+export const FEISHU_SPACE_DISCOVERY_USER_SCOPE = 'wiki:space:retrieve' as const
 export const FEISHU_REQUIRED_USER_SCOPES = [...FEISHU_KNOWLEDGE_USER_SCOPES, FEISHU_IDENTITY_USER_SCOPE] as const
 export const FEISHU_AUTOMATIC_ALLOWED_SCOPES = new Set<string>([
   ...FEISHU_REQUIRED_USER_SCOPES,
+  FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   // Existing applications can retain this historical grant through cumulative user consent.
   'auth:user.id:read'
 ])
@@ -28,6 +30,7 @@ export const FEISHU_KNOWLEDGE_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/
 const feishuKnowledgeTokenSchema = z.string().regex(FEISHU_KNOWLEDGE_TOKEN_PATTERN)
 
 export const FEISHU_READ_ENDPOINT_BUDGETS = {
+  listWikiSpaces: { key: 'feishu.wiki.list-spaces', minimumIntervalMs: 600 },
   getWikiNode: { key: 'feishu.wiki.get-node', minimumIntervalMs: 600 },
   listWikiNodes: { key: 'feishu.wiki.list-nodes', minimumIntervalMs: 600 },
   getDocxMarkdown: { key: 'feishu.docs.get-content', minimumIntervalMs: 200 }
@@ -68,11 +71,11 @@ const wikiNodeSchema = z
     node_token: feishuKnowledgeTokenSchema,
     obj_token: z.string().trim().min(1),
     obj_type: z.string().trim().min(1),
-    parent_node_token: feishuKnowledgeTokenSchema.nullish(),
+    parent_node_token: feishuKnowledgeTokenSchema.or(z.literal('')).nullish(),
     node_type: z.enum(['origin', 'shortcut']),
-    origin_node_token: feishuKnowledgeTokenSchema.nullish(),
-    origin_space_id: z.string().trim().min(1).nullish(),
-    title: z.string().trim().min(1),
+    origin_node_token: feishuKnowledgeTokenSchema.or(z.literal('')).nullish(),
+    origin_space_id: z.string().trim().nullish(),
+    title: z.string().trim(),
     has_child: z.boolean(),
     obj_edit_time: z.union([z.string().trim().min(1), z.number().int().nonnegative()]).nullish()
   })
@@ -91,13 +94,34 @@ const wikiNodeResponseSchema = z.object({
   data: z.object({ node: wikiNodeSchema })
 })
 
+const wikiSpaceSchema = z.object({
+  space_id: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  description: z.string().nullable().optional()
+})
+
+const wikiSpacePageResponseSchema = z
+  .object({
+    code: z.literal(0),
+    data: z.object({
+      items: z.array(wikiSpaceSchema).max(50).default([]),
+      has_more: z.boolean(),
+      page_token: z.string().trim().nullish()
+    })
+  })
+  .superRefine((response, context) => {
+    if (response.data.has_more && !response.data.page_token) {
+      context.addIssue({ code: 'custom', path: ['data', 'page_token'], message: 'Next page token is required' })
+    }
+  })
+
 const wikiNodePageResponseSchema = z
   .object({
     code: z.literal(0),
     data: z.object({
-      items: z.array(wikiNodeSchema).max(50),
+      items: z.array(wikiNodeSchema).max(50).default([]),
       has_more: z.boolean(),
-      page_token: z.string().trim().min(1).optional()
+      page_token: z.string().trim().nullish()
     })
   })
   .superRefine((response, context) => {
@@ -154,6 +178,8 @@ export type FeishuWikiNode = {
 }
 
 export type FeishuWikiNodePage = { nodes: FeishuWikiNode[]; nextPageToken?: string }
+export type FeishuWikiSpace = { spaceId: string; name: string; description: string | null }
+export type FeishuWikiSpacePage = { spaces: FeishuWikiSpace[]; nextPageToken?: string }
 
 export type FeishuProviderErrorCode =
   | 'authorization-pending'
@@ -168,11 +194,26 @@ export type FeishuProviderErrorCode =
   | 'transient'
   | 'invalid-response'
 
+type FeishuOAuthError =
+  | 'authorization_pending'
+  | 'slow_down'
+  | 'access_denied'
+  | 'expired_token'
+  | 'invalid_scope'
+  | 'invalid_grant'
+
 export class FeishuProviderError extends Error {
   constructor(
     readonly code: FeishuProviderErrorCode,
     readonly terminal: boolean,
-    readonly retryAfterMs?: number
+    readonly retryAfterMs?: number,
+    readonly diagnostics?: {
+      httpStatus?: number
+      providerCode?: number
+      oauthError?: FeishuOAuthError
+      endpoint?: 'wiki.list-nodes'
+      invalidFields?: string[]
+    }
   ) {
     super(`Feishu request failed: ${code}`)
     this.name = 'FeishuProviderError'
@@ -204,19 +245,35 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
     Number.isFinite(resetSeconds) && resetSeconds > 0
       ? Math.max(retryAfter ?? 0, Math.ceil(resetSeconds * 1000))
       : retryAfter
-  if (oauthError === 'authorization_pending') return new FeishuProviderError('authorization-pending', false)
-  if (oauthError === 'slow_down') return new FeishuProviderError('authorization-slow-down', false, retryAfterMs)
-  if (oauthError === 'access_denied') return new FeishuProviderError('authorization-denied', true)
-  if (oauthError === 'expired_token') return new FeishuProviderError('authorization-expired', true)
-  if (oauthError === 'invalid_scope') return new FeishuProviderError('app-scope-missing', true)
-  if (providerCode === 99991672 || providerCode === 99991676 || providerCode === 99991679) {
-    return new FeishuProviderError('app-scope-missing', true)
+  const safeOauthError: FeishuOAuthError | undefined =
+    oauthError === 'authorization_pending' ||
+    oauthError === 'slow_down' ||
+    oauthError === 'access_denied' ||
+    oauthError === 'expired_token' ||
+    oauthError === 'invalid_scope' ||
+    oauthError === 'invalid_grant'
+      ? oauthError
+      : undefined
+  const diagnostics = {
+    httpStatus: response.status,
+    ...(providerCode !== undefined ? { providerCode } : {}),
+    ...(safeOauthError ? { oauthError: safeOauthError } : {})
   }
-  if (providerCode === 131005) return new FeishuProviderError('scope-not-found', false)
-  if (providerCode === 131006) return new FeishuProviderError('resource-permission-denied', false)
-  if (providerCode === 2889902) return new FeishuProviderError('resource-permission-denied', false)
+  const failure = (code: FeishuProviderErrorCode, terminal: boolean) =>
+    new FeishuProviderError(code, terminal, retryAfterMs, diagnostics)
+  if (oauthError === 'authorization_pending') return failure('authorization-pending', false)
+  if (oauthError === 'slow_down') return failure('authorization-slow-down', false)
+  if (oauthError === 'access_denied') return failure('authorization-denied', true)
+  if (oauthError === 'expired_token') return failure('authorization-expired', true)
+  if (oauthError === 'invalid_scope') return failure('app-scope-missing', true)
+  if (providerCode === 99991672 || providerCode === 99991676 || providerCode === 99991679) {
+    return failure('app-scope-missing', true)
+  }
+  if (providerCode === 131005) return failure('scope-not-found', false)
+  if (providerCode === 131006) return failure('resource-permission-denied', false)
+  if (providerCode === 2889902) return failure('resource-permission-denied', false)
   if (providerCode === 2889906 || providerCode === 2889914) {
-    return new FeishuProviderError('scope-not-found', false)
+    return failure('scope-not-found', false)
   }
   if (
     oauthError === 'invalid_grant' ||
@@ -227,7 +284,7 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
     providerCode === 99991677 ||
     response.status === 401
   ) {
-    return new FeishuProviderError('reauthorization-required', true)
+    return failure('reauthorization-required', true)
   }
   if (
     providerCode === 131001 ||
@@ -236,9 +293,9 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
     response.status === 429 ||
     response.status >= 500
   ) {
-    return new FeishuProviderError('transient', false, retryAfterMs)
+    return failure('transient', false)
   }
-  return new FeishuProviderError('invalid-response', false)
+  return failure('invalid-response', false)
 }
 
 async function request(
@@ -318,7 +375,8 @@ function createReadClient(authorization: FeishuUserAuthorization, signal?: Abort
 
 export async function beginDeviceAuthorization(
   credentials: FeishuApplicationCredentials,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeSpaceDiscovery = false
 ): Promise<FeishuDeviceAuthorization> {
   const body = await request('https://accounts.feishu.cn/oauth/v1/device_authorization', {
     method: 'POST',
@@ -328,7 +386,10 @@ export async function beginDeviceAuthorization(
     },
     body: new URLSearchParams({
       client_id: credentials.appId,
-      scope: FEISHU_REQUIRED_USER_SCOPES.join(' ')
+      scope: [
+        ...FEISHU_REQUIRED_USER_SCOPES,
+        ...(includeSpaceDiscovery ? [FEISHU_SPACE_DISCOVERY_USER_SCOPE] : [])
+      ].join(' ')
     }).toString(),
     signal
   })
@@ -434,17 +495,37 @@ export async function getWikiNode(
   return normalizeWikiNode(parsed.data.data.node)
 }
 
+export async function listWikiSpaces(
+  authorization: FeishuUserAuthorization,
+  pageToken?: string,
+  signal?: AbortSignal
+): Promise<FeishuWikiSpacePage> {
+  const { client, options } = createReadClient(authorization, signal)
+  const parsed = wikiSpacePageResponseSchema.safeParse(
+    await client.wiki.v2.space.list({ params: { page_size: 50, page_token: pageToken } }, options)
+  )
+  if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
+  return {
+    spaces: parsed.data.data.items.map((space) => ({
+      spaceId: space.space_id,
+      name: space.name,
+      description: space.description ?? null
+    })),
+    ...(parsed.data.data.has_more && parsed.data.data.page_token ? { nextPageToken: parsed.data.data.page_token } : {})
+  }
+}
+
 function normalizeWikiNode(node: z.infer<typeof wikiNodeSchema>): FeishuWikiNode {
   return {
     spaceId: node.space_id,
     nodeToken: node.node_token,
     objToken: node.obj_token,
     objType: node.obj_type,
-    parentNodeToken: node.parent_node_token ?? null,
+    parentNodeToken: node.parent_node_token || null,
     nodeType: node.node_type,
-    originNodeToken: node.origin_node_token ?? null,
-    originSpaceId: node.origin_space_id ?? null,
-    title: node.title,
+    originNodeToken: node.origin_node_token || null,
+    originSpaceId: node.origin_space_id || null,
+    title: node.title || node.obj_token,
     hasChild: node.has_child,
     objEditTime: node.obj_edit_time === null || node.obj_edit_time === undefined ? null : String(node.obj_edit_time)
   }
@@ -467,10 +548,15 @@ export async function listWikiChildNodes(
       options
     )
   )
-  if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
+  if (!parsed.success) {
+    throw new FeishuProviderError('invalid-response', false, undefined, {
+      endpoint: 'wiki.list-nodes',
+      invalidFields: parsed.error.issues.map((issue) => issue.path.join('.'))
+    })
+  }
   return {
     nodes: parsed.data.data.items.map(normalizeWikiNode),
-    ...(parsed.data.data.has_more ? { nextPageToken: parsed.data.data.page_token } : {})
+    ...(parsed.data.data.has_more && parsed.data.data.page_token ? { nextPageToken: parsed.data.data.page_token } : {})
   }
 }
 

@@ -1,7 +1,15 @@
 import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import type { ExternalKnowledgeDocument, ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
+import type {
+  ExternalKnowledgeDocument,
+  ExternalKnowledgeSchedulePolicy,
+  ExternalKnowledgeSource
+} from '@shared/data/types/externalKnowledge'
+
+export type ExternalKnowledgeSourceListItem = ExternalKnowledgeSource & {
+  schedule: { policy: ExternalKnowledgeSchedulePolicy; nextRunAt: string | null }
+}
 
 export const EXTERNAL_KNOWLEDGE_DOCUMENTS_DEFAULT_LIMIT = 50
 export const EXTERNAL_KNOWLEDGE_DOCUMENTS_MAX_LIMIT = 200
@@ -27,7 +35,7 @@ export type ExternalKnowledgeSchemas = {
   '/knowledge-bases/:id/external-knowledge-sources': {
     GET: {
       params: { id: string }
-      response: ExternalKnowledgeSource[]
+      response: ExternalKnowledgeSourceListItem[]
     }
   }
 

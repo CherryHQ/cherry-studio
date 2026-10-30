@@ -58,6 +58,7 @@ interface KnowledgePageContextValue {
   restoringBase: KnowledgeBase | null
   restoreBaseInitialValues: KnowledgeRestoreBaseInitialValues | undefined
   isAddSourceDialogOpen: boolean
+  isFeishuWizardOpen: boolean
   pendingAddSource: KnowledgeItemType | undefined
   pendingAddFiles: File[] | undefined
   pendingAddDirectoryPaths: AbsoluteFilePath[] | undefined
@@ -81,6 +82,7 @@ interface KnowledgePageContextValue {
   openFilePreview: (target: KnowledgeFilePreviewTarget) => void
   closeFilePreview: () => void
   openAddSourceDialog: (source?: KnowledgeItemType, files?: File[], directoryPaths?: AbsoluteFilePath[]) => void
+  openFeishuWizard: () => void
   openRagConfigDrawer: () => void
   openRecallTestDrawer: () => void
   handleRagConfigDrawerOpenChange: (open: boolean) => void
@@ -91,6 +93,7 @@ interface KnowledgePageContextValue {
   openRenameGroupDialog: (group: EditableKnowledgeGroup) => void
   openRestoreBaseDialog: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
   handleAddSourceDialogOpenChange: (open: boolean) => void
+  handleFeishuWizardOpenChange: (open: boolean) => void
   handleCreateBaseDialogOpenChange: (open: boolean) => void
   handleCreateGroupDialogOpenChange: (open: boolean) => void
   handleRenameBaseDialogOpenChange: (open: boolean) => void
@@ -141,6 +144,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
     KnowledgeRestoreBaseInitialValues | undefined
   >()
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false)
+  const [isFeishuWizardOpen, setIsFeishuWizardOpen] = useState(false)
   const [pendingAddSource, setPendingAddSource] = useState<KnowledgeItemType | undefined>()
   const [pendingAddFiles, setPendingAddFiles] = useState<File[] | undefined>()
   const [pendingAddDirectoryPaths, setPendingAddDirectoryPaths] = useState<AbsoluteFilePath[] | undefined>()
@@ -281,6 +285,8 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
     []
   )
 
+  const openFeishuWizard = useCallback(() => setIsFeishuWizardOpen(true), [])
+
   const openRagConfigDrawer = useCallback(() => {
     setIsRagConfigDrawerOpen(true)
   }, [])
@@ -334,6 +340,8 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       setPendingAddDirectoryPaths(undefined)
     }
   }, [])
+
+  const handleFeishuWizardOpenChange = useCallback((open: boolean) => setIsFeishuWizardOpen(open), [])
 
   const handleCreateGroupDialogOpenChange = useCallback((open: boolean) => {
     setIsCreateGroupDialogOpen(open)
@@ -480,6 +488,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       restoringBase,
       restoreBaseInitialValues,
       isAddSourceDialogOpen,
+      isFeishuWizardOpen,
       pendingAddSource,
       pendingAddFiles,
       pendingAddDirectoryPaths,
@@ -503,6 +512,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       openFilePreview,
       closeFilePreview: resetFilePreview,
       openAddSourceDialog,
+      openFeishuWizard,
       openRagConfigDrawer,
       openRecallTestDrawer,
       handleRagConfigDrawerOpenChange,
@@ -513,6 +523,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       openRenameGroupDialog,
       openRestoreBaseDialog,
       handleAddSourceDialogOpenChange,
+      handleFeishuWizardOpenChange,
       handleCreateBaseDialogOpenChange,
       handleCreateGroupDialogOpenChange,
       handleRenameBaseDialogOpenChange,
@@ -538,6 +549,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       restoreBaseInitialValues,
       groups,
       handleAddSourceDialogOpenChange,
+      handleFeishuWizardOpenChange,
       handleCreateBaseCreated,
       handleCreateBaseDialogOpenChange,
       handleCreateGroupDialogOpenChange,
@@ -549,6 +561,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       handleRestoreBaseDialogOpenChange,
       handleRestoreBaseRestored,
       isAddSourceDialogOpen,
+      isFeishuWizardOpen,
       pendingAddFiles,
       pendingAddDirectoryPaths,
       pendingAddSource,
@@ -570,6 +583,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       filePreview,
       moveBase,
       openAddSourceDialog,
+      openFeishuWizard,
       closeItemChunks,
       openFilePreview,
       openItemChunks,

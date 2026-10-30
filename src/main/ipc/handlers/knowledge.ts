@@ -159,7 +159,8 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
           ? await application.get('FeishuRegistrationService').authorizeKnowledge(
               senderId,
               input.registrationSessionId,
-              (credentials, signal) => service.beginFeishuUserAuthorization(credentials, signal),
+              (credentials, signal) =>
+                service.beginFeishuUserAuthorization({ ...credentials, includeSpaceDiscovery: true }, signal),
               (result) => service.cancelFeishuUserAuthorization(result.authorizationSessionId)
             )
           : await service.beginFeishuUserAuthorization(input)
@@ -176,7 +177,7 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
       application.get('KnowledgeService').cancelFeishuUserAuthorization(authorizationSessionId)
     )
   },
-  'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials }, { senderId }) =>
+  'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials, includeSpaceDiscovery }, { senderId }) =>
     externalKnowledgeCommand(async () => {
       const service = application.get('KnowledgeService')
       const result =
@@ -184,10 +185,10 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
           ? await application.get('FeishuRegistrationService').authorizeKnowledge(
               senderId,
               credentials.registrationSessionId,
-              (input, signal) => service.reconnectFeishuConnection(connectionId, input, signal),
+              (input, signal) => service.reconnectFeishuConnection(connectionId, input, includeSpaceDiscovery, signal),
               (result) => service.cancelFeishuUserAuthorization(result.authorizationSessionId)
             )
-          : await service.reconnectFeishuConnection(connectionId, credentials)
+          : await service.reconnectFeishuConnection(connectionId, credentials, includeSpaceDiscovery)
       return { ...result, connection: toExternalKnowledgeConnectionView(result.connection) }
     }),
   'knowledge.feishu.connection.validate': async ({ connectionId }) =>
@@ -210,6 +211,16 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     externalKnowledgeCommand(() => application.get('KnowledgeService').previewFeishuScope(connectionId, url), {
       code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
       message: 'Feishu scope preview failed'
+    }),
+  'knowledge.feishu.spaces.list': async ({ connectionId, pageToken }) =>
+    externalKnowledgeCommand(() => application.get('KnowledgeService').listFeishuSpaces(connectionId, pageToken), {
+      code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+      message: 'Feishu space list failed'
+    }),
+  'knowledge.feishu.space.preview': async ({ connectionId, spaceId }) =>
+    externalKnowledgeCommand(() => application.get('KnowledgeService').previewFeishuSpace(connectionId, spaceId), {
+      code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+      message: 'Feishu space preview failed'
     }),
   'knowledge.create_base': async ({ base }) => application.get('KnowledgeService').createBase(base),
   'knowledge.restore_base': async (dto) => application.get('KnowledgeService').restoreBase(dto),

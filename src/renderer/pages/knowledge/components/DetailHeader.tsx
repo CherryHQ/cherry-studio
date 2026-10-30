@@ -1,19 +1,26 @@
-import { FlaskConical, SlidersHorizontal } from 'lucide-react'
+import { FlaskConical, Link2, SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, PageHeader } from '@cherrystudio/ui'
+import { Badge, Button, NormalTooltip, PageHeader } from '@cherrystudio/ui'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { statusBadgeClassNames } from './statusStyles'
 
 interface DetailHeaderProps {
   base: KnowledgeBase
+  onOpenExternalSources?: () => void
   onOpenRagConfig: () => void
   onOpenRecallTest: () => void
   onRebuild: () => void
 }
 
-const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRebuild }: DetailHeaderProps) => {
+const DetailHeader = ({
+  base,
+  onOpenExternalSources,
+  onOpenRagConfig,
+  onOpenRecallTest,
+  onRebuild
+}: DetailHeaderProps) => {
   const { t } = useTranslation()
 
   const statusLabelKey = `knowledge.status.${base.status}` as const
@@ -42,17 +49,30 @@ const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRebuild }: De
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 text-muted-foreground"
+              className="text-muted-foreground h-7"
               onClick={onOpenRecallTest}>
               <FlaskConical size={14} />
               {t('knowledge.tabs.recall_test')}
             </Button>
+            {onOpenExternalSources ? (
+              <NormalTooltip content={t('knowledge.external.sources.title')}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('knowledge.external.sources.title')}
+                  className="text-muted-foreground size-6 hover:text-foreground"
+                  onClick={onOpenExternalSources}>
+                  <Link2 size={14} />
+                </Button>
+              </NormalTooltip>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
               aria-label={t('knowledge.tabs.rag_config')}
-              className="size-6 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground size-6 hover:text-foreground"
               onClick={onOpenRagConfig}>
               <SlidersHorizontal size={14} />
             </Button>

@@ -451,8 +451,8 @@ export class KnowledgeItemService {
   }
 
   createDeletingExternal(baseId: string, id: string, data: ExternalItemData): KnowledgeItem {
-    const [row] = application.get('DbService').withWriteTx((tx) =>
-      withSqliteErrors(
+    return application.get('DbService').withWriteTx((tx) => {
+      const [row] = withSqliteErrors(
         () =>
           tx
             .insert(knowledgeItemTable)
@@ -471,11 +471,11 @@ export class KnowledgeItemService {
             })
         } satisfies SqliteErrorHandlers
       )
-    )
-    if (!row) {
-      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Deleting external item create result missing')
-    }
-    return rowToKnowledgeItem(row)
+      if (!row) {
+        throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Deleting external item create result missing')
+      }
+      return rowToKnowledgeItem(row)
+    })
   }
 
   promoteDeletingExternalTx(

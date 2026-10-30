@@ -7,7 +7,9 @@ import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges
 import type { ExternalKnowledgeSchedulePolicy, ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
 import type {
   ExternalKnowledgeScopePreview,
-  ExternalKnowledgeScopeResolution
+  ExternalKnowledgeScopeResolution,
+  FeishuWikiSpacePage,
+  FeishuWikiSpacePreview
 } from '@shared/data/types/externalKnowledgeRead'
 import type {
   CreateKnowledgeBaseDto,
@@ -43,7 +45,7 @@ import {
   type RequestExternalKnowledgeSourceSyncCommand
 } from './external/ExternalKnowledgeSyncAdmission'
 import { ExternalKnowledgeSyncService } from './external/ExternalKnowledgeSyncService'
-import { FEISHU_REQUIRED_USER_SCOPES } from './external/feishuKnowledgeProvider'
+import { FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE } from './external/feishuKnowledgeProvider'
 import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
@@ -288,7 +290,7 @@ export class KnowledgeService extends BaseService {
       domain: 'feishu',
       purpose: 'knowledge',
       applicationCredentialId,
-      userScopes: FEISHU_REQUIRED_USER_SCOPES
+      userScopes: [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
     })
   }
 
@@ -312,10 +314,11 @@ export class KnowledgeService extends BaseService {
   async reconnectFeishuConnection(
     connectionId: string,
     replacement?: BeginUserAuthorizationInput,
+    includeSpaceDiscovery?: boolean,
     signal?: AbortSignal
   ): Promise<BeginAuthorizationResult> {
     this.assertExternalKnowledgeReady()
-    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement, signal)
+    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement, includeSpaceDiscovery, signal)
   }
 
   async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
@@ -331,6 +334,16 @@ export class KnowledgeService extends BaseService {
   async previewFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopePreview> {
     this.assertExternalKnowledgeReady()
     return await this.externalKnowledgeRuntime.previewFeishuScope(connectionId, url)
+  }
+
+  async listFeishuSpaces(connectionId: string, pageToken?: string): Promise<FeishuWikiSpacePage> {
+    this.assertExternalKnowledgeReady()
+    return await this.externalKnowledgeRuntime.listFeishuSpaces(connectionId, pageToken)
+  }
+
+  async previewFeishuSpace(connectionId: string, spaceId: string): Promise<FeishuWikiSpacePreview> {
+    this.assertExternalKnowledgeReady()
+    return await this.externalKnowledgeRuntime.previewFeishuSpace(connectionId, spaceId)
   }
 
   async createExternalKnowledgeSource(input: CreateExternalKnowledgeSourceCommand): Promise<ExternalKnowledgeSource> {
