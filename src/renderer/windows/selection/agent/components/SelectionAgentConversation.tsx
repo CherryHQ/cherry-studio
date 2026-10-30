@@ -101,11 +101,13 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   const waitsOnUser = awaitingApproval || needsInput
   const [draft] = useCache(getAgentDraftCacheKey(sessionId))
   const hasDraft = Boolean(draft.text.trim() || draft.tokens.length || draft.files.length)
+  const [handingOff, setHandingOff] = useState(false)
   useSelectionAgentWindowRules({
     // An edit of a sent message is unsaved work too, though it never reaches the draft cache.
     idle: turnSeen && !turn.isTurnActive && !waitsOnUser && !hasDraft && !runtime.editing,
     collapsible: !turnSeen || turn.isTurnActive || waitsOnUser,
-    pinned: headerProps.isPinned,
+    // The main window takes focus during a hand-off; collapsing on that blur would strand a capsule.
+    pinned: headerProps.isPinned || handingOff,
     onEscape: turn.isStreamLive ? () => void runtime.stop() : undefined
   })
   useSelectionAgentSummary(
@@ -122,6 +124,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
 
   // The main window composer receives the unsent draft; this window closes only once it has landed.
   const openInMainWindow = async () => {
+    setHandingOff(true)
     try {
       await ipcApi.request('navigation.focus_or_open_conversation', {
         target: { conversationType: 'agent', conversationId: sessionId },
@@ -130,6 +133,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
       })
       void ipcApi.request('window.close')
     } catch (error) {
+      setHandingOff(false)
       logger.error('Failed to open the session in the main window', error as Error)
       toast.error(t('selection.agent.open_in_main_window_failed'))
     }
