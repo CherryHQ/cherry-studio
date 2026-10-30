@@ -542,7 +542,7 @@ describe('fallback dispatch recovery identity', () => {
         },
         onFallbackActivated: activated
       })!(makeFakeLanguageModel('qwen3', primaryCall, primaryCall))
-      const caught = await wrapped[method]({ prompt: [] }).catch((error: unknown) => error)
+      const caught = await Promise.resolve(wrapped[method]({ prompt: [] })).catch((error: unknown) => error)
       expect(primaryCall).toHaveBeenCalledTimes(1)
       expect(skippedCall).not.toHaveBeenCalled()
       expect(activated).not.toHaveBeenCalled()
