@@ -159,6 +159,8 @@ export interface StreamExecution {
 // ── ActiveStream ────────────────────────────────────────────────────
 
 export interface ConversationCompletedEvent {
+  /** Persisted response anchors; memory admission resolves their authorized user parents. */
+  memoryResponseIds?: string[]
   responseText?: string
   topicId: string
   turnId: string

@@ -3801,8 +3801,8 @@ describe('AiStreamManager', () => {
       mgr.send({
         topicId: 'topic-1',
         models: [
-          { modelId: 'p::m1', request: req('topic-1') },
-          { modelId: 'p::m2', request: req('topic-1') }
+          { modelId: 'p::m1', request: { ...req('topic-1'), messageId: 'response-1' } },
+          { modelId: 'p::m2', request: { ...req('topic-1'), messageId: 'response-2' } }
         ],
         listeners: [new FakeListener('l:topic-1')],
         isPersistentConversation: true
@@ -3816,7 +3816,8 @@ describe('AiStreamManager', () => {
         {
           topicId: 'topic-1',
           turnId: expect.stringMatching(/^\d+:\d+$/),
-          completedAt: 1_234
+          completedAt: 1_234,
+          memoryResponseIds: ['response-1', 'response-2']
         }
       ])
     })
