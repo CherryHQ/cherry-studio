@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Anbieter",
   "models.detail.quota_exhausted": "Tarifkontingent aufgebraucht; Tarif hochstufen oder auf Zurücksetzung warten",
   "models.edit": "Modell bearbeiten",
-  "models.function_calling": "Funktionsaufruf",
   "models.group.ungrouped": "Nicht gruppiert",
   "models.multi_select.label": "Mehrfachauswahl",
   "models.multi_select.tooltip": "Gleichzeitige Antworten mehrerer Modelle",

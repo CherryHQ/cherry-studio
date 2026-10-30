@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Proveedor",
   "models.detail.quota_exhausted": "Cuota del plan agotada; mejora tu plan o espera al restablecimiento",
   "models.edit": "Editar modelo",
-  "models.function_calling": "Llamada a función",
   "models.group.ungrouped": "Sin agrupar",
   "models.multi_select.label": "Selección múltiple",
   "models.multi_select.tooltip": "Respuestas simultáneas de varios modelos",

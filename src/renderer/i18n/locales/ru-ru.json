@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Провайдер",
   "models.detail.quota_exhausted": "Лимит тарифа исчерпан; обновите тариф или дождитесь сброса",
   "models.edit": "Редактировать модель",
-  "models.function_calling": "Вызов функции",
   "models.group.ungrouped": "Несгруппированные",
   "models.multi_select.label": "Множественный выбор",
   "models.multi_select.tooltip": "Одновременные ответы нескольких моделей",

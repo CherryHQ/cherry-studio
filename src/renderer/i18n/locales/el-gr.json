@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Πάροχος",
   "models.detail.quota_exhausted": "Το όριο του προγράμματος εξαντλήθηκε· αναβαθμίστε το πρόγραμμα ή περιμένετε την επαναφορά",
   "models.edit": "Επεξεργασία μοντέλου",
-  "models.function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
   "models.group.ungrouped": "Χωρίς ομαδοποίηση",
   "models.multi_select.label": "Πολλαπλή επιλογή",
   "models.multi_select.tooltip": "Ταυτόχρονες απαντήσεις πολλών μοντέλων",

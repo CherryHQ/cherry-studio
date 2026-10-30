@@ -2772,7 +2772,6 @@
   "models.detail.provider": "ผู้ให้บริการ",
   "models.detail.quota_exhausted": "โควตาแพ็กเกจหมดแล้ว อัปเกรดแพ็กเกจหรือรอการรีเซ็ต",
   "models.edit": "แก้ไขโมเดล",
-  "models.function_calling": "Function Calling",
   "models.group.ungrouped": "ไม่ได้จัดกลุ่ม",
   "models.multi_select.label": "เลือกหลายรายการ",
   "models.multi_select.tooltip": "ตอบสนองพร้อมกันหลายโมเดล",

@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Furnizor",
   "models.detail.quota_exhausted": "Cota planului a fost epuizată; faceți upgrade planului sau așteptați resetarea",
   "models.edit": "Editează modelul",
-  "models.function_calling": "Apelare funcții",
   "models.group.ungrouped": "Neagrupat",
   "models.multi_select.label": "Selecție multiplă",
   "models.multi_select.tooltip": "Răspunsuri simultane de la mai multe modele",

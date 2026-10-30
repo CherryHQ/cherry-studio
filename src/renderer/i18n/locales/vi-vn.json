@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Nhà cung cấp",
   "models.detail.quota_exhausted": "Đã dùng hết hạn mức gói; hãy nâng cấp gói hoặc chờ đặt lại",
   "models.edit": "Chỉnh sửa Mô hình",
-  "models.function_calling": "Gọi Hàm",
   "models.group.ungrouped": "Chưa nhóm",
   "models.multi_select.label": "Chọn nhiều",
   "models.multi_select.tooltip": "Nhiều mô hình trả lời đồng thời",

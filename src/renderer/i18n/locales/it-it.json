@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Fornitore",
   "models.detail.quota_exhausted": "Quota del piano esaurita; passa a un piano superiore o attendi il ripristino",
   "models.edit": "Modifica modello",
-  "models.function_calling": "Chiamata di funzione",
   "models.group.ungrouped": "Senza gruppo",
   "models.multi_select.label": "Selezione multipla",
   "models.multi_select.tooltip": "Risposte simultanee di più modelli",

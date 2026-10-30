@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Provider",
   "models.detail.quota_exhausted": "Plan quota exhausted; upgrade your plan or wait for reset",
   "models.edit": "Edit Model",
-  "models.function_calling": "Function Calling",
   "models.group.ungrouped": "Ungrouped",
   "models.multi_select.label": "Multi-select",
   "models.multi_select.tooltip": "Multi-model simultaneous responses",

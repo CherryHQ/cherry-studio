@@ -2772,7 +2772,6 @@
   "models.detail.provider": "Sağlayıcı",
   "models.detail.quota_exhausted": "Paket kotası tükendi; paketinizi yükseltin veya sıfırlanmasını bekleyin",
   "models.edit": "Modeli Düzenle",
-  "models.function_calling": "İşlev Çağırma",
   "models.group.ungrouped": "Gruplanmamış",
   "models.multi_select.label": "Çoklu seçim",
   "models.multi_select.tooltip": "Birden fazla modelden eşzamanlı yanıtlar",
