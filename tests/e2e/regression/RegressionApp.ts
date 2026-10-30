@@ -127,21 +127,23 @@ export class RegressionApp {
     const page = await this.findMainWindow()
     if (this.windowHiddenExpected) return page
     if (await rootVisible(page, 5_000)) return page
+    // The guard stays set until the recovery wait finishes, so a renderer that is still
+    // slow after the restart gets one bounded wait instead of another restart.
+    if (this.recoveringWindow) {
+      await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
+      return page
+    }
     // A case that hides the window leaves the renderer mounted but unrendered, so every
     // later case would spend its timeout on a hidden #root. Reveal the window instead.
-    if (!this.recoveringWindow) {
-      this.recoveringWindow = true
-      try {
-        if ((await this.revealWindow()) && (await rootVisible(page, 20_000))) return page
-        await this.disconnect()
-        await prepareWindowsCdpConnection(await restartApp(this.paths))
-      } finally {
-        this.recoveringWindow = false
-      }
+    this.recoveringWindow = true
+    try {
+      if ((await this.revealWindow()) && (await rootVisible(page, 20_000))) return page
+      await this.disconnect()
+      await prepareWindowsCdpConnection(await restartApp(this.paths))
       return await this.mainWindow()
+    } finally {
+      this.recoveringWindow = false
     }
-    await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
-    return page
   }
 
   private async findMainWindow(): Promise<Page> {
