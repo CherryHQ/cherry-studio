@@ -12,7 +12,10 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => moc
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ warn: mocks.warn }) }
 }))
-vi.mock('@renderer/services/toast', () => ({ toast: { error: (...args: unknown[]) => mocks.toastError(...args) } }))
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: (...args: unknown[]) => mocks.toastError(...args) },
+  toastInlineError: (message: string) => mocks.toastError({ title: message, data: { suppressDetail: true } })
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en-US' },

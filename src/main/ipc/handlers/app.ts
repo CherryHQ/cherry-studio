@@ -5,8 +5,12 @@ import { app, BrowserWindow } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
+import { WindowType } from '@main/core/window/types'
+import { getAppLanguage, t } from '@main/i18n'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
+import { deliverToReadyMain, setMainSurfaceReceiver } from '@main/services/mainWindowNavigation'
 import { regionService } from '@main/services/RegionService'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { getAndroidDownloadUrl } from '@main/utils/mobileAppDownload'
@@ -54,7 +58,32 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },
+  'app.surface.receiver': async ({ kind, ready }, { senderId }) => {
+    if (!senderId || application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
+    setMainSurfaceReceiver(kind, ready)
+  },
   'app.updater.release_notes.get': async () => application.get('AppUpdaterService').getReleaseHistory(),
+  'app.error.handoff': async (context) => {
+    if (!deliverToReadyMain('app.error.open', context)) {
+      throw new IpcError('MAIN_UNAVAILABLE', 'The main window is not ready to show this error')
+    }
+  },
+  'app.error.degraded': async (context) => {
+    const language = getAppLanguage()
+    const technicalDetail = [context.name, context.message, context.stack].filter(Boolean).join('\n')
+    await showSupportedMessageBox({
+      language,
+      box: {
+        type: 'error',
+        title: t('dialog.support.degraded_title', undefined, language),
+        message: t('dialog.support.degraded_message', undefined, language),
+        buttons: [t('dialog.support.close', undefined, language)],
+        defaultId: 0,
+        cancelId: 0
+      },
+      technicalDetail
+    })
+  },
   'app.updater.quit_and_install': async () => {
     application.get('AppUpdaterService').quitAndInstall()
   }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
-import { Accordion, Button, Tooltip } from '@cherrystudio/ui'
+import { Accordion, Alert, Button, Tooltip } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import { DoctorAgentAccordionItem, DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
 import type { DoctorController } from '@renderer/hooks/doctor'
@@ -27,7 +27,10 @@ function FixedSummary({ children, enabled }: { children?: ReactNode; enabled: bo
 export function ErrorDiagnosisPanel({ doctorController, subject, incident }: ErrorDiagnosisPanelProps) {
   const { t } = useTranslation()
   const { interaction } = doctorController.session
-  const showConnectivitySteps = subject.kind !== 'global'
+  const modelLessOperation = subject.kind === 'operation' && !subject.modelId
+  const showConnectivitySteps = subject.kind !== 'global' && !modelLessOperation
+  const omittedConnectivityIds =
+    subject.kind === 'operation' && subject.imageOnly ? (['provider-model-conversation'] as const) : undefined
   const activeDoctorTier =
     doctorController.viewModel.status === 'running'
       ? doctorController.viewModel.tier
@@ -145,15 +148,29 @@ export function ErrorDiagnosisPanel({ doctorController, subject, incident }: Err
           </Tooltip>
         )
       }>
-      {showConnectivitySteps ? (
+      {doctorController.actionError ? (
+        <div className="px-4 pt-3">
+          <Alert type="error" showIcon description={doctorController.actionError} />
+        </div>
+      ) : null}
+      {showConnectivitySteps || modelLessOperation ? (
         <div>
           <Accordion type="single" collapsible className="[&>[data-slot=accordion-item]:first-child]:border-t-0">
             <DoctorAgentAccordionItem
               agentKey={doctorAgentKey(doctorController.scope, incident)}
               reportRunId={doctorController.viewModel.report?.runId}
             />
-            <ErrorConnectivitySteps controller={doctorController} />
-            {extraFindings}
+            {modelLessOperation ? (
+              <DoctorCheckAccordionItems
+                compact
+                showEvidence={false}
+                controller={doctorController}
+                rows={doctorController.viewModel.rows}
+              />
+            ) : (
+              <ErrorConnectivitySteps controller={doctorController} omittedCheckIds={omittedConnectivityIds} />
+            )}
+            {modelLessOperation ? null : extraFindings}
           </Accordion>
           {hasDoctorNotices ? (
             <div className="space-y-3 px-4 pb-4">

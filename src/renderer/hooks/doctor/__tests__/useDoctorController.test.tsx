@@ -541,4 +541,86 @@ describe('useDoctorController', () => {
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://cherry-ai.com/status')
     expect(mocks.request).toHaveBeenCalledWith('app.relaunch')
   })
+
+  it('keeps a rejected run in the panel and clears it when the next run succeeds', async () => {
+    mocks.request.mockRejectedValueOnce(new Error('offline'))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
+
+    await waitFor(() => expect(result.current.actionError).toBe('settings.doctor.messages.run_failed'))
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(mocks.toastError).not.toHaveBeenCalled()
+
+    await act(async () => result.current.run('quick'))
+
+    expect(result.current.actionError).toBeNull()
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(mocks.request).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a cancel failure visible while the run is still active', async () => {
+    mocks.doctorState = {
+      status: 'running',
+      runId: 'run-1',
+      tier: 'quick',
+      selectedCheckIds: ['install-version-channel'],
+      startedAt: '2026-09-04T08:59:00.000Z',
+      activeCheckIds: [],
+      results: []
+    }
+    mocks.request.mockRejectedValueOnce(new Error('cancel failed'))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
+
+    await act(async () => result.current.cancel())
+
+    expect(result.current.actionError).toBe('settings.doctor.messages.cancel_failed')
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.viewModel.canCancel).toBe(true)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+
+    await act(async () => result.current.cancel())
+
+    expect(result.current.actionError).toBeNull()
+    expect(mocks.request).toHaveBeenCalledTimes(2)
+    expect(mocks.request).toHaveBeenNthCalledWith(2, 'diagnostics.doctor.cancel', { scope: 'global', runId: 'run-1' })
+  })
+
+  it('keeps an open-path failure in the panel and releases the close block', async () => {
+    mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
+    mocks.request.mockRejectedValueOnce(new Error('missing'))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
+
+    await act(async () => result.current.openPath('/tmp/missing'))
+
+    expect(result.current.actionError).toBe('settings.doctor.messages.action_failed')
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.isCloseBlocked).toBe(false)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('refuses a stale result action without calling a fix', async () => {
+    const completed = completedDoctorState()
+    if (completed.status !== 'completed') throw new Error('Expected a completed Doctor state')
+    mocks.doctorState = {
+      ...completed,
+      report: { ...completed.report, expiresAt: new Date(Date.now() - 60_000).toISOString() }
+    }
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
+
+    await act(async () =>
+      result.current.executeAction('config-boot-config-valid', { kind: 'fix', fixId: 'repair' }, completed.report.runId)
+    )
+
+    expect(result.current.actionError).toBe('settings.doctor.messages.stale')
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
 })

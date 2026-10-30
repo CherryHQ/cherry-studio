@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Accordion,
+  Alert,
   Button,
   DialogFooter,
   DropdownMenu,
@@ -32,12 +33,14 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   const { t } = useTranslation()
   const { session, viewModel } = controller
   const [agentOpen, setAgentOpen] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
   const dataPath = viewModel.report?.basics.userDataPath
   const sortedRows = viewModel.rows.toSorted(
     (a, b) => CHECK_STATUS_PRIORITY[a.status] - CHECK_STATUS_PRIORITY[b.status]
   )
   const copyResults = async () => {
     if (!viewModel.report) return
+    setCopyError(null)
     try {
       await navigator.clipboard.writeText(
         formatDoctorReportForCopy(viewModel.report, {
@@ -67,7 +70,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
       toast.success(t('settings.doctor.messages.copied'))
     } catch (error) {
       logger.error('Failed to copy system diagnostics results', error as Error)
-      toast.error(t('settings.doctor.messages.copy_failed'))
+      setCopyError(t('settings.doctor.messages.copy_failed'))
     }
   }
 
@@ -75,6 +78,8 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
         <div className="space-y-4 pb-2">
+          {controller.actionError ? <Alert type="error" showIcon description={controller.actionError} /> : null}
+          {copyError ? <Alert type="error" showIcon description={copyError} /> : null}
           {viewModel.status !== 'running' ? <DoctorCheckNotices controller={controller} /> : null}
 
           {viewModel.rows.length > 0 ? (

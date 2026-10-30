@@ -9,13 +9,27 @@ import type {
   DoctorAgentStartResult,
   DoctorAgentUndoResult
 } from '@shared/types/doctorAgent'
+import { appErrorContextSchema } from '@shared/utils/appError'
 import { isDoctorAgentKey, isDoctorScopeKey } from '@shared/utils/doctor'
 
 import { defineRoute } from '../define'
 
 const scopeKeySchema = z.custom<DoctorScopeKey>(isDoctorScopeKey)
 const agentKeySchema = z.custom<DoctorAgentKey>(isDoctorAgentKey)
-const incidentSchema = z.object({ topicId: z.string().min(1), messageId: z.string().min(1) }).strict()
+const messageIncidentSchema = z
+  .object({
+    topicId: z.string().min(1),
+    messageId: z.string().min(1),
+    errorId: z.string().min(1).optional()
+  })
+  .strict()
+const operationIncidentSchema = z
+  .object({
+    kind: z.literal('operation'),
+    context: appErrorContextSchema
+  })
+  .strict()
+const incidentSchema = z.union([operationIncidentSchema, messageIncidentSchema])
 
 /** Progress, proposals and the change ledger are read through `doctorAgentStateCacheKey(key)`. */
 export const doctorAgentRequestSchemas = {
