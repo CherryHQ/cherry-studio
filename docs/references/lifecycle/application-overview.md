@@ -257,12 +257,11 @@ or an application shutdown.
 
 ### Renderer Usage
 
-The renderer's legacy application bridge exposes quit-prevention and relaunch operations. It does not expose a generic `quit()` method. New call sites that only need a normal relaunch use `ipcApi.request('app.relaunch')`; the bridge remains for the quit-hold protocol and legacy relaunch callers that pass Electron options.
+The renderer relaunches through `ipcApi.request('app.relaunch')`, which takes no options. The legacy application bridge remains only for the quit-hold protocol; it does not expose a generic `quit()` method.
 
 ```typescript
 // Relaunch the app
-await window.api.application.relaunch()
-await window.api.application.relaunch({ args: ['--safe-mode'] })
+await ipcApi.request('app.relaunch')
 
 // Prevent quit during critical operations (returns opaque holdId)
 const holdId = await window.api.application.preventQuit('Migrating user data')
@@ -275,7 +274,6 @@ try {
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `relaunch(options?)` | `Promise<void>` | Relaunch the app (with optional args) |
 | `preventQuit(reason)` | `Promise<string>` (holdId) | Block app quit until released |
 | `allowQuit(holdId)` | `Promise<void>` | Release a specific quit prevention hold |
 

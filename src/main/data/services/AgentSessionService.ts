@@ -1096,13 +1096,19 @@ export class AgentSessionService {
   trashByAgentIdTx(
     tx: DbOrTx,
     agentId: string,
-    options: { validateAgent?: boolean; deletedAt?: number } = {}
+    options: { validateAgent?: boolean; deletedAt?: number; sessionTypes?: readonly AgentSessionType[] } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     if (options.validateAgent ?? true) this.assertAgentExistsTx(tx, agentId)
     const ids = tx
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
+      .where(
+        and(
+          eq(sessionsTable.agentId, agentId),
+          isNull(sessionsTable.deletedAt),
+          options.sessionTypes?.length ? inArray(sessionsTable.type, [...options.sessionTypes]) : undefined
+        )
+      )
       .all()
       .map((row) => row.id)
     return this.trashByIdsTx(tx, ids, {
@@ -1252,11 +1258,15 @@ export class AgentSessionService {
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByAgentIdWithImpact(agentId: string, options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
+  /** Session type filtering applies only to trash moves; permanent deletion always includes all types. */
+  deleteByAgentIdWithImpact(
+    agentId: string,
+    options: { permanent?: boolean; sessionTypes?: readonly AgentSessionType[] } = {}
+  ): AgentSessionDeletionOutcome {
     const deliveryResults: AgentSessionMessageEntity[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
-        const trashed = this.trashByAgentIdTx(tx, agentId)
+        const trashed = this.trashByAgentIdTx(tx, agentId, { sessionTypes: options.sessionTypes })
         deliveryResults.push(...trashed.deliveryResults)
         return { deletedIds: trashed.trashedIds, taskScheduleIds: trashed.taskScheduleIds, deliveryResults }
       }
@@ -1355,13 +1365,19 @@ export class AgentSessionService {
       .map((row) => row.id)
   }
 
-  listActiveIdsByAgent(agentId: string): string[] {
+  listActiveIdsByAgent(agentId: string, options: { sessionTypes?: readonly AgentSessionType[] } = {}): string[] {
     return application
       .get('DbService')
       .getDb()
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
+      .where(
+        and(
+          eq(sessionsTable.agentId, agentId),
+          isNull(sessionsTable.deletedAt),
+          options.sessionTypes?.length ? inArray(sessionsTable.type, [...options.sessionTypes]) : undefined
+        )
+      )
       .orderBy(asc(sessionsTable.id))
       .all()
       .map((row) => row.id)

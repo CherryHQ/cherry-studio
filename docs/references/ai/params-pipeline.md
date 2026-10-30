@@ -4,6 +4,7 @@ sources:
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
+  - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
 ---
 
 # Params Pipeline
@@ -80,6 +81,7 @@ export const INTERNAL_FEATURES = [
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
+  qwenAnthropicWebToolsFeature,
   terminalToolFailureFeature,
   steerYieldFeature
 ]
@@ -88,6 +90,16 @@ export const INTERNAL_FEATURES = [
 Callers can append per-request `extraFeatures`; those run after the
 internal set. (AiService's analytics is *not* one of these — it is injected
 separately as a `hookParts` entry, not a `RequestFeature`.)
+
+For Qwen AI Platform and QwenCloud Anthropic endpoints, native web search and
+fetch requests include the platform-required client identifier in a system
+message. The feature preserves the assistant prompt and existing cache markers;
+ordinary requests and client function tools do not receive the identifier.
+Native fetch requires native search alongside it, so web-tool routing selects
+both server tools together when using this endpoint's fetch capability.
+The fetch tool accepts both Anthropic's `url` input and Qwen's `urls` with
+optional `goal`, preserving multiple URLs without repairing an already-executed
+server tool call.
 
 ## RequestScope
 

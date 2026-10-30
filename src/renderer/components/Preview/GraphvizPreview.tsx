@@ -1,10 +1,12 @@
 import React, { memo, useCallback } from 'react'
 
+import { resolveMermaidTheme } from '@cherrystudio/ui/mermaid'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { AsyncInitializer } from '@shared/utils/async'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
-import { ShadowWhiteContainer } from './styles'
+import { ShadowTransparentContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -24,12 +26,27 @@ const GraphvizPreview = ({
   enableToolbar = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
-  // 定义渲染函数
-  const renderGraphviz = useCallback(async (content: string, container: HTMLDivElement) => {
-    const viz = await vizInitializer.get()
-    const svg = viz.renderString(content, { format: 'svg' })
-    renderSvgInShadowHost(svg, container)
-  }, [])
+  const { theme } = useTheme()
+
+  // Default colours come from the design tokens behind the diagram; the DOT source can still override them.
+  const renderGraphviz = useCallback(
+    async (content: string, container: HTMLDivElement) => {
+      const viz = await vizInitializer.get()
+      const { roles } = resolveMermaidTheme(container)
+      // Viz ignores its node/edge default options, so prepend defaults to the body; Helvetica has Graphviz metrics.
+      // ponytail: assumes the first `{` opens the body; a `{` in a quoted graph name before it would break this.
+      const font = 'fontname="Helvetica,Arial,sans-serif"'
+      const defaults = [
+        `graph [bgcolor="transparent" color="${roles.border}" fontcolor="${roles.text}" ${font}];`,
+        `node [color="${roles.border}" fontcolor="${roles.text}" ${font}];`,
+        `edge [color="${roles.line}" fontcolor="${roles.text}" ${font}];`
+      ].join(' ')
+      const svg = viz.renderString(content.replace('{', `{ ${defaults}`), { format: 'svg' })
+      renderSvgInShadowHost(svg, container)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [theme]
+  )
 
   // 使用预览渲染器 hook
   const { containerRef, error, isLoading } = useDebouncedRender(children, renderGraphviz, {
@@ -44,7 +61,10 @@ const GraphvizPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="graphviz">
-      <ShadowWhiteContainer ref={containerRef} className="graphviz special-preview" />
+      <ShadowTransparentContainer
+        ref={containerRef}
+        className="graphviz special-preview flex items-center justify-center"
+      />
     </ImagePreviewLayout>
   )
 }

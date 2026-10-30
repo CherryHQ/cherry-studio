@@ -113,7 +113,7 @@ vi.mock('@renderer/utils/routeTitle', async () => {
   }
   return {
     ...actual,
-    getDefaultRouteTitle: (url: string) => titles[url.split('?')[0]]?.[currentLanguage] ?? url
+    getDefaultRouteTitle: (url: string) => titles[url]?.[currentLanguage] ?? url
   }
 })
 
@@ -141,12 +141,7 @@ function TabTitleWriter() {
     updateTab('home', { title: 'Session title', icon: 'icon:spark' })
   }, [updateTab])
 
-  return (
-    <>
-      <div data-testid="home-title">{tabs.find((tab) => tab.id === 'home')?.title}</div>
-      <div data-testid="home-icon">{tabs.find((tab) => tab.id === 'home')?.icon ?? 'Default application icon'}</div>
-    </>
-  )
+  return <div data-testid="home-title">{tabs.find((tab) => tab.id === 'home')?.title}</div>
 }
 
 function PinnedRouteTitle() {
@@ -537,7 +532,7 @@ describe('TabsProvider', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('unrelated-tab'))
-    expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Chat')
+    expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Topic A')
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Activate home' }))
@@ -545,7 +540,7 @@ describe('TabsProvider', () => {
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename background topic' }))
-    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Chat'))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('Renamed Topic'))
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close unrelated tab' }))
@@ -557,19 +552,14 @@ describe('TabsProvider', () => {
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
   })
 
-  it.each([
-    ['/app/agents', 'Agent'],
-    ['/app/agents?sessionId=saved', 'Agent'],
-    ['/app/chat?topicId=saved', 'Chat']
-  ])('restores the application title for %s', async (url, title) => {
+  it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider
         initialDefaultTab={{
           id: 'home',
           type: 'route',
-          url,
-          title: 'Saved conversation title',
-          icon: 'emoji:🍒',
+          url: '/app/agents',
+          title: '',
           lastAccessTime: Date.now(),
           isDormant: false
         }}
@@ -578,8 +568,7 @@ describe('TabsProvider', () => {
       </TabsProvider>
     )
 
-    await waitFor(() => expect(screen.getByTestId('home-title')).toHaveTextContent(title))
-    expect(screen.getByTestId('home-icon')).toHaveTextContent('Default application icon')
+    await waitFor(() => expect(screen.getByTestId('home-title')).toHaveTextContent('Session title'))
   })
 
   it('refreshes localized route tab titles when the app language changes', async () => {

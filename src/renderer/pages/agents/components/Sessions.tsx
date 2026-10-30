@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import { archiveAgentSessionsPopup } from '@renderer/components/chat/archiveAgentSessionsPopup'
 import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import {
   remapResourceListCollapsedGroupIds,
@@ -174,6 +175,7 @@ function AgentGroupMoreMenu({
   deleteSessionsOnly,
   pinDisabled,
   pinned,
+  onArchiveSessions,
   onDeleteAgent,
   onEdit,
   onSetAgentIconType,
@@ -188,6 +190,7 @@ function AgentGroupMoreMenu({
   pinDisabled?: boolean
   pinned: boolean
   sidebarPinned: boolean
+  onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
@@ -200,6 +203,7 @@ function AgentGroupMoreMenu({
     assistantIconType,
     deleteAgentDisabled,
     deleteSessionsOnly,
+    onArchiveSessions,
     onDeleteAgent,
     onEdit,
     onSetAgentIconType,
@@ -1406,11 +1410,10 @@ const Sessions = ({
   }, [refetchAgents, reload])
 
   const handleDeleteAgent = useCallback(
-    async (agentId: string) => {
+    async (agentId: string, deleteSessionsOnly = false) => {
       if (deletingAgentId) return
 
       const agent = agentById.get(agentId)
-      const deleteSessionsOnly = isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
 
       const performDelete = async (deleteSessions: boolean) => {
         const currentActiveSessionId = activeSessionIdRef.current
@@ -1511,15 +1514,21 @@ const Sessions = ({
           }
         } catch (err) {
           logger.error('Failed to delete agent from session group', { agentId, err })
-          if (!deleteSessionsOnly) throw err
-          toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
+          throw err
         } finally {
           setDeletingAgentId(null)
         }
       }
 
       if (deleteSessionsOnly) {
-        await performDelete(true)
+        await archiveAgentSessionsPopup.show({
+          agentName: agent?.name || t('common.unnamed'),
+          sessionCount: isFullyLoaded
+            ? sessionItemsRef.current.filter((session) => session.agentId === agentId).length
+            : undefined,
+          t,
+          action: () => performDelete(true)
+        })
         return
       }
 
@@ -1530,6 +1539,7 @@ const Sessions = ({
       agentById,
       deletingAgentId,
       invalidate,
+      isFullyLoaded,
       onActiveAgentDeleted,
       refetchAgents,
       refreshAgentResources,
@@ -1541,6 +1551,8 @@ const Sessions = ({
       t
     ]
   )
+
+  const handleArchiveSessions = useCallback((agentId: string) => handleDeleteAgent(agentId, true), [handleDeleteAgent])
 
   const handleDeleteWorkdirGroup = useCallback(
     async (group: ResourceListGroup) => {
@@ -1642,7 +1654,7 @@ const Sessions = ({
   const handleOpenWorkdirGroup = useCallback(
     async (workdirPath: string) => {
       try {
-        await window.api.file.openPath(workdirPath)
+        await ipcApi.request('system.shell.open_path', workdirPath)
       } catch (err) {
         toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
       }
@@ -1969,6 +1981,7 @@ const Sessions = ({
                 )}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
+                onArchiveSessions={handleArchiveSessions}
                 onDeleteAgent={handleDeleteAgent}
                 onEdit={openAgentEditor}
                 onSetAgentIconType={setAssistantIconType}
@@ -2020,6 +2033,7 @@ const Sessions = ({
       deletingWorkspaceGroupId,
       displayMode,
       createSessionSeedIndex,
+      handleArchiveSessions,
       handleDeleteAgent,
       handleToggleAgentPin,
       handleToggleAgentSidebar,
@@ -2140,6 +2154,7 @@ const Sessions = ({
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
           deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
+          onArchiveSessions: handleArchiveSessions,
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
@@ -2187,6 +2202,7 @@ const Sessions = ({
       deletingAgentId,
       deletingWorkspaceGroupId,
       displayMode,
+      handleArchiveSessions,
       handleDeleteAgent,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
