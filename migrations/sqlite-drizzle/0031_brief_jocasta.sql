@@ -28,14 +28,14 @@ CREATE TABLE `__new_agent_session_message` (
 	CONSTRAINT "agent_session_message_delivery_turn_ref_check" CHECK(("__new_agent_session_message"."delivery_status" = 'delivering' AND "__new_agent_session_message"."delivery_turn_ref" IS NOT NULL) OR ("__new_agent_session_message"."delivery_status" != 'delivering' AND "__new_agent_session_message"."delivery_turn_ref" IS NULL) OR ("__new_agent_session_message"."delivery_status" IS NULL AND "__new_agent_session_message"."delivery_turn_ref" IS NULL))
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "parent_id", "data", "searchable_text", "status", "model_id", "message_snapshot", "stats", "runtime_resume_token", "submission", "delivery", "delivery_status", "delivery_turn_ref", "delivery_in_reply_to", "delivery_sender_session_id", "fts_rowid", "created_at", "updated_at") SELECT "id", "session_id", "role", "parent_id", "data", "searchable_text", "status", "model_id", "message_snapshot", "stats", "runtime_resume_token", "submission", "delivery", "delivery_status", "delivery_turn_ref", "delivery_in_reply_to", "delivery_sender_session_id", "fts_rowid", "created_at", "updated_at" FROM `agent_session_message`;--> statement-breakpoint
+INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "parent_id", "data", "searchable_text", "status", "model_id", "message_snapshot", "stats", "runtime_resume_token", "submission", "delivery", "delivery_status", "delivery_turn_ref", "delivery_in_reply_to", "delivery_sender_session_id", "fts_rowid", "created_at", "updated_at") SELECT "id", "session_id", "role", NULL, "data", "searchable_text", "status", "model_id", "message_snapshot", "stats", "runtime_resume_token", "submission", "delivery", "delivery_status", "delivery_turn_ref", "delivery_in_reply_to", "delivery_sender_session_id", "fts_rowid", "created_at", "updated_at" FROM `agent_session_message`;--> statement-breakpoint
 DROP TABLE `agent_session_message`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `agent_session_message_parent_idx` ON `agent_session_message` (`session_id`,`parent_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `agent_session_message_root_uniq` ON `agent_session_message` (`session_id`) WHERE "agent_session_message"."role" = 'root';--> statement-breakpoint
 CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint
-CREATE INDEX `agent_session_message_created_at_id_idx` ON `agent_session_message` (`"created_at" desc`,`"id" asc`);--> statement-breakpoint
+CREATE INDEX `agent_session_message_created_at_id_idx` ON `agent_session_message` (`created_at` desc,`id` asc);--> statement-breakpoint
 CREATE INDEX `agent_session_message_status_idx` ON `agent_session_message` (`status`);--> statement-breakpoint
 CREATE INDEX `agent_session_message_model_id_idx` ON `agent_session_message` (`model_id`);--> statement-breakpoint
 CREATE INDEX `agent_session_message_delivery_status_idx` ON `agent_session_message` (`delivery_status`);--> statement-breakpoint
