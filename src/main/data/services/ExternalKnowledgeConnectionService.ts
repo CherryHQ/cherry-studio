@@ -107,7 +107,11 @@ export class ExternalKnowledgeConnectionService {
   }
 
   getById(id: string): ExternalKnowledgeConnection | null {
-    const row = this.db
+    return this.getByIdTx(this.db, id)
+  }
+
+  getByIdTx(tx: Pick<DbType, 'select'>, id: string): ExternalKnowledgeConnection | null {
+    const row = tx
       .select()
       .from(externalKnowledgeConnectionTable)
       .where(eq(externalKnowledgeConnectionTable.id, id))

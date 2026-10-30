@@ -2,6 +2,7 @@ import { application } from '@application'
 import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
 import type {
   ExternalKnowledgeScopePreview,
   ExternalKnowledgeScopeResolution
@@ -26,8 +27,15 @@ import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import {
   type BeginAuthorizationResult,
   type BeginUserAuthorizationInput,
-  ExternalKnowledgeRuntime
+  ExternalKnowledgeRuntime,
+  ExternalKnowledgeRuntimeError
 } from './external/ExternalKnowledgeRuntime'
+import {
+  type CreateExternalKnowledgeSourceCommand,
+  ExternalKnowledgeSyncAdmission,
+  type RequestExternalKnowledgeSourceSyncCommand
+} from './external/ExternalKnowledgeSyncAdmission'
+import { ExternalKnowledgeSyncService } from './external/ExternalKnowledgeSyncService'
 import { FEISHU_REQUIRED_USER_SCOPES } from './external/feishuKnowledgeProvider'
 import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
@@ -46,6 +54,7 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import { createSyncExternalSourceJobHandler } from './tasks/syncExternalSourceJobHandler'
 import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
 
 const FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS = 5_000
@@ -67,7 +76,21 @@ const FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS = 5_000
   'FeishuRegistrationService'
 ])
 export class KnowledgeService extends BaseService {
+  private externalKnowledgeAdmissionOpen = false
   private readonly knowledgeLockManager = new KeyedMutex()
+  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime({
+    isConnectionBlocked: (id) => application.get('FeishuCredentialMigrationService').isConnectionBlocked(id)
+  })
+  private readonly externalKnowledgeSyncService = new ExternalKnowledgeSyncService(
+    this.externalKnowledgeRuntime,
+    this.knowledgeLockManager
+  )
+  private readonly externalKnowledgeSyncAdmission = new ExternalKnowledgeSyncAdmission(this.externalKnowledgeRuntime, {
+    now: Date.now,
+    assertOpen: () => {
+      if (!this.externalKnowledgeAdmissionOpen) throw new ExternalKnowledgeRuntimeError('stopped')
+    }
+  })
   private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)
   private readonly fileProcessingWaits = new FileProcessingWaitManager()
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager, this.fileProcessingWaits)
@@ -78,9 +101,6 @@ export class KnowledgeService extends BaseService {
   )
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
-  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime({
-    isConnectionBlocked: (id) => application.get('FeishuCredentialMigrationService').isConnectionBlocked(id)
-  })
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -105,6 +125,10 @@ export class KnowledgeService extends BaseService {
       'knowledge.reindex-subtree',
       createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService, this.fileProcessingWaits)
     )
+    jobManager.registerHandler(
+      'knowledge.sync-external-source',
+      createSyncExternalSourceJobHandler(this.externalKnowledgeSyncService)
+    )
     this.registerInterval(() => this.fileProcessingWaits.mirrorProgress(), FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS)
   }
 
@@ -116,14 +140,47 @@ export class KnowledgeService extends BaseService {
       })
     )
     await this.externalKnowledgeRuntime.start()
+    this.externalKnowledgeAdmissionOpen = true
   }
 
   protected async onStop(): Promise<void> {
-    await this.externalKnowledgeRuntime.stop()
+    this.externalKnowledgeAdmissionOpen = false
+    const failures: unknown[] = []
+    let activeJobs: Array<{ id: string }> = []
+    try {
+      activeJobs = await application.get('JobManager').list({
+        status: ['pending', 'delayed', 'running'],
+        type: 'knowledge.sync-external-source'
+      })
+    } catch (error) {
+      failures.push(error)
+    }
+
+    const cancellationResults = await Promise.allSettled(
+      activeJobs.map((job) => application.get('JobManager').cancel(job.id, 'knowledge-service-stop'))
+    )
+    for (const [index, result] of cancellationResults.entries()) {
+      if (result.status === 'rejected') {
+        failures.push(result.reason)
+      } else if (result.value.outcome === 'timed-out') {
+        failures.push(new Error(`External sync job cancellation timed out: ${activeJobs[index].id}`))
+      }
+    }
+
+    if (failures.length === 0) {
+      try {
+        await this.externalKnowledgeRuntime.stop()
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+
+    if (failures.length === 1) throw failures[0]
+    if (failures.length > 1) throw new AggregateError(failures, 'Failed to stop External Knowledge')
   }
 
   protected async onAllReady(): Promise<void> {
-    this.ingestionService.recoverDeletingItems()
+    this.externalKnowledgeSyncService.recoverDeletingItems()
     this.ingestionService.recoverInterruptedItems()
   }
 
@@ -170,6 +227,16 @@ export class KnowledgeService extends BaseService {
 
   async previewFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopePreview> {
     return await this.externalKnowledgeRuntime.previewFeishuScope(connectionId, url)
+  }
+
+  async createExternalKnowledgeSource(input: CreateExternalKnowledgeSourceCommand): Promise<ExternalKnowledgeSource> {
+    return await this.externalKnowledgeSyncAdmission.create(input)
+  }
+
+  async requestExternalKnowledgeSourceSync(
+    input: RequestExternalKnowledgeSourceSyncCommand
+  ): Promise<ExternalKnowledgeSource> {
+    return await this.externalKnowledgeSyncAdmission.requestSync(input)
   }
 
   async removeExternalKnowledgeConnection(connectionId: string): Promise<void> {

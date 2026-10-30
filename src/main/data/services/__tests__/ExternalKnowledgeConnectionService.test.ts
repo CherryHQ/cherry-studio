@@ -90,6 +90,13 @@ describe('ExternalKnowledgeConnectionService', () => {
     })
   })
 
+  it('reads a connection through the caller transaction', () => {
+    const pending = externalKnowledgeConnectionService.create(createInput)
+
+    expect(externalKnowledgeConnectionService.getByIdTx(dbh.db, pending.id)).toEqual(pending)
+    expect(externalKnowledgeConnectionService.getByIdTx(dbh.db, '01994c00-ef10-7000-8000-000000000099')).toBeNull()
+  })
+
   it('commits reauthorization with one guarded credential-reference swap', () => {
     const pending = externalKnowledgeConnectionService.create(createInput)
     const connected = externalKnowledgeConnectionService.markConnected(pending.id, connectedIdentity)

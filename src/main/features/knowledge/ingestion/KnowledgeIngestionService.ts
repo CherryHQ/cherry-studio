@@ -43,7 +43,6 @@ import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import {
   type KnowledgeBaseId,
   knowledgeCopySourcesIdempotencyKey,
-  knowledgeDeleteSubtreeIdempotencyKey,
   knowledgeFileProcessingCheckIdempotencyKey,
   knowledgeIndexIdempotencyKey,
   type KnowledgeItemId,
@@ -57,12 +56,12 @@ import {
 import { resolveKnowledgeAddConflicts } from './addConflicts'
 import type { FileProcessingWaitManager } from './FileProcessingWaitManager'
 import { markUnscheduledKnowledgeItemsFailed } from './statusCleanup'
+import { enqueueKnowledgeSubtreeDeletionTx } from './subtreeDeletion'
 import { assertNoActiveExternalOwner, purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 
 const logger = loggerService.withContext('Knowledge:IngestionService')
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
-const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
 export type KnowledgeRestoreItemInput =
   | KnowledgeAddItemInput
@@ -285,8 +284,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
 
     knowledgeBaseService.getById(baseId)
-    const knowledgeBaseId = toKnowledgeBaseId(baseId)
-    const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
     await this.knowledgeLockManager.runExclusive(baseId, () =>
       application.get('DbService').withWriteTx((tx) => {
         const managedRootItemIds = externalKnowledgeDocumentService.getKnowledgeItemIdsWithActiveOwnedSubtree(
@@ -302,15 +299,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           )
         }
         knowledgeItemService.setSubtreeStatusTx(tx, baseId, rootItemIds, 'deleting')
-        application.get('JobManager').enqueueTx(
-          tx,
-          'knowledge.delete-subtree',
-          { baseId, rootItemIds },
-          {
-            idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
-            queue: knowledgeQueueName(knowledgeBaseId)
-          }
-        )
+        enqueueKnowledgeSubtreeDeletionTx(tx, baseId, rootItemIds)
       })
     )
   }
@@ -589,45 +578,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
     } catch (error) {
       logger.error('Failed to recover interrupted knowledge items', error as Error)
-    }
-  }
-
-  recoverDeletingItems(): void {
-    let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
-    try {
-      deletingRootGroups = knowledgeItemService.getDeletingRootGroups()
-    } catch (error) {
-      logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
-      return
-    }
-
-    if (deletingRootGroups.length === 0) {
-      return
-    }
-
-    const jobManager = application.get('JobManager')
-    for (const { baseId, rootItemIds } of deletingRootGroups) {
-      for (let i = 0; i < rootItemIds.length; i += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
-        const rootItemIdChunk = rootItemIds.slice(i, i + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
-        try {
-          jobManager.enqueue(
-            'knowledge.delete-subtree',
-            { baseId, rootItemIds: rootItemIdChunk },
-            {
-              idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(
-                toKnowledgeBaseId(baseId),
-                toKnowledgeItemIds(rootItemIdChunk)
-              ),
-              queue: knowledgeQueueName(toKnowledgeBaseId(baseId))
-            }
-          )
-        } catch (error) {
-          logger.error('Failed to enqueue recovered knowledge delete cleanup', error as Error, {
-            baseId,
-            rootItemIds: rootItemIdChunk
-          })
-        }
-      }
     }
   }
 

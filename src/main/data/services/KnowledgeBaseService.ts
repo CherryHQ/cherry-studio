@@ -369,7 +369,7 @@ export class KnowledgeBaseService {
     return this.getByIdTx(this.db, id)
   }
 
-  private getByIdTx(tx: DbOrTx, id: string): KnowledgeBase {
+  getByIdTx(tx: DbOrTx, id: string): KnowledgeBase {
     const [row] = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
 
     if (!row) {

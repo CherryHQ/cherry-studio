@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
 import { toExternalKnowledgeConnectionView } from '@data/services/ExternalKnowledgeConnectionService'
-import { ExternalKnowledgeRuntimeError } from '@main/features/knowledge'
+import { ExternalKnowledgeAdmissionError, ExternalKnowledgeRuntimeError } from '@main/features/knowledge'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
@@ -91,7 +91,39 @@ async function externalKnowledgeCommand<T>(
   }
 }
 
+async function externalKnowledgeAdmissionCommand<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (error instanceof ExternalKnowledgeAdmissionError) {
+      if (error.code === 'source-conflict') {
+        throw new IpcError(
+          knowledgeErrorCodes.EXTERNAL_SOURCE_CONFLICT,
+          'An external knowledge source already exists for this provider scope'
+        )
+      }
+      throw new IpcError(
+        knowledgeErrorCodes.EXTERNAL_SOURCE_TARGET_UNAVAILABLE,
+        'The external knowledge source target is unavailable'
+      )
+    }
+    if (error instanceof ExternalKnowledgeRuntimeError) {
+      throw mapExternalKnowledgeError(error, {
+        code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+        message: 'Feishu scope resolution failed'
+      })
+    }
+    throw error
+  }
+}
+
 export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> = {
+  'knowledge.external_source.create': async (input) =>
+    externalKnowledgeAdmissionCommand(() => application.get('KnowledgeService').createExternalKnowledgeSource(input)),
+  'knowledge.external_source.sync': async (input) =>
+    externalKnowledgeAdmissionCommand(() =>
+      application.get('KnowledgeService').requestExternalKnowledgeSourceSync(input)
+    ),
   'knowledge.feishu.registration.begin': async (input, { senderId }) =>
     externalKnowledgeCommand(
       () =>

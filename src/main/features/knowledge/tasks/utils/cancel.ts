@@ -21,6 +21,8 @@ export interface CancelActiveKnowledgeJobsOptions {
   /** Exclude this job id from cancellation (the job initiating the cancel, e.g. reindex
    *  cancelling other jobs on the same base). */
   excludeJobId?: string
+  /** Exclude job types whose handlers can safely converge under the base lock. */
+  excludeJobTypes?: readonly (typeof KNOWLEDGE_JOB_TYPES)[number][]
   /** 'throw': `cancelJobOrThrow` semantics — a cancel timeout throws, because subtree
    *  cleanup cannot proceed while the handler it is racing is still running.
    *  'proceed': cancel without checking outcome — base deletion must not get stuck on
@@ -44,7 +46,7 @@ export async function cancelActiveKnowledgeJobs(
   reason: string,
   options: CancelActiveKnowledgeJobsOptions
 ): Promise<void> {
-  const { rootItemIds, excludeJobId, onCancelTimeout, fileProcessingWaits } = options
+  const { rootItemIds, excludeJobId, excludeJobTypes, onCancelTimeout, fileProcessingWaits } = options
 
   let subtreeItemIds: Set<string> | undefined
   if (rootItemIds) {
@@ -65,6 +67,7 @@ export async function cancelActiveKnowledgeJobs(
   const collectAndCancel = async (activeJobs: JobSnapshot[]): Promise<void> => {
     const jobIds = activeJobs
       .filter((job) => job.id !== excludeJobId)
+      .filter((job) => !excludeJobTypes?.some((type) => type === job.type))
       .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
       .map((job) => job.id)
     await Promise.all(jobIds.map(cancelOne))

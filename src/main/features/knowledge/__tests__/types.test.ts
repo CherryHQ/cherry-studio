@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  KNOWLEDGE_JOB_TYPES,
   knowledgeDeleteSubtreeIdempotencyKey,
+  knowledgeExternalSourceSyncIdempotencyKey,
   knowledgeIndexIdempotencyKey,
   knowledgePrepareIdempotencyKey,
   knowledgeReindexSubtreeIdempotencyKey,
@@ -28,6 +30,15 @@ describe('knowledge idempotency keys', () => {
     expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'), 'reindex-job')).toBe(
       'knowledge:kb-1:note-1:index:reindex-job'
     )
+  })
+
+  it('uses one stable per-source synchronization key and includes the job in base cancellation scope', () => {
+    const baseId = toKnowledgeBaseId('kb-1')
+
+    expect(knowledgeExternalSourceSyncIdempotencyKey(baseId, 'source-1')).toBe(
+      'knowledge:kb-1:external-source:source-1:sync'
+    )
+    expect(KNOWLEDGE_JOB_TYPES).toContain('knowledge.sync-external-source')
   })
 
   it('reports typed knowledge progress details', () => {
