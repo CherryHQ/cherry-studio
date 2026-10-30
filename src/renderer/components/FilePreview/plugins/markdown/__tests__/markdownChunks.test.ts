@@ -964,6 +964,23 @@ describe('splitMarkdownChunks', () => {
     ])
   })
 
+  it('carries a definition below an empty sibling item that ends the paragraph above it', () => {
+    // `1.` is a sibling of the item above it, and starting that item ends the paragraph the item
+    // holds even though `paragraphOpen` is still true. Reading the empty marker as text that cannot
+    // interrupt a paragraph left the definition below it uncollected, so later chunks rendered
+    // `[ref][x]` literally where the unsplit document resolves it to `/right`.
+    const content = `1. a\n1.\n[x]: /right\n\n${'filler\n\n'.repeat(4000)}see [ref][x]`
+
+    expect(resolvedReferenceUrls(content)).toEqual(['/right'])
+
+    const chunks = chunksOf(content)
+    expect(chunks.length).toBeGreaterThan(1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [ref][x]'))
+    expect(referencing).toHaveLength(1)
+    expect(referencing[0].text).toContain('[x]: /right')
+    expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['/right'])
+  })
+
   it('carries a definition whose title escapes its own delimiter', () => {
     // An escaped quote is part of the title, so the definition is a definition; read as a closing
     // delimiter it would fail the title shape and the reference would degrade to literal text.
@@ -2666,6 +2683,21 @@ describe('a definition shape that is paragraph text', () => {
     for (const chunk of chunks) {
       expect(chunk.text.startsWith('[label]: /right\n\n')).toBe(true)
     }
+  })
+
+  it('does not carry a definition shape that continues a paragraph indented into an item', () => {
+    // The item's content column is three, so `    x` sits one column past it and starts a paragraph
+    // inside the item; `    [x]: /wrong` continues that paragraph. Reading the absolute four columns
+    // as top-level code cleared the paragraph state and hoisted the prose as a definition, turning
+    // both literal `[x]` occurrences into links the unsplit document never shows.
+    const content = ['1. a', '', '    x', '    [x]: /wrong', '', '[x]'].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual([])
+
+    const chunks = chunksOf(content, 1)
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) expect(resolvedReferenceUrls(chunk.text)).toEqual([])
+    expect(joined(chunks).split('[x]: /wrong')).toHaveLength(2)
   })
 
   it('does not carry a title that has no separator before it', () => {

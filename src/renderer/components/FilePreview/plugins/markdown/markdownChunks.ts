@@ -875,17 +875,30 @@ function isSetextUnderline(line: string): boolean {
 
 /**
  * Whether a line that opens no definition is complete where it stands, so the line below starts a
- * new block rather than continuing a paragraph: an ATX heading, a thematic break, or the underline
- * that makes an open paragraph above it a setext heading — prose where no paragraph precedes it.
+ * new block rather than continuing a paragraph: an ATX heading, a thematic break, the underline
+ * that makes an open paragraph above it a setext heading — prose where no paragraph precedes it —
+ * or an empty list item.
+ *
+ * @param itemContent - The content column of the list item holding the open paragraph, or null
+ *   when no list is open.
  */
-function isCompletedBlock(line: string, container: string | null, paragraphOpen: boolean): boolean {
+function isCompletedBlock(
+  line: string,
+  container: string | null,
+  paragraphOpen: boolean,
+  itemContent: number | null
+): boolean {
   const content = container === null ? line : line.slice(container.length)
   // A quote marker with nothing behind it opens an empty block quote, which interrupts the
   // paragraph above it — so the line below starts a fresh block, not that paragraph's text.
   if (container !== null && isBlankLine(pastQuoteMarkers(line).content)) return true
-  // An empty item opens a list only where no paragraph is open, and that list ends the block the
-  // line stands in: without it the definition below reads as prose and a carried copy wins instead.
-  if (!paragraphOpen && EMPTY_LIST_ITEM.test(content)) return true
+  // An empty item opens a list only where no paragraph is open. An open list's own sibling marker
+  // is the exception: it ends the item above it, paragraph and all, so the definition below stands
+  // even though a paragraph was open — `1. a` then `1.` leaves the next line free.
+  if (EMPTY_LIST_ITEM.test(content)) {
+    if (!paragraphOpen) return true
+    if (itemContent !== null && leadingColumns(line) < itemContent) return true
+  }
   return ATX_HEADING.test(content) || (paragraphOpen && isSetextUnderline(line)) || THEMATIC_BREAK.test(line)
 }
 
@@ -2562,6 +2575,14 @@ export function splitMarkdownChunks(
     return linkDefinition(projected, 0)
   }
 
+  /**
+   * End the open list when a block opens outside the item that holds it: a fence, HTML block,
+   * display math or definition at or left of the item's content column belongs to the document.
+   */
+  const endListOutsideItem = (line: string): void => {
+    if (run !== null && leadingColumns(line) < run.content) run = null
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const blank = isBlankLine(line)
@@ -2639,6 +2660,7 @@ export function splitMarkdownChunks(
     const opened = parseFence(line)
     if (opened) {
       fence = opened
+      endListOutsideItem(line)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -2659,6 +2681,7 @@ export function splitMarkdownChunks(
         htmlTerminator = htmlEnd
         htmlTerminatorContainer = container?.[0] ?? null
       }
+      endListOutsideItem(line)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -2667,6 +2690,7 @@ export function splitMarkdownChunks(
     const dollarOpen = dollarFenceAtStart(line)
     if (dollarOpen > 0 && !dollarFenceClosesOnOwnLine(line, dollarOpen)) {
       dollarFence = dollarOpen
+      endListOutsideItem(line)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -2675,6 +2699,7 @@ export function splitMarkdownChunks(
     const math = openMathRun(line)
     if (math) {
       mathRun = math
+      endListOutsideItem(line)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -2686,6 +2711,7 @@ export function splitMarkdownChunks(
     const openedFence = openContainerFence(line)
     if (openedFence) {
       containerFence = openedFence
+      endListOutsideItem(line)
       // An item that opens a fence still numbers its list, so the blank line behind the fence may
       // not split the next item away from it — the same reason an ordinary item keeps the run alive.
       const item = LIST_ITEM.exec(line)
@@ -2703,6 +2729,7 @@ export function splitMarkdownChunks(
       (opensHtmlBlock(uncontained) || (previousStatus === 'block' && COMPLETE_TAG_LINE.test(uncontained)))
     ) {
       htmlBlankBlock = true
+      endListOutsideItem(line)
       // The block lives in the container it was opened behind, so its lines have to keep that
       // container: the marker chain the opening line carried, and an item's content column.
       htmlBlockContainer = container?.[0] ?? null
@@ -2730,8 +2757,12 @@ export function splitMarkdownChunks(
     // columns are the parser's own floor: one to three leave the line a paragraph, and the state
     // a definition-shaped line below it has to meet is that paragraph's. Code also cannot
     // interrupt a paragraph — the indent under one is its own lazy line — so only a line free of
-    // an open paragraph may open it.
-    const indentedCode = !blank && previousStatus === 'block' && leadingColumns(line) >= 4 && !startsBlock(line)
+    // an open paragraph may open it. Inside a list item the parser measures from the item's content
+    // column, so `    x` under `1. a` is that item's paragraph and only four columns past its
+    // content column are code.
+    const itemCodeFloor = run !== null && leadingColumns(line) >= run.content ? run.content + 4 : 4
+    const indentedCode =
+      !blank && previousStatus === 'block' && leadingColumns(line) >= itemCodeFloor && !startsBlock(line)
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&
         // A marker-only line behind the definition's container (`>` on its own) is blank the way
@@ -2827,6 +2858,7 @@ export function splitMarkdownChunks(
         ? null
         : FOOTNOTE_DEFINITION_START.exec(uncontained)
     if (footnoteStart) {
+      endListOutsideItem(line)
       definedFootnotes.add(footnoteStart[1].toLowerCase())
       definitionBlocks.push(definitions.length)
       definitions.push(uncontained)
@@ -2883,6 +2915,7 @@ export function splitMarkdownChunks(
         ? null
         : linkDefinition(lines, i, itemSource)
     if (definition) {
+      endListOutsideItem(line)
       definitionBlocks.push(definitions.length)
       definitions.push(definition.text)
       definedLabels.add(normalizeReferenceLabel(definition.label))
@@ -2944,7 +2977,9 @@ export function splitMarkdownChunks(
       // Indented code is a block of its own, so the line under it starts from no open paragraph —
       // which is what lets the definition there stand instead of reading as paragraph text.
       const status =
-        indentedCode || isCompletedBlock(line, container?.[0] ?? null, paragraphOpen) ? 'block' : 'paragraph'
+        indentedCode || isCompletedBlock(line, container?.[0] ?? null, paragraphOpen, run?.content ?? null)
+          ? 'block'
+          : 'paragraph'
       // A line that falls short of the container holding the open paragraph continues it lazily,
       // and the paragraph stays inside that container: the markers below it repeat the paragraph's
       // rather than open a block, so a definition shape there is still that paragraph's prose.
