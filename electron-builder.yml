@@ -231,6 +231,7 @@ releaseInfo:
     - [Web Search] Fixed DashScope models failing with “This model does not support enable_search”. Blacklist rules now exclude domains on Bocha and Querit.
     - [TTS] Kokoro Chinese text-to-speech now initializes correctly on Windows with the required Mandarin eSpeak data.
     - [MCP] Fixed built-in MCP server documentation links that opened a removed page.
+    - [AiHubMix] Fix Claude chats failing with HTTP 400 when built-in tools include input examples.
 
     ⚡ Performance
     - [Knowledge] Deleting or reindexing items in large knowledge bases is much faster.
@@ -263,6 +264,7 @@ releaseInfo:
     - [网页搜索] 修复 DashScope 模型在启用网页搜索时失败的问题。黑名单规则现可在博查和 Querit 端排除域名。
     - [语音合成] Kokoro 中文语音合成现可在 Windows 上正确初始化，并包含所需的中文 eSpeak 数据。
     - [MCP] 修复内置 MCP 服务器文档链接打开已删除页面的问题。
+    - [AiHubMix] 修复内置工具包含输入示例时 Claude 对话出现 HTTP 400 错误的问题。
 
     ⚡ 性能优化
     - [知识库] 在大型知识库中删除或重建索引的速度大幅提升。
