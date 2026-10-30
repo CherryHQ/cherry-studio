@@ -1,7 +1,5 @@
 import * as z from 'zod'
 
-import { BROWSER_TOOL_NAMES } from './browserTools'
-
 export const browserRefSchema = z.string().regex(/^e[1-9]\d*$/)
 
 export const snapshotOptionsSchema = z
@@ -289,19 +287,3 @@ export const toolDefinitions = [
   ...webMcpToolDefinitions,
   ...navigateToolDefinitions
 ]
-
-export const sessionToolDefinitions = toolDefinitions
-  .filter(({ name }) => BROWSER_TOOL_NAMES.some((known) => known === name))
-  .map((definition) =>
-    definition.name === 'open'
-      ? {
-          ...definition,
-          description:
-            'Navigate this conversation browser pane. The user sees the same page. New tabs and private windows are unavailable.',
-          inputSchema: OpenSchema.omit({ showWindow: true }).extend({
-            privateMode: OpenSchema.shape.privateMode.describe('Unsupported by this host; must be false.'),
-            newTab: OpenSchema.shape.newTab.describe('Unsupported by this host; must be false.')
-          })
-        }
-      : definition
-  )

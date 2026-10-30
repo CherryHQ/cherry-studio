@@ -34,7 +34,8 @@ export const loadChannelAdapter: ChannelAdapterLoader = async (channel, agentId)
           encrypt_key: payload?.encryptKey ?? '',
           verification_token: payload?.verificationToken ?? '',
           domain: payload?.domain ?? channel.config.registrationDomain ?? 'feishu',
-          allowed_chat_ids: channel.config.allowed_chat_ids
+          allowed_chat_ids: channel.config.allowed_chat_ids,
+          mention_only: channel.config.mention_only
         }
       })
     }

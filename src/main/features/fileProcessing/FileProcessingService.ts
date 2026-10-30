@@ -1,8 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions } from '@main/core/job/types'
+import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
@@ -47,11 +46,17 @@ export class FileProcessingService extends BaseService {
    * type to enqueue under (background vs remote-poll), and for background the
    * processor's `runtime` picks the local or remote half. Both are synchronous
    * lookups — no `await prepare()` is needed at enqueue time.
+   *
+   * `options.recovery` overrides the handler's restart behavior (resume) for a
+   * caller that will not read the result of a job resumed after a restart.
+   *
+   * @returns The job's handle. Its `finished` promise lives in this process only, so it does
+   *   not resolve for a job that a restart resumes.
    */
   async startJob(
     input: StartFileProcessingJobInput,
-    options: Pick<EnqueueOptions, 'parentId'> = {}
-  ): Promise<JobSnapshot> {
+    options: Pick<EnqueueOptions, 'parentId' | 'recovery'> = {}
+  ): Promise<JobHandle> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -79,7 +84,10 @@ export class FileProcessingService extends BaseService {
           ? 'file-processing.background-local'
           : 'file-processing.background'
     const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
+    const handle = jobManager.enqueue(type, payload, {
+      ...(options.parentId ? { parentId: options.parentId } : {}),
+      recovery: options.recovery
+    })
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,
@@ -90,7 +98,7 @@ export class FileProcessingService extends BaseService {
       output
     })
 
-    return handle.snapshot
+    return handle
   }
 
   /**

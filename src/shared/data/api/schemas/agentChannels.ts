@@ -26,7 +26,8 @@ export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
 export const FeishuAgentChannelConfigSchema = z.strictObject({
   applicationCredentialId: z.uuid().nullable(),
   registrationDomain: FeishuDomainSchema.optional(),
-  allowed_chat_ids: z.array(z.string()).default([])
+  allowed_chat_ids: z.array(z.string()).default([]),
+  mention_only: z.boolean().optional()
 })
 
 export const QQAgentChannelConfigSchema = z.strictObject({

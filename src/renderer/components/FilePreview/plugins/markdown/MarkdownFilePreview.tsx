@@ -1,7 +1,7 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useId, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
@@ -19,16 +19,13 @@ import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
 
 const logger = loggerService.withContext('MarkdownFilePreview')
-const MARKDOWN_PREVIEW_MAX_SIZE_MIB = 2
-const MARKDOWN_PREVIEW_MAX_SIZE_BYTES = MARKDOWN_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const YAML_FRONTMATTER_PATTERN = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[^\S\r\n]*(?:\r?\n|$)/
-const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 
 type MarkdownFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
-  | { status: 'ready'; content: string }
-  | { status: 'too_large' }
+  | { status: 'ready'; content: string; renderVersion: number }
 
 function MarkdownPreviewLoading() {
   const { t } = useTranslation()
@@ -50,21 +47,6 @@ function MarkdownPreviewError() {
         icon={FileWarning}
         title={t('file_preview.markdown.read_error.title')}
         description={t('file_preview.load_error.description')}
-        className="h-full"
-      />
-    </div>
-  )
-}
-
-function MarkdownPreviewTooLarge() {
-  const { t } = useTranslation()
-
-  return (
-    <div role="alert" className="h-full">
-      <EmptyState
-        icon={FileWarning}
-        title={t('file_preview.markdown.too_large.title')}
-        description={t('file_preview.markdown.too_large.description', { limit: MARKDOWN_PREVIEW_MAX_SIZE_MIB })}
         className="h-full"
       />
     </div>
@@ -135,17 +117,18 @@ function MarkdownPreviewContent({
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
   if (loadState.status === 'error') return <MarkdownPreviewError />
-  if (loadState.status === 'too_large') return <MarkdownPreviewTooLarge />
 
   if (mode === 'source') {
     return (
       <div className="flex min-h-full w-full">
         <Suspense fallback={<MarkdownPreviewLoading />}>
-          <LazyCodeViewer
+          <FileEditor
             value={loadState.content}
-            language="markdown"
-            wrapped
-            className="min-w-0 flex-1 overflow-hidden"
+            fileName={filePath}
+            wrapLines
+            readOnly
+            expanded
+            className="min-w-0 flex-1"
           />
         </Suspense>
       </div>
@@ -157,7 +140,7 @@ function MarkdownPreviewContent({
 
   const markdown = (
     <div className="mx-auto w-full max-w-4xl px-4 pt-4">
-      <StaticMarkdown id={markdownId}>{content}</StaticMarkdown>
+      <StaticMarkdown id={`${markdownId}:${loadState.renderVersion}`}>{content}</StaticMarkdown>
     </div>
   )
 
@@ -168,25 +151,42 @@ function MarkdownPreviewContent({
   )
 }
 
-export default function MarkdownFilePreview({ filePath, metadata, refreshKey, type = 'file' }: FilePreviewPluginProps) {
+export default function MarkdownFilePreview({
+  filePath,
+  metadata,
+  metadataRequest,
+  refreshKey,
+  type = 'file'
+}: FilePreviewPluginProps) {
   const markdownId = useId()
   const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
+  const sourceMetadata = metadataRequest ?? metadata.size
   const effectiveMode = type === 'artifact' ? 'preview' : mode
 
-  useEffect(() => {
+  // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
+  // Read metadata after ancestor layout setup, including Activity reconnections.
+  useLayoutEffect(() => {
     let cancelled = false
-    setLoadState({ status: 'loading' })
+    setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {
-        if (metadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
-          setLoadState({ status: 'too_large' })
-          return
-        }
+        const loadedMetadata =
+          typeof sourceMetadata === 'function'
+            ? await Promise.resolve().then(sourceMetadata)
+            : { kind: 'file', size: sourceMetadata }
+        if (cancelled || loadedMetadata?.kind !== 'file') return
 
         const content = await window.api.fs.readText(filePath)
-        if (!cancelled) setLoadState({ status: 'ready', content })
+        if (!cancelled) {
+          // A completed read resets document-derived renderer state, including failed images.
+          setLoadState((current) => ({
+            status: 'ready',
+            content,
+            renderVersion: current.status === 'ready' ? current.renderVersion + 1 : 0
+          }))
+        }
       } catch (error) {
         if (cancelled) return
         const normalized = error instanceof Error ? error : new Error(String(error))
@@ -198,7 +198,7 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
     return () => {
       cancelled = true
     }
-  }, [filePath, metadata.size, refreshKey])
+  }, [filePath, sourceMetadata, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>

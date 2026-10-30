@@ -68,7 +68,11 @@ const DeviceConnectionsSettings: FC = () => {
     'feature.remote_access.advertised_endpoint',
     ENDPOINT_PREFERENCE_OPTIONS
   )
-  const endpointKey = JSON.stringify(advertisedEndpoint)
+  const endpointKey = JSON.stringify(
+    advertisedEndpoint
+      ? { host: advertisedEndpoint.host, port: advertisedEndpoint.port, security: advertisedEndpoint.security }
+      : null
+  )
   const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
   const {
@@ -291,7 +295,7 @@ const DeviceConnectionsSettings: FC = () => {
       <Dialog open={endpointDialogOpen} onOpenChange={setEndpointDialogOpen}>
         <DialogContent closeLabel={t('common.close')}>
           <RemoteEndpointSettings
-            key={endpointKey}
+            key={JSON.stringify(advertisedEndpoint)}
             endpoint={advertisedEndpoint}
             onSave={async (endpoint) => {
               await setAdvertisedEndpoint(endpoint)
@@ -471,7 +475,7 @@ const DeviceConnectionsSettings: FC = () => {
                               <SelectItem value="auto">{t('deviceConnections.pairing.automatic')}</SelectItem>
                               {invitation.advertisedEndpoint && (
                                 <SelectItem value="configured" className="whitespace-normal break-all">
-                                  {directEndpointUrl(invitation.advertisedEndpoint)}
+                                  {advertisedEndpoint?.inputUrl ?? directEndpointUrl(invitation.advertisedEndpoint)}
                                 </SelectItem>
                               )}
                               {!selectedAddressAvailable && (

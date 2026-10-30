@@ -21,7 +21,8 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
-import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import type * as MarkdownParserModule from '@main/utils/markdownParser'
+import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata, PluginError } from '@main/utils/markdownParser'
 import type * as ProcessRunnerModule from '@main/utils/processRunner'
 import { CommandOutputLimitError } from '@main/utils/processRunner'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
@@ -33,7 +34,8 @@ const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
-vi.mock('@main/utils/markdownParser', () => ({
+vi.mock('@main/utils/markdownParser', async (importOriginal) => ({
+  ...(await importOriginal<typeof MarkdownParserModule>()),
   parseSkillMetadata: vi.fn(),
   findAllSkillDirectories: vi.fn().mockResolvedValue([]),
   findSkillMdPath: vi.fn()
@@ -77,6 +79,8 @@ vi.mock('../skillArchive', async (importOriginal) => {
 
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
+import { SkillImportError } from '../SkillImportError'
+import { SkillInstaller } from '../SkillInstaller'
 import * as skillPaths from '../skillPaths'
 import { SkillService } from '../SkillService'
 
@@ -165,6 +169,124 @@ describe('SkillService', () => {
       }
     ])
   }
+
+  describe('real local import validation', () => {
+    let root: string
+    let service: SkillService
+
+    beforeEach(async () => {
+      root = await createTempDir('skill-import-contract-')
+      service = new SkillService()
+      const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      vi.mocked(findSkillMdPath).mockImplementation(parser.findSkillMdPath)
+      vi.mocked(findAllSkillDirectories).mockImplementation(parser.findAllSkillDirectories)
+      vi.mocked(parseSkillMetadata).mockImplementation(parser.parseSkillMetadata)
+      const archive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementation(archive.extractZip)
+      vi.mocked(skillArchive.resolveSkillDirectory).mockImplementation(archive.resolveSkillDirectory)
+      vi.mocked(skillPaths.createTempDir).mockImplementation(async () => {
+        return fs.promises.mkdtemp(path.join(root, 'zip-install-'))
+      })
+      vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = path.join(root, key === 'feature.agents.skills' ? 'library' : 'mirror')
+        return filename ? path.join(base, filename) : base
+      })
+    })
+
+    afterEach(() => {
+      vi.mocked(findSkillMdPath).mockReset()
+      vi.mocked(findAllSkillDirectories).mockReset().mockResolvedValue([])
+      vi.mocked(parseSkillMetadata).mockReset()
+      vi.mocked(application.getPath).mockRestore()
+    })
+
+    it('classifies a real ZIP without SKILL.md and preserves the extraction path without adding rows', async () => {
+      const zipPath = path.join(root, 'no-skill.zip')
+      const zip = new AdmZip()
+      zip.addFile('paper-pilot-main/README.md', Buffer.from('# Readme'))
+      zip.writeZip(zipPath)
+      const error = await service.installFromZip({ zipFilePath: zipPath }).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'SKILL_DIRECTORY_NOT_FOUND' })
+      const extractionPath = vi.mocked(skillPaths.createTempDir).mock.settledResults[0].value
+      expect((error as Error).message).toBe(`No skill directory found in ${extractionPath}`)
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+    })
+
+    it.each(['root', 'nested'] as const)(
+      'installs a real %s ZIP with its frontmatter name, row and descriptor',
+      async (layout) => {
+        const name = `import-${layout}`
+        const zipPath = path.join(root, `${layout}.zip`)
+        const zip = new AdmZip()
+        zip.addFile(
+          layout === 'root' ? 'SKILL.md' : `${name}/SKILL.md`,
+          Buffer.from(`---\nname: ${name}\ndescription: Import fixture\n---\n# Skill`)
+        )
+        zip.writeZip(zipPath)
+        const installed = await service.installFromZip({ zipFilePath: zipPath })
+        expect(installed.name).toBe(name)
+        expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([
+          expect.objectContaining({ id: installed.id, name })
+        ])
+        expect(fs.existsSync(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))).toBe(true)
+      }
+    )
+
+    it.each(['empty', 'parent-only'])(
+      'rejects a %s directory without recursively discovering a descriptor',
+      async (layout) => {
+        const directoryPath = path.join(root, layout)
+        await fs.promises.mkdir(directoryPath)
+        if (layout === 'parent-only') {
+          await fs.promises.mkdir(path.join(directoryPath, 'child'))
+          await fs.promises.writeFile(path.join(directoryPath, 'child', 'SKILL.md'), '---\nname: child\n---')
+        }
+        const error = await service.installFromDirectory({ directoryPath }).catch((error: unknown) => error)
+        expect(error).toBeInstanceOf(PluginError)
+        expect(error).toMatchObject({ type: 'FILE_NOT_FOUND' })
+        expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+      }
+    )
+
+    it.each(['missing', 'file'])('classifies an unavailable %s directory', async (layout) => {
+      const directoryPath = path.join(root, layout)
+      if (layout === 'file') await fs.promises.writeFile(directoryPath, 'file')
+      const error = await service.installFromDirectory({ directoryPath }).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'DIRECTORY_NOT_FOUND', message: `Directory not found: ${directoryPath}` })
+    })
+
+    it('installs a directory that directly contains SKILL.md', async () => {
+      const directoryPath = path.join(root, 'valid-dir')
+      await fs.promises.mkdir(directoryPath)
+      await fs.promises.writeFile(
+        path.join(directoryPath, 'SKILL.md'),
+        '---\nname: direct-import\ndescription: Import fixture\n---'
+      )
+      const installed = await service.installFromDirectory({ directoryPath })
+      expect(installed.name).toBe('direct-import')
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([
+        expect.objectContaining({ id: installed.id, name: 'direct-import' })
+      ])
+      expect(fs.existsSync(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))).toBe(true)
+    })
+
+    it.each(['file.txt', 'directory.zip'])('classifies %s as an invalid ZIP input', async (name) => {
+      const zipFilePath = path.join(root, name)
+      if (name === 'file.txt') await fs.promises.writeFile(zipFilePath, 'file')
+      else await fs.promises.mkdir(zipFilePath)
+      const error = await service.installFromZip({ zipFilePath }).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'INVALID_ZIP_FILE' })
+    })
+
+    it('classifies a missing descriptor during directory hashing', async () => {
+      const error = await new SkillInstaller().computeDirectoryHash(root).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'SKILL_DIRECTORY_NOT_FOUND', message: `SKILL.md not found in ${root}` })
+    })
+  })
 
   describe('catalog scopes', () => {
     it('uses physical directories for registered skills with no source URL and excludes junction targets outside system roots', async () => {
