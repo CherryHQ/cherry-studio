@@ -17,7 +17,7 @@ import { hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import type * as OpenTargetModule from '@renderer/components/OpenTarget'
 import { FileEditSessionContext, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
-import type { SelectionReference } from '@renderer/types/selectionReference'
+import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -140,7 +140,7 @@ function SelectionPaneHarness({
   headerVariant
 }: {
   workspacePath: string
-  onInsertSelectionReference: (reference: SelectionReference) => void
+  onInsertSelectionReference: (reference: ComposerFileReference) => void
   headerVariant?: 'pane'
 }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -924,7 +924,10 @@ describe('ArtifactPane', () => {
     fireEvent.change(input, { target: { value: '  Tighten this paragraph  ' } })
     fireEvent.keyDown(input, { key: 'Enter', metaKey: true })
 
-    expect(onInsert).toHaveBeenCalledWith({ ...mocks.selectionReference, comment: 'Tighten this paragraph' })
+    expect(onInsert).toHaveBeenCalledWith({
+      ...(mocks.selectionReference as object),
+      comment: 'Tighten this paragraph'
+    })
   })
 
   it('closes only the comment box on Escape, keeping the picker and the preview', async () => {

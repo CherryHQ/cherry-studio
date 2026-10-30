@@ -275,7 +275,7 @@ function renderActiveComposerTokenElement({
       {...interactionProps}>
       <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline leading-[inherit] text-current">
         <InlineTokenIconSlot
-          icon={token.icon ? (namedTokenIcons[token.icon] ?? token.icon) : icon}
+          icon={token.icon ? (typeof token.icon === 'string' && namedTokenIcons[token.icon]) || token.icon : icon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           removeButtonClassName="size-[1em] rounded-[4px]"
