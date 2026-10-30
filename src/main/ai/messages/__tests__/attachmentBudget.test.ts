@@ -1,6 +1,9 @@
+import os from 'node:os'
+
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { resolveOllamaRequestNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -431,10 +434,53 @@ describe('buildFallbackOllamaNumCtxSnapshots', () => {
     return fallbackUniqueId
   }
 
+  it('does not re-sample the active model as a redundant fallback across a RAM threshold', () => {
+    const activeId = mockOllamaFallback()
+    const provider = mockGetProviderById('ollama')
+    const model = mockGetModelByKey('ollama', 'qwen3')
+    const free = vi.spyOn(os, 'freemem').mockReturnValue(12_600_000_000)
+    const total = vi.spyOn(os, 'totalmem').mockReturnValue(32_000_000_000)
+    try {
+      const primary = resolveOllamaRequestNumCtx(model, provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)!
+      expect(primary.numCtx).toBe(65_536)
+      const primarySnapshot = {
+        uniqueModelId: activeId,
+        trainedContextWindow: primary.trainedContextWindow,
+        numCtx: primary.numCtx
+      }
+      free.mockReturnValue(12_580_000_000)
+      free.mockClear()
+      const snapshots = buildFallbackOllamaNumCtxSnapshots([activeId], activeId)
+      expect([...snapshots]).toEqual([])
+      expect(
+        resolveAttachmentBudgetContextWindow({
+          provider,
+          model,
+          ollamaNumCtx: primarySnapshot,
+          fallbackModelIds: [activeId],
+          fallbackOllamaSnapshots: snapshots
+        })
+      ).toBe(65_536)
+      expect(
+        resolveAttachmentBudgetContextWindow({
+          provider,
+          model,
+          ollamaNumCtx: primarySnapshot,
+          fallbackModelIds: [activeId],
+          fallbackOllamaSnapshots: new Map([[activeId, { ...primarySnapshot, numCtx: 32768 }]])
+        })
+      ).toBe(65_536)
+      expect(free).not.toHaveBeenCalled()
+    } finally {
+      free.mockRestore()
+      total.mockRestore()
+    }
+  })
+
   it('skips a pdf-ineligible ollama fallback when the request needs native pdf input', () => {
     const fallbackUniqueId = mockOllamaFallback()
 
-    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], {
+    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], createUniqueModelId('other', 'primary'), {
       primaryHasTools: false,
       requiredNativeFileSupport: { image: false, pdf: true, audio: false, video: false }
     })
@@ -447,7 +493,7 @@ describe('buildFallbackOllamaNumCtxSnapshots', () => {
   it('freezes the memory-capped window for a dispatchable ollama fallback', () => {
     const fallbackUniqueId = mockOllamaFallback()
 
-    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], {
+    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], createUniqueModelId('other', 'primary'), {
       primaryHasTools: false,
       requiredNativeFileSupport: { image: false, pdf: false, audio: false, video: false }
     })

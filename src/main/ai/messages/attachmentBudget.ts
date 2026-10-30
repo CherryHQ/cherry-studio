@@ -67,6 +67,7 @@ export interface AttachmentBudget {
  */
 export function buildFallbackOllamaNumCtxSnapshots(
   fallbackModelIds: readonly string[],
+  primaryUniqueModelId: UniqueModelId,
   eligibility?: {
     primaryHasTools: boolean
     requiredNativeFileSupport: NativeFileSupport
@@ -74,7 +75,7 @@ export function buildFallbackOllamaNumCtxSnapshots(
 ): ReadonlyMap<UniqueModelId, OllamaNumCtxRequestSnapshot> {
   const snapshots = new Map<UniqueModelId, OllamaNumCtxRequestSnapshot>()
   for (const configuredId of fallbackModelIds) {
-    if (!isUniqueModelId(configuredId)) continue
+    if (configuredId === primaryUniqueModelId || !isUniqueModelId(configuredId)) continue
     try {
       const { providerId, modelId } = parseUniqueModelId(configuredId)
       const fallbackProvider = providerService.getByProviderId(providerId)
@@ -141,7 +142,7 @@ export function resolveAttachmentBudgetContextWindow(input: {
   if (primary != null) windows.push(primary)
 
   for (const configuredId of input.fallbackModelIds) {
-    if (!isUniqueModelId(configuredId)) continue
+    if (configuredId === input.model.id || !isUniqueModelId(configuredId)) continue
     try {
       const { providerId, modelId } = parseUniqueModelId(configuredId)
       const fallbackProvider = providerService.getByProviderId(providerId)

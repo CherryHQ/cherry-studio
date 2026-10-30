@@ -676,7 +676,11 @@ export class AiService extends BaseService {
     const primaryHasTools = !!tools && Object.keys(tools).length > 0
     const requiredNativeFileSupport = resolveRequiredNativeFileSupport(request.messages, nativeFileSupport)
     const fallbackEligibility = { primaryHasTools, requiredNativeFileSupport }
-    const fallbackOllamaSnapshots = buildFallbackOllamaNumCtxSnapshots(attachmentFallbackModelIds, fallbackEligibility)
+    const fallbackOllamaSnapshots = buildFallbackOllamaNumCtxSnapshots(
+      attachmentFallbackModelIds,
+      model.id,
+      fallbackEligibility
+    )
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
