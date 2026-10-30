@@ -1,12 +1,26 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+// Use bundled registry data rather than the application mock's /mock paths.
+vi.mock('@main/data/services/utils/registryDataPaths', () => ({
+  resolveRegistryPaths: () => ({
+    models: `${process.cwd()}/packages/provider-registry/data/models.json`,
+    providers: `${process.cwd()}/packages/provider-registry/data/providers.json`,
+    providerModels: `${process.cwd()}/packages/provider-registry/data/provider-models.json`
+  })
+}))
+
+import type * as CustomFetchModule from '@main/ai/utils/customFetch'
+import type * as ProviderRegistryModule from '@main/data/services/ProviderRegistryService'
+import { ENDPOINT_TYPE, type EndpointType, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
+import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
+import { AIHubMixModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -38,11 +52,20 @@ vi.mock('@main/data/services/ProviderService', () => ({
   }
 }))
 
-vi.mock('@main/data/services/ProviderRegistryService', () => ({
-  providerRegistryService: {
-    isRegistryProvider: isRegistryProviderMock
+vi.mock('@main/data/services/ProviderRegistryService', async (importOriginal) => {
+  const actual = await importOriginal<typeof ProviderRegistryModule>()
+  return {
+    providerRegistryService: {
+      resolveModel: actual.providerRegistryService.resolveModel.bind(actual.providerRegistryService),
+      isRegistryProvider: isRegistryProviderMock,
+      getProviderPreset: () => ({
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://router.huggingface.co/v1' }
+        }
+      })
+    }
   }
-}))
+})
 
 vi.mock('@main/services/VertexAiService', () => ({
   vertexAiService: {
@@ -55,6 +78,17 @@ vi.mock('@main/services/CopilotService', () => ({
     getToken: getCopilotTokenMock
   }
 }))
+
+// Listing issues its HTTP through `customFetch` (Electron `net.fetch`, the Chromium stack),
+// which has no Chromium behind it under Vitest: delegate to Node's fetch so a test that
+// stubs the fetch global still sees the request.
+vi.mock('@main/ai/utils/customFetch', async () => {
+  const actual = await vi.importActual<typeof CustomFetchModule>('@main/ai/utils/customFetch')
+  return {
+    ...actual,
+    customFetch: (input: string | URL | Request, init?: RequestInit) => globalThis.fetch(input, init)
+  }
+})
 
 vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof AiSdkProviderUtils>()
@@ -133,12 +167,23 @@ describe('listModels — default grouping', () => {
         }
       })
 
-      const models = await listModels(provider)
+      const { models } = await listModels(provider)
 
       expect(models.map((model) => model.group)).toEqual(['deepseek', 'glm', 'grok'])
       expect(models.map((model) => model.group)).not.toContain(providerId)
     }
   )
+})
+
+describe('AIHubMix model list response', () => {
+  it('accepts null pricing without dropping the model', () => {
+    const response = AIHubMixModelsResponseSchema.parse({
+      data: [{ model_id: 'media-model', pricing: null }]
+    })
+
+    expect(response.data).toHaveLength(1)
+    expect(response.data[0]).toMatchObject({ model_id: 'media-model', pricing: null })
+  })
 })
 
 describe('listModels — malformed OpenAI-compatible rows', () => {
@@ -204,7 +249,7 @@ describe('listModels — malformed OpenAI-compatible rows', () => {
       let responseIndex = 0
       aiSdkGetFromApiMock.mockImplementation(() => Promise.resolve({ value: responses[responseIndex++] }))
 
-      const models = await listModels(provider)
+      const { models } = await listModels(provider)
 
       expect(models.map((model) => model.apiModelId)).toEqual(expectedModelIds)
       expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(responses.length)
@@ -256,7 +301,7 @@ describe('listModels — TokenDance protocol routing', () => {
       }
     })
 
-    const models = await listModels(makeTokenDanceProvider())
+    const { models } = await listModels(makeTokenDanceProvider())
 
     expect(models).toHaveLength(4)
     expect(models[0]).toMatchObject({
@@ -294,7 +339,7 @@ describe('listModels — TokenDance protocol routing', () => {
       }
     })
 
-    const models = await listModels(makeTokenDanceProvider('97bd7816-e47f-47ba-b20f-6cbf6de38960'))
+    const { models } = await listModels(makeTokenDanceProvider('97bd7816-e47f-47ba-b20f-6cbf6de38960'))
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
@@ -322,7 +367,7 @@ describe('listModels — LM Studio', () => {
   it('imports unloaded chat and embedding models from the native v1 response', async () => {
     fetchMock.mockResolvedValueOnce(Response.json(lmStudioModels))
 
-    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
+    const { models } = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
 
     expect(models).toHaveLength(2)
     expect(models[0]).toMatchObject({
@@ -359,7 +404,7 @@ describe('listModels — LM Studio', () => {
       })
     )
 
-    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
+    const { models } = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
 
     expect(models).toHaveLength(2)
     expect(models[0]).toMatchObject({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
@@ -383,7 +428,7 @@ describe('listModels — LM Studio', () => {
       })
     )
 
-    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
+    const { models } = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
 
     expect(models).toHaveLength(4)
     expect(models[0]).toMatchObject({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
@@ -404,7 +449,7 @@ describe('listModels — LM Studio', () => {
     fetchMock.mockResolvedValueOnce(Response.json({ error: { message: 'Not Found' } }, { status: 404 }))
     fetchMock.mockResolvedValueOnce(Response.json({ data: [{ id: 'granite-3.0-2b-instruct' }] }))
 
-    const models = await listModels(makeLmStudioProvider(baseUrl), undefined, { throwOnError: true })
+    const { models } = await listModels(makeLmStudioProvider(baseUrl), undefined, { throwOnError: true })
 
     expect(models).toHaveLength(1)
     expect(models[0]).toMatchObject({ apiModelId: 'granite-3.0-2b-instruct' })
@@ -444,18 +489,60 @@ describe('listModels — Ollama capabilities', () => {
       }
     })
 
-    const models = await listModels(makeOllamaProvider())
+    const { models } = await listModels(makeOllamaProvider())
 
     expect(models[0]).toMatchObject({
       apiModelId: 'qwen3:32b-q4_K_M',
       capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     expect(models[0].reasoning).toBeUndefined()
-    expect(models[1]).toMatchObject({ capabilities: [] })
+    expect(models[1]).toMatchObject({
+      apiModelId: 'qwen3-embedding:4b',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
     expect(models[1].reasoning).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it.each([
+    {
+      label: 'embedding support for a non-catalog name',
+      nativeModel: { name: 'acme-retriever:latest', capabilities: ['embedding'] },
+      expected: [MODEL_CAPABILITY.EMBEDDING]
+    },
+    {
+      label: 'chat-only support without embedding',
+      nativeModel: { name: 'llama3', capabilities: ['completion'] },
+      expected: []
+    },
+    {
+      label: 'omitted capabilities without inventing flags',
+      nativeModel: { name: 'unclassified:latest' },
+      expected: []
+    },
+    {
+      label: 'unknown flags without inventing capabilities',
+      nativeModel: { name: 'future:latest', capabilities: ['future-capability'] },
+      expected: []
+    },
+    {
+      label: 'additive capabilities in deterministic order',
+      nativeModel: {
+        name: 'multitask:latest',
+        capabilities: ['embedding', 'tools', 'thinking', 'completion', 'future-capability']
+      },
+      expected: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.EMBEDDING]
+    }
+  ])('lists a model with $label', async ({ nativeModel, expected }) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [nativeModel] } })
+
+    const { models } = await listModels(makeOllamaProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe(nativeModel.name)
+    expect(models[0].capabilities).toEqual(expected)
   })
 
   it('maps the tools flag to the function-call capability without thinking', async () => {
@@ -468,7 +555,7 @@ describe('listModels — Ollama capabilities', () => {
       }
     })
 
-    const models = await listModels(makeOllamaProvider())
+    const { models } = await listModels(makeOllamaProvider())
 
     expect(models[0]).toMatchObject({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
     expect(models[1]).toMatchObject({ capabilities: [] })
@@ -485,7 +572,7 @@ describe('listModels — Ollama capabilities', () => {
       value: { model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 40960 } }
     })
 
-    const models = await listModels(makeOllamaProvider())
+    const { models } = await listModels(makeOllamaProvider())
 
     expect(models[0]).toMatchObject({ apiModelId: 'qwen3:32b', contextWindow: 40960 })
     expect(aiSdkPostJsonToApiMock.mock.calls[0][0]).toMatchObject({
@@ -500,7 +587,7 @@ describe('listModels — Ollama capabilities', () => {
     })
     aiSdkPostJsonToApiMock.mockRejectedValueOnce(new Error('connection refused'))
 
-    const models = await listModels(makeOllamaProvider())
+    const { models } = await listModels(makeOllamaProvider())
 
     expect(models).toHaveLength(1)
     expect(models[0].contextWindow).toBeUndefined()
@@ -514,7 +601,7 @@ describe('listModels — Ollama capabilities', () => {
       value: { model_info: { 'general.architecture': 'qwen3', 'llama.context_length': 8192 } }
     })
 
-    const models = await listModels(makeOllamaProvider())
+    const { models } = await listModels(makeOllamaProvider())
 
     expect(models[0].contextWindow).toBeUndefined()
   })
@@ -565,12 +652,94 @@ describe('listModels — geminiFetcher API key transport', () => {
   it('maps the listed models, stripping the models/ prefix from the id', async () => {
     const provider = makeGeminiProvider()
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
 
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('gemini-2.0-flash')
     expect(models[0].name).toBe('Gemini 2.0 Flash')
   })
+
+  it.each(['embedContent', 'batchEmbedContents', 'asyncBatchEmbedContent'])(
+    'identifies unregistered embedding models from %s support',
+    async (method) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: {
+          models: [
+            { name: 'models/gemini-embedding-2-preview', supportedGenerationMethods: [method, 'countTokens'] },
+            { name: 'models/new-vector-model', supportedGenerationMethods: [method] }
+          ]
+        }
+      })
+
+      const { models } = await listModels(makeGeminiProvider())
+
+      expect(models).toHaveLength(2)
+      for (const model of models) {
+        expect(model.capabilities).toEqual([MODEL_CAPABILITY.EMBEDDING])
+        expect(model.outputModalities).toEqual([MODALITY.VECTOR])
+        expect(model.supportsStreaming).toBe(false)
+      }
+    }
+  )
+
+  it('classifies image prediction and content generation', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          { name: 'models/new-image-model', supportedGenerationMethods: ['predict'] },
+          { name: 'models/new-chat-model', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/batch-chat-model', supportedGenerationMethods: ['batchGenerateContent'] }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeGeminiProvider())
+
+    expect(models).toHaveLength(3)
+    expect(models[0]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      outputModalities: [MODALITY.IMAGE],
+      supportsStreaming: false
+    })
+    for (const model of models.slice(1)) {
+      expect(model.capabilities).toEqual([])
+      expect(model.supportsStreaming).toBe(true)
+    }
+  })
+
+  it('omits models whose advertised methods have no supported generation path', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          { name: 'models/answer-only', supportedGenerationMethods: ['generateAnswer'] },
+          { name: 'models/tokens-only', supportedGenerationMethods: ['countTokens'] },
+          { name: 'models/music', supportedGenerationMethods: ['bidiGenerateMusic'] },
+          { name: 'models/live', supportedGenerationMethods: ['generateContent', 'bidiGenerateContent'] }
+        ]
+      }
+    })
+
+    expect((await listModels(makeGeminiProvider())).models).toEqual([])
+  })
+
+  it.each([
+    { supportedGenerationMethods: undefined },
+    { supportedGenerationMethods: [] },
+    { supportedGenerationMethods: ['generateContent', 'countTokens'] }
+  ])(
+    'does not infer embedding without an embedding method: $supportedGenerationMethods',
+    async ({ supportedGenerationMethods }) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: { models: [{ name: 'models/embedding-in-name-only', supportedGenerationMethods }] }
+      })
+
+      const { models } = await listModels(makeGeminiProvider())
+
+      expect(models).toHaveLength(1)
+      expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.EMBEDDING)
+      expect(models[0].outputModalities).toBeUndefined()
+    }
+  )
 
   it('drops audio and video generation models, keeping chat, image, and embedding models', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
@@ -615,7 +784,7 @@ describe('listModels — geminiFetcher API key transport', () => {
       }
     })
 
-    const models = await listModels(makeGeminiProvider())
+    const { models } = await listModels(makeGeminiProvider())
 
     expect(models.map((m) => m.apiModelId)).toEqual([
       'gemini-2.0-flash',
@@ -658,7 +827,7 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
       }
     })
 
-    const models = await listModels(makeOpenAIProvider())
+    const { models } = await listModels(makeOpenAIProvider())
 
     expect(models.map((m) => m.apiModelId)).toEqual([
       'gpt-4o',
@@ -685,7 +854,7 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
       }
     })
 
-    const models = await listModels(copiedOpenAIProvider)
+    const { models } = await listModels(copiedOpenAIProvider)
 
     expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
   })
@@ -708,7 +877,7 @@ describe('listModels — anthropicFetcher (x-api-key + anthropic-version transpo
       value: { data: [{ id: 'claude-opus-4-8', display_name: 'Claude Opus 4.8' }] }
     })
 
-    const models = await listModels(makeAnthropicProvider())
+    const { models } = await listModels(makeAnthropicProvider())
 
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
@@ -736,7 +905,7 @@ describe('listModels — anthropicFetcher (x-api-key + anthropic-version transpo
       value: { data: [{ id: 'claude-opus-4-8' }, { id: 'claude-opus-4-8' }] }
     })
 
-    const models = await listModels(copied)
+    const { models } = await listModels(copied)
 
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { headers: Record<string, string> }
     expect(call.headers['anthropic-version']).toBe('2023-06-01')
@@ -761,7 +930,7 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
       }
     })
 
-    const models = await listModels(copiedCopilotProvider)
+    const { models } = await listModels(copiedCopilotProvider)
 
     expect(getCopilotTokenMock).toHaveBeenCalledTimes(1)
     expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
@@ -799,7 +968,7 @@ describe('listModels — ppioFetcher capability mapping', () => {
       return Promise.resolve({ value: { data: [{ id: 'ppio-chat' }, { id: 'ppio-reranker' }] } })
     })
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
     const chatModel = models.find((model) => model.apiModelId === 'ppio-chat')
     const rerankerModel = models.find((model) => model.apiModelId === 'ppio-reranker')
 
@@ -854,7 +1023,7 @@ describe('listModels — openRouterFetcher image models', () => {
       return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'openai/gpt-image-2' }] } })
     })
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
 
     expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
       'https://openrouter.example/models',
@@ -891,10 +1060,12 @@ describe('listModels — openRouterFetcher image models', () => {
       return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }] } })
     })
 
-    await expect(listModels(provider, undefined, { throwOnError: true })).resolves.toEqual([
-      expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
-      expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
-    ])
+    await expect(listModels(provider, undefined, { throwOnError: true })).resolves.toEqual({
+      models: [
+        expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
+        expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
+      ]
+    })
     expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(apiKey)
   })
 })
@@ -959,7 +1130,7 @@ describe('listModels — newApiFetcher endpoint types', () => {
       }
     })
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
 
     expect(models).toHaveLength(1)
     expect(models[0]).toMatchObject({
@@ -995,7 +1166,7 @@ describe('listModels — newApiFetcher endpoint types', () => {
       }
     })
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
@@ -1019,7 +1190,7 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
       }
     })
 
-    const models = await listModels(makeGatewayProvider())
+    const { models } = await listModels(makeGatewayProvider())
 
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
@@ -1042,7 +1213,7 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
       }
     })
 
-    const models = await listModels(makeGatewayProvider())
+    const { models } = await listModels(makeGatewayProvider())
     expect(models).toHaveLength(1)
   })
 })
@@ -1060,7 +1231,7 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
       value: { data: [{ model_id: 'qwen3.6-plus', model_name: 'Qwen3.6 Plus', desc: 'test' }] }
     })
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
 
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
@@ -1093,7 +1264,7 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       }
     })
 
-    const models = await listModels(makeNewApiProvider())
+    const { models } = await listModels(makeNewApiProvider())
 
     expect(models).toHaveLength(1)
     expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
@@ -1112,7 +1283,7 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       }
     })
 
-    const models = await listModels(makeNewApiProvider())
+    const { models } = await listModels(makeNewApiProvider())
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
     expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
@@ -1130,7 +1301,7 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       }
     })
 
-    const models = await listModels(makeNewApiProvider())
+    const { models } = await listModels(makeNewApiProvider())
 
     expect(models[0].capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
     expect(models[0].endpointTypes).toEqual([
@@ -1150,7 +1321,7 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       }
     })
 
-    const models = await listModels(makeNewApiProvider())
+    const { models } = await listModels(makeNewApiProvider())
 
     expect(models).toEqual(
       expect.arrayContaining([
@@ -1207,7 +1378,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
       }
     })
 
-    const models = await listModels(makeVertexProvider())
+    const { models } = await listModels(makeVertexProvider())
 
     // One request per default publisher (single page each — no nextPageToken).
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(DEFAULT_VERTEX_MODEL_PUBLISHERS.length)
@@ -1237,7 +1408,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
       }
     })
 
-    const models = await listModels(makeVertexProvider())
+    const { models } = await listModels(makeVertexProvider())
 
     // Same MaaS model deduped across the per-publisher fan-out → a single entry.
     expect(models).toHaveLength(1)
@@ -1253,7 +1424,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
       }
     })
 
-    const models = await listModels(makeVertexProvider())
+    const { models } = await listModels(makeVertexProvider())
 
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('google/gemma-4-26b-a4b-it-maas')
@@ -1270,7 +1441,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
       }
     })
 
-    const models = await listModels(makeVertexProvider())
+    const { models } = await listModels(makeVertexProvider())
 
     expect(models.map((model) => model.apiModelId)).toEqual(['meta/llama-4-scout-17b-16e-instruct-maas'])
   })
@@ -1288,7 +1459,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
         }
       })
 
-    const models = await listModels(makeVertexProvider())
+    const { models } = await listModels(makeVertexProvider())
 
     // 7 publishers, with the first one taking an extra page → 8 requests.
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(DEFAULT_VERTEX_MODEL_PUBLISHERS.length + 1)
@@ -1299,7 +1470,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   it('returns [] when the provider is not configured with iam-gcp auth', async () => {
     getAuthConfigMock.mockReturnValue(null)
 
-    const models = await listModels(makeVertexProvider())
+    const { models } = await listModels(makeVertexProvider())
 
     expect(models).toEqual([])
     expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
@@ -1329,7 +1500,7 @@ describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
       }
     })
 
-    const models = await listModels(makeJinaProvider())
+    const { models } = await listModels(makeJinaProvider())
 
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('https://api.jina.ai/v1/models')
@@ -1363,7 +1534,7 @@ describe('listModels — ovmsFetcher config endpoint', () => {
       value: { 'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] } }
     })
 
-    const models = await listModels(makeOvmsProvider(baseUrl))
+    const { models } = await listModels(makeOvmsProvider(baseUrl))
 
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('http://localhost:8000/v1/config')
@@ -1383,7 +1554,7 @@ describe('listModels — ovmsFetcher config endpoint', () => {
       }
     })
 
-    const models = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
+    const { models } = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
 
     expect(models.map((m) => m.apiModelId)).toEqual([
       'Qwen3-4B-int4-ov',
@@ -1401,7 +1572,7 @@ describe('listModels — openAICompatibleFetcher display names', () => {
       }
     })
 
-    const models = await listModels(
+    const { models } = await listModels(
       makeProvider({
         id: 'custom-openai-compatible',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -1479,7 +1650,7 @@ describe('listModels — oMLX', () => {
       }
     })
 
-    const models = await listModels(provider, undefined, { throwOnError: true })
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
 
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder', 'vlm-vision', 'markitdown'])
     expect(models[1].capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
@@ -1539,10 +1710,259 @@ describe('listModels — oMLX', () => {
       value: { models: [{ id: 'qwen3-coder', model_type: 'llm' }] }
     })
 
-    const models = await listModels(provider, undefined, { throwOnError: true })
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
 
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('http://127.0.0.1:8000/v1/models/status')
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder'])
+  })
+})
+
+describe('listModels — ComfyUI credentials', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists saved workflows without sending the stored API key to the server', async () => {
+    getRotatedApiKeyMock.mockReturnValue('sk-secret-key')
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json([]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = makeProvider({
+      id: 'comfyui',
+      presetProviderId: 'comfyui',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188' }
+      },
+      settings: { extraHeaders: { 'X-Custom': 'on' } }
+    })
+
+    await listModels(provider)
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe('http://localhost:8188/v2/userdata?path=workflows')
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers)
+    // The server takes no credentials, and the saved key belongs to another host.
+    expect(headers.get('authorization')).toBeNull()
+    expect(headers.get('x-api-key')).toBeNull()
+    expect(headers.get('x-custom')).toBe('on')
+  })
+
+  it('skips saved workflows whose names carry a reserved route character', async () => {
+    const entries = [
+      { type: 'file', name: 'portrait.json', path: 'workflows/portrait.json' },
+      { type: 'file', name: 'a#b.json', path: 'workflows/a#b.json' },
+      { type: 'file', name: 'c?d.json', path: 'workflows/c?d.json' },
+      { type: 'file', name: 'kept.json', path: 'workflows/sub/kept.json' }
+    ]
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json(entries))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = makeProvider({
+      id: 'comfyui',
+      presetProviderId: 'comfyui',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188' }
+      }
+    })
+
+    const listing = await listModels(provider, undefined, { throwOnError: true })
+
+    // A handle becomes the model's apiModelId, and `#`/`?` cannot survive in a
+    // unique id, so the row would break every consumer that builds one.
+    expect(listing.models.map((m) => m.apiModelId)).toEqual(['portrait', 'sub/kept'])
+    expect(listing.models.map((m) => m.id)).toEqual(['comfyui::portrait', 'comfyui::sub/kept'])
+    // The omission has to be visible: the manager names these instead of showing a
+    // shorter list than the server has.
+    expect(listing.skippedModels).toEqual(['a#b', 'c?d'])
+  })
+})
+
+describe('listModels — huggingFaceFetcher (router dialects)', () => {
+  // The listing carries no endpoint field, so without this the models fall back to the provider
+  // default and a Claude Code Agent can only reach the router through the translating gateway.
+  it('declares both router dialects on every model, Chat Completions leading', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'deepseek-ai/DeepSeek-V4-Pro-0813', owned_by: 'deepseek-ai' },
+          { id: 'zai-org/GLM-5.1', owned_by: 'zai-org' }
+        ]
+      }
+    })
+
+    const provider = makeProvider({
+      id: 'huggingface',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://router.huggingface.co/v1/' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://router.huggingface.co/v1/' }
+      }
+    })
+    const { models } = await listModels(provider)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://router.huggingface.co/v1/models')
+    expect(models.map((model) => model.apiModelId)).toEqual(['deepseek-ai/DeepSeek-V4-Pro-0813', 'zai-org/GLM-5.1'])
+    for (const model of models) {
+      expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+      expect(resolveEffectiveEndpoint(provider, makeModel(model), ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        baseUrl: 'https://router.huggingface.co/v1/'
+      })
+    }
+  })
+
+  it('routes a copied Hugging Face provider (uuid id + presetProviderId) through the same fetcher', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'zai-org/GLM-5.1' }] } })
+
+    const { models } = await listModels(
+      makeProvider({
+        id: 'a4f1e6c0-0d2b-4f0e-9d1a-2b3c4d5e6f70',
+        presetProviderId: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' }
+        }
+      })
+    )
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+
+  it.each(['huggingface', 'huggingface-copy'])(
+    'keeps discovered models on the configured Responses server for %s',
+    async (providerId) => {
+      const baseUrl = 'https://hf-proxy.example/v1'
+      const provider = makeProvider({
+        id: providerId,
+        presetProviderId: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://router.huggingface.co/v1/' }
+        }
+      })
+      aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'custom/model' }] } })
+
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+      expect(aiSdkGetFromApiMock.mock.calls[0][0].url).toBe(`${baseUrl}/models`)
+      expect(models[0].endpointTypes).toBeUndefined()
+      const model = makeModel({ ...models[0] })
+      for (const preferredEndpoint of [undefined, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]) {
+        expect(resolveEffectiveEndpoint(provider, model, preferredEndpoint)).toMatchObject({
+          endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          baseUrl
+        })
+      }
+    }
+  )
+})
+
+describe('listModels — Poe declared chat endpoints', () => {
+  const provider = makeProvider({
+    id: 'poe',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://poe-proxy.example/v1' } }
+  })
+  const claudeEndpoints = [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+
+  it.each([
+    ['perplexity-adv-deep-research', [], [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    [
+      'gpt-5.2',
+      ['/v1/chat/completions', '/v1/responses'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    ],
+    ['claude-sonnet-5.5', ['/v1/chat/completions'], [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    ['claude-opus-4.8', ['/v1/responses', '/v1/chat/completions', '/v1/messages'], claudeEndpoints],
+    ['nano-banana-2', ['/v1/responses'], [ENDPOINT_TYPE.OPENAI_RESPONSES]],
+    ['veo-3.1', ['/v1/videos'], undefined],
+    ['unknown-path', ['/future/path'], undefined],
+    ['claude-opus-4.8', [], claudeEndpoints],
+    ['claude-opus-4.8', undefined, claudeEndpoints],
+    ['community-bot', undefined, [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    ['claude-opus-4.8', ['/v1/responses'], [ENDPOINT_TYPE.OPENAI_RESPONSES]],
+    [
+      'Mixed.Raw-ID',
+      ['/v1/chat/completions', '/unknown', '/v1/messages', '/v1/messages', '/v1/responses', '/v1/videos'],
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    ]
+  ] satisfies [string, string[] | undefined, EndpointType[] | undefined][])(
+    'maps %s declaring %j to %j',
+    async (id, supported_endpoints, endpointTypes) => {
+      aiSdkGetFromApiMock.mockResolvedValueOnce({
+        value: {
+          object: 'list',
+          data: [{ id, object: 'model', created: 1780000000, owned_by: 'Example owner', supported_endpoints }]
+        }
+      })
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({ apiModelId: id, name: id, ownedBy: 'Example owner' })
+      expect(models[0].endpointTypes).toEqual(endpointTypes)
+      expect(models[0].capabilities).toEqual([])
+    }
+  )
+
+  it('isolates malformed declarations and items, keeping raw ids, names and first duplicates', async () => {
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementationOnce(actual.getFromApi)
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        object: 'list',
+        extra: true,
+        data: [
+          { id: 'null-field', supported_endpoints: null },
+          { id: 'string-field', supported_endpoints: '/v1/responses' },
+          { id: 'mixed-array', supported_endpoints: ['/v1/responses', 1] },
+          { name: 'no-id' },
+          null,
+          { id: 'Raw.ID-Case', name: 'Friendly bot', owned_by: 'Owner', supported_endpoints: [], extra: true },
+          { id: 'Raw.ID-Case', name: 'Duplicate', supported_endpoints: ['/v1/responses'] }
+        ]
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({
+        apiModelId: 'Raw.ID-Case',
+        name: 'Friendly bot',
+        ownedBy: 'Owner',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it.each([
+    ['poe-copy', 'poe', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
+    ['custom', undefined, undefined]
+  ] as const)('uses configured host, credentials and abort signal for %s', async (id, presetProviderId, expected) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { data: [{ id: 'bot', supported_endpoints: [] }] } })
+    const signal = new AbortController().signal
+    const { models } = await listModels(
+      makeProvider({ ...provider, id, presetProviderId, settings: { extraHeaders: { 'X-Custom': 'keep' } } }),
+      signal
+    )
+    expect(models[0].endpointTypes).toEqual(expected)
+    const request = aiSdkGetFromApiMock.mock.calls[0][0]
+    expect(request.url).toBe('https://poe-proxy.example/v1/models')
+    expect(request.abortSignal).toBe(signal)
+    expect(new Headers(request.headers).get('authorization')).toBe('Bearer AIza-secret-key')
+    expect(new Headers(request.headers).get('x-custom')).toBe('keep')
+  })
+
+  it('retains listing-level failure and throwOnError behavior', async () => {
+    aiSdkGetFromApiMock.mockRejectedValue(new Error('listing failed'))
+    expect(await listModels(provider)).toEqual({ models: [] })
+    await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow('listing failed')
   })
 })

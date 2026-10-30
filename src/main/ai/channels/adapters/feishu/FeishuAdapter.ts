@@ -8,7 +8,12 @@ import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelStreamErrorOptions,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
@@ -152,6 +157,7 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
+  private readonly mentionOnly: boolean
   private readonly streams = new Map<string, FeishuStreamSession>()
   private readonly chatReactions = new Map<string, ChatReaction>()
   private readonly lastDropNotificationAt = new Map<string, number>()
@@ -159,13 +165,15 @@ class FeishuAdapter extends ChannelAdapter {
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
-    const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain } = config.channelConfig
+    const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain, mention_only } =
+      config.channelConfig
     this.appId = app_id
     this.appSecret = app_secret
     this.encryptKey = encrypt_key
     this.verificationToken = verification_token
     this.allowedChatIds = allowed_chat_ids ?? []
     this.domain = domain
+    this.mentionOnly = mention_only ?? true
     this.notifyChatIds = [...this.allowedChatIds]
   }
 
@@ -204,7 +212,7 @@ class FeishuAdapter extends ChannelAdapter {
       httpInstance: createFeishuHttpInstance(),
       policy: {
         dmMode: 'open',
-        requireMention: true,
+        requireMention: this.mentionOnly,
         respondToMentionAll: false
       },
       safety: { batch: { text: { delayMs: 0 } } },
@@ -424,7 +432,19 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
+  override async onStreamError(
+    chatId: string,
+    error: string,
+    opts?: SendMessageOptions,
+    options?: ChannelStreamErrorOptions
+  ): Promise<boolean> {
+    if (options?.suppressDelivery) {
+      const key = this.responseKey(chatId, opts)
+      this.streams.get(key)?.dispose()
+      this.streams.delete(key)
+      await this.clearChatReaction(key)
+      return true
+    }
     const streamKey = this.responseKey(chatId, opts)
     if (opts?.replyToMessageId) {
       await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
@@ -437,9 +457,10 @@ class FeishuAdapter extends ChannelAdapter {
       } finally {
         this.streams.delete(streamKey)
       }
-      return
+      return true
     }
     await this.getChannel().send(chatId, { markdown: `**Error**: ${error}` }, replyOptions(opts))
+    return true
   }
 
   private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {

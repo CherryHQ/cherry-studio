@@ -3,12 +3,12 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import type { IndexableKnowledgeItem } from '../items'
 import { isIndexableKnowledgeItem, toMaterialRelativePath } from '../items'
@@ -269,7 +269,10 @@ async function ensureSnapshot(
       // Another job captured the snapshot (or the item changed) while we produced.
       return isIndexableKnowledgeItem(latest) ? latest : item
     }
-    const reservedPaths = collectKnowledgeReservedRelativePaths(knowledgeItemService.getItemsByBaseId(ctx.input.baseId))
+    // A deleting row's pending cleanup still unlinks its paths, so the snapshot must not claim them.
+    const reservedPaths = collectKnowledgeReservedRelativePaths(
+      knowledgeItemService.getItemsByBaseId(ctx.input.baseId, { includeDeleting: true })
+    )
     const relativePath = await spec.capture(snapshot, reservedPaths)
     const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item

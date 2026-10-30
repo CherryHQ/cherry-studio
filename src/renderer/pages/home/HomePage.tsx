@@ -201,9 +201,13 @@ const HomePage: FC = () => {
     setActiveTopicId
   })
   const reenterChatRoute = useCallback(() => {
+    const staleTopicId = activeTopicId ?? routeTopicId
+    if (staleTopicId) {
+      cacheService.setPersist('ui.chat.last_used_topic_id', (current) => (current === staleTopicId ? null : current))
+    }
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
-  }, [clearActiveTopic, navigate])
+  }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -291,8 +295,6 @@ const HomePage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest topic without resubscribing.
   }, [currentTabId])
 
-  // Label this tab with its assistant emoji + topic name so multiple chat tabs
-  // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
   const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
   // Start the managed model query before assistant details resolve; Chat shares the same SWR request.
@@ -305,13 +307,12 @@ const HomePage: FC = () => {
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
-  // While the bound topic is still loading, keep the tab's stored title/icon instead of stamping
-  // a generic one.
   const targetTopicId = activeTopicId ?? undefined
   const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
+  // Label this tab with its assistant emoji + topic name so multiple chat tabs are distinguishable.
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
   const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
 
@@ -616,13 +617,17 @@ const HomePage: FC = () => {
             allTopics.map(getTopicAssistantDisplayGroupId).filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
-        cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
+        if (isWindowFrame) {
+          cacheService.set('ui.window.chat.topic.expansion.assistant', collapsedAssistantGroupIds)
+        } else {
+          cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
+        }
       }
       await setPanePosition(position)
       setTopicPaneOpen(position === 'right', { force: true })
       setShellPaneOpen(true)
     },
-    [allTopics, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
+    [allTopics, isWindowFrame, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
   )
   // Classic layout = entity rail + right topic panel; modern layout = one left navigation panel (HomeTabs).
   const pane =

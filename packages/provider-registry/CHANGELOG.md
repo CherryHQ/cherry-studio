@@ -1,0 +1,107 @@
+# @cherrystudio/provider-registry
+
+## 0.3.1
+
+### Patch Changes
+
+- [#23050](https://github.com/CherryHQ/cherry-studio/pull/23050) [`70677d0`](https://github.com/CherryHQ/cherry-studio/commit/70677d07a720ec48d30501018a8a3605c1601954) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Declare Grok Imagine aspect-ratio controls for image generation and editing on the xAI creator, and route the native Grok image endpoint through the xAI adapter so the selected ratio reaches the wire as `aspect_ratio`.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#19811](https://github.com/CherryHQ/cherry-studio/pull/19811) [`4134610`](https://github.com/CherryHQ/cherry-studio/commit/41346103c62917a01785733d00d39ae43039fcf0) Thanks [@GeorgeDong32](https://github.com/GeorgeDong32)! - Rebrand the DashScope provider as Qwen AI Platform with updated default API endpoints, links, pricing pages, and localized labels. User-saved endpoint overrides are preserved.
+
+- [#19810](https://github.com/CherryHQ/cherry-studio/pull/19810) [`6c19eae`](https://github.com/CherryHQ/cherry-studio/commit/6c19eae14e32ef7b73e4d64a253a4b2320bff7bf) Thanks [@GeorgeDong32](https://github.com/GeorgeDong32)! - Add the QwenCloud provider (DashScope international endpoint) with its chat and image models, endpoint-aware web-search eligibility, and reasoning/sampling contracts.
+  
+  Enable documented Anthropic web search and fetch on QwenCloud and Qwen AI Platform, including the required system identifier and paired search/fetch routing.
+
+## 0.2.9
+
+### Patch Changes
+
+- [#21869](https://github.com/CherryHQ/cherry-studio/pull/21869) [`27f1231`](https://github.com/CherryHQ/cherry-studio/commit/27f123168ac36d5b116a9458598557af61f85985) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Infer low, medium, and high reasoning effort controls for manually added StepFun step-5-preview models.
+
+## 0.2.8
+
+### Patch Changes
+
+- [#22711](https://github.com/CherryHQ/cherry-studio/pull/22711) [`c43e512`](https://github.com/CherryHQ/cherry-studio/commit/c43e512322b7a878dcc828514991da99c393aa50) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT-6.1 Terra with API pricing, long-context tiers, Responses tools, and Codex-specific context and reasoning limits.
+
+## 0.2.7
+
+### Patch Changes
+
+- [#22719](https://github.com/CherryHQ/cherry-studio/pull/22719) [`3c99b48`](https://github.com/CherryHQ/cherry-studio/commit/3c99b4860c33d220f4296c4f37c3f5a63c4e372a) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Narrow DashScope native web search eligibility to supported model families and exact hosted GLM 5.2 and Kimi K3 SKUs.
+
+## 0.2.6
+
+### Patch Changes
+
+- [#22629](https://github.com/CherryHQ/cherry-studio/pull/22629) [`98d3c26`](https://github.com/CherryHQ/cherry-studio/commit/98d3c268a6d3b2296602adfe1da8160965a32708) Thanks [@JuLuogo](https://github.com/JuLuogo)! - Add the DeepSeek V4 Flash reasoning off switch on the official provider (`thinking.type=disabled` / `reasoningEffort=none`) and expose an explicit Off control in the speed popover.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#22575](https://github.com/CherryHQ/cherry-studio/pull/22575) [`ecef6a7`](https://github.com/CherryHQ/cherry-studio/commit/ecef6a7e32cc78a7976f99e1fbac6adee60b467e) Thanks [@ousugo](https://github.com/ousugo)! - Add Kimi K3.1 Pro and its highspeed variant with reasoning controls, fixed sampling constraints, and Moonshot pricing.
+
+## 0.2.4
+
+### Patch Changes
+
+- [#22515](https://github.com/CherryHQ/cherry-studio/pull/22515) [`f740f7d`](https://github.com/CherryHQ/cherry-studio/commit/f740f7d65d130fb27e0ed6fcf6b62dd00e395811) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add generate-mode quality and size presets for the GPT Image 2.5 Flare and Sunburst models.
+
+## 0.2.3
+
+### Patch Changes
+
+- [#21999](https://github.com/CherryHQ/cherry-studio/pull/21999) [`5967cf3`](https://github.com/CherryHQ/cherry-studio/commit/5967cf357a4f619b6e01b4c21d8e0d024400989c) Thanks [@SaladDay](https://github.com/SaladDay)! - Rename MiniMax-M3.1-Flash-Preview to MiniMax-M3.1-Flash, preserve documented temperature support for MiniMax-M3 and MiniMax-M3.1-Flash, and refresh catalog content versions.
+
+## 0.2.2
+
+### Patch Changes
+
+- [#21776](https://github.com/CherryHQ/cherry-studio/pull/21776) [`14d63eb`](https://github.com/CherryHQ/cherry-studio/commit/14d63eb93a65e0ea03df84722317bd9e6ec97404) Thanks [@ousugo](https://github.com/ousugo)! - Add Muse Spark Open BF16 and NVFP4 model recognition with multimodal capabilities and the official reasoning levels and default.
+
+## 0.2.1
+
+### Patch Changes
+
+- [#21715](https://github.com/CherryHQ/cherry-studio/pull/21715) [`1b0c69f`](https://github.com/CherryHQ/cherry-studio/commit/1b0c69f9d9f086b3aaace631b187b427aac18aaf) Thanks [@1lck](https://github.com/1lck)! - Add widescreen, portrait, 16:10, and 4K size presets for GPT-Image-2 while preserving the existing sizes for GPT-Image-1 models.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#21675](https://github.com/CherryHQ/cherry-studio/pull/21675) [`a6e7c0f`](https://github.com/CherryHQ/cherry-studio/commit/a6e7c0fcdc0fe0f43e3c63702bf18cf56e72a5ae) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add optional billing URLs to provider website metadata and include billing destinations for OpenAI, Anthropic, CherryIN, and DeepSeek so applications can offer quota-recovery actions.
+
+## 0.1.4
+
+### Patch Changes
+
+- [#19786](https://github.com/CherryHQ/cherry-studio/pull/19786) [`9ef4b13`](https://github.com/CherryHQ/cherry-studio/commit/9ef4b130f343dc4288dbf36dc49d32c35c7ddf15) Thanks [@kennyzheng-builds](https://github.com/kennyzheng-builds)! - Expose the Hugging Face router's Chat Completions endpoint alongside Anthropic Messages and Responses while preserving the default inherited by existing configurations.
+
+## 0.1.3
+
+### Patch Changes
+
+- [#21633](https://github.com/CherryHQ/cherry-studio/pull/21633) [`fda831e`](https://github.com/CherryHQ/cherry-studio/commit/fda831efece6a963c5cdb706cc84767dc1af66dc) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini Embedding 2 Preview, Nano Banana 2.1 and Pro alias metadata, and classify Gemini Omni 1.1 Flash as a video generation model.
+
+## 0.1.2
+
+### Patch Changes
+
+- [#21625](https://github.com/CherryHQ/cherry-studio/pull/21625) [`7a7a424`](https://github.com/CherryHQ/cherry-studio/commit/7a7a4247185a8187e54bb09b77f407bd0c04981c) Thanks [@DeJeune](https://github.com/DeJeune)! - Support Gemini 4 Argon with the updated Google adapter and model catalog. Export context usage helpers that exclude repeated continuation prompts from context occupancy while preserving billed token counts, and allow catalog generation to refresh selected models.
+
+## 0.1.1
+
+### Patch Changes
+
+- [#21547](https://github.com/CherryHQ/cherry-studio/pull/21547) [`cbc8088`](https://github.com/CherryHQ/cherry-studio/commit/cbc8088e51c060c83d129889230dadbed2fde545) Thanks [@pczhao1210](https://github.com/pczhao1210)! - Route New API image generation and editing through the New API adapter so gateway URLs receive the required API version prefix.
+
+## 0.1.0
+
+### Minor Changes
+
+- [#21529](https://github.com/CherryHQ/cherry-studio/pull/21529) [`19309e5`](https://github.com/CherryHQ/cherry-studio/commit/19309e5bef1d89dc479344d844923fb5890eeaa8) Thanks [@DeJeune](https://github.com/DeJeune)! - Publish the cross-platform provider registry with optional bundled catalogs, public JSON exports, portable schemas and snapshot parsing, and shared size-preserving model and provider API ID lookup. Keep Node file loading available through the separate `/node` entry.

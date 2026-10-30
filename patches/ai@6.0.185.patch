@@ -51,9 +51,17 @@ index 23c5e35..3a73d98 100644
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837..a06b785 100644
+index 5774837..aa66abb 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -1988,6 +1988,6 @@ async function prepareToolsAndToolChoice({
+   }
+   return {
+     tools: languageModelTools,
+-    toolChoice: toolChoice == null ? { type: "auto" } : typeof toolChoice === "string" ? { type: toolChoice } : { type: "tool", toolName: toolChoice.toolName }
++    toolChoice: toolChoice == null ? void 0 : typeof toolChoice === "string" ? { type: toolChoice } : { type: "tool", toolName: toolChoice.toolName }
+   };
+ }
 @@ -8468,6 +8468,16 @@ function createUIMessageStream({
  }
  
@@ -171,9 +179,17 @@ index 5774837..a06b785 100644
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01..ccdb020 100644
+index 6862f01..6bcfd14 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
+@@ -1881,6 +1881,6 @@ async function prepareToolsAndToolChoice({
+   }
+   return {
+     tools: languageModelTools,
+-    toolChoice: toolChoice == null ? { type: "auto" } : typeof toolChoice === "string" ? { type: toolChoice } : { type: "tool", toolName: toolChoice.toolName }
++    toolChoice: toolChoice == null ? void 0 : typeof toolChoice === "string" ? { type: toolChoice } : { type: "tool", toolName: toolChoice.toolName }
+   };
+ }
 @@ -8392,6 +8392,16 @@ function createUIMessageStream({
  }
  
@@ -290,3 +306,16 @@ index 6862f01..ccdb020 100644
      warnings.push(...result.warnings);
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
+diff --git a/src/prompt/prepare-tools-and-tool-choice.ts b/src/prompt/prepare-tools-and-tool-choice.ts
+index ced51f7..ca43d55 100644
+--- a/src/prompt/prepare-tools-and-tool-choice.ts
++++ b/src/prompt/prepare-tools-and-tool-choice.ts
+@@ -78,7 +78,7 @@ export async function prepareToolsAndToolChoice<TOOLS extends ToolSet>({
+     tools: languageModelTools,
+     toolChoice:
+       toolChoice == null
+-        ? { type: 'auto' }
++        ? undefined
+         : typeof toolChoice === 'string'
+           ? { type: toolChoice }
+           : { type: 'tool' as const, toolName: toolChoice.toolName as string },

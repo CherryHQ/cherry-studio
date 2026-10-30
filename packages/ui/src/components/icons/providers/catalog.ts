@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 163
+ * Generated at: 2026-10-28T16:20:14.303Z
+ * Total icons: 167
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -40,6 +40,7 @@ import { CherryinIcon } from './cherryin'
 import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
+import { ComfyuiIcon } from './comfyui/comfyui'
 import { ComposioIcon } from './composio'
 import { CozeIcon } from './coze'
 import { DangbeiIcon } from './dangbei'
@@ -47,6 +48,7 @@ import { DashscopeIcon } from './dashscope'
 import { DatabricksIcon } from './databricks'
 import { DeepcogitoIcon } from './deepcogito'
 import { DeepseekIcon } from './deepseek'
+import { DesearchIcon } from './desearch/desearch'
 import { DevvIcon } from './devv'
 import { DifyIcon } from './dify'
 import { DmxapiIcon } from './dmxapi'
@@ -90,6 +92,7 @@ import { LanyunIcon } from './lanyun'
 import { LeptonIcon } from './lepton'
 import { LingxiIcon } from './lingxi'
 import { LiquidIcon } from './liquid'
+import { LitellmIcon } from './litellm/litellm'
 import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { MacosIcon } from './macos'
@@ -131,6 +134,7 @@ import { PulseIcon } from './pulse'
 import { QiniuIcon } from './qiniu'
 import { QueritIcon } from './querit'
 import { QwenIcon } from './qwen'
+import { QwencloudIcon } from './qwencloud/qwencloud'
 import { RadeonCloudIcon } from './radeon-cloud'
 import { RecraftIcon } from './recraft'
 import { RelaceIcon } from './relace'
@@ -206,6 +210,7 @@ export const PROVIDER_ICON_CATALOG = {
   'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
+  comfyui: ComfyuiIcon,
   composio: ComposioIcon,
   coze: CozeIcon,
   dangbei: DangbeiIcon,
@@ -213,6 +218,7 @@ export const PROVIDER_ICON_CATALOG = {
   databricks: DatabricksIcon,
   deepcogito: DeepcogitoIcon,
   deepseek: DeepseekIcon,
+  desearch: DesearchIcon,
   devv: DevvIcon,
   dify: DifyIcon,
   dmxapi: DmxapiIcon,
@@ -256,6 +262,7 @@ export const PROVIDER_ICON_CATALOG = {
   lepton: LeptonIcon,
   lingxi: LingxiIcon,
   liquid: LiquidIcon,
+  litellm: LitellmIcon,
   lmstudio: LmstudioIcon,
   longcat: LongcatIcon,
   macos: MacosIcon,
@@ -296,14 +303,15 @@ export const PROVIDER_ICON_CATALOG = {
   qiniu: QiniuIcon,
   querit: QueritIcon,
   qwen: QwenIcon,
+  qwencloud: QwencloudIcon,
   'radeon-cloud': RadeonCloudIcon,
   recraft: RecraftIcon,
   relace: RelaceIcon,
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
-  serply: SerplyIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,

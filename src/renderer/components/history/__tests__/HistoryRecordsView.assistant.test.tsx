@@ -1,3 +1,4 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -324,7 +325,7 @@ vi.mock('react-i18next', () => ({
         'recycle_bin.already_moved': 'Already in Recycle Bin',
         'recycle_bin.move.blocked_generation': 'Stop generation before moving this conversation to the Recycle Bin.',
         'recycle_bin.move_failed': 'Could not move to Recycle Bin',
-        'history.records.bulkDelete': 'Batch Delete',
+        'history.records.bulkArchive': 'Batch Archive',
         'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected conversation(s)?',
         'history.records.bulkDeleteTopics.title': 'Delete selected conversations',
         'history.records.bulkMove': 'Batch Move',
@@ -458,7 +459,7 @@ const flushCommandMenuAction = flushAnimationFrame
 
 async function clickBulkDelete() {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Archive/ }))
     await flushAnimationFrame()
   })
 }
@@ -466,6 +467,7 @@ let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(async () => {
+    MockCacheUtils.resetMocks()
     hookMocks.isMac = false
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     MockUseDataApiUtils.resetMocks()
@@ -590,7 +592,7 @@ describe('HistoryRecordsView assistant mode', () => {
       boxes.filter((box) => !box.hasAttribute('disabled')).every((box) => box.getAttribute('aria-checked') === 'true')
     ).toBe(true)
     expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Archive/ })).toHaveTextContent('Batch Archive (2)')
     await user.keyboard('{Control>}a{/Control}')
     expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
   })
@@ -1006,7 +1008,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
 
-    expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Batch Archive' })).toBeDisabled()
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
   })
 
@@ -1044,7 +1046,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Archive/ })).toHaveTextContent('Batch Archive (2)')
   })
 
   it('bulk moves selected topics to another assistant from the query toolbar', async () => {
@@ -1445,6 +1447,23 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(toast.success).not.toHaveBeenCalled()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
     expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
+  })
+
+  it('disables automatic rename only for the topic already being renamed', () => {
+    MockCacheUtils.triggerCacheChange('topic.renaming', ['topic-alpha'])
+    setupAssistantHistory({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
+    })
+
+    const getRenameAction = (name: string) => {
+      const menu = screen.getByText(name).closest('[data-testid="context-menu"]')
+      const content = menu?.querySelector<HTMLElement>('[data-testid="context-menu-content"]')
+      if (!content) throw new Error(`Missing context menu for ${name}`)
+      return within(content).getByRole('button', { name: 'Generate conversation name' })
+    }
+
+    expect(getRenameAction('Alpha topic')).toBeDisabled()
+    expect(getRenameAction('Beta topic')).toBeEnabled()
   })
 
   it('clears automatic topic renaming without a success reveal after a failed history update', async () => {

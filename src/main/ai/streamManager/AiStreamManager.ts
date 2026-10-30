@@ -6,12 +6,12 @@ import type { UIMessageChunk } from 'ai'
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
   BaseService,
+  DependsOn,
   type Disposable,
   Emitter,
   type Event,
@@ -24,6 +24,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -38,6 +39,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -320,6 +322,7 @@ const nullStreamListener: StreamListener = {
  */
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['RuntimeActivityService'])
 export class AiStreamManager extends BaseService {
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
   public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
@@ -894,7 +897,7 @@ export class AiStreamManager extends BaseService {
     contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
-    /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
+    /** Idle-chunk timeout (ms); resets per chunk. Inherits `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min) when omitted. */
     idleTimeoutMs?: number
     /** In-process agent correlation for gateway-owned provider-request records. */
     usageContext?: InProcessUsageContext
@@ -1143,6 +1146,15 @@ export class AiStreamManager extends BaseService {
 
   // ── Public: listener management ───────────────────────────────────
 
+  getInteractionWindow(topicId: string): string | undefined {
+    const listeners = this.activeStreams.get(topicId)?.listeners.values()
+    if (!listeners) return undefined
+    for (const listener of listeners) {
+      if (listener.isAlive() && listener.windowId) return listener.windowId
+    }
+    return undefined
+  }
+
   addListener(topicId: string, listener: StreamListener): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
@@ -1229,8 +1241,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
-  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+  async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
     await this.withDispatchLock(topicId, async () => {
+      beforeAbort?.()
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
@@ -1524,6 +1537,7 @@ export class AiStreamManager extends BaseService {
     const result: StreamErrorResult = {
       error,
       finalMessage,
+      userMessageId: exec.userMessageId,
       status: 'error',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
@@ -1582,12 +1596,13 @@ export class AiStreamManager extends BaseService {
       status: 'error',
       modelId,
       attemptId: exec?.attemptId,
+      userMessageId: exec?.userMessageId,
       ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
       anchorMessageId: exec?.anchorMessageId,
       isTopicDone
     }
     for (const listener of stream.listeners.values()) {
-      if (listener.id.startsWith('persistence:')) continue
+      if (listener.terminalPhase) continue
       try {
         void listener.onError(result)
       } catch (err) {
@@ -1912,6 +1927,10 @@ export class AiStreamManager extends BaseService {
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
+      userMessageId:
+        request.runtime?.kind === 'agent-session'
+          ? request.messages?.findLast((message) => message.role === 'user')?.id
+          : undefined,
       attemptId: ++this.nextExecutionAttemptSequence,
       anchorMessageId: request.messageId,
       seedFromEmpty,
@@ -1933,10 +1952,13 @@ export class AiStreamManager extends BaseService {
           )
       : () => this.runExecutionLoop(topicId, modelId, request, exec)
 
-    exec.loopPromise = launchLoop().catch((err) => {
-      // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-      return this.onExecutionError(topicId, modelId, serializeError(err), exec)
-    })
+    const activity = application.get('RuntimeActivityService').begin(`ai:stream:${topicId}:${modelId}`)
+    exec.loopPromise = launchLoop()
+      .catch((err) => {
+        // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
+        return this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      })
+      .finally(() => activity.dispose())
 
     return exec
   }
@@ -1982,10 +2004,9 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    // Idle-chunk timer; on timeout aborts `exec.abortController`, which the
-    // upstream AI SDK request is already wired to. Caller override via
-    // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
-    const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
+    // Abort the upstream request on parsed-chunk inactivity, using the dedicated chat bound
+    // unless the caller supplies `requestOptions.timeout`.
+    const timeoutMs = request.requestOptions?.timeout ?? CHAT_STREAM_IDLE_TIMEOUT_MS
     const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).
@@ -2016,6 +2037,14 @@ export class AiStreamManager extends BaseService {
 
     exec.timings.completedAt = result.broadcastCompletedAt
 
+    if (result.accumulationError !== undefined) {
+      logger.error('Message accumulation failed', {
+        topicId,
+        modelId,
+        err: chatErrorContext(result.accumulationError.error)
+      })
+    }
+
     if (result.threw !== undefined) {
       const fromThrow = serializeError(result.threw.error)
       if (signal.aborted) {
@@ -2040,6 +2069,10 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (result.accumulationError !== undefined) {
+      const error = serializeError(result.accumulationError.error)
+      error.executionFailure = toExecutionFailure(error, modelId, 'host')
+      await this.onExecutionError(topicId, modelId, error, exec)
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }
@@ -2049,6 +2082,7 @@ export class AiStreamManager extends BaseService {
   private async broadcastExecutionDone(stream: ActiveStream, exec: StreamExecution, isTopicDone = true): Promise<void> {
     const result: StreamDoneResult = {
       finalMessage: exec.finalMessage,
+      userMessageId: exec.userMessageId,
       status: 'success',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
@@ -2071,6 +2105,7 @@ export class AiStreamManager extends BaseService {
     const result = {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
+      userMessageId: exec.userMessageId,
       modelId: exec.modelId,
       attemptId: exec.attemptId,
       ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),

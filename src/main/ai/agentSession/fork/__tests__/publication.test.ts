@@ -32,6 +32,7 @@ describe('Agent fork publication', () => {
   let publishedFile: string
   let beforeForkResult: (input: RuntimeForkInput) => Promise<void>
   let invalidCheckpoint: boolean
+  let artifactSourceFor: (artifactDirectory: string) => string
   let previous: ReturnType<typeof runtimeDriverRegistry.getAgentSessionDriver>
 
   beforeEach(async () => {
@@ -40,6 +41,7 @@ describe('Agent fork publication', () => {
     publishedFile = path.join(directory, 'native', 'child.jsonl')
     beforeForkResult = async () => {}
     invalidCheckpoint = false
+    artifactSourceFor = (artifactDirectory) => path.join(artifactDirectory, 'native.jsonl')
     vi.spyOn(application, 'getPath').mockImplementation((_key, filename) =>
       filename ? path.join(forkRoot, filename) : forkRoot
     )
@@ -79,7 +81,8 @@ describe('Agent fork publication', () => {
         throw new Error('Fork must not start a conversation')
       },
       async fork(input): Promise<RuntimeForkResult> {
-        const source = path.join(input.artifactDirectory, 'native.jsonl')
+        const source = artifactSourceFor(input.artifactDirectory)
+        await mkdir(path.dirname(source), { recursive: true })
         await writeFile(source, 'native child history')
         await beforeForkResult(input)
         return {
@@ -150,6 +153,133 @@ describe('Agent fork publication', () => {
     await new AgentSessionForkOperations().recover()
     expect(await readForkResources()).toEqual([])
     await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  // Editing must never append the replacement to the old native prompt or partially delete a turn.
+  it.each(['commit', 'first message', 'history changed', 'close failed', 'write failed'] as const)(
+    'edits a native prefix: %s',
+    async (outcome) => {
+      if (outcome === 'first message') agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
+      const tail = agentSessionMessageService.saveMessages({
+        sessionId,
+        messages: [
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
+        ]
+      })
+      const target = {
+        messageId: tail[0].id,
+        version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
+      }
+      beforeForkResult = async (input) => {
+        if (outcome === 'first message') throw new Error('Empty history must not fork the old native session')
+        expect(input.targetCwd).toBe(directory)
+        expect(input.checkpoint).toMatchObject({ leafId: 'leaf' })
+        if (outcome === 'history changed')
+          tail.push(
+            ...agentSessionMessageService.saveMessages({
+              sessionId,
+              messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
+            })
+          )
+      }
+      const operation = new AgentSessionForkOperations().edit(
+        sessionId,
+        target,
+        async () => {
+          if (outcome === 'close failed') throw new Error('close failed')
+        },
+        (tx, nativeSessionId) => {
+          const saved = agentSessionMessageService.saveMessagesTx(tx, {
+            sessionId,
+            messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
+          })
+          agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved[0].id, nativeSessionId)
+          if (outcome === 'write failed') throw new Error('write failed')
+          return saved[0].id
+        }
+      )
+      if (outcome === 'commit' || outcome === 'first message') {
+        const newId = await operation
+        const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
+        expect(rows.map((row) => row.id)).toEqual(outcome === 'commit' ? [messageId, newId] : [newId])
+        expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
+        expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+        expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
+          outcome === 'commit' ? 'native-child' : null
+        )
+        expect(agentSessionService.getById(sessionId).workspace.path).toBe(directory)
+        await new AgentSessionForkOperations().recover()
+        if (outcome === 'commit') {
+          expect(rows[0].data.parts).toEqual([{ type: 'text', text: 'Preserved answer' }])
+          expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
+        } else {
+          expect(await readForkResources()).toEqual([])
+        }
+        await expect(
+          new AgentSessionForkOperations().edit(
+            sessionId,
+            target,
+            async () => {},
+            () => {}
+          )
+        ).rejects.toMatchObject({ reason: 'invalid_target' })
+      } else {
+        await expect(operation).rejects.toThrow()
+        expect(
+          agentSessionMessageService
+            .listSessionMessages(sessionId)
+            .items.toReversed()
+            .map((row) => row.id)
+        ).toEqual([messageId, ...tail.map((row) => row.id)])
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
+        expect(await readForkResources()).toEqual([])
+      }
+    }
+  )
+
+  it.each(['missing', 'assistant'] as const)('rejects an invalid edit target: %s', (target) => {
+    expect(() =>
+      agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, target === 'missing' ? randomUUID() : messageId)
+    ).toThrow('invalid_target')
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items.map((row) => row.id)).toEqual([messageId])
+  })
+
+  it('keeps later turns when the boundary before an edited message has no checkpoint', async () => {
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ data: { parts: [] } })
+      .where(eq(agentSessionMessageTable.id, messageId))
+      .run()
+    const tail = agentSessionMessageService.saveMessages({
+      sessionId,
+      messages: [
+        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question A' }] } },
+        { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Answer A' }] } },
+        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question B' }] } }
+      ]
+    })
+    const target = {
+      messageId: tail[0].id,
+      version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
+    }
+    await expect(
+      new AgentSessionForkOperations().edit(
+        sessionId,
+        target,
+        async () => {},
+        () => {}
+      )
+    ).rejects.toMatchObject({ reason: 'legacy_history' })
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(sessionId)
+        .items.toReversed()
+        .map((row) => row.id)
+    ).toEqual([messageId, ...tail.map((row) => row.id)])
   })
 
   it('replaces inherited links with the direct parent only at the new fork boundary', async () => {
@@ -236,6 +366,15 @@ describe('Agent fork publication', () => {
     }
     const childId = await pending
     expect(agentSessionMessageService.getLastRuntimeResumeToken(childId)).toBe('native-child')
+  })
+
+  it('refuses to publish a runtime artifact from outside the fork artifact directory', async () => {
+    artifactSourceFor = (artifactDirectory) => path.join(`${artifactDirectory}-sibling`, 'native.jsonl')
+    await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow(
+      'Unowned SDK fork artifact'
+    )
+    expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rolls back published files if persisting their ownership fails, then allows retry', async () => {

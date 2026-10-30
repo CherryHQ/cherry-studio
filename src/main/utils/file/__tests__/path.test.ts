@@ -87,6 +87,13 @@ describe('isPathInside', () => {
     expect(isPathInside('/foo/bar/../baz', '/foo/bar')).toBe(false)
   })
 
+  // The naive `startsWith('..')` check reads this as an escape; it is an ordinary child directory.
+  it('accepts a child whose name merely starts with two dots', () => {
+    expect(isPathInside('/foo/bar/..archive', '/foo/bar')).toBe(true)
+    expect(isPathInside(path.join('/foo/bar', '..archive', 'SKILL.md'), '/foo/bar')).toBe(true)
+    expect(isPathInside('/foo/bar/...dots', '/foo/bar')).toBe(true)
+  })
+
   it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
     'matches case-insensitively on darwin / win32 (filesystem default)',
     () => {
@@ -108,6 +115,7 @@ describe('isSameOrInside', () => {
   it('accepts equality and descendants', () => {
     expect(isSameOrInside('/foo/bar', '/foo/bar')).toBe(true)
     expect(isSameOrInside('/foo/bar/baz.txt', '/foo/bar')).toBe(true)
+    expect(isSameOrInside('/foo/bar/..archive', '/foo/bar')).toBe(true)
   })
 
   it('rejects ancestors and siblings', () => {

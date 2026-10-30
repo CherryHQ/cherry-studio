@@ -4,6 +4,7 @@ sources:
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
+  - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
 ---
 
 # Params Pipeline
@@ -80,6 +81,7 @@ export const INTERNAL_FEATURES = [
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
+  qwenAnthropicWebToolsFeature,
   terminalToolFailureFeature,
   steerYieldFeature
 ]
@@ -88,6 +90,16 @@ export const INTERNAL_FEATURES = [
 Callers can append per-request `extraFeatures`; those run after the
 internal set. (AiService's analytics is *not* one of these — it is injected
 separately as a `hookParts` entry, not a `RequestFeature`.)
+
+For Qwen AI Platform and QwenCloud Anthropic endpoints, native web search and
+fetch requests include the platform-required client identifier in a system
+message. The feature preserves the assistant prompt and existing cache markers;
+ordinary requests and client function tools do not receive the identifier.
+Native fetch requires native search alongside it, so web-tool routing selects
+both server tools together when using this endpoint's fetch capability.
+The fetch tool accepts both Anthropic's `url` input and Qwen's `urls` with
+optional `goal`, preserving multiple URLs without repairing an already-executed
+server tool call.
 
 ## RequestScope
 
@@ -129,6 +141,7 @@ buildAgentParams(input)
   ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header
   └─ buildAgentOptions        → standard params + providerOptions + call overrides
                                 + reasoning-adjusted output limit
+                                + sampling filtering across all parameter surfaces
                                 + optional body-passthrough fetch wrapper
                                 + headers + stopWhen + repair + telemetry
 ```
@@ -146,7 +159,20 @@ options).
 Standard sampling params are assembled directly in `buildAgentOptions`;
 they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params
-override them, and per-call overrides apply last.
+override them, and per-call overrides apply last. After service tier, per-call
+and Fast Mode options, and the output limit have been resolved,
+`stripRejectedSamplingParams` applies the resolved model's temperature/topP
+support and existing family policies to all three parameter surfaces:
+
+- Top-level standard parameters.
+- Direct fields in each `providerOptions` namespace.
+- Top-level body-passthrough parameters, including the wire alias `top_p`.
+
+The filter does not mutate its inputs or traverse arbitrary nested custom data.
+Assistant enable flags, reasoning-aware limits, and mutual-exclusion rules stay
+in `getTemperature` / `getTopP`; this final step enforces sampling omission
+regardless of which input supplied the value. Undeclared support retains the
+existing default behavior.
 
 `maxOutputTokens` uses a separate raw-limit resolution before reasoning:
 
@@ -168,7 +194,13 @@ Anthropic-compatible non-Claude models can defer to the endpoint instead of
 inheriting an SDK fallback; unrecognized Claude aliases retain the SDK's Claude
 fallback because Anthropic requires `max_tokens`.
 
-Flat provider params also pass through a request-local fetch wrapper after the
+Flat provider params and request-body service tier values are collected as data
+until sampling filtering finishes. Only then is a request-local fetch wrapper
+installed with the filtered body parameters; capturing them earlier would let
+body passthrough bypass the final capability check. Service tier values override
+custom body values, and SDK-produced fields override both.
+
+The wrapper applies the filtered parameters after the
 AI SDK serializes its JSON POST body. This preserves provider-defined wire names
 such as `snake_case` keys that an adapter schema does not recognize. Provider
 namespace bags remain exclusive to `providerOptions`, non-JSON requests are

@@ -9,11 +9,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
+import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
+import { openRequestPath } from '@main/services/file'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -27,6 +29,7 @@ import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/w
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/browserUrl'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -39,6 +42,8 @@ const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
+// Matches the renderer's main tab bar height (AppShellTabBar `h-11`).
+const MAIN_TITLE_BAR_HEIGHT = 44
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
@@ -258,9 +263,10 @@ export class MainWindowService extends BaseService {
       initData,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isLinux && {
-          frame: preferenceService.get('app.use_system_title_bar'),
-          icon: linuxIcon
+        ...(isLinux && { icon: linuxIcon }),
+        ...(this.usesTitleBarOverlay() && {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: getTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
         }),
         ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
         ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
@@ -271,12 +277,19 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  /** Windows uses WCO; Linux can opt into the system title bar instead. */
+  private usesTitleBarOverlay(): boolean {
+    return isWin || (isLinux && !application.get('PreferenceService').get('app.use_system_title_bar'))
+  }
+
   private setupMainWindow(mainWindow: BrowserWindow) {
     // Position/size are restored declaratively by WindowManager (rememberBounds);
     // re-apply the saved maximized state here, on our own show schedule (tray
     // launch defers it to first show — see setupMaximize).
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
+    // Runs inside openMainWindow's open() call, so it sees the same preference value.
+    if (this.usesTitleBarOverlay()) syncTitleBarOverlayWithTheme(mainWindow)
 
     this.setupWebviewSecurityProfiles(mainWindow)
     this.setupWindowEvents(mainWindow)
@@ -315,6 +328,9 @@ export class MainWindowService extends BaseService {
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
       logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      // A window being torn down can report its renderer gone after the webContents is
+      // destroyed, where reload() throws and hides the real crash behind a dialog.
+      if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
@@ -563,21 +579,37 @@ export class MainWindowService extends BaseService {
     }
   }
 
-  async openWebsite(url: string, external = false): Promise<void> {
-    if (!isSafeExternalUrl(url)) {
+  async openWebsite(url: string, external = false, options?: Electron.OpenExternalOptions): Promise<void> {
+    const resolved = resolveSafeExternalUrl(url)
+    if (!resolved) {
       logger.warn('Blocked website URL with an unsupported scheme')
       return
     }
-    const parsed = new URL(url)
+    const { url: destination, protocol, requiresConfirmation } = resolved
     if (
       !external &&
-      ['http:', 'https:'].includes(parsed.protocol) &&
+      ['http:', 'https:'].includes(protocol) &&
       application.get('PreferenceService').get('app.browser.open_links_in_browser')
     ) {
       this.openBrowserTab(url)
       return
     }
-    await shell.openExternal(url)
+    if (requiresConfirmation) {
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        message: t('dialog.external_link.message'),
+        detail: destination,
+        buttons: [t('dialog.screen_capture_permission.cancel'), t('dialog.external_link.open')],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      if (response !== 1) {
+        logger.warn('External URL opening cancelled', { protocol })
+        return
+      }
+    }
+    await shell.openExternal(destination, options)
   }
 
   openBrowserTab(url: string): void {
@@ -596,7 +628,7 @@ export class MainWindowService extends BaseService {
       void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
     }
     contents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) openWebsite(url)
+      if (resolveSafeExternalUrl(url)) openWebsite(url)
       return { action: 'deny' }
     })
     const navigate = (_event: Electron.Event, url: string) => {
@@ -662,7 +694,7 @@ export class MainWindowService extends BaseService {
         }
       }
 
-      if (url.includes('http://file/')) {
+      if (/^https?:/i.test(url) && url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
         if (!fileName) {
           logger.warn('Blocked empty file name in http://file/ URL')
@@ -674,7 +706,7 @@ export class MainWindowService extends BaseService {
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
           logger.warn(`Blocked path traversal attempt: ${fileName}`)
         } else {
-          shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+          openRequestPath(filePath).catch((err) => logger.error('Failed to open file:', err))
         }
       } else if (isSafeExternalUrl(details.url)) {
         void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))
@@ -698,12 +730,13 @@ export class MainWindowService extends BaseService {
       const isShowTray = preferenceService.get('app.tray.enabled')
       const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
-      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
-      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
-        // 如果是Windows或Linux，直接退出
-        // mac按照系统默认行为，不退出
-        if (isWin || isLinux) {
-          return application.quit()
+      // Windows或Linux未开启托盘、设置了直接关闭或托盘不可用时，直接退出
+      if (isWin || isLinux) {
+        if (!isShowTray || (isShowTray && !isTrayOnClose) || application.get('TrayService').isActivated !== true) {
+          event.preventDefault()
+          // Let Electron finish cancelling this close before starting a new quit attempt.
+          setImmediate(() => application.quit())
+          return
         }
       }
 
@@ -763,8 +796,10 @@ export class MainWindowService extends BaseService {
        * When the window is visible but covered by other windows, simply calling show() and focus()
        * is not enough to bring it to the front. We need to hide it first, then show it again.
        * This mimics the "close to tray and reopen" behavior which works correctly.
+       * X11 only: on Wayland hide() destroys the xdg_toplevel and the re-created one is
+       * denied activation, so the window ends up buried; plain show()+focus() works there.
        */
-      if (isLinux && mainWindow.isVisible() && !mainWindow.isFocused()) {
+      if (isLinux && !isLinuxWayland && mainWindow.isVisible() && !mainWindow.isFocused()) {
         mainWindow.hide()
         setImmediate(() => {
           // Re-check through the field — the window may have been destroyed
@@ -779,18 +814,9 @@ export class MainWindowService extends BaseService {
         return
       }
 
-      /**
-       * About setVisibleOnAllWorkspaces
-       *
-       * [macOS] Known Issue
-       *  setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
-       *  AppleScript may be a solution, but it's not worth
-       *
-       * [Linux] Known Issue
-       *  setVisibleOnAllWorkspaces 在 Linux 环境下（特别是 KDE Wayland）会导致窗口进入"假弹出"状态
-       *  因此在 Linux 环境下不执行这两行代码
-       */
-      if (!isLinux) {
+      // Windows uses this toggle to raise covered windows. On macOS it briefly hides the window
+      // and Dock while transforming the process type; Linux compositors also handle it poorly.
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
@@ -807,7 +833,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
-      if (!isLinux) {
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
       this.pushMainWindowInitData(initData)

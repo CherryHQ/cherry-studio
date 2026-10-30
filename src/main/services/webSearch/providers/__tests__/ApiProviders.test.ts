@@ -44,6 +44,10 @@ vi.mock('@main/services/RegionService', () => ({
 
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
+import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
+import { DeepSeekProvider } from '../api/DeepSeekProvider'
+import { DesearchProvider } from '../api/DesearchProvider'
+import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
@@ -53,6 +57,7 @@ import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
+import { YuanbaoProvider } from '../api/YuanbaoProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
@@ -62,7 +67,7 @@ const fetchRemoteTextMock = mocks.fetchRemoteText
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,
-  excludeDomains: ['example.com'],
+  excludeDomains: ['*://*.example.com/*'],
   compression: {
     method: 'none',
     cutoffLimit: 2000
@@ -181,6 +186,157 @@ describe('main web search API providers', () => {
     mocks.loggerWarn.mockReset()
     mocks.isInChina.mockReset()
     mocks.isInChina.mockResolvedValue(false)
+  })
+
+  it('runs Yuanbao through the desktop factory with key rotation and caller cancellation', async () => {
+    fetchMock.mockImplementation(async () => createJsonResponse({ Response: { Pages: [] } }))
+    const { createWebSearchProvider } = await import('../factory')
+    const provider = createWebSearchProvider(
+      createProvider({
+        id: 'yuanbao',
+        apiKeys: ['first-key', 'second-key'],
+        apiHost: 'https://api.wsa.cloud.tencent.com'
+      }),
+      new ApiKeyRotationState()
+    )
+    const controller = new AbortController()
+    expect(await provider.searchKeywords!('hello', runtimeConfig, { signal: controller.signal })).toMatchObject({
+      providerId: 'yuanbao',
+      capability: 'searchKeywords',
+      inputs: ['hello'],
+      results: []
+    })
+    await provider.searchKeywords!('hello', runtimeConfig)
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('authorization')).toBe('Bearer first-key')
+    expect(new Headers(fetchMock.mock.calls[1][1].headers).get('authorization')).toBe('Bearer second-key')
+    controller.abort()
+    await expect(provider.searchKeywords!('hello', runtimeConfig, { signal: controller.signal })).rejects.toMatchObject(
+      { name: 'AbortError' }
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('maps only complete domain blacklist rules into Yuanbao Site without changing local rules', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ Response: { Pages: [] } }))
+    const provider = createProviderDriver(YuanbaoProvider, createProvider({ id: 'yuanbao' }))
+    const excludeDomains = [
+      '*://*.QQ.com/*',
+      '*://*.qq.com/*',
+      '*://*.sohu.com/*',
+      'https://*.https-only.example/*',
+      '*://exact.example/*',
+      '*://*.path.example/news/*',
+      '/regex.example/',
+      '<all_urls>',
+      '*://*/*'
+    ]
+    const config = { ...runtimeConfig, maxResults: 23, excludeDomains }
+    const original = structuredClone(config)
+    await provider.searchKeywords('hello', config)
+    expect(serializeRequestBody(fetchMock.mock.calls[0][1].body)).toEqual({
+      Query: 'hello',
+      Cnt: 30,
+      Site: 'exclude:qq.com|sohu.com'
+    })
+    expect(config).toEqual(original)
+  })
+
+  it('maps blacklist rules to bare domains for Bocha and Querit site exclusion', async () => {
+    const excludeDomains = ['*://*.qq.com/*', '*://exact.example/*', '/regex\\.example/']
+    const config = { ...runtimeConfig, excludeDomains }
+
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('bocha-response.json')))
+    await createProviderDriver(
+      BochaProvider,
+      createProvider({ id: 'bocha', apiKeys: ['bocha-key'], apiHost: 'https://api.bochaai.com' })
+    ).searchKeywords('hello', config)
+    expect(serializeRequestBody(fetchMock.mock.calls[0][1].body)).toMatchObject({ exclude: 'qq.com' })
+
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('querit-response.json')))
+    await createProviderDriver(
+      QueritProvider,
+      createProvider({ id: 'querit', apiKeys: ['querit-key'], apiHost: 'https://api.querit.ai' })
+    ).searchKeywords('hello', config)
+    expect(serializeRequestBody(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      filters: { sites: { exclude: ['qq.com'] } }
+    })
+  })
+
+  it.each(['Cnt is not supported in lite version', '极速版不支持参数Cnt'])(
+    'retries once without Cnt using the same key and Site for %s',
+    async (message) => {
+      fetchMock
+        .mockResolvedValueOnce(
+          createJsonResponse({ Response: { Error: { Code: 'InvalidParameter', Message: message } } })
+        )
+        .mockImplementation(async () =>
+          createJsonResponse({
+            Response: { Pages: [JSON.stringify({ title: 'Result', url: 'https://example.com', passage: 'Summary' })] }
+          })
+        )
+      const provider = createProviderDriver(
+        YuanbaoProvider,
+        createProvider({ id: 'yuanbao', apiKeys: ['first', 'second'] })
+      )
+      const config = { ...runtimeConfig, excludeDomains: ['*://*.qq.com/*'] }
+      const result = await provider.searchKeywords('hello', config)
+      expect(result.results).toEqual([
+        { title: 'Result', url: 'https://example.com', content: 'Summary', sourceInput: 'hello' }
+      ])
+      expect(fetchMock.mock.calls.slice(0, 2).map((call) => serializeRequestBody(call[1].body))).toEqual([
+        { Query: 'hello', Cnt: 10, Site: 'exclude:qq.com' },
+        { Query: 'hello', Site: 'exclude:qq.com' }
+      ])
+      expect(fetchMock.mock.calls.slice(0, 2).map((call) => new Headers(call[1].headers).get('authorization'))).toEqual(
+        ['Bearer first', 'Bearer first']
+      )
+      await provider.searchKeywords('next', config)
+      expect(new Headers(fetchMock.mock.calls[2][1].headers).get('authorization')).toBe('Bearer second')
+      expect(serializeRequestBody(fetchMock.mock.calls[2][1].body)).toMatchObject({ Cnt: 10 })
+    }
+  )
+
+  it.each([
+    ['InvalidParameter', 'Cnt must be one of 10, 20, 30, 40, 50'],
+    ['InvalidParameter', 'Site is not supported'],
+    ['InvalidParameter', 'Cnt is valid but Site is not supported'],
+    ['UnauthorizedOperation', 'Cnt is not supported'],
+    ['RequestLimitExceeded', 'Too many requests']
+  ])('does not retry unrelated errors: %s %s', async (code, message) => {
+    fetchMock.mockResolvedValue(createJsonResponse({ Response: { Error: { Code: code, Message: message } } }))
+    const provider = createProviderDriver(YuanbaoProvider, createProvider({ id: 'yuanbao' }))
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({ providerCode: code })
+    expect(fetchMock.mock.calls).toHaveLength(1)
+  })
+
+  it('propagates the second failure without retrying again', async () => {
+    fetchMock.mockImplementation(async () =>
+      createJsonResponse({
+        Response: {
+          Error: { Code: 'InvalidParameter', Message: 'Cnt is not supported' },
+          RequestId: 'req-second'
+        }
+      })
+    )
+    const provider = createProviderDriver(YuanbaoProvider, createProvider({ id: 'yuanbao' }))
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      providerCode: 'InvalidParameter',
+      requestId: 'req-second'
+    })
+    expect(fetchMock.mock.calls).toHaveLength(2)
+  })
+
+  it('does not retry after cancellation while receiving a Cnt rejection', async () => {
+    const controller = new AbortController()
+    fetchMock.mockImplementationOnce(async () => {
+      controller.abort()
+      return createJsonResponse({ Response: { Error: { Code: 'InvalidParameter', Message: 'Cnt is not supported' } } })
+    })
+    const provider = createProviderDriver(YuanbaoProvider, createProvider({ id: 'yuanbao' }))
+    await expect(provider.searchKeywords('hello', runtimeConfig, { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(fetchMock.mock.calls).toHaveLength(1)
   })
 
   it('matches Exa request and normalized response snapshots from fixtures', async () => {
@@ -418,6 +574,151 @@ describe('main web search API providers', () => {
     })
   })
 
+  it('matches the DeepSeek search request and prefers the model-facing summary', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('deepseek-search-response.json')))
+
+    const provider = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' },
+          { feature: 'fetchUrls', apiHost: 'https://api.deepseek.com' }
+        ]
+      })
+    )
+
+    const result = await provider.searchKeywords('Cherry Studio', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { query: 'Cherry Studio', count: 4 },
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer deepseek-key',
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.deepseek.com/v1/tools/search'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['Cherry Studio'],
+      providerId: 'deepseek',
+      query: 'Cherry Studio',
+      results: [
+        {
+          content: 'DeepSeek Summary',
+          sourceInput: 'Cherry Studio',
+          title: 'DeepSeek Result Title',
+          url: 'https://example.com/deepseek-result'
+        },
+        {
+          content: 'DeepSeek Snippet',
+          sourceInput: 'Cherry Studio',
+          title: 'DeepSeek Snippet Only',
+          url: 'https://snippet.example/page'
+        }
+      ]
+    })
+  })
+
+  it('matches the DeepSeek fetch request and falls back to the URL as title', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'Fetched Markdown body' }))
+
+    const provider = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' },
+          { feature: 'fetchUrls', apiHost: 'https://api.deepseek.com' }
+        ]
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { url: 'https://example.com/article' },
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer deepseek-key',
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.deepseek.com/v1/tools/fetch'
+    })
+    expect(result.results[0]).toEqual({
+      content: 'Fetched Markdown body',
+      sourceInput: 'https://example.com/article',
+      title: 'https://example.com/article',
+      url: 'https://example.com/article'
+    })
+  })
+
+  it('surfaces DeepSeek HTTP failures with the provider message', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ error: { message: 'Not Enough Credits' } }, 402))
+
+    const provider = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' }]
+      })
+    )
+
+    await expect(provider.searchKeywords('Cherry Studio', runtimeConfig)).rejects.toThrow(
+      /deepseek request failed: HTTP 402 Not Enough Credits/
+    )
+  })
+
+  it('matches the Desearch web search request and normalizes fixture results', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('desearch-response.json')))
+
+    const provider = createProviderDriver(
+      DesearchProvider,
+      createProvider({
+        id: 'desearch',
+        name: 'Desearch',
+        apiKeys: ['desearch-key'],
+        apiHost: 'https://api.desearch.ai'
+      })
+    )
+
+    const result = await provider.searchKeywords('latest web research', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: null,
+      headers: {
+        accept: 'application/json',
+        authorization: 'desearch-key',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'GET',
+      url: 'https://api.desearch.ai/web?query=latest%20web%20research'
+    })
+    expect(result.results).toEqual([
+      {
+        content: 'Desearch Snippet',
+        sourceInput: 'latest web research',
+        title: 'Desearch Title',
+        url: 'https://desearch.example/result'
+      },
+      { content: '', sourceInput: 'latest web research', title: '', url: 'https://desearch.example/second' }
+    ])
+  })
+
   it('fetches a URL without API key or API host', async () => {
     fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
 
@@ -617,13 +918,6 @@ describe('main web search API providers', () => {
       'https://r.jina.ai/https://example.com/article'
     ])
     expect(result.results[0]?.content).toBe('Reader Content')
-    expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      'Jina Reader preferred host failed; retrying alternate built-in host',
-      {
-        providerId: 'jina',
-        error: 'Jina Reader fetch failed: HTTP 503 mirror unavailable'
-      }
-    )
   })
 
   it('retries a failed global Jina Reader request through the China mirror', async () => {
@@ -778,9 +1072,10 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-      'custom reader failed'
-    )
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'network',
+      providerId: 'jina'
+    })
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://reader.example.com/https://example.com/article'])
   })
@@ -810,7 +1105,7 @@ describe('main web search API providers', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
     abortController.abort(abortError)
 
-    await expect(request).rejects.toBe(abortError)
+    await expect(request).rejects.toMatchObject({ kind: 'cancelled', name: 'AbortError', cause: abortError })
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://r.jinaai.cn/https://example.com/article'])
   })
 
@@ -836,12 +1131,14 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-      'Jina Reader returned empty content for https://example.com/article'
-    )
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'empty_content',
+      providerId: 'jina'
+    })
   })
 
-  it('includes Jina Reader upstream error body for HTTP failures', async () => {
+  it('preserves Jina Reader HTTP status without exposing raw error bodies', async () => {
     fetchMock
       .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
       .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
@@ -856,9 +1153,11 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-      'Jina Reader fetch failed: HTTP 401 unauthorized reader token'
-    )
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'http',
+      status: 401,
+      providerId: 'jina'
+    })
   })
 
   it('matches Searxng search requests and parsed content snapshots from fixtures', async () => {
@@ -1058,7 +1357,7 @@ describe('main web search API providers', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('filters empty fetched content from Searxng results', async () => {
+  it('falls back to the Searxng snippet when the result page yields no readable content', async () => {
     fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
     fetchRemoteTextMock.mockResolvedValueOnce('<html><body><div></div></body></html>')
 
@@ -1079,11 +1378,135 @@ describe('main web search API providers', () => {
       providerId: 'searxng',
       capability: 'searchKeywords',
       inputs: ['hello'],
-      results: []
+      results: [
+        {
+          title: 'Searxng Title',
+          content: 'Searxng Content',
+          url: 'https://searx.example/result',
+          sourceInput: 'hello'
+        }
+      ]
     })
   })
 
-  it('warns when every Searxng result URL fails validation', async () => {
+  it('falls back to the Searxng snippet when the result page cannot be fetched', async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Searxng Title',
+        content: 'Searxng Content',
+        url: 'https://searx.example/result',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it.each(['', '   '])('falls back to the Searxng snippet when the content field is %j', async (content) => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'Searxng Title',
+            content,
+            snippet: 'Searxng Snippet',
+            url: 'https://searx.example/result'
+          }
+        ]
+      })
+    )
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Searxng Title',
+        content: 'Searxng Snippet',
+        url: 'https://searx.example/result',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it('keeps fetched pages and snippet fallbacks in search-result order', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        results: [
+          { title: 'Invalid result', content: 'Invalid summary', url: 'not a url' },
+          { title: 'First result', content: 'First summary', url: 'https://searx.example/first' },
+          { title: 'Second result', snippet: 'Second summary', url: 'https://searx.example/second' }
+        ]
+      })
+    )
+    fetchRemoteTextMock
+      .mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+      .mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({ id: 'searxng', apiHost: 'https://searx.example', engines: ['google'] })
+    )
+
+    const result = await provider.searchKeywords('hello', { ...runtimeConfig, maxResults: 2 })
+
+    expect(result.results).toEqual([
+      {
+        title: 'Resolved Page Title',
+        content: 'Resolved content from the target page.',
+        url: 'https://searx.example/first',
+        sourceInput: 'hello'
+      },
+      {
+        title: 'Second result',
+        content: 'Second summary',
+        url: 'https://searx.example/second',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it('drops Searxng hits with neither readable page content nor a summary', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({ results: [{ url: 'https://searx.example/empty', content: '   ', snippet: '' }] })
+    )
+    fetchRemoteTextMock.mockResolvedValueOnce('<html><body><div></div></body></html>')
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({ id: 'searxng', apiHost: 'https://searx.example', engines: ['google'] })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([])
+  })
+
+  it('drops invalid Searxng citations before attempting to download pages', async () => {
     fetchMock.mockResolvedValueOnce(
       createJsonResponse({
         query: 'hello',
@@ -1109,10 +1532,7 @@ describe('main web search API providers', () => {
     const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect(result.results).toEqual([])
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('All Searxng search URLs failed validation', {
-      query: 'hello',
-      total: 1
-    })
+    expect(fetchRemoteTextMock).not.toHaveBeenCalled()
   })
 
   it('keeps successful Searxng content fetches when some results fail', async () => {
@@ -1222,6 +1642,7 @@ describe('main web search API providers', () => {
           },
           {
             title: 'Second result',
+            snippet: 'A summary must not override caller cancellation',
             url: 'https://searx.example/second'
           }
         ]
@@ -1243,9 +1664,10 @@ describe('main web search API providers', () => {
 
     controller.abort(abortError)
 
-    await expect(provider.searchKeywords('hello', runtimeConfig, { signal: controller.signal })).rejects.toThrow(
-      'Search cancelled'
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig, { signal: controller.signal })).rejects.toMatchObject({
+      kind: 'cancelled',
+      name: 'AbortError'
+    })
   })
 
   it('throws when every Searxng content fetch fails', async () => {
@@ -1503,6 +1925,75 @@ describe('main web search API providers', () => {
     })
   })
 
+  it.each(['https://api.querit.ai/v1', 'https://api.querit.ai/v1/'])(
+    'does not duplicate the /v1 segment when the Querit API host %s already includes it',
+    async (apiHost) => {
+      fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-contents-response.json')))
+      const provider = createProviderDriver(
+        QueritProvider,
+        createProvider({
+          id: 'querit',
+          name: 'Querit',
+          apiKeys: ['querit-key'],
+          capabilities: [{ feature: 'fetchUrls', apiHost }]
+        })
+      )
+
+      await provider.fetchUrls('https://querit.example/article', runtimeConfig)
+
+      expect(fetchMock.mock.lastCall?.[0]).toBe('https://api.querit.ai/v1/contents')
+    }
+  )
+
+  it.each([
+    ['failed page with empty content', [{ id: '1', url: 'https://example.com', content: '' }]],
+    ['failed crawl omitted from results', []]
+  ])('preserves the Querit page failure through the real adapter: %s', async (_reason, results) => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({ error_code: 200, error_msg: '', results, statuses: [{ id: '1', status: 'failed' }] })
+    )
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }]
+      })
+    )
+
+    await expect(provider.fetchUrls('https://example.com', runtimeConfig)).rejects.toMatchObject({
+      kind: 'provider',
+      code: 'page_fetch_failed',
+      message: 'Querit could not fetch page content for https://example.com',
+      providerId: 'querit',
+      capability: 'fetchUrls'
+    })
+  })
+
+  it('accepts Querit responses whose error_code is a numeric string', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        error_code: '200',
+        error_msg: '',
+        results: [{ url: 'https://querit.example/article', content: 'Body' }]
+      })
+    )
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }]
+      })
+    )
+
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).resolves.toMatchObject({
+      results: [{ content: 'Body' }]
+    })
+  })
+
   it('rejects Querit contents responses that report an error or return no content', async () => {
     fetchMock
       .mockResolvedValueOnce(createJsonResponse({ error_code: 429, error_msg: 'Rate limit exceeded', results: [] }))
@@ -1524,12 +2015,16 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toThrow(
-      'Querit contents failed: Rate limit exceeded'
-    )
-    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toThrow(
-      'Querit contents returned empty content for https://querit.example/article'
-    )
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'provider',
+      providerCode: '429',
+      message: 'Rate limit exceeded'
+    })
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'empty_content',
+      providerId: 'querit'
+    })
   })
 
   it('matches Zhipu request and normalized response snapshots from fixtures', async () => {
@@ -1600,9 +2095,12 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-      'exa search response validation failed for https://api.exa.ai/search'
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'schema_mismatch',
+      providerId: 'exa',
+      capability: 'searchKeywords'
+    })
   })
 
   it('adds provider context when API response body is invalid JSON', async () => {
@@ -1618,12 +2116,15 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-      'searxng config returned invalid JSON from https://searx.example/config'
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'invalid_json',
+      providerId: 'searxng',
+      capability: 'searchKeywords'
+    })
   })
 
-  it('truncates oversized upstream HTTP error bodies in provider errors', async () => {
+  it('omits oversized plain-text upstream bodies from structured HTTP errors', async () => {
     fetchMock.mockResolvedValue(createTextResponse('x'.repeat(600), 'text/plain', 502))
 
     const provider = createProviderDriver(
@@ -1636,9 +2137,12 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-      `Exa search failed: HTTP 502 ${'x'.repeat(500)}... [truncated]`
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      kind: 'http',
+      status: 502,
+      providerId: 'exa',
+      message: 'exa request failed: HTTP 502'
+    })
   })
 
   it('matches Exa MCP request and normalized response snapshots from fixtures', async () => {
@@ -1854,7 +2358,8 @@ describe('main web search API providers', () => {
     const searchPromise = provider.searchKeywords('hello', runtimeConfig)
     const timeoutAssertion = expect(searchPromise).rejects.toMatchObject({
       name: 'TimeoutError',
-      message: 'Exa MCP search timed out after 25000ms'
+      kind: 'timeout',
+      code: 'request_timeout'
     })
 
     await vi.advanceTimersByTimeAsync(25000)
@@ -1935,6 +2440,96 @@ describe('main web search API providers', () => {
     expect(tavilyResult.results[0]?.title).toBe('')
     expect(zhipuResult.results[0]?.title).toBe('')
     expect(exaMcpResult.results[0]?.title).toBe('')
+  })
+
+  describe('Crawl4AIProvider', () => {
+    function crawl4ai(apiKeys: string[] = []) {
+      return createProviderDriver(
+        Crawl4AIProvider,
+        createProvider({
+          id: 'crawl4ai',
+          apiKeys,
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'http://localhost:11235/proxy/' }]
+        })
+      )
+    }
+
+    it('fetches fit Markdown through a self-hosted endpoint without requiring a token', async () => {
+      const url = 'https://example.org/page'
+      fetchMock.mockResolvedValueOnce(createJsonResponse({ url, markdown: '  # Rendered page  ', success: true }))
+      const signal = new AbortController().signal
+
+      const result = await crawl4ai().fetchUrls(` ${url} `, runtimeConfig, { signal })
+
+      expect(result.results).toEqual([{ title: url, content: '# Rendered page', url, sourceInput: url }])
+      expect(result).toMatchObject({ capability: 'fetchUrls', providerId: 'crawl4ai', inputs: [url] })
+      const [requestUrl, request] = fetchMock.mock.calls[0]
+      expect(requestUrl).toBe('http://localhost:11235/proxy/md')
+      expect(JSON.parse(request.body)).toEqual({ url, f: 'fit' })
+      expect(request.signal).toBe(signal)
+      expect(new Headers(request.headers).has('Authorization')).toBe(false)
+    })
+
+    it('uses the configured bearer token for authenticated deployments', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createJsonResponse({
+          url: 'https://example.org',
+          markdown: 'Page',
+          success: true
+        })
+      )
+      await crawl4ai(['private-token']).fetchUrls('https://example.org', runtimeConfig)
+      expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer private-token')
+    })
+
+    it.each([
+      { url: 'https://example.org', markdown: '', success: true },
+      { url: 'https://example.org', markdown: 'Failed', success: false },
+      { url: 'https://example.org', markdown: { raw_markdown: 'Wrong endpoint shape' }, success: true }
+    ])('rejects unsuccessful, empty, or invalid Markdown responses: %j', async (payload) => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(payload))
+      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toThrow()
+    })
+
+    function crawl4aiCloud(apiKeys: string[] = ['sk_live_test']) {
+      return createProviderDriver(
+        Crawl4AIProvider,
+        createProvider({
+          id: 'crawl4ai',
+          apiKeys,
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.crawl4ai.com' }]
+        })
+      )
+    }
+
+    it('fetches Markdown through the hosted Crawl4AI Cloud /scrape endpoint', async () => {
+      const url = 'https://example.com'
+      fetchMock.mockResolvedValueOnce(createJsonResponse({ ok: true, markdown: '  # Example Domain  ', ms: 312 }))
+
+      const result = await crawl4aiCloud().fetchUrls(url, runtimeConfig)
+
+      expect(result.results).toEqual([{ title: url, content: '# Example Domain', url, sourceInput: url }])
+      const [requestUrl, request] = fetchMock.mock.calls[0]
+      expect(requestUrl).toBe('https://api.crawl4ai.com/scrape')
+      expect(JSON.parse(request.body)).toEqual({ url, format: 'md' })
+      expect(new Headers(request.headers).get('Authorization')).toBe('Bearer sk_live_test')
+    })
+
+    it.each([{ ok: false }, { ok: true, markdown: '   ' }])(
+      'rejects unsuccessful or empty Crawl4AI Cloud responses: %j',
+      async (payload) => {
+        fetchMock.mockResolvedValueOnce(createJsonResponse(payload))
+        await expect(crawl4aiCloud().fetchUrls('https://example.com', runtimeConfig)).rejects.toThrow()
+      }
+    )
+
+    it('reports server HTTP failures rather than producing a page result', async () => {
+      fetchMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toMatchObject({
+        kind: 'http',
+        status: 401
+      })
+    })
   })
 
   describe('FirecrawlProvider', () => {
@@ -2035,9 +2630,11 @@ describe('main web search API providers', () => {
         })
       )
 
-      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-        'Firecrawl search failed: Rate limit exceeded'
-      )
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+        kind: 'provider',
+        message: 'Rate limit exceeded',
+        providerId: 'firecrawl'
+      })
     })
 
     it('falls back to description when markdown is missing, and to empty string if both missing', async () => {
@@ -2171,12 +2768,216 @@ describe('main web search API providers', () => {
         })
       )
 
-      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-        'Firecrawl scrape failed: Rate limit exceeded'
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+        kind: 'provider',
+        message: 'Rate limit exceeded',
+        providerId: 'firecrawl'
+      })
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+        kind: 'invalid_response',
+        code: 'empty_content',
+        providerId: 'firecrawl'
+      })
+    })
+  })
+
+  describe('DuckduckgoProvider', () => {
+    it('decodes redirect URLs, skips ads and non-http links, and fetches content per result', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
       )
-      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-        'Firecrawl scrape returned empty content for https://example.com/article'
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(fetchMock.mock.calls[0][0]).toBe('https://html.duckduckgo.com/html/?q=hello')
+      expect(fetchRemoteTextMock.mock.calls.map(([url]) => url)).toEqual([
+        'https://example.com/hello',
+        'https://example.org/direct'
+      ])
+      expect(result.providerId).toBe('duckduckgo')
+      expect(result.capability).toBe('searchKeywords')
+      expect(result.results).toEqual([
+        {
+          title: 'Resolved Page Title',
+          url: 'https://example.com/hello',
+          content: 'Resolved content from the target page.',
+          sourceInput: 'hello'
+        },
+        {
+          title: 'Resolved Page Title',
+          url: 'https://example.org/direct',
+          content: 'Resolved content from the target page.',
+          sourceInput: 'hello'
+        }
+      ])
+    })
+
+    it('percent-decodes redirect targets exactly once', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Ffile%2520name&amp;rut=r1">Encoded Target</a></h2></div>`,
+          'text/html'
+        )
       )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results[0].url).toBe('https://example.com/file%20name')
+    })
+
+    it('throws when the search page is a bot-detection challenge instead of returning empty results', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          '<div class="anomaly-modal">Unusual traffic detected</div><form id="challenge-form" action="/anomaly.js"></form>',
+          'text/html',
+          200
+        )
+      )
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(/bot-detection challenge/)
+      expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+    })
+
+    it('treats a 202 response as a bot-detection challenge even without anomaly markers', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('', 'text/html', 202))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(/bot-detection challenge/)
+      expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+    })
+
+    it('returns empty results for a legitimate no-hit search instead of throwing', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('<html><body>No results.</body></html>', 'text/html', 200))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('asdfqwerty', runtimeConfig)
+
+      expect(result.results).toEqual([])
+      expect(mocks.loggerWarn).toHaveBeenCalled()
+    })
+
+    it('decodes redirect targets with uppercase schemes', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=HTTP%3A%2F%2Fexample.com%2Fupper&amp;rut=r1">Uppercase Scheme</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results[0].url).toBe('HTTP://example.com/upper')
+    })
+
+    it('does not mistake results mentioning the anomaly markers for a challenge page', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="https://example.org/anomaly-modal">Anomaly modal docs</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('anomaly modal', runtimeConfig)
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0].url).toBe('https://example.org/anomaly-modal')
+    })
+
+    it('caps parsed results at the configured max results', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', { ...runtimeConfig, maxResults: 1 })
+
+      expect(fetchRemoteTextMock).toHaveBeenCalledOnce()
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0].url).toBe('https://example.com/hello')
+    })
+
+    it('keeps successful content fetches when some result pages fail', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock
+        .mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+        .mockRejectedValueOnce(new Error('connection reset'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0].url).toBe('https://example.com/hello')
+      expect(mocks.loggerWarn).toHaveBeenCalledWith(
+        'Some Duckduckgo content fetches failed',
+        expect.objectContaining({ failedCount: 1, totalCount: 2 })
+      )
+    })
+
+    it('throws when the search page request fails', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('challenge page', 'text/html', 403))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
+        'Duckduckgo search failed: HTTP 403 challenge page'
+      )
+    })
+
+    it('throws when every result content fetch fails', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock.mockRejectedValue(new Error('connection reset'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow('connection reset')
     })
   })
 })

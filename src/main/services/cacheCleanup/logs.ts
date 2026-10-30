@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isSameOrInside } from '@main/utils/file'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 
 import {
@@ -10,7 +11,6 @@ import {
   type CleanupTarget,
   collectOwnedTargets,
   isNodeError,
-  isPathWithin,
   issue,
   measurePaths,
   removeCleanupTarget,
@@ -72,7 +72,7 @@ async function collectLogTargets(minAgeDays: number): Promise<{
         (entry) =>
           entry.isFile() &&
           isRemovable(entry.name, minAgeDays) &&
-          !(miniAppLogsDir && isPathWithin(entry.parentPath, miniAppLogsDir))
+          !(miniAppLogsDir && isSameOrInside(entry.parentPath, miniAppLogsDir))
       )
       .map((entry): CleanupTarget => ({ item: 'logs', path: path.join(entry.parentPath, entry.name), kind: 'file' }))
   )

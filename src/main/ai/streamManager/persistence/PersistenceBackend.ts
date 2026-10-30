@@ -44,6 +44,12 @@ export function finalizeInterruptedParts(
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
+    // A `text` part left `streaming` by a mid-response failure renders as a still-typing
+    // cursor instead of the truncated sentence the user actually received.
+    if (part.type === 'text') {
+      return part.state === 'streaming' ? { ...part, state: 'done' } : part
+    }
+
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
         const cherry = readCherryMeta(part)
@@ -120,6 +126,12 @@ export interface PersistAssistantInput {
   runtimeStats?: MessageRuntimeStatsInput
 }
 
+export interface PersistedAssistant {
+  messageId: string
+  messageRevision: string
+  historyRevision: string
+}
+
 export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
@@ -133,7 +145,7 @@ export interface PersistenceBackend {
   /** True only when an empty successful response is itself a valid terminal result. */
   readonly canPersistEmptySuccessTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void | Promise<void>
+  persistAssistant(input: PersistAssistantInput): PersistedAssistant | void | Promise<PersistedAssistant | void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing

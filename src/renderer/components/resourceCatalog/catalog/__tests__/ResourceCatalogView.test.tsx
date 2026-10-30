@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
+
 import { ResourceCatalogView } from '../ResourceCatalogView'
 
 const {
@@ -10,7 +12,6 @@ const {
   resourceCatalogControllerMock,
   resourceCreateWizardMock,
   resourceGridMock,
-  skillDetailDialogMock,
   systemSkillDialogMock
 } = vi.hoisted(() => ({
   dialogImplementationsLoadedMock: vi.fn(),
@@ -18,7 +19,6 @@ const {
   resourceCatalogControllerMock: vi.fn(),
   resourceCreateWizardMock: vi.fn(),
   resourceGridMock: vi.fn(),
-  skillDetailDialogMock: vi.fn(),
   systemSkillDialogMock: vi.fn()
 }))
 
@@ -63,12 +63,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/delete', () => ({
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/detail', () => {
   dialogImplementationsLoadedMock('detail')
-  return {
-    SkillDetailDialog: (props: { open: boolean; skill: { id: string } | null }) => {
-      skillDetailDialogMock(props)
-      return props.open ? <div data-skill-id={props.skill?.id} data-testid="skill-detail-dialog" /> : null
-    }
-  }
+  return {}
 })
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => {
   dialogImplementationsLoadedMock('edit')
@@ -93,8 +88,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => {
 })
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => () => true,
-  useAgentModelDisabled: () => () => false
+  useAgentModelFilter: () => () => true
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog/useResourceCatalogController', () => ({
@@ -114,7 +108,7 @@ vi.mock('../ResourceGrid', () => ({
   }
 }))
 
-function createController(resourceError?: Error) {
+function createController(resourceError?: Error, resources: ResourceItem[] = []) {
   return {
     resourceError,
     refetch: refetchMock,
@@ -136,7 +130,7 @@ function createController(resourceError?: Error) {
       onOpenSystemSkills: vi.fn(),
       onSearchChange: vi.fn(),
       onGroupFilter: vi.fn(),
-      resources: [],
+      resources,
       search: ''
     },
     dialogs: {
@@ -149,12 +143,10 @@ function createController(resourceError?: Error) {
       editDialogTarget: null,
       handleCreateDialogOpenChange: vi.fn(),
       handleSubmitCreateResource: vi.fn(),
-      selectedSkill: null,
       setAssistantImportOpen: vi.fn(),
       setAssistantLibraryOpen: vi.fn(),
       setDeleteConfirm: vi.fn(),
       setEditDialogTarget: vi.fn(),
-      setSelectedSkill: vi.fn(),
       setSkillImportOpen: vi.fn(),
       setSkillMarketplaceOpen: vi.fn(),
       setSystemSkillOpen: vi.fn(),
@@ -172,7 +164,6 @@ describe('ResourceCatalogView', () => {
     resourceCatalogControllerMock.mockReset()
     resourceCreateWizardMock.mockClear()
     resourceGridMock.mockClear()
-    skillDetailDialogMock.mockClear()
     systemSkillDialogMock.mockClear()
     resourceCatalogControllerMock.mockReturnValue(createController())
   })
@@ -196,7 +187,7 @@ describe('ResourceCatalogView', () => {
 
     expect(await screen.findByTestId('resource-create-wizard')).toHaveAttribute('data-kind', 'assistant')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('create')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('detail')
+    expect(dialogImplementationsLoadedMock).not.toHaveBeenCalledWith('detail')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('edit')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('import')
     expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('skill')
@@ -207,18 +198,6 @@ describe('ResourceCatalogView', () => {
 
     expect(screen.queryByTestId('resource-create-wizard')).not.toBeInTheDocument()
     expect(resourceCreateWizardMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: false }))
-
-    resourceCatalogControllerMock.mockReturnValue({
-      ...inactiveController,
-      dialogs: {
-        ...inactiveController.dialogs,
-        selectedSkill: { id: 'skill-1' } as never
-      }
-    })
-    rerender(<ResourceCatalogView resourceType="assistant" />)
-
-    expect(await screen.findByTestId('skill-detail-dialog')).toHaveAttribute('data-skill-id', 'skill-1')
-    expect(skillDetailDialogMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: true }))
   })
 
   it('keeps toolbar leading in the resource grid success state', () => {
@@ -229,6 +208,37 @@ describe('ResourceCatalogView', () => {
     expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
     expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ toolbarLeading: expect.anything() }))
+  })
+
+  it('filters controller resources before rendering the grid', () => {
+    const enabledSkill = { id: 'enabled', type: 'skill', raw: { isGlobalEnabled: true } } as ResourceItem
+    const disabledSkill = { id: 'disabled', type: 'skill', raw: { isGlobalEnabled: false } } as ResourceItem
+    resourceCatalogControllerMock.mockReturnValue(createController(undefined, [enabledSkill, disabledSkill]))
+
+    render(
+      <ResourceCatalogView
+        resourceType="skill"
+        filterResource={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
+      />
+    )
+
+    expect(resourceGridMock).toHaveBeenCalledWith(
+      expect.objectContaining({ resources: [enabledSkill], hasHiddenResources: false })
+    )
+  })
+
+  it('tells the grid when an external filter hides every available resource', () => {
+    const disabledSkill = { id: 'disabled', type: 'skill', raw: { isGlobalEnabled: false } } as ResourceItem
+    resourceCatalogControllerMock.mockReturnValue(createController(undefined, [disabledSkill]))
+
+    render(
+      <ResourceCatalogView
+        resourceType="skill"
+        filterResource={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
+      />
+    )
+
+    expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ resources: [], hasHiddenResources: true }))
   })
 
   it('keeps toolbar leading available when the catalog enters the error state', () => {

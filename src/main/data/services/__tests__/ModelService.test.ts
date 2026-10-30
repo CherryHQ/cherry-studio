@@ -433,6 +433,28 @@ describe('ModelService.update', () => {
     expect(row.pricing).toEqual(pricing)
   })
 
+  it.each([false, true])('round-trips an image-only price for a model with registry match %s', async (hasPreset) => {
+    await seedExistingModel()
+    if (hasPreset) {
+      resolveModelMock.mockReturnValue({
+        presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+        registryOverride: null,
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      })
+    }
+    const pricing = {
+      input: { perMillionTokens: null, currency: 'USD' as const },
+      output: { perMillionTokens: null, currency: 'USD' as const },
+      perImage: { price: 0.04, unit: 'image' as const }
+    }
+    modelService.update('openai', 'gpt-4o', { pricing })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { name: 'My image model' })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { pricing: { ...pricing, perImage: { price: 0, unit: 'image' } } })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing?.perImage).toEqual({ price: 0, unit: 'image' })
+  })
+
   it('stores model group edits in the sparse group column', async () => {
     await seedExistingModel()
 
@@ -559,6 +581,33 @@ describe('ModelService.update', () => {
 
 describe('ModelService.create', () => {
   const dbh = setupTestDatabase()
+
+  it('persists and exposes effort for a manually added StepFun preview without a catalog match', () => {
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+    dbh.db.insert(userProviderTable).values(providerRow('stepfun', 'StepFun')).run()
+
+    const [created] = modelService.create([
+      {
+        dto: { providerId: 'stepfun', modelId: 'step-5-preview', capabilities: [MODEL_CAPABILITY.REASONING] },
+        registryData
+      }
+    ])
+    const stored = dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id)).get()!
+    const controls = [{ kind: 'effort', values: ['low', 'medium', 'high'] }]
+    expect(stored.presetModelId).toBeNull()
+    expect(stored.reasoning?.controls).toEqual(controls)
+    const listed = modelService.list({ providerId: 'stepfun' }).find((model) => model.id === created.id)
+    expect(listed).toBeDefined()
+    for (const model of [created, modelService.getByKey('stepfun', 'step-5-preview'), listed!]) {
+      expect(model.reasoning?.controls).toEqual(controls)
+      expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+    }
+  })
 
   it('null DTO fields do not clobber preset during merge', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
@@ -2108,6 +2157,7 @@ describe('ModelService.delete', () => {
       })
     )
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -2296,6 +2346,7 @@ describe('ModelService.bulkDelete', () => {
       })
     ])
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -2520,6 +2571,22 @@ describe('ModelService.reconcileForProvider', () => {
   beforeEach(() => {
     resolveModelMock.mockClear()
   })
+
+  it.each(['comfyui', 'ollama', 'openai'])(
+    'preserves custom %s models during reconcile but allows explicit deletion',
+    (providerId) => {
+      dbh.db.insert(userProviderTable).values(providerRow(providerId, providerId)).run()
+      const id = createUniqueModelId(providerId, 'saved-model')
+      dbh.db
+        .insert(userModelTable)
+        .values(modelRow(providerId, 'saved-model', { id }))
+        .run()
+      const remaining = modelService.reconcileForProvider(providerId, { toAdd: [], toRemove: [id] })
+      expect(remaining.map((model) => model.id)).toEqual([id])
+      modelService.delete(providerId, 'saved-model')
+      expect(dbh.db.select().from(userModelTable).all()).toEqual([])
+    }
+  )
 
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer

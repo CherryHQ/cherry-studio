@@ -70,6 +70,8 @@ export interface DispatchContext {
   requireIdle?: boolean
   /** Internal callers may require the session's agent ownership at the message-write boundary. */
   expectedAgentId?: string
+  /** Assert caller admission preconditions inside the message reservation transaction. */
+  beforePersist?: () => void
 }
 
 export interface ChatContextProvider {

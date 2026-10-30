@@ -94,12 +94,7 @@ export function isTopLevelRoute(url: string): boolean {
   return !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
 }
 
-/**
- * Routes whose tab title + icon are owned by the PAGE (the active topic /
- * session name and its assistant / agent emoji), not derived from the route.
- * Callers that auto-relabel tabs from the route (route localization, url-sync)
- * must skip these, or they clobber the page-set title/icon.
- */
+/** Routes whose tab title + icon are owned by the page (topic / session name + emoji). */
 const PAGE_TITLED_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
 
 export function isPageTitledRoute(url: string): boolean {

@@ -1,6 +1,7 @@
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
 const loggerMocks = vi.hoisted(() => ({
@@ -1163,6 +1164,24 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents).not.toContainEqual({ type: 'autonomous-turn-state', state: 'started' })
     })
 
+    it('settles a background wake whose summary result is attributed to a task notification', () => {
+      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'Both tasks finished' }
+        })
+      )
+
+      const result = adapter.handleMessage(notificationResult({ num_turns: 1, result: 'Both tasks finished' }))
+
+      expect(result).toMatchObject({ type: 'result' })
+      expect(adapter.isTurnActive).toBe(false)
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+      expect(statusEvents.at(-1)).toEqual({ type: 'autonomous-turn-state', state: 'finished' })
+    })
+
     it('keeps the turn open when the notification query itself errors', () => {
       const { adapter } = createAdapter()
 
@@ -1237,6 +1256,22 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(sessionIds).toEqual(['sdk-result'])
     expect(parts.map((part) => part.type)).toEqual(['message-metadata'])
     expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
+  })
+
+  it.each([400, 401, 429, 503])('preserves SDK HTTP %i across error serialization', (statusCode) => {
+    const { adapter } = createAdapter()
+    const message = `API Error: ${statusCode} Provider returned error`
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(
+        successResult({ is_error: true, terminal_reason: 'api_error', api_error_status: statusCode, result: message })
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(serializeError(thrown)).toMatchObject({ name: 'ClaudeCodeResultError', statusCode, message })
   })
 
   it('emits final live usage metadata before throwing on error results', () => {
@@ -1558,7 +1593,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         message: 'API Error: The operation timed out.',
         subtype: 'success',
         terminalReason: 'api_error',
-        apiErrorStatus: 504
+        statusCode: 504
       })
       expect(sessionIds).toEqual(['resume-api-error'])
       expect(parts).toEqual([])
@@ -1594,7 +1629,7 @@ describe('ClaudeCodeStreamAdapter', () => {
           type: 'background-tasks',
           tasks: [{ id: 'bg-1', type: 'local_bash', description: 'sleep 300' }]
         },
-        { type: 'background-work-state', active: true },
+        { type: 'background-work-state', active: true, awaitingReply: false },
         { type: 'supported-commands', commands: [{ name: 'help', description: 'Help' }] }
       ])
       // Status is not turn content, so nothing reaches the message stream.
@@ -1875,6 +1910,38 @@ describe('ClaudeCodeStreamAdapter', () => {
         state: 'idle'
       } as any)
       expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: false })
+    })
+
+    it('releases the reply after subagents drain even while a background server remains', () => {
+      const { adapter, statusEvents } = createAdapter()
+      const server = { task_id: 'server', task_type: 'local_bash', description: 'Development server' }
+      const agent = { task_id: 'child', task_type: 'local_agent', description: 'Review' }
+      const membership = (tasks: unknown[]) =>
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'background_tasks_changed',
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          tasks
+        } as any)
+      membership([server, agent])
+      adapter.handleMessage(successResult())
+      membership([server])
+      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: true })
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Summary' } })
+      )
+      adapter.handleMessage(successResult({ origin: { kind: 'task-notification' } }))
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'session_state_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        state: 'idle'
+      } as any)
+      expect(adapter.isTurnActive).toBe(false)
+      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: true, awaitingReply: false })
+      expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
     })
 
     it('keeps background work alive through a terminal bookend and parentless wake until idle', () => {

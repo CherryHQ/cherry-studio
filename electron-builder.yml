@@ -21,6 +21,7 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
@@ -32,11 +33,13 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!native"
   - "!config"
   - "!patches"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
+  - "!**/node_modules/@cherrystudio/computer-use-{darwin,win32,linux}-*/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -64,6 +67,9 @@ files:
   - "!node_modules/@tavily/core/node_modules/js-tiktoken"
   - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
+  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
+  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
   # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
   # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
   - "!node_modules/selection-hook/build/**"
@@ -76,6 +82,9 @@ files:
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
+  - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
+  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform packaging
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -84,8 +93,6 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  # DSH runs under bundled Bun: bundle its JS and unpack native/runtime files.
-  - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"
   - "node_modules/detect-libc/**"
@@ -93,10 +100,7 @@ asarUnpack:
   - "node_modules/node-pty/**"
   - "node_modules/koffi/**"
   - "node_modules/@koromix/koffi-*/**"
-  - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
-  - "node_modules/@deepseek-ai/dsh-win32-process/**"
-  - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
-  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/yaml/**"
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
@@ -104,6 +108,8 @@ asarUnpack:
   - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
+  - from: "src/main/ai/voice/localAdapters/NOTICE.txt"
+    to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
@@ -112,13 +118,16 @@ win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   extraResources:
+    # before-pack adds system-speech only for x64; extraResources .exe files use signtoolOptions below.
     - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
       to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
   signtoolOptions:
-    sign: scripts/win-sign.js
+    sign: scripts/packaging/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
   # Preserve the existing global installer identity so either edition replaces the same Windows installation.
@@ -131,26 +140,39 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
-  differentialPackage: false
+  differentialPackage: true
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
   # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
   unpackDirName: true
 mac:
+  extraFiles:
+    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+      to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
+  sign: scripts/packaging/mac-sign.js
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
+    NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCalendarsUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsWriteOnlyAccessUsageDescription: Cherry Studio allows local MCP servers to create calendar events.
+    NSRemindersUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSRemindersFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSAppleEventsUsageDescription: Cherry Studio allows local MCP servers to control other applications using AppleScript.
   target:
     - target: dmg
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -173,67 +195,92 @@ rpm:
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
+  useMultipleRangeRequest: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-beforePack: scripts/before-pack.js
-afterPack: scripts/after-pack.js
-afterSign: scripts/notarize.js
-artifactBuildCompleted: scripts/artifact-build-completed.js
+beforePack: scripts/packaging/before-pack.js
+afterPack: scripts/packaging/after-pack.js
+afterSign: scripts/packaging/notarize.js
+artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.1 - Provider Support and Stability Improvements
+    Cherry Studio 2.1.8 - Editing, Voice, and Integration Updates
 
     ✨ New Features
-    - [Model] Add oMLX as a built-in local provider with base URL preset and no API key required.
-    - [Model] Add Moonshot AI global endpoint for users of the international Moonshot console.
-    - [MCP] The built-in mcp-auto-install server keeps its Registry cache and config writes inside Cherry's config directory instead of other MCP clients; AI-assisted installs can resolve server config from the MCP Registry before registering.
-    - [Sign-in] CherryIN sign-in uses a local HTTP callback instead of the system custom-protocol handler.
-    - [Agents] Return to the original chat from a link at the fork boundary.
-    - [Diagnostics] Chat, tool, and agent failures now record structured diagnostic context with redacted request/response shapes.
+    - [File Editing] Isolate drafts across notes, skills and artifacts, retain failed edits for retry, and support up to 8 MiB text editing and previews.
+    - [Language] Add Italian (it-IT) UI support with full translations and emoji picker.
+    - [Voice] Hold the mouse button in a text input to start dictation, release to transcribe.
+    - [Voice] Streaming speech synthesis with real-time audio playback.
+    - [Web Search] Add Tencent Yuanbao Search as a built-in provider.
+    - [Scheduled Tasks] Create and manage scheduled tasks through an agent chat with an interactive task card.
+    - [Screenshot] Copy the capture to clipboard while keeping the overlay open.
+    - [Selection] Select text anywhere to automatically copy it and show a quick-quote toolbar.
+    - [Composer] File and link tokens align with the text line, show per-type file icons, and load favicons while editing.
+    - [RTF] Preview Rich Text Format files as formatted documents.
+    - [Feishu] Configure whether the bot only replies to @mentions in group chats.
+    - [Remote Access] Set a custom hostname, IP or port for pairing invitations.
+    - [Assistant] Remember the “Also archive related topics” choice for future archives.
 
     🐛 Bug Fixes
-    - [Recycle Bin] Improve settings with direct category tabs, clearer grouping, compact actions, and disabled batch management for empty categories.
-    - [Settings] Fixed settings, authorization, billing, and feedback links opening in the internal browser instead of the system browser.
-    - [Settings] English search terms now find the V2 serif-font setting.
-    - [Agents] Fixed timeouts when forking long DSH conversations.
-    - [macOS] Warn Apple Silicon users running the Intel build and link to the correct edition's download page.
-    - [Tools] Fixed skill installation, Skill tool dependency check, and Windows binary management failing when command lookup times out or errors.
-    - [Models] Keep valid LM Studio models when one catalog entry is malformed.
-    - [Input] AskUserQuestion answers now wrap and grow, and keep selected options when a custom note is typed.
-    - [AI] Fixed Gemini requests failing with 400 error when tool parameters declare numeric or boolean enum values.
-    - [Markdown] Fixed KaTeX-stretched symbols (e.g., square roots) disappearing from rendered formulas.
-    - [Windows] Fixed agent-session trace history never being saved.
-    - [Privacy] Fixed analytics events still being sent after disabling data collection.
-    - [Sidebar] All resource shortcuts can now be removed via context menus.
-    - [Profile] Fixed user name input dropping spaces, allowing names like “John Doe”.
-    - [MCP] Fixed OAuth sign-in failing with connection-refused because callback listener started after browser opened.
+    - [Notes] Fix note content being overwritten when switching between cached notes.
+    - [Skills] Show localized error messages when a ZIP or folder is missing SKILL.md, without leaking temporary paths.
+    - [Chat] Expand long user messages by default; keep follow-up queues independent of read receipts.
+    - [Proxy] Match short wildcard IP bypass rules like 192.168.* on Windows.
+    - [Claude Code] Keep the 1M context budget when routing through the internal gateway.
+    - [Tab Bar] Closing the last tab opens the Launchpad instead of quitting the app.
+    - [File Preview] Preserve reading state when refreshing files; fix line spacing for Word documents.
+    - [Sidebar] Selected entries use neutral filled icons in both light and dark themes.
+    - [Chat Layout] Isolate list-group expansion state per window.
+    - [Paintings] Cap loading grid density to prevent performance issues.
+    - [MCP] Keep literal # characters in saved headers and environment values.
+    - [Knowledge] Ship a baseline sqlite-vec build for Linux x64.
+    - [Voice] Add diagnostics for operation failures and stream timeouts.
+    - [Agent Session] Continue the target workspace when creating across agents; surface compaction failures.
+    - [Messages] Drop historical tool parts with incompatible replay inputs.
+    - [Virtual List] Hand sticky headers over at the pinned stack bottom.
+    - [Notes] Fixed an issue where dismissing the "note changed on disk" conflict dialog left the editor session stuck, failing all later note renames, deletions, and moves with misleading errors.
+
+    🔒 Security
+    - [Electron] Upgrade to 44.9.3 for certificate security fixes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.1 - 服务商支持与稳定性改进
+    Cherry Studio 2.1.8 - 编辑、语音与集成更新
 
     ✨ 新功能
-    - [模型] 新增 oMLX 内置本地服务商，预设 base URL，无需 API 密钥。
-    - [模型] 新增 Moonshot AI 全球端点，方便使用国际版 Moonshot 控制台的用户连接。
-    - [MCP] 内置 mcp-auto-install 服务器将 Registry 缓存和配置写入保持在 Cherry 的配置目录，而非其他 MCP 客户端；AI 辅助安装可在注册前从 MCP Registry 解析服务器配置。
-    - [登录] CherryIN 登录使用本地 HTTP 回调，不再依赖系统自定义协议处理程序。
-    - [智能体] 从分叉边界链接返回原始对话。
-    - [诊断] 对话、工具和智能体失败时记录结构化诊断上下文，请求/响应内容已脱敏。
+    - [文件编辑] 隔离笔记、技能和工件的草稿，保留保存失败的编辑以便重试，支持最大 8 MiB 的文本编辑与预览。
+    - [语言] 添加意大利语 (it-IT) 界面支持，包含完整翻译和表情选择器。
+    - [语音] 在文本输入中按住鼠标按钮开始听写，松开后转写。
+    - [语音] 流式语音合成与实时音频播放。
+    - [网页搜索] 添加腾讯元宝搜索作为内置提供商。
+    - [定时任务] 通过智能体对话创建和管理定时任务，并在聊天中显示交互式任务卡片。
+    - [截图] 复制截图到剪贴板，同时保持截图覆盖层开启。
+    - [选区] 选中任意文本即可自动复制并显示快速引用工具栏。
+    - [输入框] 文件和链接标记与文本行对齐，显示按类型的文件图标，编辑时加载网站图标。
+    - [RTF] 将富文本格式文件预览为格式化文档。
+    - [飞书] 配置群聊中的机器人是否仅在@提及时回复。
+    - [远程访问] 为配对邀请设置自定义主机名、IP 或端口。
+    - [助手] 记住归档时”同时归档相关话题”的选择。
 
     🐛 问题修复
-    - [回收站] 改进设置，增加直接分类标签、更清晰的分组、紧凑操作，并为空类别禁用批量管理。
-    - [设置] 修复设置、授权、账单和反馈链接在内置浏览器打开而非系统浏览器的问题。
-    - [设置] 英文搜索词现在可以找到 V2 衬线字体设置。
-    - [智能体] 修复分叉长时间 DSH 对话时的超时问题。
-    - [macOS] 提醒在 Apple Silicon 上运行 Intel 版本的用户，并链接到正确版本的下载页面。
-    - [工具] 修复技能安装、Skill 工具依赖检查和 Windows 二进制管理在命令查找超时或出错时失败的问题。
-    - [模型] 当单个目录条目格式错误时保留有效的 LM Studio 模型。
-    - [输入] AskUserQuestion 回答现在可以换行和增长，并在输入自定义说明时保留已选选项。
-    - [AI] 修复工具参数声明数字或布尔枚举值时 Gemini 请求返回 400 错误的问题。
-    - [Markdown] 修复 KaTeX 拉伸符号（如平方根）在渲染公式中消失的问题。
-    - [Windows] 修复智能体会话跟踪历史从未保存的问题。
-    - [隐私] 修复禁用数据收集后仍发送分析事件的问题。
-    - [侧边栏] 所有资源快捷方式现在可以通过右键菜单移除。
-    - [个人资料] 修复用户名输入丢失空格的问题，允许输入如”张三”这样的名字。
-    - [MCP] 修复 OAuth 登录因回调监听器在浏览器打开后才启动而失败的问题。
+    - [笔记] 修复在已缓存的笔记之间切换时内容被覆盖的问题。
+    - [技能] 当 ZIP 或文件夹缺少 SKILL.md 时显示本地化错误提示，不再泄露临时路径。
+    - [对话] 默认展开较长的用户消息；后续消息队列独立于已读回执。
+    - [代理] 匹配 Windows 上的短通配符 IP 绕过规则（如 192.168.*）。
+    - [Claude Code] 通过内部网关路由时保持 1M 上下文预算。
+    - [标签栏] 关闭最后一个标签页时打开启动台而非退出应用。
+    - [文件预览] 刷新文件时保持阅读状态；修复 Word 文档的行间距。
+    - [侧边栏] 选中的项目在浅色和深色主题中使用中性的填充图标。
+    - [对话布局] 按窗口隔离列表组展开状态。
+    - [绘画] 限制加载网格密度以防止性能问题。
+    - [MCP] 在保存的标头和环境值中保留 # 字符。
+    - [知识库] 为 Linux x64 提供基准 sqlite-vec 构建。
+    - [语音] 为操作失败和流超时添加诊断信息。
+    - [智能体会话] 跨智能体创建时继续目标工作区；显示压缩失败。
+    - [消息] 丢弃历史工具部件中不兼容的重放输入。
+    - [虚拟列表] 在固定堆栈底部移交粘性标题。
+    - [笔记] 修复关闭“笔记已在磁盘上更改”冲突对话框后编辑会话卡住，导致后续笔记重命名、删除和移动失败并显示误导性错误的问题。
+
+    🔒 安全
+    - [Electron] 升级到 44.9.3 以修复证书安全问题。
     <!--LANG:END-->

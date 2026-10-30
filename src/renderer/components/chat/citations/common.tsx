@@ -3,7 +3,9 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { Citation } from '@renderer/types/message'
+import { isHttpUrl } from '@shared/utils/url'
 
 import { useOptionalMessageListActions } from '../messages/MessageListProvider'
 import type { MessageListActions } from '../messages/types'
@@ -12,7 +14,6 @@ export type CitationCopyActions = Pick<MessageListActions, 'copyText' | 'notifyE
 export type CitationPanelActions = CitationCopyActions & {
   openBrowserUrl?: MessageListActions['openBrowserUrl']
   openPath?: (path: string) => void | Promise<void>
-  openExternalUrl?: (url: string) => void | Promise<void>
 }
 
 export const truncateText = (text: string, maxLength = 100) =>
@@ -31,19 +32,19 @@ export const handleLinkClick = (
   url: string,
   event: React.MouseEvent,
   actions?: {
+    openBrowserUrl?: MessageListActions['openBrowserUrl']
     openPath?: (path: string) => void | Promise<void>
-    openExternalUrl?: (url: string) => void | Promise<void>
   }
 ) => {
-  if (!url) return
-  if (url.startsWith('http')) {
-    if (!actions?.openExternalUrl) return
+  if (!url || (event.button !== 0 && event.button !== 1)) return
+  if (isHttpUrl(url)) {
     event.preventDefault()
-    void actions.openExternalUrl(url)
+    if (event.button === 0 && actions?.openBrowserUrl) actions.openBrowserUrl(url)
+    else openRoute('/app/browser', { url })
     return
   }
 
-  if (!actions?.openPath) return
+  if (event.button !== 0 || !actions?.openPath) return
   event.preventDefault()
   void actions.openPath(url)
 }

@@ -1,5 +1,7 @@
-import { memo } from 'react'
+import { memo, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { loggerService } from '@logger'
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
@@ -7,11 +9,17 @@ import AgentComposer, {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
 
+import { ClaudeCodeDownloadStatus } from './ClaudeCodeDownloadStatus'
+import { useOptionalAgentRightPaneActions } from './components/AgentRightPane'
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
+import { useClaudeCodeBinary } from './useClaudeCodeBinary'
+
+const logger = loggerService.withContext('AgentComposerSlot')
 
 interface AgentComposerSlotProps {
   agentId?: string
@@ -30,6 +38,10 @@ interface AgentComposerSlotProps {
   onCreateEmptySession?: () => void | Promise<unknown>
   composerContext: ComposerContextValue
   composerLaunchOptions?: AgentComposerLaunchOptions
+  editing?: AgentChatRuntimeState['editing']
+  editBusy?: boolean
+  cancelEditing: () => void
+  resendEditedMessage: AgentChatRuntimeState['sendMessage']
 }
 
 function AgentComposerSlot({
@@ -48,10 +60,39 @@ function AgentComposerSlot({
   agentChanging,
   onCreateEmptySession,
   composerContext,
-  composerLaunchOptions
+  composerLaunchOptions,
+  editing,
+  editBusy,
+  cancelEditing,
+  resendEditedMessage
 }: AgentComposerSlotProps) {
+  const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
+  useEffect(() => {
+    if (activeAgent?.type !== 'claude-code' || binary.status?.phase !== 'ready') return
+    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
+      logger.warn('Failed to warm installed Claude runtime', { error })
+    })
+  }, [activeAgent?.type, binary.status?.phase, sessionId])
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
-  const fallback = !isMultiSelectMode ? (
+  const rightPaneActions = useOptionalAgentRightPaneActions()
+  const { t } = useTranslation()
+  const editLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(
+    () =>
+      editing
+        ? {
+            initialDraft: { text: '', tokens: [] },
+            initialParts: editing.parts,
+            editing: {
+              messageId: editing.messageId,
+              onCancel: cancelEditing,
+              description: t('agent.edit_resend.warning'),
+              sendLabel: t('agent.edit_resend.save')
+            }
+          }
+        : undefined,
+    [cancelEditing, editing, t]
+  )
+  const renderComposer = (isEditing = false) =>
     agentId ? (
       <AgentComposer
         agentId={agentId}
@@ -61,20 +102,39 @@ function AgentComposerSlot({
         resolvedModel={activeModel}
         resolvedWorkspaceWarning={workspaceWarning ?? null}
         externalContextControls
-        sendMessage={sendMessage}
+        canChangeModel={!isEditing}
+        sendMessage={isEditing ? resendEditedMessage : sendMessage}
         stop={stop}
-        isStreaming={isStreaming}
-        sendDisabled={sendDisabled}
-        onCreateEmptySession={onCreateEmptySession}
+        isStreaming={!isEditing && isStreaming}
+        sendDisabled={binary.blocked || sendDisabled || (isEditing && (isStreaming || editBusy))}
+        onCreateEmptySession={isEditing ? undefined : onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
-        launchOptions={composerLaunchOptions}
+        previewInputFile={
+          rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
+        }
+        launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
       />
     ) : (
       <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />
     )
-  ) : undefined
+  const context: ComposerContextValue = {
+    ...composerContext,
+    overrides: [
+      ...(composerContext.overrides ?? []),
+      ...(editing && agentId
+        ? [{ id: `edit:${editing.messageId}`, priority: 10, render: () => renderComposer(true) }]
+        : [])
+    ]
+  }
 
-  return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
+  return (
+    <>
+      {!isMultiSelectMode && binary.blocked && (
+        <ClaudeCodeDownloadStatus status={binary.status} onRetry={binary.retry} />
+      )}
+      <ConversationComposerSlot composerContext={context} fallback={!isMultiSelectMode && renderComposer()} />
+    </>
+  )
 }
 
 export default memo(AgentComposerSlot)

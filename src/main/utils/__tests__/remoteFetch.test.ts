@@ -21,7 +21,7 @@ vi.mock('node:dns/promises', () => ({
   lookup: lookupMock
 }))
 
-import { fetchRemoteText } from '../remoteFetch'
+import { fetchRemoteBytes, fetchRemoteText } from '../remoteFetch'
 
 type MockResponseOptions = {
   readonly body?: Buffer | string
@@ -65,6 +65,30 @@ describe('fetchRemoteText', () => {
     lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     MockMainPreferenceServiceUtils.resetMocks()
     MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
+  })
+
+  it('preserves arbitrary binary bytes and response metadata', async () => {
+    const body = Buffer.from([0, 255, 128, 195, 40])
+    mockHttpsResponse({ body, headers: { 'content-disposition': 'attachment; filename="test.bin"' } })
+    const result = await fetchRemoteBytes('https://example.com/file', { maxBytes: 5 })
+    expect(result).toEqual({ body, headers: { 'content-disposition': 'attachment; filename="test.bin"' } })
+  })
+
+  it('enforces the binary size limit without trusting Content-Length', async () => {
+    mockHttpsResponse({ body: Buffer.alloc(6) })
+    await expect(fetchRemoteBytes('https://example.com/file', { maxBytes: 5 })).rejects.toThrow(/too large/)
+  })
+
+  it('shares a byte budget across concurrent responses before buffering their bodies', async () => {
+    mockHttpsResponse({ body: Buffer.alloc(4) })
+    const byteBudget = { remaining: 6 }
+    const results = await Promise.allSettled([
+      fetchRemoteBytes('https://example.com/first', { maxBytes: 5, byteBudget }),
+      fetchRemoteBytes('https://example.com/second', { maxBytes: 5, byteBudget })
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
+    expect(byteBudget.remaining).toBe(2)
   })
 
   it('fetches through a prevalidated DNS address without re-resolving at connection time', async () => {

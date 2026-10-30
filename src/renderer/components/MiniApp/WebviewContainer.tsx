@@ -1,5 +1,4 @@
-import type { DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
-import type { DidNavigateEvent } from 'electron'
+import type { DidStartNavigationEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -63,7 +62,6 @@ const MiniAppWebview = memo(
     kind,
     onSetRefCallback,
     onLoadedCallback,
-    onNavigateCallback,
     onFocusChange
   }: {
     appid: string
@@ -71,7 +69,6 @@ const MiniAppWebview = memo(
     kind: MiniAppKind
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
-    onNavigateCallback: (appid: string, url: string) => void
     /** Reported to the pool, which owns the `webview.focused` context key for all panes. */
     onFocusChange?: (appid: string, focused: boolean) => void
   }) => {
@@ -118,13 +115,6 @@ const MiniAppWebview = memo(
         loadedRef.current = false
       },
       [clearLoadTimer]
-    )
-    const handleNavigate = useCallback(
-      (event: DidNavigateEvent | DidNavigateInPageEvent) => {
-        if ('isMainFrame' in event && !event.isMainFrame) return
-        onNavigateCallback(appid, event.url)
-      },
-      [appid, onNavigateCallback]
     )
     const handleFocusChange = useCallback((focused: boolean) => onFocusChange?.(appid, focused), [appid, onFocusChange])
 
@@ -192,7 +182,6 @@ const MiniAppWebview = memo(
         onReadyToShow={handleReady}
         onDidFinishLoad={handleLoaded}
         onDidStartNavigation={handleStartNavigation}
-        onDidNavigate={handleNavigate}
         onFocusChange={handleFocusChange}
         elementAttributes={{ 'data-mini-app-id': appid }}
         allowPopups={kind === 'site'}

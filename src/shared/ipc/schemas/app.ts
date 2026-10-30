@@ -31,6 +31,7 @@ const cacheCleanupGroupsInputSchema = z
   })
 
 export const appRequestSchemas = {
+  'app.mobile.get_android_download_url': defineRoute({ input: z.void(), output: z.url() }),
   'app.get_info': defineRoute({
     input: z.void(),
     output: z.object({
@@ -99,10 +100,21 @@ export const appRequestSchemas = {
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }
 
+/**
+ * A `not_available` result is not always "already current": electron-updater
+ * reports it with the feed's target even when that target is older than the
+ * install (withdrawn or stale feed) or newer but unoffered (staged rollout).
+ * `isCurrent` carries the explicit comparison so the UI never presents a
+ * withheld rollout as up to date. The compared versions stay in main-process logs.
+ */
+export type AppUpdaterNotAvailablePayload = {
+  isCurrent: boolean
+}
+
 export type AppEventSchemas = {
   'app.updater.error': Error
   'app.updater.available': UpdateInfo
-  'app.updater.not_available': void
+  'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
 }
