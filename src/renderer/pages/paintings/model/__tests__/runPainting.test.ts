@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { runPainting } from '../runPainting'
@@ -21,9 +21,15 @@ describe('runPainting error surfacing', () => {
     // Empty top-level message (the message-less case the user hit): the detail must win.
     const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
 
-    await expect(fail(err)).rejects.toMatchObject({
+    const rejected = await fail(err).catch((error: unknown) => error)
+    expect(rejected).toMatchObject({
       name: 'PaintingGenerateError',
       code: 'REMOTE_ERROR',
+      message: '401 Unauthorized'
+    })
+    expect(rejected).toMatchObject({ cause: err })
+    expect(aiErrorDetail((rejected as { cause?: unknown }).cause)).toMatchObject({
+      statusCode: 401,
       message: '401 Unauthorized'
     })
   })
@@ -32,17 +38,23 @@ describe('runPainting error surfacing', () => {
     const detail = { name: 'AI_APICallError', message: '', stack: null, statusCode: 500, responseBody: 'upstream boom' }
     const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
 
-    await expect(fail(err)).rejects.toMatchObject({
+    const rejected = await fail(err).catch((error: unknown) => error)
+    expect(rejected).toMatchObject({
       code: 'REMOTE_ERROR',
-      message: 'HTTP 500 upstream boom'
+      message: 'HTTP 500 upstream boom',
+      cause: err
     })
+    expect(aiErrorDetail((rejected as { cause?: unknown }).cause)?.responseBody).toBe('upstream boom')
   })
 
   it('normalizes a plain (non-AI) error without inventing detail', async () => {
-    await expect(fail(new Error('network down'))).rejects.toMatchObject({
+    const original = new Error('network down')
+    const rejected = await fail(original).catch((error: unknown) => error)
+    expect(rejected).toMatchObject({
       name: 'PaintingGenerateError',
       code: 'REMOTE_ERROR',
-      message: 'network down'
+      message: 'network down',
+      cause: original
     })
   })
 

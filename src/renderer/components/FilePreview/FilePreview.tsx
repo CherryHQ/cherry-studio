@@ -9,12 +9,13 @@ import {
   useRef,
   useState
 } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
+import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
@@ -63,9 +64,10 @@ const FILE_PREVIEW_STATE_KEYS = {
 interface FilePreviewStateProps {
   kind: FilePreviewStateKind
   filePath?: AbsoluteFilePath
+  error?: unknown
 }
 
-function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
+function FilePreviewState({ kind, filePath, error }: FilePreviewStateProps) {
   const { t } = useTranslation()
   const Icon =
     kind === 'unsupported'
@@ -76,6 +78,7 @@ function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
           ? FileX2
           : FileWarning
   const keys = FILE_PREVIEW_STATE_KEYS[kind]
+  const description = t(keys.description)
   // Only the "unsupported" state can fall back to an external open: the path is
   // already validated (unlike invalid_path) and points at a real file we simply
   // cannot render inline. `safeOpen` enforces the unsafe-extension policy.
@@ -91,11 +94,21 @@ function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
         <EmptyState
           icon={Icon}
           title={t(keys.title)}
-          description={t(keys.description)}
+          description={description}
           className="h-full"
           actionLabel={openablePath ? t('file_preview.unsupported.action') : undefined}
           onAction={openablePath ? handleOpenWithDefaultApp : undefined}
         />
+        {error != null && (kind === 'load_error' || kind === 'unavailable') ? (
+          <div className="flex justify-center pb-4">
+            <ErrorDetailAction
+              error={error}
+              message={description}
+              source="file.preview"
+              operation={kind === 'load_error' ? 'file.preview.render' : 'file.preview.load'}
+            />
+          </div>
+        ) : null}
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )
@@ -116,8 +129,8 @@ function FilePreviewLoading() {
   )
 }
 
-function PluginErrorFallback() {
-  return <FilePreviewState kind="load_error" />
+function PluginErrorFallback({ error }: FallbackProps) {
+  return <FilePreviewState kind="load_error" error={error} />
 }
 
 interface FilePreviewPluginRendererProps {
@@ -191,8 +204,8 @@ interface NormalizedFilePreviewTarget {
 type FilePreviewResolution =
   | { requestKey: string; status: 'directory' }
   | { requestKey: string; status: 'loading' }
-  | { requestKey: string; status: 'unavailable' }
-  | { requestKey: string; status: 'load_error' }
+  | { error?: unknown; requestKey: string; status: 'unavailable' }
+  | { error?: unknown; requestKey: string; status: 'load_error' }
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
@@ -288,8 +301,10 @@ export function FilePreview({
           }
         }
 
+        let moduleError: unknown
         const module = plugin
           ? await plugin.modulePromise.catch((error: unknown) => {
+              moduleError = error
               logger.error(
                 `Failed to load file preview plugin: ${plugin.descriptor.id}`,
                 error instanceof Error ? error : new Error(String(error))
@@ -299,7 +314,7 @@ export function FilePreview({
           : null
         if (cancelled) return
         if (plugin && !module) {
-          setResolution({ requestKey, status: 'load_error' })
+          setResolution({ error: moduleError, requestKey, status: 'load_error' })
           return
         }
         setResolution({
@@ -310,8 +325,8 @@ export function FilePreview({
           status: 'ready',
           plugin: plugin && module ? { descriptor: plugin.descriptor, component: module.default } : null
         })
-      } catch {
-        if (!cancelled) setResolution({ requestKey, status: 'unavailable' })
+      } catch (error) {
+        if (!cancelled) setResolution({ error, requestKey, status: 'unavailable' })
       }
     })()
 
@@ -333,9 +348,9 @@ export function FilePreview({
   } else if (resolution.status === 'directory') {
     preview = <FilePreviewState kind="directory" />
   } else if (resolution.status === 'unavailable') {
-    preview = <FilePreviewState kind="unavailable" />
+    preview = <FilePreviewState kind="unavailable" error={resolution.error} />
   } else if (resolution.status === 'load_error') {
-    preview = <FilePreviewState kind="load_error" />
+    preview = <FilePreviewState kind="load_error" error={resolution.error} />
   } else if (resolution.plugin) {
     preview = (
       <FilePreviewPluginRenderer

@@ -4,7 +4,7 @@ import type { FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
-type FileBatchMutationOutcome = FileBatchMutationResult & { requestFailed: boolean }
+type FileBatchMutationOutcome = FileBatchMutationResult & { requestFailed: boolean; cause?: unknown }
 type FileBatchMutationRoute =
   | 'file.batch_trash'
   | 'file.batch_remove_from_library'
@@ -51,6 +51,7 @@ export async function requestBatchedFileMutation(
     }
 
     outcome.requestFailed = true
+    outcome.cause ??= settled.reason
     outcome.failed.push(...chunks[index].map((id) => ({ id, error: getErrorMessage(settled.reason) })))
   }
 

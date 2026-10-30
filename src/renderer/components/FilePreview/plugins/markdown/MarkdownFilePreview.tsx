@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
@@ -38,17 +39,21 @@ function MarkdownPreviewLoading() {
   )
 }
 
-function MarkdownPreviewError() {
+function MarkdownPreviewError({ error }: { error: Error }) {
   const { t } = useTranslation()
+  const description = t('file_preview.load_error.description')
 
   return (
-    <div role="alert" className="h-full">
+    <div role="alert" className="flex h-full flex-col">
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.markdown.read_error.title')}
-        description={t('file_preview.load_error.description')}
-        className="h-full"
+        description={description}
+        className="min-h-0 flex-1"
       />
+      <div className="flex justify-center pb-4">
+        <ErrorDetailAction error={error} message={description} source="file.preview" operation="file.preview.read" />
+      </div>
     </div>
   )
 }
@@ -116,7 +121,7 @@ function MarkdownPreviewContent({
   )
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
-  if (loadState.status === 'error') return <MarkdownPreviewError />
+  if (loadState.status === 'error') return <MarkdownPreviewError error={loadState.error} />
 
   if (mode === 'source') {
     return (

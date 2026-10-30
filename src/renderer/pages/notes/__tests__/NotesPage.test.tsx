@@ -6,6 +6,16 @@ import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { RenameNote } from '@renderer/types/note'
 
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
+}))
+
 import type { NotesEditorLoading } from '../NotesEditor'
 
 const mocks = vi.hoisted(() => {
@@ -29,6 +39,7 @@ const mocks = vi.hoisted(() => {
     sessionIsDirty: false,
     sessionIsSaving: false,
     sessionSaveError: undefined as Error | undefined,
+    metadataRecoveryPending: false,
     sessionConflict: false,
     sessionDraft: 'saved content',
     currentContent: 'saved content',
@@ -250,7 +261,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     isSaving: mocks.sessionIsSaving,
     conflict: mocks.sessionConflict,
     saveError: mocks.sessionSaveError,
-    metadataRecoveryPending: false,
+    metadataRecoveryPending: mocks.metadataRecoveryPending,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
     discard: mocks.discardSession,
@@ -395,6 +406,7 @@ describe('NotesPage print payloads', () => {
     mocks.sessionIsDirty = false
     mocks.sessionIsSaving = false
     mocks.sessionSaveError = undefined
+    mocks.metadataRecoveryPending = false
     mocks.sessionConflict = false
     mocks.sessionDraft = 'saved content'
     mocks.currentContent = 'saved content'
@@ -766,6 +778,55 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => {
       expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Untitled Note.md')
     })
+  })
+
+  it('keeps a file-write failure retryable and preserves the original cause', async () => {
+    const cause = new Error('disk full')
+    mocks.sessionSaveError = cause
+    const { rerender } = render(<NotesPage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('notes.save_failure.description')
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(mocks.flushSession).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    expect(detailMocks.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: cause,
+        message: 'notes.save_failure.description',
+        source: 'notes',
+        operation: 'notes.file.write',
+        recordId: '/notes/note.md'
+      })
+    )
+
+    detailMocks.open.mockClear()
+    rerender(<NotesPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    expect(detailMocks.open.mock.calls[0][0].error).toBe(cause)
+  })
+
+  it('shows metadata recovery details without a retry', async () => {
+    const cause = new Error('metadata pending')
+    mocks.sessionSaveError = cause
+    mocks.metadataRecoveryPending = true
+    render(<NotesPage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('notes.save_failure.metadata_pending')
+    expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: cause,
+          message: 'notes.save_failure.metadata_pending',
+          source: 'notes',
+          operation: 'notes.metadata.recover',
+          recordId: '/notes/note.md'
+        })
+      )
+    )
   })
 
   // Exercise the page callback itself so failures cannot be hidden by the entry-point hooks.

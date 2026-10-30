@@ -23,7 +23,7 @@ const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPrev
   }, [])
 
   // 使用预览渲染器 hook
-  const { containerRef, error, isLoading } = useDebouncedRender(children, renderSvg, {
+  const { containerRef, error, cause, isLoading } = useDebouncedRender(children, renderSvg, {
     debounceDelay: 300
   })
 
@@ -31,6 +31,7 @@ const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPrev
     <ImagePreviewLayout
       loading={isLoading}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
