@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
+import { getQuotaRecoveryTime } from '@renderer/utils/cherryCloudQuota'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
@@ -21,7 +22,10 @@ function getRecoveryTime(plans: CherryCloudAccountPlans | undefined, cloudModelI
     .filter((pool) => pool.model_ids.includes(cloudModelId))
     .flatMap((pool) => {
       const exhausted = pool.windows.filter((window) => window.remaining_units === 0)
-      const times = exhausted.map((window) => (window.next_recovery_at ? Date.parse(window.next_recovery_at) : NaN))
+      const times = exhausted.map((window) => {
+        const recoversAt = getQuotaRecoveryTime(window)
+        return recoversAt ? Date.parse(recoversAt) : NaN
+      })
       return exhausted.length > 0 && times.every(Number.isFinite) ? [Math.max(...times)] : []
     })
   return poolRecoveries.length > 0 ? new Date(Math.min(...poolRecoveries)).toISOString() : undefined

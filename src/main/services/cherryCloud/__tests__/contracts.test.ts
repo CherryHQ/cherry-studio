@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 
 import {
+  accountPlansSchema,
   cloudModelListSchema,
   createDesktopAuthorizationResponseSchema,
   exchangeDesktopAuthorizationResponseSchema,
@@ -87,6 +88,52 @@ describe('Cherry Cloud response contracts', () => {
           }
         ],
         has_more: false
+      }).success
+    ).toBe(true)
+  })
+
+  it('accepts the China backend billing-period quota window', () => {
+    expect(
+      accountPlansSchema.safeParse({
+        measured_at: expiresAt,
+        available_plans: [],
+        entitlements: [
+          {
+            id: '00000000-0000-4000-8000-000000000010',
+            source: 'billing',
+            plan: {
+              id: '00000000-0000-4000-8000-000000000011',
+              display_name: 'Plus',
+              is_free: false,
+              default_for_new_accounts: false,
+              quota_pool_count: 1,
+              model_count: 1,
+              purchase_available: false
+            },
+            state: 'active',
+            starts_at: expiresAt,
+            quota_pools: [
+              {
+                allocation_id: '00000000-0000-4000-8000-000000000012',
+                display_name: 'Plus',
+                measurement_kind: 'requests',
+                model_ids: ['cn-model'],
+                windows: [
+                  {
+                    window_type: 'subscription_month',
+                    duration_seconds: 2_678_400,
+                    limit_units: 100,
+                    used_units: 0,
+                    active_reserved_units: 0,
+                    remaining_units: 100,
+                    period_start: expiresAt,
+                    period_end: expiresAt
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }).success
     ).toBe(true)
   })

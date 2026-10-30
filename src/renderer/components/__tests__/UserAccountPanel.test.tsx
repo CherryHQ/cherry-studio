@@ -132,6 +132,55 @@ describe('UserAccountPanel', () => {
     )
   })
 
+  it('shows the tightest remaining quota and a hover card with usage details for a paid plan', async () => {
+    const window_ = (durationSeconds: number, remaining: number) => ({
+      window_type: 'rolling' as const,
+      duration_seconds: durationSeconds,
+      limit_units: 100,
+      used_units: 100 - remaining,
+      active_reserved_units: 0,
+      remaining_units: remaining,
+      next_recovery_at: '2026-10-01T00:00:00Z'
+    })
+    plans.entitlements = [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        source: 'stripe',
+        plan: {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 3,
+          purchase_available: true
+        },
+        state: 'active',
+        starts_at: '2026-09-01T00:00:00Z',
+        quota_pools: [
+          {
+            allocation_id: '33333333-3333-4333-8333-333333333333',
+            display_name: 'Plus quota',
+            measurement_kind: 'money',
+            currency: 'CNY',
+            model_ids: [],
+            windows: [window_(30 * 24 * 60 * 60, 92), window_(5 * 60 * 60, 40)]
+          }
+        ]
+      }
+    ]
+    const user = userEvent.setup()
+
+    render(<UserAccountPanel />)
+
+    const row = await screen.findByRole('button', { name: /Plus.*40%/ })
+    await user.hover(row)
+
+    expect(await screen.findByRole('progressbar', { name: '月度用量' })).toHaveAttribute('aria-valuenow', '92')
+    await user.click(screen.getByRole('button', { name: '查看用量详情' }))
+    expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
+  })
+
   it('does not label a failed plan lookup as unsubscribed and lets the user retry', async () => {
     let attempts = 0
     request.mockImplementation(async (route) => {
