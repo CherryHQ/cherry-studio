@@ -38,9 +38,9 @@ import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
-import { type AtomicWriteStream, createAtomicWriteStream, ensureDir } from '@main/utils/file'
+import { type AtomicWriteStream, createAtomicWriteStream, ensureDir, isOutsidePath } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
-import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
+import { resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -1801,7 +1801,7 @@ class BackupManager {
         targetRealPath
       }
 
-      if (options.sourceRootRealPath && !isPathInside(targetRealPath, options.sourceRootRealPath)) {
+      if (options.sourceRootRealPath && isOutsidePath(path.relative(options.sourceRootRealPath, targetRealPath))) {
         logger.warn('[BackupManager] Dereferencing symlink outside source root during backup copy', context)
       } else {
         logger.info('[BackupManager] Dereferencing symlink during backup copy', context)

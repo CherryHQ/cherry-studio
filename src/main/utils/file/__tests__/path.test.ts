@@ -115,6 +115,7 @@ describe('isSameOrInside', () => {
   it('accepts equality and descendants', () => {
     expect(isSameOrInside('/foo/bar', '/foo/bar')).toBe(true)
     expect(isSameOrInside('/foo/bar/baz.txt', '/foo/bar')).toBe(true)
+    expect(isSameOrInside('/foo/bar/..archive', '/foo/bar')).toBe(true)
   })
 
   it('rejects ancestors and siblings', () => {
