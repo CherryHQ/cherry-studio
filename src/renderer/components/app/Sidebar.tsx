@@ -267,7 +267,12 @@ export default function Sidebar({
     userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : null,
     renderUserTrigger: renderSidebarUserTrigger,
     actions: (footerLayout: SidebarVisibleLayout) => (
-      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
+      <CommandTooltip
+        command="app.settings.open"
+        label={t('settings.title')}
+        placement="right"
+        delay={800}
+        fullWidthTrigger={footerLayout === 'full'}>
         <Button
           variant="ghost"
           size={footerLayout === 'icon' ? 'icon' : 'default'}

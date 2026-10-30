@@ -86,7 +86,7 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
   ) : null
 
   return (
-    <div className="space-y-1 pt-2 pr-1 pb-3 pl-2 [-webkit-app-region:no-drag]">
+    <div className="space-y-1 px-2 pt-2 pb-3 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <Button
           type="button"
