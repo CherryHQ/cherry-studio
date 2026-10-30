@@ -439,5 +439,43 @@ describe('SelectionAgentConversation', () => {
       expect(closeRequests()).toHaveLength(0)
       expect(mocks.toastError).toHaveBeenCalledWith('selection.agent.open_in_main_window_failed')
     })
+
+    describe('with auto-close on', () => {
+      const dismissRequests = () =>
+        mocks.ipcRequest.mock.calls.filter(([route]) => route === 'selection.dismiss_blurred_agent_window')
+
+      beforeEach(() => {
+        MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_close', true)
+        mocks.status = 'streaming'
+      })
+
+      it('ignores the blur from the main window taking focus, so the hand-off closes the window', async () => {
+        let acknowledge = () => {}
+        mocks.ipcRequest.mockImplementation(async (route: string) => {
+          if (route === 'navigation.focus_or_open_conversation') await new Promise<void>((done) => (acknowledge = done))
+        })
+        renderConversation()
+
+        act(() => mocks.openInMainWindow?.())
+        fireEvent.blur(window)
+        await act(async () => acknowledge())
+
+        expect(dismissRequests()).toHaveLength(0)
+        expect(closeRequests()).toHaveLength(1)
+      })
+
+      it('collapses on blur again once a failed hand-off leaves it open', async () => {
+        mocks.ipcRequest.mockImplementation(async (route: string) => {
+          if (route === 'navigation.focus_or_open_conversation')
+            throw new Error('Conversation navigation was not completed')
+        })
+        renderConversation()
+
+        await act(async () => mocks.openInMainWindow?.())
+        fireEvent.blur(window)
+
+        expect(dismissRequests()).toEqual([['selection.dismiss_blurred_agent_window', 'collapse']])
+      })
+    })
   })
 })
