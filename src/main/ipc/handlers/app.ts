@@ -117,10 +117,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       await requestRendererNotesEditsFlush()
       return { sessionEpoch }
     } catch (error) {
-      clearNotesRelocationSessionOwnerWindowBinding()
-      if (releaseNotesRelocationSession(senderId, sessionEpoch)) {
-        broadcastNotesRelocationMigrateComplete()
-      }
+      finishNotesRelocationSession(senderId, sessionEpoch)
       throw error
     }
   },
