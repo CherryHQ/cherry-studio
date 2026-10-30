@@ -214,6 +214,22 @@ it('preserves the legacy macOS 26 panel, path-entry and accept sequence', () => 
   expect(args.slice(2)).toEqual(['--', filePath, '456'])
 })
 
+it('sets the Windows file name field directly instead of typing into the dialog', () => {
+  const { paths, filePath } = nativeFixture()
+  execFileSync.mockReturnValue('')
+  expect(automation.chooseNativeFile('windows', paths, filePath)).toBe(filePath)
+  const [command, args, options] = execFileSync.mock.calls.at(-1)!
+  expect(command).toBe('powershell.exe')
+  const script = String(args.at(-1))
+  expect(script).toContain('AutomationIdProperty, "1001"')
+  expect(script).toContain('ValuePattern')
+  expect(script).toContain('Native file name readback mismatch')
+  expect(script).toContain('SendMessage($acceptHandle, 0x00F5')
+  expect(script).toContain('Native file dialog did not close after accepting the file name')
+  expect(script).not.toContain('SendKeys')
+  expect(options).toEqual({ stdio: ['ignore', 'ignore', 'pipe'], timeout: 30_000 })
+})
+
 it('surfaces macOS stage diagnostics and subprocess stderr', () => {
   const { paths, filePath } = nativeFixture()
   execFileSync.mockImplementation((command) => {

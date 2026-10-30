@@ -532,7 +532,6 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       '$ErrorActionPreference = "Stop"',
       'Add-Type -AssemblyName UIAutomationClient',
       'Add-Type -AssemblyName UIAutomationTypes',
-      'Add-Type -AssemblyName System.Windows.Forms',
       `Add-Type -TypeDefinition '
 using System;
 using System.Text;
@@ -616,13 +615,38 @@ public static class NativeDialog {
             '}'
           ]
         : [
-            '$shell = New-Object -ComObject WScript.Shell',
-            `if (-not $shell.AppActivate(${electronPid})) { throw "Native file dialog could not be activated" }`,
-            'Start-Sleep -Milliseconds 300',
-            '[System.Windows.Forms.SendKeys]::SendWait("%n")',
-            'Start-Sleep -Milliseconds 200',
-            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
-            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")'
+            // Typing into the dialog depends on focus the runner cannot guarantee, so set the name
+            // field directly and accept through the dialog's own default button.
+            '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
+            '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+            '$fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
+            'if (-not $fileInput) { throw "Native file name input was not found" }',
+            `$requested = '${escapePowerShell(filePath)}'`,
+            '$valuePattern = $null',
+            'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
+            'if ($valuePattern) {',
+            '  $valuePattern.SetValue($requested)',
+            '} else {',
+            '  $null = [NativeDialog]::SetText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $requested)',
+            '}',
+            '$current = $null',
+            'if ($valuePattern) { $current = $valuePattern.Current.Value } else {',
+            '  $buffer = [System.Text.StringBuilder]::new(32768)',
+            '  $null = [NativeDialog]::ReadText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000D, [IntPtr]::new($buffer.Capacity), $buffer)',
+            '  $current = $buffer.ToString()',
+            '}',
+            'if ($current -ne $requested) { throw "Native file name readback mismatch" }',
+            '$acceptHandle = [NativeDialog]::GetDlgItem($dialogHandle, 1)',
+            'if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native file dialog accept button was not found" }',
+            '$null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+            '$closed = $false',
+            'do {',
+            '  $remaining = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+            '  $closed = -not ($remaining | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle })',
+            '  if (-not $closed) { Start-Sleep -Milliseconds 100 }',
+            '} while (-not $closed -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $closed) { throw "Native file dialog did not close after accepting the file name" }'
           ])
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
