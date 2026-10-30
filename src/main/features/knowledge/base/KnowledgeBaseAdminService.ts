@@ -2,7 +2,6 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   type CreateKnowledgeBaseDto,
@@ -12,7 +11,9 @@ import {
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 
+import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
 import type { KnowledgeIngestionService, KnowledgeRestoreItemInput } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemRestoreSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
@@ -31,6 +32,7 @@ export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
     private readonly ingestionService: KnowledgeIngestionService,
+    private readonly fileProcessingWaits: FileProcessingWaitManager,
     private readonly externalSourceCleanup: KnowledgeBaseExternalSourceCleanup
   ) {}
 
@@ -71,7 +73,10 @@ export class KnowledgeBaseAdminService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'throw' })
+    await cancelActiveKnowledgeJobs(baseId, 'delete-base', {
+      onCancelTimeout: 'throw',
+      fileProcessingWaits: this.fileProcessingWaits
+    })
     const externalSourceIds = await this.externalSourceCleanup.prepareExternalSourcesForBaseDeletion(baseId)
 
     await this.knowledgeLockManager.runExclusive(baseId, async () => {
@@ -127,6 +132,8 @@ export class KnowledgeBaseAdminService {
       fileProcessorId: sourceBase.fileProcessorId,
       chunkSize: sourceBase.chunkSize,
       chunkOverlap: sourceBase.chunkOverlap,
+      chunkStrategy: sourceBase.chunkStrategy,
+      chunkSeparator: sourceBase.chunkSeparator,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
       groupId: sourceBase.groupId ?? undefined
@@ -207,7 +214,11 @@ export class KnowledgeBaseAdminService {
           type: 'file',
           data: {
             source: item.data.source,
-            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
+            // A `preparing` file has not been copied into the source base yet, so copy its original.
+            path:
+              item.status === 'preparing'
+                ? item.data.source
+                : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
             // Carry the processed artifact across so the new base indexes from it
             // instead of re-running the (slow, paid) file processor.
             ...(item.data.indexedRelativePath

@@ -13,8 +13,8 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
  * `prepareStep`'s `messages` are complete at fire time
  * (`[...initialMessages, ...responseMessages]`), so we measure the full prompt
  * the model is about to receive. The `{ messages }` override is per-step
- * ephemeral (the loop rebuilds history each step), so an over-budget step
- * re-compacts every time — accepted cost; no memoization in v1.
+ * ephemeral (the loop rebuilds history each step), so the fold state is
+ * cached per request (see `foldCache` below).
  * `compactModelMessages` returns the SAME array reference on a no-op, so we
  * return `undefined` then (nothing to override).
  *
@@ -191,8 +191,11 @@ export const inLoopCompactionFeature: RequestFeature = {
     // folds summary, same semantics as the durable path folding its prior
     // marker). Without this every over-budget step re-summarized the entire
     // history from scratch — measured 44k→66k tokens per summarizer call over
-    // a 20-step run (runtime-test finding #4).
-    let foldCache: { consumedCount: number; compactedPrefix: ModelMessage[] } | null = null
+    // a 20-step run (runtime-test finding #4). The prefix's token estimate is
+    // cached with it: the estimator is a pure per-message sum, so prefix +
+    // increment equals the whole-candidate estimate without re-walking the
+    // unchanged prefix on every step.
+    let foldCache: { consumedCount: number; compactedPrefix: ModelMessage[]; prefixTokens: number } | null = null
     // A compressor that keeps failing (bad key, exhausted quota, dead endpoint)
     // must not re-fail on every step; one failure disables it for this request.
     let compactionDisabled = false
@@ -207,7 +210,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         // Once a fold is active the usage anchor covers the ORIGINAL prompt and would
         // overstate the compacted candidate, so estimate the candidate directly then.
         const estimate = foldCache
-          ? estimateModelMessages(candidate, dialect)
+          ? foldCache.prefixTokens + estimateModelMessages(messages.slice(foldCache.consumedCount), dialect)
           : estimatePromptTokens(messages, steps, dialect)
         if (estimate <= trigger) {
           // A previously folded view that still fits is served as-is — zero LLM calls.
@@ -274,6 +277,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           return foldCache ? { messages: candidate } : undefined
         }
         const completedAt = new Date().toISOString()
+        const postTokens = estimateModelMessages(compacted, dialect)
         scope.compactionSink?.(anchorId, {
           status: 'done',
           phase: 'in-loop',
@@ -281,10 +285,10 @@ export const inLoopCompactionFeature: RequestFeature = {
           completedAt,
           durationMs: Date.parse(completedAt) - Date.parse(startedAt),
           preTokens: estimate,
-          postTokens: estimateModelMessages(compacted, dialect),
+          postTokens,
           foldedCount: Math.max(0, candidate.length - compacted.length)
         })
-        foldCache = { consumedCount: messages.length, compactedPrefix: compacted }
+        foldCache = { consumedCount: messages.length, compactedPrefix: compacted, prefixTokens: postTokens }
         return { messages: compacted }
       }
     }

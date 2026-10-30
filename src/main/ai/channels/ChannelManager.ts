@@ -309,7 +309,11 @@ export class ChannelManager extends BaseService {
             )
               throw new CredentialStoreError('conflict')
             channelService.updateChannel(channelId, {
-              config: { applicationCredentialId: app.id, allowed_chat_ids: latest.config.allowed_chat_ids }
+              config: {
+                applicationCredentialId: app.id,
+                allowed_chat_ids: latest.config.allowed_chat_ids,
+                mention_only: latest.config.mention_only
+              }
             })
           })
           if (this.feishuRegistrations.get(channelId) === pending) {

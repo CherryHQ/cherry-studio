@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { type TreeNode, TREE_OFF_PATH_DEPTH_LIMIT } from '@shared/data/types/message'
+
+import { buildTopicMessageFlowGraph } from '../topicMessageFlowGraph'
 import { layoutTopicMessageFlowGraph, TOPIC_MESSAGE_FLOW_NODE_SIZE } from '../topicMessageFlowLayout'
 import type {
   TopicMessageFlowEdgeModel,
@@ -78,6 +81,34 @@ function getEdge(edges: TopicMessageFlowEdgeModel[], source: string, target: str
 }
 
 describe('topicMessageFlowLayout', () => {
+  it('lays out the deepest off-path branch the tree endpoint returns', () => {
+    const treeNode = (id: string, parentId: string, role: TreeNode['role']): TreeNode => ({
+      id,
+      parentId,
+      role,
+      preview: id,
+      status: 'success',
+      createdAt,
+      hasChildren: false
+    })
+    const offPath = Array.from({ length: TREE_OFF_PATH_DEPTH_LIMIT - 1 }, (_, i) =>
+      treeNode(`x${i}`, i === 0 ? 'u0' : `x${i - 1}`, i % 2 === 0 ? 'assistant' : 'user')
+    )
+    const graph = buildTopicMessageFlowGraph({
+      nodes: [treeNode('u0', 'vroot', 'user'), treeNode('a0', 'u0', 'assistant'), ...offPath],
+      siblingsGroups: [],
+      activeNodeId: 'a0',
+      rootId: 'vroot'
+    })
+
+    const layout = layoutTopicMessageFlowGraph(graph)
+
+    expect(layout.nodes).toHaveLength(TREE_OFF_PATH_DEPTH_LIMIT + 1)
+    expect(getNode(layout.nodes, 'x0').position.y).toBeLessThan(
+      getNode(layout.nodes, `x${TREE_OFF_PATH_DEPTH_LIMIT - 2}`).position.y
+    )
+  })
+
   it('returns an empty React Flow layout for an empty graph', () => {
     const graph = createGraph()
 

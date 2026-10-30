@@ -24,6 +24,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemType } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import {
   useCreateKnowledgeGroup,
@@ -60,6 +61,7 @@ interface KnowledgePageContextValue {
   isFeishuWizardOpen: boolean
   pendingAddSource: KnowledgeItemType | undefined
   pendingAddFiles: File[] | undefined
+  pendingAddDirectoryPaths: AbsoluteFilePath[] | undefined
   isRagConfigDrawerOpen: boolean
   isRecallTestDrawerOpen: boolean
   isCreateBaseDialogOpen: boolean
@@ -79,7 +81,7 @@ interface KnowledgePageContextValue {
   closeItemChunks: () => void
   openFilePreview: (target: KnowledgeFilePreviewTarget) => void
   closeFilePreview: () => void
-  openAddSourceDialog: (source?: KnowledgeItemType, files?: File[]) => void
+  openAddSourceDialog: (source?: KnowledgeItemType, files?: File[], directoryPaths?: AbsoluteFilePath[]) => void
   openFeishuWizard: () => void
   openRagConfigDrawer: () => void
   openRecallTestDrawer: () => void
@@ -145,6 +147,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
   const [isFeishuWizardOpen, setIsFeishuWizardOpen] = useState(false)
   const [pendingAddSource, setPendingAddSource] = useState<KnowledgeItemType | undefined>()
   const [pendingAddFiles, setPendingAddFiles] = useState<File[] | undefined>()
+  const [pendingAddDirectoryPaths, setPendingAddDirectoryPaths] = useState<AbsoluteFilePath[] | undefined>()
   const [isRagConfigDrawerOpen, setIsRagConfigDrawerOpen] = useState(false)
   const [isRecallTestDrawerOpen, setIsRecallTestDrawerOpen] = useState(false)
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
@@ -272,11 +275,15 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
     setIsCreateBaseDialogOpen(true)
   }, [])
 
-  const openAddSourceDialog = useCallback((source?: KnowledgeItemType, files?: File[]) => {
-    setPendingAddSource(source)
-    setPendingAddFiles(files?.length ? files : undefined)
-    setIsAddSourceDialogOpen(true)
-  }, [])
+  const openAddSourceDialog = useCallback(
+    (source?: KnowledgeItemType, files?: File[], directoryPaths?: AbsoluteFilePath[]) => {
+      setPendingAddSource(source)
+      setPendingAddFiles(files?.length ? files : undefined)
+      setPendingAddDirectoryPaths(directoryPaths?.length ? directoryPaths : undefined)
+      setIsAddSourceDialogOpen(true)
+    },
+    []
+  )
 
   const openFeishuWizard = useCallback(() => setIsFeishuWizardOpen(true), [])
 
@@ -330,6 +337,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
     if (!open) {
       setPendingAddSource(undefined)
       setPendingAddFiles(undefined)
+      setPendingAddDirectoryPaths(undefined)
     }
   }, [])
 
@@ -483,6 +491,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       isFeishuWizardOpen,
       pendingAddSource,
       pendingAddFiles,
+      pendingAddDirectoryPaths,
       isRagConfigDrawerOpen,
       isRecallTestDrawerOpen,
       isCreateBaseDialogOpen,
@@ -554,6 +563,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       isAddSourceDialogOpen,
       isFeishuWizardOpen,
       pendingAddFiles,
+      pendingAddDirectoryPaths,
       pendingAddSource,
       isRagConfigDrawerOpen,
       isRecallTestDrawerOpen,

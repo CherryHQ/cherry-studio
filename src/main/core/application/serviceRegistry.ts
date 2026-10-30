@@ -56,7 +56,7 @@ import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { FeishuCredentialMigrationService } from '@main/services/FeishuCredentialMigrationService'
 import { FeishuRegistrationService } from '@main/services/FeishuRegistrationService'
-import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
+import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -140,6 +140,7 @@ export const services = {
   DeepSeekHarnessService,
   HermesDashboardService,
   FileManager,
+  FileEditService,
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,

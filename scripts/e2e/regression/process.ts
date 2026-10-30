@@ -4,8 +4,14 @@ import { join } from 'node:path'
 import type { AppRecord } from './lifecycle'
 import type { Platform } from './types'
 
-export const CDP_PORT = 9222
-export const MAIN_INSPECTOR_PORT = 9229
+function portFromEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name])
+  return Number.isInteger(value) && value > 0 && value < 65536 ? value : fallback
+}
+
+// Overridable so a second regression run can share the host (CI and a local session used to fight over 9222).
+export const CDP_PORT = portFromEnv('CHERRY_CDP_PORT', 9222)
+export const MAIN_INSPECTOR_PORT = portFromEnv('CHERRY_INSPECTOR_PORT', 9229)
 
 export function isAlive(pid: number): boolean {
   try {

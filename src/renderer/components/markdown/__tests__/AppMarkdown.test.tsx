@@ -119,3 +119,15 @@ After`}</AppMarkdown>
     expect(openFilePath).toHaveBeenCalledWith('./guide.md')
   })
 })
+
+it.each([false, true])('keeps knowledge hrefs through AppMarkdown (streaming: %s)', (isStreaming) => {
+  const hrefs = ['zotero://select/items/Note', 'obsidian://new?file=Note', 'siyuan://blocks/Note']
+  render(
+    <AppMarkdown id="knowledge-protocols" isStreaming={isStreaming}>
+      {hrefs.map((href, index) => `[Note ${index}](${href})`).join('\n\n')}
+    </AppMarkdown>
+  )
+  hrefs.forEach((href, index) =>
+    expect(screen.getByRole('link', { name: `Note ${index}` })).toHaveAttribute('href', href)
+  )
+})

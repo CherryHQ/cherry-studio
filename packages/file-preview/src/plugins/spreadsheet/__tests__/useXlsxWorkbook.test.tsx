@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
+import type { PreviewHost } from '../../../previewContext'
 import type { PreviewDocument } from '../../../source'
 import { createMockWorkbookModel } from '../mockModel'
 import type { XlsxParseRequest, XlsxParseResponse } from '../renderModel'
@@ -30,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   workers: [] as unknown[],
   requests: [] as Array<{ id: number; fileName: string; data: ArrayBuffer }>,
   postMessageError: null as Error | null,
-  host: {} as { resources?: { createWorker?: (kind: 'pdf' | 'xlsx') => Worker } },
+  host: {} as PreviewHost,
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -231,6 +232,31 @@ describe('useXlsxWorkbook', () => {
     await waitFor(() => expect(result.current).toEqual({ status: 'error', message: 'not an xlsx' }))
     expect(lastWorker().terminate).toHaveBeenCalledTimes(1)
   })
+
+  it.each(['success', 'parse error', 'crash'] as const)(
+    'discards an obsolete document worker %s and still terminates its worker before replacement opens',
+    async (outcome) => {
+      let current = true
+      const failDocument = vi.fn()
+      mocks.host = { isCurrentDocument: () => current, failDocument }
+      const opened = previewTestDocument(4, 1, mocks.fsRead, 0)
+      const { result } = renderHook(() => useXlsxWorkbook(opened, 'book.xlsx'))
+      await waitFor(() => expect(mocks.requests).toHaveLength(1))
+      const worker = lastWorker()
+      current = false
+
+      act(() => {
+        if (outcome === 'crash') worker.onerror?.({ message: 'obsolete crash' })
+        else if (outcome === 'parse error') {
+          worker.respond({ id: mocks.requests[0].id, ok: false, message: 'obsolete parse error' })
+        } else worker.respond({ id: mocks.requests[0].id, ok: true, model: createMockWorkbookModel() })
+      })
+
+      expect(result.current.status).toBe('loading')
+      expect(failDocument).not.toHaveBeenCalled()
+      expect(worker.terminate).toHaveBeenCalledOnce()
+    }
+  )
 
   it('maps a file read failure to the error state without creating a worker', async () => {
     mocks.fsRead.mockRejectedValue(new Error('ENOENT: gone'))

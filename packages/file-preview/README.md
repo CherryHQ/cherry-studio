@@ -44,6 +44,15 @@ and file-identity content for the fixed top row; the format toolbar shares that 
 Without a header, format controls render above the document. Give `source` and
 `resources` stable references so layout, locale and theme updates retain the session.
 
+Refreshing the same source ID and format retains the mounted format and its valid
+reading state while opening a fresh document. Formats preserve zoom, page, scroll,
+worksheet and image transforms as applicable, and clamp positions to shorter content.
+A different source ID or format starts a new preview. The previous document still
+closes on refresh; obsolete reads and parsing results cannot overwrite retained
+content or publish selections or terminal errors for the replacement session.
+Closing and reopening a preview does not persist reading
+history. Hosts must clear any held selection when requesting a refresh.
+
 `onSelection` reports `{ sourceId, revision, anchor, excerpt }`, or `null` when a
 pick is cleared. Anchors use worksheet A1 ranges, body paragraph ordinals, PDF pages
 and PPTX slides. The host owns held selections across refreshes and file switches.
@@ -54,6 +63,11 @@ to single spaces, and trim both ends. They are limited to 2000 UTF-16 code units
 without splitting a surrogate pair; an empty normalized excerpt produces `null`.
 Callback references are stabilized inside `Preview`, so inline callbacks do not
 reopen documents or repeat a selection notification merely because the host rendered.
+
+DOCX text supports native selection and copying with Ctrl+C (Cmd+C on macOS),
+including across paragraphs. Copying uses the browser selection, not the normalized
+or length-limited reference excerpt. While paragraph picking is enabled, ending a
+text drag preserves the existing paragraph pick; a plain click still picks or clears it.
 
 Recognized `source.mediaType` values take precedence over the filename extension;
 missing or unrecognized media types fall back to the extension. `supportsPreview`
@@ -92,8 +106,7 @@ PDF workers belong to individual previews and never change pdf.js global options
 Cleanup awaits the pdf.js loading task's destruction before terminating its worker,
 allowing document fonts to be released. There is no forced teardown timeout: an
 already-unresponsive worker can leave that destruction promise pending.
-Translations use an independent i18next instance with resources for all 13 desktop
-languages; other locales fall back to English.
+Translations use an independent i18next instance with resources for 14 languages; other locales fall back to English.
 
 `FilePreviewLayout.Shell` owns the shared header and toolbar placement.
 `FilePreviewLayout`, `FilePreviewToolbar` and its portal provider/host are also used
@@ -245,6 +258,22 @@ The library build uses Vite to process native worker URLs and Tailwind CSS, plus
 is bundled, including UI components and the patched docx-preview and pptx-renderer, so they are dev
 dependencies; consumers install only `zod` and the React peers. CSS excludes Tailwind preflight
 and scopes selectors to `.file-preview-root`.
+
+## Browser regression tests
+
+From the workspace root, install Playwright's Chromium once, then run the package tests:
+
+```sh
+pnpm exec playwright install chromium
+pnpm exec playwright test --config packages/file-preview/playwright.config.ts
+```
+
+The test configuration builds the package and starts its own Vite server, then stops
+the server after the run. No running Electron instance or renderer development server
+is required. The PDF cases exercise the built public package and actual worker/layout
+for mixed/changed page geometry, reading offsets, refresh, zoom, Activity and shorter documents.
+The PowerPoint case uses the real renderer to retain a slide-relative reading offset
+when the same deck changes its slide proportions, including Activity restoration.
 
 ## Publishing
 

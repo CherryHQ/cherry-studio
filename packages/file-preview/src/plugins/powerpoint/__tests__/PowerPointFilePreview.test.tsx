@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
@@ -10,6 +12,7 @@ import { previewTestDocument } from '../../../__tests__/previewTestDocument'
 interface MockViewerOptions {
   onSlideChange?: (index: number) => void
   onSlideError?: (index: number, error: Error) => void
+  zoomPercent?: number
 }
 
 const mocks = vi.hoisted(() => {
@@ -91,16 +94,28 @@ const mocks = vi.hoisted(() => {
     constructor(
       private container: HTMLElement,
       private options: MockViewerOptions
-    ) {}
+    ) {
+      this.zoomPercent = options.zoomPercent ?? 100
+    }
 
     load(presentation: unknown) {
       state.load(presentation)
     }
 
     async renderList(options: unknown) {
-      state.renderList(options)
+      await state.renderList(options)
       if (state.slideError) this.options.onSlideError?.(0, state.slideError)
-      this.container.textContent = 'rendered pptx'
+      this.container.replaceChildren(
+        ...Array.from({ length: this.slideCount }, (_, index) => {
+          const slide = document.createElement('div')
+          slide.dataset.slideIndex = String(index)
+          Object.defineProperties(slide, {
+            offsetHeight: { value: 1000 },
+            offsetWidth: { value: 1000 }
+          })
+          return slide
+        })
+      )
       this.options.onSlideChange?.(0)
     }
 
@@ -194,7 +209,9 @@ describe('PowerPointFilePreview', () => {
   /** Mounts a slide the way PptxViewer.renderList would, and returns it for clicking. */
   function renderSlide(text: string, slideIndex: string | null): HTMLDivElement {
     const container = screen.getByTestId('pptx-viewer-container')
-    const slide = document.createElement('div')
+    const slide =
+      (slideIndex === null ? null : container.querySelector<HTMLDivElement>(`[data-slide-index="${slideIndex}"]`)) ??
+      document.createElement('div')
     if (slideIndex !== null) slide.setAttribute('data-slide-index', slideIndex)
     slide.textContent = text
     container.appendChild(slide)
@@ -501,7 +518,8 @@ describe('PowerPointFilePreview', () => {
     expect(mocks.failDocument).toHaveBeenCalledWith(error)
   })
 
-  it('rebuilds and destroys the viewer when refreshKey changes', async () => {
+  it('rebuilds the viewer on refresh while retaining zoom, slide and scroll', async () => {
+    const user = userEvent.setup()
     const view = render(
       <PowerPointFilePreview
         sourceId={filePath}
@@ -511,6 +529,11 @@ describe('PowerPointFilePreview', () => {
     )
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    const region = screen.getByRole('region', { name: 'roadmap.pptx' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+    region.scrollTop = 250
 
     view.rerender(
       <PowerPointFilePreview
@@ -523,5 +546,72 @@ describe('PowerPointFilePreview', () => {
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2))
     expect(mocks.destroy).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    expect(region.scrollTop).toBe(250)
+  })
+
+  it('keeps the last restored slide when Activity hides a pending viewer rebuild', async () => {
+    const user = userEvent.setup()
+    const first = previewTestDocument(4, 1, mocks.fsRead, 0)
+    const second = previewTestDocument(4, 1, mocks.fsRead, 1)
+    const content = (mode: 'visible' | 'hidden', document: typeof first) => (
+      <Activity mode={mode}>
+        <PowerPointFilePreview sourceId={filePath} fileName="roadmap.pptx" document={document} />
+      </Activity>
+    )
+    const view = render(content('visible', first))
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('2 / 3'))
+    const region = screen.getByRole('region', { name: 'roadmap.pptx' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+    region.scrollTop = 250
+    let finishRender!: () => void
+    const pendingRender = new Promise<void>((resolve) => {
+      finishRender = resolve
+    })
+    mocks.renderList.mockReturnValueOnce(pendingRender)
+    view.rerender(content('visible', second))
+    await waitFor(() => expect(mocks.renderList).toHaveBeenCalledTimes(2))
+    region.scrollTop = 0
+    view.rerender(content('hidden', second))
+    view.rerender(content('visible', second))
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('2 / 3'))
+    expect(region.scrollTop).toBe(250)
+    await act(async () => {
+      finishRender()
+      await pendingRender
+    })
+  })
+
+  it('clears a picked slide on same-source refresh so the first new click selects it', async () => {
+    const user = userEvent.setup()
+    const onSelection = vi.fn()
+    const view = renderWithCapture(onSelection)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    await user.click(renderSlide('Roadmap', '1'))
+    expect(onSelection).toHaveBeenLastCalledWith(expect.objectContaining({ anchor: { format: 'pptx', slide: 2 } }))
+    view.rerender(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 10, mocks.fsRead, 1)}
+        onSelection={onSelection}
+      />
+    )
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2))
+    const slide = renderSlide('Roadmap', '1')
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(slide).not.toHaveAttribute('data-pptx-picked')
+    await user.click(slide)
+    expect(onSelection).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        revision: JSON.stringify({ size: 4, mtimeMs: 10 }),
+        anchor: { format: 'pptx', slide: 2 }
+      })
+    )
   })
 })

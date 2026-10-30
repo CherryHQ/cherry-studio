@@ -5,7 +5,8 @@ import type { PosixRelativeFilePath } from '@shared/utils/file'
 type KnowledgeItemLifecycle<TItem extends { error: unknown; status: string }> = TItem extends unknown
   ? Pick<TItem, 'error' | 'status'>
   : never
-type LeafKnowledgeItemLifecycle = KnowledgeItemLifecycle<KnowledgeItemOf<'file'>>
+type LeafKnowledgeItemLifecycle = KnowledgeItemLifecycle<KnowledgeItemOf<'note'>>
+type FileKnowledgeItemLifecycle = KnowledgeItemLifecycle<KnowledgeItemOf<'file'>>
 type ContainerKnowledgeItemLifecycle = KnowledgeItemLifecycle<KnowledgeItemOf<'directory'>>
 
 const baseFields = {
@@ -16,7 +17,21 @@ const baseFields = {
   canDelete: true
 } as const
 
-const createLeafLifecycle = (status: KnowledgeItemOf<'file'>['status']): LeafKnowledgeItemLifecycle => {
+const createLeafLifecycle = (status: KnowledgeItemOf<'note'>['status']): LeafKnowledgeItemLifecycle => {
+  if (status === 'failed') {
+    return {
+      status,
+      error: 'Indexing failed'
+    }
+  }
+
+  return {
+    status,
+    error: null
+  }
+}
+
+const createFileLifecycle = (status: KnowledgeItemOf<'file'>['status']): FileKnowledgeItemLifecycle => {
   if (status === 'failed') {
     return {
       status,
@@ -83,7 +98,7 @@ export const createFileItem = ({
   status?: KnowledgeItemOf<'file'>['status']
 }): KnowledgeItemOf<'file'> & KnowledgeItemListItem => ({
   ...baseFields,
-  ...createLeafLifecycle(status),
+  ...createFileLifecycle(status),
   id,
   type: 'file',
   data: {
