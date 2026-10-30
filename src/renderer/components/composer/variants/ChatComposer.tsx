@@ -47,6 +47,7 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -77,6 +78,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -1011,6 +1013,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(runtimeModel)
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -1960,6 +1963,33 @@ const ChatComposerInner = ({
     </>
   )
 
+  const followupsDock =
+    queuedFollowups.length > 0 ? (
+      <QueuedFollowupsDock
+        items={queuedFollowups}
+        paused={followupPaused}
+        onTogglePause={() => setFollowupPaused(!followupPaused)}
+        onSteer={sendFollowup}
+        onEdit={(id) => {
+          if (directSendInFlightRef.current) return
+          if (editingMessageForCurrentTopic) {
+            releaseEdit()
+            const item = queuedFollowups.find((entry) => entry.id === id)
+            if (!item) return
+            restoreFollowupDraft(item)
+            removeFollowup(id)
+            return
+          }
+          const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+          if (!incoming) return
+          restoreFollowupDraft(incoming)
+        }}
+        onRemove={removeFollowup}
+        onReorder={reorderFollowups}
+        isSteerDisabled={isQueuedFollowupSteerDisabled}
+      />
+    ) : undefined
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
@@ -1994,7 +2024,8 @@ const ChatComposerInner = ({
             hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            !!missingSelectedModelMessage ||
+            !!quotaExhaustion
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
@@ -2030,31 +2061,14 @@ const ChatComposerInner = ({
           }
           onPause={onPause}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
-                  if (directSendInFlightRef.current) return
-                  if (editingMessageForCurrentTopic) {
-                    releaseEdit()
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    restoreFollowupDraft(item)
-                    removeFollowup(id)
-                    return
-                  }
-                  const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
-                  if (!incoming) return
-                  restoreFollowupDraft(incoming)
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
+            quotaExhaustion ? (
+              <>
+                <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                {followupsDock}
+              </>
+            ) : (
+              followupsDock
+            )
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
