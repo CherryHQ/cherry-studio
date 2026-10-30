@@ -731,6 +731,7 @@ export class AiService extends BaseService {
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
+        frozenOllamaNumCtx: requestContext?.ollamaNumCtx,
         provider,
         model,
         assistant,
@@ -941,6 +942,7 @@ export class AiService extends BaseService {
     if (request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
+        frozenOllamaNumCtx: (options.context as RequestContext | undefined)?.ollamaNumCtx,
         provider,
         model,
         assistant,

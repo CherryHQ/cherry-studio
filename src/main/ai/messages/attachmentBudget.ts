@@ -301,6 +301,44 @@ async function countToolSetTokens(tools: ToolSet | undefined, tokenizer: TextTok
 
 // ── Dispatch-time fallback capacity ─────────────────────────────────
 
+interface CallCapacity {
+  tokens: number
+  usable: number
+  window: number
+}
+
+/** Prices a converted SDK call against a window; `null` when the window is unknown. */
+async function priceCallCapacity(
+  call: LanguageModelV3CallOptions,
+  provider: Provider,
+  model: Model,
+  window: number | undefined
+): Promise<CallCapacity | null> {
+  if (window == null) return null
+  const dialect = resolveModelTokenDialect(provider, model)
+  const tokenizer = await getTextTokenizer(dialect)
+  // SDK v3 prompt content shares the footprint walker's text/media/tool-result
+  // structure. Tools here are already JSON schemas, not the original ToolSet.
+  const tokens =
+    estimateModelMessagesSync(call.prompt, { dialect, tokenizer }) +
+    (call.tools ?? []).reduce(
+      (total, tool) =>
+        total +
+        10 +
+        countToolTokens(
+          {
+            name: tool.type === 'function' ? tool.name : tool.id,
+            description: tool.type === 'function' ? tool.description : undefined,
+            schema: tool.type === 'function' ? tool.inputSchema : tool.args
+          },
+          tokenizer
+        ),
+      0
+    )
+  const usable = Math.floor(resolveInputRoom(window, call.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
+  return { tokens, usable, window }
+}
+
 /**
  * Prices the actual converted SDK call, including later tool-loop history.
  * Existing policy allows an unknown window or unpriceable call rather than
@@ -315,38 +353,74 @@ export async function isFallbackCallWithinWindow(input: {
   fallbackOllamaNumCtx?: OllamaNumCtxRequestSnapshot | null
 }): Promise<boolean> {
   try {
-    const window = resolveRequestContextWindow(
-      input.fallbackModel,
+    const capacity = await priceCallCapacity(
+      input.call,
       input.fallbackProvider,
-      input.fallbackEndpointType,
-      input.fallbackRuntimeProviderId,
-      input.fallbackOllamaNumCtx ?? null
-    )
-    if (window == null) return true
-    const dialect = resolveModelTokenDialect(input.fallbackProvider, input.fallbackModel)
-    const tokenizer = await getTextTokenizer(dialect)
-    // SDK v3 prompt content shares the footprint walker's text/media/tool-result
-    // structure. Tools here are already JSON schemas, not the original ToolSet.
-    const tokens =
-      estimateModelMessagesSync(input.call.prompt, { dialect, tokenizer }) +
-      (input.call.tools ?? []).reduce(
-        (total, tool) =>
-          total +
-          10 +
-          countToolTokens(
-            {
-              name: tool.type === 'function' ? tool.name : tool.id,
-              description: tool.type === 'function' ? tool.description : undefined,
-              schema: tool.type === 'function' ? tool.inputSchema : tool.args
-            },
-            tokenizer
-          ),
-        0
+      input.fallbackModel,
+      resolveRequestContextWindow(
+        input.fallbackModel,
+        input.fallbackProvider,
+        input.fallbackEndpointType,
+        input.fallbackRuntimeProviderId,
+        input.fallbackOllamaNumCtx ?? null
       )
-    const usable = Math.floor(resolveInputRoom(window, input.call.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
-    return tokens <= usable
+    )
+    return capacity === null || capacity.tokens <= capacity.usable
   } catch {
     loggerService.withContext('AttachmentBudget').warn('Fallback call capacity could not be priced; allowing dispatch')
     return true
+  }
+}
+
+/** The primary's final prompt plus output reservation cannot fit the memory-capped Ollama window. */
+export class OllamaPromptExceedsContextError extends Error {
+  readonly name = 'OllamaPromptExceedsContextError'
+  constructor(
+    readonly estimatedInputTokens: number,
+    readonly usableInputTokens: number,
+    readonly numCtx: number,
+    readonly trainedContextWindow: number
+  ) {
+    super(
+      `This request needs about ${estimatedInputTokens} input tokens, but Ollama's context window was limited to ` +
+        `${numCtx} tokens (the model supports ${trainedContextWindow}) to fit available memory, leaving room for ` +
+        `${usableInputTokens}. Ollama would silently drop the oldest part of the prompt. Shorten the message or ` +
+        `attachments, start a new conversation, free up memory, or choose a model with a smaller footprint.`
+    )
+  }
+}
+
+/**
+ * Dispatch-time guard for the PRIMARY Ollama call. Compaction and attachment
+ * truncation size history against the capped window but cannot shrink a sole
+ * latest turn, and Ollama truncates an over-long prompt without an error. Only
+ * applies when the memory/session cap is actually below the model's window, so
+ * requests that fit the uncapped window behave exactly as before. Unknown or
+ * unpriceable calls pass, matching {@link isFallbackCallWithinWindow}. Throwing
+ * here is an ordinary attempt error, so configured fallbacks still get their own
+ * `canDispatch` capacity check.
+ */
+export async function assertPrimaryOllamaCallWithinWindow(input: {
+  call: LanguageModelV3CallOptions
+  provider: Provider
+  model: Model
+  ollamaNumCtx: OllamaNumCtxRequestSnapshot
+}): Promise<void> {
+  const { call, provider, model, ollamaNumCtx } = input
+  if (!model.contextWindow || ollamaNumCtx.numCtx >= model.contextWindow) return
+  let capacity: CallCapacity | null
+  try {
+    capacity = await priceCallCapacity(call, provider, model, ollamaNumCtx.numCtx)
+  } catch {
+    loggerService.withContext('AttachmentBudget').warn('Primary call capacity could not be priced; allowing dispatch')
+    return
+  }
+  if (capacity && capacity.tokens > capacity.usable) {
+    throw new OllamaPromptExceedsContextError(
+      capacity.tokens,
+      capacity.usable,
+      ollamaNumCtx.numCtx,
+      ollamaNumCtx.trainedContextWindow
+    )
   }
 }

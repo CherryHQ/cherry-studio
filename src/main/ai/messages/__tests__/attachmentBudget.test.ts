@@ -18,7 +18,9 @@ import {
   allocateInlineCaps,
   buildFallbackOllamaNumCtxSnapshots,
   resolveAttachmentBudgetContextWindow,
+  assertPrimaryOllamaCallWithinWindow,
   isFallbackCallWithinWindow,
+  OllamaPromptExceedsContextError,
   resolveAttachmentBudget
 } from '../attachmentBudget'
 
@@ -32,7 +34,9 @@ const { mockGetProviderById, mockGetModelByKey, mockBudgetWarn } = vi.hoisted(()
   mockGetModelByKey: vi.fn()
 }))
 
-vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ warn: mockBudgetWarn }) } }))
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ warn: mockBudgetWarn, info: vi.fn(), error: vi.fn() }) }
+}))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
@@ -654,4 +658,42 @@ it('#22441 prices duplicate history as one surviving pair while distinct ids cos
   expect(duplicate?.tokens).toBe(single?.tokens)
   expect(distinct).not.toBeNull()
   expect(distinct!.tokens).toBeLessThan(single!.tokens)
+})
+
+describe('primary Ollama capacity guard', () => {
+  const provider = makeProvider({ id: 'ollama' })
+  const model = makeModel({ id: 'ollama::qwen', providerId: 'ollama', contextWindow: 32_768 })
+  const capped = { uniqueModelId: 'ollama::qwen', trainedContextWindow: 32_768, numCtx: 4_096 }
+  const textCall = (chars: number, maxOutputTokens?: number): LanguageModelV3CallOptions => ({
+    prompt: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(chars) }] }],
+    maxOutputTokens
+  })
+  const check = (call: LanguageModelV3CallOptions, ollamaNumCtx = capped) =>
+    assertPrimaryOllamaCallWithinWindow({ call, provider, model, ollamaNumCtx })
+
+  it('throws an actionable error when a capped prompt cannot fit (the 9,044-token probe shape)', async () => {
+    // 9,044 prompt tokens against the 4,096 window chosen from 125 MiB free / 16 GiB total.
+    const rejected = check(textCall(9_044)).catch((error) => error)
+    const error = await rejected
+    expect(error).toBeInstanceOf(OllamaPromptExceedsContextError)
+    expect(error.message).toMatch(/4096 tokens.*supports 32768/)
+    expect(error.message).toMatch(/Shorten the message/)
+  })
+
+  it('prices the output reservation against the capped window', async () => {
+    await expect(check(textCall(1_000))).resolves.toBeUndefined()
+    await expect(check(textCall(1_000, 3_800))).rejects.toBeInstanceOf(OllamaPromptExceedsContextError)
+  })
+
+  it('allows requests that are not memory-capped, or whose window is unknown', async () => {
+    await expect(check(textCall(9_044), { ...capped, numCtx: 32_768 })).resolves.toBeUndefined()
+    await expect(
+      assertPrimaryOllamaCallWithinWindow({
+        call: textCall(9_044),
+        provider,
+        model: makeModel({ id: 'ollama::qwen', providerId: 'ollama', contextWindow: undefined }),
+        ollamaNumCtx: capped
+      })
+    ).resolves.toBeUndefined()
+  })
 })

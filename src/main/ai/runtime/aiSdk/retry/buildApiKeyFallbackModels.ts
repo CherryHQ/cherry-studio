@@ -2,6 +2,7 @@ import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 import { providerService } from '@main/data/services/ProviderService'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -21,6 +22,8 @@ export interface BuildApiKeyFallbackModelsArgs {
   extraFeatures: readonly RequestFeature[]
   primaryCredentialReceipt: ServingCredentialReceipt
   createUsagePlugin: (credentialReceipt: ServingCredentialReceipt) => AiPlugin
+  /** Reuses the primary's frozen Ollama window so a key switch cannot re-sample host RAM. */
+  frozenOllamaNumCtx?: OllamaNumCtxRequestSnapshot
 }
 
 export function hasApiKeyFallbackCandidates(
@@ -52,7 +55,8 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
       assistant: args.assistant,
       extraFeatures: args.extraFeatures,
       getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
-      compactionSink: args.request.compactionSink
+      compactionSink: args.request.compactionSink,
+      ...(args.frozenOllamaNumCtx && { frozenOllamaNumCtx: args.frozenOllamaNumCtx })
     })
     const usagePlugin = args.createUsagePlugin(built.credentialReceipt)
     repairUsagePlugins.current = [usagePlugin]
@@ -62,6 +66,9 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
       built.sdkConfig.modelId,
       [...built.plugins, usagePlugin]
     )
-    return { model: resolved, repairToolCall: built.options.repairToolCall }
+    return {
+      model: resolved,
+      repairToolCall: built.options.repairToolCall
+    }
   })
 }
