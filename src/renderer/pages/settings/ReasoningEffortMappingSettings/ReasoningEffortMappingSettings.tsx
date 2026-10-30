@@ -1,11 +1,12 @@
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import { REASONING_EFFORT_ORDER } from '@cherrystudio/provider-registry'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import {
   SettingDescription,
   SettingGroup,
@@ -14,57 +15,26 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { preferenceService } from '@renderer/data/PreferenceService'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import type { ReasoningEffortMappingOverrides, UserReasoningEffortMap } from '@shared/data/preference/preferenceTypes'
+import { ipcApi } from '@renderer/ipc'
+import {
+  readReasoningEffortScopeMap,
+  type ReasoningEffortMappingScope
+} from '@shared/data/preference/reasoningEffortMapping'
+
+const logger = loggerService.withContext('ReasoningEffortMappingSettings')
 
 const MAPPING_TIERS = REASONING_EFFORT_ORDER.filter((effort) => effort !== 'auto' && effort !== 'none')
 
-type MappingScope = 'global' | 'provider'
-
 const AUTOMATIC_VALUE = '__automatic__'
-
-function readScopeMap(overrides: ReasoningEffortMappingOverrides, scope: MappingScope, providerId?: string) {
-  if (scope === 'global') return overrides.global ?? {}
-  if (!providerId) return {}
-  return overrides.providers?.[providerId]?.default ?? {}
-}
-
-function writeScopeMap(
-  overrides: ReasoningEffortMappingOverrides,
-  scope: MappingScope,
-  providerId: string | undefined,
-  map: UserReasoningEffortMap
-): ReasoningEffortMappingOverrides {
-  const cleaned = Object.fromEntries(
-    Object.entries(map).filter(([, target]) => target !== undefined)
-  ) as UserReasoningEffortMap
-
-  if (scope === 'global') {
-    return { ...overrides, global: Object.keys(cleaned).length > 0 ? cleaned : undefined }
-  }
-  if (!providerId) return overrides
-
-  const providerScope = overrides.providers?.[providerId] ?? {}
-  const nextProviderScope = {
-    ...providerScope,
-    default: Object.keys(cleaned).length > 0 ? cleaned : undefined
-  }
-  const providers = { ...overrides.providers, [providerId]: nextProviderScope }
-  return { ...overrides, providers }
-}
 
 const ReasoningEffortMappingSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { providers } = useProviders()
-  const [overrides, setOverrides] = usePreference('feature.reasoning.effort_mappings')
-  // PreferenceService refreshes its cache only when each queued write starts, so rapid edits
-  // must chain on the last enqueued value rather than the cache — otherwise a second and third
-  // edit both build on the first edit's snapshot and the middle edits are lost.
-  const pendingOverridesRef = useRef<ReasoningEffortMappingOverrides | null>(null)
-  const [scope, setScope] = useState<MappingScope>('global')
+  const [overrides] = usePreference('feature.reasoning.effort_mappings')
+  const [scope, setScope] = useState<ReasoningEffortMappingScope>('global')
   const [providerId, setProviderId] = useState('')
 
   useEffect(() => {
@@ -76,41 +46,31 @@ const ReasoningEffortMappingSettings: FC = () => {
   const providerScopeReady = scope !== 'provider' || Boolean(selectedProviderId)
 
   const scopeMap = useMemo(
-    () => readScopeMap(overrides, scope, selectedProviderId),
+    () => readReasoningEffortScopeMap(overrides, scope, selectedProviderId),
     [overrides, scope, selectedProviderId]
   )
 
-  // Clear the chain once the store catches up to the last enqueued value (writes are small,
-  // deterministic objects, so serialized comparison is exact).
-  useEffect(() => {
-    if (
-      pendingOverridesRef.current !== null &&
-      JSON.stringify(pendingOverridesRef.current) === JSON.stringify(overrides)
-    ) {
-      pendingOverridesRef.current = null
-    }
-  }, [overrides])
-
   const updateTier = useCallback(
     (source: ReasoningEffort, target: string) => {
-      if (scope === 'provider' && !selectedProviderId) return
-
-      const currentOverrides =
-        pendingOverridesRef.current ??
-        preferenceService.getCachedValue('feature.reasoning.effort_mappings') ??
-        overrides
-      const currentScopeMap = readScopeMap(currentOverrides, scope, selectedProviderId)
-      const nextMap = { ...currentScopeMap }
-      if (target === AUTOMATIC_VALUE) {
-        delete nextMap[source]
-      } else {
-        nextMap[source] = target as ReasoningEffort
-      }
-      const nextOverrides = writeScopeMap(currentOverrides, scope, selectedProviderId, nextMap)
-      pendingOverridesRef.current = nextOverrides
-      void setOverrides(nextOverrides)
+      const mappedTarget = target === AUTOMATIC_VALUE ? null : (target as ReasoningEffort)
+      // Entry-level write, applied atomically in the main process against its
+      // authoritative cache: detached Settings windows editing different
+      // entries merge instead of clobbering each other's whole-object
+      // snapshots. This window's view refreshes from the preference broadcast.
+      const request =
+        scope === 'provider'
+          ? selectedProviderId
+            ? ipcApi.request('preference.set_reasoning_effort_mapping_entry', {
+                scope,
+                providerId: selectedProviderId,
+                source,
+                target: mappedTarget
+              })
+            : undefined
+          : ipcApi.request('preference.set_reasoning_effort_mapping_entry', { scope, source, target: mappedTarget })
+      request?.catch((error: unknown) => logger.error('Failed to update reasoning effort mapping:', error as Error))
     },
-    [overrides, scope, selectedProviderId, setOverrides]
+    [scope, selectedProviderId]
   )
 
   const effortLabel = (effort: ReasoningEffort) =>
@@ -124,7 +84,7 @@ const ReasoningEffortMappingSettings: FC = () => {
 
         <SettingRow className="items-center gap-4 py-2">
           <SettingRowTitle>{t('settings.reasoning_effort_mappings.scope.label')}</SettingRowTitle>
-          <Select value={scope} onValueChange={(value) => setScope(value as MappingScope)}>
+          <Select value={scope} onValueChange={(value) => setScope(value as ReasoningEffortMappingScope)}>
             <SelectTrigger className="w-[200px]">
               <SelectValue />
             </SelectTrigger>
