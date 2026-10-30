@@ -21,13 +21,13 @@ Agent 文件面板可以把 Word、Excel、PDF 或 PowerPoint 文件的一部分
 
 - 一条评论由位置、摘录和用户的文字组成，作为一个输入框 `reference` 引用块插入。多条评论累积为多个引用块，与用户输入的其他内容一起在一条消息中发出。
 - `SelectionReference` 新增可选字段 `comment`（去除首尾空白，不能为空）。
-- 引用块的描述显示评论内容，没有评论时显示摘录。
+- 引用块的描述显示评论内容，没有评论时显示摘录。带评论的引用块显示评论图标；不带评论的文档引用显示引用图标。图标名称写在引用块持久化的 `icon` 字段中，因此发出的消息会保留它。
 
 ### 文本文件
 
 - 面板的文本编辑器（`FileEditor`，即 Pierre `File`，可编辑或只读）开启 Pierre 的行号栏工具。悬停某一行时，行号旁出现评论按钮，点击即评论该行。
 - 在行号上拖动可选中多行（`enableLineSelection`），按钮会评论整个范围（`onGutterUtilityClick(range)`）。
-- 评论框通过 Pierre 的行注释（`lineAnnotations` + `renderAnnotation`）在范围最后一行下方内联展开：一个输入框，带 **评论** 和 **取消** 按钮。Cmd/Ctrl+Enter 提交，Escape 取消，焦点回到文件。同一时间只有一个草稿。
+- 评论框通过 Pierre 的行注释（`lineAnnotations` + `renderAnnotation`）在范围最后一行下方内联展开：只有一个带内边距的输入框，位于编辑器本身的背景上，宽度跟随可见的编辑器，代码横向滚动时仍保持可见；输入框内有一个提交按钮，背后也不高亮行；占位文字会写明快捷键。点击按钮或 Cmd/Ctrl+Enter 提交；Escape 或点击窗口内其他位置会取消，切换到其他窗口则保留草稿。Escape 取消后焦点回到文件；提交后焦点移到输入框，所有引用块插入时都是如此。同一时间只有一个草稿。
 - 评论框打开期间，上方的编辑会让它随文本移动：Pierre 编辑器会在文档变化时重新映射行注释。
 - 提交后插入一个标签为 `name · L19` 或 `name · L19–21` 的引用块。其提示文本是普通 Markdown，而不是 `selection-ref` 代码块：绝对路径、行范围、放在代码块中的原样行内容（按 `SELECTION_EXCERPT_MAX_LENGTH` 截断），以及评论。
   - office-transform 脚本会拒绝 xlsx、docx、pdf、pptx 以外的锚点格式（`office_extract.py`），文本文件也不能被引导到该技能。
@@ -37,7 +37,7 @@ Agent 文件面板可以把 Word、Excel、PDF 或 PowerPoint 文件的一部分
 ### 文档（docx、xlsx、pdf、pptx）
 
 - 选取器和插件的锚点保持不变，渲染器无需改动：每个插件都已把用户点选的内容映射为文档自身结构中的锚点。
-- **引用选区** 改为 **评论**。它在原位置打开评论框，按键与文本文件相同。填写文字后提交会附带评论；不填直接提交则与现在一样只引用选区。
+- **引用选区** 改为 **评论**。它在原位置打开同样的评论输入框；由于浮在文档之上，输入框带有自己的背景。填写文字后提交会附带评论；不填直接提交则与现在一样只引用选区。
 - 引用块保留 `selection-ref` 代码块，在顶层 `anchor` 旁新增 `comment`。技能只把 `anchor` 传给脚本，因此脚本无需修改。`SKILL.md` 说明新字段。
 
 ### 不在范围内
@@ -60,7 +60,7 @@ Agent 文件面板可以把 Word、Excel、PDF 或 PowerPoint 文件的一部分
 - AC1 — 在 Agent 文件面板中，悬停文本文件的某一行时行号旁出现评论按钮，可编辑和只读文本均如此；点击后在该行下方打开评论框。(verification: renderer and Electron; owner: implementer)
 - AC2 — 在行号上拖动选中多行后点击按钮，会评论整个范围，评论框位于最后一行下方。(verification: renderer and Electron; owner: implementer)
 - AC3 — 提交文本文件评论会插入一个以文件名和行号或行范围为标签的输入框引用块；发出的消息包含绝对路径、行范围、原样行内容和评论，且不含 `selection-ref` 代码块。(verification: renderer; owner: implementer)
-- AC4 — 文本文件的空评论无法提交；取消或 Escape 会关闭评论框且不插入任何内容；Cmd/Ctrl+Enter 提交；焦点回到文件。(verification: renderer; owner: implementer)
+- AC4 — 文本文件的空评论无法提交；Escape 或点击窗口内其他位置会关闭评论框且不插入任何内容，Escape 还会让焦点回到文件；切换到其他窗口会保留草稿；Cmd/Ctrl+Enter 提交。(verification: renderer; owner: implementer)
 - AC5 — 评论框打开期间，在其上方插入或删除行时，评论框仍位于相同的行内容下方。(verification: renderer; owner: implementer)
 - AC6 — 对 Word、Excel、PDF 或 PowerPoint 文件中点选的部分，面板的引用操作会打开评论框；填写文字后提交会插入一个引用块，其 `selection-ref` 代码块包含未改变的锚点和 `comment`；不填直接提交插入的引用块与现在的引用选区相同。(verification: renderer and Electron; owner: implementer)
 - AC7 — office-transform 脚本原样接受带评论的 `selection-ref` 中的锚点，且 `SKILL.md` 说明 `comment` 字段。(verification: unit and docs gate; owner: implementer)
