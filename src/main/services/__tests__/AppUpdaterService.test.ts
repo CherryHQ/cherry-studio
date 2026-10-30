@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import type { UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -445,5 +449,32 @@ describe('AppUpdaterService', () => {
 
       expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBe(releaseInfo.releaseNotes)
     })
+  })
+})
+
+describe('bundled release information', () => {
+  it('reads current offline notes and rejects missing, malformed or wrong-version resources', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'bundled-release-'))
+    const file = join(root, 'release-info.json')
+    const service = new AppUpdaterService()
+    vi.mocked(app.getVersion).mockReturnValue('2.1.0-rc.1')
+    vi.mocked(application.getPath).mockReturnValue(file)
+    try {
+      await expect(service.getBundledReleaseInfo()).rejects.toThrow()
+      writeFileSync(file, '{')
+      await expect(service.getBundledReleaseInfo()).rejects.toThrow()
+      writeFileSync(file, JSON.stringify({ version: '2.1.0-rc.1', releases: [] }))
+      await expect(service.getBundledReleaseInfo()).rejects.toThrow()
+      writeFileSync(file, JSON.stringify({ version: '2.0.0', releases: [{ version: '2.0.0', releaseNotes: 'stale' }] }))
+      await expect(service.getBundledReleaseInfo()).rejects.toThrow('application version')
+      const expected = {
+        version: '2.1.0-rc.1',
+        releases: [{ version: '2.1.0-rc.1', releaseNotes: 'Current bilingual notes' }]
+      }
+      writeFileSync(file, JSON.stringify(expected))
+      await expect(service.getBundledReleaseInfo()).resolves.toEqual(expected)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

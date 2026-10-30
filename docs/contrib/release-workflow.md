@@ -154,6 +154,18 @@ Before publishing, inspect the draft release and confirm:
 
 Keep the release as a draft while testing or while hotfixes are still expected.
 
+### Incremental build trial
+
+The **Release** workflow's `incremental` input defaults to `false`. With a release tree that provides `build:release`, a shared job runs all type checks once; each platform still builds the required package dependencies, generates current bundled release information, and creates new installers. Older release trees retain their existing build commands. Successful affected CI alone is not treated as proof that every type project ran.
+
+Set `incremental=true` only for a controlled cache trial. macOS SQLite, selection-panel and system-speech intermediates can be restored after input, toolchain, architecture and checksum verification. Linux keeps its pinned SQLite prebuild checks. Windows native compilation stays uncached until its compiler/SDK identity has been verified. Only the Global job saves the pnpm dependency cache for each OS; both editions can restore it and still perform a frozen install.
+
+JavaScript outputs have separate Main, Preload, Renderer and utility-process tasks. Sentry-upload builds, injected Vite environment values, local dotenv files and visualizer builds bypass JS caching. Thus current signed release jobs still compile JS and upload their source maps. Do not put secret-bearing bundles or source maps in Actions caches to force a hit. Each accepted task entry has an exact input digest and verified output inventory; cache errors or mismatches rebuild the task. Final installers, signatures and notarization results are never reused across source SHAs. Keep architecture packaging passes sequential within one checkout; separate cache entries do not make mutable `node_modules` safe for concurrent packaging.
+
+For local compilation without the aggregate typecheck gate, use `pnpm build:incremental`. `pnpm build:release mac` (or `linux` / `win`) compiles and packages both architectures; set `CHERRY_EDITION=cn` for CN and `CHERRY_BUILD_CACHE=1` to opt into eligible task caches. These commands do not replace scoped local validation. The existing `pnpm build` and platform build aliases keep their full behavior.
+
+Rerun with `incremental=false` to bypass task-result caches; the existing `clean` input still controls signing-runner dependencies only. Cache state lives in `.cache/release-build/`. The `build-timings-<os>-<edition>` artifact contains JSONL timings for preparation, metadata, each JS task, native targets and the combined packaging/signing command, with source/workflow/run identifiers. Use Actions job/step timestamps for dependency transfer, artifact transfer, queueing and approval waits. Compare cold/warm payloads and at least three paired runs before enabling any cache by default; packaging, signing and notarization still need full platform acceptance.
+
 ## 4. Include a Hotfix in the Active Draft
 
 All hotfix development still starts from `main`:
