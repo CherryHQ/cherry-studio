@@ -1,10 +1,14 @@
 ---
-description: Current Knowledge backend - persistence, IPC, ingestion, retrieval, Concept IDs, and agent tools
+description: Current Knowledge backend - persistence, external authorization, IPC, ingestion, retrieval, Concept IDs, and agent tools
 sources:
   - src/main/features/knowledge
+  - src/main/data/db/schemas/externalKnowledgeConnection.ts
   - src/main/data/db/schemas/knowledge.ts
+  - src/main/data/services/ExternalKnowledgeConnectionService.ts
   - src/main/data/services/KnowledgeBaseService.ts
   - src/main/data/services/KnowledgeItemService.ts
+  - src/main/services/feishuAppRegistration.ts
+  - src/shared/data/types/externalKnowledgeConnection.ts
   - src/shared/ipc/schemas/knowledge.ts
   - src/main/ipc/handlers/knowledge.ts
   - src/main/ai/tools/knowledgeLookup.ts
@@ -92,6 +96,135 @@ The per-base index is a rebuildable seven-table SQLite projection (`meta`,
 `material`, `content`, `search_unit`, `search_text`, `embedding`, and
 `search_text_fts`). `knowledge_item` remains authoritative for visibility and
 lifecycle; index rows are never the renderer's business-data source.
+
+## External Connection Authorization
+
+`KnowledgeService` owns `ExternalKnowledgeRuntime`, including authorization
+sessions, credential-scoped queues, token refresh, validation, cancellation,
+startup reconciliation, and shutdown drain. `ExternalKnowledgeConnectionService`
+owns the SQLite Connection state and guarded credential-reference replacement.
+`ExternalKnowledgeCredentialStore` resolves application and user-authorization records through
+the shared main-only `CredentialStoreService`;
+`feishuKnowledgeProvider` and the Channel-shared `feishuAppRegistration` remain
+stateless transport boundaries.
+
+Feishu setup supports QR application selection, a saved application, and a self-built App ID and
+App Secret. All use user device authorization. QR registration allows choosing an existing
+application on Feishu, without `createOnly` or replacing its preset/name. Selecting a saved
+application passes `clientID` to request additional permissions; the registration result must
+match that application. If the remotely selected application is already saved locally, its
+secret must match before reuse, preserving its label and optional encryption settings.
+Both QR selection paths use the `custom-app` permission policy because the registration result
+does not distinguish newly created applications from existing ones.
+Connection DataApi and IPC results exclude the main-only credential reference,
+App Secret, tokens, and raw provider payloads.
+
+### Identity and permissions
+
+A connected Connection requires `accountUserId`, `accountOpenId`, `tenantKey`,
+`authorizedAt`, and a non-empty granted scope set. A pending Connection has no
+identity fields; `reauthorization-required` retains the last verified identity.
+The provider requires `user_id`, `open_id`, and `tenant_key`; optional `union_id`
+does not substitute for `user_id`.
+
+The required user scopes are:
+
+```text
+wiki:node:read
+wiki:node:retrieve
+docs:document.content:read
+offline_access
+contact:user.employee_id:readonly
+```
+
+Existing Connections with the `personal-agent` policy retain its restrictions when reauthorizing.
+Their grants may additionally contain the historical `auth:user.id:read`
+grant. That historical grant is accepted for existing cumulative consent but is
+never requested and cannot satisfy the required identity permission. Connections using the
+`custom-app` policy may grant additional scopes.
+The runtime reports `scope-missing` for missing required scopes and
+`automatic-scope-mismatch` for unexpected PersonalAgent grants.
+
+For a previously authorized Connection, reauthorization compares `tenantKey + accountUserId`; an application-scoped
+`accountOpenId` change alone does not change identity. A tenant or user mismatch
+returns `identity-conflict`; a missing stable user id returns
+`identity-unverifiable`. Neither replaces the existing credentials or application
+metadata. A Connection whose identity/display fields, `authorizedAt`, and
+`lastValidatedAt` are all null and whose granted scopes are empty may bind its
+first identity through reconnect after interrupted initial authorization.
+
+### Credential replacement and recovery
+
+Reconnect stages a new opaque credential reference while retaining the old
+reference, application metadata, identity, and credential bytes. A connected
+Connection stays usable while optional consent is pending; cancellation and
+candidate failures (including denial, expiry, scope and identity errors) do not
+invalidate it or pause its Sources. After token,
+scope, and identity validation, the runtime writes the complete candidate entry,
+then switches the Connection through a SQLite compare-and-swap on the expected
+old reference in connected or reauthorization-required state. A stale or deleted Connection cannot commit; generation checks
+fence every awaited operation. After commit,
+the runtime re-keys its credential state and best-effort revokes and removes the
+old entry.
+
+Before commit, cancellation, authorization failure, identity mismatch, or a
+compare-and-swap miss discards the candidate and preserves the old credential.
+A failed initial authorization also removes its persisted pending, unreferenced
+Connection before credential commit only while its cleanup generation, runtime
+state, and persisted reference still belong to that session after awaited cleanup; a
+reconnect failure preserves the existing account.
+
+`FeishuCredentialMigrationService` runs after the shared store initializes and before either
+Channel or Knowledge starts. It inventories old Channel configs and Knowledge credentials,
+combines compatible applications, writes records, then conditionally switches SQLite references.
+Conflicting secrets and unreadable legacy entries remain unchanged and block only their binding.
+Knowledge startup skips these blocked bindings rather than treating them as missing grants.
+Old encrypted entries are removed only after their conversion commits; cleanup retries after restart.
+
+Startup checks referenced shared grants before opening provider admission. A pending Connection
+without usable credentials requires reauthorization. It does not sweep unreferenced shared records:
+applications and grants can belong to another consumer. Authorization attempts clean only their
+own unused candidates; interrupted cleanup can leave an unreferenced record on disk.
+
+Explicit validation invalidates the generation's successful validation cache;
+concurrent validation calls share one request. Ordinary provider work reuses a
+successful generation-level validation. Token acquisition, identity validation,
+and the provider operation share a terminal-error boundary: HTTP 401,
+`invalid_grant`, invalid-token code `20005`, and missing required scopes require reauthorization; transient
+timeouts and caller or lifecycle cancellation do not change authorization state.
+Stale generations cannot publish success or failure. Startup calls share one
+reconciliation flight; shutdown closes admission, aborts work, and waits for
+startup and tracked operations before clearing runtime state.
+
+### Credential storage and transport
+
+Shared credentials are plaintext JSON files under `{userData}/Credentials/connectors`, outside
+backup-managed `Data`. `atomicWriteFile` uses file mode `0600` and directory mode `0700` on
+POSIX; these permissions do not encrypt the contents. Only legacy conversion needs Electron's
+encryption backend. App secrets never leave main through list/read responses or QR events.
+Binding commits and deletion guards share the store's queue. Token rotation requires the
+expected refresh token and application snapshot, so a response using an old application secret
+cannot overwrite a newer grant. Application changes fence affected runtime requests before
+asynchronous reconciliation.
+
+Registration accepts recognized polling error statuses on HTTP 400 for poll
+requests, rejects other unsuccessful responses, and validates non-empty response fields without
+exposing provider bodies in errors or logs. It prefers positive integer
+`expire_in`, accepts `expires_in`, and otherwise uses 600 seconds; the polling
+interval defaults to 5 seconds. One registration deadline covers delays and
+in-flight requests, and `slow_down` growth is bounded. Registration and Knowledge
+provider requests also have a 30-second timeout combined with caller cancellation.
+The timeout and transport-error handling cover response body consumption.
+Knowledge transport failures use the existing bounded retries; registration
+request timeouts retry within the registration deadline. Other registration
+network failures remain request errors, and malformed JSON/schema responses
+remain distinct from transport failures.
+`FeishuRegistrationService` owns registration for both Channels and Knowledge. Renderer sessions
+belong to their managed window; closing the window, cancellation, expiry, or shutdown invalidates
+late results. Repeated completion returns the same safe application summary. Knowledge claims
+one handoff into user authorization, and cancellation also fences an in-flight handoff before it
+can publish a pending connection. Channel activation never implicitly registers an application;
+UI setup and the explicit agent QR command register before binding through the credential store.
 
 ## Caller Contract
 

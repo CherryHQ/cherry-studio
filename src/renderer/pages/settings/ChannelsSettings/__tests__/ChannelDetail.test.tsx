@@ -208,12 +208,8 @@ describe('ChannelDetail', () => {
     description: 'agent.channels.feishu.description',
     available: true,
     defaultConfig: {
-      app_id: '',
-      app_secret: '',
-      encrypt_key: '',
-      verification_token: '',
-      allowed_chat_ids: [],
-      domain: 'feishu'
+      applicationCredentialId: null,
+      allowed_chat_ids: []
     }
   }
   const wechatChannelDef: AvailableChannel = {
@@ -360,14 +356,7 @@ describe('ChannelDetail', () => {
 
   it('saves Feishu mention-only changes and renders reloaded values', async () => {
     const user = userEvent.setup()
-    const config = {
-      app_id: 'app-id',
-      app_secret: 'app-secret',
-      encrypt_key: 'encrypt-key',
-      verification_token: 'verification-token',
-      domain: 'lark',
-      allowed_chat_ids: ['chat-1']
-    }
+    const config = { applicationCredentialId: null, registrationDomain: 'lark', allowed_chat_ids: ['chat-1'] }
     channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
     channelMocks.updateChannel.mockImplementationOnce(async (_id, patch) => ({
       ...channelMocks.channels[0],
@@ -398,9 +387,9 @@ describe('ChannelDetail', () => {
     })
   })
 
-  it('does not overwrite a credential edit that is still saving when the mention switch is toggled', async () => {
+  it('does not overwrite a chat allowlist edit that is still saving when the mention switch is toggled', async () => {
     const user = userEvent.setup()
-    const config = { app_id: 'app-id', app_secret: 'old-secret', allowed_chat_ids: [] }
+    const config = { applicationCredentialId: null, allowed_chat_ids: [] }
     channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
     let finishSave!: (value: unknown) => void
     const pendingSave = new Promise((resolve) => {
@@ -410,18 +399,18 @@ describe('ChannelDetail', () => {
       .mockImplementationOnce(() => pendingSave)
       .mockResolvedValueOnce({
         ...channelMocks.channels[0],
-        config: { ...config, app_secret: 'new-secret', mention_only: false }
+        config: { ...config, allowed_chat_ids: ['new-chat'], mention_only: false }
       })
     render(<ChannelDetail channelDef={feishuChannelDef} />)
     await user.click(await screen.findByRole('button', { name: 'common.edit' }))
 
     try {
-      const secretInput = screen.getByPlaceholderText('agent.channels.feishu.appSecretPlaceholder')
-      await user.clear(secretInput)
-      await user.type(secretInput, 'new-secret')
+      const chatInput = screen.getByPlaceholderText('agent.channels.feishu.chatIdsPlaceholder')
+      await user.clear(chatInput)
+      await user.type(chatInput, 'new-chat')
       await user.tab()
       expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
-        configPatch: { app_secret: 'new-secret' }
+        configPatch: { allowed_chat_ids: ['new-chat'] }
       })
 
       await user.click(screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' }))
@@ -432,11 +421,11 @@ describe('ChannelDetail', () => {
       ])
       const payload = channelMocks.updateChannel.mock.calls.at(-1)![1]
       expect(payload).not.toHaveProperty('config')
-      expect(payload).not.toHaveProperty('app_secret')
-      expect(payload.configPatch).not.toHaveProperty('app_secret')
+      expect(payload).not.toHaveProperty('allowed_chat_ids')
+      expect(payload.configPatch).not.toHaveProperty('allowed_chat_ids')
     } finally {
       await act(async () => {
-        finishSave({ ...channelMocks.channels[0], config: { ...config, app_secret: 'new-secret' } })
+        finishSave({ ...channelMocks.channels[0], config: { ...config, allowed_chat_ids: ['new-chat'] } })
         await pendingSave
       })
     }
@@ -444,7 +433,7 @@ describe('ChannelDetail', () => {
 
   it('keeps the mention toggle when a companion Feishu field is saved while updates are pending', async () => {
     const user = userEvent.setup()
-    const config = { app_id: 'app-id', app_secret: 'old-secret', mention_only: true, allowed_chat_ids: [] }
+    const config = { applicationCredentialId: null, mention_only: true, allowed_chat_ids: [] }
     channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
     let finishSave!: (value: unknown) => void
     const pendingSave = new Promise((resolve) => {
@@ -460,13 +449,13 @@ describe('ChannelDetail', () => {
         configPatch: { mention_only: false }
       })
 
-      const secretInput = screen.getByPlaceholderText('agent.channels.feishu.appSecretPlaceholder')
-      await user.clear(secretInput)
-      await user.type(secretInput, 'new-secret')
+      const chatInput = screen.getByPlaceholderText('agent.channels.feishu.chatIdsPlaceholder')
+      await user.clear(chatInput)
+      await user.type(chatInput, 'new-chat')
       await user.tab()
       expect(channelMocks.updateChannel.mock.calls.at(-1)).toEqual([
         'channel-1',
-        { configPatch: { app_secret: 'new-secret' } }
+        { configPatch: { allowed_chat_ids: ['new-chat'] } }
       ])
       const payload = channelMocks.updateChannel.mock.calls.at(-1)![1]
       expect(payload).not.toHaveProperty('config')
@@ -475,10 +464,11 @@ describe('ChannelDetail', () => {
 
       await user.click(screen.getByRole('button', { name: 'agent.channels.feishu.domainLark' }))
       expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
-        configPatch: { domain: 'lark' }
+        configPatch: { registrationDomain: 'lark' }
       })
 
       const chatIdsInput = screen.getByPlaceholderText('agent.channels.feishu.chatIdsPlaceholder')
+      await user.clear(chatIdsInput)
       await user.type(chatIdsInput, ' chat-1, chat-2 ')
       await user.tab()
       expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {

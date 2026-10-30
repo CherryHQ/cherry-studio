@@ -67,7 +67,5 @@ export type ChannelEventSchemas = {
     channelId: string
     url: string
     status: QrStatus
-    appId?: string
-    appSecret?: string
   }
 }

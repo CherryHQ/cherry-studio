@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createChannel: vi.fn(),
+  getChannel: vi.fn(),
   updateChannel: vi.fn(),
   deleteChannel: vi.fn(),
   requestReconcile: vi.fn(),
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     createChannel: mocks.createChannel,
+    getChannel: mocks.getChannel,
     updateChannel: mocks.updateChannel,
     deleteChannel: mocks.deleteChannel
   }
@@ -60,12 +62,13 @@ describe('channelCommands', () => {
     vi.clearAllMocks()
     mocks.createChannel.mockReturnValue(channel)
     mocks.updateChannel.mockReturnValue(channel)
+    mocks.getChannel.mockReturnValue(channel)
     mocks.deleteChannel.mockReturnValue(true)
     mocks.removeChannel.mockResolvedValue(undefined)
   })
 
-  it('commits create before requesting runtime convergence', () => {
-    expect(createAgentChannel(input)).toBe(channel)
+  it('commits create before requesting runtime convergence', async () => {
+    expect(await createAgentChannel(input)).toBe(channel)
     expect(mocks.createChannel).toHaveBeenCalledWith(input)
     expect(mocks.requestReconcile).toHaveBeenCalledWith('ch-1')
     expect(mocks.createChannel.mock.invocationCallOrder[0]).toBeLessThan(
@@ -73,8 +76,8 @@ describe('channelCommands', () => {
     )
   })
 
-  it('keeps a successful update even though runtime convergence is asynchronous', () => {
-    expect(updateAgentChannel('ch-1', { name: 'Renamed' })).toBe(channel)
+  it('keeps a successful update even though runtime convergence is asynchronous', async () => {
+    expect(await updateAgentChannel('ch-1', { name: 'Renamed' })).toBe(channel)
     expect(mocks.updateChannel).toHaveBeenCalledWith('ch-1', { name: 'Renamed' })
     expect(mocks.requestReconcile).toHaveBeenCalledWith('ch-1')
   })

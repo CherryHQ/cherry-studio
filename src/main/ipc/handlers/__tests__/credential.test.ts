@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CredentialStoreService } from '@main/services/credential'
@@ -9,7 +11,8 @@ import { CredentialSummarySchema } from '@shared/types/credential'
 const storeMethods = vi.hoisted(() => ({
   create: vi.fn<CredentialStoreService['create']>(),
   listSummaries: vi.fn<CredentialStoreService['listSummaries']>(),
-  replaceApplication: vi.fn<CredentialStoreService['replaceApplication']>()
+  replaceApplication: vi.fn<CredentialStoreService['replaceApplication']>(),
+  remove: vi.fn<CredentialStoreService['remove']>()
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -28,6 +31,7 @@ describe('Credential IPC', () => {
     storeMethods.create.mockImplementation((...args) => fixture.store.create(...args))
     storeMethods.listSummaries.mockImplementation((...args) => fixture.store.listSummaries(...args))
     storeMethods.replaceApplication.mockImplementation((...args) => fixture.store.replaceApplication(...args))
+    storeMethods.remove.mockImplementation((...args) => fixture.store.remove(...args))
   })
 
   it('accepts manual secrets but never returns them through create, replace or list', async () => {
@@ -61,16 +65,23 @@ describe('Credential IPC', () => {
         ctx
       )
     ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
-    await expect(
-      router.dispatch('credential.feishu.replace_application', { id: '../escape', appSecret: 'new' }, ctx)
-    ).rejects.toMatchObject({
+    await expect(router.dispatch('credential.remove', { id: '../escape' }, ctx)).rejects.toMatchObject({
       code: 'VALIDATION_FAILED'
     })
     expect(await fixture.store.listSummaries()).toEqual([])
   })
 
-  it('returns a conflict without secret detail', async () => {
-    await fixture.store.create(applicationInput)
+  it('returns actionable conflict and in-use errors without secret detail', async () => {
+    const app = await fixture.store.create(applicationInput)
+    await fixture.store.create({
+      connector: 'feishu',
+      kind: 'user-authorization',
+      label: 'Account',
+      payload: { applicationCredentialId: app.id, tokens: null }
+    })
+    await expect(router.dispatch('credential.remove', { id: app.id }, ctx)).rejects.toMatchObject({
+      code: credentialErrorCodes.IN_USE
+    })
     await expect(
       router.dispatch(
         'credential.feishu.create_application',
@@ -78,6 +89,7 @@ describe('Credential IPC', () => {
         ctx
       )
     ).rejects.toMatchObject({ code: credentialErrorCodes.CONFLICT, message: credentialErrorCodes.CONFLICT })
+    expect(await router.dispatch('credential.remove', { id: randomUUID() }, ctx)).toBe('missing')
   })
 
   it('does not serialize unexpected internal error messages', async () => {

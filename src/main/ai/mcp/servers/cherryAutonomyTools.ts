@@ -170,10 +170,10 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     description: 'Telegram Bot. Get bot_token from @BotFather.'
   },
   feishu: {
-    required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
+    required: ['applicationCredentialId'],
     optional: ['allowed_chat_ids', 'mention_only'],
     description:
-      'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, provide all required fields and set domain to "feishu" or "lark".'
+      'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, use a saved application credential ID.'
   },
   qq: {
     required: ['app_id', 'client_secret'],
@@ -882,7 +882,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
   } else if (authMode === 'qr' && type === 'feishu') {
     const unverifiedChannels = channelService
       .listChannels({ agentId: ctx.agentId, type: 'feishu' })
-      .filter((channel) => channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
+      .filter((channel) => channel.type === 'feishu' && !channel.config.applicationCredentialId)
 
     if (unverifiedChannels.length > 1) {
       const channelIds = unverifiedChannels.map((channel) => channel.id).join(', ')
@@ -894,13 +894,9 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
     const existingChannel = unverifiedChannels[0]
     cfg = {
       allowed_chat_ids: [],
-      domain: 'feishu',
       ...existingChannel?.config,
       ...rawConfig,
-      app_id: '',
-      app_secret: '',
-      encrypt_key: '',
-      verification_token: ''
+      applicationCredentialId: null
     }
 
     if (existingChannel) {
@@ -985,7 +981,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
     }
   }
 
-  const newChannel = createAgentChannel({
+  const newChannel = await createAgentChannel({
     type: channelType,
     name,
     agentId: ctx.agentId,
@@ -1013,7 +1009,7 @@ function getOwnedChannel(ctx: AutonomyToolsContext, channelId: string | undefine
   return channel
 }
 
-function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): CallToolResult {
+async function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): Promise<CallToolResult> {
   const existing = getOwnedChannel(ctx, args.channel_id, 'update_channel')
 
   const updates: Record<string, unknown> = {}
@@ -1023,7 +1019,7 @@ function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): Call
     updates.config = { ...existing.config, ...args.config }
   }
 
-  updateAgentChannel(existing.id, updates)
+  await updateAgentChannel(existing.id, updates)
 
   logger.info('Channel updated via config tool', { agentId: ctx.agentId, channelId: existing.id })
   return {
@@ -1049,8 +1045,7 @@ async function configReconnectChannel(
 ): Promise<CallToolResult> {
   const channel = getOwnedChannel(ctx, channelId, 'reconnect_channel')
 
-  const needsQr =
-    channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
+  const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.applicationCredentialId)
 
   if (!needsQr) {
     await reconnectAgentChannel(channel.id)

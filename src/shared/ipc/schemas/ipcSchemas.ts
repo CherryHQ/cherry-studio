@@ -18,6 +18,7 @@ import { doctorRequestSchemas } from './doctor'
 import { doctorAgentRequestSchemas } from './doctorAgent'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
+import { feishuRequestSchemas } from './feishu'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { hermesDashboardRequestSchemas } from './hermesDashboard'
@@ -79,6 +80,7 @@ export const ipcRequestSchemas = {
   ...hermesDashboardRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
+  ...feishuRequestSchemas,
   ...credentialRequestSchemas,
   ...knowledgeRequestSchemas,
   ...localModelRequestSchemas,

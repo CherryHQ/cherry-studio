@@ -38,6 +38,12 @@ class TestFileManager {
 @Injectable('PowerService')
 class TestPowerService {}
 
+@Injectable('FeishuRegistrationService')
+class TestFeishuRegistrationService {}
+
+@Injectable('FeishuCredentialMigrationService')
+class TestFeishuCredentialMigrationService {}
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -115,6 +121,7 @@ describe('ChannelManager', () => {
     mocks.getLifecycleState.mockReturnValue('active')
     mocks.resumeListeners.clear()
     vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'CredentialStoreService') return { onDidChange: () => ({ dispose() {} }) } as never
       if (name === 'PowerService') return { onResume: mocks.onResume } as never
       if (name in defaultServiceInstances) {
         return defaultServiceInstances[name as keyof typeof defaultServiceInstances] as never
@@ -131,6 +138,7 @@ describe('ChannelManager', () => {
       (channelId) => rows.find((row) => row.id === channelId) ?? null
     )
     vi.mocked(loadChannelAdapter).mockImplementation(async (channel, agentId) => {
+      if (channel.type === 'feishu') throw new Error('Unexpected test channel')
       const adapter = new MockAdapter({
         channelId: channel.id,
         channelType: channel.type,
@@ -147,6 +155,8 @@ describe('ChannelManager', () => {
     container.register(TestWindowManager)
     container.register(TestFileManager)
     container.register(TestPowerService)
+    container.register(TestFeishuCredentialMigrationService)
+    container.register(TestFeishuRegistrationService)
     container.register(ChannelManager)
     manager = container.get(ChannelManager)
   })

@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import {
+  CredentialIdSchema,
   CredentialKindSchema,
   CredentialSummarySchema,
   FeishuApplicationInputSchema,
@@ -21,5 +22,9 @@ export const credentialRequestSchemas = {
   'credential.feishu.replace_application': defineRoute({
     input: ReplaceFeishuApplicationSchema,
     output: CredentialSummarySchema
+  }),
+  'credential.remove': defineRoute({
+    input: z.strictObject({ id: CredentialIdSchema }),
+    output: z.enum(['removed', 'missing'])
   })
 }

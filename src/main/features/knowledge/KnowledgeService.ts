@@ -1,4 +1,5 @@
 import { application } from '@application'
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
@@ -18,6 +19,12 @@ import { KeyedMutex } from '@shared/utils/async'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
+import {
+  type BeginAuthorizationResult,
+  type BeginUserAuthorizationInput,
+  ExternalKnowledgeRuntime
+} from './external/ExternalKnowledgeRuntime'
+import { FEISHU_REQUIRED_USER_SCOPES } from './external/feishuKnowledgeProvider'
 import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
@@ -46,7 +53,14 @@ const FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS = 5_000
  */
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
+@DependsOn([
+  'KnowledgeVectorStoreService',
+  'JobManager',
+  'FileProcessingService',
+  'WebSearchService',
+  'FeishuCredentialMigrationService',
+  'FeishuRegistrationService'
+])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
   private readonly fileProcessingWaits = new FileProcessingWaitManager()
@@ -58,6 +72,9 @@ export class KnowledgeService extends BaseService {
   )
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
+  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime({
+    isConnectionBlocked: (id) => application.get('FeishuCredentialMigrationService').isConnectionBlocked(id)
+  })
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -85,9 +102,64 @@ export class KnowledgeService extends BaseService {
     this.registerInterval(() => this.fileProcessingWaits.mirrorProgress(), FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS)
   }
 
+  protected async onReady(): Promise<void> {
+    this.registerDisposable(
+      application.get('CredentialStoreService').onDidChange((event) => {
+        if (event.kind === 'application' && event.operation !== 'created')
+          this.externalKnowledgeRuntime.applicationChanged(event.id)
+      })
+    )
+    await this.externalKnowledgeRuntime.start()
+  }
+
+  protected async onStop(): Promise<void> {
+    await this.externalKnowledgeRuntime.stop()
+  }
+
   protected async onAllReady(): Promise<void> {
     this.ingestionService.recoverDeletingItems()
     this.ingestionService.recoverInterruptedItems()
+  }
+
+  async beginFeishuAppRegistration(owner: string | null, requestId: string, applicationCredentialId?: string) {
+    return application.get('FeishuRegistrationService').beginWindow(owner, {
+      requestId,
+      domain: 'feishu',
+      purpose: 'knowledge',
+      applicationCredentialId,
+      userScopes: FEISHU_REQUIRED_USER_SCOPES
+    })
+  }
+
+  async beginFeishuUserAuthorization(
+    input: BeginUserAuthorizationInput,
+    signal?: AbortSignal
+  ): Promise<BeginAuthorizationResult> {
+    return this.externalKnowledgeRuntime.beginUserAuthorization(input, signal)
+  }
+
+  async completeFeishuUserAuthorization(authorizationSessionId: string): Promise<ExternalKnowledgeConnection> {
+    return await this.externalKnowledgeRuntime.completeUserAuthorization(authorizationSessionId)
+  }
+
+  async cancelFeishuUserAuthorization(authorizationSessionId: string): Promise<void> {
+    await this.externalKnowledgeRuntime.cancelUserAuthorization(authorizationSessionId)
+  }
+
+  async reconnectFeishuConnection(
+    connectionId: string,
+    replacement?: BeginUserAuthorizationInput,
+    signal?: AbortSignal
+  ): Promise<BeginAuthorizationResult> {
+    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement, signal)
+  }
+
+  async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
+    return await this.externalKnowledgeRuntime.validateConnection(connectionId)
+  }
+
+  async removeExternalKnowledgeConnection(connectionId: string): Promise<void> {
+    await this.externalKnowledgeRuntime.removeUnreferencedConnection(connectionId)
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {

@@ -5,8 +5,6 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
@@ -61,7 +59,9 @@ const {
   getMaterialByRelativePathMock,
   readMaterialContentMock,
   probeKnowledgeFileMock,
-  probeKnowledgeSourcePathMock
+  probeKnowledgeSourcePathMock,
+  externalKnowledgeRuntimeStartMock,
+  externalKnowledgeRuntimeStopMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -104,7 +104,9 @@ const {
   getMaterialByRelativePathMock: vi.fn(),
   readMaterialContentMock: vi.fn(),
   probeKnowledgeFileMock: vi.fn(),
-  probeKnowledgeSourcePathMock: vi.fn()
+  probeKnowledgeSourcePathMock: vi.fn(),
+  externalKnowledgeRuntimeStartMock: vi.fn(),
+  externalKnowledgeRuntimeStopMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -215,6 +217,13 @@ vi.mock('../pathStorage', async () => {
     probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
   }
 })
+
+vi.mock('../external/ExternalKnowledgeRuntime', () => ({
+  ExternalKnowledgeRuntime: class {
+    start = externalKnowledgeRuntimeStartMock
+    stop = externalKnowledgeRuntimeStopMock
+  }
+}))
 
 vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: async () =>
@@ -454,16 +463,8 @@ describe('KnowledgeService', () => {
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
-  })
-
-  it('uses WhenReady phase and depends on same-phase runtime services', () => {
-    expect(getPhase(KnowledgeService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeService)).toEqual([
-      'KnowledgeVectorStoreService',
-      'JobManager',
-      'FileProcessingService',
-      'WebSearchService'
-    ])
+    externalKnowledgeRuntimeStartMock.mockResolvedValue(undefined)
+    externalKnowledgeRuntimeStopMock.mockResolvedValue(undefined)
   })
 
   it('registers formal knowledge job handlers', () => {

@@ -4,8 +4,8 @@
 main-process plaintext credentials. Resolve it through
 `application.get('CredentialStoreService')` after its WhenReady lifecycle initialization.
 External imports use `@main/services/credential`; record schemas remain private.
-Channel and Knowledge still use their existing credential writers; their migration and cutover
-are a subsequent implementation layer.
+Channel configurations store application IDs; Knowledge connections store user-authorization IDs.
+`FeishuCredentialMigrationService` converts their legacy data before either consumer starts.
 
 Each UUID names one strict-schema JSON record under `feature.credentials`
 (`{userData}/Credentials/connectors`), outside backup-managed `Data`. The store creates the
@@ -35,4 +35,4 @@ synchronously before starting asynchronous reconciliation.
 
 Tests use real temporary files and the production SQLite migrations through
 `setupTestDatabase()`. See the [design record](../../../../.agents/notes/proposed/architecture/2026-10-21-shared-connector-credentials.md)
-for migration, consumer cutover and desktop acceptance still to be implemented.
+for migration invariants and the remaining desktop acceptance criteria.
