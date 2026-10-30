@@ -30,5 +30,11 @@ export const entries: SettingsSearchEntry[] = [
     titleKey: 'settings.models.painting_model',
     groupKey: 'settings.model',
     descriptionKey: 'settings.models.painting_model_description'
+  },
+  {
+    anchorId: 'video-vision-model',
+    titleKey: 'settings.tool.file_processing.video_vision.title',
+    groupKey: 'settings.model',
+    descriptionKey: 'settings.tool.file_processing.video_vision.description'
   }
 ]

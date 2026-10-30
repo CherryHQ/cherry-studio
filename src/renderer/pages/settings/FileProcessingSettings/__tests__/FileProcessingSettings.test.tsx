@@ -402,6 +402,16 @@ describe('processing settings pages', () => {
     expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
   })
 
+  it('does not offer the video vision model on the OCR page', async () => {
+    render(<OcrSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.video_vision.title')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })
+    ).not.toBeInTheDocument()
+  })
+
   it('uses the Open MinerU label', async () => {
     render(<DocumentProcessingSettings />)
 
