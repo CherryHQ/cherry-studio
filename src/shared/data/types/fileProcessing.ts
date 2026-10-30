@@ -64,7 +64,6 @@ export const FileProcessingTaskSchema = z.discriminatedUnion('status', [
   z.object({ ...fileProcessingTaskFields, status: z.literal('cancelled'), error: z.string() }).strict()
 ])
 export type FileProcessingTask = z.infer<typeof FileProcessingTaskSchema>
-export type SettledFileProcessingTask = Extract<FileProcessingTask, { status: 'completed' | 'failed' | 'cancelled' }>
 
 export const ListAvailableFileProcessorsResultSchema = z
   .object({

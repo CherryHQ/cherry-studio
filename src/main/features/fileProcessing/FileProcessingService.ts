@@ -46,7 +46,7 @@ function taskCacheKey(id: FileProcessingTaskId): `file_processing.task.${string}
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['FileManager', 'JobManager'])
 export class FileProcessingService extends BaseService {
-  private readonly _onDidChangeTask = this.registerDisposable(new Emitter<FileProcessingTask>())
+  private readonly _onDidChangeTask = new Emitter<FileProcessingTask>()
   /** Fires on every status change and progress report of every task. */
   readonly onDidChangeTask: Event<FileProcessingTask> = this._onDidChangeTask.event
 
@@ -59,6 +59,10 @@ export class FileProcessingService extends BaseService {
     jobManager.registerHandler('file-processing.background-local', withTaskUpdates(localBackgroundJobHandler, publish))
     jobManager.registerHandler('file-processing.remote-poll', withTaskUpdates(remotePollJobHandler, publish))
     logger.info('File processing service initialized')
+  }
+
+  protected onDestroy(): void {
+    this._onDidChangeTask.dispose()
   }
 
   /**

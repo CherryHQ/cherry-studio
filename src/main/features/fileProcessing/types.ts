@@ -1,18 +1,15 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
-import type {
-  FileProcessingOutputTarget,
-  FileProcessingTask,
-  SettledFileProcessingTask
-} from '@shared/data/types/fileProcessing'
+import type { FileProcessingOutputTarget, FileProcessingTask } from '@shared/data/types/fileProcessing'
 export type {
   FileProcessingArtifact,
   FileProcessingJobOutput,
   FileProcessingTask,
   FileProcessingTaskId,
-  ListAvailableFileProcessorsResult,
-  SettledFileProcessingTask
+  ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
+
+export type SettledFileProcessingTask = Extract<FileProcessingTask, { status: 'completed' | 'failed' | 'cancelled' }>
 
 export interface StartFileProcessingTaskInput {
   feature: FileProcessorFeature

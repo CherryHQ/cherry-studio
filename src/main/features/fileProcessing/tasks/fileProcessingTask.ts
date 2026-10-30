@@ -3,10 +3,10 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import {
   FileProcessingJobOutputSchema,
   type FileProcessingTask,
-  type FileProcessingTaskId,
-  type SettledFileProcessingTask
+  type FileProcessingTaskId
 } from '@shared/data/types/fileProcessing'
 
+import type { SettledFileProcessingTask } from '../types'
 import type { FileProcessingJobPayload } from './shared'
 
 type TaskJob = Pick<FileProcessingJobPayload, 'feature' | 'processorId'>
