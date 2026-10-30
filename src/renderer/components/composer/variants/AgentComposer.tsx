@@ -825,6 +825,7 @@ const AgentComposerInner = ({
     version: number
     effort: ThinkingOption
   } | null>(null)
+  const failedReasoningVersionRef = useRef<number | null>(null)
   const activeReasoningOverride =
     reasoningOverride &&
     reasoningOverride.agentId === agent?.id &&
@@ -1326,7 +1327,9 @@ const AgentComposerInner = ({
       if (!updatedAgent) {
         setReasoningOverride((current) => {
           if (current?.agentId !== agent.id || current.version !== version) return current
-          if (!previousReasoningOverride) return null
+          if (!previousReasoningOverride || previousReasoningOverride.version === failedReasoningVersionRef.current) {
+            return null
+          }
 
           const previousEditStillPending =
             pendingReasoningEditRef.current?.agentId === previousReasoningOverride.agentId &&
@@ -1409,13 +1412,18 @@ const AgentComposerInner = ({
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
-        if (!updatedAgent) return
-
         if (
           pendingReasoningEditRef.current?.agentId === agent.id &&
           pendingReasoningEditRef.current.version === version
         ) {
           pendingReasoningEditRef.current = null
+        }
+        if (!updatedAgent) {
+          failedReasoningVersionRef.current = version
+          setReasoningOverride((current) =>
+            current?.agentId === agent.id && current.version === version ? null : current
+          )
+          return
         }
         setReasoningOverride((current) =>
           current?.agentId === agent.id && current.version === version
