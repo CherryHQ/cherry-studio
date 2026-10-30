@@ -23,6 +23,7 @@ import type {
   MediaFfmpegInitData
 } from '@main/features/fileProcessing/media/mediaFfmpegProcess'
 import {
+  audioExtractStreamMap,
   classifyFfprobeResult,
   relativeInputSeekMs,
   sniffEbmlDocType,
@@ -34,6 +35,7 @@ import {
 type Logger = { warn: (message: string) => void }
 
 const MAX_STDIO_CHARS = 8_000
+const MAX_PROBE_STDOUT_CHARS = 256_000
 const COMMAND_TIMEOUT_MS = 120_000
 const WAV_HEADER_BUDGET_BYTES = 4_096
 const LOCAL_PROTOCOL_WHITELIST = 'file,pipe,crypto'
@@ -69,12 +71,10 @@ function killProcessTree(child: ChildProcess, logger?: Logger): void {
   }
 }
 
-function appendBounded(current: string, chunk: string): { value: string; truncated: boolean } {
-  if (current.length >= MAX_STDIO_CHARS) return { value: current, truncated: true }
+function appendBounded(current: string, chunk: string, limit = MAX_STDIO_CHARS): { value: string; truncated: boolean } {
+  if (current.length >= limit) return { value: current, truncated: true }
   const next = current + chunk
-  return next.length <= MAX_STDIO_CHARS
-    ? { value: next, truncated: false }
-    : { value: next.slice(0, MAX_STDIO_CHARS), truncated: true }
+  return next.length <= limit ? { value: next, truncated: false } : { value: next.slice(0, limit), truncated: true }
 }
 
 const MAX_PTS_LINE_CHARS = 64
@@ -143,6 +143,7 @@ async function runCommand(
     pidRegistryPath?: string
     onStderrLine?: (line: string) => void
     maxPacketPts?: boolean
+    maxStdoutChars?: number
   } = {}
 ): Promise<{ stdout: string; truncated: boolean; maxPacketPtsSeconds?: number }> {
   signal.throwIfAborted()
@@ -207,7 +208,7 @@ async function runCommand(
         packetPts.push(chunk)
         return
       }
-      const appended = appendBounded(stdout, chunk)
+      const appended = appendBounded(stdout, chunk, options.maxStdoutChars)
       stdout = appended.value
       truncated ||= appended.truncated
     })
@@ -266,24 +267,46 @@ async function probeJson(
   pidRegistryPath?: string
 ): Promise<unknown> {
   const { ffprobePath } = requireInitData()
-  const result = await runCommand(
-    ffprobePath,
-    [
-      '-v',
-      'error',
-      '-print_format',
-      'json',
-      '-show_entries',
-      'format=duration,start_time,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,duration,start_time:stream_disposition=attached_pic',
-      '-i',
-      filePath
-    ],
-    signal,
-    logger,
-    { pidRegistryPath }
-  )
-  if (result.truncated) throw new Error('Media probe output exceeded buffer; refusing truncated JSON')
-  return JSON.parse(result.stdout)
+  const args = [
+    '-v',
+    'error',
+    '-print_format',
+    'json',
+    '-show_entries',
+    'format=duration,start_time,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,channels,duration,start_time,nb_read_packets:stream_disposition=attached_pic,default',
+    '-i',
+    filePath
+  ]
+  const readProbe = async (countPackets: boolean): Promise<FfprobeResult> => {
+    const commandArgs = countPackets ? ['-count_packets', ...args] : args
+    const result = await runCommand(ffprobePath, commandArgs, signal, logger, {
+      pidRegistryPath,
+      maxStdoutChars: MAX_PROBE_STDOUT_CHARS
+    })
+    if (result.truncated) throw new Error('Media probe output exceeded buffer; refusing truncated JSON')
+    return JSON.parse(result.stdout) as FfprobeResult
+  }
+  const probe = await readProbe(false)
+  if ((probe.streams ?? []).filter((stream) => stream.codec_type === 'audio').length < 2) return probe
+  return readProbe(true)
+}
+
+async function sourceAudioMap(
+  filePath: string,
+  signal: AbortSignal,
+  logger: Logger,
+  pidRegistryPath?: string
+): Promise<string | undefined> {
+  try {
+    const probe = await probeJson(filePath, signal, logger, pidRegistryPath)
+    if (!probe || typeof probe !== 'object') return undefined
+    return audioExtractStreamMap((probe as FfprobeResult).streams ?? [])
+  } catch (error) {
+    signal.throwIfAborted()
+    if (!isUnavailableProbeMetadata(error)) throw error
+    logger.warn(`audio stream map unavailable: ${error instanceof Error ? error.message : String(error)}`)
+    return undefined
+  }
 }
 
 function probeDurationMs(probe: unknown): number {
@@ -370,30 +393,24 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     mkdirSync(outputDir, { recursive: true })
     const prefix = await fileHashPrefix(filePath)
     const wavPath = join(outputDir, `${prefix}-16k-mono.wav`)
-
-    await runCommand(
-      ffmpegPath,
-      [
-        '-y',
-        '-i',
-        filePath,
-        '-vn',
-        '-map_metadata',
-        '-1',
-        '-ac',
-        '1',
-        '-ar',
-        '16000',
-        '-c:a',
-        'pcm_s16le',
-        '-f',
-        'wav',
-        wavPath
-      ],
-      signal,
-      logger,
-      { ffmpeg: true, pidRegistryPath }
+    const map = await sourceAudioMap(filePath, signal, logger, pidRegistryPath)
+    const args = ['-y', '-i', filePath]
+    if (map) args.push('-map', map)
+    args.push(
+      '-vn',
+      '-map_metadata',
+      '-1',
+      '-af',
+      'aresample=16000:async=1',
+      '-ac',
+      '1',
+      '-c:a',
+      'pcm_s16le',
+      '-f',
+      'wav',
+      wavPath
     )
+    await runCommand(ffmpegPath, args, signal, logger, { ffmpeg: true, pidRegistryPath })
 
     const totalMs = probeDurationMs(await probeJson(wavPath, signal, logger, pidRegistryPath))
     const wavSize = statSync(wavPath).size
@@ -403,6 +420,10 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
         sampleRateHz: 16000,
         channels: 1
       }
+    }
+
+    if (totalMs <= 0) {
+      throw new Error(`Audio duration unavailable for oversized WAV (${wavSize} > ${maxChunkBytes})`)
     }
 
     const bytesPerMs = (16000 * 2) / 1000

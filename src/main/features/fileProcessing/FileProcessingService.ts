@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
@@ -109,8 +110,8 @@ export class FileProcessingService extends BaseService {
    * `ai/`. Throws on failure / no configured processor; callers turn that into a
    * model-facing note.
    */
-  ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
-    return ocrImageToText(file, signal)
+  ocrImage(file: FileHandle, signal?: AbortSignal, config?: FileProcessorMerged): Promise<string> {
+    return ocrImageToText(file, signal, config)
   }
 
   /**

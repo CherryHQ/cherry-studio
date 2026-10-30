@@ -1,7 +1,10 @@
 export interface FfprobeStream {
+  index?: number
   codec_type?: string
+  channels?: number
   duration?: string
-  disposition?: { attached_pic?: number | string }
+  nb_read_packets?: string
+  disposition?: { attached_pic?: number | string; default?: number | string }
   start_time?: string
 }
 
@@ -23,6 +26,11 @@ export interface ClassifiedMediaProbe {
   hasVideo: boolean
   mime: string
   kind: 'audio' | 'video' | 'unknown'
+  /**
+   * Audio stream start after FFmpeg has removed the container format start.
+   * Extracted WAV timestamps begin at zero, so analysis adds this once.
+   */
+  audioStartMs?: number
 }
 
 function parseDurationMs(...candidates: Array<string | undefined>): number {
@@ -34,9 +42,58 @@ function parseDurationMs(...candidates: Array<string | undefined>): number {
   return 0
 }
 
-function isAttachedPicture(stream: FfprobeStream): boolean {
-  const flag = stream.disposition?.attached_pic
+function dispositionEnabled(flag: number | string | undefined): boolean {
   return flag === 1 || flag === '1'
+}
+
+function isAttachedPicture(stream: FfprobeStream): boolean {
+  return dispositionEnabled(stream.disposition?.attached_pic)
+}
+
+function channelCount(stream: FfprobeStream): number {
+  const channels = stream.channels
+  return typeof channels === 'number' && Number.isFinite(channels) && channels > 0 ? channels : 0
+}
+
+/** One-input FFmpeg 8 score: channels, plus 5_000_000 for disposition.default. Ties keep the earlier stream. */
+const DEFAULT_AUDIO_DISPOSITION_SCORE = 5_000_000
+
+function audioSelectionScore(stream: FfprobeStream): number {
+  return channelCount(stream) + (dispositionEnabled(stream.disposition?.default) ? DEFAULT_AUDIO_DISPOSITION_SCORE : 0)
+}
+
+/** Finite non-negative `nb_read_packets`. Missing or non-numeric metadata stays unknown. */
+function knownPacketCount(stream: FfprobeStream): number | undefined {
+  const raw = stream.nb_read_packets
+  if (raw == null || raw === '' || raw === 'N/A') return undefined
+  const count = Number(raw)
+  return Number.isFinite(count) && count >= 0 ? count : undefined
+}
+
+function audioPacketPriority(stream: FfprobeStream): number {
+  const packets = knownPacketCount(stream)
+  return packets == null ? 1 : packets > 0 ? 2 : 0
+}
+
+function selectedAudioStream(streams: readonly FfprobeStream[]): FfprobeStream | undefined {
+  const audio = streams.filter((stream) => stream.codec_type === 'audio')
+  return audio.reduce<FfprobeStream | undefined>((best, stream) => {
+    if (!best) return stream
+    const packetPriority = audioPacketPriority(stream) - audioPacketPriority(best)
+    if (packetPriority !== 0) return packetPriority > 0 ? stream : best
+    if (audioSelectionScore(stream) > audioSelectionScore(best)) return stream
+    return best
+  }, undefined)
+}
+
+/** `-map` value for the same stream `selectedAudioStream` uses as the timeline offset. */
+export function audioExtractStreamMap(streams: readonly FfprobeStream[]): string | undefined {
+  const selected = selectedAudioStream(streams)
+  if (!selected) return undefined
+  const position = streams.indexOf(selected)
+  const index = selected.index ?? position
+  if (!Number.isInteger(index) || index < 0) return undefined
+  return `0:${index}`
 }
 
 function parseFiniteSeconds(value: string | undefined): number | undefined {
@@ -164,7 +221,18 @@ export function classifyFfprobeResult(
     ebmlDocType: options.ebmlDocType
   })
   const kind: ClassifiedMediaProbe['kind'] = hasVideo ? 'video' : hasAudio ? 'audio' : 'unknown'
-  return { durationMs, hasAudio, hasVideo, mime, kind }
+  return { durationMs, hasAudio, hasVideo, mime, kind, audioStartMs: audioTimelineOffsetMs(probe) }
+}
+
+/** Offset that remains once FFmpeg drops the container format start and rewrites WAV time to zero. */
+function audioTimelineOffsetMs(probe: FfprobeResult): number {
+  const audio = selectedAudioStream(probe.streams ?? [])
+  const audioStartSeconds = parseFiniteSeconds(audio?.start_time)
+  if (audioStartSeconds == null) return 0
+  const formatStartSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0
+  const offsetSeconds = audioStartSeconds - formatStartSeconds
+  if (!Number.isFinite(offsetSeconds) || offsetSeconds <= 0) return 0
+  return Math.round(offsetSeconds * 1000)
 }
 
 export function planFrameTimestamps(durationMs: number, maxFrames: number, targetIntervalMs: number): number[] {

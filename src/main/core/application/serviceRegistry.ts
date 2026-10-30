@@ -34,7 +34,12 @@ import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessM
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { BrowserSessionService } from '@main/features/browser'
-import { FileProcessingService, MediaFfmpegService, TesseractRuntimeService } from '@main/features/fileProcessing'
+import {
+  FileProcessingService,
+  MediaAnalysisService,
+  MediaFfmpegService,
+  TesseractRuntimeService
+} from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
@@ -140,6 +145,7 @@ export const services = {
   DirectoryTreeManager,
   FileProcessingService,
   MediaFfmpegService,
+  MediaAnalysisService,
   PowerService,
   RuntimeActivityService,
   RuntimeQuitConfirmationService,
