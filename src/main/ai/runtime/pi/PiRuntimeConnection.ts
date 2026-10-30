@@ -56,8 +56,8 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-
 import { AsyncEventQueue } from '@shared/utils/async'
+
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import type {
   AgentRuntimeConnectInput,
@@ -79,7 +79,6 @@ import {
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
-import { resolvePiThinkingLevel } from './piThinkingLevel'
 import { loadPiSdk } from './piSdk'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { resolvePiThinkingLevel } from './piThinkingLevel'
