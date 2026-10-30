@@ -864,13 +864,6 @@ const AgentComposerInner = ({
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
-  const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
-  const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
-    initialDraft.knowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
-  )
-  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
-    initialDraft.knowledgeBaseIds.length === 0
-  )
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const layerActive = useComposerLayerActive()
   const { screenshotEnabled, startScreenshot } = useScreenshotChat({
@@ -1022,7 +1015,10 @@ const AgentComposerInner = ({
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
     resolveKnowledgeBaseMarker,
-    restoreKnowledgeBaseSelection
+    restoreKnowledgeBaseSelection,
+    isKnowledgeBaseDraftHydrated,
+    knowledgeBaseIdsRef,
+    syncKnowledgeBaseIds
   } = useComposerKnowledgeBaseScope({
     configuredKnowledgeBaseIds: agent?.knowledgeBaseIds,
     allKnowledgeBases,
@@ -1030,25 +1026,10 @@ const AgentComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
+    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds,
     // The tool provider above is keyed by agent + session + workspace, so this hook remounts with the scope.
     remountsOnScopeChange: true
   })
-
-  useEffect(() => {
-    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
-
-    const wantedIds = new Set(initialDraft.knowledgeBaseIds)
-    const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
-    observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
-    restoreKnowledgeBaseSelection(initialDraft.knowledgeBaseIds)
-    setIsKnowledgeBaseDraftHydrated(true)
-  }, [
-    initialDraft.knowledgeBaseIds,
-    isKnowledgeBaseDraftHydrated,
-    isKnowledgeBasesLoading,
-    restoreKnowledgeBaseSelection,
-    selectableKnowledgeBases
-  ])
 
   const persistedOnceRef = useRef(false)
   useEffect(() => {
@@ -1058,18 +1039,7 @@ const AgentComposerInner = ({
       return
     }
 
-    const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
-    const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
-    if (observedKnowledgeBaseSelectionKeyRef.current === null) {
-      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
-    } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
-      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
-      const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
-      const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
-        (id) => !selectableKnowledgeBaseIdSet.has(id)
-      )
-      knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
-    }
+    syncKnowledgeBaseIds()
     const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
       text: draft.text,
@@ -1089,8 +1059,8 @@ const AgentComposerInner = ({
     files,
     isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
-    selectableKnowledgeBases,
-    selectedKnowledgeBasesInScope,
+    knowledgeBaseIdsRef,
+    syncKnowledgeBaseIds,
     text,
     workspaceKey,
     shouldValidateSkills
@@ -1605,6 +1575,7 @@ const AgentComposerInner = ({
     agentId,
     draftCacheKey,
     draftPersistenceEnabled,
+    knowledgeBaseIdsRef,
     resetHistoryIndex,
     setFiles,
     setText,

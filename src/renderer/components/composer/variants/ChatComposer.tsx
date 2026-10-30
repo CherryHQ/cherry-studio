@@ -591,7 +591,6 @@ const ChatComposerInner = ({
   )
   const surfaceGetDraftRef = useRef<ComposerSurfaceActions['getDraft']>(emptyActions.getDraft)
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
-  const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const mentionedModelDraftRef = useRef({
     mentionedModelIds: [...initialDraft.mentionedModelIds],
     modelMultiSelectMode: initialDraft.modelMultiSelectMode
@@ -603,12 +602,6 @@ const ChatComposerInner = ({
   const { models: draftModels, isLoading: isDraftModelsLoading } = useModels(
     { enabled: true },
     { fetchEnabled: shouldHydrateMentionedModelDraft && initialDraft.mentionedModelIds.length > 0 }
-  )
-  const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
-    initialDraft.knowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
-  )
-  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
-    initialDraft.knowledgeBaseIds.length === 0
   )
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
@@ -831,6 +824,25 @@ const ChatComposerInner = ({
     }
   }, [isMentionedModelDraftHydrated, mentionedModelMultiSelectMode, mentionedModels, useMentionedModelSelector])
 
+  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
+  const {
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    resolveKnowledgeBaseMarker,
+    restoreKnowledgeBaseSelection,
+    isKnowledgeBaseDraftHydrated,
+    knowledgeBaseIdsRef,
+    syncKnowledgeBaseIds
+  } = useComposerKnowledgeBaseScope({
+    configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
+    allKnowledgeBases,
+    isKnowledgeBasesLoading,
+    scopeKey: selectedKnowledgeBasesScopeKey,
+    selectedKnowledgeBases,
+    setSelectedKnowledgeBases,
+    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds
+  })
+
   const exitInputHistoryPreview = useCallback(() => {
     const draft = takeDraftBeforeHistory()
     const tools = inputHistoryToolsRef.current
@@ -850,7 +862,7 @@ const ChatComposerInner = ({
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       ...mentionedModelDraftRef.current
     })
-  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef])
+  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef, knowledgeBaseIdsRef])
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
       exitInputHistoryPreviewForModelChange()
@@ -1036,42 +1048,11 @@ const ChatComposerInner = ({
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
-  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
     fallbackModel: runtimeModel
   })
-
-  const {
-    selectableKnowledgeBases,
-    selectedKnowledgeBasesInScope,
-    resolveKnowledgeBaseMarker,
-    restoreKnowledgeBaseSelection
-  } = useComposerKnowledgeBaseScope({
-    configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
-    allKnowledgeBases,
-    isKnowledgeBasesLoading,
-    scopeKey: selectedKnowledgeBasesScopeKey,
-    selectedKnowledgeBases,
-    setSelectedKnowledgeBases
-  })
-
-  useEffect(() => {
-    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
-
-    const wantedIds = new Set(initialDraft.knowledgeBaseIds)
-    const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
-    observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
-    restoreKnowledgeBaseSelection(initialDraft.knowledgeBaseIds)
-    setIsKnowledgeBaseDraftHydrated(true)
-  }, [
-    initialDraft.knowledgeBaseIds,
-    isKnowledgeBaseDraftHydrated,
-    isKnowledgeBasesLoading,
-    restoreKnowledgeBaseSelection,
-    selectableKnowledgeBases
-  ])
 
   // Single owner of the topic draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
@@ -1089,18 +1070,7 @@ const ChatComposerInner = ({
       return
     }
     if (editingMessage) return
-    const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
-    const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
-    if (observedKnowledgeBaseSelectionKeyRef.current === null) {
-      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
-    } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
-      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
-      const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
-      const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
-        (id) => !selectableKnowledgeBaseIdSet.has(id)
-      )
-      knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
-    }
+    syncKnowledgeBaseIds()
     const draft = actionsRef.current.getDraft()
     writeChatDraftCache(draftCacheScopeKey, {
       text: draft.text,
@@ -1118,10 +1088,10 @@ const ChatComposerInner = ({
     isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
     isMentionedModelDraftHydrated,
+    knowledgeBaseIdsRef,
     mentionedModelMultiSelectMode,
     mentionedModels,
-    selectableKnowledgeBases,
-    selectedKnowledgeBasesInScope,
+    syncKnowledgeBaseIds,
     text
   ])
 
@@ -1241,6 +1211,7 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic,
     exitInputHistoryPreview,
     filesRef,
+    knowledgeBaseIdsRef,
     mentionedModelsRef,
     selectedKnowledgeBasesRef
   ])
