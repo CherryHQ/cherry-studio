@@ -155,4 +155,25 @@ describe('moveWorkspaceItemToTrash', () => {
       getProtectedTrashTargetReason('/Users/alice/project/output.txt', '/Users/alice/project', context)
     ).toBeUndefined()
   })
+
+  it('protects paths reached through a `..`-prefixed child or a macOS case variant', () => {
+    const darwin = { platform: 'darwin' as const, homeDirectory: '/Users/alice' }
+
+    expect(getProtectedTrashTargetReason('/usr/..x/foo', '/', darwin)).toContain('operating-system')
+    expect(getProtectedTrashTargetReason('/Users/alice/.ssh/..x', '/Users/alice/work', darwin)).toContain('credential')
+    expect(getProtectedTrashTargetReason('/Volumes/..x', '/', darwin)).toContain('volume root')
+    expect(getProtectedTrashTargetReason('/USR/bin', '/', darwin)).toContain('operating-system')
+    expect(getProtectedTrashTargetReason('/Users/alice/LIBRARY/Preferences', '/Users/alice/work', darwin)).toContain(
+      'application-data'
+    )
+    expect(getProtectedTrashTargetReason('/Users/alice/DESKTOP', '/Users/alice/work', darwin)).toContain('user data')
+    expect(
+      getProtectedTrashTargetReason('/Users/alice/work/..x/notes.txt', '/Users/alice/work', darwin)
+    ).toBeUndefined()
+
+    expect(getProtectedTrashTargetReason('/USR/bin', '/', { platform: 'linux' as const })).toBeUndefined()
+    expect(
+      getProtectedTrashTargetReason('C:\\Windows\\..x\\file.dll', 'C:\\', { platform: 'win32' as const })
+    ).toContain('operating-system')
+  })
 })

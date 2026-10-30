@@ -4,6 +4,7 @@ import type * as PathModule from 'path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FileUtils from '@main/utils/file'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
@@ -170,7 +171,8 @@ vi.mock('@main/data/db/restore/appliedChain', () => ({
   readAppliedChain: mockReadAppliedChain
 }))
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  isOutsidePath: (await importOriginal<typeof FileUtils>()).isOutsidePath,
   createAtomicWriteStream: mockCreateAtomicWriteStream,
   ensureDir: (target: string) => fs.ensureDir(target)
 }))

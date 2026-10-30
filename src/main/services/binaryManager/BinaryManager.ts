@@ -18,11 +18,11 @@ import {
   dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
-  isPathWithin,
   mergeBinaryExecutionEnv
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
+import { isOutsidePath } from '@main/utils/file'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -459,7 +459,7 @@ export class BinaryManager extends BaseService {
         const resolved = isWin
           ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env: shellEnv })
           : await findCommandInShellEnv(name, shellEnv)
-        if (!resolved || cherryDirs.some((dir) => isPathWithin(dir, resolved))) return null
+        if (!resolved || cherryDirs.some((dir) => !isOutsidePath(path.relative(dir, resolved)))) return null
         return [name, resolved]
       })
     )
@@ -742,7 +742,9 @@ export class BinaryManager extends BaseService {
             if (!this.isInstallationRoot(canonicalData, canonicalRoot)) throw new Error('unproven_root')
             const runnable = await this.resolveRunnableShim(name, definition!.tool)
             if (!isCurrent()) return [name, null]
-            if (!runnable || !isPathWithin(canonicalRoot, runnable.canonical)) throw new Error('unproven_runnable')
+            if (!runnable || isOutsidePath(path.relative(canonicalRoot, runnable.canonical))) {
+              throw new Error('unproven_runnable')
+            }
             root = canonicalRoot
           }
         } catch {
@@ -1328,7 +1330,7 @@ export class BinaryManager extends BaseService {
     // runnable proof stands on its own.
     if (typeof entry.install_path !== 'string') return true
     try {
-      return isPathWithin(await fsp.realpath(entry.install_path), canonical)
+      return !isOutsidePath(path.relative(await fsp.realpath(entry.install_path), canonical))
     } catch {
       return false
     }
