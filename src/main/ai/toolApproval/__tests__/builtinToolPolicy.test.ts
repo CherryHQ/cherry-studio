@@ -62,4 +62,9 @@ describe('builtinToolPolicy', () => {
     expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
     expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', new Set())).toBeUndefined()
   })
+
+  it('auto-approves ask_expert only when cherry-tools is mounted', () => {
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__ask_expert', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__ask_expert', new Set())).toBeUndefined()
+  })
 })

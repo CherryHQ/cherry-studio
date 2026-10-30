@@ -100,6 +100,7 @@ type AgentEditFormValues = {
   modelId: UniqueModelId | null
   planModelId: UniqueModelId | ''
   smallModelId: UniqueModelId | ''
+  expertModelId: UniqueModelId | ''
   instructions: string
   mcps: string[]
   knowledgeBaseIds: string[]
@@ -158,6 +159,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     modelId: form.model || null,
     planModelId: form.planModel,
     smallModelId: form.smallModel,
+    expertModelId: form.expertModel,
     instructions: form.instructions,
     mcps: [...form.mcps],
     knowledgeBaseIds: [...form.knowledgeBaseIds],
@@ -178,6 +180,7 @@ function modelLabelsForAgent(resource: AgentDetail): ModelLabels {
     modelId: resource.modelName ?? null,
     planModelId: resource.planModel ?? null,
     smallModelId: resource.smallModel ?? null,
+    expertModelId: resource.expertModel ?? null,
     contextCompressModelId: null
   }
 }
@@ -191,6 +194,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     model: values.modelId ?? '',
     planModel: values.planModelId || '',
     smallModel: values.smallModelId || '',
+    expertModel: values.expertModelId || '',
     instructions: values.instructions,
     mcps: [...values.mcps],
     knowledgeBaseIds: [...values.knowledgeBaseIds],
@@ -223,6 +227,7 @@ function advanceAgentFormBaseline(
   if (hasOwn(payload, 'model')) next.model = submitted.model
   if (hasOwn(payload, 'planModel')) next.planModel = submitted.planModel
   if (hasOwn(payload, 'smallModel')) next.smallModel = submitted.smallModel
+  if (hasOwn(payload, 'expertModel')) next.expertModel = submitted.expertModel
   if (hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
   if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
   if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
@@ -251,6 +256,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('modelId', next.model || null, { shouldDirty: true })
   form.setValue('planModelId', next.planModel, { shouldDirty: true })
   form.setValue('smallModelId', next.smallModel, { shouldDirty: true })
+  form.setValue('expertModelId', next.expertModel, { shouldDirty: true })
   form.setValue('mcps', next.mcps, { shouldDirty: true })
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
@@ -739,6 +745,24 @@ function AgentBasicFields({
           />
         </>
       ) : null}
+      <CompactModelField
+        form={form}
+        name="expertModelId"
+        includeAgentOnlyModels
+        label={t('library.config.agent.field.expert_model.label')}
+        help={t('library.config.agent.field.expert_model.hint')}
+        emptyLabel={t('library.config.agent.field.expert_model.empty')}
+        allowClear
+        filter={modelFilter}
+        isModelDisabled={isModelDisabled}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ expertModel: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
       {/* Invalidate only the pending permission dialog when authoritative identity/mode changes. */}
       <PermissionModeField
         key={permissionAuthorityKey}

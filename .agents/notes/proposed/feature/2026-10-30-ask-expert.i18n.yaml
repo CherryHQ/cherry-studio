@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-30-ask-expert.md
+2026-10-30-ask-expert.md: e448745df519132d286668cb5e93f02581caace9
+2026-10-30-ask-expert.zh.md: be6a9abf8a221e993d4e19c4ef41ed1bcaee3f98

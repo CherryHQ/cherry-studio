@@ -36,6 +36,7 @@ describe('buildInitialAgentFormState', () => {
       model: 'p-1::m-1',
       planModel: 'p-1::p-1',
       smallModel: 'p-1::s-1',
+      expertModel: 'p-1::e-1',
       instructions: 'hi',
       mcps: ['mcp-1']
     })
@@ -46,6 +47,7 @@ describe('buildInitialAgentFormState', () => {
       model: 'p-1::m-1',
       planModel: 'p-1::p-1',
       smallModel: 'p-1::s-1',
+      expertModel: 'p-1::e-1',
       instructions: 'hi',
       mcps: ['mcp-1']
     })
@@ -206,14 +208,16 @@ describe('diffAgentUpdate', () => {
     const agent = createAgent({
       model: 'anthropic::claude-sonnet-4-5',
       planModel: 'anthropic::claude-haiku-4-5',
-      smallModel: 'anthropic::claude-opus-4-5'
+      smallModel: 'anthropic::claude-opus-4-5',
+      expertModel: 'anthropic::claude-opus-4-5'
     })
     const baseline = buildInitialAgentFormState(agent)
     const next: AgentFormState = {
       ...baseline,
       model: 'anthropic::claude-sonnet-4-6',
       planModel: 'anthropic::claude-haiku-4-6',
-      smallModel: ''
+      smallModel: '',
+      expertModel: ''
     }
 
     const result = diffAgentUpdate(baseline, next)
@@ -223,7 +227,8 @@ describe('diffAgentUpdate', () => {
       planModel: 'anthropic::claude-haiku-4-6',
       // Clearing a tier emits null: the PATCH must reach the column as SQL
       // NULL, not be dropped as an omitted field.
-      smallModel: null
+      smallModel: null,
+      expertModel: null
     })
   })
 

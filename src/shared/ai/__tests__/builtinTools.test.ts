@@ -4,6 +4,9 @@ import * as z from 'zod'
 import { isHttpUrl } from '@shared/utils/url'
 
 import {
+  ASK_EXPERT_MAX_CONTEXT_CHARS,
+  ASK_EXPERT_TOOL_NAME,
+  askExpertInputSchema,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_ADD_MAX_ITEMS,
   KB_SEARCH_TOOL_NAME,
@@ -30,6 +33,17 @@ describe('builtin tool contracts', () => {
     expect(WEB_SEARCH_TOOL_NAME).toBe('web_search')
     expect(WEB_FETCH_TOOL_NAME).toBe('web_fetch')
     expect(REPORT_ARTIFACTS_TOOL_NAME).toBe('report_artifacts')
+    expect(ASK_EXPERT_TOOL_NAME).toBe('ask_expert')
+  })
+
+  it('requires a self-contained ask_expert question and defaults its type to other', () => {
+    const base = { objective: 'o', context: 'c', output_format: 'f', trigger: 't' }
+
+    expect(askExpertInputSchema.parse(base).question_type).toBe('other')
+    expect(askExpertInputSchema.safeParse({ ...base, context: '   ' }).success).toBe(false)
+    expect(
+      askExpertInputSchema.safeParse({ ...base, context: 'x'.repeat(ASK_EXPERT_MAX_CONTEXT_CHARS + 1) }).success
+    ).toBe(false)
   })
 
   it('references the public knowledge list tool name from search input metadata', () => {
