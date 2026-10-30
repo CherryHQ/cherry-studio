@@ -10,6 +10,7 @@ export interface ContextUsageSummaryData {
   maxTokens: number
   percentage: number
   modelName: string
+  segments?: { label: string; tokens: number; color: string }[]
 }
 
 interface ContextUsageSummaryProps {
@@ -38,11 +39,31 @@ export function ContextUsageSummary({
       <h3 className="font-medium text-foreground">{title}</h3>
       {data && percentage !== null ? (
         <div className="space-y-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-background-subtle">
-            <div
-              className={cn('h-full rounded-full', isBusy && 'animate-pulse')}
-              style={{ width: `${percentage}%`, background: color }}
-            />
+          <div
+            role="meter"
+            aria-label={title}
+            aria-valuemin={0}
+            aria-valuemax={data.maxTokens}
+            aria-valuenow={Math.min(data.maxTokens, Math.max(0, data.usedTokens))}
+            className="flex h-1.5 w-full overflow-hidden rounded-full bg-background-subtle">
+            {data.segments?.length ? (
+              data.segments.map((segment) => (
+                <div
+                  key={segment.label}
+                  title={segment.label}
+                  className={cn('h-full shrink-0', isBusy && 'animate-pulse')}
+                  style={{
+                    width: `${Math.min(100, Math.max(0, (segment.tokens / data.maxTokens) * 100))}%`,
+                    background: segment.color
+                  }}
+                />
+              ))
+            ) : (
+              <div
+                className={cn('h-full rounded-full', isBusy && 'animate-pulse')}
+                style={{ width: `${percentage}%`, background: color }}
+              />
+            )}
           </div>
           <div className="flex items-center justify-between gap-3 text-muted-foreground">
             <span className="shrink-0">
