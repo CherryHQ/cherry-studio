@@ -76,6 +76,30 @@ vi.mock('../AgentEditDialog', () => ({
     ) : null
 }))
 
+vi.mock('../AgentProfileDialog', () => ({
+  AgentProfileDialog: ({
+    open,
+    onOpenChange,
+    onOpenSettings,
+    agent
+  }: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onOpenSettings: () => void
+    agent: { id: string } | null
+  }) =>
+    agent ? (
+      <div data-testid="agent-profile-dialog" data-open={open}>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          close
+        </button>
+        <button type="button" onClick={onOpenSettings}>
+          more settings
+        </button>
+      </div>
+    ) : null
+}))
+
 describe('ResourceEditDialogHost', () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -104,11 +128,34 @@ describe('ResourceEditDialogHost', () => {
     expect(screen.getByTestId('assistant-edit-dialog')).toHaveAttribute('data-open', 'true')
   })
 
-  it('loads an agent edit target by key', () => {
+  it('opens an agent on its profile card first', () => {
     render(<ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />)
 
     expect(mocks.useAgent).toHaveBeenCalledWith('agent-1')
+    expect(screen.getByTestId('agent-profile-dialog')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByTestId('agent-edit-dialog')).not.toBeInTheDocument()
+  })
+
+  it('moves from the profile card to the settings without closing the target', () => {
+    render(<ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'more settings' }))
+
     expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByTestId('agent-profile-dialog')).not.toBeInTheDocument()
+    expect(mocks.onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('opens a deep-linked agent setting directly', () => {
+    render(
+      <ResourceEditDialogHost
+        target={{ kind: 'agent', id: 'agent-1', initialTab: 'tools.skills' }}
+        onOpenChange={mocks.onOpenChange}
+      />
+    )
+
+    expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByTestId('agent-profile-dialog')).not.toBeInTheDocument()
   })
 
   it('keeps the target mounted until the shared unmount delay expires', async () => {
@@ -118,7 +165,7 @@ describe('ResourceEditDialogHost', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close' }))
 
-    expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('agent-profile-dialog')).toHaveAttribute('data-open', 'false')
     expect(mocks.onOpenChange).not.toHaveBeenCalled()
 
     await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
@@ -136,12 +183,12 @@ describe('ResourceEditDialogHost', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'close' }))
-    expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('agent-profile-dialog')).toHaveAttribute('data-open', 'false')
 
     await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
     rerender(<ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />)
 
-    expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('agent-profile-dialog')).toHaveAttribute('data-open', 'true')
 
     await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
     expect(mocks.onOpenChange).not.toHaveBeenCalled()

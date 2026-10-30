@@ -128,7 +128,8 @@ export function AgentSelector(props: AgentSelectorProps) {
   const handleEditItem = useCallback(
     (item: AgentSelectorItem) => {
       if (!data?.items.some((candidate) => candidate.id === item.id)) return
-      setEditDialogTarget({ kind: 'agent', id: item.id })
+      // The row's edit button goes straight to the settings rather than the profile card.
+      setEditDialogTarget({ kind: 'agent', id: item.id, initialTab: 'basic' })
     },
     [data?.items]
   )

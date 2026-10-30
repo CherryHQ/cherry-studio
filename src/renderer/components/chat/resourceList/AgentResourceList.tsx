@@ -259,8 +259,9 @@ export function AgentResourceList({
     onReorderError: handleReorderError
   })
 
+  // An explicit "Edit" goes straight to the settings; opening an agent elsewhere shows its profile.
   const openAgentEditor = useCallback((agentId: string) => {
-    setEditDialogTarget({ kind: 'agent', id: agentId })
+    setEditDialogTarget({ kind: 'agent', id: agentId, initialTab: 'basic' })
   }, [])
 
   const handleToggleAgentPin = useCallback(
