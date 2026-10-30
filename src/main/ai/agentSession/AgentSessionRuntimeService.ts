@@ -2922,12 +2922,9 @@ export class AgentSessionRuntimeService extends BaseService {
       // the streaming query — unless the streaming turn is blocked on a tool whose output this very
       // completion feeds, which is consumption. Retiring the authority on the open-stream edge alone
       // then leaves that generation to inherit whatever responder the remaining work holds.
-      const published = this.listPublishedBackgroundTaskIds(entry.sessionId)
-      published.delete(data.taskId)
-      const otherWorkActive = published.size > 0
       const turn = this.currentTurn(entry)
       const feedingLiveTool = (turn?.activeToolIds.size ?? 0) > 0
-      if (hasAgentSessionRuntimeOpenStream(entry.runtimeState) && (!otherWorkActive || feedingLiveTool)) {
+      if (hasAgentSessionRuntimeOpenStream(entry.runtimeState) && feedingLiveTool) {
         // The open foreground query consumed the notification inside its own turn — no
         // receive-only generation follows, so no wake will ever pay this debt. Membership removal
         // may already have moved the authority into the completion ledger when the driver drained

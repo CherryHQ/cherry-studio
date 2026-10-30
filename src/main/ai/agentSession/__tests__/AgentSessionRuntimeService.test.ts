@@ -1096,6 +1096,9 @@ describe('AgentSessionRuntimeService', () => {
       mocks.finalizeHeldTopicStream.mockClear()
       ;(service as any).rememberBackgroundTaskIds(entry, [{ id: 'task-live', status: 'running' }] as any)
       entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      // Consumption is established by the tool continuation the completion feeds, not by the open
+      // stream alone: on final-text streaming the SDK can still queue a separate receive-only wake.
+      ;(service as any).currentTurn(entry).activeToolIds.add('tool-call-1')
 
       // The bookend arrives while the foreground turn is still live and streaming.
       ;(service as any).publishBackgroundTaskEvent(entry, {
@@ -1126,6 +1129,8 @@ describe('AgentSessionRuntimeService', () => {
       mocks.finalizeHeldTopicStream.mockClear()
       ;(service as any).rememberBackgroundTaskIds(entry, [{ id: 'task-parked', status: 'running' }] as any)
       entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      // The streaming turn is blocked on the tool this completion feeds — that establishes consumption.
+      ;(service as any).currentTurn(entry).activeToolIds.add('tool-call-1')
 
       // The driver drains membership while the foreground turn streams: the removal transfers the
       // task's authority into the completion ledger before the notification bookend arrives.
@@ -1189,11 +1194,6 @@ describe('AgentSessionRuntimeService', () => {
         { id: 'task-co-spawned', status: 'running' }
       ] as any)
       entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
-      getEntry(service).runtimeState.execution = {
-        ...(getEntry(service).runtimeState.execution as any),
-        stream: 'open',
-        admission: 'admitted'
-      }
       // The foreground query is blocked on a tool the completion feeds.
       const turn = (service as any).currentTurn(entry)
       turn.activeToolIds.add('tool-call-1')
