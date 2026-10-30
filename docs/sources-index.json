@@ -91,7 +91,7 @@
     },
     {
       "path": "docs/references/ai/params-pipeline.md",
-      "sources": ["src/main/ai/runtime/aiSdk/params/buildAgentParams.ts","src/main/ai/runtime/aiSdk/params/feature.ts","src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts"]
+      "sources": ["src/main/ai/runtime/aiSdk/params/buildAgentParams.ts","src/main/ai/runtime/aiSdk/params/feature.ts","src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts","src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts"]
     },
     {
       "path": "docs/references/ai/provider-resolution.md",
@@ -199,7 +199,7 @@
     },
     {
       "path": "docs/references/components/code-block-view.md",
-      "sources": ["src/renderer/components/CodeBlockView","src/renderer/components/chat/messages/markdown"]
+      "sources": ["packages/ui/src/lib/code-block","src/renderer/components/CodeBlockView","src/renderer/components/CodeStyleProvider.tsx","src/renderer/components/CodeViewer.tsx","src/renderer/components/LazyCodeEditor.tsx","src/renderer/components/PromptEditorField.tsx","src/renderer/components/RichEditor","src/renderer/components/chat/messages/markdown","src/renderer/components/markdown/useMarkdownCode.ts","src/renderer/utils/markdown.ts","src/renderer/workers/codeHighlight.worker.ts"]
     },
     {
       "path": "docs/references/components/code-execution.md",
@@ -207,7 +207,7 @@
     },
     {
       "path": "docs/references/components/image-preview.md",
-      "sources": ["src/renderer/components/Preview"]
+      "sources": ["packages/ui/src/lib/mermaid","src/renderer/components/Preview","src/renderer/services/MermaidRenderService.ts","src/renderer/workers/mermaid.worker.ts"]
     },
     {
       "path": "docs/references/components/README.md",
@@ -320,6 +320,10 @@
     {
       "path": "docs/references/file/directory-tree.md",
       "sources": ["src/main/services/file/tree","src/main/services/file/watcher.ts","src/renderer/hooks/useDirectoryTree.ts","src/shared/ipc/schemas/file.ts","src/shared/utils/file/tree.ts"]
+    },
+    {
+      "path": "docs/references/file/file-editing.md",
+      "sources": ["src/main/services/file/FileEditService.ts","src/renderer/components/FileEditSessionProvider.tsx","src/renderer/hooks/useFileEditSession.ts","src/renderer/services/fileEdit","src/shared/ipc/schemas/fileEdit.ts"]
     },
     {
       "path": "docs/references/file/file-entry-cleanup.md",

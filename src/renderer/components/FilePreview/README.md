@@ -1,8 +1,9 @@
 # FilePreview
 
-`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, text and video remain local plugins.
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, Mermaid, text and video remain local plugins. The Mermaid plugin renders the
+file with `MermaidPreview` in `contain` fit, edge to edge on the host's own background.
 
-The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — the extension list the portable [file-preview package](../../../../packages/file-preview/README.md) declares; SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+The built-in plugins currently support HTML, images (the extension list the portable [file-preview package](../../../../packages/file-preview/README.md) declares; SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), Mermaid diagrams (`.mmd`, `.mermaid`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
@@ -106,7 +107,7 @@ Embedded and tab previews are host composition choices, not `FilePreview` displa
 
 The public package has a static registry for its document and image formats. `ElectronFilePreview` supplies
 `PreviewSource` through file IPC, forwards PDF resource reads and diagnostics, and builds
-`SelectionReference` from its own path and metadata props. The desktop registry routes those formats through
+`SelectionReference` from its path and the same metadata request used to open the document. The desktop registry routes those formats through
 that adapter. Only HTML, Markdown, text and video keep application-owned plugins under `plugins/`.
 All formats reuse layout and toolbar components exported by the package.
 
@@ -236,13 +237,14 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - The desktop adapter converts the package's structural selection into a `SelectionReference` using the
   file path and metadata. What to do with a reference (show an action, inject it into a conversation) is the
   embedding surface's concern; neither the host nor the plugin renders reference UI.
-- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+- The host never synthesizes a `null` — a plugin unmount (file switch) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
-  callback, so the plugin cannot). Text selection is never the capture gesture: most previews render
-  inside the app-wide `user-select: none` (the PDF viewer is the exception — it opts back in with
-  `.selectable` so its text layer stays copyable), and a block pick does not depend on it either way.
+  callback, so the plugin cannot). Text selection is never the capture gesture. PDF and DOCX opt back
+  into text selection with `.selectable` despite the app-wide `user-select: none`. DOCX supports native
+  Ctrl+C / Cmd+C copying and ignores the click ending a text selection when updating a paragraph pick.
+  Copying does not use the normalized, length-limited reference excerpt.
 - Known limitation: a click on an in-document jump link picks nothing. The PDF and PPTX renderers both
   navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
   with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
@@ -278,6 +280,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 | Missing or inaccessible path | Unavailable | Explanation without an open action |
 | Invalid or non-absolute path | Invalid | Explanation without an open action |
 
+- Markdown previews read the complete document without a fixed file-size rejection limit.
+- Text, Markdown and HTML source bodies use the renderer's `FileEditor` in read-only mode, with Pierre
+  row virtualization bound to the preview scroller. File editing uses the same component and
+  viewer-theme preferences; the existing host still owns permissions, drafts and saving.
 - Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
   they never access Electron APIs. The adapter serves whole-document reads with one full
   `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
@@ -290,8 +296,18 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
   Synchronous parsing cannot be interrupted.
-- Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
-  opened document changes. Do not request metadata again inside a format plugin.
+- Local loading effects depend on `filePath`, `refreshKey`, and the host's metadata request. Text,
+  Markdown, and restricted HTML wait for that request before reading content. Text and restricted
+  HTML also apply their size checks after metadata resolves.
+  Shared plugins reload when their opened document changes. Do not request metadata again inside a format plugin.
+- A same-path refresh retains a compatible preview while metadata and content reload. Local plugins
+  and the portable preview package preserve valid reading state; different paths or formats reset it.
+  The consumer clears held selections when requesting refresh. `FilePreview` rejects callbacks from
+  an obsolete metadata resolution, and `Preview` rejects obsolete document selections and failures.
+  Format plugins cancel their own selection work and clamp positions when refreshed content shrinks.
+- The desktop source changes as soon as a refresh is committed and waits for the host's single metadata
+  request before opening. Metadata completion keeps that source stable. Activity reconnections start a
+  fresh metadata request even when the path and refresh key are unchanged.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - The desktop adapter routes package `onDiagnostic` events to `loggerService`, preserving `Error`

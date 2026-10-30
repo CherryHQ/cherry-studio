@@ -1,7 +1,8 @@
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
+import { archiveAgentSessionsPopup } from '@renderer/components/chat/archiveAgentSessionsPopup'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
@@ -49,7 +50,8 @@ export function ResourceCatalogView({
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType, {
     onOpenSkill,
-    onLaunchSkill
+    onLaunchSkill,
+    onConfirmArchiveAgentSessions: (agentName, action) => archiveAgentSessionsPopup.show({ agentName, t, action })
   })
   const hasActiveDialog = Boolean(
     dialogs.assistantImportOpen ||
@@ -62,6 +64,11 @@ export function ResourceCatalogView({
     dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
+  const visibleResources = useMemo(
+    () => (filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources),
+    [filterResource, gridProps.resources]
+  )
+  const hasHiddenResources = Boolean(filterResource && gridProps.resources.length > 0 && visibleResources.length === 0)
 
   useEffect(() => {
     if (hasActiveDialog) setDialogsActivated(true)
@@ -100,7 +107,8 @@ export function ResourceCatalogView({
         ) : (
           <ResourceGrid
             {...gridProps}
-            resources={filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources}
+            resources={visibleResources}
+            hasHiddenResources={hasHiddenResources}
             toolbarFooter={toolbarFooter}
             allowColumnToggle={allowColumnToggle}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}

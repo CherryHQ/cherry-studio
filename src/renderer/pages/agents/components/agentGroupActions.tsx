@@ -18,6 +18,7 @@ export interface AgentGroupActionContext {
   deleteSessionsOnly?: boolean
   deleteAgentDisabled?: boolean
   onEdit: (agentId: string) => void
+  onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
@@ -58,8 +59,17 @@ for (const type of RESOURCE_ICON_TYPE_OPTIONS) {
 }
 
 agentGroupActionRegistry.registerCommand({
-  id: 'agent-group.archive-agent',
+  id: 'agent-group.archive-sessions',
   availability: ({ deleteAgentDisabled }) => ({ enabled: !deleteAgentDisabled }),
+  run: ({ agentId, onArchiveSessions }) => onArchiveSessions(agentId)
+})
+
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.archive-agent',
+  availability: ({ deleteAgentDisabled, deleteSessionsOnly }) => ({
+    visible: !deleteSessionsOnly,
+    enabled: !deleteAgentDisabled
+  }),
   run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId)
 })
 
@@ -106,10 +116,20 @@ agentGroupActionRegistry.registerAction(
 
 agentGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.archive-sessions',
+    commandId: 'agent-group.archive-sessions',
+    label: ({ t }) => t('agent.session.archive.trigger'),
+    icon: () => <Archive size={14} />,
+    group: 'danger',
+    order: 35
+  })
+)
+
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
     id: 'agent-group.archive-agent',
     commandId: 'agent-group.archive-agent',
-    label: ({ deleteSessionsOnly, t }) =>
-      t(deleteSessionsOnly ? 'agent.session.agent.delete.trigger' : 'common.archive'),
+    label: ({ t }) => t('common.archive'),
     icon: () => <Archive size={14} />,
     group: 'danger',
     order: 40

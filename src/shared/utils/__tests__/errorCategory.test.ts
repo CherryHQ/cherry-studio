@@ -14,6 +14,18 @@ describe('classifyErrorCategory HTTP 400', () => {
   ] as const)('preserves the specific diagnosis for %s', (text, category) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
   })
+
+  // An upstream that rejects the REQUEST body ("Failed to parse request body" — #22164)
+  // must not be reported as a bad AI response: that sends users off switching models for
+  // a request-side failure, and hides the provider-settings recovery action.
+  it.each([
+    'Failed to parse request body',
+    'API Error: 400 {"error":{"message":"Failed to parse request body"}}',
+    'We could not parse the JSON body of your request.',
+    'request failed to parse'
+  ])('classifies a request-body rejection as a request failure: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+  })
 })
 
 // Transport failures from #19926 must reach a recovery category (network /
@@ -156,6 +168,23 @@ describe('classifyErrorCategory provider response protocol', () => {
     expect(classifyErrorCategory({ text: `Provider: ${text.toUpperCase()} Details` })).toBe('parse')
   })
 
+  // "failed to parse" stays a response-side signal; only when the wording names the REQUEST
+  // does it become a request-side failure (#22164).
+  it.each([
+    'failed to parse response body',
+    'Failed to parse the response',
+    'failed to parse output',
+    'failed to parse the stream',
+    'Failed to parse video SSE event'
+  ])('classifies a response-side parse failure as parse: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('parse')
+  })
+
+  it('keeps a request-body parse failure out of the parse diagnosis', () => {
+    expect(classifyErrorCategory({ text: 'Failed to parse request body' })).toBe('unknown')
+    expect(classifyErrorCategory({ status: 400, text: 'Failed to parse request body' })).toBe('bad_request')
+  })
+
   it.each([
     'Invalid input: temperature must be positive',
     'Validation failed for request parameter',
@@ -179,5 +208,95 @@ describe('classifyErrorCategory provider response protocol', () => {
     expect(classifyErrorCategory({ status: 400, text: 'Invalid input: temperature must be positive' })).toBe(
       'bad_request'
     )
+  })
+})
+
+describe('classifyErrorCategory embedded runtime connection codes (#22210)', () => {
+  it.each([
+    'API Error: Unable to connect to API (ConnectionRefused)',
+    'Unable to connect to API (ConnectionReset)',
+    'Unable to connect to API (ConnectionAborted)',
+    'Unable to connect to API (HostUnreachable)',
+    'ConnectionRefused',
+    'ConnectionReset',
+    'ConnectionAborted',
+    'HostUnreachable',
+    'api error: UNABLE TO CONNECT TO API (CONNECTIONREFUSED)',
+    'Connection refused — a firewall or proxy may be blocking it (ConnectionRefused)'
+  ])('maps runtime connection code in %s to network', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('network')
+  })
+
+  it.each([
+    'proxy connection failed: ConnectionRefused',
+    'SOCKS connection failed: ConnectionRefused',
+    'certificate problem: ConnectionRefused',
+    'unable_to_verify_leaf_signature ConnectionRefused',
+    'SELF_SIGNED_CERT_IN_CHAIN ConnectionRefused',
+    'net::ERR_PROXY_CONNECTION_FAILED ConnectionRefused',
+    'net::ERR_TUNNEL_CONNECTION_FAILED ConnectionReset'
+  ])('keeps proxy evidence ahead of runtime codes: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('proxy')
+  })
+
+  it.each([
+    'ECONNRESET',
+    'connection reset',
+    'net::ERR_CONNECTION_RESET',
+    'ECONNRESET ConnectionReset',
+    'stream interrupted: ConnectionReset',
+    'stream aborted: ConnectionAborted',
+    'net::ERR_CONNECTION_CLOSED'
+  ])('preserves stream classification for %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('stream')
+  })
+
+  it.each([
+    'ECONNREFUSED',
+    'net::ERR_CONNECTION_REFUSED',
+    'proxy connection failed: ECONNREFUSED',
+    'net::ERR_CONNECTION_ABORTED'
+  ])('preserves existing network classification for %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('network')
+  })
+
+  it.each([
+    ['MCP connection failed: ConnectionRefused', 'mcp'],
+    ['MCP timeout', 'mcp'],
+    ['Service unavailable', 'server'],
+    ['Response stream ended without a finish reason.', 'parse']
+  ] as const)('preserves the specific diagnosis for %s', (text, category) => {
+    expect(classifyErrorCategory({ text })).toBe(category)
+  })
+
+  it.each([
+    [500, 'server'],
+    [503, 'server'],
+    [401, 'auth']
+  ] as const)('keeps HTTP %i ahead of runtime codes', (status, category) => {
+    expect(classifyErrorCategory({ status, text: 'ConnectionRefused' })).toBe(category)
+  })
+
+  it('keeps a safety finish reason ahead of HTTP status and runtime codes', () => {
+    expect(classifyErrorCategory({ status: 503, finishReason: 'safety', text: 'ConnectionRefused' })).toBe('content')
+  })
+
+  it('prefers a runtime code over server prose without a structured status', () => {
+    expect(classifyErrorCategory({ text: 'Service unavailable: ConnectionRefused' })).toBe('network')
+  })
+
+  it('prefers a runtime code over the generic HTTP 400 diagnosis', () => {
+    expect(classifyErrorCategory({ status: 400, text: 'Unable to connect to API (ConnectionRefused)' })).toBe('network')
+  })
+
+  it.each([
+    'Unable to connect to API',
+    'Connection refused — a firewall or proxy may be blocking it',
+    'The provider explains how to open a connection.',
+    'The guide discusses connection refused errors.',
+    'Streaming is not supported for this model',
+    'Some totally unrelated failure'
+  ])('leaves prose without a runtime code unclassified: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
   })
 })

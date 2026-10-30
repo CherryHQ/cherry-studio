@@ -7,6 +7,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -180,9 +181,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
           const next = new Set(ids)
           next.delete(workspaceRootId)
           onExpandedIdsChange(next)
-        },
-        reloadExpandedDirectories: () => {},
-        refresh: () => {}
+        }
       }
     }
   }
@@ -362,11 +361,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
 })
 
 vi.mock('@renderer/components/OpenTarget', () => ({
-  OpenTargetButton: ({ targetPath }: { targetPath: string }) => (
-    <button type="button" onClick={() => window.api.file.openPath(targetPath)}>
-      open external preview
-    </button>
-  ),
+  OpenTargetButton: () => <button type="button">open external preview</button>,
   loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
@@ -709,7 +704,7 @@ describe('AgentChat artifact pane', () => {
     conversationBootstrap: createConversationBootstrap()
   })
   const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
-    render(<AgentChat {...activeSessionProps()} {...props} />)
+    render(<AgentChat {...activeSessionProps()} {...props} />, { wrapper: FileEditSessionProvider })
   const rerenderAgentChat = (
     rerender: ReturnType<typeof render>['rerender'],
     props: Partial<ComponentProps<typeof AgentChat>> = {}
@@ -766,9 +761,6 @@ describe('AgentChat artifact pane', () => {
           toolApproval: {
             respond: vi.fn()
           }
-        },
-        file: {
-          openPath: vi.fn()
         }
       }
     })

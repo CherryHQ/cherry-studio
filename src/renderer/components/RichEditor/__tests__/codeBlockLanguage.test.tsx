@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCodeTheme: 'one-light' })
 }))
 
 vi.mock('@renderer/components/Preview/MermaidPreview', () => ({ default: () => null }))
@@ -41,6 +41,14 @@ describe('code block language search', () => {
     render(<RichEditor ref={ref} initialContent={saved} autoFocus={false} />)
     expect(await screen.findByRole('button', { name: 'Language' })).toHaveTextContent('python')
     expect(ref.current?.getMarkdown()).toContain('print("hello")')
+  })
+
+  it('opens an empty Mermaid block in source mode so its source stays editable', async () => {
+    render(<RichEditor initialContent={'```mermaid\n```'} autoFocus={false} />)
+
+    expect(await screen.findByRole('button', { name: 'Language' })).toHaveTextContent('mermaid')
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(document.querySelector('.code-block-wrapper pre')).toBeVisible()
   })
 
   it('supports searching from Mermaid source mode, empty results and reopening with a cleared search', async () => {

@@ -34,7 +34,6 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -110,7 +109,7 @@ export async function confirmMenuPresentationModeChange({
   setTimeoutTimer(
     'handleMenuPresentationModeChange',
     () => {
-      void window.api.application.relaunch()
+      void ipcApi.request('app.relaunch')
     },
     500
   )
@@ -121,7 +120,6 @@ const AppearanceSettings: FC = () => {
   const { theme, settedTheme, setTheme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
-  const activeCmTheme = useCmTheme()
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -250,7 +248,7 @@ const AppearanceSettings: FC = () => {
     setTimeoutTimer(
       'handleUseSystemTitleBarChange',
       () => {
-        void window.api.application.relaunch()
+        void ipcApi.request('app.relaunch')
       },
       500
     )
@@ -580,7 +578,6 @@ const AppearanceSettings: FC = () => {
           id="setting-appearance-custom-css"
           className="mt-4 scroll-mt-6 overflow-hidden rounded-lg border border-border-subtle">
           <LazyCodeEditor
-            theme={activeCmTheme}
             fontSize={fontSize - 1}
             value={customCss}
             language="css"

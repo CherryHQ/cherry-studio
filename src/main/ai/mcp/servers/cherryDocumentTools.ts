@@ -9,6 +9,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
+import { isWinArm64 } from '@main/core/platform'
+import { t } from '@main/i18n'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
 import { isSameOrInside, realpath } from '@main/utils/file'
 import {
@@ -97,6 +99,9 @@ export function registerDocumentTools(server: McpServer, context: CherryDocument
       const signal = ctx.mcpReq.signal
       const source = await resolveDocumentSource(context, sourcePath)
       signal.throwIfAborted()
+
+      // Anydoc publishes no win32-arm64 binding or wasm fallback.
+      if (isWinArm64) throw new Error(t('agent.tools.to_markdown.unsupported_windows_arm64'))
 
       const anydoc = await loadAnydocModule()
       const format = anydoc.formatFromExtension(path.extname(source.filename)) ?? undefined

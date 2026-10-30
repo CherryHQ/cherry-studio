@@ -27,7 +27,7 @@ export function SidebarSettingsButton({ layout }: { layout: SidebarVisibleLayout
         variant="ghost"
         aria-label={t('settings.title')}
         onClick={() => openSettingsTab()}
-        className="sidebar-action flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
+        className="shell-navigation-item flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px]">
         <Settings size={16} strokeWidth={1.6} />
         <span className="min-w-0 truncate">{t('settings.title')}</span>
       </Button>
@@ -42,7 +42,7 @@ export function SidebarSettingsButton({ layout }: { layout: SidebarVisibleLayout
         size="icon"
         aria-label={t('settings.title')}
         onClick={() => openSettingsTab()}
-        className="sidebar-action size-9 rounded-full transition-colors duration-150">
+        className="shell-navigation-item size-9 rounded-full">
         <Settings className="size-4.5" strokeWidth={1.6} />
       </Button>
     </Tooltip>

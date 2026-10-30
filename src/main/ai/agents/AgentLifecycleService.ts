@@ -6,13 +6,13 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'
@@ -489,11 +489,16 @@ export class AgentLifecycleService extends BaseService {
   }
 
   private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
+    // Scope both sameIds and assertSessionsSettled to conversations so a running
+    // heartbeat outside this archive cannot trigger a retry or block admission.
     return this.withStableSessions(
-      () => agentSessionService.listActiveIdsByAgent(agentId),
+      () => agentSessionService.listActiveIdsByAgent(agentId, { sessionTypes: ['conversation'] }),
       async () => {
         // Recycle Bin moves: the only caller is the "clear this agent's sessions" command, which is undoable.
-        const result = agentSessionService.deleteByAgentIdWithImpact(agentId, { permanent: false })
+        const result = agentSessionService.deleteByAgentIdWithImpact(agentId, {
+          permanent: false,
+          sessionTypes: ['conversation']
+        })
         await this.finishDeletion(result.deletedIds, result.deliveryResults)
         return { deletedIds: result.deletedIds }
       },
