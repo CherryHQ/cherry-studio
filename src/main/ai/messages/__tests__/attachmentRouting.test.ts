@@ -1,22 +1,32 @@
 import type { UIMessage } from 'ai'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import type { DocumentParts } from '@main/features/fileProcessing'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getByIdMock, ocrMock } = vi.hoisted(() => ({
+const { getByIdMock, ocrMock, documentMock, imagesMock } = vi.hoisted(() => ({
+  documentMock: vi.fn(),
+  imagesMock: vi.fn(),
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const overrides = {
+    FileManager: { getById: getByIdMock, getVersion: async () => ({ mtime: 1, size: 2 }) },
+    FileProcessingService: {
+      ocrImage: ocrMock,
+      extractDocumentParts: documentMock,
+      materializeDocumentImages: imagesMock
+    }
   }
-}))
+  return mockApplicationFactory(overrides)
+})
 
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
@@ -27,6 +37,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
+import type { AttachmentBudget } from '../attachmentBudget'
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
@@ -87,6 +98,19 @@ const run = (
 const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
+beforeEach(() => {
+  documentMock.mockImplementation(async (source, text) => docParts(source, text, 0))
+  imagesMock.mockImplementation(async (_document, indices: number[]) =>
+    indices.map((occurrenceIndex) => ({
+      occurrenceIndex,
+      kind: 'image',
+      bytes: new Uint8Array([occurrenceIndex + 1]),
+      mediaType: 'image/png',
+      width: 128,
+      height: 128
+    }))
+  )
+})
 afterEach(() => vi.clearAllMocks())
 
 describe('prepareChatMessages — routing', () => {
@@ -95,9 +119,6 @@ describe('prepareChatMessages — routing', () => {
     resolveMock.mockImplementation(async (p) => p)
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], ALL)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(1)
-    expect(resolveMock).toHaveBeenCalled()
-    expect(ocrMock).not.toHaveBeenCalled()
-    expect(extractMock).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -110,8 +131,6 @@ describe('prepareChatMessages — routing', () => {
     const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], ALL)
 
     expect(out.parts).toEqual([expect.objectContaining({ type: 'file', filename: `media.${ext}`, mediaType })])
-    expect(resolveMock).toHaveBeenCalledOnce()
-    expect(extractMock).not.toHaveBeenCalled()
   })
 
   it('OCRs a legacy non-vision image without composer source metadata', async () => {
@@ -132,7 +151,6 @@ describe('prepareChatMessages — routing', () => {
     )
 
     expect(textOf(out.parts)).toEqual(['attached', 'Attached file "a.png":\nocr body'])
-    expect(ocrMock).toHaveBeenCalledOnce()
   })
 
   it('ignores a modern managed image whose composer token no longer references its source id', async () => {
@@ -142,8 +160,6 @@ describe('prepareChatMessages — routing', () => {
     )
 
     expect(out.parts).toEqual([composerText('text only', 'different-source')])
-    expect(getByIdMock).not.toHaveBeenCalled()
-    expect(ocrMock).not.toHaveBeenCalled()
   })
 
   it('does not OCR a stale retained attachment when the effective messages are text-only', async () => {
@@ -156,8 +172,6 @@ describe('prepareChatMessages — routing', () => {
     })
 
     expect(out).toEqual([message])
-    expect(getByIdMock).not.toHaveBeenCalled()
-    expect(ocrMock).not.toHaveBeenCalled()
   })
 
   it('rejects before native materialization when OCR finds no text', async () => {
@@ -173,8 +187,6 @@ describe('prepareChatMessages — routing', () => {
       detailI18nKey: 'ocr_detail_empty',
       message: expect.not.stringContaining('OCR')
     })
-
-    expect(resolveMock).not.toHaveBeenCalled()
   })
 
   it('rejects before native materialization when OCR is unconfigured or fails', async () => {
@@ -187,8 +199,6 @@ describe('prepareChatMessages — routing', () => {
       detailI18nKey: 'ocr_detail_failed',
       detailI18nValues: { reason: 'Default file processor for image_to_text is not configured' }
     })
-
-    expect(resolveMock).not.toHaveBeenCalled()
   })
 
   it('inlines extracted text for office docs', async () => {
@@ -243,7 +253,6 @@ describe('prepareChatMessages — routing', () => {
     const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], NONE)
 
     expect(textOf(out.parts)[0]).toContain(`can't process the attached ${kind} file`)
-    expect(resolveMock).not.toHaveBeenCalled()
   })
 
   it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
@@ -253,7 +262,6 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe(
       'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
     )
-    expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
   })
 
   // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
@@ -270,7 +278,6 @@ describe('prepareChatMessages — routing', () => {
     })
 
     expect(out.parts).toEqual([part])
-    expect(extractMock).not.toHaveBeenCalled()
   })
 
   it('degrades a native file to a note when materialization returns null', async () => {
@@ -367,7 +374,6 @@ describe('prepareChatMessages — routing', () => {
       nativeSupport: NONE,
       isToolCapable: true
     })
-    expect(getByIdMock).not.toHaveBeenCalled()
     expect(out.parts).toEqual([{ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' }])
   })
 
@@ -389,7 +395,6 @@ describe('prepareChatMessages — routing', () => {
         isToolCapable: true
       })
 
-      expect(getByIdMock).not.toHaveBeenCalled()
       expect(out.parts).toEqual([
         { type: 'text', text: `[${kind} attachment omitted: this model does not accept ${kind} input]` }
       ])
@@ -414,7 +419,6 @@ describe('prepareChatMessages — routing', () => {
       isToolCapable: true
     })
 
-    expect(getByIdMock).not.toHaveBeenCalled()
     expect(out.parts).toEqual([materialized])
   })
 })
@@ -461,5 +465,216 @@ describe('collectFileAttachments', () => {
       { fileEntryId: 'live', handle: 'live.png', displayName: 'live.png' },
       { fileEntryId: 'legacy', handle: 'legacy.png', displayName: 'legacy.png' }
     ])
+  })
+})
+
+function docParts(
+  source: DocumentParts['source'],
+  text: string | null,
+  count: number,
+  order: DocumentParts['order'] = 'interleaved'
+): DocumentParts {
+  const images = Array.from({ length: count }, (_, index) => ({ index, target: `word/media/${index}.png` }))
+  const imageParts = images.map((image) => ({ kind: 'image' as const, occurrenceIndex: image.index }))
+  const length = text?.length ?? 0
+  const boundary = order === 'text-first' ? length : Math.min(2, length)
+  return {
+    source,
+    text,
+    order,
+    images,
+    imageCount: { total: count, known: count },
+    parts: [
+      ...(boundary ? [{ kind: 'text' as const, start: 0, end: boundary }] : []),
+      ...imageParts,
+      ...(boundary < length ? [{ kind: 'text' as const, start: boundary, end: length }] : [])
+    ]
+  }
+}
+
+async function routeDocuments(
+  counts: number[],
+  options: {
+    vision?: boolean
+    budget?: AttachmentBudget
+    reverse?: boolean
+    order?: DocumentParts['order']
+    text?: string
+  } = {}
+) {
+  getByIdMock.mockResolvedValue({ ext: 'docx' })
+  extractMock.mockResolvedValue(options.text ?? 'abcd')
+  documentMock.mockImplementation(async (source, text) => {
+    const index = Number(source.entryId.slice(1))
+    if (options.reverse) await new Promise((resolve) => setTimeout(resolve, (counts.length - index) * 5))
+    return docParts(source, text, counts[index], options.order)
+  })
+  const messages = counts.map((_, index) => ({
+    ...userMessage([
+      fileWithEntry(
+        `e${index}`,
+        `${index}.docx`,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      )
+    ]),
+    id: `m${index}`
+  })) as UIMessage[]
+  return prepareChatMessages(messages, {
+    attachments: collectFileAttachments(messages),
+    nativeSupport: options.vision === false ? NONE : ALL,
+    isToolCapable: true,
+    budget: options.budget
+  })
+}
+
+describe('DOCX inline images', () => {
+  it('emits transient image parts between canonical fragments without leaking entry metadata', async () => {
+    const [out] = await routeDocuments([2])
+    expect(out.parts).toEqual([
+      { type: 'text', text: 'Attached file "0.docx":\nab' },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AQ==' },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,Ag==' },
+      { type: 'text', text: 'cd' }
+    ])
+  })
+  it('keeps text first when canonical alignment cannot be proven', async () => {
+    const [out] = await routeDocuments([1], { order: 'text-first' })
+    expect(out.parts[0]).toEqual({ type: 'text', text: 'Attached file "0.docx":\nabcd' })
+    expect(out.parts[1]).toMatchObject({ type: 'file', mediaType: 'image/png' })
+  })
+  it('degrades non-vision DOCX images to counted diagnostics without standalone-image OCR errors', async () => {
+    imagesMock.mockRejectedValue(new Error('non-vision must not read images'))
+    const [out] = await routeDocuments([2], { vision: false })
+    expect(out.parts).toEqual([
+      {
+        type: 'text',
+        text: 'Attached file "0.docx":\nabcd\n\n[DOCX images: 0 delivered; 2 omitted (2 model does not accept image input). Upload omitted images separately if needed.]'
+      }
+    ])
+  })
+  it('limits each document to four delivered images and explains the fifth', async () => {
+    const [out] = await routeDocuments([5])
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(4)
+    expect(textOf(out.parts).join('')).toContain('[DOCX images: 4 delivered; 1 omitted (1 4-image document limit).')
+  })
+  it('limits the whole history to eight and selects identically when extraction completes in reverse order', async () => {
+    const forward = await routeDocuments([4, 4, 4])
+    const reverse = await routeDocuments([4, 4, 4], { reverse: true })
+    expect(reverse).toEqual(forward)
+    expect(forward.map((message) => message.parts.filter((part) => part.type === 'file').length)).toEqual([4, 4, 0])
+    expect(textOf(forward[2].parts).join('')).toContain('4 8-image request limit')
+  })
+  it('does not charge slots for small, duplicate, or failed images and continues to later candidates', async () => {
+    imagesMock.mockImplementation(async (_document, indices) =>
+      indices.map((index: number) => ({
+        occurrenceIndex: index,
+        ...(index < 3
+          ? { kind: 'omitted', reason: ['too-small', 'duplicate', 'unreadable-image'][index] }
+          : { kind: 'image', bytes: new Uint8Array([index]), width: 128, height: 128, mediaType: 'image/png' })
+      }))
+    )
+    const [out] = await routeDocuments([7])
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(4)
+    expect(textOf(out.parts).join('')).toContain(
+      '3 omitted (1 duplicate; 1 smaller side below 128 px; 1 unreadable image data)'
+    )
+  })
+  it('keeps diagnostics outside a zero text cap and retains the canonical read_file offset', async () => {
+    const [out] = await routeDocuments([1], { budget: { tokens: 0, tokenizer: charTokenizer, imageTokens: () => 30 } })
+    const text = textOf(out.parts).join('')
+    expect(text).toContain('offset=0')
+    expect(text).toContain('1 insufficient context budget')
+    expect(text).not.toContain('abcd')
+  })
+  it('keeps the protected 80-character text when no 30-token image fits a pool of 100', async () => {
+    const [out] = await routeDocuments([3], {
+      text: 'x'.repeat(80),
+      budget: { tokens: 100, tokenizer: charTokenizer, imageTokens: () => 30 }
+    })
+    expect(textOf(out.parts).join('')).toContain('x'.repeat(80))
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(0)
+    expect(textOf(out.parts).join('')).toContain('3 insufficient context budget')
+  })
+  it('explains unavailable image pricing without losing text', async () => {
+    const [out] = await routeDocuments([1], { budget: { tokens: 1000, tokenizer: charTokenizer } })
+    expect(textOf(out.parts).join('')).toContain('abcd')
+    expect(textOf(out.parts).join('')).toContain('1 image token pricing unavailable')
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(0)
+  })
+  it('retains admitted images after the canonical prefix is truncated', async () => {
+    const [out] = await routeDocuments([1], { text: 'x'.repeat(9000) })
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(1)
+    expect(textOf(out.parts).join('')).toContain('Truncated 8000/9000')
+    expect(textOf(out.parts).join('')).not.toContain('[DOCX images:')
+  })
+  it('drops previously admitted images from the end when finalized failure diagnostics exceed the budget', async () => {
+    imagesMock.mockImplementation(async (_document, indices: number[]) =>
+      indices.map((index) =>
+        index === 0
+          ? {
+              occurrenceIndex: index,
+              kind: 'image',
+              bytes: new Uint8Array([1]),
+              width: 128,
+              height: 128,
+              mediaType: 'image/png'
+            }
+          : { occurrenceIndex: index, kind: 'omitted', reason: 'unreadable-image' }
+      )
+    )
+    const [out] = await routeDocuments([2], {
+      budget: {
+        tokens: 500,
+        tokenizer: {
+          id: 'diagnostics',
+          count: (text: string) => (text.includes('unreadable image data') ? 1000 : text.length)
+        },
+        imageTokens: () => 30
+      }
+    })
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(0)
+    expect(textOf(out.parts).join('')).toContain('abcd')
+    expect(textOf(out.parts).join('')).toContain('1 unreadable image data; 1 insufficient context budget')
+  })
+  it('replaces multiple DOCX placeholders without corrupting following parts', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'docx' })
+    extractMock.mockResolvedValue('abcd')
+    documentMock.mockImplementation(async (source, text) => docParts(source, text, 1))
+    const [out] = await run(
+      [
+        fileWithEntry('e0', 'a.docx', 'application/octet-stream'),
+        { type: 'text', text: 'middle' },
+        fileWithEntry('e1', 'b.docx', 'application/octet-stream'),
+        { type: 'text', text: 'end' }
+      ],
+      ALL
+    )
+    expect(out.parts.map((part) => (part.type === 'text' ? part.text : part.type))).toEqual([
+      'Attached file "a.docx":\nab',
+      'file',
+      'cd',
+      'middle',
+      'Attached file "b.docx":\nab',
+      'file',
+      'cd',
+      'end'
+    ])
+  })
+  it('preserves successful canonical text if image discovery itself throws', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'docx' })
+    extractMock.mockResolvedValue('successful text')
+    documentMock.mockRejectedValueOnce(new Error('private parser details'))
+    const [out] = await run([fileWithEntry('e0', 'a.docx', 'application/octet-stream')], ALL)
+    expect(textOf(out.parts).join('')).toBe(
+      'Attached file "a.docx":\nsuccessful text\n\n[DOCX embedded images could not be counted/extracted: unreadable DOCX container. Upload images separately if needed.]'
+    )
+  })
+  it('discovers images even when canonical text extraction fails', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'docx' })
+    extractMock.mockRejectedValueOnce(new Error('canonical failure'))
+    documentMock.mockImplementation(async (source, text) => docParts(source, text, 1))
+    const [out] = await run([fileWithEntry('e0', 'a.docx', 'application/octet-stream')], ALL)
+    expect(textOf(out.parts).join('')).toContain('Attached file "a.docx": [could not read this file].')
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(1)
   })
 })

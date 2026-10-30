@@ -17,7 +17,8 @@ import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
-import { getTextTokenizer } from '@main/ai/tokens/profiles'
+import type { ImageDims } from '@main/ai/tokens/imageTokens'
+import { getTextTokenizer, imageTokensFor } from '@main/ai/tokens/profiles'
 import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaStub'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
@@ -31,6 +32,7 @@ import { toModelMessages } from './messageRules'
 export interface AttachmentBudget {
   tokens: number
   tokenizer: TextTokenizer
+  imageTokens?: (dims: ImageDims) => number
 }
 
 export interface AttachmentBudgetInput {
@@ -67,7 +69,7 @@ export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Pro
   spent += await countToolSetTokens(input.tools, tokenizer)
 
   const usable = Math.floor(resolveInputRoom(window, input.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
-  return { tokens: Math.max(0, usable - spent), tokenizer }
+  return { tokens: Math.max(0, usable - spent), tokenizer, imageTokens: (dims) => imageTokensFor(dialect, dims) }
 }
 
 /**
@@ -142,4 +144,14 @@ async function countToolSetTokens(tools: ToolSet | undefined, tokenizer: TextTok
     })
   )
   return perTool.reduce((sum, tokens) => sum + tokens, 0)
+}
+
+export function fitsInlineImageBudget(
+  budget: AttachmentBudget,
+  attachmentTextParts: readonly string[],
+  images: readonly ImageDims[]
+): boolean {
+  if (images.length && !budget.imageTokens) return false
+  const textTokens = attachmentTextParts.reduce((sum, text) => sum + budget.tokenizer.count(text), 0)
+  return textTokens + images.reduce((sum, dims) => sum + budget.imageTokens!(dims), 0) <= budget.tokens
 }
