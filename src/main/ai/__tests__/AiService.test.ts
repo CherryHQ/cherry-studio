@@ -3,6 +3,7 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { NoImageGeneratedError } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -673,6 +674,52 @@ describe('AiService', () => {
     expect((error as Error).message).toMatch(/returned no images for gemini-3-pro-image-preview/)
     expect((error as { providerId?: unknown }).providerId).toBe('google')
     expect((error as { modelId?: unknown }).modelId).toBe('gemini-3-pro-image-preview')
+  })
+
+  it.each([false, true])('maps SDK no-image rejection (wrapped=%s) without retrying', async (wrapped) => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'google', providerSettings: {}, modelId: 'gemini-3-pro-image-preview' }
+    })
+    const sdkError = new NoImageGeneratedError({ responses: [] })
+    const rejection = wrapped ? new Error('Image generation failed', { cause: sdkError }) : sdkError
+    mockGenerateImage.mockRejectedValue(rejection)
+    const error: unknown = await service
+      .generateImage({
+        uniqueModelId: 'gemini::gemini-3-pro-image-preview',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+    expect(error).toMatchObject({
+      message: expect.stringContaining('returned no images for gemini-3-pro-image-preview'),
+      providerId: 'google',
+      modelId: 'gemini-3-pro-image-preview'
+    })
+    expect(mockGenerateImage).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['provider', 'abort'])('preserves %s rejection identity', async (kind) => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'google', providerSettings: {}, modelId: 'gemini-3-pro-image-preview' }
+    })
+    const controller = new AbortController()
+    const rejection =
+      kind === 'abort' ? new NoImageGeneratedError({ responses: [] }) : new Error('provider unavailable')
+    if (kind === 'abort') controller.abort()
+    mockGenerateImage.mockRejectedValue(rejection)
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'gemini::gemini-3-pro-image-preview',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {},
+        requestOptions: { signal: controller.signal }
+      })
+    ).rejects.toBe(rejection)
+    expect(mockGenerateImage).toHaveBeenCalledTimes(1)
   })
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {

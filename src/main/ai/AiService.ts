@@ -35,7 +35,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -96,6 +95,7 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
+import { createEmptyImageError, isEmptyImageGenerationError } from './utils/emptyImageError'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
@@ -987,6 +987,11 @@ export class AiService extends BaseService {
     const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       ...imageParams,
       onProviderCall: createProviderCallHandler(imageUsageContext)
+    }).catch((error: unknown) => {
+      // The SDK rejects an empty response before result.images is available.
+      // Preserve cancellation and unrelated provider errors without retrying.
+      if (signal?.aborted || !isEmptyImageGenerationError(error)) throw error
+      throw createEmptyImageError(sdkConfig.providerId, sdkConfig.modelId)
     })
 
     const dataUrls: Base64String[] = []
@@ -1008,13 +1013,7 @@ export class AiService extends BaseService {
         modelId: sdkConfig.modelId,
         filteredCount
       })
-      const emptyError = new Error(t('ai.image.error.no_images', { model: sdkConfig.modelId })) as Error & {
-        providerId: string
-        modelId: string
-      }
-      emptyError.providerId = sdkConfig.providerId
-      emptyError.modelId = sdkConfig.modelId
-      throw emptyError
+      throw createEmptyImageError(sdkConfig.providerId, sdkConfig.modelId)
     }
     if (filteredCount > 0) {
       logger.warn('Filtered invalid generated images', {
