@@ -132,8 +132,11 @@ hand off its work because callbacks run inline. `dispose()` flushes the final ob
 Common `contextUsage()` reads native `getContextUsage()` and the selected native projection.
 Counts and partial categories use Pi's estimator; deferred tools are listed separately. After
 compaction, Pi may leave occupancy unknown until its next request establishes a new baseline.
-Resource paths come from Pi's loader, and missing resource counts stay absent. Reading does not
-submit input, change the selected branch, or write history.
+Section and tool provenance is recorded with the prepared native prompt. Memory files and skill
+catalog entries carry individual estimates; reading skill bodies later contributes to messages.
+Explicit tool origins separate MCP schemas from system tools without name heuristics. Old opaque
+sections remain system prompt estimates. Reading does not reload files, submit input, change the
+selected branch, or write history.
 
 ## Pi-specific access
 

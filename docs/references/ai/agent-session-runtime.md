@@ -71,6 +71,12 @@ whether they are reported or estimated. Partial breakdowns are not rescaled to m
 and deferred resources do not occupy current context. Unknown reserves or free capacity stay
 absent. Context reads neither submit input nor add billable usage records.
 
+Pi and Pi Durable record section and tool provenance while preparing native context. Their
+adapters expose individual memory-file fragments, skill catalog entries and tool schemas;
+MCP classification uses explicit origin metadata. Codemode-only tools are deferred, and skill
+bodies subsequently loaded through tools count as messages. Reads use committed provenance,
+not a new filesystem scan or prompt render. Older unannotated sections remain prompt estimates.
+
 ## Heartbeat execution deadline
 
 In the agent's heartbeat settings, **Maximum Execution Time (minutes)** controls

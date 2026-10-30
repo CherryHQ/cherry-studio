@@ -44,6 +44,7 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
         tools.push(
           defineTool({
             name,
+            contextSource: { kind: 'mcp-tools', source: server.name },
             description: tool.description ?? tool.name,
             parameters: Type.Unsafe<Record<string, unknown>>(tool.inputSchema),
             ...(tool.outputSchema && { structuredOutputSchema: Type.Unsafe(tool.outputSchema) }),

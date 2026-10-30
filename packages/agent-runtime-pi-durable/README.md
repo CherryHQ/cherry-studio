@@ -128,7 +128,10 @@ Common `contextUsage()` uses the patched native `Conversation.contextUsage()` AP
 an immutable committed context range, the resolved model, and the native compaction estimator
 without resuming work or evaluating generation hooks. Partial categories describe that committed
 context; deferred tools remain outside occupancy. Automatic compaction thresholds are present
-only when enabled. This estimate is separate from native billable usage records.
+only when enabled. Prepared sections retain resource provenance with the committed system entries;
+identity files, skill catalog entries and tool schemas expose individual estimates. MCP origins come
+from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
+or reload files. These partial estimates are separate from native billable usage records.
 
 The concrete `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -813,4 +813,83 @@ it('reads native context without submitting work and rejects released access', a
   expect(events.filter((event) => event.type === 'activity.changed' && event.activity.state === 'active')).toEqual([])
   await handle.release()
   expect(await handle.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+})
+
+it('retains prepared resource provenance instead of recounting discovered files', async () => {
+  const { runtime, options, faux } = await setup()
+  const skillDir = join(options.cwd, 'skills', 'example')
+  mkdirSync(skillDir, { recursive: true })
+  writeFileSync(
+    join(skillDir, 'SKILL.md'),
+    '---\nname: example\ndescription: A loaded summary\n---\nFull body is not in the catalog.'
+  )
+  writeFileSync(join(options.cwd, 'AGENTS.md'), 'Use project instructions.')
+  faux.setResponses([fauxAssistantMessage('ready')])
+  const handle = confirmed(
+    await runtime.create({
+      ...options,
+      contextFiles: true,
+      skillPaths: [skillDir],
+      builtinTools: ['read'],
+      tools: [
+        defineTool({
+          name: 'direct_lookup',
+          label: 'Direct',
+          description: 'Loaded external schema',
+          parameters: Type.Object({}),
+          contextSource: { kind: 'mcp-tools', source: 'direct-server' },
+          execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
+        }),
+        defineTool({
+          name: 'external_lookup',
+          label: 'External',
+          description: 'Deferred external schema',
+          parameters: Type.Object({}),
+          exposure: 'deferred',
+          contextSource: { kind: 'mcp-tools', source: 'test-server' },
+          execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
+        })
+      ]
+    })
+  )
+  const events = await observe(handle)
+  await handle.input.submit(input('prepare resource context'))
+  await expect
+    .poll(() => events.some((event) => event.type === 'activity.changed' && event.activity.state === 'idle'))
+    .toBe(true)
+  const before = confirmed(await handle.contextUsage())
+  expect(before.resources).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        category: 'memory-files',
+        source: join(options.cwd, 'AGENTS.md'),
+        state: 'loaded',
+        count: { precision: 'estimated', tokens: expect.any(Number) }
+      }),
+      expect.objectContaining({
+        category: 'skills',
+        name: 'example',
+        source: join(skillDir, 'SKILL.md'),
+        state: 'loaded'
+      }),
+      expect.objectContaining({
+        category: 'mcp-tools',
+        name: 'external_lookup',
+        source: 'test-server',
+        state: 'deferred'
+      })
+    ])
+  )
+  expect(before.breakdown?.categories).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ key: 'memory-files', occupancy: 'included', tokens: expect.any(Number) }),
+      expect.objectContaining({ key: 'skills', occupancy: 'included', tokens: expect.any(Number) }),
+      expect.objectContaining({ key: 'mcp-tools', occupancy: 'deferred' })
+    ])
+  )
+  expect(before.resources).toContainEqual(
+    expect.objectContaining({ category: 'mcp-tools', name: 'direct_lookup', source: 'direct-server', state: 'loaded' })
+  )
+  writeFileSync(join(options.cwd, 'AGENTS.md'), 'Changed after the request '.repeat(100))
+  expect(confirmed(await handle.contextUsage())).toEqual(before)
 })

@@ -113,10 +113,29 @@ diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
          httpOptions.baseUrl = model.baseUrl;
          httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 022faa1969490ca91d67fffa20dab7c41c4384bd..1bf5e6e1bdde065ca292bcd8d5ed7858542eb4d8 100644
+index 022faa1969490ca91d67fffa20dab7c41c4384bd..a4f7e6f72b03033148977c616e5f7c3aca609690 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -417,6 +417,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
+@@ -337,7 +337,18 @@ export interface DeferredHandle {
+  * accept system messages mid-conversation send each one in place; other providers
+  * rebuild the leading system message from the replayed state.
+  */
++export interface ContextSource {
++    kind: string;
++    source?: string;
++    resources?: { id: string; name: string; source?: string; characters: number }[];
++}
++export interface SystemContextSources {
++    sections: Record<string, ContextSource>;
++    tools: Record<string, ContextSource>;
++}
+ export interface SystemMessage {
++    /** Display provenance only; never rendered into the provider prompt. */
++    contextSources?: SystemContextSources;
+     role: "system";
+     /** Instruction text. On the leading message this is the base prompt; later, additional instructions. */
+     content: string | TextContent[];
+@@ -417,6 +428,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
      toolName: string;
      content: (TextContent | ImageContent)[];
      details?: JsonRepresentation<TDetails>;
@@ -125,3 +144,122 @@ index 022faa1969490ca91d67fffa20dab7c41c4384bd..1bf5e6e1bdde065ca292bcd8d5ed7858
      /** Usage from the tool execution itself, if available. Not part of main LLM context accounting. */
      usage?: Usage;
      /** Calls this tool made to other tools. Kept for the session record; not sent to the model. */
+diff --git a/dist/utils/context-usage.d.ts b/dist/utils/context-usage.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..c2422f31a9a21f6a2b204c9e1c029bfde09acf73
+--- /dev/null
++++ b/dist/utils/context-usage.d.ts
+@@ -0,0 +1,10 @@
++import type { ContextSource, SystemMessage, Tool } from "../types.ts";
++export interface ContextPart {
++    id: string;
++    kind: string;
++    tokens: number;
++    state?: "loaded" | "deferred";
++    source?: string;
++    resources?: ContextSource["resources"];
++}
++export declare function measureSystemContext(system: SystemMessage | undefined, deferred?: readonly (Tool & { contextSource?: ContextSource })[], estimate?: (promptCharacters: number, toolCharacters: number) => number, separator?: string): ContextPart[];
+diff --git a/dist/utils/context-usage.js b/dist/utils/context-usage.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..a37f8e82c6eb306f36ecad165e6562b07f2df1c6
+--- /dev/null
++++ b/dist/utils/context-usage.js
+@@ -0,0 +1,35 @@
++import { contentText } from "./text.js";
++import { estimateSystemCharacters } from "./estimate.js";
++export function measureSystemContext(system, deferred = [], estimate = estimateSystemCharacters, separator = "\n\n") {
++    const parts = [];
++    let promptCharacters = 0;
++    let measured = 0;
++    const addText = (id, value, source) => {
++        if (!value) return;
++        promptCharacters += (promptCharacters ? separator.length : 0) + value.length;
++        const next = estimate(promptCharacters, 0);
++        parts.push({ id, kind: source?.kind ?? "system-prompt", tokens: next - measured,
++            resources: source?.resources ?? [{ id, name: id, characters: value.length, source: source?.source }] });
++        measured = next;
++    };
++    if (system) {
++        addText("prompt", contentText(system.content));
++        for (const [key, value] of Object.entries(system.sections ?? {}))
++            addText(key, value, system.contextSources?.sections[key]);
++    }
++    for (const [state, tools] of [["loaded", system?.toolsAdded ?? []], ["deferred", deferred]]) {
++        let tokens = state === "loaded" ? measured : 0;
++        let schemaCharacters = 0;
++        for (const tool of tools) {
++            const declaration = { name: tool.name, description: tool.description, parameters: tool.parameters,
++                ...(tool.constrainedSampling === undefined ? {} : { constrainedSampling: tool.constrainedSampling }) };
++            schemaCharacters += JSON.stringify(declaration).length + (schemaCharacters ? 1 : 2);
++            const next = estimate(state === "loaded" ? promptCharacters : 0, schemaCharacters);
++            const source = state === "loaded" ? system?.contextSources?.tools[tool.name] : tool.contextSource;
++            parts.push({ id: tool.name, kind: source?.kind ?? "system-tools", tokens: next - tokens,
++                state, source: source?.source });
++            tokens = next;
++        }
++    }
++    return parts;
++}
+diff --git a/dist/utils/estimate.d.ts b/dist/utils/estimate.d.ts
+index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c7463b718cd 100644
+--- a/dist/utils/estimate.d.ts
++++ b/dist/utils/estimate.d.ts
+@@ -15,3 +15,4 @@ export declare function estimateTextAndImageContentTokens(content: string | Arra
+ export declare function estimateMessageTokens(message: Message): number;
+ export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
+ //# sourceMappingURL=estimate.d.ts.map
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
+diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
+index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..cfaf2b004031ddc6fe136b424b4d60c0a498612e 100644
+--- a/dist/utils/estimate.js
++++ b/dist/utils/estimate.js
+@@ -20,6 +20,9 @@ function estimateTextAndImageContentChars(content) {
+         chars += block.type === "text" ? block.text.length : ESTIMATED_IMAGE_CHARS;
+     return chars;
+ }
++export function estimateSystemCharacters(promptCharacters, toolCharacters) {
++    return Math.ceil(promptCharacters / CHARS_PER_TOKEN) + Math.ceil(toolCharacters / CHARS_PER_TOKEN);
++}
+ export function estimateTextTokens(text) {
+     return Math.ceil(text.length / CHARS_PER_TOKEN);
+ }
+@@ -29,8 +32,7 @@ export function estimateTextAndImageContentTokens(content) {
+ export function estimateMessageTokens(message) {
+     let chars = 0;
+     if (message.role === "system") {
+-        return (estimateTextTokens(getSystemMessageText(message)) +
+-            estimateToolsTokens(message.toolsAdded) +
++        return (estimateSystemCharacters(getSystemMessageText(message).length, message.toolsAdded?.length ? safeJsonStringify(message.toolsAdded).length : 0) +
+             estimateToolsTokens(message.toolsRemoved));
+     }
+     if (message.role === "user")
+diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
+index c9589da1c658aaabb87b150ae3cdebb09285f9a2..08cee57cb439bd64049fc390a76f0cc91f5149be 100644
+--- a/dist/utils/transcript.js
++++ b/dist/utils/transcript.js
+@@ -58,11 +58,16 @@ export function getCurrentTools(messages) {
+ export function getCurrentSystemMessage(messages) {
+     const content = [];
+     const sections = new Map();
++    let contextSources;
+     let timestamp;
+     for (const message of messages) {
+         if (!isSystemMessage(message))
+             continue;
+         timestamp ??= message.timestamp;
++        if (message.contextSources) contextSources = structuredClone(message.contextSources);
++        else if (contextSources) {
++            for (const name of Object.keys(message.sections ?? {})) delete contextSources.sections[name];
++        }
+         const text = contentText(message.content);
+         if (text.length > 0)
+             content.push(text);
+@@ -79,6 +84,7 @@ export function getCurrentSystemMessage(messages) {
+     return {
+         role: "system",
+         content: content.join("\n\n"),
++        ...(contextSources ? { contextSources } : {}),
+         ...(sections.size > 0 ? { sections: Object.fromEntries(sections) } : {}),
+         ...(tools.length > 0 ? { toolsAdded: tools } : {}),
+         timestamp: timestamp ?? 0,
