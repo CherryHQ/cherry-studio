@@ -215,6 +215,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
+          'library.config.agent.profile.more_settings': 'More settings',
           'library.config.dialogs.edit.basic_tab': 'Basic',
           'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
@@ -626,13 +627,13 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
 
-    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /More settings/ }, { timeout: 5000 })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Renamed Agent' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /More settings/ })).toBeInTheDocument()
   })
 
   it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
@@ -648,7 +649,7 @@ describe('AgentSelector', () => {
     openPopover()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
-    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /More settings/ }, { timeout: 5000 })).toBeInTheDocument()
     vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
@@ -669,7 +670,7 @@ describe('AgentSelector', () => {
     openPopover()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
-    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /More settings/ }, { timeout: 5000 })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Saved Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 

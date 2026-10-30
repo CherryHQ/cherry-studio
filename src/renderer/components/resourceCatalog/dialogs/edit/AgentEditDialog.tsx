@@ -14,9 +14,9 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputNumber,
+  SearchInput,
   SegmentedControl,
   Switch,
-  TabsContent,
   Textarea
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
@@ -74,7 +74,6 @@ import {
   type EditDialogBaseProps,
   editDialogFormRowClassName,
   editDialogFormRowLabelClassName,
-  EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
   KnowledgeBaseField,
@@ -86,11 +85,14 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { AgentSettingsShell, SettingsGroup, SettingsNavRow } from './AgentSettingsShell'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
   isModelDisabled?: ModelSelectorFilter
+  /** Shown as a back step on the main settings page, e.g. to return to the profile card. */
+  onBack?: () => void
 }
 
 type AgentEditFormValues = {
@@ -269,7 +271,8 @@ export function AgentEditDialog({
   onOpenChange,
   modelFilter,
   isModelDisabled,
-  initialTab
+  initialTab,
+  onBack
 }: AgentEditDialogProps) {
   if (!resource) return null
 
@@ -281,6 +284,7 @@ export function AgentEditDialog({
       modelFilter={modelFilter}
       isModelDisabled={isModelDisabled}
       initialTab={initialTab}
+      onBack={onBack}
     />
   )
 }
@@ -291,8 +295,9 @@ function AgentEditDialogContent({
   onOpenChange,
   modelFilter,
   isModelDisabled,
-  initialTab
-}: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
+  initialTab,
+  onBack
+}: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter; onBack?: () => void }) {
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
@@ -366,7 +371,8 @@ function AgentEditDialogContent({
             : [])
         ]
       },
-      { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
+      // The advanced page only holds environment variables, so it is titled after them.
+      { id: 'advanced', label: t('library.config.agent.field.env_vars.label') }
     ],
     [caps.knowledgeBases, caps.mcp, caps.skills, t]
   )
@@ -549,21 +555,60 @@ function AgentEditDialogContent({
     return true
   }
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
+  // Leaving for the profile unmounts this form, so land any pending save first and stay on failure.
+  const handleBack = onBack
+    ? async () => {
+        const pendingSave = getPendingSave()
+        if (pendingSave) await pendingSave
+        await flush()
+        if (failedSaveKeyRef.current === null) onBack()
+      }
+    : undefined
+
+  const subPage =
+    activeTab === 'basic' ? null : tabs.flatMap((tab) => tab.children ?? [tab]).find((tab) => tab.id === activeTab)
+  const toolPages = tabs.find((tab) => tab.id === 'tools')?.children ?? []
+  const countLabel = (count: number) =>
+    count > 0 ? t('library.config.agent.settings.count', { count }) : t('library.config.agent.settings.none')
+  const toolPageValue = (id: string) => {
+    switch (id) {
+      case 'tools.builtin':
+        return t('library.config.agent.settings.enabled_count', {
+          count: caps.builtinTools().filter((tool) => !values.disabledTools.includes(tool.id)).length
+        })
+      case 'tools.knowledge':
+        return countLabel(values.knowledgeBaseIds.length)
+      case 'tools.mcp':
+        return countLabel(values.mcps.length)
+      case 'tools.skills':
+        return countLabel(values.skillIds.length)
+      default:
+        return undefined
+    }
+  }
+  const envVarCount = values.envVarsText.split('\n').filter((line) => line.includes('=')).length
 
   return (
-    <EditDialogShell
-      activeTab={activeTab}
+    <AgentSettingsShell
       form={form}
-      onActiveTabChange={setActiveTab}
-      onOpenChange={handleOpenChange}
       open={open}
+      onOpenChange={handleOpenChange}
+      pageKey={activeTab}
+      onBack={subPage ? () => setActiveTab('basic') : handleBack}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
-      groupPresentation="inline"
-      tabs={tabs}
-      title={t('library.config.dialogs.edit.agent_title')}>
-      <>
-        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
+      title={
+        subPage ? (
+          subPage.label
+        ) : (
+          <>
+            {values.name.trim() || resource.name}
+            <span className="text-muted-foreground"> · {t('library.config.agent.profile.more_settings')}</span>
+          </>
+        )
+      }>
+      <div hidden={activeTab !== 'basic'} className="flex flex-col gap-5">
+        <SettingsGroup title={t('library.config.dialogs.edit.basic_tab')}>
           <AgentBasicFields
             form={form}
             modelFilter={modelFilter}
@@ -584,41 +629,62 @@ function AgentEditDialogContent({
               return failedSaveKeyRef.current === null
             }}
           />
-        </TabsContent>
-        <TabsContent
-          value="prompt"
-          forceMount
-          hidden={activeTab !== 'prompt'}
-          className="m-0 flex h-full min-h-0 flex-col">
-          <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
-        </TabsContent>
-        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
-          <PromptBindingTab
-            enabled={open && activeTab === 'prompts'}
-            target={{ type: 'agent', id: resource.id }}
-            onManageGlobal={() => closeBeforeAction(() => openSettingsTab('/settings/prompts'))}
-            portalContainer={dialogContentElement}
+        </SettingsGroup>
+        <SettingsGroup title={t('library.config.dialogs.edit.tools_tab')}>
+          <SettingsNavRow
+            label={t('library.config.dialogs.edit.prompt_tab')}
+            value={
+              values.instructions.trim()
+                ? t('library.config.agent.settings.characters', { count: values.instructions.trim().length })
+                : t('library.config.agent.settings.none')
+            }
+            onClick={() => setActiveTab('prompt')}
           />
-        </TabsContent>
-        {isToolTab(activeTab) ? (
-          <TabsContent value={activeTab} forceMount className="m-0">
-            <AgentToolsFields
-              agent={resource}
-              form={form}
-              activeToolTab={activeTab}
-              portalContainer={dialogContentElement}
-              skills={skills}
-              skillsLoading={skillsLoading}
-              skillsReady={baselineSkillAgentId === resource.id}
-              caps={caps}
+          {toolPages.map((page) => (
+            <SettingsNavRow
+              key={page.id}
+              label={page.label}
+              value={toolPageValue(page.id)}
+              onClick={() => setActiveTab(page.id)}
             />
-          </TabsContent>
-        ) : null}
-        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-          <AgentAdvancedFields form={form} />
-        </TabsContent>
-      </>
-    </EditDialogShell>
+          ))}
+        </SettingsGroup>
+        <SettingsGroup title={t('library.config.dialogs.edit.advanced_tab')}>
+          <SettingsNavRow label={t('settings.prompts.binding.tabTitle')} onClick={() => setActiveTab('prompts')} />
+          <SettingsNavRow
+            label={t('library.config.agent.field.env_vars.label')}
+            value={countLabel(envVarCount)}
+            onClick={() => setActiveTab('advanced')}
+          />
+        </SettingsGroup>
+      </div>
+      <div hidden={activeTab !== 'prompt'} className="flex h-full min-h-0 flex-col">
+        <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
+      </div>
+      <div hidden={activeTab !== 'prompts'}>
+        <PromptBindingTab
+          enabled={open && activeTab === 'prompts'}
+          target={{ type: 'agent', id: resource.id }}
+          onManageGlobal={() => closeBeforeAction(() => openSettingsTab('/settings/prompts'))}
+          portalContainer={dialogContentElement}
+        />
+      </div>
+      {isToolTab(activeTab) ? (
+        <AgentToolsFields
+          agent={resource}
+          form={form}
+          activeToolTab={activeTab}
+          portalContainer={dialogContentElement}
+          skills={skills}
+          skillsLoading={skillsLoading}
+          skillsReady={baselineSkillAgentId === resource.id}
+          caps={caps}
+        />
+      ) : null}
+      <div hidden={activeTab !== 'advanced'}>
+        <AgentAdvancedFields form={form} />
+      </div>
+    </AgentSettingsShell>
   )
 }
 
@@ -1122,6 +1188,10 @@ function AgentToolsFields({
   const knowledgeBaseIds = form.watch('knowledgeBaseIds')
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
+  const [toolQuery, setToolQuery] = useState('')
+  const normalizedToolQuery = toolQuery.trim().toLowerCase()
+  const matchesToolQuery = (...texts: string[]) =>
+    !normalizedToolQuery || texts.some((text) => text.toLowerCase().includes(normalizedToolQuery))
   const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
   const [computerUseEnabled] = usePreference('app.computer_use.agent_control.enabled')
 
@@ -1169,63 +1239,86 @@ function AgentToolsFields({
       { shouldDirty: true }
     )
 
+  const showBrowser = matchesToolQuery(t('settings.browser.title'), t('settings.browser.control'))
+  const showComputerUse = matchesToolQuery(t('settings.computerUse.title'), t('settings.computerUse.control'))
+  const visibleBuiltinSections = builtinSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => matchesToolQuery(section.label, item.name, String(item.description ?? '')))
+    }))
+    .filter((section) => section.items.length > 0)
+
   return (
     <div className="grid gap-4">
+      {activeToolTab === 'tools.builtin' || activeToolTab === 'tools.mcp' ? (
+        <SearchInput
+          value={toolQuery}
+          onChange={(event) => setToolQuery(event.target.value)}
+          onClear={() => setToolQuery('')}
+          clearLabel={t('common.clear')}
+          placeholder={t('library.config.agent.section.tools.search_placeholder')}
+          containerClassName="h-8"
+        />
+      ) : null}
       {activeToolTab === 'tools.builtin' ? (
         <div className="grid gap-5">
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
-              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
-                {t('settings.title')}
-              </Button>
-            </div>
-            <CatalogToggleGrid
-              items={[
-                {
-                  id: BROWSER_TOOL_GROUP,
-                  name: t('settings.browser.control'),
-                  description: t('settings.browser.controlHelp'),
-                  pickable: browserEnabled,
-                  inactiveBadge: browserEnabled ? undefined : t('library.config.tools.inactive_badge')
+          {showBrowser ? (
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
+                <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
+                  {t('settings.title')}
+                </Button>
+              </div>
+              <CatalogToggleGrid
+                items={[
+                  {
+                    id: BROWSER_TOOL_GROUP,
+                    name: t('settings.browser.control'),
+                    description: t('settings.browser.controlHelp'),
+                    pickable: browserEnabled,
+                    inactiveBadge: browserEnabled ? undefined : t('library.config.tools.inactive_badge')
+                  }
+                ]}
+                enabledIds={
+                  browserEnabled && !disabledSet.has(BROWSER_TOOL_GROUP) ? new Set([BROWSER_TOOL_GROUP]) : new Set()
                 }
-              ]}
-              enabledIds={
-                browserEnabled && !disabledSet.has(BROWSER_TOOL_GROUP) ? new Set([BROWSER_TOOL_GROUP]) : new Set()
-              }
-              onToggle={setToolEnabled}
-              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-              portalContainer={portalContainer}
-            />
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.computerUse.title')}</span>
-              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/computer-use')}>
-                {t('settings.title')}
-              </Button>
+                onToggle={setToolEnabled}
+                emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+                portalContainer={portalContainer}
+              />
             </div>
-            <CatalogToggleGrid
-              items={[
-                {
-                  id: COMPUTER_USE_TOOL_GROUP,
-                  name: t('settings.computerUse.control'),
-                  description: t('settings.computerUse.controlHelp'),
-                  pickable: computerUseEnabled,
-                  inactiveBadge: computerUseEnabled ? undefined : t('library.config.tools.inactive_badge')
+          ) : null}
+          {showComputerUse ? (
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-muted-foreground text-xs">{t('settings.computerUse.title')}</span>
+                <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/computer-use')}>
+                  {t('settings.title')}
+                </Button>
+              </div>
+              <CatalogToggleGrid
+                items={[
+                  {
+                    id: COMPUTER_USE_TOOL_GROUP,
+                    name: t('settings.computerUse.control'),
+                    description: t('settings.computerUse.controlHelp'),
+                    pickable: computerUseEnabled,
+                    inactiveBadge: computerUseEnabled ? undefined : t('library.config.tools.inactive_badge')
+                  }
+                ]}
+                enabledIds={
+                  computerUseEnabled && !disabledSet.has(COMPUTER_USE_TOOL_GROUP)
+                    ? new Set([COMPUTER_USE_TOOL_GROUP])
+                    : new Set()
                 }
-              ]}
-              enabledIds={
-                computerUseEnabled && !disabledSet.has(COMPUTER_USE_TOOL_GROUP)
-                  ? new Set([COMPUTER_USE_TOOL_GROUP])
-                  : new Set()
-              }
-              onToggle={setToolEnabled}
-              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-              portalContainer={portalContainer}
-            />
-          </div>
-          {builtinSections.map((section) => (
+                onToggle={setToolEnabled}
+                emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+                portalContainer={portalContainer}
+              />
+            </div>
+          ) : null}
+          {visibleBuiltinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
               <div className="font-medium text-muted-foreground text-xs">{section.label}</div>
               <CatalogToggleGrid
@@ -1270,6 +1363,7 @@ function AgentToolsFields({
         <McpServerCatalogGrid
           title={t('library.config.tools.added')}
           enabledIds={mcpIds}
+          query={toolQuery}
           onToggle={(id, enabled) => (enabled ? enableMCP(id) : disableMCP(id))}
           emptyLabel={t('library.config.agent.section.tools.no_mcp_bound')}
           portalContainer={portalContainer}
