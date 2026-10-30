@@ -23,14 +23,11 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages, getContextTokens, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import { compactModelMessages, getContextTokens } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
@@ -229,7 +226,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
-        const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+        const { maxOutputTokens, maxInputTokens } = resolveCompressionBudget(compressionWindow)
         // Summarizing is a full model round-trip in the middle of a tool loop —
         // seconds of apparent silence. Announce it so the UI can say so; the
         // same part id is replaced by the `done` event below.
@@ -243,10 +240,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
             maxOutputTokens,
-            maxInputTokens: Math.max(
-              COMPACTION_MIN_INPUT_BUDGET,
-              Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-            )
+            maxInputTokens
           })
         } catch (error) {
           // `compactModelMessages` propagates provider errors. Letting one out of

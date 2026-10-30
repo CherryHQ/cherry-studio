@@ -9,15 +9,12 @@ import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { ModelMessage, UIMessage } from 'ai'
 
 import { application } from '@application'
-import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
@@ -1035,14 +1032,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // model's: an explicitly picked 8k compressor on a 128k chat would
       // otherwise be handed a 128k-derived budget and overflow immediately.
       const compressionWindow = compressionModel.contextWindow ?? minContextWindow
-      const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      const { maxOutputTokens, maxInputTokens } = resolveCompressionBudget(compressionWindow)
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
-        maxInputTokens: Math.max(
-          COMPACTION_MIN_INPUT_BUDGET,
-          Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-        )
+        maxInputTokens
       })
       // Every exit below clears the spinner — a fold that produced nothing and a
       // fold that threw both continue with un-compacted history, so leaving

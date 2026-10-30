@@ -720,6 +720,42 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
   })
 
+  it('2g-bis. a small effective compressor window (4k) bounds input+output below that window', async () => {
+    const BIG = 'token '.repeat(4_000)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ])
+    compressionOn({ languageModel: {}, contextWindow: 4_096 })
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 20_000 })
+
+    const opts = mockSummarizeModelMessages.mock.calls[0][2]
+    expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(4_096)
+  })
+
+  it('2g-ter. a compressor that rejects (e.g. window overflow) persists no summary and serves raw history', async () => {
+    const BIG = 'token '.repeat(4_000)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ])
+    compressionOn({ languageModel: {}, contextWindow: 4_096 })
+    mockSummarizeModelMessages.mockRejectedValueOnce(new Error('context length exceeded'))
+
+    const { messages } = await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 20_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2', 'a2', 'u3'])
+  })
+
   const fiveBigTurns = () => {
     const BIG = 'token '.repeat(700)
     mockGetPathToNode.mockReturnValue([
