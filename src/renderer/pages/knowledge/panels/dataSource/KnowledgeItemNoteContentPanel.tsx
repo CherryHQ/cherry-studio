@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -73,7 +74,11 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
         type="auto"
         className="min-h-0 flex-1">
         {isLoading ? <KnowledgeItemNoteContentState>{t('common.loading')}</KnowledgeItemNoteContentState> : null}
-        {!isLoading && error ? <KnowledgeItemNoteContentState>{error.message}</KnowledgeItemNoteContentState> : null}
+        {!isLoading && error ? (
+          <KnowledgeItemNoteContentState>
+            {formatErrorMessageWithPrefix(error, t('common.load_failed'))}
+          </KnowledgeItemNoteContentState>
+        ) : null}
         {!isLoading && !error ? (
           <pre className="text-muted-foreground font-sans text-sm leading-relaxed break-words whitespace-pre-wrap">
             {content}

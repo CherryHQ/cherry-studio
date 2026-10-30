@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { localizedErrorDetail } from '@renderer/utils/error'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
@@ -159,8 +160,7 @@ class ImportService {
         success: false,
         topicsCount: 0,
         messagesCount: 0,
-        error:
-          error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
+        error: localizedErrorDetail(error) ?? i18n.t('error.unknown')
       }
     }
   }

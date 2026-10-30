@@ -6,6 +6,7 @@ import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const API_GATEWAY_PREFERENCE_KEYS = {
   enabled: 'feature.api_gateway.enabled',
@@ -59,10 +60,10 @@ export const useApiGateway = () => {
         toast.success(t('apiGateway.messages.startSuccess'))
         return true
       }
-      toast.error({ title: t('apiGateway.messages.startError').trim(), description: result.error })
+      toast.error(formatErrorMessageWithPrefix(result.error, t('apiGateway.messages.startError')))
       return false
     } catch (error: any) {
-      toast.error({ title: t('apiGateway.messages.startError').trim(), description: error.message || String(error) })
+      toast.error(formatErrorMessageWithPrefix(error, t('apiGateway.messages.startError')))
       return false
     } finally {
       setApiGatewayLoading(false)
@@ -77,10 +78,10 @@ export const useApiGateway = () => {
       if (result.success) {
         toast.success(t('apiGateway.messages.stopSuccess'))
       } else {
-        toast.error(t('apiGateway.messages.stopError') + result.error)
+        toast.error(formatErrorMessageWithPrefix(result.error, t('apiGateway.messages.stopError')))
       }
     } catch (error: any) {
-      toast.error(t('apiGateway.messages.stopError') + (error.message || error))
+      toast.error(formatErrorMessageWithPrefix(error, t('apiGateway.messages.stopError')))
     } finally {
       setApiGatewayLoading(false)
     }
@@ -94,10 +95,10 @@ export const useApiGateway = () => {
       if (result.success) {
         toast.success(t('apiGateway.messages.restartSuccess'))
       } else {
-        toast.error(t('apiGateway.messages.restartError') + result.error)
+        toast.error(formatErrorMessageWithPrefix(result.error, t('apiGateway.messages.restartError')))
       }
     } catch (error) {
-      toast.error(t('apiGateway.messages.restartFailed') + (error as Error).message)
+      toast.error(formatErrorMessageWithPrefix(error, t('apiGateway.messages.restartFailed')))
     } finally {
       setApiGatewayLoading(false)
     }

@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useState } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
@@ -95,6 +96,11 @@ describe('draft Agent avatar', () => {
   })
 
   it('preserves the last image across oversize/decode errors and accepts retry of the same file', async () => {
+    const previousLanguage = i18next.language
+    i18next.language = 'zh-CN'
+    onTestFinished(() => {
+      i18next.language = previousLanguage
+    })
     render(<Harness />)
     const { user, input } = await openUpload()
     vi.mocked(checkEntityImageSize).mockReturnValueOnce('too large')
@@ -103,7 +109,7 @@ describe('draft Agent avatar', () => {
     expect(screen.getByRole('status')).toHaveTextContent('🤖')
     vi.mocked(prepareEntityImageBytes).mockRejectedValueOnce(new Error('decode failed'))
     await user.upload(input, file)
-    expect(toast.error).toHaveBeenCalledWith('decode failed')
+    expect(toast.error).toHaveBeenCalledWith('settings.general.avatar.update_failed')
     expect(screen.getByRole('status')).toHaveTextContent('🤖')
     await user.upload(input, file)
     expect(screen.getByRole('status')).toHaveTextContent('image draft')

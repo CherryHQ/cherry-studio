@@ -17,6 +17,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Provider } from '@shared/data/types/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -244,7 +245,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       logger.error(`Download crashed, is it cancelled? ${cancelled}`)
       // Only show error if not cancelled by user
       if (!cancelled) {
-        setError(error.message)
+        setError(formatErrorMessageWithPrefix(error, t('message.download.failed')))
       }
     } finally {
       setLoading(false)

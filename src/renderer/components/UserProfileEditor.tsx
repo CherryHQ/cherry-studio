@@ -19,6 +19,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 
@@ -57,7 +58,7 @@ export function UserProfileEditor() {
       setUserNameDraft(nextUserName)
       setIsEditingUserName(false)
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
     } finally {
       setIsSavingUserName(false)
     }
@@ -69,7 +70,7 @@ export function UserProfileEditor() {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     }
   }
 
@@ -79,7 +80,7 @@ export function UserProfileEditor() {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     }
   }
 
@@ -96,7 +97,7 @@ export function UserProfileEditor() {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     }
   }
 

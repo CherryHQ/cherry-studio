@@ -517,7 +517,7 @@ describe('useResourceCatalogController', () => {
       await result.current.gridProps.onDuplicate(assistantResource)
     })
 
-    expect(toast.error).toHaveBeenCalledWith('duplicate failed')
+    expect(toast.error).toHaveBeenCalledWith('library.duplicate_assistant_failed: duplicate failed')
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
   })
 
@@ -567,7 +567,7 @@ describe('useResourceCatalogController', () => {
     })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('export failed')
+      expect(toast.error).toHaveBeenCalledWith('library.export_assistant_failed: export failed')
     })
   })
 

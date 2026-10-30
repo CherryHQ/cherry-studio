@@ -1436,7 +1436,7 @@ describe('HistoryRecordsView assistant mode', () => {
         isNameManuallyEdited: true
       })
     )
-    expect(toast.error).toHaveBeenCalledWith('Rename failed')
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(toast.success).not.toHaveBeenCalled()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
     expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
@@ -1491,7 +1491,7 @@ describe('HistoryRecordsView assistant mode', () => {
       rejectUpdate(new Error('Automatic rename failed'))
     })
 
-    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(hookMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-alpha')
     expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })

@@ -5,8 +5,9 @@ import {
   sanitizeChannelOutputSilently,
   type SendMessageOptions
 } from '@main/ai/channels'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import { readsInLanguage } from '@shared/utils/languageScript'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -117,7 +118,11 @@ export class ChannelAdapterListener implements StreamListener {
         suppressDelivery: this.suppressErrorMessage
       })
       if (!handled && !this.suppressErrorMessage) {
-        await this.deliver(t('common.channel_error', { error }))
+        await this.deliver(
+          readsInLanguage(error, getAppLanguage())
+            ? t('common.channel_error', { error })
+            : t('common.channel_message_processing_error')
+        )
       }
     } catch (err) {
       logger.error('Failed to deliver error to channel', {

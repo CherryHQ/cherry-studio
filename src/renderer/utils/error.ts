@@ -1,7 +1,7 @@
 import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import { type AxiosError, isAxiosError } from 'axios'
-import { t } from 'i18next'
+import i18next, { t } from 'i18next'
 import type * as z from 'zod'
 import { ZodError } from 'zod'
 
@@ -16,6 +16,7 @@ import type {
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
+import { readsInLanguage } from '@shared/utils/languageScript'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { formatErrorDetails } from './errorDetails'
@@ -47,11 +48,30 @@ export function getErrorMessage(error: unknown): string {
   }
 }
 
+/** An error whose message is already written in the UI language. */
+export class LocalizedError extends Error {
+  override name = 'LocalizedError'
+}
+
+/**
+ * The error's own message, only when it reads in the UI language.
+ * Raw text in another language stays in logs and technical details, never next to translated copy.
+ */
+export function localizedErrorDetail(error: unknown): string | undefined {
+  const actionableMessage = getActionableAiErrorMessage(error)
+  if (actionableMessage) return actionableMessage
+  const message = typeof error === 'string' ? error.trim() : error instanceof Error ? error.message : ''
+  if (!message) return undefined
+  if (error instanceof LocalizedError || readsInLanguage(message, i18next?.language)) return message
+  return undefined
+}
+
+/** Translated prefix, followed by the error's own message only when that message reads in the UI language. */
 export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
   const actionableMessage = getActionableAiErrorMessage(error)
   if (actionableMessage) return actionableMessage
-  const msg = getErrorMessage(error)
-  return `${prefix}: ${msg}`
+  const detail = localizedErrorDetail(error)
+  return detail && detail !== prefix ? `${prefix}: ${detail}` : prefix
 }
 
 function getActionableAiErrorMessage(error: unknown): string | undefined {

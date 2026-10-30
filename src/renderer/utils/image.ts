@@ -5,6 +5,7 @@ import { Base64 } from 'js-base64'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { LocalizedError } from '@renderer/utils/error'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
@@ -296,7 +297,7 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
     }
   } catch (error) {
     logger.error('Failed to process entity image', error as Error)
-    throw new Error(i18n.t('message.error.image_process_failed'))
+    throw new LocalizedError(i18n.t('message.error.image_process_failed'))
   }
 }
 
@@ -366,7 +367,7 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
       if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
         // utils must not toast (it would import the renderer services layer); reject
         // with the message so the calling component surfaces it.
-        return Promise.reject(new Error(i18n.t('message.error.dimension_too_large')))
+        return Promise.reject(new LocalizedError(i18n.t('message.error.dimension_too_large')))
       }
 
       const filterHiddenElements = (node: Node) => {

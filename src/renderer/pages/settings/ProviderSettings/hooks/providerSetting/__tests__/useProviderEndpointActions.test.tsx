@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18next from 'i18next'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import ConfirmActionPopup, { type ConfirmActionParams } from '@renderer/components/popups/ConfirmActionPopup'
 import { toast } from '@renderer/services/toast'
@@ -445,6 +446,11 @@ describe('useProviderEndpointActions', () => {
   })
 
   it('rejects an approved reset when the current provider cannot be read', async () => {
+    const previousLanguage = i18next.language
+    i18next.language = 'en-US'
+    onTestFinished(() => {
+      i18next.language = previousLanguage
+    })
     getProviderMock.mockRejectedValueOnce(new Error('boom'))
     const dialog = holdConfirmation()
     const { result } = renderHook(() => useDraftEndpointActions(customProvider))

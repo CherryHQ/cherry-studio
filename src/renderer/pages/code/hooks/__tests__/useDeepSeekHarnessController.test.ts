@@ -128,7 +128,7 @@ describe('useDeepSeekHarnessController', () => {
     const { result } = renderController()
     await act(async () => result.current.onLaunch())
     expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('config collision')
+    expect(mocks.toastError).toHaveBeenCalledWith('code.launch.error: config collision')
   })
 
   it('tracks managed status via pushed events, reopens the current URL, and stops only through the managed IPC', async () => {

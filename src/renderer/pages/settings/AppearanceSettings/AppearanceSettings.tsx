@@ -35,7 +35,7 @@ import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -94,7 +94,7 @@ export async function confirmMenuPresentationModeChange({
   try {
     await setMenuPresentationMode(mode)
   } catch (error) {
-    toast.error(formatErrorMessage(error))
+    toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
     throw error
   }
 
@@ -218,7 +218,7 @@ const AppearanceSettings: FC = () => {
     try {
       await setUseSystemTitleBar(checked)
     } catch (error) {
-      toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       throw error
     }
 
