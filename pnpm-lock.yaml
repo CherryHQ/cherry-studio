@@ -227,7 +227,7 @@ patchedDependencies:
   '@ai-sdk/google@3.0.132': 0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821
   '@ai-sdk/open-responses@1.0.34': 83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366
   '@ai-sdk/openai-compatible@2.0.72': c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771
-  '@ai-sdk/openai@3.0.109': 5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6
+  '@ai-sdk/openai@3.0.109': d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
   '@earendil-works/pi-ai@1.4.0': d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77
@@ -467,7 +467,7 @@ importers:
         version: 1.0.34(patch_hash=83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
@@ -1201,8 +1201,8 @@ importers:
         specifier: ^11.1.0
         version: 11.2.4
       lucide-react:
-        specifier: ^0.525.0
-        version: 0.525.0(react@19.2.3)
+        specifier: ^0.545.0
+        version: 0.545.0(react@19.2.3)
       macos-release:
         specifier: ^3.4.0
         version: 3.4.0
@@ -1233,9 +1233,15 @@ importers:
       nanoid:
         specifier: 3.3.11
         version: 3.3.11
+      node-addon-api:
+        specifier: 8.5.0
+        version: 8.5.0
       node-api-headers:
         specifier: 1.9.0
         version: 1.9.0
+      node-gyp:
+        specifier: 12.4.0
+        version: 12.4.0
       notion-helper:
         specifier: ^1.3.22
         version: 1.3.29
@@ -1641,7 +1647,7 @@ importers:
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
@@ -1678,7 +1684,7 @@ importers:
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
@@ -2106,8 +2112,8 @@ importers:
         specifier: ^2.5.0
         version: 2.5.0(patch_hash=ffcb53da69f07309f6f7d09dfd3ecfb56b258d57818cd5db25a2b28f116d1867)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)
       tailwind-merge:
-        specifier: ^2.5.5
-        version: 2.6.1
+        specifier: ^3.4.0
+        version: 3.4.0
       tailwindcss:
         specifier: ^4.1.13
         version: 4.3.3
@@ -12182,11 +12188,6 @@ packages:
   lru_map@0.4.1:
     resolution: {integrity: sha512-I+lBvqMMFfqaV8CJCISjI3wbjmwVu/VyOoU7+qtu9d7ioW5klMgsTTiUOUp+DJvfTTzKXoPbyC6YfgkNcyPSOg==}
 
-  lucide-react@0.525.0:
-    resolution: {integrity: sha512-Tm1txJ2OkymCGkvwoHt33Y2JpN5xucVq1slHcgE6Lk0WjDfjgKWor5CdVER8U6DvcfMwh4M8XxmpTiyzfmfDYQ==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
   lucide-react@0.545.0:
     resolution: {integrity: sha512-7r1/yUuflQDSt4f1bpn5ZAocyIxcTyVyBBChSVtBKn5M+392cPmI5YJMWOJKk/HUWGm5wg83chlAZtCcGbEZtw==}
     peerDependencies:
@@ -13058,18 +13059,6 @@ packages:
   open@8.4.2:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
-
-  openai@6.15.0:
-    resolution: {integrity: sha512-F1Lvs5BoVvmZtzkUEVyh8mDQPPFolq4F+xdsx/DO8Hee8YF3IGAlZqUIsF+DVGhqf4aU0a3bTghsxB6OIsRy1g==}
-    hasBin: true
-    peerDependencies:
-      ws: ^8.18.0
-      zod: ^3.25 || ^4.0
-    peerDependenciesMeta:
-      ws:
-        optional: true
-      zod:
-        optional: true
 
   openapi-types@12.1.3:
     resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
@@ -14676,9 +14665,6 @@ packages:
     resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
     engines: {node: '>=20'}
 
-  tailwind-merge@2.6.1:
-    resolution: {integrity: sha512-Oo6tHdpZsGpkKG88HJ8RR1rg/RdnEkQEfMoEk2x1XRI3F1AxeU+ijRXpiVUF4UbLfcxxRGw6TbUINKYdWVsQTQ==}
-
   tailwind-merge@3.4.0:
     resolution: {integrity: sha512-uSaO4gnW+b3Y2aWoWfFpX62vn2sR3skfhbjsEnaBI81WD1wBLlHZe5sWf0AqjksNdYTbGBEd0UasQMT3SNV15g==}
 
@@ -15820,7 +15806,7 @@ snapshots:
   '@ai-sdk/azure@3.0.116(zod@4.4.3)':
     dependencies:
       '@ai-sdk/deepseek': 2.0.62(zod@4.4.3)
-      '@ai-sdk/openai': 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+      '@ai-sdk/openai': 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
@@ -15912,7 +15898,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)':
+  '@ai-sdk/openai@3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
@@ -26961,10 +26947,6 @@ snapshots:
 
   lru_map@0.4.1: {}
 
-  lucide-react@0.525.0(react@19.2.3):
-    dependencies:
-      react: 19.2.3
-
   lucide-react@0.545.0(react@19.2.3):
     dependencies:
       react: 19.2.3
@@ -28155,11 +28137,6 @@ snapshots:
       define-lazy-prop: 2.0.0
       is-docker: 2.2.1
       is-wsl: 2.2.0
-
-  openai@6.15.0(ws@8.21.3)(zod@4.4.3):
-    optionalDependencies:
-      ws: 8.21.3
-      zod: 4.4.3
 
   openapi-types@12.1.3: {}
 
@@ -30085,8 +30062,6 @@ snapshots:
   systeminformation@5.33.8: {}
 
   tagged-tag@1.0.0: {}
-
-  tailwind-merge@2.6.1: {}
 
   tailwind-merge@3.4.0: {}
 

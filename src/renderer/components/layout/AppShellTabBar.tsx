@@ -136,7 +136,7 @@ const PinnedTabButton = ({ tab, iconSize, isActive, onSelect, drag, tabRef, ref,
 }
 
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
-  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
+  'max(0px, calc(env(titlebar-area-x, 0px) - max(0.375rem, var(--sidebar-width, 0px)) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -877,7 +877,15 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         data-ui="app.tab-bar"
-        style={isWin ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}
+        style={{
+          minHeight: isWin ? 'env(titlebar-area-height, 0px)' : undefined,
+          paddingLeft:
+            (isMac || hasLeadingWindowControls) && !isFullscreen
+              ? isFocusedTab
+                ? 'calc(env(titlebar-area-x, 0px) + 2px)'
+                : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+              : undefined
+        }}
         className={cn(
           'shell-navigation relative flex h-11 w-full shrink-0 select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
@@ -887,15 +895,6 @@ export const AppShellTabBar = ({
         <div
           ref={stripRef}
           data-testid="app-shell-tab-strip"
-          style={
-            (isMac || hasLeadingWindowControls) && !isFullscreen
-              ? {
-                  paddingLeft: isFocusedTab
-                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
-                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
-                }
-              : undefined
-          }
           onMouseEnter={() => {
             stripPointerInsideRef.current = true
             thawAfterCollapseRef.current = false

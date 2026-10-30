@@ -82,10 +82,13 @@ function DialogContent({
   overlayClassName,
   onPointerDown,
   size = 'default',
+  style,
   ref,
   ...props
 }: DialogContentProps) {
+  const dialogPortalContainer = useDialogPortalContainer()
   const [contentElement, setContentElement] = React.useState<HTMLDivElement | null>(null)
+  const [contentZIndex, setContentZIndex] = React.useState<string>()
   const handleRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       setContentElement(node)
@@ -97,6 +100,11 @@ function DialogContent({
     },
     [ref]
   )
+
+  // Callers raise the dialog's z-index through className or style; tooltips opened later must follow it.
+  React.useLayoutEffect(() => {
+    if (contentElement) setContentZIndex(getComputedStyle(contentElement).zIndex)
+  }, [contentElement, className, style])
 
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -113,6 +121,9 @@ function DialogContent({
         Keep Content as a direct Portal child so Radix Presence receives its DOM ref and
         can retain it for the closed-state animation. Nested overlays still inherit the
         content element as their portal target from the provider inside Content.
+        Tooltips portal beside Content instead: Content is the containing block for their
+        fixed positioning, so overflow set by callers on Content would clip them. Each one is
+        appended after Content when it opens and takes Content's z-index, so it paints above it.
 
         The closed-state animation duration below must equal DIALOG_CLOSE_DURATION_MS
         (above); a test enforces it. Imperative host removal timing is defined separately
@@ -136,8 +147,12 @@ function DialogContent({
         onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
           checkForDefaultPrevented: false
         })}
+        style={style}
         {...props}>
-        <PortalContainerProvider container={contentElement}>
+        <PortalContainerProvider
+          container={contentElement}
+          tooltipContainer={dialogPortalContainer}
+          tooltipZIndex={contentZIndex}>
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close

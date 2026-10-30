@@ -489,11 +489,16 @@ export class AgentLifecycleService extends BaseService {
   }
 
   private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
+    // Scope both sameIds and assertSessionsSettled to conversations so a running
+    // heartbeat outside this archive cannot trigger a retry or block admission.
     return this.withStableSessions(
-      () => agentSessionService.listActiveIdsByAgent(agentId),
+      () => agentSessionService.listActiveIdsByAgent(agentId, { sessionTypes: ['conversation'] }),
       async () => {
         // Recycle Bin moves: the only caller is the "clear this agent's sessions" command, which is undoable.
-        const result = agentSessionService.deleteByAgentIdWithImpact(agentId, { permanent: false })
+        const result = agentSessionService.deleteByAgentIdWithImpact(agentId, {
+          permanent: false,
+          sessionTypes: ['conversation']
+        })
         await this.finishDeletion(result.deletedIds, result.deliveryResults)
         return { deletedIds: result.deletedIds }
       },
