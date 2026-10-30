@@ -1,3 +1,4 @@
+import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -11,6 +12,7 @@ import type { CreateTreeIpcResult, SerializedTreeNode } from '@shared/utils/file
 import ComposerSurface from '../ComposerSurfaceRuntime'
 import { ComposerToolRuntimeProvider } from '../ComposerToolRuntime'
 import { useNoteReferenceMentionItems } from '../variants/chat/useNoteReferenceMentionItems'
+import { useEntityReferenceMentionSource } from '../variants/shared/useEntityReferenceMentionSource'
 
 // Keep the editor, suggestion plugin, panel provider/view and directory hook real.
 // Only the IPC boundary supplies synthetic notes; no local Notes directory is read.
@@ -50,10 +52,8 @@ function NoteComposer() {
   const [text, setText] = useState('')
   const [files, setFiles] = useState<ComposerAttachment[]>([])
   const { getItems, onExit } = useNoteReferenceMentionItems({ files, setFiles })
-  const sources = useMemo(
-    () => [{ pluginKey: 'notes-panel-lifecycle', char: '@', items: getItems, onExit }],
-    [getItems, onExit]
-  )
+  const additionalItems = useMemo(() => ({ getItems, onExit, title: 'Notes' }), [getItems, onExit])
+  const { sources } = useEntityReferenceMentionSource({ entityType: 'topic', additionalItems })
 
   return (
     <>
@@ -85,6 +85,20 @@ function NoteComposer() {
   )
 }
 
+function renderNoteComposer() {
+  const { container } = render(
+    <QuickPanelProvider>
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: () => undefined, onTextChange: () => undefined }}>
+        <NoteComposer />
+      </ComposerToolRuntimeProvider>
+    </QuickPanelProvider>
+  )
+  const input = container.querySelector<HTMLElement>('[contenteditable="true"]')!
+  expect(input).not.toBeNull()
+  act(() => input.focus())
+  return input
+}
+
 describe('Notes mention panel dismissal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -92,6 +106,11 @@ describe('Notes mention panel dismissal', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/configured-notes')
     ipc.dispose.mockResolvedValue(undefined)
     ipc.create.mockResolvedValue(snapshot('first-tree', 'First'))
+    mockDataApiService.get.mockImplementation(async (path) => {
+      if (path === '/topics') return { items: [] }
+      if (path === '/search/entities') return { groups: [] }
+      throw new Error(`Unexpected DataApi path ${path}`)
+    })
     // jsdom has no layout; give the real virtual list a viewport.
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(300)
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(600)
@@ -115,16 +134,7 @@ describe('Notes mention panel dismissal', () => {
     'releases the directory watcher after %s and reloads notes when reopened',
     async (dismissal) => {
       const user = userEvent.setup()
-      const { container } = render(
-        <QuickPanelProvider>
-          <ComposerToolRuntimeProvider actions={{ addNewTopic: () => undefined, onTextChange: () => undefined }}>
-            <NoteComposer />
-          </ComposerToolRuntimeProvider>
-        </QuickPanelProvider>
-      )
-      const input = container.querySelector<HTMLElement>('[contenteditable="true"]')!
-      expect(input).not.toBeNull()
-      act(() => input.focus())
+      const input = renderNoteComposer()
       await user.keyboard('@')
       await screen.findByText('First')
 
@@ -144,6 +154,53 @@ describe('Notes mention panel dismissal', () => {
       await act(async () => input.focus())
       expect(ipc.create).toHaveBeenCalledTimes(1)
       await user.keyboard('{Backspace}')
+      await waitFor(() => expect(input.textContent).toBe(''))
+      await user.keyboard('@')
+      await screen.findByText('Fresh')
+      expect(ipc.dispose).not.toHaveBeenCalledWith('reopened-tree')
+    }
+  )
+
+  it.each(['outside click', 'Escape'])(
+    'releases Notes on %s while a newer topic query is pending and ignores its late results',
+    async (dismissal) => {
+      let finishSearch!: (value: { groups: [] }) => void
+      const search = new Promise<{ groups: [] }>((resolve) => {
+        finishSearch = resolve
+      })
+      const user = userEvent.setup()
+      const input = renderNoteComposer()
+      await user.keyboard('@')
+      await screen.findByText('First')
+
+      mockDataApiService.get.mockReturnValueOnce(search)
+      await user.keyboard('f')
+      await waitFor(() =>
+        expect(mockDataApiService.get).toHaveBeenCalledWith('/search/entities', {
+          query: { q: 'f', types: ['topic'], limitPerType: 50 }
+        })
+      )
+      // The panel still displays the settled empty-query results while topic search waits.
+      expect(screen.getByText('First')).toBeInTheDocument()
+      if (dismissal === 'outside click') {
+        await user.click(screen.getByRole('button', { name: 'Outside the composer' }))
+      } else {
+        await user.keyboard('{Escape}')
+      }
+
+      await waitFor(() => expect(ipc.dispose).toHaveBeenCalledWith('first-tree'))
+      expect(ipc.unsubscribe).toHaveBeenCalled()
+      expect(input.textContent).toBe('@f')
+      await act(async () => finishSearch({ groups: [] }))
+      await waitFor(() => expect(screen.queryByText('First')).not.toBeInTheDocument())
+      expect(screen.getByTestId('quick-panel')).toHaveAttribute('inert')
+      expect(ipc.create).toHaveBeenCalledTimes(1)
+
+      ipc.create.mockResolvedValue(snapshot('reopened-tree', 'Fresh'))
+      await user.click(screen.getByRole('button', { name: 'Outside the composer' }))
+      await act(async () => input.focus())
+      expect(ipc.create).toHaveBeenCalledTimes(1)
+      await user.keyboard('{Backspace}{Backspace}')
       await waitFor(() => expect(input.textContent).toBe(''))
       await user.keyboard('@')
       await screen.findByText('Fresh')

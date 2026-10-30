@@ -54,6 +54,7 @@ export interface ComposerSuggestionActiveChangeOptions {
 
 interface ComposerSuggestionPluginState {
   active: boolean
+  decorationId?: string | null
   range: Range
   query: string | null
   text: string | null
@@ -63,6 +64,9 @@ function createActiveChangeOptions(
   props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>,
   pluginKey: PluginKey<ComposerSuggestionPluginState>
 ): ComposerSuggestionActiveChangeOptions {
+  const sessionId = pluginKey.getState(props.editor.state)?.decorationId
+  const sessionStart = props.range.from
+
   return {
     editor: props.editor,
     range: props.range,
@@ -70,7 +74,10 @@ function createActiveChangeOptions(
     text: props.text,
     items: props.items,
     exit: () => {
-      if (!props.editor.isDestroyed && isCurrentActiveSuggestion(props, pluginKey)) {
+      if (props.editor.isDestroyed) return
+      const current = pluginKey.getState(props.editor.state)
+      // Result freshness follows the query; dismissal follows the trigger's active session.
+      if (sessionId && current?.active && current.decorationId === sessionId && current.range.from === sessionStart) {
         exitSuggestion(props.editor.view, pluginKey)
       }
     }
