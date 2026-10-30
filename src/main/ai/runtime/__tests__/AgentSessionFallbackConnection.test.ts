@@ -84,7 +84,8 @@ describe('fallback error classification', () => {
   it('names a provider outcome in prose before treating it as one', () => {
     // Pi reports a provider failure as prose only, so its messages must still qualify.
     expect(classifyRuntimeFallbackError(new Error('API Error: 429 {"type":"rate_limit_error"}'))).toBe('http 429')
-    expect(classifyRuntimeFallbackError(new Error('429 Too Many Requests'))).toBe('429 Too Many Requests')
+    // `429 Too Many Requests` is the wire's status line, so it names the status itself.
+    expect(classifyRuntimeFallbackError(new Error('429 Too Many Requests'))).toBe('http 429')
     expect(classifyRuntimeFallbackError(new Error('500 Internal Server Error'))).toBe('http 500')
     expect(classifyRuntimeFallbackError({ message: 'HTTP 503 service overloaded', code: 'UNKNOWN' })).toBe('http 503')
     expect(classifyRuntimeFallbackError(new Error('rate limit exceeded for gpt-x'))).toBe(
@@ -96,6 +97,18 @@ describe('fallback error classification', () => {
     expect(classifyRuntimeFallbackError(new Error('listen EADDRINUSE: address already in use :::500'))).toBeUndefined()
     expect(classifyRuntimeFallbackError(new Error('gateway returned 502 while proxying the request'))).toBeUndefined()
     expect(classifyRuntimeFallbackError(new Error('worker overload protection triggered'))).toBeUndefined()
+  })
+
+  it('recognises the bare status line Pi 1.0.0 forwards for an ordinary HTTP failure', () => {
+    // Pi emits `502 Bad Gateway` verbatim — no envelope, no provider vocabulary — yet the leading
+    // status with its reason phrase is the provider's own verdict, and content-free failure must
+    // still reach the backup.
+    expect(classifyRuntimeFallbackError(new Error('502 Bad Gateway'))).toBe('http 502')
+    expect(classifyRuntimeFallbackError(new Error('503 Service Unavailable'))).toBe('http 503')
+    expect(classifyRuntimeFallbackError(new Error('429 Too Many Requests'))).toBe('http 429')
+    // A status that merely appears beside other prose is not the line itself.
+    expect(classifyRuntimeFallbackError(new Error('gateway returned 502 while proxying the request'))).toBeUndefined()
+    expect(classifyRuntimeFallbackError(new Error('500 items failed validation'))).toBeUndefined()
   })
 
   it('recognises the provider envelope Pi’s Anthropic adapter stringifies', () => {

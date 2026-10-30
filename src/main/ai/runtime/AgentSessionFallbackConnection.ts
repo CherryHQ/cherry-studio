@@ -80,6 +80,13 @@ const RETRYABLE_PROVIDER_ERROR_TYPES = new Set([
 /** Compatibility prose matching only: a retryable status has to be named as one. */
 const MESSAGE_HTTP_STATUS =
   /\b(?:http|status(?:[\s_-]?code)?|code|api[\s_-]?error)\b[\s:#=()/-]{0,8}(429|500|502|503|529)\b/i
+/**
+ * The wire's own status line: `<status> <reason phrase>` is how Pi 1.0.0 forwards an ordinary HTTP
+ * failure (`502 Bad Gateway`) when no envelope survives it. The reason phrase is what makes the
+ * leading status the provider's verdict rather than a count or a port that happens to match.
+ */
+const MESSAGE_STATUS_LINE =
+  /^\s*(429|500|502|503|529)\s*[-–:]?\s*(?:the\s+)?(?:bad gateway|internal server error|service unavailable|too many requests|gateway timeout|overloaded)\b/i
 /** Provider vocabulary: it is what makes a bare status or an `overload` credible as provider prose. */
 const MESSAGE_PROVIDER_FRAME =
   /\b(?:api|provider|upstream|servers?|services?|models?|llm|completions?|https?|status)\b/i
@@ -99,6 +106,8 @@ function classifyMessageFailure(message: string): string | undefined {
   if (errorType !== undefined) {
     return RETRYABLE_PROVIDER_ERROR_TYPES.has(errorType) ? errorType : undefined
   }
+  const statusLine = MESSAGE_STATUS_LINE.exec(message)?.[1]
+  if (statusLine !== undefined) return `http ${statusLine}`
   const inProviderFrame = MESSAGE_PROVIDER_FRAME.test(message)
   const status =
     MESSAGE_HTTP_STATUS.exec(message)?.[1] ?? (inProviderFrame ? MESSAGE_STATUS.exec(message)?.[1] : undefined)

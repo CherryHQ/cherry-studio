@@ -67,6 +67,8 @@ export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
   /** The System Prompt this request materialized, so installs can report it to the connection. */
   capturedInstructions?: string | null
+  /** The effective reply language this request materialized, so a replay keeps the turn's own. */
+  capturedLanguage?: string | null
   /** Variable values these instructions resolved to, so a replay keeps the turn's own values. */
   capturedPromptVariables?: PromptVariableInputs
   settings: ClaudeCodeSettings
@@ -518,6 +520,13 @@ export interface FallbackReplayPins {
    * provider backed off would otherwise change this same turn's instructions on rebuild.
    */
   promptVariables?: PromptVariableInputs | null
+  /**
+   * The effective reply language the turn was admitted with. Language is a prompt-rebuild fact the
+   * ordinary reconciliation applies at the next fresh turn, so a language saved during provider
+   * backoff must not reach this turn's replay — `null` pins the resolved-to-none case, undefined
+   * leaves the fact to the freshly read row (turn-less connections).
+   */
+  language?: string | null
 }
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
@@ -553,8 +562,16 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     ? agentRow
     : {
         ...agentRow,
-        ...(pinned.permissionMode !== undefined
-          ? { configuration: { ...agentRow.configuration, permission_mode: pinned.permissionMode ?? undefined } }
+        ...(pinned.permissionMode !== undefined || pinned.language !== undefined
+          ? {
+              configuration: {
+                ...agentRow.configuration,
+                ...(pinned.permissionMode !== undefined ? { permission_mode: pinned.permissionMode ?? undefined } : {}),
+                // The captured effective value carries the turn's language whole: `null` pins the
+                // explicit opt-out, a label pins the admitted language against any global change.
+                ...(pinned.language !== undefined ? { language: pinned.language } : {})
+              }
+            }
           : {}),
         ...(pinned.instructions !== undefined ? { instructions: pinned.instructions ?? undefined } : {}),
         ...(pinned.disabledTools !== undefined
@@ -666,6 +683,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   return {
     connectionConfig,
     capturedInstructions: agent.instructions ?? null,
+    capturedLanguage: effectiveLanguage,
     capturedPromptVariables: promptVariables,
     key: settings.warmQueryKey ?? session.id,
     options,

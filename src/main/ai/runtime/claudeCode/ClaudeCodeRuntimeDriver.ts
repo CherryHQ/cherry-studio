@@ -319,6 +319,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private connectionConfig?: ConnectionConfig
   /** The `agent.instructions` the current connection was built from (rebuild fact of its own). */
   private capturedInstructions?: string | null
+  /** The effective reply language the current connection materialized (replay pin; see pins.language). */
+  private capturedLanguage?: string | null
   /**
    * The turn's frozen admission — the mode, prompt and tool disables the turn was admitted with,
    * and therefore all a fallback replay may inherit. A mid-turn save never edits it; tool disables
@@ -374,6 +376,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async installQuery(request: ClaudeCodeAgentSessionQueryRequest, modelId: UniqueModelId): Promise<void> {
     this.connectionConfig = request.connectionConfig
     this.capturedInstructions = request.capturedInstructions ?? null
+    this.capturedLanguage = request.capturedLanguage ?? null
     this.turnPromptVariables = request.capturedPromptVariables
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
@@ -503,6 +506,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.turnAdmission = {
       permissionMode: (this.connectionConfig?.live.toolPolicy.permissionMode ?? null) as AgentPermissionMode | null,
       instructions: this.capturedInstructions,
+      language: this.capturedLanguage,
       disabledTools: [...(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])],
       promptVariables: this.turnPromptVariables
     }

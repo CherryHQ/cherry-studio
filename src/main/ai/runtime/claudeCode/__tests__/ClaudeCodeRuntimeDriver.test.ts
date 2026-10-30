@@ -3754,7 +3754,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       undefined,
       // The replay pins the turn's live mode (null here — none stored) and its captured prompt, so
       // a mid-backoff save of either cannot re-admit it under the new value.
-      { permissionMode: null, instructions: null, disabledTools: [] }
+      { permissionMode: null, instructions: null, language: null, disabledTools: [] }
     ])
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
     expect(retrySpawn.options).toMatchObject({ model: 'haiku' })
@@ -4102,7 +4102,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'default',
       false,
       undefined,
-      { permissionMode: 'default', instructions: null, disabledTools: [] }
+      { permissionMode: 'default', instructions: null, language: null, disabledTools: [] }
     ])
     void connection.close()
   })
@@ -4158,6 +4158,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.buildRequest.mock.calls[1][6]).toEqual({
       permissionMode: null,
       instructions: 'A',
+      language: null,
       disabledTools: []
     })
     void connection.close()
@@ -4221,6 +4222,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.buildRequest.mock.calls[1][6]).toEqual({
       permissionMode: null,
       instructions: 'Address {{username}}.',
+      language: null,
       disabledTools: [],
       promptVariables: { username: 'Alice', modelName: null }
     })

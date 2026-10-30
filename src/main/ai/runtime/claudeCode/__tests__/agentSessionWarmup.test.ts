@@ -1715,6 +1715,62 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptModelName'])
   })
 
+  it('pins the admitted language against a row saved mid-turn', async () => {
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      env: {},
+      skills: [],
+      mcpServers: {},
+      effectiveLanguage: options.effectiveLanguage
+    }))
+    // A language saved during provider backoff is a prompt-rebuild fact the ordinary reconciliation
+    // applies at the next fresh turn; the replay must keep the language it was admitted with.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Primary Model',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: 'English' }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'agent.language' ? 'English' : undefined))
+    const admitted = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(admitted?.capturedLanguage).toBe('English')
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Primary Model',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: '中文' }
+    })
+    const replay = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      {
+        instructions: 'admitted prompt',
+        language: 'English',
+        promptVariables: { username: 'Alice', modelName: 'Primary Model' }
+      }
+    )
+    expect(replay?.capturedLanguage).toBe('English')
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ effectiveLanguage: 'English' }),
+      expect.anything()
+    )
+  })
+
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
     const first = await deriveSignature()
