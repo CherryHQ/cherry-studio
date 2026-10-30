@@ -28,6 +28,7 @@ import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreference
 import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { NotesMigrationHost } from '@renderer/pages/notes/NotesMigrationHost'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
 import { WindowFileEditRecovery } from '@renderer/windows/WindowFileEditRecovery'
@@ -154,6 +155,7 @@ function MainApp(): React.ReactElement {
       <ThemeProvider>
         <CodeStyleProvider>
           <FileEditSessionProvider>
+            <NotesMigrationHost />
             <CommandContextKeyProvider>
               <CommandProvider>
                 <MainWindowContent />

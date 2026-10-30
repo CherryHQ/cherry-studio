@@ -20,6 +20,22 @@ vi.mock('word-extractor', () => ({
   }
 }))
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
+
+import { application } from '@application'
+import {
+  beginNotesFilesystemMutation,
+  clearNotesMigrationPairsForTests,
+  endNotesFilesystemMutation,
+  releaseNotesMigrationSession,
+  setNotesMigrationBlockedRoots,
+  tryBeginNotesDirectoryMigration,
+  waitForNotesFilesystemMutationsIdle,
+  withNotesRootFlipBarrier
+} from '@main/services/notesRelocation/migrationSession'
+import { copyNew } from '@main/utils/file/fs'
+import type { AbsoluteFilePath } from '@shared/types/file'
+
 import { fileStorage } from '../FileStorage'
 
 const event = {} as Electron.IpcMainInvokeEvent
@@ -42,6 +58,21 @@ describe('FileStorage', () => {
   })
 
   describe('save', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('rejects writes into notes roots blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-save-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-save-tgt-'))
+      const dest = path.join(target, 'export.md')
+      setNotesMigrationBlockedRoots(source, target)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: dest })
+
+      await expect(fileStorage.save(event, 'note.md', 'content')).rejects.toMatch(/migration is in progress/)
+      expect(fs.existsSync(dest)).toBe(false)
+    })
+
     it('returns null (does not throw) when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
@@ -116,11 +147,231 @@ describe('FileStorage', () => {
 
     afterEach(() => {
       fs.rmSync(tmpFile, { force: true })
+      releaseNotesMigrationSession()
+      clearNotesMigrationPairsForTests()
+      MockApplicationUtils.resetServices()
     })
 
     it('writes the given content', async () => {
       await fileStorage.writeFile(event, tmpFile, 'content')
       expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
+    })
+
+    it('rejects a stale write settling under a retired notes root', async () => {
+      // The renderer's legacy browser-File import awaits file.text() between
+      // admission and this write; a migration A->B can complete in that gap.
+      // The late write must fail loudly (truthful failedFiles) instead of
+      // landing only in the retired tree while the import reports success.
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-ret-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-ret-tgt-'))
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: target, provenance: 'cache' }))
+      })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await expect(fileStorage.writeFile(event, path.join(source, 'note.md'), 'content')).rejects.toThrow(/relocated/)
+      expect(fs.existsSync(path.join(source, 'note.md'))).toBe(false)
+      await fileStorage.writeFile(event, path.join(target, 'note.md'), 'content')
+      expect(fs.readFileSync(path.join(target, 'note.md'), 'utf-8')).toBe('content')
+    })
+  })
+
+  describe('retired-root mutation guards', () => {
+    let retiredSource: string
+    let liveTarget: string
+
+    beforeEach(() => {
+      retiredSource = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-guard-src-'))
+      liveTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-guard-tgt-'))
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: liveTarget, provenance: 'cache' }))
+      })
+      setNotesMigrationBlockedRoots(retiredSource, liveTarget)
+      releaseNotesMigrationSession()
+    })
+
+    afterEach(() => {
+      releaseNotesMigrationSession()
+      clearNotesMigrationPairsForTests()
+      MockApplicationUtils.resetServices()
+      fs.rmSync(retiredSource, { recursive: true, force: true })
+      fs.rmSync(liveTarget, { recursive: true, force: true })
+    })
+
+    it('rejects stale mkdir/rename/move/delete ops under the retired root and leaves it untouched', async () => {
+      // A stale renderer op (tree not yet refreshed after release) used to
+      // reach these entry points with only the in-flight barrier, silently
+      // mutating the retired tree after the migration had completed.
+      const note = path.join(retiredSource, 'note.md')
+      const dir = path.join(retiredSource, 'folder')
+      fs.writeFileSync(note, '# stale')
+      fs.mkdirSync(dir)
+
+      await expect(fileStorage.mkdir(event, path.join(retiredSource, 'new-folder'))).rejects.toThrow(/relocated/)
+      await expect(fileStorage.renameFile(event, note, 'renamed')).rejects.toThrow(/relocated/)
+      await expect(fileStorage.renameDir(event, dir, 'renamed-dir')).rejects.toThrow(/relocated/)
+      await expect(fileStorage.moveFile(event, note, path.join(liveTarget, 'moved.md'))).rejects.toThrow(/relocated/)
+      await expect(fileStorage.moveDir(event, dir, path.join(liveTarget, 'moved-dir'))).rejects.toThrow(/relocated/)
+      await expect(fileStorage.deleteExternalFile(event, note)).rejects.toThrow(/relocated/)
+      await expect(fileStorage.deleteExternalDir(event, dir)).rejects.toThrow(/relocated/)
+
+      // Nothing was created, renamed, moved, or trashed in either tree.
+      expect(fs.readFileSync(note, 'utf-8')).toBe('# stale')
+      expect(fs.existsSync(path.join(retiredSource, 'new-folder'))).toBe(false)
+      expect(fs.existsSync(path.join(retiredSource, 'renamed.md'))).toBe(false)
+      expect(fs.existsSync(path.join(liveTarget, 'moved.md'))).toBe(false)
+      expect(fs.existsSync(path.join(liveTarget, 'moved-dir'))).toBe(false)
+      expect(vi.mocked(shell.trashItem)).not.toHaveBeenCalled()
+    })
+
+    it('exportWrite keeps plain-file semantics for explicit destinations under a retired root', async () => {
+      // The configured export folder is a legitimate plain-file destination,
+      // never library-tree state: exports into it must keep working even when
+      // it sits under a retired root.
+      const exportFile = path.join(retiredSource, 'exports', 'note.md')
+      await fileStorage.exportWrite(event, exportFile, '# exported')
+      expect(fs.readFileSync(exportFile, 'utf-8')).toBe('# exported')
+      await expect(fileStorage.writeFile(event, path.join(retiredSource, 'note.md'), 'x')).rejects.toThrow(/relocated/)
+    })
+
+    it('exportWrite still honors the in-flight migration barrier', async () => {
+      const src = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-src-'))
+      const tgt = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-tgt-'))
+      setNotesMigrationBlockedRoots(src, tgt)
+      await expect(fileStorage.exportWrite(event, path.join(src, 'note.md'), 'x')).rejects.toThrow(
+        /migration is in progress/
+      )
+      releaseNotesMigrationSession()
+    })
+
+    it('mkdir keeps the unresolved-root error identity instead of wrapping it', async () => {
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-mkdir-unrs-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-mkdir-unrt-'))
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await expect(fileStorage.mkdir(event, path.join(source, 'new-folder'))).rejects.toThrow(/cannot be verified/)
+    })
+
+    it('exportWrite honors the plain notes-root flip barrier', async () => {
+      const exportFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-flip-')), 'out.md')
+      // Hold one mutation so the flip commit is deferred while the barrier is
+      // in flight, mirroring migrationSession's own barrier tests.
+      beginNotesFilesystemMutation()
+      let committed = false
+      const flipping = withNotesRootFlipBarrier(() => {
+        committed = true
+      }, 1000)
+
+      await expect(fileStorage.exportWrite(event, exportFile, 'x')).rejects.toThrow(/migration is in progress/)
+      expect(committed).toBe(false)
+      endNotesFilesystemMutation()
+      await flipping
+      expect(committed).toBe(true)
+    })
+
+    it('exportMkdir refuses managed storage', async () => {
+      const managed = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-managed-'))
+      vi.spyOn(application, 'getPath').mockImplementation((key: string) =>
+        key === 'feature.files.data' ? managed : path.join(os.tmpdir(), `notes-expm-other-${key}`)
+      )
+
+      await expect(fileStorage.exportMkdir(event, path.join(managed, 'assets'))).rejects.toThrow(
+        /overlaps FileManager-owned storage/
+      )
+    })
+
+    it('exportMkdir honors the plain notes-root flip barrier', async () => {
+      const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-flip-')), 'assets')
+      beginNotesFilesystemMutation()
+      let committed = false
+      const flipping = withNotesRootFlipBarrier(() => {
+        committed = true
+      }, 1000)
+
+      await expect(fileStorage.exportMkdir(event, dir)).rejects.toThrow(/migration is in progress/)
+      expect(committed).toBe(false)
+      endNotesFilesystemMutation()
+      await flipping
+      expect(committed).toBe(true)
+      expect(fs.existsSync(dir)).toBe(false)
+    })
+
+    it('exportMkdir allows retired and unverifiable notes roots', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-tgt-'))
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await fileStorage.exportMkdir(event, path.join(source, 'assets'))
+      expect(fs.existsSync(path.join(source, 'assets'))).toBe(true)
+
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      await fileStorage.exportMkdir(event, path.join(target, 'assets'))
+      expect(fs.existsSync(path.join(target, 'assets'))).toBe(true)
+    })
+
+    it('creates a fresh export destination that the file.copy route can land bytes in', async () => {
+      // The exact production pair from writeImageAssets: exportMkdir first,
+      // then copyNew (the file.copy handler's implementation) onto it.
+      // copyNew creates no parents, so without the mkdir this is the ENOENT
+      // the folder-export regression probe hit.
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expm-copy-'))
+      const source = path.join(root, 'a.png')
+      fs.writeFileSync(source, 'PNG-BYTES')
+      const assetsDir = path.join(root, 'exports', 'assets')
+
+      await fileStorage.exportMkdir(event, assetsDir)
+      await copyNew(source as AbsoluteFilePath, path.join(assetsDir, 'a.png') as AbsoluteFilePath)
+
+      expect(fs.readFileSync(path.join(assetsDir, 'a.png'), 'utf-8')).toBe('PNG-BYTES')
+    })
+
+    it('exportWrite still refuses managed storage', async () => {
+      const managed = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-managed-'))
+      vi.spyOn(application, 'getPath').mockImplementation((key: string) =>
+        key === 'feature.files.data' ? managed : path.join(os.tmpdir(), `notes-expw-other-${key}`)
+      )
+
+      await expect(fileStorage.exportWrite(event, path.join(managed, 'out.md'), 'x')).rejects.toThrow(
+        /overlaps FileManager-owned storage/
+      )
+    })
+
+    it('exportWrite does not consult canonical resolution: succeeds while the library root is unverifiable', async () => {
+      // Explicit export destinations are plain-file user intent, so an
+      // unresolvable canonical notes root (a Retry-able library state) does
+      // not hold them back - the in-flight and flip barriers still do.
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-unrs-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-expw-unrt-'))
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      const exportFile = path.join(source, 'export.md')
+      await fileStorage.exportWrite(event, exportFile, '# exported')
+      expect(fs.readFileSync(exportFile, 'utf-8')).toBe('# exported')
+      await expect(fileStorage.writeFile(event, path.join(source, 'note.md'), 'x')).rejects.toThrow(
+        /cannot be verified/
+      )
+    })
+
+    it('still accepts the same ops under the live canonical root', async () => {
+      const dir = path.join(liveTarget, 'new-folder')
+      await expect(fileStorage.mkdir(event, dir)).resolves.toBe(dir)
+      expect(fs.existsSync(dir)).toBe(true)
     })
   })
 
@@ -245,6 +496,21 @@ describe('FileStorage', () => {
   // Catches an inverted canceled/filePath check (cancel writing a file, confirm
   // returning false) and a lost 'base64' encoding (literal base64 text on disk).
   describe('saveImage', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('returns false when saving into a notes root blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-image-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-image-tgt-'))
+      const dest = path.join(target, 'image.png')
+      setNotesMigrationBlockedRoots(source, target)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: dest })
+
+      await expect(fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+      expect(fs.existsSync(dest)).toBe(false)
+    })
+
     it('returns false and writes nothing when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
 
@@ -321,6 +587,109 @@ describe('FileStorage', () => {
       const result = await fileStorage.fileNameGuard(event, tmpDir, 'folder', false)
       expect(result.exists).toBe(true)
       expect(result.safeName).toBe('folder1')
+    })
+  })
+
+  describe('batchUploadMarkdownFiles', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+      clearNotesMigrationPairsForTests()
+      MockApplicationUtils.resetServices()
+    })
+
+    it('rejects a stale absolute targetPath under a retired notes root', async () => {
+      // The batch target is an absolute path with no lease: after a migration
+      // A->B landed (canonical = B), uploading into the retired A must not
+      // write the old tree.
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-ret-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-ret-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: target, provenance: 'cache' }))
+      })
+
+      setNotesMigrationBlockedRoots(source, target)
+      releaseNotesMigrationSession()
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], source)).rejects.toThrow(/relocated/)
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).resolves.toMatchObject({
+        failedFiles: 0
+      })
+    })
+
+    it('rejects uploads into notes roots blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      setNotesMigrationBlockedRoots(source, target)
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+    })
+
+    it('rejects batch uploads while migration prepare is already in flight', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-flight-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-flight-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      expect(tryBeginNotesDirectoryMigration()).toBe(true)
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+    })
+
+    it('waits for an in-flight external write before migration can install the write barrier', async () => {
+      const notesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-flight-'))
+      const dest = path.join(notesDir, 'note.md')
+      const originalWrite = fs.promises.writeFile.bind(fs.promises)
+      vi.spyOn(fs.promises, 'writeFile').mockImplementation(async (filePath, data, ...args) => {
+        await originalWrite(filePath, data, ...(args as [BufferEncoding]))
+        if (String(filePath) === dest) {
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        }
+      })
+
+      const write = fileStorage.writeFile(event, dest, '# hello')
+      expect(tryBeginNotesDirectoryMigration()).toBe(true)
+      const idle = waitForNotesFilesystemMutationsIdle()
+      let barrierReady = false
+      void idle.then(() => {
+        barrierReady = true
+      })
+      await Promise.resolve()
+      expect(barrierReady).toBe(false)
+
+      await write
+      await idle
+      expect(barrierReady).toBe(true)
+    })
+
+    it('aborts an in-flight batch upload when migration starts before a write', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-mid-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-mid-tgt-'))
+      const first = path.join(source, 'first.md')
+      const second = path.join(source, 'second.md')
+      fs.writeFileSync(first, '# one')
+      fs.writeFileSync(second, '# two')
+
+      const originalRead = fs.promises.readFile.bind(fs.promises)
+      vi.spyOn(fs.promises, 'readFile').mockImplementation(async (filePath, ...args) => {
+        const content = await originalRead(filePath, ...(args as [BufferEncoding]))
+        if (String(filePath).endsWith('first.md')) {
+          setNotesMigrationBlockedRoots(source, target)
+        }
+        return content
+      })
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [first, second], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+      expect(fs.existsSync(path.join(target, 'first.md'))).toBe(false)
+      expect(fs.existsSync(path.join(target, 'second.md'))).toBe(false)
     })
   })
 

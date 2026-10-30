@@ -16,6 +16,8 @@ import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { PreparedFileMutation } from '@renderer/services/fileEdit/FileEditSessionManager'
+import { consumeNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
+import { blockNotesActionsDuringMigration } from '@renderer/services/notesMigrationGuard'
 import {
   addDir,
   addNote,
@@ -37,6 +39,8 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { NoteRenameResult, NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type DirectoryTreeOptions } from '@shared/utils/file'
 
@@ -70,6 +74,13 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
+  // The notes root the active selection belongs to, remembered alongside the
+  // selection (per-window memory, same tier as the selection itself) while it
+  // resolves under the live root. Pairwise-valid migration chains can contain
+  // overlapping roots (A -> B -> A/nested -> C), so the owning root cannot be
+  // recovered from the path alone - remember it with the selection instead of
+  // inferring it later.
+  const [activeFileRoot, setActiveFileRoot] = useCache('notes.active_file_root')
   const voiceNoteId = useMemo(() => (activeFilePath ? crypto.randomUUID() : undefined), [activeFilePath])
   const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
@@ -160,11 +171,25 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     })
   }, [])
 
+  // Notes-root transitions (migration / fallback): remembered until the new
+  // tree is projected so the active selection can follow the moved library.
+  // The chain ends at the live root, so a selection parked on any earlier root
+  // still maps even after several consecutive migrations.
+  const notesRootTransitionRef = useRef<string[] | null>(null)
+  const lastSeenNotesPathRef = useRef<string | undefined>(notesPath)
+
   // Project the FS tree (from `useDirectoryTree`) into the legacy
   // `NotesTreeNode[]` shape every time the FS changes — watcher events
   // bump `treeVersion`, the user toggling sort changes `sortType`, and
   // the initial mount triggers when `treeRoot` first becomes non-null.
   useEffect(() => {
+    if (lastSeenNotesPathRef.current !== notesPath) {
+      notesRootTransitionRef.current =
+        notesPath && lastSeenNotesPathRef.current ? consumeNotesDirectoryRootTransition(notesPath) : null
+      lastSeenNotesPathRef.current = notesPath
+    } else if (notesPath && !notesRootTransitionRef.current) {
+      notesRootTransitionRef.current = consumeNotesDirectoryRootTransition(notesPath)
+    }
     if (!treeRoot || !notesPath) {
       setNotesTree([])
       setHasProjectedTree(false)
@@ -252,6 +277,34 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     }
   }, [flushFileDraft])
 
+  const isRetiredRootSaveError =
+    fileSession.saveError instanceof IpcError && fileSession.saveError.code === fileErrorCodes.EDIT_RETIRED_ROOT
+  const isRootUnresolvedSaveError =
+    fileSession.saveError instanceof IpcError && fileSession.saveError.code === fileErrorCodes.EDIT_ROOT_UNRESOLVED
+
+  // The retired root never accepts this draft again: export is the honest,
+  // user-directed recovery. Discarding only after a completed export keeps the
+  // draft (and the banner) when the dialog is cancelled or the write fails,
+  // and a failed discard never reports the completed export as failed.
+  const handleSaveDraftCopy = useCallback(async () => {
+    const fileName = activeFilePath?.split(/[\\/]/).pop() ?? 'note.md'
+    let savedPath: string | null
+    try {
+      savedPath = await window.api.file.save(fileName, fileSession.draft)
+    } catch (error) {
+      logger.error('Failed to export note draft copy:', error as Error)
+      toast.error(t('notes.save_failed'))
+      return
+    }
+    if (!savedPath) return
+    try {
+      await fileSession.discard()
+    } catch (error) {
+      // The copy exists; the stale session stays visible for a manual close.
+      logger.error('Draft copy exported but the session could not be discarded:', error as Error)
+    }
+  }, [activeFilePath, fileSession, t])
+
   useEffect(() => {
     if (contentLoadError) {
       logger.error('Failed to load note content:', contentLoadError)
@@ -260,12 +313,18 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   }, [contentLoadError, t])
 
   useEffect(() => {
+    const persistNotesPath = (nextPath: string) =>
+      updateNotesPath(nextPath).catch((error: unknown) => logger.error('Failed to persist notes path:', error as Error))
+
     async function initialize() {
       if (!notesPath) {
         // 首次启动，获取默认路径
-        const info = await ipcApi.request('app.get_info')
-        const defaultPath = info.notesPath
-        updateNotesPath(defaultPath)
+        try {
+          const info = await ipcApi.request('app.get_info')
+          void persistNotesPath(info.notesPath)
+        } catch (error) {
+          logger.error('Failed to initialize default notes path:', error as Error)
+        }
         return
       }
 
@@ -282,8 +341,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           defaultPath
         })
 
-        // 重置为默认路径
-        updateNotesPath(defaultPath)
+        toast.warning({
+          title: t('notes.directory_unavailable_fallback', { path: defaultPath }),
+          timeout: 10000
+        })
+
+        void persistNotesPath(defaultPath)
 
         // 检查默认路径下是否有笔记文件
         try {
@@ -316,6 +379,29 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     hasProjectedTree && !isTreeLoading && Boolean(activeFilePath) && !activeNode && fileSession.isDirty
   const editorNodeId = activeNode?.id ?? (shouldRetainMissingDraft ? activeFilePath : undefined)
 
+  // Keep the selection's owning root current: a selection that resolves in
+  // the projected tree belongs to the live root. During tree lag (no active
+  // node) the stamp intentionally does not advance, so a pending transition
+  // remap still sees the generation the selection was made in.
+  useEffect(() => {
+    if (!activeFilePath) {
+      if (activeFileRoot !== undefined) setActiveFileRoot(undefined)
+      return
+    }
+    if (activeNode && notesPath) {
+      // The old tree still resolves the selection during a transition render,
+      // so require the selection to actually sit under the live root before
+      // stamping - otherwise the owner would advance to a generation the
+      // selection was never made in.
+      const root = normalizePathValue(notesPath)
+      if (normalizePathValue(activeFilePath).startsWith(`${root}/`) && activeFileRoot !== root) {
+        // normalizePathValue returns a plain string; the cache setter takes
+        // the branded AbsoluteFilePath, same parse as the selection remap.
+        setActiveFileRoot(AbsoluteFilePathSchema.parse(root))
+      }
+    }
+  }, [activeFilePath, activeFileRoot, activeNode, notesPath, setActiveFileRoot])
+
   // 处理树同步时的状态管理
   useEffect(() => {
     // 如果有activeFilePath但找不到对应节点，清空选择
@@ -330,6 +416,31 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       !isCreatingNoteRef.current
 
     if (shouldClearPath) {
+      // A notes-root change may have moved the selected note to the same
+      // relative location in the new directory — follow it instead of clearing.
+      const chain = notesRootTransitionRef.current
+      const activePath = activeFilePath ? normalizePathValue(activeFilePath) : ''
+      const liveRoot = chain?.at(-1)
+      // Resolve the selection's owning root without guessing: prefer the root
+      // recorded with the selection; accept a single unambiguous containing
+      // chain root; with zero (unrelated path, e.g. a reset to the default
+      // root) or several (overlapping historical roots and no recorded owner)
+      // matches, fall through to clearing rather than risk opening a
+      // different note that happens to exist at the guessed target.
+      const recordedRoot = activeFileRoot ? normalizePathValue(activeFileRoot) : undefined
+      const containing = chain?.filter((root) => activePath.startsWith(`${root}/`)) ?? []
+      const sourceRoot =
+        recordedRoot && chain?.includes(recordedRoot) && activePath.startsWith(`${recordedRoot}/`)
+          ? recordedRoot
+          : containing.length === 1
+            ? containing[0]
+            : undefined
+      const mappedPath = sourceRoot && liveRoot ? `${liveRoot}${activePath.slice(sourceRoot.length)}` : undefined
+      if (mappedPath && findNodeByPath(notesTree, mappedPath)?.type === 'file') {
+        notesRootTransitionRef.current = null
+        requestFileTransition(() => setActiveFilePath(AbsoluteFilePathSchema.parse(mappedPath)))
+        return
+      }
       logger.warn('Clearing activeFilePath - node not found in tree', {
         activeFilePath,
         reason: 'Node not found in current tree'
@@ -341,6 +452,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     hasProjectedTree,
     isTreeLoading,
     activeFilePath,
+    activeFileRoot,
     activeNode,
     shouldRetainMissingDraft,
     requestFileTransition,
@@ -490,6 +602,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string, targetFolderId?: string) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         const targetPath = getTargetFolderPath(targetFolderId)
         if (!targetPath) {
@@ -508,6 +623,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
   const createNote = useCallback(
     async (name: string, targetFolderId?: string) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         isCreatingNoteRef.current = true
 
@@ -622,6 +740,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // 删除节点
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       let prepared: PreparedFileMutation | undefined
       try {
         const nodeToDelete = findNode(notesTree, nodeId)
@@ -682,6 +803,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string): Promise<NoteRenameResult> => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return { ok: false, reason: 'failed' }
+      }
       let result: NoteRenameResult = { ok: false, reason: 'failed' }
       let failureReported = false
       let changed = false
@@ -788,6 +912,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // 处理文件上传
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         if (!files || files.length === 0) {
           toast.warning(t('notes.no_file_selected'))
@@ -853,6 +980,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const handleMoveNode = useCallback(
     async (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => {
       if (!notesPath) {
+        return
+      }
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
 
@@ -1123,18 +1253,39 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                 {t(
                   fileSession.metadataRecoveryPending
                     ? 'notes.save_failure.metadata_pending'
-                    : 'notes.save_failure.description'
+                    : fileSession.saveError instanceof IpcError &&
+                        fileSession.saveError.code === fileErrorCodes.EDIT_MIGRATION_BLOCKED
+                      ? 'settings.data.notes_relocation.error.migration_in_progress'
+                      : isRetiredRootSaveError
+                        ? 'notes.save_failure.retired_root'
+                        : isRootUnresolvedSaveError
+                          ? 'notes.save_failure.root_unresolved'
+                          : 'notes.save_failure.description'
                 )}
               </span>
               {!fileSession.metadataRecoveryPending && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={fileSession.isSaving}
-                  onClick={() => void handleRetrySave()}>
-                  {t('common.retry')}
-                </Button>
+                <>
+                  {(isRetiredRootSaveError || isRootUnresolvedSaveError) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={fileSession.isSaving}
+                      onClick={() => void handleSaveDraftCopy()}>
+                      {t('notes.save_copy')}
+                    </Button>
+                  )}
+                  {!isRetiredRootSaveError && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={fileSession.isSaving}
+                      onClick={() => void handleRetrySave()}>
+                      {t('common.retry')}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}

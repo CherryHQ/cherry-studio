@@ -155,6 +155,7 @@ export type UseCacheSchema = {
 
   // Notes page state
   'notes.active_file_path': AbsoluteFilePath | undefined
+  'notes.active_file_root': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.detected_region': MiniAppRegion | null
@@ -250,6 +251,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
+  'notes.active_file_root': undefined,
 
   // MiniApp management
   'mini_app.detected_region': null,
@@ -373,6 +375,12 @@ export type SharedCacheSchema = {
   // mirrors the progress of the job the item waits on here when it changes, so the row can
   // show a percentage during the 'processing' wait; absence means no progress was reported.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  /**
+   * Roots a notes library has occupied in this session, oldest first, ending at
+   * the live one. Lets a selection parked on any earlier root follow the library
+   * across several consecutive migrations.
+   */
+  'notes.directory_root_transition': { roots: string[] } | undefined
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -416,7 +424,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
-  'knowledge.item.file_processing_progress.${itemId}': null
+  'knowledge.item.file_processing_progress.${itemId}': null,
+  'notes.directory_root_transition': undefined
 }
 
 /**

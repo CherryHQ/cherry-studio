@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { notesMigrationLock } from '@renderer/services/notesMigrationLock'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
@@ -307,7 +308,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
-            void handleImagePaste(file)
+            void notesMigrationLock.trackEditorMutation(handleImagePaste(file))
             return true
           }
         }
@@ -417,9 +418,27 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     }
   })
 
+  const publishMarkdownFromEditor = useCallback(
+    (currentEditor: NonNullable<typeof editor>) => {
+      try {
+        const convertedMarkdown = currentEditor.getMarkdown()
+        setMarkdownState(convertedMarkdown)
+        onChange?.(convertedMarkdown)
+        onContentChange?.(currentEditor.getText())
+        onHtmlChange?.(currentEditor.getHTML())
+      } catch (error) {
+        logger.error('Error serializing editor content to markdown:', error as Error)
+      }
+    },
+    [onChange, onContentChange, onHtmlChange]
+  )
+
   // Handle image paste function
   const handleImagePaste = useCallback(
     async (file: File) => {
+      if (!editable || !editor || editor.isDestroyed || !editor.isEditable) {
+        return
+      }
       try {
         let processedFile: File | Blob = file
         let extension = file.type.split('/')[1] ? `.${file.type.split('/')[1]}` : '.png'
@@ -470,11 +489,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         })
         const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
-        // Insert image into editor using local file path
+        // Insert image into editor using local file path. In-flight pastes must
+        // finish even if migration locked the editor before async work settled.
         if (editor && !editor.isDestroyed) {
           const imageUrl = `file://${physicalPath}`
           const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
           editor.chain().focus().setImage({ src: imageUrl, alt }).run()
+          publishMarkdownFromEditor(editor)
         }
 
         logger.info('Image pasted and saved:', { id: entry.id })
@@ -482,7 +503,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         logger.error('Failed to handle image paste:', error as Error)
       }
     },
-    [editor]
+    [editable, editor, publishMarkdownFromEditor]
   )
 
   useEffect(() => {
@@ -505,10 +526,20 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     }
   }, [editor, editable, autoFocus])
 
+  useEffect(() => {
+    if (!editable) {
+      setLinkEditorState({
+        show: false,
+        position: { x: 0, y: 0 },
+        link: { href: '', text: '' }
+      })
+    }
+  }, [editable])
+
   // Link editor callbacks (after editor is defined)
   const handleLinkSave = useCallback(
     (href: string, text: string) => {
-      if (!editor || editor.isDestroyed) return
+      if (!editor || editor.isDestroyed || !editor.isEditable) return
 
       const { linkRange } = linkEditorState
 
@@ -533,7 +564,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   )
 
   const handleLinkRemove = useCallback(() => {
-    if (!editor || editor.isDestroyed) return
+    if (!editor || editor.isDestroyed || !editor.isEditable) return
 
     const { linkRange } = linkEditorState
 
@@ -566,7 +597,14 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   // Show action menu for table rows/columns
   const showTableActionMenu = useCallback(
     (type: 'row' | 'column', index: number, position?: { x: number; y: number }) => {
-      if (!editor) return
+      if (!editor || !editor.isEditable) return
+
+      const runIfEditable = (command: () => void) => {
+        if (!editor.isEditable || editor.isDestroyed) {
+          return
+        }
+        command()
+      }
 
       const actions = [
         {
@@ -576,11 +614,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
               ? t('richEditor.action.table.insertRowBefore')
               : t('richEditor.action.table.insertColumnBefore'),
           action: () => {
-            if (type === 'row') {
-              editor.chain().focus().addRowBefore().run()
-            } else {
-              editor.chain().focus().addColumnBefore().run()
-            }
+            runIfEditable(() => {
+              if (type === 'row') {
+                editor.chain().focus().addRowBefore().run()
+              } else {
+                editor.chain().focus().addColumnBefore().run()
+              }
+            })
           }
         },
         {
@@ -590,22 +630,26 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
               ? t('richEditor.action.table.insertRowAfter')
               : t('richEditor.action.table.insertColumnAfter'),
           action: () => {
-            if (type === 'row') {
-              editor.chain().focus().addRowAfter().run()
-            } else {
-              editor.chain().focus().addColumnAfter().run()
-            }
+            runIfEditable(() => {
+              if (type === 'row') {
+                editor.chain().focus().addRowAfter().run()
+              } else {
+                editor.chain().focus().addColumnAfter().run()
+              }
+            })
           }
         },
         {
           id: type === 'row' ? 'deleteRow' : 'deleteColumn',
           label: type === 'row' ? t('richEditor.action.table.deleteRow') : t('richEditor.action.table.deleteColumn'),
           action: () => {
-            if (type === 'row') {
-              editor.chain().focus().deleteRow().run()
-            } else {
-              editor.chain().focus().deleteColumn().run()
-            }
+            runIfEditable(() => {
+              if (type === 'row') {
+                editor.chain().focus().deleteRow().run()
+              } else {
+                editor.chain().focus().deleteColumn().run()
+              }
+            })
           }
         }
       ]

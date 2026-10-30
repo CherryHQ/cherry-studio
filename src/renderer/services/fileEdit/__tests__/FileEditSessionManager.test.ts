@@ -19,6 +19,7 @@ let disk: FileEditRead
 let manager: FileEditSessionManager
 let writes: string[]
 let failWrite: boolean
+let failWriteCode: string
 let holdWrite: Promise<void> | undefined
 
 beforeEach(() => {
@@ -26,6 +27,7 @@ beforeEach(() => {
   disk = snapshot('a')
   writes = []
   failWrite = false
+  failWriteCode = fileErrorCodes.EDIT_NO_SPACE
   holdWrite = undefined
   manager = new FileEditSessionManager()
   vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
@@ -40,7 +42,7 @@ beforeEach(() => {
     if (route === 'file.edit.write' && input && typeof input === 'object' && 'expected' in input && 'data' in input) {
       await holdWrite
       const content = new TextDecoder().decode(input.data)
-      if (failWrite) throw new IpcError(fileErrorCodes.EDIT_NO_SPACE, 'File save failed')
+      if (failWrite) throw new IpcError(failWriteCode, 'File save failed')
       if (input.expected.contentHash !== disk.baseline.contentHash) {
         throw new IpcError(fileErrorCodes.STALE_VERSION, 'File changed since the editing baseline')
       }
@@ -149,6 +151,22 @@ describe('file editing lifetime', () => {
     await lease.flush()
     expect(writes).toEqual(['b'])
     expect(lease.getSnapshot()).toMatchObject({ savedContent: 'b', isDirty: false, conflict: false })
+  })
+
+  it('refreshes a clean session from disk on external-change notification', async () => {
+    // This is the path NotesPage's watcher callback drives via notifyExternalChange ->
+    // lease.invalidate(): a clean, ready session must adopt the new disk content.
+    const lease = await manager.acquire('notes', handle)
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'a', isDirty: false })
+    disk = snapshot('edited elsewhere')
+    await lease.invalidate()
+    expect(lease.getSnapshot()).toMatchObject({
+      draft: 'edited elsewhere',
+      savedContent: 'edited elsewhere',
+      isDirty: false,
+      conflict: false
+    })
+    expect(writes).toEqual([])
   })
 
   it('preserves the draft on an external change and only replaces it on explicit reload', async () => {
@@ -415,5 +433,26 @@ describe('file editing lifetime', () => {
     const prepared = await manager.prepareMutation()
     expect(new TextDecoder().decode(disk.data)).toBe('c')
     await prepared.finish()
+  })
+
+  it('retains the draft without rescheduling when a migration barrier refuses the write', async () => {
+    const lease = await manager.acquire('notes', handle)
+    failWrite = true
+    failWriteCode = fileErrorCodes.EDIT_MIGRATION_BLOCKED
+    lease.acceptEdit('b')
+    await expect(lease.flush()).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'b', isDirty: true })
+    expect(lease.getSnapshot().saveError).toBeInstanceOf(IpcError)
+    // No automatic retry loop while the barrier is up.
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(writes).toEqual([])
+    // The session is not evicted: re-acquiring returns the retained draft.
+    lease.release()
+    const next = await manager.acquire('notes', handle)
+    expect(next.getSnapshot().draft).toBe('b')
+    // Once the barrier lifts, a manual retry persists the same draft.
+    failWrite = false
+    await next.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('b')
   })
 })
