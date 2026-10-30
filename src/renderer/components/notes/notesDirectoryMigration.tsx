@@ -7,7 +7,6 @@ import {
 } from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
 import { ipcApi } from '@renderer/ipc'
 import { resolveNotesPath } from '@renderer/services/NotesService'
-import { normalizePathValue } from '@renderer/services/NotesTreeService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -15,6 +14,56 @@ import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 const logger = loggerService.withContext('NotesDirectoryMigration')
+
+/**
+ * Lexical normalization for comparing the saved notes source with the one main returns. For the absolute
+ * path forms the UI produces (POSIX absolute, Windows drive and UNC paths) it agrees with `node:path.resolve`
+ * used by `resolveNotesRelocationSourcePathFromPreference` and `migrateNotesDirectory`: duplicate and trailing
+ * separators, `.` and `..` segments are collapsed and the root is preserved. Backslashes are separators only
+ * for Windows-style paths, because POSIX treats them as ordinary filename characters. Relative,
+ * drive-relative and POSIX `//` inputs are not resolved against cwd or the platform, so they can only
+ * produce a mismatch (source_changed), never a false match. No realpath, case folding or symlink handling.
+ */
+export function normalizeMigrationSourcePath(value: string): string {
+  const isWindowsStyle = /^[A-Za-z]:/.test(value) || /^[\\/]{2}[^\\/]/.test(value)
+  const text = isWindowsStyle ? value.replace(/\\/g, '/') : value
+
+  let root = ''
+  let rest = text
+  const drive = isWindowsStyle ? /^[A-Za-z]:/.exec(text) : null
+  if (drive) {
+    root = drive[0]
+    rest = text.slice(root.length)
+    if (rest.startsWith('/')) {
+      root += '/'
+    }
+  } else if (isWindowsStyle) {
+    // UNC: //server/share/...
+    const parts = text.split('/').filter(Boolean)
+    const [server, share, ...tail] = parts
+    root = share ? `//${server}/${share}/` : `//${server}/`
+    rest = tail.join('/')
+  } else if (text.startsWith('/')) {
+    root = '/'
+  }
+
+  const isAbsolute = root.endsWith('/')
+  const segments: string[] = []
+  for (const segment of rest.split('/')) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      if (segments.length > 0 && segments[segments.length - 1] !== '..') {
+        segments.pop()
+      } else if (!isAbsolute) {
+        segments.push('..')
+      }
+      continue
+    }
+    segments.push(segment)
+  }
+
+  return root + segments.join('/')
+}
 
 export async function resolveNotesMigrationSourcePath(configuredNotesPath: string): Promise<string> {
   const resolved = await resolveNotesPath(configuredNotesPath || '')
@@ -130,7 +179,7 @@ export async function migrateNotesDirectoryWithUi(options: {
       const { sourcePath: authoritativeSourcePath } = await ipcApi.request(
         'app.notes_relocation.resolve_migration_source'
       )
-      if (normalizePathValue(authoritativeSourcePath) !== normalizePathValue(sourcePath)) {
+      if (normalizeMigrationSourcePath(authoritativeSourcePath) !== normalizeMigrationSourcePath(sourcePath)) {
         toast.error(t('settings.data.notes_relocation.error.source_changed'))
         return
       }
