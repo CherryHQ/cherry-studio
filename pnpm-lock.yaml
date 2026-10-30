@@ -1233,9 +1233,15 @@ importers:
       nanoid:
         specifier: 3.3.11
         version: 3.3.11
+      node-addon-api:
+        specifier: 8.5.0
+        version: 8.5.0
       node-api-headers:
         specifier: 1.9.0
         version: 1.9.0
+      node-gyp:
+        specifier: 12.4.0
+        version: 12.4.0
       notion-helper:
         specifier: ^1.3.22
         version: 1.3.29

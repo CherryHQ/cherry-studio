@@ -101,3 +101,5 @@ YOUR_MEMORY_FILE_PATH
 .sessions/
 .devtools
 .omo/
+
+/native/external-app/build/
