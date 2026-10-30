@@ -249,7 +249,10 @@ describe('memory organization lifecycle and commit fences', () => {
     await save('Existing fact with an exception.\n')
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
     const chat = conversation()
-    generate.mockResolvedValueOnce({ text: '{"quotes":["I prefer concise answers."]}', finishReason: 'stop' })
+    generate.mockResolvedValueOnce({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
     chat.emit()
     expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
     expect((await session.read('MEMORY.md')).content).toBe(
@@ -315,12 +318,15 @@ describe('memory organization lifecycle and commit fences', () => {
     if (action === 'recovery') await session.recover((await session.previewRecovery())!.token, approve)
     if (action === 'cancel') dreaming.cancel(scope)
     if (action === 'foreground') busy.mockReturnValue(true)
-    response.resolve({ text: '{"quotes":["I prefer concise answers."]}', finishReason: 'stop' })
+    response.resolve({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
     expect(await outcome).toBeInstanceOf(Error)
     expect((await session.read('MEMORY.md')).content).not.toContain('concise answers')
   })
 
-  it.each(['unsupported', 'oversized', 'invalid-json', 'truncated'] as const)(
+  it.each(['unsupported', 'oversized', 'invalid-json', 'truncated', 'missing-kind', 'unknown-kind'] as const)(
     'retains memory when extraction output is %s',
     async (kind) => {
       await save('Original fact')
@@ -328,17 +334,52 @@ describe('memory organization lifecycle and commit fences', () => {
       generate.mockResolvedValueOnce({
         text:
           kind === 'unsupported'
-            ? '{"quotes":["Assistant-only unsupported claim"]}'
+            ? '{"candidates":[{"kind":"preference","quote":"Assistant-only unsupported claim"}]}'
             : kind === 'oversized'
-              ? JSON.stringify({ quotes: ['x'.repeat(501)] })
+              ? JSON.stringify({ candidates: [{ kind: 'preference', quote: 'x'.repeat(501) }] })
               : kind === 'invalid-json'
                 ? 'no'
-                : '{"quotes":[]}',
+                : kind === 'missing-kind'
+                  ? '{"candidates":[{"quote":"I prefer concise answers."}]}'
+                  : kind === 'unknown-kind'
+                    ? '{"candidates":[{"kind":"global","quote":"I prefer concise answers."}]}'
+                    : '{"candidates":[]}',
         finishReason: kind === 'truncated' ? 'length' : 'stop'
       })
       await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
       expect((await session.read('MEMORY.md')).content).toBe('Original fact')
       expect(dreaming.status(scope).lastResult).toMatchObject({ outcome: 'failed', reason: 'output' })
+    }
+  )
+
+  it('appends personal candidates without promoting project, customer, or uncertain facts', async () => {
+    await save('Existing preference.\n')
+    const candidates = [
+      { kind: 'preference', quote: 'I prefer concise answers, except when debugging.' },
+      { kind: 'personal_fact', quote: 'I use PowerShell 7.' },
+      { kind: 'project', quote: 'Project Blue uses Java 21.' },
+      { kind: 'customer', quote: 'Customer A requires a December release.' },
+      { kind: 'uncertain', quote: 'This might describe me or the customer.' }
+    ]
+    conversation(true, `Please remember: ${candidates.map(({ quote }) => quote).join(' ')}`).emit()
+    generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates }), finishReason: 'stop' })
+    expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+    expect((await session.read('MEMORY.md')).content).toBe(
+      'Existing preference.\n- "I prefer concise answers, except when debugging."\n- "I use PowerShell 7."\n'
+    )
+  })
+
+  it.each(['project', 'customer', 'uncertain'] as const)(
+    'does not save a %s-only extraction or create a recovery batch',
+    async (kind) => {
+      await save('Existing preference.\n')
+      const before = await session.previewRecovery()
+      const quote = 'Project Blue uses Java 21.'
+      conversation(true, `Please remember: ${quote}`).emit()
+      generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates: [{ kind, quote }] }), finishReason: 'stop' })
+      expect(await dreaming.execute(job())).toEqual({ extracted: 0 })
+      expect((await session.read('MEMORY.md')).content).toBe('Existing preference.\n')
+      expect((await session.previewRecovery())?.batchId).toBe(before?.batchId)
     }
   )
 
@@ -371,7 +412,10 @@ describe('memory organization lifecycle and commit fences', () => {
     const outcome = dreaming.execute(job())
     await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
-    response.resolve({ text: '{"quotes":["I prefer concise answers."]}', finishReason: 'stop' })
+    response.resolve({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
     expect(await outcome).toEqual({ extracted: 1 })
   })
 
@@ -438,7 +482,10 @@ describe('memory organization lifecycle and commit fences', () => {
         })
         .returning()
         .all()
-      generate.mockResolvedValueOnce({ text: '{"quotes":["I prefer concise answers."]}', finishReason: 'stop' })
+      generate.mockResolvedValueOnce({
+        text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+        finishReason: 'stop'
+      })
       agentTurns.fire({
         sessionId,
         assistantMessageId: response.id,
@@ -643,7 +690,10 @@ describe('memory organization lifecycle and commit fences', () => {
     const second = dreaming.execute(job())
     await Promise.resolve()
     expect(generate).toHaveBeenCalledTimes(1)
-    response.resolve({ text: '{"quotes":["I prefer concise answers."]}', finishReason: 'stop' })
+    response.resolve({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
     expect(await first).toBeInstanceOf(Error)
     expect(await second).toMatchObject({ checked: 1, changed: 0 })
     expect((await session.read('MEMORY.md')).content).toBe('Original fact')
