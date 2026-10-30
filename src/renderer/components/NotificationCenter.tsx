@@ -1,5 +1,5 @@
 import { Bell, PanelLeftClose, X } from 'lucide-react'
-import { createContext, lazy, Suspense, use, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Drawer, DrawerContent, DrawerTitle, DrawerDescription, Scrollbar, Tooltip } from '@cherrystudio/ui'
@@ -30,6 +30,7 @@ function NotificationItem({
   onDismiss: () => void
 }) {
   const { t, i18n } = useTranslation()
+  const unreadDescriptionId = useId()
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [activating, setActivating] = useState(false)
   const { appUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
@@ -78,6 +79,7 @@ function NotificationItem({
         <Button
           variant="ghost"
           aria-label={record.title}
+          aria-describedby={record.readAt === null ? unreadDescriptionId : undefined}
           aria-expanded={expandable ? expanded : undefined}
           className="block h-auto w-full min-w-0 whitespace-normal px-0 py-2 text-left"
           disabled={activating}
@@ -85,7 +87,9 @@ function NotificationItem({
           <span className="relative mb-1 flex min-h-5 min-w-0 items-center gap-2 pr-8 font-medium">
             {record.readAt === null && (
               <span className="absolute -left-2.5 top-2 size-1.5 rounded-full bg-primary">
-                <span className="sr-only">{t('notification.center.unread')}</span>
+                <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
+                  {t('notification.center.unread')}
+                </span>
               </span>
             )}
             <>
@@ -255,6 +259,7 @@ function NotificationList({
 
 export function NotificationCenterButton({ className = '' }: { className?: string }) {
   const { t } = useTranslation()
+  const unreadDescriptionId = useId()
   const center = use(NotificationCenterContext)
   if (!center) return null
   return (
@@ -265,13 +270,16 @@ export function NotificationCenterButton({ className = '' }: { className?: strin
         data-notification-trigger
         className={`relative size-8 text-muted-foreground ${className}`}
         aria-label={t('notification.center.title')}
+        aria-describedby={center.hasUnread ? unreadDescriptionId : undefined}
         aria-expanded={center.open}
         aria-controls="notification-center"
         onClick={center.toggle}>
         <Bell className="size-4" />
         {center.hasUnread && (
           <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary">
-            <span className="sr-only">{t('notification.center.unread')}</span>
+            <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
+              {t('notification.center.unread')}
+            </span>
           </span>
         )}
       </Button>
