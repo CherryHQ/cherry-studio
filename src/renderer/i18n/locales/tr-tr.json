@@ -1380,6 +1380,7 @@
   "common.required_field": "Zorunlu alan",
   "common.reset": "Sıfırla",
   "common.resize_panel": "Paneli yeniden boyutlandır",
+  "common.restore": "Geri Yükle",
   "common.retry": "Yeniden dene",
   "common.save": "Kaydet",
   "common.save_failed": "Kaydetme başarısız",
