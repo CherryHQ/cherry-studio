@@ -12,7 +12,6 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { usePersistCache } from '@data/hooks/useCache'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
@@ -22,9 +21,8 @@ import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
-import { getSidebarLayout } from '../Sidebar'
 import { WindowControls } from '../WindowControls'
-import { ShellTabBarActions, TabBarUserMenu } from './ShellTabBarActions'
+import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
@@ -153,7 +151,7 @@ const PinnedTabButton = ({
 }
 
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
-  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
+  'max(0px, calc(env(titlebar-area-x, 0px) - max(0.375rem, var(--sidebar-width, 0px)) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -608,8 +606,6 @@ export const AppShellTabBar = ({
   openTab
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
-  const [sidebarWidth] = usePersistCache('ui.sidebar.width')
-  const showLeadingAvatar = getSidebarLayout(sidebarWidth) === 'hidden' && !isFocusedTab
   const isMacTransparentWindow = useMacTransparentWindow()
   const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const tabTone = useMemo<TabToneProps>(
@@ -922,36 +918,24 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         data-ui="app.tab-bar"
-        style={isWin ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}
+        style={{
+          minHeight: isWin ? 'env(titlebar-area-height, 0px)' : undefined,
+          paddingLeft:
+            (isMac || hasLeadingWindowControls) && !isFullscreen
+              ? isFocusedTab
+                ? 'calc(env(titlebar-area-x, 0px) + 2px)'
+                : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+              : undefined
+        }}
         className={cn(
           'relative flex h-11 w-full shrink-0 select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           'pl-0'
         )}>
-        {showLeadingAvatar && (
-          <div
-            className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center [-webkit-app-region:no-drag]"
-            style={
-              (isMac || hasLeadingWindowControls) && !isFullscreen
-                ? { marginLeft: 'env(titlebar-area-x, 0px)' }
-                : undefined
-            }>
-            <TabBarUserMenu />
-          </div>
-        )}
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           ref={stripRef}
           data-testid="app-shell-tab-strip"
-          style={
-            (isMac || hasLeadingWindowControls) && !isFullscreen && !showLeadingAvatar
-              ? {
-                  paddingLeft: isFocusedTab
-                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
-                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
-                }
-              : undefined
-          }
           onMouseEnter={() => {
             stripPointerInsideRef.current = true
             thawAfterCollapseRef.current = false

@@ -468,9 +468,11 @@ describe('Sidebar resize handle', () => {
 
       const panel = container.querySelector('.slide-in-from-left-2') as HTMLElement
 
+      // Floating blank space must leave pointer input available for the edge resize gesture.
+      expect(panel).toHaveClass('[-webkit-app-region:no-drag]')
+      expect(panel).not.toHaveClass('[-webkit-app-region:drag]')
       fireEvent.mouseEnter(panel)
       act(() => uiMocks.contextMenuOpenChange?.(true))
-      // The floating branch must honor the same Electron drag-region contract as the docked sidebar.
       expect(panel).toHaveClass('[-webkit-app-region:no-drag]')
       fireEvent.mouseLeave(panel)
       vi.advanceTimersByTime(350)
@@ -478,7 +480,8 @@ describe('Sidebar resize handle', () => {
       expect(onDismiss).not.toHaveBeenCalled()
 
       act(() => uiMocks.contextMenuOpenChange?.(false))
-      expect(panel).toHaveClass('[-webkit-app-region:drag]')
+      expect(panel).toHaveClass('[-webkit-app-region:no-drag]')
+      expect(panel).not.toHaveClass('[-webkit-app-region:drag]')
       vi.advanceTimersByTime(350)
 
       expect(onDismiss).toHaveBeenCalledTimes(1)

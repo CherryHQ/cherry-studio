@@ -32,5 +32,4 @@ Status: implemented
 
 - Regression — `src/renderer/hooks/__tests__/useCherryAccountSession.test.ts`：重新挂载和未完成的刷新保留已知会话；较旧请求不能覆盖较新状态事件。
 - Regression — `src/renderer/components/__tests__/UserAccountPanel.test.tsx`：重新打开时保留缓存的身份和套餐，直到刷新完成；切换账户会清除旧套餐，覆盖显示名称相同和响应延迟的情况；首次失败仍可重试。
-- Regression — `src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx`：关闭账户菜单时，订阅操作在退出动画期间保持不变。
 - Consumers — Sidebar、SubscriptionSettings 和 OnboardingPage 的定向渲染进程测试在使用缓存会话钩子后通过。

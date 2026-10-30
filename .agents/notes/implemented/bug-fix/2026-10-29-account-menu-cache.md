@@ -32,5 +32,4 @@ Cached data can remain visible while a refresh is pending or fails. Status event
 
 - Regression — `src/renderer/hooks/__tests__/useCherryAccountSession.test.ts`: remount and pending refresh preserve a known session; an older request cannot replace a newer status event.
 - Regression — `src/renderer/components/__tests__/UserAccountPanel.test.tsx`: reopening preserves cached identity and plan until refresh completes; account changes clear the previous plan, including matching display names and late responses; initial failures remain retryable.
-- Regression — `src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx`: closing the account menu preserves the subscription action throughout the exit animation.
 - Consumers — focused renderer tests for Sidebar, SubscriptionSettings and OnboardingPage pass with the cached session hook.
