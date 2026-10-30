@@ -148,6 +148,16 @@ describe('media catalogs are grounded in mime-db', () => {
     expect(audioExts).not.toContain('.ra')
   })
 
+  it('keeps the adsorption .aif alias out of the audio catalog so dataset text files stay text', () => {
+    // Scientific datasets (e.g. adsorption isotherms) publish plain-text `.aif`
+    // files; the unambiguous `.aiff`/`.aifc` still serve real AIFF audio, and
+    // leaving the bare `.aif` unclassified lets the content sniff keep text
+    // datasets readable (same contract as `.ra`, `.caf`, `.amr` and `.mid`).
+    expect(audioExts).not.toContain('.aif')
+    expect(audioExts).toContain('.aiff')
+    expect(audioExts).toContain('.aifc')
+  })
+
   it('keeps the Acclaim .asf alias out of the video catalog so motion-capture text files stay text', () => {
     // Acclaim motion-capture skeletons are plain-text `.asf` files, and the
     // CMU Graphics Lab archive publishes them with that extension. The video

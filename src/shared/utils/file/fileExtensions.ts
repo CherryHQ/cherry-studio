@@ -50,6 +50,11 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * exercise scripts (e.g. the radb samples) are plain-text `.ra` files, while
  * RealAudio shares the extension. Leaving it unclassified lets the content
  * sniff keep the scripts as text.
+ *
+ * `.aif` is deliberately absent for the same reason: adsorption isotherm and
+ * similar scientific datasets are plain-text `.aif` files, while AIFF audio
+ * shares the extension. `.aiff`/`.aifc` stay unambiguously audio; leaving the
+ * bare `.aif` unclassified lets the content sniff keep the datasets as text.
  */
 export const imageExts = [
   '.apng',
@@ -92,7 +97,6 @@ export const videoExts = [
 ]
 export const audioExts = [
   '.aac',
-  '.aif',
   '.aifc',
   '.aiff',
   '.au',
