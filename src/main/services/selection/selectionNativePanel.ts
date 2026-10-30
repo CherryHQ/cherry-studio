@@ -9,8 +9,12 @@ export interface SelectionNativePanel {
   /** Receives the native handle of a marked panel whose yellow light or Cmd+M was used. */
   setMiniaturizeHandler(handler: (handle: Buffer) => void): void
   interceptMiniaturize(handle: Buffer): void
-  /** Whether the frontmost app's focused window is in full screen; false without Accessibility access. */
-  isFrontmostFullScreen(): boolean
+  /**
+   * Whether the frontmost window another app shows on the display is in full screen; false without
+   * Accessibility access.
+   * @param displayBounds The display's bounds, in screen coordinates.
+   */
+  isFullScreenAppInFront(displayBounds: Rectangle): boolean
   /** Animates to the bounds and opacity without blocking the main thread; resolves when it ends. */
   animateWindow(handle: Buffer, bounds: Rectangle, opacity: number, durationMs: number): Promise<void>
 }

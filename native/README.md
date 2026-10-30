@@ -28,9 +28,12 @@ native handle; unmarked panels minimize as usual.
 
 Two more calls serve the capsule's restore:
 
-- `isFrontmostFullScreen()` reads `AXFullScreen` from the frontmost app's focused
-  window with a short messaging timeout. Without Accessibility access it returns
-  false.
+- `isFullScreenAppInFront(displayBounds)` takes the frontmost normal-level window
+  that another app shows on the display, from `CGWindowListCopyWindowInfo`, and reads
+  `AXFullScreen` from that app's window with the same frame, with a short messaging
+  timeout. It skips Cherry's own windows because clicking a capsule activates Cherry
+  first. The window list's owner, layer, and bounds need no Screen Recording access;
+  without Accessibility access it returns false.
 - `animateWindow()` animates a window's frame and opacity with
   `NSAnimationContext` and resolves when the animation ends. Electron's animated
   `setBounds` runs AppKit's resize synchronously, which would block the main thread.

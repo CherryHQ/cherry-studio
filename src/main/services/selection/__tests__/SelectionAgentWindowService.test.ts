@@ -25,7 +25,7 @@ const native = vi.hoisted(() => ({
   moveToActiveSpace: vi.fn(),
   setMiniaturizeHandler: vi.fn(),
   interceptMiniaturize: vi.fn(),
-  isFrontmostFullScreen: vi.fn(),
+  isFullScreenAppInFront: vi.fn(),
   animateWindow: vi.fn()
 }))
 vi.mock('../selectionNativePanel', () => ({ getSelectionNativePanel: () => native }))
@@ -229,8 +229,8 @@ describe('SelectionAgentWindowService', () => {
   describe('capsules', () => {
     const SECOND_WORK_AREA = { x: 1440, y: 0, width: 1920, height: 1080 }
     const DISPLAYS = [
-      { id: 1, workArea: WORK_AREA },
-      { id: 2, workArea: SECOND_WORK_AREA }
+      { id: 1, bounds: WORK_AREA, workArea: WORK_AREA },
+      { id: 2, bounds: SECOND_WORK_AREA, workArea: SECOND_WORK_AREA }
     ]
     const RUNNING: SelectionAgentSummary = { agentName: 'Research', agentAvatar: '🔎', status: 'running', steps: 2 }
     let windows: Record<string, ReturnType<typeof createWindow>>
@@ -466,7 +466,7 @@ describe('SelectionAgentWindowService', () => {
 
       beforeEach(() => {
         platform.isMac = true
-        native.isFrontmostFullScreen.mockReturnValue(false)
+        native.isFullScreenAppInFront.mockReturnValue(false)
         native.animateWindow.mockImplementation(async (handle: Buffer, target: Rectangle, opacity: number) =>
           land(handle, target, opacity)
         )
@@ -532,21 +532,26 @@ describe('SelectionAgentWindowService', () => {
         expect(stack(1)).toEqual([expect.objectContaining({ windowId: 'w1', steps: 3 })])
       })
 
-      it('restores over a full-screen app with the Dock hidden again, growing back to its bounds', async () => {
+      it('restores over a full-screen app on its capsule display with the Dock hidden again, growing back to its bounds', async () => {
         openStarted('w1')
-        const bounds = windows.w1.getBounds()
+        openStarted('w2', RUNNING, 2)
+        const bounds = windows.w2.getBounds()
         svc.collapse('w1')
         await settle()
-        // The window opened over a regular desktop, but the user has since moved to a full-screen app.
-        native.isFrontmostFullScreen.mockReturnValue(true)
+        svc.collapse('w2')
+        await settle()
+        // Both opened over a regular desktop, but the second display has since moved to a full-screen app.
+        native.isFullScreenAppInFront.mockImplementation((display: Rectangle) => display.x === SECOND_WORK_AREA.x)
 
         svc.restore('host-1', 'w1')
+        svc.restore('host-2', 'w2')
         await settle()
 
-        expect(behavior.hideMacDockWhileShown).toHaveBeenCalledWith('w1')
+        expect(behavior.hideMacDockWhileShown).toHaveBeenCalledWith('w2')
+        expect(behavior.hideMacDockWhileShown).not.toHaveBeenCalledWith('w1')
         expect(lastAnimation()).toEqual([bounds, 1, 200])
-        expect(windows.w1.visible).toBe(true)
-        expect(windows.w1.resizable).toBe(true)
+        expect(windows.w2.visible).toBe(true)
+        expect(windows.w2.resizable).toBe(true)
       })
 
       it('switches instantly when the OS prefers reduced motion', () => {

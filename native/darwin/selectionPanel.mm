@@ -207,37 +207,83 @@ static napi_value InterceptMiniaturize(napi_env env, napi_callback_info info) {
   return result;
 }
 
-// Reads the focused window of the frontmost app, which may be Cherry itself; false without Accessibility access.
-static napi_value IsFrontmostFullScreen(napi_env env, napi_callback_info) {
-  bool fullScreen = false;
-  NSRunningApplication *app = NSWorkspace.sharedWorkspace.frontmostApplication;
-  if (app) {
-    AXUIElementRef appElement = AXUIElementCreateApplication(app.processIdentifier);
-    // A hung app must not stall the main process for the default six seconds.
-    AXUIElementSetMessagingTimeout(appElement, 0.25);
-    CFTypeRef window = nullptr;
-    if (AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute, &window) == kAXErrorSuccess && window) {
-      AXUIElementSetMessagingTimeout(static_cast<AXUIElementRef>(window), 0.25);
-      CFTypeRef value = nullptr;
-      if (AXUIElementCopyAttributeValue(static_cast<AXUIElementRef>(window), CFSTR("AXFullScreen"), &value) ==
-              kAXErrorSuccess &&
-          value) {
-        fullScreen = CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue(static_cast<CFBooleanRef>(value));
-        CFRelease(value);
-      }
-      CFRelease(window);
-    }
-    CFRelease(appElement);
-  }
-  napi_value result;
-  napi_get_boolean(env, fullScreen, &result);
-  return result;
-}
-
 static bool GetNumber(napi_env env, napi_value object, const char *name, double *value) {
   napi_value property;
   return napi_get_named_property(env, object, name, &property) == napi_ok &&
          napi_get_value_double(env, property, value) == napi_ok;
+}
+
+static bool CopyFrame(AXUIElementRef window, CGRect *frame) {
+  CFTypeRef position = nullptr, size = nullptr;
+  bool copied = AXUIElementCopyAttributeValue(window, kAXPositionAttribute, &position) == kAXErrorSuccess &&
+                AXUIElementCopyAttributeValue(window, kAXSizeAttribute, &size) == kAXErrorSuccess &&
+                AXValueGetValue(static_cast<AXValueRef>(position), kAXValueTypeCGPoint, &frame->origin) &&
+                AXValueGetValue(static_cast<AXValueRef>(size), kAXValueTypeCGSize, &frame->size);
+  if (position) CFRelease(position);
+  if (size) CFRelease(size);
+  return copied;
+}
+
+// Reads AXFullScreen from the app's window with this frame; false without Accessibility access.
+static bool IsWindowFullScreen(pid_t pid, CGRect frame) {
+  bool fullScreen = false;
+  AXUIElementRef app = AXUIElementCreateApplication(pid);
+  // A hung app must not stall the main process for the default six seconds.
+  AXUIElementSetMessagingTimeout(app, 0.25);
+  CFTypeRef windows = nullptr;
+  if (AXUIElementCopyAttributeValue(app, kAXWindowsAttribute, &windows) == kAXErrorSuccess && windows) {
+    for (id item in (__bridge NSArray *)windows) {
+      AXUIElementRef window = (__bridge AXUIElementRef)item;
+      AXUIElementSetMessagingTimeout(window, 0.25);
+      CGRect candidate;
+      if (!CopyFrame(window, &candidate) || !CGRectEqualToRect(candidate, frame)) continue;
+      CFTypeRef value = nullptr;
+      if (AXUIElementCopyAttributeValue(window, CFSTR("AXFullScreen"), &value) == kAXErrorSuccess && value) {
+        fullScreen = CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue(static_cast<CFBooleanRef>(value));
+        CFRelease(value);
+      }
+      break;
+    }
+    CFRelease(windows);
+  }
+  CFRelease(app);
+  return fullScreen;
+}
+
+// Looks past Cherry's own windows: restoring from a capsule activates Cherry before the window shows.
+// The window list's owner, layer, and bounds need no Screen Recording access.
+static napi_value IsFullScreenAppInFront(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argument = nullptr;
+  napi_get_cb_info(env, info, &argc, &argument, nullptr, nullptr);
+  double x, y, width, height;
+  if (argc != 1 || !GetNumber(env, argument, "x", &x) || !GetNumber(env, argument, "y", &y) ||
+      !GetNumber(env, argument, "width", &width) || !GetNumber(env, argument, "height", &height)) {
+    napi_throw_type_error(env, nullptr, "Expected the display's bounds");
+    return nullptr;
+  }
+  // Electron bounds and window-list bounds both start at the primary screen's top-left.
+  CGRect display = CGRectMake(x, y, width, height);
+  pid_t owner = 0;
+  CGRect frame = CGRectNull;
+  CFArrayRef windows =
+      CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+  // Front to back; layer 0 leaves out the menu bar, the Dock, and floating panels.
+  for (NSDictionary *entry in (__bridge NSArray *)windows) {
+    CGRect bounds;
+    if ([entry[(id)kCGWindowLayer] intValue] != 0 || [entry[(id)kCGWindowOwnerPID] intValue] == getpid() ||
+        [entry[(id)kCGWindowAlpha] doubleValue] <= 0 ||
+        !CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)entry[(id)kCGWindowBounds], &bounds) ||
+        !CGRectIntersectsRect(bounds, display))
+      continue;
+    owner = [entry[(id)kCGWindowOwnerPID] intValue];
+    frame = bounds;
+    break;
+  }
+  if (windows) CFRelease(windows);
+  napi_value result;
+  napi_get_boolean(env, owner != 0 && IsWindowFullScreen(owner, frame), &result);
+  return result;
 }
 
 static void ResolveAnimation(napi_env env, napi_value, void *deferred, void *) {
@@ -296,7 +342,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"moveToActiveSpace", nullptr, MoveToActiveSpace, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"setMiniaturizeHandler", nullptr, SetMiniaturizeHandler, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"interceptMiniaturize", nullptr, InterceptMiniaturize, nullptr, nullptr, nullptr, napi_default, nullptr},
-    {"isFrontmostFullScreen", nullptr, IsFrontmostFullScreen, nullptr, nullptr, nullptr, napi_default, nullptr},
+    {"isFullScreenAppInFront", nullptr, IsFullScreenAppInFront, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"animateWindow", nullptr, AnimateWindow, nullptr, nullptr, nullptr, napi_default, nullptr},
   };
   napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);
