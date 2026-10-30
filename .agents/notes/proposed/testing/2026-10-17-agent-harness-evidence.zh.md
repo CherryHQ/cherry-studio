@@ -338,7 +338,7 @@ pnpm exec vitest run \
 
 #### P0 输入关联验证 — 2026-10-19
 
-本次验证使用基于 `b362acfbeb1959059a7f1acfe68b359bc145d2c7` 的 Cherry 工作区，以及基于 `8efd314fa3d3232ce197d8d7a6a5660530b9d83e` 的本地 Pi 源码变更。Cherry 通过 [Pi 1.3.0 依赖补丁](../../../../patches/@earendil-works__pi-coding-agent@1.3.0.patch)携带对应编译代码和声明。这是本地实现证据，不是上游发布版本，也尚未向上游提交。
+本次验证使用基于 `b362acfbeb1959059a7f1acfe68b359bc145d2c7` 的 Cherry 工作区，以及基于 `8efd314fa3d3232ce197d8d7a6a5660530b9d83e` 的本地 Pi 源码变更。Cherry 通过 [Pi 1.3.0 依赖补丁](https://github.com/CherryHQ/cherry-studio/blob/6f735510966678ca32940300197e5e6fa9001e4c/patches/@earendil-works__pi-coding-agent@1.3.0.patch)携带对应编译代码和声明。这是本地实现证据，不是上游发布版本，也尚未向上游提交。
 
 原生 prompt、steering、follow-up 和 custom message 接受不透明 `inputId`。Pi 在变换和队列中保留消息身份，追加历史后通过 `input_placed` 返回实际原生 entry ID。本地输入处理发出 `input_handled`；捕获的命令失败携带错误。适配器将这些事实与迟到回执合并。child 续接及运行中收件箱消息沿同一所有者路径执行，保留一次父会话报告。token 不写入模型文本或持久 transcript；放置不保证文件刷盘或执行完成。
 

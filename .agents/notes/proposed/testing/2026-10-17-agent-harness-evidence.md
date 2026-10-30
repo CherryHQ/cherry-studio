@@ -338,7 +338,7 @@ The three package typechecks and `pnpm typecheck:node` also passed. New adapter 
 
 #### P0 input correlation check — 2026-10-19
 
-This check uses Cherry's worktree based on `b362acfbeb1959059a7f1acfe68b359bc145d2c7` and local Pi source changes over `8efd314fa3d3232ce197d8d7a6a5660530b9d83e`. Cherry carries the matching compiled code and declarations in its [Pi 1.3.0 dependency patch](../../../../patches/@earendil-works__pi-coding-agent@1.3.0.patch). This is local implementation evidence, not an upstream release or a submitted upstream change.
+This check uses Cherry's worktree based on `b362acfbeb1959059a7f1acfe68b359bc145d2c7` and local Pi source changes over `8efd314fa3d3232ce197d8d7a6a5660530b9d83e`. Cherry carries the matching compiled code and declarations in its [Pi 1.3.0 dependency patch](https://github.com/CherryHQ/cherry-studio/blob/6f735510966678ca32940300197e5e6fa9001e4c/patches/@earendil-works__pi-coding-agent@1.3.0.patch). This is local implementation evidence, not an upstream release or a submitted upstream change.
 
 Native prompts, steering, follow-ups, and custom messages accept an opaque `inputId`. Pi retains message identity through transforms and queues, then emits `input_placed` with the actual native entry ID after append. Local input handling emits `input_handled`; a caught command failure includes its error. The adapter merges those facts with later receipts. Child continuation and live inbox messages use the same owner path and preserve its once-only parent report. No token is inserted into model text or the persisted transcript; placement is not a file-flush or execution-completion guarantee.
 
