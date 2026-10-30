@@ -88,6 +88,7 @@ export {
   type CodeEditorHandles,
   type CodeEditorProps,
   type CodeMirrorTheme,
+  getCherryCmTheme,
   getCmThemeByName,
   getCmThemeNames
 } from './composites/code-editor'

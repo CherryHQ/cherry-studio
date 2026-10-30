@@ -1,4 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { createElement, type PropsWithChildren } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +35,11 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+function createWrapper() {
+  const cache = new Map()
+  return ({ children }: PropsWithChildren) => createElement(SWRConfig, { value: { provider: () => cache } }, children)
+}
+
 describe('useCherryAccountSession', () => {
   beforeEach(() => {
     mocks.ipcRequest.mockReset().mockResolvedValue(signedOut)
@@ -40,10 +47,34 @@ describe('useCherryAccountSession', () => {
     mocks.toastError.mockReset()
   })
 
+  it('keeps a known session ready across remounts and during background refresh', async () => {
+    const wrapper = createWrapper()
+    const first = renderHook(() => useCherryAccountSession(), { wrapper })
+    await waitFor(() => expect(first.result.current.loadState).toBe('ready'))
+    first.unmount()
+
+    const pending = deferred<typeof signedIn>()
+    mocks.ipcRequest.mockReturnValue(pending.promise)
+    const second = renderHook(() => useCherryAccountSession(), { wrapper })
+    expect(second.result.current.status).toEqual(signedOut)
+    expect(second.result.current.loadState).toBe('ready')
+
+    let refresh!: Promise<void>
+    act(() => {
+      refresh = second.result.current.reload()
+    })
+    expect(second.result.current.loadState).toBe('ready')
+    await act(async () => {
+      pending.resolve(signedIn)
+      await refresh
+    })
+    expect(second.result.current.status).toEqual(signedIn)
+  })
+
   it('does not let an older status request overwrite a newer status event', async () => {
     const pendingStatus = deferred<typeof signedOut>()
     mocks.ipcRequest.mockReturnValueOnce(pendingStatus.promise)
-    const { result } = renderHook(() => useCherryAccountSession())
+    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: createWrapper() })
 
     act(() => mocks.statusChanged?.(signedIn))
     expect(result.current.status).toEqual(signedIn)
@@ -66,7 +97,7 @@ describe('useCherryAccountSession', () => {
     ['revokeSession', 'cherry_cloud.session.revoke', 'isRevokingSession', signedOut]
   ] as const)('runs %s with an isolated loading state', async (action, route, pendingFlag, nextStatus) => {
     const pendingAction = deferred<typeof nextStatus>()
-    const { result } = renderHook(() => useCherryAccountSession())
+    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: createWrapper() })
     await waitFor(() => expect(result.current.loadState).toBe('ready'))
     mocks.ipcRequest.mockImplementationOnce((requestedRoute: string) => {
       expect(requestedRoute).toBe(route)
@@ -94,7 +125,7 @@ describe('useCherryAccountSession', () => {
     ['cancelLogin', new Error('cancel failed'), 'settings.provider.cherry_cloud.sign_in_failed'],
     ['revokeSession', new Error('revoke failed'), 'settings.provider.cherry_cloud.logout_failed']
   ] as const)('translates %s failures', async (action, error, message) => {
-    const { result } = renderHook(() => useCherryAccountSession())
+    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: createWrapper() })
     await waitFor(() => expect(result.current.loadState).toBe('ready'))
     mocks.ipcRequest.mockRejectedValueOnce(error)
 

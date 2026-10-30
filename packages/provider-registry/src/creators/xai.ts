@@ -79,6 +79,30 @@ export default defineCreator({
       capabilities: ['image-recognition'],
       inputModalities: ['text', 'image'],
       contextWindow: 8192
+    },
+    {
+      id: 'grok-imagine-image',
+      name: 'Grok Imagine Image',
+      family: 'grok',
+      capabilities: ['image-recognition', 'image-generation', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image']
+    },
+    {
+      id: 'grok-imagine-image-2-0',
+      name: 'Grok Imagine Image 2.0',
+      family: 'grok',
+      capabilities: ['image-recognition', 'image-generation', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image']
+    },
+    {
+      id: 'grok-imagine-image-quality',
+      name: 'Grok Imagine Image Quality',
+      family: 'grok',
+      capabilities: ['image-recognition', 'image-generation', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image']
     }
   ]
 })

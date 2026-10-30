@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,14 +25,21 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: (props: ResourceCatalogViewProps) => {
     resourceCatalogViewMock(props)
     const installed = [
-      { name: 'System import', scope: 'system', source: 'system', sourceUrl: null },
-      { name: 'Builtin skill', scope: 'builtin', source: 'builtin', sourceUrl: null },
-      { name: 'Local system import', scope: 'system', source: 'local', sourceUrl: null },
-      { name: 'Unknown origin', scope: 'local', source: 'local', sourceUrl: null },
-      { name: 'Online import', scope: 'system', source: 'marketplace', sourceUrl: 'https://example.com/skill' }
+      { isGlobalEnabled: true, name: 'System import', scope: 'system', source: 'system', sourceUrl: null },
+      { isGlobalEnabled: true, name: 'Builtin skill', scope: 'builtin', source: 'builtin', sourceUrl: null },
+      { isGlobalEnabled: false, name: 'Local system import', scope: 'system', source: 'local', sourceUrl: null },
+      { isGlobalEnabled: false, name: 'Unknown origin', scope: 'local', source: 'local', sourceUrl: null },
+      {
+        isGlobalEnabled: true,
+        name: 'Online import',
+        scope: 'system',
+        source: 'marketplace',
+        sourceUrl: 'https://example.com/skill'
+      }
     ]
     return (
       <>
+        {props.toolbarLeading}
         {props.toolbarFooter}
         <ul aria-label="Installed skills">
           {installed.map((skill) => {
@@ -51,6 +59,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 describe('SkillsSettings', () => {
   beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
     routerState.search = {}
     navigateMock.mockImplementation(
       (options: {
@@ -126,5 +135,30 @@ describe('SkillsSettings', () => {
       params: { skillId: 'skill-1' },
       search: { scope: 'all' }
     })
+  })
+
+  it('stores the enabled-only preference and restores it after reopening settings', async () => {
+    const user = userEvent.setup()
+    const firstView = render(<SkillsSettings />)
+
+    await user.click(screen.getByRole('switch', { name: '仅显示已开启技能' }))
+
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.skills.enabled_only')).toBe(true)
+
+    firstView.unmount()
+    render(<SkillsSettings />)
+
+    expect(screen.getByRole('switch', { name: '仅显示已开启技能' })).toBeChecked()
+  })
+
+  it('keeps globally enabled Skills when the enabled-only filter is active', () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.skills.enabled_only', true)
+    render(<SkillsSettings />)
+
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'System import',
+      'Builtin skill',
+      'Online import'
+    ])
   })
 })

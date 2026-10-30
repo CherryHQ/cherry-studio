@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
 import { BaseService } from '@main/core/lifecycle'
+import type { AdvertisedRemoteEndpoint } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Exercises `ApiGatewayService`'s reconcile-after-settle convergence: a toggle that
@@ -35,7 +35,7 @@ const {
     hostPreference: '127.0.0.1',
     portPreference: 23333,
     ipv6Addresses: [] as string[],
-    advertisedEndpoint: null as DirectEndpoint | null,
+    advertisedEndpoint: null as AdvertisedRemoteEndpoint | null,
     ipv6Listening: true
   }
 }))
@@ -538,6 +538,21 @@ describe('ApiGatewayService LAN shutdown', () => {
       advertisedEndpoint: null,
       endpoints: [{ host: '192.168.1.8', port: 23333, security: 'ws' }]
     })
+  })
+
+  it('keeps the saved input URL out of invitation transport endpoints', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = {
+      host: 'desktop.example.com',
+      port: 443,
+      security: 'wss',
+      inputUrl: 'https://Desktop.example.com'
+    }
+    const invitation = await service.createRemoteInvitation()
+    const endpoint = { host: 'desktop.example.com', port: 443, security: 'wss' }
+    expect(invitation.advertisedEndpoint).toEqual(endpoint)
+    expect(invitation.endpoints).toEqual([endpoint])
   })
 
   it('rejects invalid persisted destinations instead of issuing an unusable invitation', async () => {

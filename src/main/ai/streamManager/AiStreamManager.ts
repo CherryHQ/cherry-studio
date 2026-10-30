@@ -6,10 +6,9 @@ import type { UIMessageChunk } from 'ai'
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
   BaseService,
   DependsOn,
@@ -40,6 +39,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -897,7 +897,7 @@ export class AiStreamManager extends BaseService {
     contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
-    /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
+    /** Idle-chunk timeout (ms); resets per chunk. Inherits `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min) when omitted. */
     idleTimeoutMs?: number
     /** In-process agent correlation for gateway-owned provider-request records. */
     usageContext?: InProcessUsageContext
@@ -2004,10 +2004,9 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    // Idle-chunk timer; on timeout aborts `exec.abortController`, which the
-    // upstream AI SDK request is already wired to. Caller override via
-    // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
-    const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
+    // Abort the upstream request on parsed-chunk inactivity, using the dedicated chat bound
+    // unless the caller supplies `requestOptions.timeout`.
+    const timeoutMs = request.requestOptions?.timeout ?? CHAT_STREAM_IDLE_TIMEOUT_MS
     const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).

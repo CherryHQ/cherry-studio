@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-18-webdav-upload-size-errors.md
+2026-10-18-webdav-upload-size-errors.md: 53170deba74796600017e55e424f1e6c5a16adba
+2026-10-18-webdav-upload-size-errors.zh.md: 256ed0b63f8cf80a230706ef68817b04f3d6c61a

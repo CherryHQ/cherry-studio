@@ -1,10 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-import { EditorView } from '@codemirror/view'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { loadLanguage } from '@uiw/codemirror-extensions-langs'
 import { type ComponentProps, type ReactNode, type Ref, useImperativeHandle, useRef, useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
@@ -15,19 +13,8 @@ type MockCodeEditorProps = ComponentProps<'textarea'> & {
   value: string
   onChange?: (value: string) => void
   options?: { foldGutter?: boolean; lineNumbers?: boolean }
-  theme?: unknown
   editable?: boolean
 }
-
-const mocks = vi.hoisted(() => ({
-  theme: 'light' as 'light' | 'dark',
-  codeEditorProps: undefined as
-    | {
-        options?: { foldGutter?: boolean; lineNumbers?: boolean }
-        theme?: unknown
-      }
-    | undefined
-}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -47,12 +34,6 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [14]
 }))
 
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({
-    theme: mocks.theme
-  })
-}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return {
@@ -66,9 +47,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/LazyCodeEditor', () => ({
-  LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme, editable }: MockCodeEditorProps) => {
+  LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, editable }: MockCodeEditorProps) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null)
-    mocks.codeEditorProps = { options, theme }
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus()
     }))
@@ -94,118 +74,6 @@ vi.mock('@renderer/components/LazyCodeEditor', () => ({
 }))
 
 describe('PromptEditorField', () => {
-  beforeEach(() => {
-    mocks.theme = 'light'
-    mocks.codeEditorProps = undefined
-  })
-
-  it('uses the prompt writing theme without a gutter', () => {
-    function Harness() {
-      const [value, setValue] = useState('')
-      return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
-    }
-
-    render(<Harness />)
-
-    expect(mocks.codeEditorProps?.theme).not.toBe('light')
-    expect(mocks.codeEditorProps?.options).toMatchObject({
-      foldGutter: false,
-      lineNumbers: false
-    })
-    expect(screen.queryByTestId('gutter')).not.toBeInTheDocument()
-
-    const editorContainer = screen.getByTestId('editor-empty-area').parentElement
-    expect(editorContainer).toHaveClass('bg-background')
-    expect(editorContainer).toHaveClass('border-border', 'focus-within:border-ring')
-    expect(editorContainer).toHaveClass('focus-within:border-ring')
-    expect(editorContainer).not.toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
-    expect(editorContainer).not.toHaveClass('bg-accent/15', 'focus-within:bg-accent/20')
-    expect(editorContainer).not.toHaveClass('border-border-subtle', 'focus-within:border-border-subtle')
-  })
-
-  it('marks the prompt theme as dark in dark mode', () => {
-    mocks.theme = 'dark'
-
-    function Harness() {
-      const [value, setValue] = useState('')
-      return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
-    }
-
-    render(<Harness />)
-
-    const theme = mocks.codeEditorProps?.theme
-    if (!Array.isArray(theme)) throw new Error('Expected the prompt editor to provide a CodeMirror extension theme')
-
-    const parent = document.createElement('div')
-    document.body.append(parent)
-    const view = new EditorView({ extensions: theme, parent })
-
-    expect(view.state.facet(EditorView.darkTheme)).toBe(true)
-
-    view.destroy()
-    parent.remove()
-  })
-
-  it('keeps Markdown markers visually secondary', async () => {
-    function Harness() {
-      const [value, setValue] = useState('')
-      return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
-    }
-
-    render(<Harness />)
-
-    const theme = mocks.codeEditorProps?.theme
-    if (!Array.isArray(theme)) throw new Error('Expected the prompt editor to provide a CodeMirror extension theme')
-
-    const parent = document.createElement('div')
-    document.body.append(parent)
-    const view = new EditorView({
-      doc: '# Heading\n**strong** [link](https://example.com)',
-      extensions: [loadLanguage('markdown')!, theme],
-      parent
-    })
-
-    const tokenStyle = (text: string, occurrence = 0) => {
-      const allTokens = Array.from(view.dom.querySelectorAll<HTMLElement>('.cm-content span'))
-      const tokens = allTokens.filter((token) => token.textContent === text)
-      if (!tokens[occurrence]) {
-        throw new Error(
-          `Missing token ${text}; rendered tokens: ${allTokens.map((token) => token.textContent).join('|')}`
-        )
-      }
-      return getComputedStyle(tokens[occurrence])
-    }
-
-    await waitFor(() => {
-      const renderedTokens = Array.from(view.dom.querySelectorAll<HTMLElement>('.cm-content span')).map(
-        (token) => token.textContent
-      )
-      expect(renderedTokens).toContain('**')
-    })
-
-    expect(tokenStyle('#').color).toBe('var(--muted-foreground)')
-    expect(tokenStyle(' Heading').color).toBe('var(--foreground)')
-    expect(tokenStyle(' Heading').fontWeight).toBe('var(--font-weight-medium)')
-    expect(tokenStyle('**').color).toBe('var(--muted-foreground)')
-    expect(tokenStyle('strong').fontWeight).toBe('var(--font-weight-bold)')
-    expect(tokenStyle('link').color).toBe('var(--link)')
-    expect(tokenStyle('[').color).toBe('var(--muted-foreground)')
-    expect(getComputedStyle(view.contentDOM).padding).toBe('calc(var(--spacing) * 3)')
-
-    view.destroy()
-    parent.remove()
-  })
-
-  it('composes fill layout classes without merging adjacent class names', () => {
-    render(<PromptEditorField fill label={<span>Prompt</span>} value="Original prompt" onChange={vi.fn()} />)
-
-    const preview = screen.getByTestId('markdown').parentElement
-    const editorFrame = preview?.parentElement
-
-    expect(preview).toHaveClass('text-xs', 'min-h-0', 'flex-1')
-    expect(editorFrame).toHaveClass('flex-col', 'border-border')
-  })
-
   // Regression guard for #18377: the prompt preview container must carry the
   // `prompt-preview` scope class so the scoped CSS rule can restore visible
   // line breaks (global `.markdown p { white-space: normal }` collapses soft

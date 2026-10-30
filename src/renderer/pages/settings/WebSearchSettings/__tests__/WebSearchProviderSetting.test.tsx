@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -168,6 +169,82 @@ describe('WebSearchProviderSetting', () => {
     expect(screen.queryByPlaceholderText('settings.provider.api_key.label')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /navigate.provider_settings/ }))
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'zhipu' } })
+  })
+
+  describe('DeepSeek API key sync from the model provider', () => {
+    const deepseekProvider: WebSearchProvider = {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      type: 'api',
+      apiKeys: ['stale-key'],
+      capabilities: [{ feature: 'searchKeywords' as const, apiHost: 'https://api.deepseek.com' }],
+      engines: [],
+      basicAuthUsername: '',
+      basicAuthPassword: ''
+    }
+
+    it('replaces the web search keys and the unsaved draft with the model provider keys', async () => {
+      MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', {
+        keys: [
+          { id: 'k1', key: 'model-key-a', isEnabled: true },
+          { id: 'k2', key: 'model-key-b', isEnabled: true }
+        ]
+      })
+      const props = createProps(createEntry({ provider: deepseekProvider }))
+      render(<WebSearchProviderSetting {...props} />)
+
+      fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+        target: { value: 'draft-key' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.sync_provider_api_keys' }))
+
+      await waitFor(() => {
+        expect(props.onSetApiKeys).toHaveBeenCalledWith('deepseek', ['model-key-a', 'model-key-b'])
+      })
+      expect(screen.getByPlaceholderText('settings.provider.api_key.label')).toHaveValue('model-key-a, model-key-b')
+      expect(toast.success).toHaveBeenCalledWith('settings.tool.websearch.sync_provider_api_keys_success')
+    })
+
+    it('keeps the draft when saving the synced keys fails', async () => {
+      MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', {
+        keys: [{ id: 'k1', key: 'model-key-a', isEnabled: true }]
+      })
+      const props = createProps(createEntry({ provider: deepseekProvider }))
+      props.onSetApiKeys.mockRejectedValueOnce(new Error('persist failed'))
+      render(<WebSearchProviderSetting {...props} />)
+
+      fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+        target: { value: 'draft-key' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.sync_provider_api_keys' }))
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
+      })
+      expect(screen.getByPlaceholderText('settings.provider.api_key.label')).toHaveValue('draft-key')
+      expect(toast.success).not.toHaveBeenCalled()
+    })
+
+    it('hides the sync button when the model provider has no enabled keys', () => {
+      MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
+      render(<WebSearchProviderSetting {...createProps(createEntry({ provider: deepseekProvider }))} />)
+
+      expect(screen.getByPlaceholderText('settings.provider.api_key.label')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'settings.tool.websearch.sync_provider_api_keys' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not offer sync for providers without a matching model provider', () => {
+      MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', {
+        keys: [{ id: 'k1', key: 'model-key-a', isEnabled: true }]
+      })
+      render(<WebSearchProviderSetting {...createProps()} />)
+
+      expect(
+        screen.queryByRole('button', { name: 'settings.tool.websearch.sync_provider_api_keys' })
+      ).not.toBeInTheDocument()
+    })
   })
 
   it('renders basic auth password only after username is present and persists credentials', async () => {

@@ -1,7 +1,7 @@
 ---
 name: cherry-tool-guide
 description: 'Cherry tool routing: bun, uv, rg, knowledge, memory, schedules, skills, MCP, web. Read before shell workarounds.'
-version: 1.7.0
+version: 1.8.0
 ---
 
 # Cherry Tool Guide
@@ -43,7 +43,7 @@ parameter names, enums, and required fields. Read it before every call.
   the session's approval mode. Call them only once the user's intent is clear; if approval is
   declined, stop and report — do not retry the same effect through another route.
 - **Intent still gates auto-approved effects.** Memory writes, schedule changes,
-  notifications, and agent/channel configuration may execute without an approval card.
+  notifications, Session renames, and agent/channel configuration may execute without an approval card.
   Do not call them merely because they are available; first make sure the user requested
   the effect or it is necessary to complete an already-approved task.
 
@@ -62,6 +62,7 @@ parameter names, enums, and required fields. Read it before every call.
 | Schedule a recurring / future task | `mcp__cherry-tools__cron` (Cherry scheduling only) | [autonomy.md](references/autonomy.md) |
 | Proactively message the user or send a file | `mcp__cherry-tools__notify` (needs configured recipients) | [autonomy.md](references/autonomy.md) |
 | Inspect / connect / repair IM channels, rename agent | `mcp__cherry-tools__config` | [autonomy.md](references/autonomy.md) |
+| Rename the current or another Agent Session | `mcp__cherry-tools__session_rename` | [sessions.md](references/sessions.md) |
 | Find, create, message, or inspect work across Agent Sessions | `mcp__cherry-tools__session_list` / `session_search` / `session_create` / `session_send` / `session_deliveries` | [sessions.md](references/sessions.md) |
 | Generate an image | `mcp__cherry-tools__generate_image` (needs a painting model) | [outputs.md](references/outputs.md) |
 | Declare final deliverable file(s) | `mcp__cherry-tools__report_artifacts` | [outputs.md](references/outputs.md) |
