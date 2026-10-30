@@ -128,6 +128,21 @@ const renderedFootnoteText = (source: string, identifier: string): string | unde
 }
 
 /**
+ * The footnote labels a source renders as references. A label the document never defines is no
+ * reference: the brackets stay the literal text the reference would have replaced.
+ */
+const renderedFootnoteReferences = (source: string): string[] => {
+  type Node = { type: string; identifier?: string; children?: Node[] }
+  const labels: string[] = []
+  const walk = (node: Node): void => {
+    if (node.type === 'footnoteReference' && node.identifier) labels.push(node.identifier.toLowerCase())
+    for (const child of node.children ?? []) walk(child)
+  }
+  walk(parsed(source))
+  return labels
+}
+
+/**
  * The numbers the ordered lists of a source render with. A list is one block: split apart, every
  * piece restarts at its own first marker and the numbering the document shows is lost.
  */
@@ -1245,6 +1260,48 @@ describe('splitMarkdownChunks', () => {
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[^n]: note')
     }
+  })
+
+  it('carries a footnote definition that interrupts the quoted paragraph above it', () => {
+    // A footnote definition interrupts a paragraph, so `> [^n]: CORRECT_NOTE` below a quoted
+    // paragraph is the document's note even though the quote marker only repeats the container
+    // the paragraph sits in. Excluding it left the chunk with the reference parsing `[^n]` as the
+    // literal text the unsplit document never shows.
+    const content = ['> quoted paragraph', '> [^n]: CORRECT_NOTE', '', 'see [^n]'].join('\n')
+
+    expect(renderedFootnoteText(content, 'n')).toBe('CORRECT_NOTE')
+    expect(renderedFootnoteReferences(content)).toEqual(['n'])
+
+    const chunks = chunksOf(content, 1)
+    expect(chunks.length).toBeGreaterThan(1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [^n]'))
+    expect(referencing).toHaveLength(1)
+    expect(renderedFootnoteText(referencing[0].text, 'n')).toBe('CORRECT_NOTE')
+    expect(renderedFootnoteReferences(referencing[0].text)).toEqual(['n'])
+  })
+
+  it('keeps a quoted note ahead of a later definition of the same label', () => {
+    // The quoted definition stands first in the document, so `[^n]` resolves to CORRECT_NOTE. The
+    // scanner dropped it and carried only the later WRONG_NOTE into every chunk, so the reference
+    // printed the wrong note where the unsplit document prints the quoted one.
+    const content = [
+      '> quoted paragraph',
+      '> [^n]: CORRECT_NOTE',
+      '',
+      'para one',
+      '',
+      'see [^n]',
+      '',
+      '[^n]: WRONG_NOTE'
+    ].join('\n')
+
+    expect(renderedFootnoteText(content, 'n')).toBe('CORRECT_NOTE')
+
+    const chunks = chunksOf(content, 1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [^n]'))
+    expect(referencing).toHaveLength(1)
+    expect(renderedFootnoteReferences(referencing[0].text)).toEqual(['n'])
+    expect(renderedFootnoteText(referencing[0].text, 'n')).toBe('CORRECT_NOTE')
   })
 
   it('does not carry the indented text that follows a complete link definition', () => {
@@ -3048,6 +3105,21 @@ describe('heading ids assigned from the text the renderer reads', () => {
       'foobarbaz',
       'foobarbaz-1'
     ])
+  })
+
+  it('pairs a highlight against the emphasis run around it the way the renderer does', () => {
+    // `_==b_==a` closes its emphasis over `==b`; the second `==` sits between the `_` and a word,
+    // so the highlight extension gives it no closing flank and both runs stay literal. The
+    // renderer reads `==b==a` and numbers `b-a`, while pairing the equals independently reserved
+    // `ba` — the later `# ba` then took `ba-1`, and `[jump](#ba)` had no target even with its
+    // chunk mounted. The unsplit oracle runs without the highlight extension; it agrees here
+    // because both equals runs render as the text they were written as.
+    const content = `# _==b_==a\n\n${'filler\n\n'.repeat(3072)}# ba\n\n[jump](#ba)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(renderedHeadingIds(content)).toEqual(['chunk--b-a', 'chunk--ba'])
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
   })
 
   it('keeps the backslash a heading renders before a non-punctuation character', () => {

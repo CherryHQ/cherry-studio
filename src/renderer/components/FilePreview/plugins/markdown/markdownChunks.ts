@@ -1243,9 +1243,12 @@ function strikethroughSpans(source: string): Set<number> {
 
 /**
  * The `==` runs of `source` that the renderer reads as the markers of a highlight — which render no
- * text of their own. A highlight is an extension rather than core CommonMark, so it has no flank
- * tests of its own: it opens and closes on any run of two, pairing a closing run with the nearest
- * earlier one, and a run that pairs with nothing stays the text it was written as.
+ * text of their own. `remark-mark-highlight` reads the flanks the way micromark's attention
+ * tokenizer does: a run of two opens against a word character, or against punctuation with
+ * something before it, and closes the same way. A run that pairs with nothing — or cannot pair,
+ * like the second `==` of `_==b_==a`, whose `_` before it and word after it leave no closing
+ * flank — stays the text it was written as. Runs longer than two never pair, as the tokenizer
+ * abandons them.
  */
 function highlightSpans(source: string): Set<number> {
   const spans = new Set<number>()
@@ -1267,12 +1270,16 @@ function highlightSpans(source: string): Set<number> {
     const run = EQUALS_RUN.exec(source.slice(index))?.[0] ?? character
     const end = index + run.length
     if (run.length === 2) {
+      const left = micromarkClass(index > 0 ? source.charCodeAt(index - 1) : NaN)
+      const right = micromarkClass(source.charCodeAt(end))
+      const opens = right === undefined || (right === 'punctuation' && left !== undefined)
+      const closes = left === undefined || (left === 'punctuation' && right !== undefined)
       const partner = open.length - 1
-      if (partner >= 0) {
+      if (closes && partner >= 0) {
         spans.add(open[partner])
         spans.add(index)
         open.pop()
-      } else {
+      } else if (opens) {
         open.push(index)
       }
     }
@@ -2806,12 +2813,17 @@ export function splitMarkdownChunks(
         footnoteParagraphOpen = inNestedDefinition ? false : continuesFootnoteParagraph(carried)
       continue
     }
-    // A footnote definition cannot interrupt a paragraph either, and the container in front of it
-    // only counts where it opens a block: `2) [^r]: right` below a paragraph is that paragraph's
-    // text, so hoisting it would print a note the unsplit document does not have.
+    // A footnote definition interrupts a paragraph, so a container that merely repeats the quote
+    // the paragraph sits behind leaves it standing — `> para` then `> [^n]: note` is a quoted
+    // paragraph and a note. A list marker that cannot interrupt the paragraph is different: it is
+    // not consumed, so `2) [^r]: right` below a bare paragraph is that paragraph's text.
     const opensBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '')
     const footnoteStart =
-      containerHoldsCode || (container !== null && previousStatus === 'paragraph' && !opensBlock)
+      containerHoldsCode ||
+      (container !== null &&
+        previousStatus === 'paragraph' &&
+        !opensBlock &&
+        containerMarkers(container[0]).some((marker) => marker !== '>'))
         ? null
         : FOOTNOTE_DEFINITION_START.exec(uncontained)
     if (footnoteStart) {
@@ -2863,7 +2875,7 @@ export function splitMarkdownChunks(
       leadingColumns(line) >= emptyItemColumn &&
       leadingColumns(line) < emptyItemColumn + 4
         ? afterColumns(emptyItemColumn, line)
-        : inOpenItem
+        : inOpenItem && run !== null
           ? afterColumns(run.content, line)
           : undefined
     const definition =
