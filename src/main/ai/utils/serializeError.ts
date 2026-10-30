@@ -44,10 +44,16 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 function ollamaAllocationHintFromTerminalError(error: Error): string | undefined {
-  const source = error as unknown as Record<string, unknown>
-  const errors = Array.isArray(source.errors) ? source.errors : []
-  const terminal = source.lastError ?? (errors.length > 0 ? errors[errors.length - 1] : undefined)
-  if (terminal == null) return undefined
+  let terminal: unknown = error
+  const seen = new Set<unknown>()
+  while (RetryError.isInstance(terminal)) {
+    if (seen.has(terminal)) return undefined
+    seen.add(terminal)
+    const source = terminal as unknown as Record<string, unknown>
+    const errors = Array.isArray(source.errors) ? source.errors : []
+    terminal = source.lastError ?? (errors.length > 0 ? errors[errors.length - 1] : undefined)
+  }
+  if (terminal == null || typeof terminal !== 'object') return undefined
 
   const record = terminal as Record<string, unknown>
   const hint = [
@@ -150,7 +156,11 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
     }
 
     const allocationHint = isRetryError ? ollamaAllocationHintFromTerminalError(error) : undefined
-    enrichOllamaAllocationError(serialized, context, allocationHint)
+    // Retry wrapper messages can describe earlier attempts, so only the
+    // terminal leaf may authorize allocation recovery metadata.
+    if (!isRetryError || allocationHint != null) {
+      enrichOllamaAllocationError(serialized, context, allocationHint)
+    }
     return serialized
   }
   const safeMessage = getSafeProviderErrorMessage({ data: error })

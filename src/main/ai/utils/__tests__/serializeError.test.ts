@@ -211,6 +211,52 @@ describe('serializeError', () => {
       expect(result.ollamaEffectiveNumCtx).toBe(65_536)
     })
 
+    it('uses the final errors edge when a nested retry wrapper has no lastError', () => {
+      const providerError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseBody: 'failed to allocate memory for kv cache'
+      })
+      const inner = new RetryError({ message: 'retry failed', reason: 'maxRetriesExceeded', errors: [providerError] })
+      Object.assign(inner, { lastError: undefined })
+      const outer = new RetryError({ message: 'retry failed', reason: 'maxRetriesExceeded', errors: [inner] })
+      expect(
+        serializeError(outer, {
+          ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+        }).i18nKey
+      ).toBe('ollama_context_memory')
+    })
+
+    it('ignores allocation text on retry wrappers when the terminal failure is unrelated', () => {
+      const inner = new RetryError({
+        message: 'failed to allocate memory for kv cache',
+        reason: 'maxRetriesExceeded',
+        errors: [new Error('connection closed')]
+      })
+      const outer = new RetryError({
+        message: 'failed to allocate memory for kv cache',
+        reason: 'maxRetriesExceeded',
+        errors: [inner]
+      })
+      expect(
+        serializeError(outer, {
+          ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+        }).i18nKey
+      ).toBeUndefined()
+    })
+
+    it('terminates a cyclic retry chain without inventing recovery metadata', () => {
+      const error = new RetryError({ message: 'retry failed', reason: 'maxRetriesExceeded', errors: [] })
+      Object.assign(error, { lastError: error, errors: [error] })
+      expect(
+        serializeError(error, {
+          ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+        }).i18nKey
+      ).toBeUndefined()
+    })
+
     it('tags Ollama KV-cache allocation failures with context metadata', () => {
       const providerError = new APICallError({
         message: 'Internal Server Error',
