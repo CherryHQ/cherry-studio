@@ -14,6 +14,7 @@ interface HarnessProps {
   isKnowledgeBasesLoading: boolean
   scopeKey: string
   initialSelection?: KnowledgeBase[]
+  initialKnowledgeBaseIds?: readonly string[]
   remountsOnScopeChange?: boolean
 }
 
@@ -27,9 +28,10 @@ function useScopeHarness(props: HarnessProps) {
     scopeKey: props.scopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
+    initialKnowledgeBaseIds: props.initialKnowledgeBaseIds ?? [],
     remountsOnScopeChange: props.remountsOnScopeChange
   })
-  return { ...scope, selectedKnowledgeBases }
+  return { ...scope, selectedKnowledgeBases, setSelectedKnowledgeBases }
 }
 
 const SCOPE_KEY = 'topic-1:agent-1'
@@ -45,7 +47,8 @@ describe('useComposerKnowledgeBaseScope', () => {
         isKnowledgeBasesLoading: false,
         scopeKey: SCOPE_KEY,
         selectedKnowledgeBases: [bases[0]],
-        setSelectedKnowledgeBases: vi.fn()
+        setSelectedKnowledgeBases: vi.fn(),
+        initialKnowledgeBaseIds: []
       })
     )
 
@@ -153,5 +156,65 @@ describe('useComposerKnowledgeBaseScope', () => {
     rerender({ allKnowledgeBases: bases, isKnowledgeBasesLoading: false, scopeKey: 'topic-2:agent-1' })
 
     expect(result.current.selectedKnowledgeBases).toEqual([])
+  })
+
+  describe('draft knowledge bases', () => {
+    const one = kb('kb-1')
+    const two = kb('kb-2')
+    const loaded = { allKnowledgeBases: [one, two], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+
+    it('is ready immediately when the draft saved no knowledge bases', () => {
+      const { result } = renderHook(() => useScopeHarness(loaded))
+
+      expect(result.current.isKnowledgeBaseDraftHydrated).toBe(true)
+    })
+
+    it('waits for the bases to load before restoring the saved selection', () => {
+      const initialProps: HarnessProps = {
+        ...loaded,
+        allKnowledgeBases: [],
+        isKnowledgeBasesLoading: true,
+        initialKnowledgeBaseIds: [one.id]
+      }
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
+
+      expect(result.current.isKnowledgeBaseDraftHydrated).toBe(false)
+
+      rerender({ ...loaded, initialKnowledgeBaseIds: [one.id] })
+
+      expect(result.current.isKnowledgeBaseDraftHydrated).toBe(true)
+      expect(result.current.selectedKnowledgeBases).toEqual([one])
+    })
+
+    it('keeps a saved id through unrelated draft writes when its base becomes available', () => {
+      const late = kb('kb-late')
+      const saved = [late.id, one.id]
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
+        initialProps: { ...loaded, initialKnowledgeBaseIds: saved }
+      })
+
+      rerender({ ...loaded, allKnowledgeBases: [one, two, late], initialKnowledgeBaseIds: saved })
+      act(() => result.current.syncKnowledgeBaseIds())
+
+      expect(result.current.knowledgeBaseIdsRef.current).toEqual(saved)
+    })
+
+    it('keeps a saved id that is unavailable when the selection changes', () => {
+      const { result } = renderHook(() => useScopeHarness({ ...loaded, initialKnowledgeBaseIds: ['kb-gone', one.id] }))
+
+      act(() => result.current.setSelectedKnowledgeBases([one, two]))
+      act(() => result.current.syncKnowledgeBaseIds())
+
+      expect(result.current.knowledgeBaseIdsRef.current).toEqual(['kb-gone', one.id, two.id])
+    })
+
+    it('drops a saved id once it is selectable and no longer selected', () => {
+      const { result } = renderHook(() => useScopeHarness({ ...loaded, initialKnowledgeBaseIds: ['kb-gone', one.id] }))
+
+      act(() => result.current.setSelectedKnowledgeBases([]))
+      act(() => result.current.syncKnowledgeBaseIds())
+
+      expect(result.current.knowledgeBaseIdsRef.current).toEqual(['kb-gone'])
+    })
   })
 })

@@ -1,12 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  advertisedEndpointSchema,
-  directEndpointUrl,
-  parseDirectEndpoint,
-  type DirectEndpoint
-} from '@cherrystudio/remote-protocol'
+import { advertisedEndpointSchema, directEndpointUrl, parseDirectEndpoint } from '@cherrystudio/remote-protocol'
 import {
   Button,
   DialogDescription,
@@ -20,25 +15,27 @@ import {
   Input
 } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
+import type { AdvertisedRemoteEndpoint } from '@shared/data/preference/preferenceTypes'
 
 export function RemoteEndpointSettings({
   endpoint,
   onSave,
   onCancel
 }: {
-  endpoint: DirectEndpoint | null
-  onSave: (endpoint: DirectEndpoint | null) => Promise<void>
+  endpoint: AdvertisedRemoteEndpoint | null
+  onSave: (endpoint: AdvertisedRemoteEndpoint | null) => Promise<void>
   onCancel: () => void
 }) {
   const { t } = useTranslation()
-  const [value, setValue] = useState(endpoint ? directEndpointUrl(endpoint) : '')
+  const [value, setValue] = useState(endpoint ? (endpoint.inputUrl ?? directEndpointUrl(endpoint)) : '')
   const [invalid, setInvalid] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const save = async (address: string) => {
-    let next: DirectEndpoint | null = null
+    let next: AdvertisedRemoteEndpoint | null = null
+    const inputUrl = address.trim()
     try {
-      if (address.trim()) next = advertisedEndpointSchema.parse(parseDirectEndpoint(address.trim()))
+      if (inputUrl) next = { ...advertisedEndpointSchema.parse(parseDirectEndpoint(inputUrl)), inputUrl }
     } catch {
       setInvalid(true)
       return
@@ -47,7 +44,7 @@ export function RemoteEndpointSettings({
     setSaving(true)
     try {
       await onSave(next)
-      setValue(next ? directEndpointUrl(next) : '')
+      setValue(inputUrl)
     } catch {
       toast.error(t('common.save_failed'))
     } finally {

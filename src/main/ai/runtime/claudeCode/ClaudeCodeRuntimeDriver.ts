@@ -18,11 +18,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import {
-  appendAgentAttachmentPaths,
-  buildAgentUserContent,
-  wrapAgentSessionDeliveryContent
-} from '@main/ai/runtime/agentUserContent'
+import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -42,11 +38,11 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -275,51 +271,9 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   }
 }
 
-// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
-export { buildAgentUserContent }
-
-class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
-  private readonly messages: SDKUserMessage[] = []
-  private waitResolve?: (value: IteratorResult<SDKUserMessage>) => void
-  private closed = false
-
-  push(message: SDKUserMessage): void {
-    if (this.closed) return
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: message, done: false })
-      return
-    }
-    this.messages.push(message)
-  }
-
-  close(): void {
-    this.closed = true
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: undefined, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    return {
-      next: () => {
-        const next = this.messages.shift()
-        if (next) return Promise.resolve({ value: next, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true })
-        return new Promise<IteratorResult<SDKUserMessage>>((resolve) => {
-          this.waitResolve = resolve
-        })
-      }
-    }
-  }
-}
-
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
-  private sdkInputQueue = new SdkInputQueue()
+  private readonly sdkInputQueue = new AsyncEventQueue<SDKUserMessage>()
   private readonly abortController = new AbortController()
   private query?: Query
   private closePromise?: Promise<void>

@@ -200,22 +200,36 @@
     {
       "idx": 28,
       "version": "6",
-      "when": 1792466982718,
-      "tag": "0028_minor_jackpot",
+      "when": 1792520576221,
+      "tag": "0028_slow_ravenous",
       "breakpoints": true
     },
     {
       "idx": 29,
       "version": "6",
-      "when": 1792467044746,
-      "tag": "0029_sticky_human_robot",
+      "when": 1792948344082,
+      "tag": "0029_sloppy_pandemic",
       "breakpoints": true
     },
     {
       "idx": 30,
       "version": "6",
-      "when": 1792492709519,
-      "tag": "0030_external_knowledge_persistence",
+      "when": 1793382484295,
+      "tag": "0030_ambiguous_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1793382713102,
+      "tag": "0031_mighty_domino",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1793382714714,
+      "tag": "0032_chunky_doctor_octopus",
       "breakpoints": true
     }
   ],

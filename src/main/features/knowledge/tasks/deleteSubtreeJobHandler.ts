@@ -2,9 +2,10 @@ import './jobTypes'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobHandler } from '@main/core/job/types'
+import type { KeyedMutex } from '@shared/utils/async'
 
+import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
 import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
 import { reclaimKnowledgeIndexSpace } from '../pipeline/vectorstore/vectorCleanup'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
@@ -14,7 +15,8 @@ import { cancelActiveKnowledgeJobs } from './utils/cancel'
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
 
 export function createDeleteSubtreeJobHandler(
-  knowledgeLockManager: KeyedMutex
+  knowledgeLockManager: KeyedMutex,
+  fileProcessingWaits: FileProcessingWaitManager
 ): JobHandler<KnowledgeDeleteSubtreePayload> {
   return {
     recovery: 'retry',
@@ -46,7 +48,8 @@ export function createDeleteSubtreeJobHandler(
       await cancelActiveKnowledgeJobs(baseId, 'knowledge-delete-subtree', {
         rootItemIds: deletingSubtreeItemIds,
         excludeJobId: ctx.jobId,
-        onCancelTimeout: 'throw'
+        onCancelTimeout: 'throw',
+        fileProcessingWaits
       })
 
       // Cleanup is locked so no indexer can write vectors for rows being removed.

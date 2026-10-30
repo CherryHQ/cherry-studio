@@ -883,6 +883,51 @@ describe('ProviderRegistryService', () => {
       expect(providerRegistryService.getImageGenerationSupport('custom-openai-image', 'image-model')).toEqual(block)
     })
 
+    it('does not expose native Grok ratio controls for a provider without a preset', () => {
+      mockReadModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+        )
+      )
+      mockReadProviderModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      mockReadProviders.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      const providerId = 'custom-grok-relay'
+      const modelId = 'grok-imagine-image-2-0'
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId,
+          presetProviderId: null,
+          name: 'Custom Grok relay',
+          orderKey: generateOrderKeyBetween(null, null),
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://relay.example/v1' },
+            'openai-image-generation': { baseUrl: 'https://relay.example/v1' }
+          }
+        })
+        .run()
+
+      const lookup = providerRegistryService.lookupModel(providerId, modelId)
+      expect(lookup.registryOverride).toBeNull()
+      expect(lookup.presetModel?.id).toBe(modelId)
+      expect(providerRegistryService.getImageGenerationSupport(providerId, modelId)).toBeNull()
+    })
+
     it('getImageGenerationSupport returns null when the model is unknown', async () => {
       mockReadModels.mockReturnValue({ version: '1.0', models: [] })
       mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] })

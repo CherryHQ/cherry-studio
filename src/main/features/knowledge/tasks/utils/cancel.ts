@@ -2,6 +2,7 @@ import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { ACTIVE_JOB_STATUSES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
+import type { FileProcessingWaitManager } from '../../ingestion/FileProcessingWaitManager'
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_JOB_TYPES, knowledgeQueueName, toKnowledgeBaseId } from '../../types'
 import { narrowKnowledgeJobInput } from './jobInput'
 
@@ -25,6 +26,8 @@ export interface CancelActiveKnowledgeJobsOptions {
    *  'proceed': cancel without checking outcome — base deletion must not get stuck on
    *  one slow-to-cancel job. */
   onCancelTimeout: 'throw' | 'proceed'
+  /** The file-processing jobs items are waiting on, cancelled along with the knowledge jobs. */
+  fileProcessingWaits: FileProcessingWaitManager
 }
 
 /**
@@ -41,7 +44,7 @@ export async function cancelActiveKnowledgeJobs(
   reason: string,
   options: CancelActiveKnowledgeJobsOptions
 ): Promise<void> {
-  const { rootItemIds, excludeJobId, onCancelTimeout } = options
+  const { rootItemIds, excludeJobId, onCancelTimeout, fileProcessingWaits } = options
 
   let subtreeItemIds: Set<string> | undefined
   if (rootItemIds) {
@@ -64,8 +67,12 @@ export async function cancelActiveKnowledgeJobs(
       .filter((job) => job.id !== excludeJobId)
       .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
       .map((job) => job.id)
-    const fileProcessingJobIds = activeJobs.flatMap((job) => getLinkedFileProcessingJobIds(job, subtreeItemIds))
-    await Promise.all([...jobIds, ...fileProcessingJobIds].map(cancelOne))
+    await Promise.all(jobIds.map(cancelOne))
+  }
+  // Read the waits only after the knowledge cancels settle: a copy job cancelled after its commit
+  // still starts file processing before it returns.
+  const cancelFileProcessingJobs = async (): Promise<void> => {
+    await Promise.all(fileProcessingWaits.jobIds(baseId, subtreeItemIds).map(cancelOne))
   }
 
   if (subtreeItemIds) {
@@ -82,6 +89,7 @@ export async function cancelActiveKnowledgeJobs(
       type: [...KNOWLEDGE_JOB_TYPES]
     })
     await collectAndCancel(activeJobs)
+    await cancelFileProcessingJobs()
     return
   }
 
@@ -101,6 +109,7 @@ export async function cancelActiveKnowledgeJobs(
       break
     }
   }
+  await cancelFileProcessingJobs()
 }
 
 function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {
@@ -112,20 +121,4 @@ function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Se
     return true
   }
   return 'rootItemIds' in narrowed.input && narrowed.input.rootItemIds.some((itemId) => subtreeIds.has(itemId))
-}
-
-/** Linked file-processing jobs for a knowledge job, optionally filtered to a subtree scope. */
-function getLinkedFileProcessingJobIds(
-  job: { type: string; input: unknown },
-  subtreeIds: Set<string> | undefined
-): string[] {
-  const narrowed = narrowKnowledgeJobInput(job)
-  if (
-    narrowed?.type === 'knowledge.check-file-processing-result' &&
-    (!subtreeIds || subtreeIds.has(narrowed.input.itemId)) &&
-    narrowed.input.fileProcessingJobId
-  ) {
-    return [narrowed.input.fileProcessingJobId]
-  }
-  return []
 }

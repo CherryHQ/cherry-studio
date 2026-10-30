@@ -366,7 +366,11 @@ export class KnowledgeBaseService {
   }
 
   getById(id: string): KnowledgeBase {
-    const [row] = this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
+    return this.getByIdTx(this.db, id)
+  }
+
+  private getByIdTx(tx: DbOrTx, id: string): KnowledgeBase {
+    const [row] = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeBase', id)
@@ -431,7 +435,17 @@ export class KnowledgeBaseService {
   }
 
   update(id: string, dto: UpdateKnowledgeBaseDto, options?: { allowEmbeddingModelBackfill?: boolean }): KnowledgeBase {
-    const existing = this.getById(id)
+    return application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, dto, options))
+  }
+
+  /** {@link update} on the caller's transaction, so it can commit together with other writes. */
+  updateTx(
+    tx: DbOrTx,
+    id: string,
+    dto: UpdateKnowledgeBaseDto,
+    options?: { allowEmbeddingModelBackfill?: boolean }
+  ): KnowledgeBase {
+    const existing = this.getByIdTx(tx, id)
 
     const nextEmbeddingModelId =
       dto.embeddingModelId !== undefined ? dto.embeddingModelId?.trim() || null : existing.embeddingModelId
@@ -455,7 +469,7 @@ export class KnowledgeBaseService {
       const skipItemCountGuard = options?.allowEmbeddingModelBackfill === true && isFirstTimeEmbeddingSetup
 
       if (!skipItemCountGuard) {
-        const [{ count: itemCount }] = this.db
+        const [{ count: itemCount }] = tx
           .select({ count: sqlCount(knowledgeItemTable.id) })
           .from(knowledgeItemTable)
           .where(and(eq(knowledgeItemTable.baseId, id), ne(knowledgeItemTable.status, 'deleting')))
@@ -553,31 +567,23 @@ export class KnowledgeBaseService {
       this.assertEmbeddingModelIsNotBeingRemoved(nextEmbeddingModelId)
     }
 
-    const row = application.get('DbService').withWriteTx((tx) => {
-      if (dto.groupId !== undefined) {
-        validateKnowledgeBaseGroupTx(tx, dto.groupId)
-      }
-      const [updated] = tx
-        .update(knowledgeBaseTable)
-        .set(updates)
-        .where(eq(knowledgeBaseTable.id, id))
-        .returning()
-        .all()
-      if (updated && dto.groupId !== undefined && dto.groupId !== existing.groupId) {
-        applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
-          pkColumn: knowledgeBaseTable.id,
-          scope: dto.groupId === null ? isNull(knowledgeBaseTable.groupId) : eq(knowledgeBaseTable.groupId, dto.groupId)
-        })
-        return tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()!
-      }
-      if (!updated) {
-        throw DataApiErrorFactory.notFound('KnowledgeBase', id)
-      }
-      return updated
-    })
+    if (dto.groupId !== undefined) {
+      validateKnowledgeBaseGroupTx(tx, dto.groupId)
+    }
+    let [updated] = tx.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
+    if (updated && dto.groupId !== undefined && dto.groupId !== existing.groupId) {
+      applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
+        pkColumn: knowledgeBaseTable.id,
+        scope: dto.groupId === null ? isNull(knowledgeBaseTable.groupId) : eq(knowledgeBaseTable.groupId, dto.groupId)
+      })
+      updated = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()!
+    }
+    if (!updated) {
+      throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+    }
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
-    return rowToKnowledgeBase(row)
+    return rowToKnowledgeBase(updated)
   }
 
   ungroupTx(tx: DbOrTx, groupId: string): void {
