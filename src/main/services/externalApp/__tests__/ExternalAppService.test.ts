@@ -21,6 +21,11 @@ vi.mock('electron', () => ({
     getApplicationInfoForProtocol: mocks.getApplicationInfoForProtocol,
     getFileIcon: async () => ({ isEmpty: () => false, toDataURL: () => 'data:image/png;base64,cA==' })
   },
+  nativeImage: {
+    createFromPath: () => ({
+      resize: () => ({ isEmpty: () => false, toDataURL: () => 'data:image/png;base64,cA==' })
+    })
+  },
   shell: { openExternal: mocks.openExternal }
 }))
 vi.mock('node:fs', async (importOriginal) => ({
@@ -54,22 +59,29 @@ describe('ExternalAppService', () => {
       throw new Error('not installed')
     })
   })
-  afterEach(() => vi.restoreAllMocks())
-
-  it('lists OS-associated applications outside the fixed editor catalog and presents the default once', async () => {
-    const result = await new ExternalAppService().listOpenTargets('/tmp/report.pdf')
-    expect(result).toEqual({
-      pathKind: 'file',
-      recommendedTargetId: 'system_default',
-      targets: [
-        { id: 'system_default', kind: 'system_default', name: 'Preview', iconDataUrl: 'data:image/png;base64,cA==' },
-        { id: 'file_manager', kind: 'file_manager' },
-        { id: nativeTargetId(editor.id), kind: 'application', name: 'TextEdit', iconDataUrl: undefined }
-      ]
-    })
-    expect(externalAppRequestSchemas['external_app.target.list'].output.parse(result)).toEqual(result)
-    expect(JSON.stringify(result)).not.toContain('/Applications/')
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
+
+  it.each(['darwin', 'win32', 'linux'])(
+    'lists associated applications and presents the default once on %s',
+    async (platform) => {
+      vi.stubGlobal('process', Object.defineProperty(Object.create(process), 'platform', { value: platform }))
+      const result = await new ExternalAppService().listOpenTargets('/tmp/report.pdf')
+      expect(result).toEqual({
+        pathKind: 'file',
+        recommendedTargetId: 'system_default',
+        targets: [
+          { id: 'system_default', kind: 'system_default', name: 'Preview', iconDataUrl: 'data:image/png;base64,cA==' },
+          { id: 'file_manager', kind: 'file_manager' },
+          { id: nativeTargetId(editor.id), kind: 'application', name: 'TextEdit', iconDataUrl: undefined }
+        ]
+      })
+      expect(externalAppRequestSchemas['external_app.target.list'].output.parse(result)).toEqual(result)
+      expect(JSON.stringify(result)).not.toContain('/Applications/')
+    }
+  )
 
   it('deduplicates identical identities but keeps different installations with the same display name', async () => {
     const other = { ...editor, id: '/Other/TextEdit.app' }
