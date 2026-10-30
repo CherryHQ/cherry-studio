@@ -213,12 +213,12 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  * @example Flat-array collection
  * const { data } = useQuery('/pins')
  * const { applyReorderedList } = useReorder('/pins')
- * <DraggableList items={data ?? []} onReorder={applyReorderedList} />
+ * <ReorderableList items={data ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
  *
  * @example Paginated collection (items live under `.items`)
  * const { data } = useQuery('/mini-apps')
  * const { applyReorderedList } = useReorder('/mini-apps', { idKey: 'appId' })
- * <DraggableList items={data?.items ?? []} onReorder={applyReorderedList} />
+ * <ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
  *
  * @example Nested group view via accessors
  * const { applyReorderedList } = useReorder('/grouped-view', {

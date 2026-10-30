@@ -92,8 +92,6 @@ export {
   getCmThemeByName,
   getCmThemeNames
 } from './composites/code-editor'
-// DraggableList
-export { DraggableList, useDraggableReorder } from './composites/draggable-list'
 export {
   Form,
   FormControl,
