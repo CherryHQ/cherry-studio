@@ -244,16 +244,46 @@ function isImageResponseError(error: unknown): boolean {
   return typeof status === 'number' && status >= 200 && status < 300
 }
 
+/** A signature check, not a full image decoder. Reject arbitrary diagnostic text. */
+function hasImageSignature(bytes: string): boolean {
+  const at = (offset: number, values: number[]) =>
+    values.every((value, index) => bytes.charCodeAt(offset + index) === value)
+  return (
+    at(0, [137, 80, 78, 71, 13, 10, 26, 10]) ||
+    at(0, [255, 216, 255]) ||
+    bytes.startsWith('GIF87a') ||
+    bytes.startsWith('GIF89a') ||
+    (bytes.startsWith('RIFF') && bytes.slice(8, 12) === 'WEBP') ||
+    bytes.startsWith('BM') ||
+    at(0, [73, 73, 42, 0]) ||
+    at(0, [77, 77, 0, 42]) ||
+    at(0, [0, 0, 1, 0]) ||
+    (bytes.slice(4, 8) === 'ftyp' &&
+      ['avif', 'avis', 'heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(bytes.slice(8, 12)))
+  )
+}
+
 function normalizeImageString(value: string): string | undefined {
   const trimmed = value.trim()
   if (!trimmed) return undefined
-  if (trimmed.startsWith('data:')) return trimmed.toLowerCase().startsWith('data:image/') ? trimmed : undefined
   if (/^https?:\/\//i.test(trimmed)) return trimmed
-  const compact = trimmed.replace(/\s+/g, '')
-  // Bare payloads must look like real image bytes; short alpha strings are
-  // almost always a text field misread as an image (e.g. a status message).
-  if (compact.length < 100 || !/^[A-Za-z0-9+/=_-]+$/.test(compact)) return undefined
-  return compact
+  let payload = trimmed
+  if (/^data:/i.test(trimmed)) {
+    // The consumed SDK decodes all image data URI payloads as base64. Reject
+    // percent-encoded URIs rather than return text that fails during decoding.
+    const uri = /^data:image\/[^;,\s]+(?:;[^;,\s=]+=[^;,\s]+)*;base64,([\s\S]*)$/i.exec(trimmed)
+    if (!uri) return undefined
+    payload = uri[1]
+  }
+  const compact = payload.replace(/\s+/g, '')
+  if (!compact || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) return undefined
+  try {
+    const bytes = atob(compact)
+    if (!hasImageSignature(bytes)) return undefined
+  } catch {
+    return undefined
+  }
+  return /^data:/i.test(trimmed) ? trimmed : compact
 }
 
 function extractSingleImage(item: unknown): string | undefined {

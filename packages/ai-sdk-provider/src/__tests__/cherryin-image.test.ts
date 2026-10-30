@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createCherryIn } from '../cherryin-provider'
 
 const PNG_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j9WQAAAAASUVORK5CYII='
 
 const toB64 = (text: string) => btoa(String.fromCharCode(...new TextEncoder().encode(text)))
 
@@ -47,7 +48,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('recovers a gateway base64_json generation response without an extra request', async () => {
-    const payload = `${toB64('gateway-image-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi
       .fn<FetchFunction>()
       .mockImplementation(fetchReturning(() => jsonResponse({ data: [{ base64_json: payload }] })))
@@ -56,6 +57,56 @@ describe('CherryIN OpenAI image responses', () => {
 
     expect(result.images).toEqual([payload])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    'The image generation could not be completed because the upstream service is temporarily unavailable please try again later now',
+    'a'.repeat(200),
+    'data:image/png;charset=utf8,%89PNG',
+    'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3C/svg%3E',
+    'data:image/png;base64,' + btoa('not image bytes'.repeat(20)),
+    'iVBORw0KGgo!' + 'A'.repeat(200)
+  ])('rejects recovered diagnostic or unsupported image encoding without losing billing context: %s', async (value) => {
+    const fetchMock = vi
+      .fn<FetchFunction>()
+      .mockImplementation(fetchReturning(() => jsonResponse({ results: [{ result: value }] })))
+    const error = await Promise.resolve(imageModel(fetchMock).doGenerate(generateOptions('a cat'))).catch(
+      (cause: unknown) => cause
+    )
+    expect((error as Error).message).toMatch('no recognizable image data')
+    expect((error as Error).message).toMatch(/charg|bill/i)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([PNG_BASE64, 'data:image/png;base64,' + PNG_BASE64, 'data:image/png;charset=utf8;base64,' + PNG_BASE64])(
+    'recovers recognizable image bytes: %s',
+    async (value) => {
+      const fetchMock = vi
+        .fn<FetchFunction>()
+        .mockImplementation(fetchReturning(() => jsonResponse({ results: [{ result: value }] })))
+      const result = await imageModel(fetchMock).doGenerate(generateOptions('a cat'))
+      expect(result.images).toEqual([value])
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each(
+    [
+      [255, 216, 255, 224],
+      [...new TextEncoder().encode('GIF89a')],
+      [...new TextEncoder().encode('RIFF1234WEBP')],
+      [73, 73, 42, 0],
+      [77, 77, 0, 42],
+      [...new TextEncoder().encode('BM')],
+      [0, 0, 1, 0],
+      [0, 0, 0, 24, ...new TextEncoder().encode('ftypavif')]
+    ].map((signature) => [signature])
+  )('recognizes supported raster signature %j', async (signature) => {
+    const payload = btoa(String.fromCharCode(...signature, ...new Array(100).fill(0)))
+    const fetchMock = vi
+      .fn<FetchFunction>()
+      .mockImplementation(fetchReturning(() => jsonResponse({ results: [{ result: payload }] })))
+    expect((await imageModel(fetchMock).doGenerate(generateOptions('a cat'))).images).toEqual([payload])
   })
 
   it('recovers a top-level images url response', async () => {
@@ -83,7 +134,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('recovers an image-edit response sent under an alternate key', async () => {
-    const payload = `${toB64('edit-image-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi
       .fn<FetchFunction>()
       .mockImplementation(fetchReturning(() => jsonResponse({ data: [{ b64Json: payload }] })))
@@ -99,7 +150,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('recovers a large image-edit payload', async () => {
-    const payload = 'a'.repeat(500_000)
+    const payload = 'iVBORw0KGgoA' + 'A'.repeat(499_988)
     const fetchMock = vi
       .fn<FetchFunction>()
       .mockImplementation(fetchReturning(() => jsonResponse({ data: [{ base64Json: payload }] })))
@@ -115,7 +166,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('recovers a 201 response carrying an alternate key', async () => {
-    const payload = `${toB64('created-image-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi
       .fn<FetchFunction>()
       .mockImplementation(fetchReturning(() => jsonResponse({ data: [{ base64_json: payload }] }, 201)))
@@ -127,7 +178,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('keeps delegate warnings on the recovered empty-data path', async () => {
-    const payload = `${toB64('warned-image-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi
       .fn<FetchFunction>()
       .mockImplementation(fetchReturning(() => jsonResponse({ data: [{ base64_json: payload }] })))
@@ -142,7 +193,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('maps legacy usage keys on a recovered response', async () => {
-    const payload = `${toB64('metered-image-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi
       .fn<FetchFunction>()
       .mockImplementation(
@@ -158,7 +209,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('mirrors per-image token details from usage.input_tokens_details across recovered images', async () => {
-    const payload = `${toB64('metered-details-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi.fn<FetchFunction>().mockImplementation(
       fetchReturning(() =>
         jsonResponse({
@@ -189,7 +240,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('ignores non-numeric token details instead of polluting recovered metadata', async () => {
-    const payload = `${toB64('blank-details-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi.fn<FetchFunction>().mockImplementation(
       fetchReturning(() =>
         jsonResponse({
@@ -299,7 +350,7 @@ describe('CherryIN OpenAI image responses', () => {
   })
 
   it('keeps OpenAI image metadata on a leniently recovered image', async () => {
-    const payload = `${toB64('metadata-image-bytes-')}${'a'.repeat(200)}`
+    const payload = PNG_BASE64
     const fetchMock = vi.fn<FetchFunction>().mockImplementation(
       fetchReturning(() =>
         jsonResponse({
