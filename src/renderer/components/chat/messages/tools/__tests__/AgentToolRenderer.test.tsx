@@ -38,7 +38,7 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    usePartsMap: () => mockPartsMap()
+    useScopedPartsMap: () => mockPartsMap()
   }
 })
 

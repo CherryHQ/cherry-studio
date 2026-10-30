@@ -1,14 +1,12 @@
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MessagePartsScopeProvider, PartsProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const cardProps = vi.hoisted(() => ({
   current: undefined as Record<string, unknown> | undefined
-}))
-
-vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  usePartsMap: () => new Map()
 }))
 
 vi.mock('../AgentToolCallCard', () => ({
@@ -63,6 +61,25 @@ describe('AgentExecutionTimeline', () => {
       openFlowOnClick: true,
       showInlineDetails: false
     })
+  })
+
+  it('keeps a launched background Agent running while its in-scope task is in progress', () => {
+    const taskEvent = {
+      type: 'data-agent-task-event',
+      data: { event: 'progress', taskId: 'task-1', toolUseId: 'tool-Agent', status: 'in_progress' }
+    } as CherryMessagePart
+
+    render(
+      <PartsProvider value={{ 'message-1': [taskEvent], 'message-2': [] }}>
+        <MessagePartsScopeProvider messageId="message-1" parts={[taskEvent]}>
+          <AgentExecutionTimeline
+            toolResponse={toolResponse('Agent', { status: 'async_launched', taskId: 'task-1' })}
+          />
+        </MessagePartsScopeProvider>
+      </PartsProvider>
+    )
+
+    expect(cardProps.current).toMatchObject({ status: 'invoking', isStreaming: true })
   })
 
   it('only enables Session cards for the Cherry tools server', () => {

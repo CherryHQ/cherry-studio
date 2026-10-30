@@ -1,7 +1,7 @@
 import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
 
-import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
@@ -17,7 +17,7 @@ import { getSubagentTaskStatus } from './subagentStatus'
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
-  const partsMap = usePartsMap()
+  const partsMap = useScopedPartsMap()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
