@@ -4,8 +4,11 @@ import type * as NodeFs from 'node:fs'
 import type { Display } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { WindowType } from '@main/core/window/types'
+import type { deliverToReadyMain } from '@main/services/mainWindowNavigation'
 import type { DetectedWindow } from '@shared/types/screenshot'
+import { isAppErrorContext } from '@shared/utils/appError'
 
 import { ScreenshotChatService } from '../../ScreenshotChatService'
 import type { CaptureResult, RawWindowInfo } from '../types'
@@ -33,7 +36,21 @@ const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
 const localModel = vi.hoisted(() => ({ isDefaultModelReady: vi.fn(() => true) }))
-vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+vi.mock('@main/i18n', () => ({
+  getAppLanguage: () => 'zh-CN',
+  t: (key: string, _params?: unknown, language?: string) => (language ? `${language}:${key}` : key)
+}))
+
+const handoff = vi.hoisted(() => ({
+  deliverToReadyMain: vi.fn<typeof deliverToReadyMain>(() => false),
+  showSupportedMessageBox: vi.fn<typeof showSupportedMessageBox>(async () => 0)
+}))
+vi.mock('@main/services/mainWindowNavigation', () => ({
+  deliverToReadyMain: handoff.deliverToReadyMain
+}))
+vi.mock('@main/core/preboot/nativeErrorDialog', () => ({
+  showSupportedMessageBox: handoff.showSupportedMessageBox
+}))
 
 const nativeOcr = vi.hoisted(() => ({ recognize: vi.fn(), OcrAccuracy: { Accurate: 1 } }))
 vi.mock('@napi-rs/system-ocr', () => nativeOcr)
@@ -52,7 +69,14 @@ const electron = vi.hoisted(() => ({
   displays: [] as unknown[],
   cursorDisplay: undefined as unknown,
   primaryDisplay: undefined as unknown,
-  app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
+  app: {
+    getName: vi.fn(() => 'Product'),
+    getLocale: () => 'en-US',
+    focus: vi.fn(),
+    hide: vi.fn(),
+    on: vi.fn(),
+    removeListener: vi.fn()
+  },
   browserWindows: [] as unknown[],
   clipboard: { write: vi.fn<(items: { data: Record<string, Blob> }[]) => Promise<void>>(async () => {}) },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -372,6 +396,10 @@ describe('ScreenshotOverlayService', () => {
     localModel.isDefaultModelReady.mockReturnValue(true)
     nativeOcr.recognize.mockReset().mockResolvedValue({ text: '', confidence: 1, lines: [] })
     container.ocrInferenceService.recognize.mockResolvedValue({ text: '', lines: [] })
+    handoff.deliverToReadyMain.mockReset()
+    handoff.deliverToReadyMain.mockReturnValue(false)
+    handoff.showSupportedMessageBox.mockReset()
+    handoff.showSupportedMessageBox.mockResolvedValue(0)
     startService()
   })
 
@@ -1812,6 +1840,182 @@ describe('ScreenshotOverlayService', () => {
       // dispatched the preference change, and a dialog would ambush the settings page.
       expect(mockMainLoggerService.warn).toHaveBeenCalled()
       expect(electron.dialog.showMessageBox).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('capture failure presentation', () => {
+    const failureStack = 'OverlayOpenError: overlay open failed\n    at WindowManager.open (overlay.ts:12)'
+
+    const twoDisplaySetup = () => {
+      electron.displays = [makeDisplay(1, 0, 0), makeDisplay(2, 1920, 0)]
+      electron.cursorDisplay = electron.displays[0]
+      capture.captureAllMonitors.mockReturnValue(
+        new Map([
+          [1, makeCapture()],
+          [2, makeCapture()]
+        ])
+      )
+      capture.listMonitors.mockReturnValue([
+        { id: 1, name: 'M1', x: 0, y: 0, width: 1920, height: 1080, scaleFactor: 1, isPrimary: true },
+        { id: 2, name: 'M2', x: 1920, y: 0, width: 1920, height: 1080, scaleFactor: 1, isPrimary: false }
+      ])
+    }
+
+    /** Opens the first display, then throws the original capture error on the second. */
+    const failOnSecondOverlayOpen = () => {
+      const openOverlay = container.windowManager.open.getMockImplementation()
+      if (!openOverlay) throw new Error('missing overlay open mock')
+      const error = new Error('overlay open failed')
+      error.name = 'OverlayOpenError'
+      error.stack = failureStack
+      let opened = 0
+      container.windowManager.open.mockImplementation((type: string, args: { options: { x: number } }) => {
+        opened += 1
+        if (opened === 2) throw error
+        return openOverlay(type, args)
+      })
+      return {
+        error,
+        restore() {
+          container.windowManager.open.mockImplementation(openOverlay)
+        }
+      }
+    }
+
+    const deliveredContext = () => {
+      const payload = handoff.deliverToReadyMain.mock.calls[0]?.[1]
+      if (!isAppErrorContext(payload)) throw new Error('missing delivered context')
+      return payload
+    }
+
+    it('hands the original capture fault to a ready main window and leaves the next capture free', async () => {
+      twoDisplaySetup()
+      handoff.deliverToReadyMain.mockReturnValue(true)
+      const failingOpen = failOnSecondOverlayOpen()
+
+      try {
+        await service.startCapture()
+
+        // The shortcut already failed in front of the user. The main window's existing
+        // fault flow is what offers analysis, report, and update — not another OK box.
+        expect(handoff.deliverToReadyMain).toHaveBeenCalledTimes(1)
+        expect(handoff.deliverToReadyMain).toHaveBeenCalledWith('app.error.open', deliveredContext())
+        expect(deliveredContext()).toEqual({
+          id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+          occurredAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          source: 'screenshot',
+          operation: 'screenshot.capture',
+          message: 'overlay open failed',
+          name: 'OverlayOpenError',
+          stack: failureStack
+        })
+        expect(deliveredContext()).not.toHaveProperty('params')
+        expect(handoff.showSupportedMessageBox).not.toHaveBeenCalled()
+        expect(electron.dialog.showMessageBox).not.toHaveBeenCalled()
+        expect(container.windowManager.close).toHaveBeenCalledWith('overlay-0-0')
+        expect(container.mediaEntries.size).toBe(0)
+        expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
+      } finally {
+        failingOpen.restore()
+      }
+
+      await service.startCapture()
+
+      expect(container.openCalls).toHaveLength(3)
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
+      expect(service.isSessionOverlay('overlay-1920-0')).toBe(true)
+      expect(handoff.showSupportedMessageBox).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['is not ready', false],
+      ['throws', true]
+    ])('keeps the original cause on the supported native dialog when main %s', async (_label, handoffThrows) => {
+      twoDisplaySetup()
+      if (handoffThrows) {
+        handoff.deliverToReadyMain.mockImplementation(() => {
+          throw new Error('main window handoff exploded')
+        })
+      } else {
+        handoff.deliverToReadyMain.mockReturnValue(false)
+      }
+      const failingOpen = failOnSecondOverlayOpen()
+
+      try {
+        await service.startCapture()
+
+        expect(handoff.deliverToReadyMain).toHaveBeenCalledWith('app.error.open', deliveredContext())
+        expect(deliveredContext()).toMatchObject({
+          source: 'screenshot',
+          operation: 'screenshot.capture',
+          message: 'overlay open failed',
+          name: 'OverlayOpenError',
+          stack: failureStack
+        })
+        expect(handoff.showSupportedMessageBox).toHaveBeenCalledTimes(1)
+        expect(electron.app.getLocale()).toBe('en-US')
+        expect(handoff.showSupportedMessageBox).toHaveBeenCalledWith({
+          language: 'zh-CN',
+          box: {
+            type: 'error',
+            title: 'zh-CN:dialog.screenshot_failed.title',
+            message: 'zh-CN:dialog.screenshot_failed.message',
+            buttons: ['zh-CN:dialog.screenshot_failed.ok'],
+            defaultId: 0
+          },
+          technicalDetail: `OverlayOpenError\noverlay open failed\n${failureStack}`
+        })
+        const copied = handoff.showSupportedMessageBox.mock.calls[0]?.[0]?.technicalDetail
+        if (!copied) throw new Error('missing technical detail')
+        expect(copied).not.toContain('main window handoff exploded')
+        // Copy, feedback, releases, and the analysis-unavailable line belong to the
+        // supported dialog. A bare OK box would have called Electron directly.
+        expect(electron.dialog.showMessageBox).not.toHaveBeenCalled()
+        expect(container.windowManager.close).toHaveBeenCalledWith('overlay-0-0')
+        expect(container.mediaEntries.size).toBe(0)
+        expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
+      } finally {
+        failingOpen.restore()
+      }
+
+      await service.startCapture()
+
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
+      expect(service.isSessionOverlay('overlay-1920-0')).toBe(true)
+    })
+
+    it('copies a non-Error capture failure without inventing a name or stack', async () => {
+      singleDisplaySetup()
+      capture.captureAllMonitors.mockImplementation(() => {
+        throw 'wayland: no portal'
+      })
+
+      await service.startCapture()
+
+      expect(deliveredContext()).toMatchObject({
+        source: 'screenshot',
+        operation: 'screenshot.capture',
+        message: 'wayland: no portal'
+      })
+      expect(deliveredContext().name).toBeUndefined()
+      expect(deliveredContext().stack).toBeUndefined()
+      expect(deliveredContext()).not.toHaveProperty('params')
+      expect(handoff.showSupportedMessageBox).toHaveBeenCalledWith({
+        language: 'zh-CN',
+        box: {
+          type: 'error',
+          title: 'zh-CN:dialog.screenshot_failed.title',
+          message: 'zh-CN:dialog.screenshot_failed.message',
+          buttons: ['zh-CN:dialog.screenshot_failed.ok'],
+          defaultId: 0
+        },
+        technicalDetail: 'wayland: no portal'
+      })
+
+      capture.captureAllMonitors.mockReturnValue(new Map([[1, makeCapture()]]))
+      await service.startCapture()
+      expect(container.openCalls).toHaveLength(1)
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
     })
   })
 })

@@ -16,13 +16,77 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
+import { resolveSystemLanguage, t } from '@main/i18n'
 import { IpcChannel } from '@shared/IpcChannel'
+import { defaultLanguage } from '@shared/utils/languages'
 
 import type { ServiceRegistry } from './serviceRegistry'
 
 const logger = loggerService.withContext('Lifecycle')
+
+type StartupLanguage = ReturnType<typeof resolveSystemLanguage>
+type BootConfigDialogKind = 'read_error' | 'validation_error' | 'parse_error'
+
+/** System catalog only. These dialogs run before PreferenceService exists. */
+function startupLanguage(): StartupLanguage {
+  if (typeof app.isReady === 'function' && app.isReady()) return resolveSystemLanguage(app.getLocale())
+  return defaultLanguage
+}
+
+function bootConfigDialog(
+  kind: BootConfigDialogKind,
+  language: StartupLanguage,
+  filePath: string
+): { title: string; message: string; detail: string; buttons: string[] } {
+  const exit = t('dialog.support.exit', undefined, language)
+  switch (kind) {
+    case 'read_error':
+      return {
+        title: t('dialog.boot_config.read.title', undefined, language),
+        message: t('dialog.boot_config.read.message', undefined, language),
+        detail: [
+          t('dialog.boot_config.read.continue_hint', undefined, language),
+          t('dialog.boot_config.read.file_hint', { path: filePath }, language)
+        ].join('\n\n'),
+        buttons: [
+          t('dialog.boot_config.continue_defaults', undefined, language),
+          t('dialog.startup.restart', undefined, language),
+          exit
+        ]
+      }
+    case 'validation_error':
+      return {
+        title: t('dialog.boot_config.validation.title', undefined, language),
+        message: t('dialog.boot_config.validation.message', undefined, language),
+        detail: [
+          t('dialog.boot_config.validation.continue_hint', undefined, language),
+          t('dialog.boot_config.validation.file_hint', { path: filePath }, language)
+        ].join('\n\n'),
+        buttons: [
+          t('dialog.boot_config.continue', undefined, language),
+          t('dialog.boot_config.repair', undefined, language),
+          exit
+        ]
+      }
+    case 'parse_error':
+      return {
+        title: t('dialog.boot_config.parse.title', undefined, language),
+        message: t('dialog.boot_config.parse.message', undefined, language),
+        detail: [
+          t('dialog.boot_config.parse.continue_hint', undefined, language),
+          t('dialog.boot_config.parse.file_hint', { path: filePath }, language)
+        ].join('\n\n'),
+        buttons: [
+          t('dialog.boot_config.continue_defaults', undefined, language),
+          t('dialog.boot_config.parse.reset', undefined, language),
+          exit
+        ]
+      }
+  }
+}
 
 /** Hold with opaque ID for cross-process identification */
 interface QuitPreventionHold extends Disposable {
@@ -302,17 +366,22 @@ export class Application {
 
     // Ensure Electron dialog API is available (BeforeReady phase may fail before app is ready)
     await app.whenReady()
+    const language = resolveSystemLanguage(app.getLocale())
 
-    const result = await dialog.showMessageBox({
-      type: 'error',
-      title: 'Unable to Start',
-      message: `Cherry Studio could not start because ${error.serviceName} failed to initialize.`,
-      detail:
-        'Try restarting the application. If the problem persists, check the application logs for detailed error information.',
-      buttons: ['Exit', 'Restart'],
-      defaultId: 1,
-      cancelId: 0
-    })
+    const result = {
+      response: await showSupportedMessageBox({
+        box: {
+          type: 'error',
+          title: t('dialog.startup.title', undefined, language),
+          message: t('dialog.startup.service_message', { serviceName: error.serviceName }, language),
+          detail: t('dialog.startup.service_detail', undefined, language),
+          buttons: [t('dialog.support.exit', undefined, language), t('dialog.startup.restart', undefined, language)],
+          defaultId: 1,
+          cancelId: 0
+        },
+        technicalDetail: error.cause instanceof Error ? error.cause.stack || error.cause.message : String(error.cause)
+      })
+    }
 
     if (result.response === 0) {
       logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
@@ -338,44 +407,25 @@ export class Application {
     logger.warn(`Boot config load error: ${loadError.type} - ${loadError.message}`)
 
     await app.whenReady()
-
-    const isReadError = loadError.type === 'read_error'
+    const language = resolveSystemLanguage(app.getLocale())
     const isValidationError = loadError.type === 'validation_error'
     const isParseError = loadError.type === 'parse_error'
+    const dialogCopy = bootConfigDialog(loadError.type, language, loadError.filePath)
 
-    const message = isReadError
-      ? 'The configuration file (boot-config.json) could not be read.'
-      : isValidationError
-        ? 'The configuration file (boot-config.json) contains invalid values.'
-        : 'The configuration file (boot-config.json) contains invalid data.'
-    const continueHint = isValidationError
-      ? 'The application can continue — valid settings are kept and the invalid entries fall back to defaults — or you can repair the file and restart.'
-      : isParseError
-        ? 'The application can continue with default settings, or you can reset the file and restart.'
-        : 'The application can continue with default settings, or you can restart to try again.'
-    const fileHint = isValidationError
-      ? `"Repair and Restart" rewrites the file, keeping the valid entries and resetting the invalid ones. Other options preserve it for manual inspection at:\n${loadError.filePath}`
-      : isParseError
-        ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}`
-        : `The file will be preserved for manual inspection at:\n${loadError.filePath}`
-
-    const result = await dialog.showMessageBox({
-      type: 'warning',
-      title: isReadError
-        ? 'Configuration File Read Error'
-        : isValidationError
-          ? 'Configuration File Invalid'
-          : 'Configuration File Corrupted',
-      message,
-      detail: `Error: ${loadError.message}\n\n${continueHint}\n\n${fileHint}`,
-      buttons: [
-        isValidationError ? 'Continue' : 'Continue with Defaults',
-        isValidationError ? 'Repair and Restart' : isParseError ? 'Reset and Restart' : 'Restart',
-        'Exit'
-      ],
-      defaultId: 0,
-      cancelId: 2
-    })
+    const result = {
+      response: await showSupportedMessageBox({
+        box: {
+          type: 'warning',
+          title: dialogCopy.title,
+          message: dialogCopy.message,
+          detail: dialogCopy.detail,
+          buttons: dialogCopy.buttons,
+          defaultId: 0,
+          cancelId: 2
+        },
+        technicalDetail: loadError.message
+      })
+    }
 
     if (result.response === 1) {
       if (isValidationError) {
@@ -405,12 +455,14 @@ export class Application {
   public relaunch(options?: Electron.RelaunchOptions): void {
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
+      // getLocale is only valid once Electron is ready. Preboot can relaunch earlier.
+      const language = startupLanguage()
       dialog.showMessageBoxSync({
         type: 'info',
-        title: 'Manual Restart Required',
-        message: 'Auto-relaunch is not available in development mode.',
-        detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
-        buttons: ['OK']
+        title: t('dialog.startup.manual_restart.title', undefined, language),
+        message: t('dialog.startup.manual_restart.message', undefined, language),
+        detail: t('dialog.startup.manual_restart.detail', undefined, language),
+        buttons: [t('dialog.support.ok', undefined, language)]
       })
       app.exit(0)
       return

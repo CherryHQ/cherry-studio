@@ -27,15 +27,52 @@ import {
   pinUserDataPath,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
+  saveMigrationDiagnosticBundle,
   setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { resolveSystemLanguage, t } from '@main/i18n'
+import type { MigrationStage } from '@shared/data/migration/v2/types'
 
 const logger = loggerService.withContext('V2MigrationGate')
+
+type PrebootLanguage = ReturnType<typeof resolveSystemLanguage>
+
+async function systemLanguage(): Promise<PrebootLanguage> {
+  if (typeof app.isReady === 'function' && !app.isReady()) await app.whenReady()
+  return resolveSystemLanguage(app.getLocale())
+}
+
+function versionFallbackMessage(
+  reason: 'no_version_log' | 'v1_too_old' | 'v2_gateway_skipped',
+  details: Record<string, string>,
+  language: PrebootLanguage
+): string {
+  switch (reason) {
+    case 'no_version_log':
+      return t('dialog.migration.version.no_version_log', { requiredVersion: details.requiredVersion ?? '' }, language)
+    case 'v1_too_old':
+      return t(
+        'dialog.migration.version.v1_too_old',
+        { previousVersion: details.previousVersion ?? '', requiredVersion: details.requiredVersion ?? '' },
+        language
+      )
+    case 'v2_gateway_skipped':
+      return t(
+        'dialog.migration.version.v2_gateway_skipped',
+        {
+          currentVersion: details.currentVersion ?? '',
+          gatewayVersion: details.gatewayVersion ?? '',
+          previousVersion: details.previousVersion ?? ''
+        },
+        language
+      )
+  }
+}
 
 /**
  * Outcome of the v1→v2 migration gate.
@@ -59,13 +96,49 @@ export type V2MigrationGateResult = 'handled' | 'skipped'
  * depends on that write, so continuing would relaunch into the old directory
  * and loop (or make migrated data appear lost). Stop loudly instead.
  */
+function migrationSupportAction(language: PrebootLanguage, stage: MigrationStage = 'error') {
+  const logDate = new Date().toISOString().slice(0, 10)
+  return {
+    label: t('dialog.support.migration_export', undefined, language),
+    run: async () => {
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: t('dialog.support.migration_export', undefined, language),
+        defaultPath: 'cherry-studio-migration-diagnostics.zip'
+      })
+      if (canceled || !filePath) return
+      const saved = await saveMigrationDiagnosticBundle({ destination: filePath, stage, logDate })
+      if (saved === false) throw new Error(t('dialog.support.archive_write_failed', undefined, language))
+    }
+  }
+}
+
+async function showMigrationFailure(title: string, message: string, technicalDetail?: string): Promise<void> {
+  const language = await systemLanguage()
+  await showSupportedMessageBox({
+    box: {
+      type: 'error',
+      title,
+      message,
+      buttons: [t('dialog.support.exit', undefined, language)],
+      defaultId: 0,
+      cancelId: 0
+    },
+    technicalDetail,
+    action: migrationSupportAction(language)
+  })
+}
+
 async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
   logger.error('Failed to persist userData location; cannot continue', cause as Error)
   await app.whenReady()
-  dialog.showErrorBox(
-    'Data Location Error - Application Cannot Start',
-    `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
-      `Check that there is free disk space and that ${application.getPath('cherry.home')} is writable, then try again. The application will now exit.`
+  const language = await systemLanguage()
+  const reason = (cause as Error).message ?? ''
+  const path = application.getPath('cherry.home')
+  const message = t('dialog.migration.data_location.message', { path }, language)
+  await showMigrationFailure(
+    t('dialog.migration.data_location.title', undefined, language),
+    message,
+    `${reason}\n${path}`
   )
   application.quit()
   return 'handled'
@@ -88,17 +161,21 @@ async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: 
       migrationEngine.close()
       await app.whenReady()
       const language = resolveSystemLanguage(app.getLocale())
-      const { response } = await dialog.showMessageBox({
-        type: 'error',
-        title: t('dialog.migration_database_unavailable.title', undefined, language),
-        message: t('dialog.migration_database_unavailable.message', undefined, language),
-        detail: t('dialog.migration_database_unavailable.detail', undefined, language),
-        buttons: [
-          t('dialog.migration_database_unavailable.retry', undefined, language),
-          t('dialog.migration_database_unavailable.quit', undefined, language)
-        ],
-        defaultId: 0,
-        cancelId: 1
+      const response = await showSupportedMessageBox({
+        box: {
+          type: 'error',
+          title: t('dialog.migration_database_unavailable.title', undefined, language),
+          message: t('dialog.migration_database_unavailable.message', undefined, language),
+          detail: t('dialog.migration_database_unavailable.detail', undefined, language),
+          buttons: [
+            t('dialog.migration_database_unavailable.retry', undefined, language),
+            t('dialog.migration_database_unavailable.quit', undefined, language)
+          ],
+          defaultId: 0,
+          cancelId: 1
+        },
+        technicalDetail: reason,
+        action: migrationSupportAction(language)
       })
       if (response === 0) continue
 
@@ -153,18 +230,21 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   if (inaccessibleLegacyPath) {
     logger.warn('Legacy userData path inaccessible, prompting user', { inaccessibleLegacyPath })
     await app.whenReady()
-    const { response } = await dialog.showMessageBox({
-      type: 'warning',
-      title: 'Custom Data Directory Inaccessible',
-      message:
-        `Your previous data was stored at:\n${inaccessibleLegacyPath}\n\n` +
-        'This directory is currently inaccessible — an external drive may not be mounted.\n\n' +
-        '• Retry after reconnecting it.\n' +
-        '• Continue with a new default data directory (you can change it later in Settings).\n' +
-        '• Quit.',
-      buttons: ['Retry', 'Use Default Directory', 'Quit'],
-      defaultId: 0,
-      cancelId: 2
+    const language = await systemLanguage()
+    const response = await showSupportedMessageBox({
+      box: {
+        type: 'warning',
+        title: t('dialog.migration.legacy_inaccessible.title', undefined, language),
+        message: t('dialog.migration.legacy_inaccessible.message', { path: inaccessibleLegacyPath }, language),
+        buttons: [
+          t('dialog.migration_database_unavailable.retry', undefined, language),
+          t('dialog.migration.legacy_inaccessible.use_default', undefined, language),
+          t('dialog.migration_database_unavailable.quit', undefined, language)
+        ],
+        defaultId: 0,
+        cancelId: 2
+      },
+      action: migrationSupportAction(language)
     })
     if (response === 0) {
       application.relaunch()
@@ -198,54 +278,34 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     const reason = describeErrorChain(error)
     logger.error(`Migration status check failed: ${reason}`, error as Error)
     await app.whenReady()
+    const language = await systemLanguage()
 
-    // Dev-only: when the disposable migration SQL is regenerated/deleted but
-    // the local DB is kept, drizzle re-runs CREATE TABLE on objects that
-    // already exist and throws "... already exists". Guide the developer to
-    // reset the local DB instead of the generic connectivity message. Never
-    // auto-delete, and never surface this in production — real users must not
-    // be told to delete their database.
+    // Shipped migrations run on real data, including development copies.
+    // Keep the database; this branch is dev-only and never deletes it.
     if (isDev && isSchemaOutOfSyncError(error)) {
-      dialog.showErrorBox(
-        'Database Schema Out of Sync (Dev)',
-        `During v2 development (before release), the database schema can change at any time. ` +
-          `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
-          `To fix this, delete the local database, then restart:\n\n` +
-          `  ${paths.databaseFile}\n\n` +
-          `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
-          `Then start the app again (pnpm dev).\n\n` +
-          `Original error: ${reason}`
+      const schemaMessage = t('dialog.migration.dev_schema.message', { path: paths.databaseFile }, language)
+      await showMigrationFailure(
+        t('dialog.migration.dev_schema.title', undefined, language),
+        schemaMessage,
+        `${paths.databaseFile}\n${reason}`
       )
       logger.error('Exiting application due to schema out of sync (dev)')
       application.quit()
       return 'handled'
     }
 
-    // The error wasn't the unambiguous "object already exists" signal handled above. Anything else
-    // (e.g. a SQLITE_CONSTRAINT_* thrown from migrate() when a new constraint is incompatible with
-    // existing rows) is AMBIGUOUS: it may be incompatible legacy/dev data OR a genuine migration bug.
-    // So we never assert "delete the DB" here — in dev we surface both possibilities plus the path;
-    // in production we stay neutral and never tell a real user to delete their data.
+    // Other failures are ambiguous. Keep the database in dev and production;
+    // only the dialog copy differs.
     if (isDev) {
-      dialog.showErrorBox(
-        'Migration Failed (Dev) - Application Cannot Start',
-        `Startup migration failed while applying schema changes:\n\n` +
-          `  ${reason}\n\n` +
-          `In development this is usually one of:\n\n` +
-          `  1. Your local database predates a schema change (incompatible legacy data). ` +
-          `If this is throwaway dev data, reset it and restart:\n` +
-          `       rm -f "${paths.databaseFile}"\n\n` +
-          `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
-          `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
-          `with real data.\n\n` +
-          `The application will now exit.`
+      const devMessage = t('dialog.migration.dev_failed.message', { path: paths.databaseFile }, language)
+      await showMigrationFailure(
+        t('dialog.migration.dev_failed.title', undefined, language),
+        devMessage,
+        `${paths.databaseFile}\n${reason}`
       )
     } else {
-      dialog.showErrorBox(
-        'Migration Failed - Application Cannot Start',
-        `Could not complete data migration:\n\n  ${reason}\n\n` +
-          `The application will now exit. Please try again, and contact support if the problem persists.`
-      )
+      const productionMessage = t('dialog.migration.failed.message', undefined, language)
+      await showMigrationFailure(t('dialog.migration.failed.title', undefined, language), productionMessage, reason)
     }
     logger.error('Exiting application due to migration status check failure')
     application.quit()
@@ -289,7 +349,13 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         logger.error('Failed to create version incompatible window, falling back to dialog', windowError as Error)
         unregisterMigrationIpcHandlers()
         migrationEngine.close()
-        dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
+        const language = await systemLanguage()
+        const blockMessage = getBlockMessage(versionCheck.reason, versionCheck.details)
+        await showMigrationFailure(
+          t('dialog.migration.version.title', undefined, language),
+          versionFallbackMessage(versionCheck.reason, versionCheck.details, language),
+          blockMessage
+        )
         application.quit()
         return 'handled'
       }
@@ -312,10 +378,10 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     } catch (migrationError) {
       logger.error('Failed to start migration process', migrationError as Error)
       unregisterMigrationIpcHandlers()
-      dialog.showErrorBox(
-        'Migration Required - Application Cannot Start',
-        `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
-      )
+      const language = await systemLanguage()
+      const reason = (migrationError as Error).message ?? ''
+      const windowMessage = t('dialog.migration.window_failed.message', undefined, language)
+      await showMigrationFailure(t('dialog.migration.window_failed.title', undefined, language), windowMessage, reason)
       logger.error('Exiting application due to failed migration startup')
       application.quit()
       return 'handled'
