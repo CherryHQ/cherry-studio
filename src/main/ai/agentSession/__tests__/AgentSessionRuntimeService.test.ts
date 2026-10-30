@@ -1315,8 +1315,8 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.isSessionBusy('session-1')).toBe(false)
       expect(service.isHandoffReplacementPending('session-1')).toBe(false)
 
-      // A later manual submission starts a real turn (an activation) and receives the retained
-      // correction instead of leaving it behind.
+      // A later manual submission starts a real turn (an activation) carrying the retained
+      // correction first; the submission itself queues behind it.
       const connection = {
         close: vi.fn(),
         send: vi.fn(),
@@ -1330,17 +1330,17 @@ describe('AgentSessionRuntimeService', () => {
         userMessage: userMessage('user-manual'),
         assistantMessageId: 'assistant-manual'
       })
-      getEntry(service).connection = connection
+      const recovery = getEntry(service)
+      expect(recovery.currentTurn.userMessage.id).toBe('user-a')
+      expect(recovery.pendingTurns.map((pending: any) => pending.message.id)).toEqual(['user-manual'])
+      recovery.connection = connection
       const reader = service
         .openTurnStream({ sessionId: 'session-1', turnId: manual.turnId, signal: new AbortController().signal })
         .getReader()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
       await vi.waitFor(() =>
-        expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-manual') }))
-      )
-      await vi.waitFor(() =>
-        expect(connection.redirect).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-a') }))
+        expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-a') }))
       )
       await reader.cancel().catch(() => undefined)
     })
@@ -1401,16 +1401,105 @@ describe('AgentSessionRuntimeService', () => {
         userMessage: userMessage('user-manual'),
         assistantMessageId: 'assistant-manual'
       })
-      getEntry(service).connection = connection
+      const recovery = getEntry(service)
+      expect(recovery.currentTurn.userMessage.id).toBe('user-a')
+      expect(recovery.pendingTurns.map((pending: any) => pending.message.id)).toEqual(['user-manual'])
+      recovery.connection = connection
       const reader = service
         .openTurnStream({ sessionId: 'session-1', turnId: manual.turnId, signal: new AbortController().signal })
         .getReader()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
       await vi.waitFor(() =>
-        expect(connection.redirect).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-a') }))
+        expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-a') }))
       )
       await reader.cancel().catch(() => undefined)
+    })
+
+    it.each([
+      ['steering', true],
+      ['non-steering', false]
+    ] as const)('starts retained input before a later submission (%s)', async (_label, steering) => {
+      // Abandonment retains correction A. The next manual submission B starts a turn, but A was
+      // accepted first and must reach the model first — no steering after B, no A as B's successor.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-recovery',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-recovery',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      const result = service.respondToolApproval('approval-plan-recovery', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      service.enqueueUserMessage('session-1', userMessage('user-a'), {})
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+      service.abandonPlanModelHandoff('session-1')
+
+      const connection: any = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      if (steering) connection.redirect = vi.fn().mockReturnValue(true)
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+      const manual = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-b'),
+        assistantMessageId: 'assistant-b'
+      })
+      const recoveryEntry = getEntry(service)
+      // The retained correction is the turn; the manual submission waits behind it.
+      expect(recoveryEntry.currentTurn.userMessage.id).toBe('user-a')
+      expect(recoveryEntry.pendingTurns.map((pending: any) => pending.message.id)).toEqual(['user-b'])
+
+      recoveryEntry.connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: manual.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() =>
+        expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-a') }))
+      )
+      // The submission is not folded into this turn (steered) ahead of A.
+      if (steering) expect(connection.redirect).not.toHaveBeenCalled()
+      expect(connection.send).not.toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-b') }))
+
+      // A's terminal drains B as the next turn, so B is sent only after A.
+      service.markTurnTerminal('session-1', 'success', manual.turnId)
+      await vi.waitFor(() => expect(recoveryEntry.currentTurn.userMessage.id).toBe('user-b'))
+      const followOn = recoveryEntry.currentTurn
+      const followReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followOn.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(followReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+      expect(connection.send.mock.calls.map((call: any[]) => call[0].message.id)).toEqual(['user-a', 'user-b'])
+      await reader.cancel().catch(() => undefined)
+      await followReader.cancel().catch(() => undefined)
     })
 
     it('records the approved execution as a session-scoped permission, leaving the shared agent row alone', async () => {

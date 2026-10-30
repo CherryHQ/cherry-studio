@@ -179,9 +179,10 @@ interface UseAgentChatRuntimeStateParams {
   /**
    * Plan-approval model handoff: Main approved the plan, stopped the turn, and reported the
    * chosen execution model. The host page completes the handoff — switch the agent model, wait
-   * for the stopped turn to settle, then send the execution follow-up on a fresh turn.
+   * for the stopped turn to settle, then send the execution follow-up on a fresh turn. Returns
+   * false when it discarded the completion, so the hook abandons the handoff on Main.
    */
-  onPlanModelHandoff?: (modelId: string) => void
+  onPlanModelHandoff?: (modelId: string) => boolean
   /** The agent's runtime-compatibility gate for the Settings-configured plan-execution model. */
   modelFilter?: ModelSelectorFilter
   /** The availability gate for that same model. */
@@ -220,6 +221,15 @@ export function useAgentChatRuntimeState({
   const editRequestRef = useRef(false)
   const currentSessionRef = useRef(sessionId)
   currentSessionRef.current = sessionId
+  // A completion lane that outlives this hook instance must not leave Main waiting on a follow-up
+  // this page can never send.
+  const unmountedRef = useRef(false)
+  useEffect(() => {
+    unmountedRef.current = false
+    return () => {
+      unmountedRef.current = true
+    }
+  }, [])
   const reportEditError = useCallback(
     (error: unknown) => {
       const forkReason = agentSessionForkFailureReason(error)
@@ -513,11 +523,25 @@ export function useAgentChatRuntimeState({
       // handoff now would execute it despite the cancellation. The flag is session-wide, so a stop
       // from any window counts — this one may never have seen it.
       if (result.executionModelId && stopGenerationRef.current === stopGeneration && !sessionStoppedRef.current) {
-        onPlanModelHandoff?.(result.executionModelId)
+        // Navigation or unmount can land while the approval is in flight; the originating session
+        // then has no page to send the follow-up, so release Main's preserved input instead.
+        if (unmountedRef.current || currentSessionRef.current !== sessionId) {
+          abandonPlanExecutionHandoff(sessionId)
+        } else if (onPlanModelHandoff?.(result.executionModelId) === false) {
+          abandonPlanExecutionHandoff(sessionId)
+        }
       }
       await refresh()
     },
-    [onPlanModelHandoff, refresh, removeOptimisticAskUserQuestionInput, sessionTopicId, t]
+    [
+      abandonPlanExecutionHandoff,
+      onPlanModelHandoff,
+      refresh,
+      removeOptimisticAskUserQuestionInput,
+      sessionId,
+      sessionTopicId,
+      t
+    ]
   )
   const planExecution = useMemo(() => ({ modelFilter, isModelDisabled }), [isModelDisabled, modelFilter])
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({

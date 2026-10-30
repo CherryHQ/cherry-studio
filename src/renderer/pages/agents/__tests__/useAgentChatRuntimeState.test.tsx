@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  abandonPlanHandoff: vi.fn<(input: unknown) => Promise<undefined>>(async () => undefined),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn(),
   autoReadUpdate: vi.fn(),
@@ -60,13 +61,15 @@ vi.mock('@renderer/ipc', () => ({
     request: (route: string, input: unknown) =>
       route === 'ai.tool.respond_approval'
         ? mocks.respondToolApproval(input)
-        : route === 'ai.agent.session.edit_target'
-          ? mocks.editTarget(input)
-          : route === 'ai.agent.session.edit_resend'
-            ? mocks.editResend(input)
-            : route === 'ai.stream.open'
-              ? mocks.streamOpen(input)
-              : Promise.resolve(undefined),
+        : route === 'ai.agent.session.abandon_plan_handoff'
+          ? mocks.abandonPlanHandoff(input)
+          : route === 'ai.agent.session.edit_target'
+            ? mocks.editTarget(input)
+            : route === 'ai.agent.session.edit_resend'
+              ? mocks.editResend(input)
+              : route === 'ai.stream.open'
+                ? mocks.streamOpen(input)
+                : Promise.resolve(undefined),
     on: (event: string, listener: (payload: unknown) => void) => {
       const listeners = mocks.streamListeners.get(event) ?? new Set()
       mocks.streamListeners.set(event, listeners)
@@ -610,7 +613,7 @@ describe('useAgentChatRuntimeState', () => {
       handoff: 'started',
       executionModelId: 'anthropic::claude-opus-5'
     })
-    const handoff = vi.fn()
+    const handoff = vi.fn(() => true)
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -623,6 +626,80 @@ describe('useAgentChatRuntimeState', () => {
     await act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
 
     expect(handoff).toHaveBeenCalledWith('anthropic::claude-opus-5')
+    expect(mocks.abandonPlanHandoff).not.toHaveBeenCalled()
+  })
+
+  // The approval response can land after the page moved on. Main already stopped the approved turn
+  // and preserved input, and this page will never send the follow-up — it must release Main's gate
+  // for the originating session instead of leaving it busy with no runtime entry.
+  it('abandons the originating handoff when the page navigates before the approval response', async () => {
+    let releaseApproval: (value: unknown) => void = () => {}
+    mocks.respondToolApproval.mockReturnValueOnce(new Promise((resolve) => (releaseApproval = resolve)))
+    const handoff = vi.fn(() => true)
+    const { result, rerender } = renderHook(
+      ({ sessionId }: { sessionId: string }) =>
+        useAgentChatRuntimeState({
+          sessionId,
+          sessionMessagesEnabled: true,
+          reservedMessages: [],
+          onPlanModelHandoff: handoff
+        }),
+      { initialProps: { sessionId: 'session-1' } }
+    )
+
+    const approval = result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5'))
+    rerender({ sessionId: 'session-2' })
+    await act(async () => {
+      releaseApproval({ ok: true, handoff: 'started', executionModelId: 'anthropic::claude-opus-5' })
+    })
+    await approval
+
+    expect(handoff).not.toHaveBeenCalled()
+    expect(mocks.abandonPlanHandoff).toHaveBeenCalledWith({ sessionId: 'session-1' })
+  })
+
+  it('abandons the originating handoff when the page unmounts before the approval response', async () => {
+    let releaseApproval: (value: unknown) => void = () => {}
+    mocks.respondToolApproval.mockReturnValueOnce(new Promise((resolve) => (releaseApproval = resolve)))
+    const handoff = vi.fn(() => true)
+    const { result, unmount } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    const approval = result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5'))
+    unmount()
+    releaseApproval({ ok: true, handoff: 'started', executionModelId: 'anthropic::claude-opus-5' })
+    await approval
+
+    expect(handoff).not.toHaveBeenCalled()
+    expect(mocks.abandonPlanHandoff).toHaveBeenCalledWith({ sessionId: 'session-1' })
+  })
+
+  it('abandons the handoff when the page discards its completion', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({
+      ok: true,
+      handoff: 'started',
+      executionModelId: 'anthropic::claude-opus-5'
+    })
+    const handoff = vi.fn(() => false)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    await act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
+
+    expect(handoff).toHaveBeenCalledWith('anthropic::claude-opus-5')
+    expect(mocks.abandonPlanHandoff).toHaveBeenCalledWith({ sessionId: 'session-1' })
   })
 
   it('disarms a pending handoff when the user stops', async () => {

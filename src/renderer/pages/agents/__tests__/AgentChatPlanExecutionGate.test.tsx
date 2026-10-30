@@ -303,9 +303,11 @@ function planApprovalMessage() {
 // issues `updateModel` and only sends the follow-up once it resolves.
 const INITIAL_AGENT_MODEL_ID = 'cherryai::claude-sonnet-5'
 
-function renderAgentChat() {
-  const bootstrap: ComponentProps<typeof AgentChat>['conversationBootstrap'] = {
-    session: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
+function agentChatBootstrap(sessionId = 'session-1'): ComponentProps<typeof AgentChat>['conversationBootstrap'] {
+  return {
+    session: { id: sessionId, agentId: 'agent-1', workspace: { path: '/tmp/workspace' } } as ComponentProps<
+      typeof AgentChat
+    >['conversationBootstrap']['session'],
     sessionLoading: false,
     sessionSource: 'query',
     resources: {
@@ -315,7 +317,12 @@ function renderAgentChat() {
       modelLoading: false
     }
   }
-  return render(<AgentChat conversationBootstrap={bootstrap} />, { wrapper: FileEditSessionProvider })
+}
+
+function renderAgentChat(sessionId = 'session-1') {
+  return render(<AgentChat conversationBootstrap={agentChatBootstrap(sessionId)} />, {
+    wrapper: FileEditSessionProvider
+  })
 }
 
 function respondApprovalPayload(): Record<string, unknown> | undefined {
@@ -515,5 +522,67 @@ describe('AgentChat plan-execution handoff gates', () => {
             'agent.toolPermission.executionModel.followUp'
       )
     ).toHaveLength(0)
+  })
+
+  // Main stopped the approved turn and preserved input for this handoff. Navigating before the
+  // approval response arrives would leave that input gating the originating session on Main with no
+  // page left to send the follow-up, so the stale completion must be abandoned explicitly.
+  it('abandons the originating handoff when the page navigates before the approval response', async () => {
+    let resolveApproval: (value: unknown) => void = () => {}
+    ipcMocks.request.mockImplementation((route: string) => {
+      if (route === 'ai.tool.respond_approval') return new Promise((resolve) => (resolveApproval = resolve))
+      return Promise.resolve({ ok: true, data: { ok: true, mode: 'started' } })
+    })
+    const view = renderAgentChat()
+
+    await screen.findByTestId('plan-execution-model')
+    fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith(
+        'ai.tool.respond_approval',
+        expect.objectContaining({ approvalId: 'approval-plan-1' })
+      )
+    )
+
+    view.rerender(<AgentChat conversationBootstrap={agentChatBootstrap('session-2')} />)
+    await act(async () => {
+      resolveApproval({
+        ok: true,
+        data: { ok: true, handoff: 'started', executionModelId: PLAN_EXECUTION_MODEL_ID }
+      })
+    })
+
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.session.abandon_plan_handoff', {
+        sessionId: 'session-1'
+      })
+    )
+    expect(ipcMocks.request.mock.calls.filter(([route]) => route === 'ai.stream.open')).toHaveLength(0)
+  })
+
+  // Arming the handoff promises a follow-up. Unmounting while the model switch is still applying
+  // discards that promise, so the page must release Main's preserved input instead of stranding it.
+  it('abandons an armed handoff when the page unmounts', async () => {
+    let applyModel: () => void = () => {}
+    updateModelMock.mockReturnValue(
+      new Promise((resolve) => {
+        applyModel = () => resolve({ id: 'agent-1' })
+      })
+    )
+    const view = renderAgentChat()
+
+    await screen.findByTestId('plan-execution-model')
+    fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+
+    view.unmount()
+
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.session.abandon_plan_handoff', {
+        sessionId: 'session-1'
+      })
+    )
+    expect(ipcMocks.request.mock.calls.filter(([route]) => route === 'ai.stream.open')).toHaveLength(0)
+    applyModel()
   })
 })

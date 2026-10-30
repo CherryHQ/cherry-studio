@@ -409,6 +409,9 @@ export class AgentSessionRuntimeService extends BaseService {
       toolApprovalRegistry.hasSession(sessionId) ||
       [...this.pendingEditInputs.values()].some(({ counts }) => counts.has(sessionId)) ||
       [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId) ||
+      // Undelivered input retained by an abandoned handoff may live behind the edit target; an edit
+      // that truncates it would strand accepted input, so wait for its recovery turn.
+      this.abandonedHandoffInput.has(sessionId) ||
       (entry &&
         (isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)))
     ) {
@@ -675,8 +678,32 @@ export class AgentSessionRuntimeService extends BaseService {
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     this.assertSessionWritable(input.sessionId)
     const turnId = crypto.randomUUID()
-    const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
+    const submitted = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
+    // Input retained by an abandoned handoff was accepted before this submission and has no
+    // replacement turn coming. It becomes this turn's message and the submission queues behind it;
+    // replaying it after `admitTurn` would let the newer instruction supersede the older one.
+    const retained =
+      !this.handoffQueuedInput.has(input.sessionId) && this.abandonedHandoffInput.has(input.sessionId)
+        ? this.takeAbandonedHandoffInput(input.sessionId)
+        : []
+    const first = retained[0]
+    const userMessage = first?.message ?? submitted
+    const deferred: PendingAgentSessionTurn[] = retained.slice(1)
+    if (first) {
+      deferred.push({
+        message: submitted,
+        reasoningEffort: input.reasoningEffort ?? 'default',
+        serviceTier: input.serviceTier ?? 'standard',
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(submitted.data.parts ?? []) ?? [],
+        fastMode: input.fastMode === true,
+        steer: true,
+        ...(input.headless ? { headless: true } : {}),
+        ...(input.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: input.trustedNotifyChannels } : {}),
+        ...(input.messageSnapshot ? { messageSnapshot: structuredClone(input.messageSnapshot) } : {})
+      })
+      this.admissionOrder.set(submitted, (this.nextAdmissionOrder += 1))
+    }
     const existing = this.entries.get(input.sessionId)
     const turn: AgentSessionTurn = {
       turnId,
@@ -685,14 +712,19 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: input.modelId,
       messageSnapshot,
       shouldAutoName: input.shouldAutoName === true,
-      reasoningEffort: input.reasoningEffort ?? 'default',
-      serviceTier: input.serviceTier ?? 'standard',
-      knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
-      fastMode: input.fastMode === true,
+      reasoningEffort: first?.reasoningEffort ?? input.reasoningEffort ?? 'default',
+      serviceTier: first?.serviceTier ?? input.serviceTier ?? 'standard',
+      knowledgeBaseIds: first?.knowledgeBaseIds ?? getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
+      fastMode: first?.fastMode ?? input.fastMode === true,
+      ...(first?.steer === true ? { systemReminder: true } : {}),
       abortController: new AbortController(),
       activeToolIds: new Set(),
-      headless: input.headless === true,
-      ...(input.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: input.trustedNotifyChannels } : {})
+      headless: first ? first.headless === true : input.headless === true,
+      ...(first?.trustedNotifyChannels !== undefined
+        ? { trustedNotifyChannels: first.trustedNotifyChannels }
+        : input.trustedNotifyChannels !== undefined
+          ? { trustedNotifyChannels: input.trustedNotifyChannels }
+          : {})
     }
 
     if (existing && this.runtimeStatus(existing) === 'idle') {
@@ -709,6 +741,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.messageSnapshot = messageSnapshot
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
+      for (const pending of deferred) this.applyRuntimeStateEvent(existing, { type: 'queue-turn', turn: pending })
 
       return {
         listeners: [
@@ -735,6 +768,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     this.entries.set(input.sessionId, entry)
     this.syncRuntimeActivity()
+    for (const pending of deferred) this.applyRuntimeStateEvent(entry, { type: 'queue-turn', turn: pending })
 
     return {
       listeners: [
@@ -3043,7 +3077,18 @@ export class AgentSessionRuntimeService extends BaseService {
     ]
     this.handoffQueuedInput.delete(sessionId)
     this.abandonedHandoffInput.delete(sessionId)
-    if (preserved.length === 0) return []
+    return this.sortByAdmission(preserved)
+  }
+
+  /** Claim an abandoned handoff's retained input for activation, oldest acceptance first. */
+  private takeAbandonedHandoffInput(sessionId: string): PendingAgentSessionTurn[] {
+    const preserved = this.abandonedHandoffInput.get(sessionId)
+    if (!preserved) return []
+    this.abandonedHandoffInput.delete(sessionId)
+    return this.sortByAdmission(preserved)
+  }
+
+  private sortByAdmission(preserved: PendingAgentSessionTurn[]): PendingAgentSessionTurn[] {
     const rank = (message: AgentSessionMessageEntity) => this.admissionOrder.get(message) ?? Number.MAX_SAFE_INTEGER
     return preserved.sort((a, b) => rank(a.message) - rank(b.message))
   }

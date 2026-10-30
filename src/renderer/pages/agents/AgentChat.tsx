@@ -290,15 +290,16 @@ const AgentChat = ({
       // session snapshot still matches what is on screen, so a cleared handoff cannot resurrect.
       const latest = latestSessionKeyRef.current
       if (!isUniqueModelId(modelId) || sessionSnapshot?.id !== latest.id || sessionSnapshot?.agentId !== latest.agentId)
-        return
+        return false
       // A stop from any window already cancelled this plan, so arming here would send the execution
       // follow-up for a plan the user abandoned.
-      if (runtime.sessionStopped) return
+      if (runtime.sessionStopped) return false
       setPlanExecutionHandoff({
         sessionId: sessionSnapshot?.id ?? '',
         agentId: sessionSnapshot?.agentId ?? null,
         modelId
       })
+      return true
     }
   })
   const {
@@ -309,6 +310,15 @@ const AgentChat = ({
     uiMessages: runtimeUiMessages
   } = runtime
   const abandonPlanExecutionHandoff = runtime.abandonPlanExecutionHandoff
+  // Arming a handoff promises its follow-up; when this page unmounts, retire it on Main so the
+  // preserved input cannot gate the session behind a turn nobody will start.
+  useEffect(
+    () => () => {
+      const pending = planExecutionHandoffRef.current
+      if (pending) abandonPlanExecutionHandoff(pending.sessionId)
+    },
+    [abandonPlanExecutionHandoff]
+  )
   useEffect(() => {
     latestSessionKeyRef.current = { id: sessionSnapshot?.id ?? null, agentId: sessionSnapshot?.agentId ?? null }
     // A pending handoff belongs to the pair it was approved on; dropping it locally must also
