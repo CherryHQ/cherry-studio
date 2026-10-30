@@ -1965,6 +1965,27 @@ describe('PiRuntimeConnection', () => {
     await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
   })
 
+  it('rebuilds the fresh turn after a replay pinned a language the saved row no longer has', async () => {
+    // The turn was admitted in English; Japanese is saved while the provider backs off. The replay
+    // keeps English, but the next fresh turn targets the saved row and must rebuild onto Japanese.
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'Japanese')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'f::m',
+      instructions: 'Be helpful.',
+      configuration: {}
+    })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      modelId: 'f::m',
+      promptPolicy: { instructions: null, language: 'English' }
+    }).start()
+    expect(appendedSystemPrompt()).toContain('By default, respond in English.')
+    expect(appendedSystemPrompt()).not.toContain('Japanese')
+
+    await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
+  })
+
   // Pinning the raw instructions preserves the TEMPLATE, but {{username}} is resolved from
   // app.user.name at every materialization — so a replay has to carry the admitted values too.
   it('keeps a replay on the variable values the turn was admitted with', async () => {

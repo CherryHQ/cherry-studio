@@ -685,6 +685,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (
       snapshot.signature !== this.connectionSignature ||
       (snapshot.agent.instructions ?? null) !== this.turnInstructions ||
+      snapshot.effectiveLanguage !== this.turnLanguage ||
       !promptVariablesEqual(snapshot.agent.modelName, this.turnPromptVariables, this.replayingPrompt) ||
       [...(this.bakedExclusions ?? [])].some((name) => !applicableDisabledTools.has(name)) ||
       resolvePiThinkingLevel(input.reasoningEffort) !== resolvePiThinkingLevel(this.input.reasoningEffort)
