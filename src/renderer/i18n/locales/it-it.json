@@ -2279,7 +2279,7 @@
   "message.api.check.model.title": "Seleziona il modello da usare per il rilevamento",
   "message.api.connection.failed": "Connessione non riuscita",
   "message.api.connection.success": "Connessione riuscita",
-  "message.attachment_notice.image_ocr": "[to be translated]:{{names}} was sent as extracted text (OCR) because this model doesn't accept image input. To send images directly, choose a vision-capable model or enable Vision for this model in Provider Settings.",
+  "message.attachment_notice.image_ocr": "{{names}} è stato inviato come testo estratto (OCR) perché questo modello non accetta immagini in ingresso. Per inviare direttamente le immagini, scegli un modello con capacità visive o abilita Vision nelle impostazioni del provider per questo modello.",
   "message.attachments.pasted_image": "Immagine incollata",
   "message.attachments.pasted_text": "Testo incollato",
   "message.backup.cleanup_failed": "Backup completato, ma non è stato possibile eliminare i vecchi backup.",

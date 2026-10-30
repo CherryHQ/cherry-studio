@@ -2279,7 +2279,7 @@
   "message.api.check.model.title": "เลือกโมเดลที่ใช้ตรวจจับ",
   "message.api.connection.failed": "การเชื่อมต่อล้มเหลว",
   "message.api.connection.success": "การเชื่อมต่อสำเร็จ",
-  "message.attachment_notice.image_ocr": "[to be translated]:{{names}} was sent as extracted text (OCR) because this model doesn't accept image input. To send images directly, choose a vision-capable model or enable Vision for this model in Provider Settings.",
+  "message.attachment_notice.image_ocr": "ส่ง {{names}} เป็นข้อความที่ดึงออกมา (OCR) เนื่องจากโมเดลนี้ไม่รองรับรูปภาพเป็นอินพุต หากต้องการส่งรูปภาพโดยตรง ให้เลือกโมเดลที่รองรับการมองเห็น หรือเปิดใช้งาน Vision สำหรับโมเดลนี้ในการตั้งค่าผู้ให้บริการ",
   "message.attachments.pasted_image": "รูปภาพที่วาง",
   "message.attachments.pasted_text": "ข้อความที่วาง",
   "message.backup.cleanup_failed": "สำรองข้อมูลเสร็จแล้ว แต่ไม่สามารถล้างข้อมูลสำรองเก่าได้",
