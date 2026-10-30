@@ -188,6 +188,7 @@ linux:
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
+    - inode/directory
 rpm:
   # Workaround for electron build issue on rpm package:
   # https://github.com/electron/forge/issues/3594

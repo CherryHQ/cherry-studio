@@ -80,6 +80,24 @@
   FunctionEnd
 !endif
 
+!macro customInstall
+  ${If} $installMode == "all"
+    WriteRegStr HKLM "Software\Classes\Directory\shell\CherryStudio" "" "${PRODUCT_NAME}"
+    WriteRegStr HKLM "Software\Classes\Directory\shell\CherryStudio\command" "" '$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\" $\"%1$\"'
+  ${Else}
+    WriteRegStr HKCU "Software\Classes\Directory\shell\CherryStudio" "" "${PRODUCT_NAME}"
+    WriteRegStr HKCU "Software\Classes\Directory\shell\CherryStudio\command" "" '$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\" $\"%1$\"'
+  ${EndIf}
+!macroend
+
+!macro customUnInstall
+  ${If} $installMode == "all"
+    DeleteRegKey HKLM "Software\Classes\Directory\shell\CherryStudio"
+  ${Else}
+    DeleteRegKey HKCU "Software\Classes\Directory\shell\CherryStudio"
+  ${EndIf}
+!macroend
+
 !macro customInit
   ; If a per-machine (all users) installation exists, ensure we have admin privileges.
   ; Without elevation, the installer cannot close the running app or manage the

@@ -24,7 +24,7 @@ import {
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -57,6 +57,7 @@ import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
 import Sessions from './components/Sessions'
+import { WorkspaceLanding } from './components/WorkspaceLanding'
 import {
   createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
@@ -127,6 +128,40 @@ const AgentPage = () => {
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
   const routeSkillId = routeSearch.skillId
+  const routeWorkspaceId = !routeSessionId && !routeAgentId && !isPreparedIntent ? routeSearch.workspaceId : undefined
+  const isWorkspaceLanding = !!routeWorkspaceId
+  const {
+    data: landingWorkspace,
+    error: landingWorkspaceError,
+    refetch: refetchLandingWorkspace
+  } = useQuery('/agent-workspaces/:workspaceId', {
+    params: { workspaceId: routeWorkspaceId ?? '' },
+    enabled: isWorkspaceLanding,
+    swrOptions: { keepPreviousData: false, dedupingInterval: 0 }
+  })
+  const {
+    data: visibleWorkspaces,
+    error: visibleWorkspacesError,
+    refetch: refetchVisibleWorkspaces
+  } = useQuery('/agent-workspaces', {
+    enabled: isWorkspaceLanding
+  })
+  useEffect(() => {
+    if (routeWorkspaceId) void refetchVisibleWorkspaces().catch(() => undefined)
+  }, [refetchVisibleWorkspaces, routeWorkspaceId])
+  useDataChange('/agent-workspaces', () => {
+    if (!isWorkspaceLanding) return
+    void refetchLandingWorkspace().catch(() => undefined)
+    void refetchVisibleWorkspaces().catch(() => undefined)
+  })
+  const selectedWorkspace =
+    isWorkspaceLanding &&
+    !landingWorkspaceError &&
+    !visibleWorkspacesError &&
+    landingWorkspace?.type === AGENT_WORKSPACE_TYPE.USER &&
+    visibleWorkspaces?.some((workspace) => workspace.id === landingWorkspace.id)
+      ? landingWorkspace
+      : undefined
   const routeActiveSessionId = routeSessionId ?? null
   // Shared full-list source for session UI plus exact latest/reusable lookups.
   const agentSessionsSource = useAgentSessionsSource()
@@ -175,7 +210,7 @@ const AgentPage = () => {
   const routeAgentActivationGenerationRef = useRef(0)
   const routeAgentSessionRequestRef = useRef<{
     agentId: string
-    promise: Promise<AgentSessionEntity>
+    promise: Promise<AgentSessionEntity | null>
   } | null>(null)
 
   useLayoutEffect(() => {
@@ -186,6 +221,7 @@ const AgentPage = () => {
     // A pending session left over from the previous route no longer matches the new active id, so
     // `useActiveSession` ignores it — no need to null it here.
     setActiveSessionIdState((currentActiveSessionId) => {
+      if (routeWorkspaceId) return null
       if (routeActiveSessionId) {
         return routeActiveSessionId
       }
@@ -199,7 +235,7 @@ const AgentPage = () => {
     return () => {
       ownerFallbackRequestIdRef.current += 1
     }
-  }, [routeActiveSessionId])
+  }, [routeActiveSessionId, routeWorkspaceId])
   const setLastUsedAgentId = useCallback((agentId: string | null) => {
     cacheService.setPersist('ui.agent.last_used_agent_id', agentId)
   }, [])
@@ -230,6 +266,11 @@ const AgentPage = () => {
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
   const [pendingSessionDefaults, setPendingSessionDefaults] = useState<CreateAgentSessionDefaults | null>(null)
+  useLayoutEffect(() => {
+    if (!routeWorkspaceId) return
+    setPendingSessionDefaults(null)
+    setMissingAgentSelection(false)
+  }, [routeWorkspaceId])
   const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -255,7 +296,7 @@ const AgentPage = () => {
     clearActiveSession,
     mutate: refreshActiveSession
   } = useActiveSession({
-    activeSessionId,
+    activeSessionId: isWorkspaceLanding ? null : activeSessionId,
     setActiveSessionId,
     initialSession: initialActiveSession
   })
@@ -310,16 +351,17 @@ const AgentPage = () => {
     routeSessionId
   ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
-  const visibleSession =
-    activeSession ??
-    (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
-      ? lastVisibleSessionRef.current
-      : null)
+  const visibleSession = isWorkspaceLanding
+    ? null
+    : (activeSession ??
+      (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
+        ? lastVisibleSessionRef.current
+        : null))
   const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
   const conversationBootstrap = useAgentConversationBootstrap({
     session: visibleSession ?? null,
-    sessionLoading: isActiveSessionLoading,
-    sessionSource: activeSessionSource,
+    sessionLoading: !isWorkspaceLanding && isActiveSessionLoading,
+    sessionSource: isWorkspaceLanding ? 'none' : activeSessionSource,
     agentHint: visibleAgentFromList
   })
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
@@ -348,7 +390,7 @@ const AgentPage = () => {
     toggleResource
   } = useConversationCenterSurface<AgentConversationResourceKind>({
     conversationKey: resourceConversationKey,
-    disabled: !conversationResourcesEnabled,
+    disabled: !conversationResourcesEnabled || isWorkspaceLanding,
     resourceKinds: AGENT_CONVERSATION_RESOURCE_KINDS
   })
   const toggleAgentResourceView = useCallback(() => toggleResource('agent'), [toggleResource])
@@ -405,14 +447,14 @@ const AgentPage = () => {
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
   useEffect(() => {
-    if (!activeSession) return
+    if (isWorkspaceLanding || !activeSession) return
 
     const signature = `${activeSession.id}:${activeSession.name}`
     if (lastRecordedRecentSessionRef.current === signature) return
 
     lastRecordedRecentSessionRef.current = signature
     recordGlobalSearchRecentEntry(createRecentSessionEntryFromSession(activeSession))
-  }, [activeSession])
+  }, [activeSession, isWorkspaceLanding])
 
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
@@ -431,6 +473,9 @@ const AgentPage = () => {
       defaults: CreateAgentSessionDefaults,
       fallbackSession?: AgentSessionEntity | null
     ): Promise<AgentSessionWorkspaceSource> => {
+      if (selectedWorkspace && defaults.workspace?.type !== AGENT_WORKSPACE_TYPE.USER && !defaults.workspaceId) {
+        return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: selectedWorkspace.id }
+      }
       if (defaults.workspace) return defaults.workspace
       if (defaults.workspaceMode === 'system') return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       if (defaults.workspaceId) return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: defaults.workspaceId }
@@ -451,7 +496,7 @@ const AgentPage = () => {
         return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       }
     },
-    [lastUsedWorkspaceId, setLastUsedWorkspaceId]
+    [lastUsedWorkspaceId, selectedWorkspace, setLastUsedWorkspaceId]
   )
 
   const activateSession = useCallback(
@@ -471,9 +516,12 @@ const AgentPage = () => {
   )
 
   const resolveEmptySession = useCallback(
-    async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
+    async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity | null> => {
+      const requestId = ownerFallbackRequestIdRef.current
       const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
+      if (requestId !== ownerFallbackRequestIdRef.current) return null
       const result = await reuseOrCreateSession(agentId, workspaceSource)
+      if (requestId !== ownerFallbackRequestIdRef.current) return null
 
       closeConversationTabs('agents', result.deletedDuplicateSessionIds)
       if (result.created || result.deletedDuplicateSessionIds.length > 0) {
@@ -496,6 +544,7 @@ const AgentPage = () => {
     async (defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity | null> => {
       if (isCreatingEmptySessionRef.current) return null
       isCreatingEmptySessionRef.current = true
+      const requestId = ownerFallbackRequestIdRef.current
       // A sidebar `?agentId=` entry whose agent has no sessions yet falls through to the page;
       // create for that exact agent rather than whatever session happens to be visible.
       const agentId =
@@ -512,9 +561,11 @@ const AgentPage = () => {
         }
 
         const session = await resolveEmptySession(agentId, defaults)
+        if (!session || requestId !== ownerFallbackRequestIdRef.current) return null
         activateSession(session, agentId)
         return session
       } catch (err) {
+        if (requestId !== ownerFallbackRequestIdRef.current) return null
         logger.error('Failed to create empty agent session', err as Error, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         return null
@@ -558,7 +609,7 @@ const AgentPage = () => {
 
     void sessionPromise
       .then((session) => {
-        if (generation !== routeAgentActivationGenerationRef.current) return
+        if (!session || generation !== routeAgentActivationGenerationRef.current) return
         activateSession(session, routeAgentId)
       })
       .catch((err) => {
@@ -588,6 +639,7 @@ const AgentPage = () => {
     routeAgentExists,
     routeAgentId,
     routeSessionId,
+    routeWorkspaceId,
     t,
     updateTab
   ])
@@ -625,23 +677,28 @@ const AgentPage = () => {
     async (agentId: string) => {
       if (isCreatingEmptySessionRef.current) return
       isCreatingEmptySessionRef.current = true
+      const requestId = ownerFallbackRequestIdRef.current
       // Close the dialog first so the session/state churn below doesn't refresh it while it's
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
         const session = await resolveEmptySession(
           agentId,
-          pendingSessionDefaults ? { ...pendingSessionDefaults, agentId } : { agentId, workspaceMode: 'system' }
+          pendingSessionDefaults || isWorkspaceLanding
+            ? { ...pendingSessionDefaults, agentId }
+            : { agentId, workspaceMode: 'system' }
         )
+        if (!session || requestId !== ownerFallbackRequestIdRef.current) return
         activateSession(session, agentId)
       } catch (err) {
+        if (requestId !== ownerFallbackRequestIdRef.current) return
         logger.error('Failed to create agent session after agent creation', err as Error, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [activateSession, pendingSessionDefaults, resolveEmptySession, t]
+    [activateSession, isWorkspaceLanding, pendingSessionDefaults, resolveEmptySession, t]
   )
 
   const requestSessionNavigation = useCallback(
@@ -1129,7 +1186,27 @@ const AgentPage = () => {
         )
       }
     : null
-  const centerSurface = historyRecordsCenter ?? resourceCenter
+  const workspaceCenter = selectedWorkspace
+    ? {
+        content: (
+          <WorkspaceLanding
+            workspace={selectedWorkspace}
+            selectingAgent={selectingMissingAgent}
+            onAgentChange={handleMissingAgentSelectionAgentChange}
+            toolbarLeading={
+              !isWindowFrame ? (
+                <ConversationSidebarToggleButton
+                  sidebarOpen={shellPaneOpen}
+                  onSidebarToggle={toggleShellPane}
+                  tooltipPlacement="bottom"
+                />
+              ) : undefined
+            }
+          />
+        )
+      }
+    : null
+  const centerSurface = workspaceCenter ?? historyRecordsCenter ?? resourceCenter
 
   return (
     <>
@@ -1138,8 +1215,8 @@ const AgentPage = () => {
         emoji={agentAvatarIsEmoji ? agentAvatar : undefined}
         icon={agentAvatarIsEmoji ? undefined : agentAvatar}
         preserveVisuals={preserveTabVisuals}
-        activeSessionId={activeSession?.id}
-        activeSessionSource={activeSessionSource}
+        activeSessionId={isWorkspaceLanding ? undefined : activeSession?.id}
+        activeSessionSource={isWorkspaceLanding ? 'none' : activeSessionSource}
         onToggleSidebar={toggleShellPane}
       />
       <Container>

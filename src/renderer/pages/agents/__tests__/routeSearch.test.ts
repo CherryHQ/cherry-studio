@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest'
 import { parseAgentRouteSearch } from '../routeSearch'
 
 describe('parseAgentRouteSearch', () => {
+  it('retains a workspace-only landing and rejects non-string workspace ids', () => {
+    expect(parseAgentRouteSearch({ workspaceId: 'workspace-a' })).toMatchObject({ workspaceId: 'workspace-a' })
+    expect(parseAgentRouteSearch({ workspaceId: 7 }).workspaceId).toBeUndefined()
+  })
+
+  it.each([
+    { sessionId: 'session-1' },
+    { agentId: 'agent-1' },
+    { intent: 'feedback' },
+    { intent: 'skill', skillId: 'skill-1' },
+    { intent: 'task' }
+  ])('preserves existing entry semantics ahead of a workspace: %j', (identity) => {
+    expect(parseAgentRouteSearch({ ...identity, workspaceId: 'workspace-a' })).toEqual(parseAgentRouteSearch(identity))
+  })
+
   it('accepts the feedback intent alongside existing search fields', () => {
     expect(parseAgentRouteSearch({ intent: 'feedback', sessionId: 'session-1' })).toEqual({
       agentId: undefined,
