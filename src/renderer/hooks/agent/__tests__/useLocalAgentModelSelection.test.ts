@@ -96,31 +96,45 @@ beforeEach(() => {
   })
 })
 
-it('offers compatible Cherry models in the native list and clears their credentials when returning to native', async () => {
+it('offers only native models and Cherry models through the gateway', () => {
   const { result } = renderHook(() =>
     useLocalAgentModelSelection(agent.configuration!.localRuntime, [{ id: 'anthropic/native', name: 'Native' }])
   )
-  expect(result.current.models.map((entry) => entry.name)).toEqual(['Native', 'Claude Test', 'Claude Test'])
-  const selected = await result.current.select(agent, `cherry-model:${model.id}`)
-  expect(selected?.configuration?.localRuntime?.sourceModelId).toBe(model.id)
-  const providers = JSON.parse(disk.get('pi-models')!).providers
-  expect(Object.values(providers)).toEqual([
-    expect.objectContaining({ apiKey: 'test-secret', baseUrl: 'https://example.test' })
+  expect(result.current.models.map(({ id, source }) => ({ id, source }))).toEqual([
+    { id: 'anthropic/native', source: 'native' },
+    { id: `gateway-model:${model.id}`, source: 'gateway' }
   ])
-  expect(JSON.parse(disk.get('pi-settings')!)).toMatchObject({ theme: 'dark', defaultModel: 'claude-test' })
-  await result.current.select(selected!, 'anthropic/native')
-  expect(JSON.parse(disk.get('pi-models')!).providers).toEqual({})
-  expect(JSON.parse(disk.get('pi-settings')!)).toEqual({ theme: 'dark' })
 })
 
-it('leaves existing files intact if the selected provider has no usable credential', async () => {
-  const get = vi.mocked(dataApiService.get).getMockImplementation()!
-  vi.mocked(dataApiService.get).mockImplementation(async (path, ...args) =>
-    path === '/providers/custom/api-keys' ? ({ keys: [] } as never) : get(path, ...args)
-  )
+it('rejects stale direct-provider selections without changing CLI files', async () => {
   const { result } = renderHook(() => useLocalAgentModelSelection(agent.configuration!.localRuntime, []))
-  await expect(result.current.select(agent, `cherry-model:${model.id}`)).rejects.toThrow('missing required')
+  await expect(result.current.select(agent, `cherry-model:${model.id}`)).rejects.toThrow()
   expect([...disk]).toEqual([['pi-settings', '{"theme":"dark"}']])
+})
+
+it('preserves a previously configured direct model until the user selects another native model', async () => {
+  const legacy = {
+    ...agent,
+    configuration: {
+      localRuntime: {
+        ...agent.configuration!.localRuntime!,
+        sourceModelId: model.id,
+        sourceModelViaGateway: false,
+        nativeModel: 'cherry-custom/claude-test'
+      }
+    }
+  }
+  disk.set('pi-settings', '{"theme":"dark","defaultProvider":"cherry-custom","defaultModel":"claude-test"}')
+  disk.set('pi-models', '{"providers":{"cherry-custom":{"apiKey":"old-secret"}}}')
+  const before = [...disk]
+  const { result } = renderHook(() => useLocalAgentModelSelection(legacy.configuration.localRuntime, []))
+  expect(result.current.value).toBe('cherry-custom/claude-test')
+  expect(result.current.models.find((model) => model.id === result.current.value)?.source).toBe('native')
+  await result.current.select(legacy, result.current.value)
+  expect([...disk]).toEqual(before)
+  await result.current.select(legacy, 'anthropic/native')
+  expect(JSON.parse(disk.get('pi-models')!).providers).toEqual({})
+  expect(JSON.parse(disk.get('pi-settings')!)).toEqual({ theme: 'dark' })
 })
 
 it('writes only gateway credentials and preserves the selected transport after reopening', async () => {

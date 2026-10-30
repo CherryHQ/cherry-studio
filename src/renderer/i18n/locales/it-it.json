@@ -2312,7 +2312,6 @@
   "local_agents.mode": "Modalità sessione",
   "local_agents.model_hint": "Usato per nuove chat e terminali. Le impostazioni del progetto o gli argomenti di avvio possono avere la precedenza.",
   "local_agents.model_sources.native": "Modelli nativi",
-  "local_agents.model_sources.provider": "Provider diretti",
   "local_agents.models_unavailable": "Questa CLI non ha restituito modelli selezionabili. Segui la sua configurazione nativa.",
   "local_agents.modes.accept_edits": "Accetta modifiche",
   "local_agents.modes.accept_edits_description": "Consenti automaticamente le modifiche nell’area di lavoro e in /tmp; richiedi conferma per i percorsi sensibili.",

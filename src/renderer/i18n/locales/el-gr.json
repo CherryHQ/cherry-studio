@@ -2312,7 +2312,6 @@
   "local_agents.mode": "Λειτουργία συνεδρίας",
   "local_agents.model_hint": "Χρησιμοποιείται σε νέες συνομιλίες και τερματικά. Οι ρυθμίσεις έργου ή οι παράμετροι εκκίνησης μπορεί να υπερισχύουν.",
   "local_agents.model_sources.native": "Εγγενή μοντέλα",
-  "local_agents.model_sources.provider": "Απευθείας πάροχοι",
   "local_agents.models_unavailable": "Το CLI δεν επέστρεψε επιλέξιμα μοντέλα. Χρησιμοποιήστε την εγγενή διαμόρφωσή του.",
   "local_agents.modes.accept_edits": "Να επιτρέπονται αλλαγές",
   "local_agents.modes.accept_edits_description": "Επιτρέπει αυτόματα αλλαγές στον χώρο εργασίας και στο /tmp· ζητά επιβεβαίωση για ευαίσθητες διαδρομές.",

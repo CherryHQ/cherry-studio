@@ -2312,7 +2312,6 @@
   "local_agents.mode": "โหมดเซสชัน",
   "local_agents.model_hint": "ใช้กับแชตและเทอร์มินัลที่เริ่มใหม่ การตั้งค่าโครงการหรืออาร์กิวเมนต์เริ่มต้นอาจแทนที่ค่านี้",
   "local_agents.model_sources.native": "โมเดลของเอเจนต์",
-  "local_agents.model_sources.provider": "ผู้ให้บริการโดยตรง",
   "local_agents.models_unavailable": "CLI นี้ไม่ส่งรายการโมเดลที่เลือกได้ โปรดใช้การตั้งค่าของ CLI โดยตรง",
   "local_agents.modes.accept_edits": "ยอมรับการแก้ไข",
   "local_agents.modes.accept_edits_description": "อนุญาตการแก้ไขในพื้นที่ทำงานและ /tmp โดยอัตโนมัติ แต่ยังขออนุมัติสำหรับเส้นทางที่ละเอียดอ่อน",

@@ -376,24 +376,28 @@ export function LocalAgentDirectory({
                       <Button
                         variant="ghost"
                         className={cn(
-                          'h-8 w-full justify-start gap-2.5 rounded-[10px] border border-transparent py-0 pr-7 pl-2 text-left font-normal shadow-none hover:bg-muted',
+                          'h-8 w-full justify-between gap-0 rounded-[10px] border border-transparent py-0 pr-2.5 pl-3 text-left font-normal text-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:ring-0',
                           entry?.id === e.id && 'bg-muted font-medium'
                         )}
                         aria-pressed={entry?.id === e.id}
                         aria-label={e.id.startsWith('cli:') ? e.name : `${e.name} · ${status}`}
                         onClick={() => setPendingSelection(e.id)}>
-                        <LocalAgentIcon
-                          presetId={e.preset?.id}
-                          cliId={e.id.startsWith('cli:') ? e.id.slice(4) : undefined}
-                          size={26}
-                        />
-                        <span className="min-w-0 flex-1 truncate text-sm leading-[1.35]">{e.name}</span>
+                        <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                          <LocalAgentIcon
+                            presetId={e.preset?.id}
+                            cliId={e.id.startsWith('cli:') ? e.id.slice(4) : undefined}
+                            size={26}
+                          />
+                          <span className="min-w-0 truncate text-sm leading-[1.35] text-foreground">{e.name}</span>
+                        </span>
                         {notInstalled ? (
-                          <span className="shrink-0 text-xs font-normal text-foreground-tertiary">
+                          <span className="ml-1 shrink-0 text-xs font-normal text-foreground-tertiary">
                             {t('local_agents.not_installed')}
                           </span>
                         ) : (
-                          enabled && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-success" />
+                          enabled && (
+                            <span aria-hidden className="mr-0.5 ml-1 size-1.5 shrink-0 rounded-full bg-success" />
+                          )
                         )}
                       </Button>
                       {dragHandleProps && (
@@ -403,9 +407,9 @@ export function LocalAgentDirectory({
                           {...dragHandleProps.listeners}
                           variant="ghost"
                           size="icon-sm"
-                          className="absolute top-1/2 right-0.5 size-6 -translate-y-1/2 cursor-grab opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                          className="absolute top-0 left-[3px] h-8 w-2.5 cursor-grab rounded-none p-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-transparent focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-0"
                           aria-label={t('local_agents.drag.handle', { name: e.name })}>
-                          <GripVertical className="lucide-custom size-3.5 text-muted-foreground" />
+                          <GripVertical className="lucide-custom size-4 text-muted-foreground" />
                         </Button>
                       )}
                     </div>

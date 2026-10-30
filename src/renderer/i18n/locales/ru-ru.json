@@ -2312,7 +2312,6 @@
   "local_agents.mode": "Режим сеанса",
   "local_agents.model_hint": "Используется для новых чатов и терминалов. Настройки проекта или параметры запуска могут переопределить этот выбор.",
   "local_agents.model_sources.native": "Встроенные модели",
-  "local_agents.model_sources.provider": "Прямое подключение к провайдерам",
   "local_agents.models_unavailable": "CLI не вернула модели для выбора. Используйте её собственные настройки.",
   "local_agents.modes.accept_edits": "Разрешать изменения",
   "local_agents.modes.accept_edits_description": "Автоматически разрешать изменения в рабочей области и /tmp; для конфиденциальных путей запрашивать подтверждение.",

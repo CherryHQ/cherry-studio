@@ -2312,7 +2312,6 @@
   "local_agents.mode": "Oturum modu",
   "local_agents.model_hint": "Yeni sohbetlerde ve terminallerde kullanılır. Proje ayarları veya başlatma bağımsız değişkenleri bu seçimi geçersiz kılabilir.",
   "local_agents.model_sources.native": "Yerel modeller",
-  "local_agents.model_sources.provider": "Doğrudan sağlayıcılar",
   "local_agents.models_unavailable": "Bu CLI seçilebilir model döndürmedi. Kendi yapılandırmasını kullanın.",
   "local_agents.modes.accept_edits": "Düzenlemelere izin ver",
   "local_agents.modes.accept_edits_description": "Çalışma alanı ve /tmp içindeki düzenlemelere otomatik izin ver; hassas yollar için onay istemeye devam et.",

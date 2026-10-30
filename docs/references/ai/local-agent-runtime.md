@@ -14,8 +14,8 @@ sources:
 # Local Agent Runtime
 
 Code Mate manages local Agent installation, models and advanced
-configuration. One model list combines native Agent models with compatible Cherry
-provider models. Selecting a model applies its connection and native default for
+configuration. Model selection offers native Agent models and Cherry models through
+the unified gateway. Direct provider selection is not offered. Selecting a model applies its connection and native default for
 both chat and terminal use; there is no separate provider configuration panel.
 The Code Mate launchpad and sidebar shortcuts open Settings → Agent Services,
 the sole manager for installation, model selection and CLI configuration.
@@ -52,10 +52,12 @@ provider is required. “Local” refers to the CLI process, not an offline mode
   App Server into the existing runtime event contract.
 - The CLI owns authentication, project settings, MCP and Skills. Selecting a native
   model writes its default configuration and the Agent record together; failure
-  restores the file. Code Mate provider changes also update the chat Agent.
-  Provider selections retain their Cherry model identity separately from the native
-  model identifier. Switching back removes injected provider credentials while
+  restores the file. Gateway selections retain their Cherry model identity separately from the native
+  model identifier. Switching back removes injected gateway credentials while
   preserving tool settings. Stale drafts are rejected before writing any files.
+  Existing direct-provider CLI configurations are not rewritten automatically;
+  their current model appears under native models. Choosing another model or
+  following the CLI clears the previous Cherry-managed provider configuration.
   No Cherry prompts, knowledge bases or tools are injected.
 - Native default persistence currently supports Claude, Codex, OpenCode, Qwen,
   Kimi, Pi, Hermes and MiniMax. Other presets and custom ACP agents show an explicit

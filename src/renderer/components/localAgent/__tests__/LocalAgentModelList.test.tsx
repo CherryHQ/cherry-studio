@@ -105,8 +105,7 @@ describe('local agent model search', () => {
       <LocalAgentModelList
         models={[
           { id: 'gateway-model:test', name: 'Gateway model', group: 'Provider A', source: 'gateway' },
-          { id: 'native-model', name: 'Native model', source: 'native' },
-          { id: 'cherry-model:test', name: 'Direct model', group: 'Provider A', source: 'provider' }
+          { id: 'native-model', name: 'Native model', group: 'CLI vendor', source: 'native' }
         ]}
         value="gateway-model:test"
         loaded
@@ -117,17 +116,17 @@ describe('local agent model search', () => {
         onSelect={onSelect}
       />
     )
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['原生模型', '统一网关', '服务商直连'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['原生模型', '统一网关'])
     expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: /Gateway model$/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('button', { name: '跟随 CLI' })).not.toBeInTheDocument()
-    fireEvent.mouseDown(screen.getByRole('tab', { name: '服务商直连' }), { button: 0, ctrlKey: false })
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '原生模型' }), { button: 0, ctrlKey: false })
     expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Provider A' }))
-    expect(screen.queryByRole('button', { name: /Direct model$/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'CLI vendor' }))
+    expect(screen.queryByRole('button', { name: /Native model$/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '搜索' }))
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Provider A' } })
-    expect(screen.getByRole('button', { name: /Direct model$/ })).toBeVisible()
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'CLI vendor' } })
+    expect(screen.getByRole('button', { name: /Native model$/ })).toBeVisible()
     expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
     expect(onSelect).not.toHaveBeenCalled()
   })
@@ -140,7 +139,7 @@ describe('local agent model search', () => {
         trigger={<button type="button">Models</button>}
         models={[
           { id: 'gateway', name: 'Gateway model', source: 'gateway' },
-          { id: 'direct', name: 'Direct model', source: 'provider' }
+          { id: 'native', name: 'Native model', source: 'native' }
         ]}
         value="gateway"
         loaded
@@ -150,8 +149,8 @@ describe('local agent model search', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Models' }))
     expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
-    await user.click(screen.getByRole('tab', { name: '服务商直连' }))
-    expect(screen.getByRole('option', { name: /Direct model/ })).toBeVisible()
+    await user.click(screen.getByRole('tab', { name: '原生模型' }))
+    expect(screen.getByRole('option', { name: /Native model/ })).toBeVisible()
     expect(screen.queryByRole('option', { name: /Gateway model/ })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Models' }))

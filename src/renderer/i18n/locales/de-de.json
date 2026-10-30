@@ -2312,7 +2312,6 @@
   "local_agents.mode": "Sitzungsmodus",
   "local_agents.model_hint": "Wird für neue Chats und Terminals verwendet. Projekteinstellungen oder Startargumente können diese Auswahl überschreiben.",
   "local_agents.model_sources.native": "Native Modelle",
-  "local_agents.model_sources.provider": "Direkte Anbieter",
   "local_agents.models_unavailable": "Diese CLI hat keine auswählbaren Modelle zurückgegeben. Verwenden Sie ihre eigene Konfiguration.",
   "local_agents.modes.accept_edits": "Bearbeitung erlauben",
   "local_agents.modes.accept_edits_description": "Änderungen im Arbeitsbereich und in /tmp automatisch erlauben; bei sensiblen Pfaden weiterhin nachfragen.",
