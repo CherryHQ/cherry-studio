@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-30-mini-app-sidebar-navigation.md
+2026-10-30-mini-app-sidebar-navigation.md: 0ada53bbbfd6624199673f051e9d34d0b7485da3
+2026-10-30-mini-app-sidebar-navigation.zh.md: 9cf256cf301b1113ceead375f83204c650dea625
