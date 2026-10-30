@@ -1147,6 +1147,35 @@ describe('AgentComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
   })
 
+  it('consumes queued items without swapping the edited message into the queue', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{
+          initialDraft: { text: 'message under edit', tokens: [] },
+          editing: { messageId: 'message-1', onCancel: vi.fn() }
+        }}
+      />
+    )
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued A', tokens: [] })
+    })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued B', tokens: [] })
+    })
+    const [queuedA, queuedB] = getQueueDock().props.items
+
+    await act(async () => getQueueDock().props.onEdit(queuedA.id))
+    await act(async () => getQueueDock().props.onEdit(queuedB.id))
+
+    expect(mocks.surfaceProps?.text).toBe('queued B')
+    expect(getQueueDock()).toBeUndefined()
+  })
+
   it('captures Fast in the submitted Work Agent turn', async () => {
     mocks.modelResult = { ...model, supportsFastMode: true }
     render(

@@ -1620,7 +1620,7 @@ const AgentComposerInner = ({
     sendId: sendFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
-    takeForEdit: takeFollowupForEdit,
+    editItem: editFollowup,
     releaseEdit,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1639,20 +1639,7 @@ const AgentComposerInner = ({
       .catch((error) => logger.warn('Failed to publish pending input count', { error }))
   }, [launchOptions?.editing, queuedFollowups.length, sessionId])
 
-  const captureOutgoingFollowup = useCallback(
-    (taken: FollowupQueueItem) => {
-      const draft = actionsRef.current.getDraft()
-      const payload = buildQueuedPayload(draft)
-      if (payload === null) {
-        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
-        return null
-      }
-      return { draft, payload }
-    },
-    [actionsRef, buildQueuedPayload, files]
-  )
-
-  // After takeForEdit removes the queued item, keep live tokens and managed selections aligned
+  // After editItem hands over the queued item, keep live tokens and managed selections aligned
   // with the restored draft so subsequent edits retain its tools.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
@@ -1932,17 +1919,13 @@ const AgentComposerInner = ({
                   onSteer={sendFollowup}
                   onEdit={(id) => {
                     if (directSendInFlightRef.current) return
-                    if (launchOptions?.editing) {
-                      releaseEdit()
-                      const item = queuedFollowups.find((entry) => entry.id === id)
-                      if (!item) return
-                      restoreFollowupDraft(item)
-                      removeFollowup(id)
-                      return
-                    }
-                    const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
-                    if (!incoming) return
-                    restoreFollowupDraft(incoming)
+                    editFollowup(id, {
+                      editingMessage: Boolean(launchOptions?.editing),
+                      getDraft: () => actionsRef.current.getDraft(),
+                      buildPayload: buildQueuedPayload,
+                      hasFiles: files.length > 0,
+                      restore: restoreFollowupDraft
+                    })
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}

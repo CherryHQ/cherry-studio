@@ -1582,7 +1582,7 @@ const ChatComposerInner = ({
     sendId: sendFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
-    takeForEdit: takeFollowupForEdit,
+    editItem: editFollowup,
     releaseEdit,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1603,20 +1603,7 @@ const ChatComposerInner = ({
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
-  const captureOutgoingFollowup = useCallback(
-    (taken: FollowupQueueItem) => {
-      const draft = actionsRef.current.getDraft()
-      const payload = buildQueuedPayload(draft)
-      if (payload === null) {
-        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
-        return null
-      }
-      return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
-    },
-    [actionsRef, buildQueuedPayload, files]
-  )
-
-  // After takeForEdit removes the queued item, atomic replacement preserves unmanaged tokens
+  // After editItem hands over the queued item, atomic replacement preserves unmanaged tokens
   // even when the restored text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
@@ -2038,17 +2025,13 @@ const ChatComposerInner = ({
                 onSteer={sendFollowup}
                 onEdit={(id) => {
                   if (directSendInFlightRef.current) return
-                  if (editingMessageForCurrentTopic) {
-                    releaseEdit()
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    restoreFollowupDraft(item)
-                    removeFollowup(id)
-                    return
-                  }
-                  const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
-                  if (!incoming) return
-                  restoreFollowupDraft(incoming)
+                  editFollowup(id, {
+                    editingMessage: Boolean(editingMessageForCurrentTopic),
+                    getDraft: () => actionsRef.current.getDraft(),
+                    buildPayload: buildQueuedPayload,
+                    hasFiles: files.length > 0,
+                    restore: restoreFollowupDraft
+                  })
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}

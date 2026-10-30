@@ -2292,6 +2292,32 @@ describe('ChatComposer', () => {
     ])
   })
 
+  it('consumes queued items without swapping the edited message into the queue', async () => {
+    mocks.topicPending = true
+    const message = { id: 'msg-1', topicId: topic.id }
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={[{ type: 'text', text: 'original message' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued A', tokens: [] })
+    })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued B', tokens: [] })
+    })
+    const dock = () => mocks.surfaceProps?.queueContent as any
+    const [queuedA, queuedB] = dock().props.items
+
+    fireEvent.click(screen.getByText('start editing'))
+    await act(async () => dock().props.onEdit(queuedA.id))
+    await act(async () => dock().props.onEdit(queuedB.id))
+
+    expect(mocks.surfaceProps?.text).toBe('queued B')
+    expect(mocks.surfaceProps?.queueContent).toBeUndefined()
+  })
+
   it('atomically restores a same-text queued draft with unmanaged tokens from a history preview', async () => {
     seedInputHistory(['queued draft'])
     mocks.topicPending = true
