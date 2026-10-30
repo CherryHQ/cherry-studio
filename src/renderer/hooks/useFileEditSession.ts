@@ -433,6 +433,10 @@ export function useFileEditSession(
       if (suppressAutosaveRef.current?.()) {
         model.draft = next
         setDraftState(next)
+        // An in-flight editor update can arrive after the barrier engaged,
+        // even when there was no earlier timer to cancel. Retain its save for
+        // unlock; resume re-checks current ownership, dirtiness and errors.
+        scheduledAutosaveModelRef.current = model
         return
       }
       model.draft = next

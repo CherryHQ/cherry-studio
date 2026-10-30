@@ -803,6 +803,83 @@ describe('useFileEditSession', () => {
     expect(suppressAutosave).toHaveBeenCalled()
   })
 
+  it.each(['abort', 'flush', 'discard', 'error', 'switch', 'relock'] as const)(
+    'tracks a first accepted locked edit through %s without a pre-lock autosave',
+    async (outcome) => {
+      vi.useFakeTimers()
+      try {
+        ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+        const { result, rerender } = renderHook(
+          ({ fileHandle }) =>
+            useFileEditSession(fileHandle, { suppressAutosave: () => areNotesEditsLockedForRelocation() }),
+          { wrapper, initialProps: { fileHandle: handle } }
+        )
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0)
+        })
+        const unregister = registerNotesRelocationAutosaveCancel(
+          result.current.cancelPendingAutosave,
+          result.current.resumePendingAutosave
+        )
+        if (outcome === 'error') {
+          const error = new IpcError(fileErrorCodes.PERMISSION_DENIED, 'not writable')
+          ipcMocks.request.mockRejectedValueOnce(error)
+          act(() => result.current.setDraft('before error\n'))
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(800)
+          })
+          expect(result.current.saveError).toBeDefined()
+        }
+        const before = writeCalls().length
+        act(() => lockNotesEditsForRelocation())
+        act(() => result.current.setDraft('first locked edit\n'))
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2000)
+        })
+        expect(writeCalls()).toHaveLength(before)
+        if (outcome === 'flush') {
+          ipcMocks.request.mockResolvedValueOnce(writeResult(2, 18))
+          await act(async () => {
+            await result.current.flush()
+          })
+        } else if (outcome === 'discard') {
+          act(() => result.current.discard())
+        } else if (outcome === 'switch') {
+          ipcMocks.request.mockResolvedValueOnce(writeResult(2, 18)).mockResolvedValueOnce(readResult(utf8('other\n')))
+          rerender({ fileHandle: { kind: 'path' as const, path: '/ws/other.txt' as AbsoluteFilePath } })
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(0)
+          })
+        }
+        const beforeUnlock = writeCalls().length
+        ipcMocks.request.mockResolvedValue(writeResult(3, 18))
+        act(() => unlockNotesEditsForRelocation())
+        if (outcome === 'relock') act(() => lockNotesEditsForRelocation())
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(800)
+        })
+        if (outcome === 'abort') {
+          expect(writeCalls()).toHaveLength(beforeUnlock + 1)
+          expect(writeCalls().at(-1)?.[1]).toMatchObject({ data: utf8('first locked edit\n') })
+          expect(result.current.isDirty).toBe(false)
+        } else {
+          expect(writeCalls()).toHaveLength(beforeUnlock)
+        }
+        if (outcome === 'relock') {
+          act(() => unlockNotesEditsForRelocation())
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(800)
+          })
+          expect(writeCalls()).toHaveLength(beforeUnlock + 1)
+          expect(result.current.isDirty).toBe(false)
+        }
+        unregister()
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('resumes the autosave a relocation barrier cancelled once an aborted barrier unlocks', async () => {
     vi.useFakeTimers()
     try {
