@@ -198,6 +198,7 @@ export default defineConfig({
       },
       {
         name: 'cherry-external-app',
+        apply: 'build',
         buildStart() {
           for (const file of externalAppSources) this.addWatchFile(file)
           buildExternalApp()
