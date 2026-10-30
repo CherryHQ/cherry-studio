@@ -554,11 +554,12 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
-  // Capsule stack of collapsed agent windows — one per display that has capsules, destroyed when its stack empties.
+  // Capsule stack of collapsed agent windows — one per display that has capsules, closed when its stack empties.
   // Managed by SelectionAgentWindowService, which sizes it to the stack it measures and anchors it bottom-right.
+  // Pooled so the next first capsule appears without waiting for a renderer to boot.
   [WindowType.SelectionCapsule]: {
     type: WindowType.SelectionCapsule,
-    lifecycle: 'default',
+    lifecycle: 'pooled',
     htmlPath: 'windows/selection/capsule/index.html',
     showMode: 'manual',
     windowOptions: {
@@ -598,7 +599,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
-        devTools: isDev
+        devTools: isDev,
+        // A recycled host shows only after measuring its next stack, and a throttled hidden page draws no frames to measure.
+        backgroundThrottling: false
       }
     },
     behavior: {
@@ -609,6 +612,14 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     },
     quirks: {
       reapplyAlwaysOnTop: true
+    },
+    poolConfig: {
+      // Like the screenshot overlays: one per display, warmed by first use instead of kept resident.
+      standbySize: 0,
+      recycleMaxSize: 4,
+      decayInterval: 0,
+      inactivityTimeout: 600,
+      warmup: 'lazy'
     }
   },
 

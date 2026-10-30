@@ -53,6 +53,20 @@ describe('SelectionCapsuleStack', () => {
     expect(screen.getByText('selection.agent.capsule.more:{"count":2}')).toBeInTheDocument()
   })
 
+  it('folds again once its stack empties, as a recycled host shows the next stack', () => {
+    const seven = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => capsule(id))
+    const { rerender } = showStack(seven)
+    fireEvent.click(screen.getByText('selection.agent.capsule.more:{"count":2}'))
+
+    MockUseCacheUtils.setSharedCacheValue('selection.agent_capsules.7', [])
+    rerender(<SelectionCapsuleStack />)
+    MockUseCacheUtils.setSharedCacheValue('selection.agent_capsules.7', seven)
+    rerender(<SelectionCapsuleStack />)
+
+    expect(screen.getByText('selection.agent.capsule.more:{"count":2}')).toBeInTheDocument()
+    expect(screen.queryByText('Agent g')).not.toBeInTheDocument()
+  })
+
   it('restores the window a capsule stands for, and closes it from the close button without restoring', () => {
     showStack([capsule('w1'), capsule('w2')])
 
