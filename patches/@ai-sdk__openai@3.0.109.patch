@@ -201,11 +201,92 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..db1d7990251082aeac231384d18f8cd1
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7411,6 +7444,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6817,20 +6850,26 @@
+                   }
+                 });
+               } else if (isResponseOutputItemAddedChunk(value) && value.item.type === "reasoning") {
+-                activeReasoning[value.item.id] = {
+-                  encryptedContent: value.item.encrypted_content,
+-                  summaryParts: { 0: "active" }
+-                };
+-                controller.enqueue({
+-                  type: "reasoning-start",
+-                  id: `${value.item.id}:0`,
+-                  providerMetadata: {
+-                    [providerOptionsName]: {
+-                      itemId: value.item.id,
+-                      reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                const activeReasoningPart = activeReasoning[value.item.id];
++
++                if (activeReasoningPart == null) {
++                  activeReasoning[value.item.id] = {
++                    encryptedContent: value.item.encrypted_content,
++                    summaryParts: { 0: "active" }
++                  };
++                  controller.enqueue({
++                    type: "reasoning-start",
++                    id: `${value.item.id}:0`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: value.item.id,
++                        reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                      }
+                     }
+-                  }
+-                });
++                  });
++                } else if (value.item.encrypted_content != null) {
++                  activeReasoningPart.encryptedContent = value.item.encrypted_content;
++                }
+               }
+             } else if (isResponseOutputItemDoneChunk(value)) {
+               if (value.item.type === "message") {
+@@ -7401,6 +7440,23 @@
+                 });
+               }
+             } else if (value.type === "response.reasoning_summary_text.delta") {
++              if (value.summary_index === 0 && activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:${value.summary_index}`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
+@@ -7411,6 +7467,34 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -422,11 +503,92 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..57d68be8d0a40fff271f331b5bcdb663
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7517,6 +7550,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6923,20 +6956,26 @@
+                   }
+                 });
+               } else if (isResponseOutputItemAddedChunk(value) && value.item.type === "reasoning") {
+-                activeReasoning[value.item.id] = {
+-                  encryptedContent: value.item.encrypted_content,
+-                  summaryParts: { 0: "active" }
+-                };
+-                controller.enqueue({
+-                  type: "reasoning-start",
+-                  id: `${value.item.id}:0`,
+-                  providerMetadata: {
+-                    [providerOptionsName]: {
+-                      itemId: value.item.id,
+-                      reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                const activeReasoningPart = activeReasoning[value.item.id];
++
++                if (activeReasoningPart == null) {
++                  activeReasoning[value.item.id] = {
++                    encryptedContent: value.item.encrypted_content,
++                    summaryParts: { 0: "active" }
++                  };
++                  controller.enqueue({
++                    type: "reasoning-start",
++                    id: `${value.item.id}:0`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: value.item.id,
++                        reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                      }
+                     }
+-                  }
+-                });
++                  });
++                } else if (value.item.encrypted_content != null) {
++                  activeReasoningPart.encryptedContent = value.item.encrypted_content;
++                }
+               }
+             } else if (isResponseOutputItemDoneChunk(value)) {
+               if (value.item.type === "message") {
+@@ -7507,6 +7546,23 @@
+                 });
+               }
+             } else if (value.type === "response.reasoning_summary_text.delta") {
++              if (value.summary_index === 0 && activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:${value.summary_index}`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
+@@ -7517,6 +7573,34 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -643,11 +805,92 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..ad4e7d2d7bdfa1df1bfcca9b6fd7ad5d
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7679,6 +7712,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7085,20 +7118,26 @@
+                   }
+                 });
+               } else if (isResponseOutputItemAddedChunk(value) && value.item.type === "reasoning") {
+-                activeReasoning[value.item.id] = {
+-                  encryptedContent: value.item.encrypted_content,
+-                  summaryParts: { 0: "active" }
+-                };
+-                controller.enqueue({
+-                  type: "reasoning-start",
+-                  id: `${value.item.id}:0`,
+-                  providerMetadata: {
+-                    [providerOptionsName]: {
+-                      itemId: value.item.id,
+-                      reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                const activeReasoningPart = activeReasoning[value.item.id];
++
++                if (activeReasoningPart == null) {
++                  activeReasoning[value.item.id] = {
++                    encryptedContent: value.item.encrypted_content,
++                    summaryParts: { 0: "active" }
++                  };
++                  controller.enqueue({
++                    type: "reasoning-start",
++                    id: `${value.item.id}:0`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: value.item.id,
++                        reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                      }
+                     }
+-                  }
+-                });
++                  });
++                } else if (value.item.encrypted_content != null) {
++                  activeReasoningPart.encryptedContent = value.item.encrypted_content;
++                }
+               }
+             } else if (isResponseOutputItemDoneChunk(value)) {
+               if (value.item.type === "message") {
+@@ -7669,6 +7708,23 @@
+                 });
+               }
+             } else if (value.type === "response.reasoning_summary_text.delta") {
++              if (value.summary_index === 0 && activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:${value.summary_index}`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
+@@ -7679,6 +7735,34 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -864,11 +1107,92 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..f30c3d53fe52e54c00329ab5563d4634
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7760,6 +7793,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7166,20 +7199,26 @@
+                   }
+                 });
+               } else if (isResponseOutputItemAddedChunk(value) && value.item.type === "reasoning") {
+-                activeReasoning[value.item.id] = {
+-                  encryptedContent: value.item.encrypted_content,
+-                  summaryParts: { 0: "active" }
+-                };
+-                controller.enqueue({
+-                  type: "reasoning-start",
+-                  id: `${value.item.id}:0`,
+-                  providerMetadata: {
+-                    [providerOptionsName]: {
+-                      itemId: value.item.id,
+-                      reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                const activeReasoningPart = activeReasoning[value.item.id];
++
++                if (activeReasoningPart == null) {
++                  activeReasoning[value.item.id] = {
++                    encryptedContent: value.item.encrypted_content,
++                    summaryParts: { 0: "active" }
++                  };
++                  controller.enqueue({
++                    type: "reasoning-start",
++                    id: `${value.item.id}:0`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: value.item.id,
++                        reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
++                      }
+                     }
+-                  }
+-                });
++                  });
++                } else if (value.item.encrypted_content != null) {
++                  activeReasoningPart.encryptedContent = value.item.encrypted_content;
++                }
+               }
+             } else if (isResponseOutputItemDoneChunk(value)) {
+               if (value.item.type === "message") {
+@@ -7750,6 +7789,23 @@
+                 });
+               }
+             } else if (value.type === "response.reasoning_summary_text.delta") {
++              if (value.summary_index === 0 && activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:${value.summary_index}`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
+@@ -7760,6 +7816,34 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: "active" }
++                };
++
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null
++                    }
++                  }
++                });
++              }
++
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -1126,11 +1450,97 @@ index 485880b51bbb55f9bf2b563afe24330f5a309c37..e25dd4f5cc5f793bbcc71d1c70983bb0
        // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
-@@ -2243,6 +2243,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+@@ -1525,22 +1525,28 @@
+                 isResponseOutputItemAddedChunk(value) &&
+                 value.item.type === 'reasoning'
+               ) {
+-                activeReasoning[value.item.id] = {
+-                  encryptedContent: value.item.encrypted_content,
+-                  summaryParts: { 0: 'active' },
+-                };
+-
+-                controller.enqueue({
+-                  type: 'reasoning-start',
+-                  id: `${value.item.id}:0`,
+-                  providerMetadata: {
+-                    [providerOptionsName]: {
+-                      itemId: value.item.id,
+-                      reasoningEncryptedContent:
+-                        value.item.encrypted_content ?? null,
+-                    } satisfies ResponsesReasoningProviderMetadata,
+-                  },
+-                });
++                const activeReasoningPart = activeReasoning[value.item.id];
++
++                if (activeReasoningPart == null) {
++                  activeReasoning[value.item.id] = {
++                    encryptedContent: value.item.encrypted_content,
++                    summaryParts: { 0: 'active' },
++                  };
++
++                  controller.enqueue({
++                    type: 'reasoning-start',
++                    id: `${value.item.id}:0`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: value.item.id,
++                        reasoningEncryptedContent:
++                          value.item.encrypted_content ?? null,
++                      } satisfies ResponsesReasoningProviderMetadata,
++                    },
++                  });
++                } else if (value.item.encrypted_content != null) {
++                  activeReasoningPart.encryptedContent = value.item.encrypted_content;
++                }
+               }
+             } else if (isResponseOutputItemDoneChunk(value)) {
+               if (value.item.type === 'message') {
+@@ -2233,6 +2239,23 @@
+                 });
+               }
+             } else if (value.type === 'response.reasoning_summary_text.delta') {
++              if (value.summary_index === 0 && activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: 'active' },
++                };
++
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: `${value.item_id}:${value.summary_index}`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null,
++                    } satisfies ResponsesReasoningProviderMetadata,
++                  },
++                });
++              }
++
+               controller.enqueue({
+                 type: 'reasoning-delta',
+                 id: `${value.item_id}:${value.summary_index}`,
+@@ -2243,6 +2266,34 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },
                });
 +            } else if (value.type === 'response.reasoning_text.delta') {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = {
++                  summaryParts: { 0: 'active' },
++                };
++
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                      reasoningEncryptedContent: null,
++                    } satisfies ResponsesReasoningProviderMetadata,
++                  },
++                });
++              }
++
 +              controller.enqueue({
 +                type: 'reasoning-delta',
 +                id: `${value.item_id}:0`,
