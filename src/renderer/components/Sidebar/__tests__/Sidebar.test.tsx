@@ -30,8 +30,16 @@ type AppItem = {
 }
 
 const uiMocks = vi.hoisted(() => ({
+  isMac: false,
   sortableCalls: [] as any[],
   contextMenuOpenChange: undefined as ((open: boolean) => void) | undefined
+}))
+
+vi.mock(import('@renderer/utils/platform'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  get isMac() {
+    return uiMocks.isMac
+  }
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -123,6 +131,7 @@ const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
+  uiMocks.isMac = false
   vi.useRealTimers()
   uiMocks.sortableCalls.length = 0
   uiMocks.contextMenuOpenChange = undefined
@@ -316,7 +325,47 @@ describe('Sidebar resize handle', () => {
     expect(onAccountClick).toHaveBeenCalledOnce()
   })
 
-  it('exposes account menu state and restores focus to its footer trigger', async () => {
+  it.each([
+    { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
+    { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
+    { name: 'floating', width: 0, isFloating: true }
+  ])('moves the macOS $name account entry between footer and fullscreen header', ({ width, isFloating }) => {
+    uiMocks.isMac = true
+    const props = {
+      width,
+      setWidth: vi.fn(),
+      entries,
+      user: { name: 'User' },
+      isFloating,
+      actions: <button type="button">Settings</button>
+    }
+    const { rerender } = render(<Sidebar {...props} />)
+
+    const accountButton = screen.getByRole('button', { name: 'User' })
+    for (const name of ['Chat', 'Settings']) {
+      expect(
+        screen.getByRole('button', { name }).compareDocumentPosition(accountButton) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    }
+
+    rerender(<Sidebar {...props} isFullscreen />)
+    expect(screen.getAllByRole('button', { name: 'User' })).toHaveLength(1)
+    expect(
+      screen
+        .getByRole('button', { name: 'User' })
+        .compareDocumentPosition(screen.getByRole('button', { name: 'Chat' })) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    rerender(<Sidebar {...props} />)
+    expect(
+      screen
+        .getByRole('button', { name: 'Settings' })
+        .compareDocumentPosition(screen.getByRole('button', { name: 'User' })) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('exposes account menu state and restores focus to its macOS footer trigger', async () => {
+    uiMocks.isMac = true
     const user = userEvent.setup()
 
     function AccountSidebar() {
@@ -357,6 +406,7 @@ describe('Sidebar resize handle', () => {
   })
 
   it('keeps the full footer update action independent from the account trigger', async () => {
+    uiMocks.isMac = true
     const user = userEvent.setup()
     const onAccountClick = vi.fn()
     const onUpdateClick = vi.fn()

@@ -66,7 +66,10 @@ export function Sidebar({
   const footerOverlayOpenRef = useRef(false)
   const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
-  const showFooter = Boolean(extensionsLabel || onExtensionsClick || actions || userAction)
+  const showUserInFooter = isMac && !isFullscreen
+  const showFooter = Boolean(
+    extensionsLabel || onExtensionsClick || actions || userAction || (showUserInFooter && user)
+  )
   const showSearch = Boolean(onSearchClick)
 
   const handleDismiss = useCallback(() => {
@@ -127,13 +130,15 @@ export function Sidebar({
   }
   const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
   const contentLayout = isFloating ? 'full' : layout
-  const showHeaderDivider = contentLayout === 'icon' && (isFullscreen || (!isMac && !hasLeadingWindowControls))
+  const showHeaderDivider = !showUserInFooter && contentLayout === 'icon' && (isFullscreen || !hasLeadingWindowControls)
   const emptyState =
     entries.length === 0 && contentLayout === 'full' && emptyHint ? (
       <p className="px-4 py-3 text-xs text-muted-foreground [-webkit-app-region:no-drag]">{emptyHint}</p>
     ) : null
 
   const footerProps = {
+    user: showUserInFooter ? user : undefined,
+    renderUserTrigger,
     userAction,
     actions,
     extensionsLabel,
@@ -167,16 +172,12 @@ export function Sidebar({
     </Button>
   ) : null
   const header =
-    user && userButton ? (
+    !showUserInFooter && user && userButton ? (
       <div
         className={cn(
           'relative flex shrink-0',
           showHeaderDivider && 'mb-2',
-          contentLayout === 'icon'
-            ? 'h-11 items-center'
-            : isMac && !isFullscreen
-              ? 'h-10 items-start'
-              : 'h-12 items-center',
+          contentLayout === 'icon' ? 'h-11 items-center' : 'h-12 items-center',
           contentLayout === 'full' ? 'px-2' : 'justify-center'
         )}>
         <Tooltip content={user.name} placement="right" delay={400} fullWidthTrigger={contentLayout === 'full'}>
@@ -196,7 +197,7 @@ export function Sidebar({
           className={cn(
             'shell-navigation slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
             '[-webkit-app-region:no-drag]',
-            (isMac || hasLeadingWindowControls) && 'pt-[env(titlebar-area-height)]'
+            (showUserInFooter || hasLeadingWindowControls) && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
@@ -313,10 +314,7 @@ export function Sidebar({
 
       {/* Content */}
       <div
-        className={cn(
-          'min-h-0 flex-1 overflow-y-auto pb-1 [&::-webkit-scrollbar]:hidden',
-          isMac && !showHeaderDivider && 'pt-1'
-        )}>
+        className={cn('min-h-0 flex-1 overflow-y-auto pb-1 [&::-webkit-scrollbar]:hidden', showUserInFooter && 'pt-1')}>
         <SidebarList layout={layout} {...listProps} />
         {emptyState}
       </div>

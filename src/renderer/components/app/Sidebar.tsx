@@ -26,6 +26,7 @@ import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { isMac } from '@renderer/utils/platform'
 
 import { CommandTooltip } from '../command'
 import { HelpMenu } from '../layout/HelpMenu'
@@ -70,6 +71,7 @@ export default function Sidebar({
   isFullscreen?: boolean
 }) {
   const { t } = useTranslation()
+  const showUserInFooter = isMac && !isFullscreen
   const [userName] = usePreference('app.user.name')
   const { status: accountStatus } = useCherryAccountSession()
   const accountId = accountStatus?.phase === 'signed-in' ? accountStatus.accountId : null
@@ -154,7 +156,7 @@ export default function Sidebar({
       <PopoverContent
         aria-label={t('sidebar.account_menu')}
         align="start"
-        side="bottom"
+        side={showUserInFooter ? 'top' : 'bottom'}
         sideOffset={8}
         className="w-56 rounded-md p-0"
         onOpenAutoFocus={(event) => {
@@ -259,35 +261,43 @@ export default function Sidebar({
     setFeedbackOpen(true)
   }, [])
 
+  const renderSettingsButton = (footerLayout: SidebarVisibleLayout) => (
+    <CommandTooltip
+      command="app.settings.open"
+      label={t('settings.title')}
+      placement="right"
+      delay={800}
+      fullWidthTrigger={footerLayout === 'full'}>
+      <Button
+        variant="ghost"
+        size={footerLayout === 'icon' ? 'icon' : 'default'}
+        aria-label={t('settings.title')}
+        onClick={() => openSettingsTab()}
+        className={
+          footerLayout === 'icon'
+            ? 'shell-navigation-item size-9 rounded-full'
+            : 'shell-navigation-item flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px]'
+        }>
+        <Settings className={footerLayout === 'icon' ? 'size-4.5' : 'size-4'} strokeWidth={1.6} />
+        {footerLayout === 'full' && <span className="min-w-0 truncate">{t('settings.title')}</span>}
+      </Button>
+    </CommandTooltip>
+  )
+
   const sidebarProps = {
     isFullscreen,
     entries,
     emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
-    userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : null,
-    renderUserTrigger: renderSidebarUserTrigger,
-    actions: (footerLayout: SidebarVisibleLayout) => (
-      <CommandTooltip
-        command="app.settings.open"
-        label={t('settings.title')}
-        placement="right"
-        delay={800}
-        fullWidthTrigger={footerLayout === 'full'}>
-        <Button
-          variant="ghost"
-          size={footerLayout === 'icon' ? 'icon' : 'default'}
-          aria-label={t('settings.title')}
-          onClick={() => openSettingsTab()}
-          className={
-            footerLayout === 'icon'
-              ? 'shell-navigation-item size-9 rounded-full'
-              : 'shell-navigation-item flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px]'
-          }>
-          <Settings className={footerLayout === 'icon' ? 'size-4.5' : 'size-4'} strokeWidth={1.6} />
-          {footerLayout === 'full' && <span className="min-w-0 truncate">{t('settings.title')}</span>}
-        </Button>
-      </CommandTooltip>
+    userAction: (footerLayout: SidebarVisibleLayout) => (
+      <>
+        {layout === 'full' && <AppUpdateButton placement="top" />}
+        {showUserInFooter && footerLayout === 'full' && renderSettingsButton('icon')}
+      </>
     ),
+    renderUserTrigger: renderSidebarUserTrigger,
+    actions: (footerLayout: SidebarVisibleLayout) =>
+      showUserInFooter && footerLayout === 'full' ? null : renderSettingsButton(footerLayout),
     onEntriesReorder: handleReorder
   }
 

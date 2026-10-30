@@ -12,6 +12,7 @@ import type * as SidebarConstantsModule from '../../Sidebar/constants'
 import type * as SidebarFooterModule from '../../Sidebar/SidebarFooter'
 
 const mocks = vi.hoisted(() => ({
+  isMac: false,
   activate: vi.fn(),
   registryResolve: vi.fn(),
   remove: vi.fn(),
@@ -24,6 +25,13 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.unmock('@cherrystudio/ui')
+
+vi.mock(import('@renderer/utils/platform'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  get isMac() {
+    return mocks.isMac
+  }
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [mocks.sidebarWidth, vi.fn()],
@@ -155,6 +163,7 @@ function renderedShortcutLabels(): Array<string | null> {
 describe('app Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isMac = false
     mocks.shortcuts = []
     mocks.resolutions = []
     mocks.sidebarWidth = 170
@@ -178,10 +187,18 @@ describe('app Sidebar', () => {
     expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument()
   })
 
-  it('opens settings directly from the sidebar', async () => {
+  it.each([
+    { isMac: false, isFullscreen: false },
+    { isMac: true, isFullscreen: false },
+    { isMac: true, isFullscreen: true }
+  ])('opens settings independently on macOS=$isMac fullscreen=$isFullscreen', async ({ isMac, isFullscreen }) => {
+    mocks.isMac = isMac
     const user = userEvent.setup()
-    render(<Sidebar />)
-    await user.click(screen.getByRole('button', { name: 'settings.title' }))
+    render(<Sidebar isFullscreen={isFullscreen} />)
+    const settingsButton = screen.getByRole('button', { name: 'settings.title' })
+    if (isMac && !isFullscreen) expect(settingsButton).not.toHaveTextContent('settings.title')
+    else expect(settingsButton).toHaveTextContent('settings.title')
+    await user.click(settingsButton)
     expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
