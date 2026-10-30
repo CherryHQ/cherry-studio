@@ -428,7 +428,7 @@ function AssistantEditDialogContent({
             name="enableSharedMemory"
             render={({ field }) => (
               <FormItem className="flex items-center justify-between gap-3 py-4">
-                <FormLabel>{t('settings.memory.title')}</FormLabel>
+                <FormLabel>{t('settings.memory.use')}</FormLabel>
                 <FormControl>
                   <Switch checked={field.value} onCheckedChange={field.onChange} />
                 </FormControl>

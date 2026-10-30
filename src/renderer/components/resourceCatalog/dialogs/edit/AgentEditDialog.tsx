@@ -589,17 +589,6 @@ function AgentEditDialogContent({
               return failedSaveKeyRef.current === null
             }}
           />
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-4"
-            onClick={async () => {
-              await flush()
-              if (failedSaveKeyRef.current === null)
-                closeBeforeAction(() => openSettingsTab(`/settings/memory?agentId=${encodeURIComponent(resource.id)}`))
-            }}>
-            {t('settings.memory.private')}
-          </Button>
         </TabsContent>
         <TabsContent
           value="prompt"
@@ -769,7 +758,7 @@ function AgentBasicFields({
         name="sharedMemoryEnabled"
         render={({ field }) => (
           <FormItem className="flex items-center justify-between gap-3 py-4">
-            <FormLabel>{t('settings.memory.title')}</FormLabel>
+            <FormLabel>{t('settings.memory.use')}</FormLabel>
             <FormControl>
               <Switch
                 checked={field.value}
