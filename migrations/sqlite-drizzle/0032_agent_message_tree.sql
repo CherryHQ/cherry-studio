@@ -38,7 +38,7 @@ CREATE UNIQUE INDEX `agent_session_message_native_input_uniq` ON `agent_session_
 CREATE INDEX `agent_session_message_parent_idx` ON `agent_session_message` (`session_id`,`parent_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `agent_session_message_root_uniq` ON `agent_session_message` (`session_id`) WHERE "agent_session_message"."role" = 'root';--> statement-breakpoint
 CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint
-CREATE INDEX `agent_session_message_created_at_id_idx` ON `agent_session_message` (`"created_at" desc`,`"id" asc`);--> statement-breakpoint
+CREATE INDEX `agent_session_message_created_at_id_idx` ON `agent_session_message` (`created_at` desc,`id` asc);--> statement-breakpoint
 CREATE INDEX `agent_session_message_status_idx` ON `agent_session_message` (`status`);--> statement-breakpoint
 CREATE INDEX `agent_session_message_model_id_idx` ON `agent_session_message` (`model_id`);--> statement-breakpoint
 CREATE INDEX `agent_session_message_delivery_status_idx` ON `agent_session_message` (`delivery_status`);--> statement-breakpoint
