@@ -1,7 +1,7 @@
 import { parse as parsePartialJson } from 'partial-json'
-import { useDeferredValue, useMemo } from 'react'
+import { use, useDeferredValue, useMemo } from 'react'
 
-import { useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { PartsContext, useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
@@ -21,12 +21,14 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
+  // A steer routes later task events to a continuation message, so only subagent cards read the complete map.
+  const taskPartsMap = isSubagentTool ? use(PartsContext) : null
   const taskStatus = useMemo(
     () =>
-      isSubagentTool
-        ? getSubagentTaskStatus(Object.values(partsMap ?? {}).flat(), toolResponse.toolCallId, status)
+      taskPartsMap
+        ? getSubagentTaskStatus(Object.values(taskPartsMap).flat(), toolResponse.toolCallId, status)
         : undefined,
-    [isSubagentTool, partsMap, status, toolResponse.toolCallId]
+    [taskPartsMap, status, toolResponse.toolCallId]
   )
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
