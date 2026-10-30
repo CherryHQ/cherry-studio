@@ -1,7 +1,9 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from '../buildCompactReplay'
+import type { StreamChunkPayload } from '@shared/ai/transport'
+
+import { buildCompactReplay, evictOldestReplayEntry, mergeDeltaPayload, splitDeltaPayload } from '../buildCompactReplay'
 
 describe('buildCompactReplay', () => {
   it('merges consecutive text-delta chunks with the same id', () => {
@@ -178,6 +180,11 @@ describe('buildCompactReplay', () => {
       {
         topicId: 'topic-1',
         executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
         chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' }
       },
       {
@@ -200,6 +207,11 @@ describe('buildCompactReplay', () => {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
         chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
       },
       {
         topicId: 'topic-1',
@@ -243,6 +255,106 @@ describe('buildCompactReplay', () => {
 
       expect(result).toEqual([{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } }])
     })
+
+    it('drops orphan tool-input-delta whose start was evicted', () => {
+      const result = buildCompactReplay([
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'orphan' }
+        },
+        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } }
+      ])
+
+      expect(result).toEqual([
+        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } }
+      ])
+    })
+
+    it('drops orphan tool-output and approval whose opener was evicted after completion', () => {
+      // The opener pin releases once terminal output is buffered, so later
+      // ring eviction can leave the output behind. Replaying it bare makes the
+      // reader reject the stream, so it must be dropped with the opener.
+      const result = buildCompactReplay([
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: 'stale' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-approval-request', toolCallId: 'tc2', approvalId: 'ap1' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc3', toolName: 'read' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-available', toolCallId: 'tc3', output: 'fresh' }
+        }
+      ])
+
+      expect(result).toEqual([
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc3', toolName: 'read' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-available', toolCallId: 'tc3', output: 'fresh' }
+        }
+      ])
+    })
+  })
+
+  describe('evictOldestReplayEntry', () => {
+    it('spares a still-open tool-input-start and evicts the next oldest entry', () => {
+      const buffer: StreamChunkPayload[] = [
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
+        },
+        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'hi' } }
+      ]
+
+      expect(evictOldestReplayEntry(buffer, new Set(['tc1']))).toBe(true)
+
+      expect(buffer).toEqual([
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
+        },
+        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'hi' } }
+      ])
+    })
+
+    it('evicts a tool-input-start whose tool already completed', () => {
+      const buffer: StreamChunkPayload[] = [
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
+        },
+        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } }
+      ]
+
+      evictOldestReplayEntry(buffer, new Set())
+
+      expect(buffer).toEqual([{ topicId: 't', chunk: { type: 'text-start', id: 'p1' } }])
+    })
+
+    it('keeps pinned openers when every entry is pinned and reports no eviction', () => {
+      const buffer: StreamChunkPayload[] = [
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
+        }
+      ]
+
+      expect(evictOldestReplayEntry(buffer, new Set(['tc1']))).toBe(false)
+      expect(buffer).toHaveLength(1)
+    })
   })
 
   describe('mergeDeltaPayload segmentation', () => {
@@ -275,6 +387,23 @@ describe('buildCompactReplay', () => {
 
       expect(mergeDeltaPayload(tail, incoming, 6)).toBeUndefined()
       expect(mergeDeltaPayload(tail, incoming, 7)).toMatchObject({ chunk: { inputTextDelta: '{"q":1}' } })
+    })
+
+    it('keeps the newer ingest index on a merged entry for the replay watermark', () => {
+      // The merged entry covers both origins; the watermark must reach the
+      // incoming side or its live twin survives the overflow filter as a duplicate.
+      const tail = {
+        topicId: 't',
+        seq: 4,
+        chunk: { type: 'text-delta', id: 'p1', delta: 'ab' } as UIMessageChunk
+      }
+      const incoming = {
+        topicId: 't',
+        seq: 5,
+        chunk: { type: 'text-delta', id: 'p1', delta: 'cd' } as UIMessageChunk
+      }
+
+      expect(mergeDeltaPayload(tail, incoming)).toMatchObject({ seq: 5, chunk: { delta: 'abcd' } })
     })
 
     it('splits one oversized incoming delta without breaking Unicode code points', () => {
