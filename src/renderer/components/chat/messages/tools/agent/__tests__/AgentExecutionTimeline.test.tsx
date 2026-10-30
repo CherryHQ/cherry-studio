@@ -4,7 +4,6 @@ import i18next from 'i18next'
 import { expect, it } from 'vitest'
 
 import { MessagePartsScopeProvider, PartsProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -58,8 +57,12 @@ it.each([
     data: { event: 'notification', taskId: 'task-1', status }
   }
   const part: CherryMessagePart = {
-    type: 'dynamic-tool', toolCallId: 'tool-Agent', toolName: 'Agent', state: 'output-available',
-    input: { description: 'Inspect the workspace' }, output: { status: 'async_launched', taskId: 'task-1' }
+    type: 'dynamic-tool',
+    toolCallId: 'tool-Agent',
+    toolName: 'Agent',
+    state: 'output-available',
+    input: { description: 'Inspect the workspace' },
+    output: { status: 'async_launched', taskId: 'task-1' }
   }
   const view = (continuation: CherryMessagePart[]) => (
     <PartsProvider value={{ original: [launched], continuation }}>
