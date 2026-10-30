@@ -14,7 +14,7 @@ PR #23117 暴露了这个代价。移除 `@hello-pangea/dnd` 后，内置的交�
 
 ## 决策
 
-`Sortable` 和 `ReorderableList` 运行在 `@dnd-kit/react` 上，`@dnd-kit/react`、`dom`、`abstract`、`collision`、`helpers` 都精确锁定 0.5.1。`ReorderableList` 保留原有 props，并新增 `isItemDragDisabled`：禁止拖动某一行，但该行仍可接收放置。划词助手也一并迁入，它所属的单一拖拽库变更记录在 [保留 dnd-kit 作为唯一的拖拽库](../simplification/2026-10-30-single-drag-and-drop-library.md)。
+`Sortable` 和 `ReorderableList` 运行在 `@dnd-kit/react` 上，`@dnd-kit/react`、`dom`、`abstract`、`collision`、`helpers` 都精确锁定 0.5.1。`ReorderableList` 保留原有 props，并新增 `isItemDragDisabled`：禁止拖动某一行，但该行仍可接收放置，并把该行移出 Tab 顺序。划词助手也一并迁入，它所属的单一拖拽库变更记录在 [保留 dnd-kit 作为唯一的拖拽库](../simplification/2026-10-30-single-drag-and-drop-library.md)。
 
 | 原 `Sortable` 能力 | 上线后的能力 |
 | --- | --- |
@@ -31,12 +31,12 @@ PR #23117 暴露了这个代价。移除 `@hello-pangea/dnd` 后，内置的交�
 
 以下决策超出了 Spec 的表格，每一条都是因为探针在没有它时失败才加入的：
 
-- 拖动期间由 React 持有顺序。`Sortable` 保存预览 id，并在 `dragover` 上调用 `preventDefault`，因为库的乐观排序插件直接移动 DOM 节点，业务方拒绝放置时无法回滚。
+- 拖动期间由 React 持有顺序。`Sortable` 保存预览 id，并在 `dragover` 上调用 `preventDefault`，因为库的乐观排序插件直接移动 DOM 节点，业务方拒绝放置时无法回滚。放下之后才到达的 `dragover` 会被忽略，因为状态要到放下渲染完成才离开 `dragging`。
 - 每次预览移动后，放置目标重置为拖动源，同时暂停碰撞检测，与库的插件做法一致。否则刚被挤开的行仍是目标，再次进入它的新位置不会触发 `dragover`。
 - 放下时提交屏幕上显示的顺序，即使 `target` 为 null。自动滚动可能把行带离指针，此时若拒绝排序，用户已经看到就位的行会弹回去。
 - 鼠标激活条件是移动 8 px。库默认还会在按住 200 ms 后激活，这会吞掉行上的慢点击。触摸沿用库的 250 ms 延迟和 5 px 容差。
 - `preventActivation` 在库默认逻辑外包了两个标记。`data-dnd-row-control` 标记本身就是行的按钮（侧边栏条目、启动台图标、provider 分组标题），否则这些行永远拖不动。`data-no-dnd` 标记行内的非控件区域，并且只对包含它的行生效，所以标记区域内的嵌套列表仍可拖动。行内控件不需要标记。
-- 第一次触摸移动时，在激活元素上派发一个合成的 `pointermove`。`<body>` 上的指针捕获让行看不到手势，Radix `ContextMenu` 的长按计时器因此不会被清除，会在拖动中打开模态菜单，并让 `<body>` 停留在 `pointer-events: none`。手指按住不动时长按菜单仍可打开。
+- 第一次触摸移动和放下时，都在激活元素上派发一个合成的 `pointermove`。`<body>` 上的指针捕获让行看不到手势，Radix `ContextMenu` 的长按计时器因此不会被清除，会在手指移动或抬起后打开模态菜单，并让 `<body>` 停留在 `pointer-events: none`。手指按住不动超过 700 ms 时长按菜单仍可打开。
 - 窗口失焦时通过拖拽管理器停止操作，再对每个 sensor 调用 `destroy()`。外部停止后 sensor 仍保持附着，而且只有 sensor 知道尚未激活的按压。
 
 `BlurCancelPointerSensor` 继续导出，供 `@dnd-kit/core` 使用方使用。`GroupedSortableVirtualList`、知识库导航、共享的 `arrayMove` 调用方和 `useDndState` 继续使用 `@dnd-kit/core`。
@@ -68,8 +68,8 @@ PR #23117 暴露了这个代价。移除 `@hello-pangea/dnd` 后，内置的交�
 - AC3 — `sortable.test.tsx`（`uses only the library sensors`）：管理器的 sensor 只有 `PointerSensor` 和 `KeyboardSensor`；`PortalSafePointerSensor` 已删除。
 - AC4 — Electron 探针加 `sortable-keyboard.test.tsx`：Space 和方向键能重排 provider 列表、启动台、composer 列表、提示词设置和划词助手，嵌套输入框中的输入法组合键不会开始拖动。
 - AC5 — `sortable.test.tsx`（`window blur` 分组）加派发 `blur` 的 Electron 探针：进行中的指针和键盘拖动都会取消并恢复顺序，尚未激活的按压不会开始拖动，下一次按键不会被吞掉，可以开始新的拖动，之后的点击能到达页面。
-- AC6 — Electron 探针：provider 列表（平铺、分组、分组内的行、紧凑浮层、自动滚动）、启动台网格、composer 工具栏列表、提示词设置、`PromptBindingTab` 和 `PaintingPromptPresetsDialog` 的排序结果、限制、浮层和残影都保持不变；两个弹窗都在真实的 Radix 模态框中运行。
+- AC6 — Electron 探针：provider 列表（平铺、分组、分组内的行、紧凑浮层、自动滚动）、启动台网格、composer 工具栏列表、提示词设置、`PromptBindingTab` 和 `PaintingPromptPresetsDialog` 都能在限制范围内排序并显示浮层，MCP 列表检查了残影透明度；两个弹窗都在真实的 Radix 模态框中运行。外观没有与 `main` 并排对比。
 - AC7 — Electron 探针加 `sortable.test.tsx`（`announces through localized strings`）：composer 列表的中文本地化文案在拿起和放下时都到达了它自己的 live region。
 - AC8 — 临时绕过 macOS 辅助功能开关的 Electron 探针：整行可拖，双向跨越分隔线的长距离拖动 7 次全部与计算出的预期顺序一致，分隔线和最后一个启用项拒绝拖动但能接收放置，结果写入 `feature.selection.action_items`。
 - AC9 — 对 `GroupedSortableVirtualList.test.tsx` 和 `BaseNavigator.test.tsx` 运行 `pnpm test:renderer`：两者仍基于 `@dnd-kit/core` 并通过。
-- Regression — `sortable.test.tsx`：上述每个探针失败都有对应测试，移除修复后测试会失败；唯一例外是 `dragover` 的 `preventDefault`，库自身的索引检查也能容忍。
+- Regression — `sortable.test.tsx`：在最终代码上移除每个修复都会让测试失败，已用变异确认；唯一例外是 `dragover` 的 `preventDefault`，库自身的索引检查也能容忍。

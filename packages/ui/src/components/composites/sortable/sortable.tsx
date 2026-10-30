@@ -43,6 +43,17 @@ const RESTRICT_TO_SCROLLABLE_ANCESTOR = RestrictToElement.configure({
 
 type Plugins = ComponentProps<typeof DragDropProvider>['plugins']
 
+/**
+ * Pointer capture hides the gesture from the row, so a long-press timer it holds (Radix ContextMenu)
+ * would fire after the finger moved or lifted and open a modal menu. The timer clears on `pointermove`.
+ */
+function releaseRowLongPress(activatorEvent: Event | null) {
+  if (!(activatorEvent instanceof PointerEvent) || activatorEvent.pointerType === 'mouse') return
+
+  const { target, pointerType, clientX, clientY } = activatorEvent
+  target?.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType, clientX, clientY }))
+}
+
 function createPlugins({ screenReaderInstructions, announcements }: SortableAccessibility): Plugins {
   const options: NonNullable<ConstructorParameters<typeof Accessibility>[1]> = {
     screenReaderInstructions,
@@ -203,34 +214,40 @@ function Sortable<T>({
   }
 
   const handleDragMove = ({ operation: { activatorEvent } }: DragMoveEvent) => {
-    if (longPressReleased.current || !(activatorEvent instanceof PointerEvent)) return
-    if (activatorEvent.pointerType === 'mouse') return
+    if (longPressReleased.current) return
 
     longPressReleased.current = true
-    // Pointer capture hides the gesture from the row, so a long-press timer it holds (Radix ContextMenu)
-    // would open a modal menu mid-drag. Holding still keeps the menu: only real movement gets here.
-    const { target, pointerType, clientX, clientY } = activatorEvent
-    target?.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType, clientX, clientY }))
+    // Holding still keeps the long-press menu: only real movement gets here.
+    releaseRowLongPress(activatorEvent)
   }
 
   const handleDragOver = (event: DragOverEvent, manager: DragDropManager) => {
     event.preventDefault()
 
+    // Status stays `dragging` until the drop renders, and auto-scroll can still report a target until then.
+    if (manager.dragOperation.controller?.signal.aborted) return
+
     const { source, target } = event.operation
     if (!source || !target || source.id === target.id) return
 
     const order = latestPreviewIds.current ?? itemIds
+    const fromIndex = order.indexOf(source.id)
+    const toIndex = order.indexOf(target.id)
+    // The dragged row left `items` before the first dragover, e.g. the queue drained it.
+    if (fromIndex === -1 || toIndex === -1) return
+
     manager.collisionObserver.disable()
-    updatePreview(arrayMove(order, order.indexOf(source.id), order.indexOf(target.id)))
+    updatePreview(arrayMove(order, fromIndex, toIndex))
     // The row that just shifted is still the target, so re-entering its new slot would fire no dragover.
     void manager.renderer.rendering
       .then(() => manager.actions.setDropTarget(source.id))
       .then(() => manager.collisionObserver.enable())
   }
 
-  const handleDragEnd = ({ canceled, operation: { source } }: DragEndEvent) => {
+  const handleDragEnd = ({ canceled, operation: { source, activatorEvent } }: DragEndEvent) => {
     const order = latestPreviewIds.current
     updatePreview(null)
+    releaseRowLongPress(activatorEvent)
 
     if (canceled) {
       customOnDragCancel?.()

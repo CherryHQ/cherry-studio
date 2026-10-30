@@ -8,6 +8,8 @@ interface ItemRendererProps<T> {
   item: T
   renderItem: RenderItemType<T>
   dragging?: boolean
+  /** The library would otherwise mark this row a focusable button, which it is not. */
+  dragDisabled?: boolean
   dragOverlay?: boolean
   ghost?: boolean
   dragHandleProps?: SortableDragHandleProps
@@ -20,6 +22,7 @@ export function ItemRenderer<T>({
   item,
   renderItem,
   dragging,
+  dragDisabled,
   dragOverlay,
   ghost,
   dragHandleProps,
@@ -29,6 +32,8 @@ export function ItemRenderer<T>({
     <div
       ref={ref}
       data-index={index}
+      role={dragDisabled ? 'group' : undefined}
+      tabIndex={dragDisabled ? -1 : undefined}
       className="box-border origin-top-left touch-manipulation"
       style={{
         ...itemStyle,

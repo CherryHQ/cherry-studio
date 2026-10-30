@@ -49,6 +49,7 @@ export function SortableItem<T>({
       index={index}
       renderItem={renderItem}
       dragging={isDragSource}
+      dragDisabled={dragDisabled}
       dragOverlay={!useDragOverlay && isDragSource}
       ghost={showGhost && useDragOverlay && isDragSource}
       dragHandleProps={dragHandle ? { ref: handleRef } : undefined}

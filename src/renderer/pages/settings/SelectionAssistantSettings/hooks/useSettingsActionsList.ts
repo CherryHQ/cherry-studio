@@ -112,7 +112,7 @@ export const useActionItems = (
   const handleReorderRows = (rows: ActionRow[]) => {
     const nextItems = actionItemsFromRows(rows)
     // A drag that began before a rollback left its item as the last enabled one can still drop it below the divider.
-    if (!nextItems.some((item) => item.enabled)) return
+    if (enabledItems.length > 0 && !nextItems.some((item) => item.enabled)) return
     setActionItems(nextItems)
   }
 

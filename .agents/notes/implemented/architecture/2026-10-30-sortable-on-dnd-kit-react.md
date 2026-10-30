@@ -14,7 +14,7 @@ The Chromium 151 probe ran the same gestures against `@dnd-kit/react` 0.5.1 with
 
 ## Decision
 
-`Sortable` and `ReorderableList` run on `@dnd-kit/react`, with `@dnd-kit/react`, `dom`, `abstract`, `collision`, and `helpers` pinned to exactly 0.5.1. `ReorderableList` keeps its props and gains `isItemDragDisabled`, which refuses to drag a row while it keeps accepting drops. Selection Assistant moved here too, and the single-library change it belonged to is recorded in [Keep dnd-kit as the only drag-and-drop library](../simplification/2026-10-30-single-drag-and-drop-library.md).
+`Sortable` and `ReorderableList` run on `@dnd-kit/react`, with `@dnd-kit/react`, `dom`, `abstract`, `collision`, and `helpers` pinned to exactly 0.5.1. `ReorderableList` keeps its props and gains `isItemDragDisabled`, which refuses to drag a row while it keeps accepting drops, and takes that row out of the tab order. Selection Assistant moved here too, and the single-library change it belonged to is recorded in [Keep dnd-kit as the only drag-and-drop library](../simplification/2026-10-30-single-drag-and-drop-library.md).
 
 | Earlier `Sortable` surface | Shipped surface |
 | --- | --- |
@@ -31,12 +31,12 @@ The Chromium 151 probe ran the same gestures against `@dnd-kit/react` 0.5.1 with
 
 These decisions go beyond the Spec table, and each exists because a probe failed without it:
 
-- React owns the order during a drag. `Sortable` holds preview ids and calls `preventDefault` on `dragover`, because the library's optimistic plugin moves DOM nodes and has no way back when a consumer rejects a drop.
+- React owns the order during a drag. `Sortable` holds preview ids and calls `preventDefault` on `dragover`, because the library's optimistic plugin moves DOM nodes and has no way back when a consumer rejects a drop. A `dragover` that arrives after the drop is ignored, because the status stays `dragging` until the drop renders.
 - After each preview move, the drop target resets to the source with collisions paused, as the library's plugin does. Otherwise the row that just shifted stays the target and re-entering its new slot fires no `dragover`.
 - A drop commits the order on screen, even when `target` is null. Auto-scroll can carry the rows out from under the pointer, and refusing then would snap back a row the user sees in place.
 - Mouse activation is a distance of 8 px. The library default also activates after a 200 ms hold, which would swallow a slow click on a row. Touch keeps the library's 250 ms delay with a 5 px tolerance.
 - `preventActivation` wraps the library default with two markers. `data-dnd-row-control` marks a button that is the row itself (sidebar entries, launchpad tiles, provider group headers), which would otherwise never drag. `data-no-dnd` marks a non-control region of a row, and now applies only to rows that contain it, so a nested list inside the marked region still drags. Controls inside a row need no marker.
-- The first touch move dispatches a synthetic `pointermove` on the activator. Pointer capture on `<body>` hides the gesture from the row, so a Radix `ContextMenu` long-press timer would otherwise open a modal menu mid-drag and leave `<body>` at `pointer-events: none`. Holding still keeps the long-press menu.
+- The first touch move and the drop each dispatch a synthetic `pointermove` on the activator. Pointer capture on `<body>` hides the gesture from the row, so a Radix `ContextMenu` long-press timer would otherwise open a modal menu after the finger moved or lifted, and leave `<body>` at `pointer-events: none`. Holding still past 700 ms keeps the long-press menu.
 - Window blur stops the operation through the drag manager and then calls `destroy()` on each sensor. Sensors stay attached after an outside stop, and only they know about a press that has not activated.
 
 `BlurCancelPointerSensor` stays exported for the `@dnd-kit/core` consumers. `GroupedSortableVirtualList`, the knowledge navigator, the shared `arrayMove` callers, and `useDndState` stay on `@dnd-kit/core`.
@@ -68,8 +68,8 @@ Tests that use the real sensors need `installDndDomStubs`, because jsdom lacks t
 - AC3 — `sortable.test.tsx` (`uses only the library sensors`): the manager's sensors are exactly `PointerSensor` and `KeyboardSensor`; `PortalSafePointerSensor` is deleted.
 - AC4 — Electron probe plus `sortable-keyboard.test.tsx`: Space and arrow keys reorder the provider list, launchpad, composer list, Prompt settings, and Selection Assistant, and IME composition keys in a nested input start no drag.
 - AC5 — `sortable.test.tsx` (`window blur` group) plus an Electron probe dispatching `blur`: active pointer and keyboard drags cancel and restore the order, a pending press cannot start a drag, the next key is not swallowed, a new drag can start, and a later click reaches the page.
-- AC6 — Electron probe: provider list (flat, grouped, nested group rows, compact overlay, auto-scroll), launchpad grid, composer toolbar list, Prompt settings, `PromptBindingTab`, and `PaintingPromptPresetsDialog` kept their reorder results, restrictions, overlay, and ghost; the two dialogs ran inside real Radix modals.
+- AC6 — Electron probe: provider list (flat, grouped, nested group rows, compact overlay, auto-scroll), launchpad grid, composer toolbar list, Prompt settings, `PromptBindingTab`, and `PaintingPromptPresetsDialog` reordered within their restrictions and showed an overlay, and ghost opacity was checked on the MCP list; the two dialogs ran inside real Radix modals. Appearance was not compared side by side with `main`.
 - AC7 — Electron probe plus `sortable.test.tsx` (`announces through localized strings`): the composer list's localized Chinese strings reach its own live region for pick-up and drop.
 - AC8 — Electron probe with the macOS Accessibility gate temporarily bypassed: whole rows drag, long drags across the divider in both directions matched a computed expected order in 7 of 7 runs, the divider and last enabled action refuse dragging but accept drops, and results persist to `feature.selection.action_items`.
 - AC9 — `pnpm test:renderer` on `GroupedSortableVirtualList.test.tsx` and `BaseNavigator.test.tsx`: both still run on `@dnd-kit/core` and pass.
-- Regression — `sortable.test.tsx`: each probe failure above has a test that fails when its fix is removed, except `dragover` `preventDefault`, which the library also tolerates through its own index check.
+- Regression — `sortable.test.tsx`: removing each fix on the final code fails a test, confirmed by mutation; the exception is `dragover` `preventDefault`, which the library also tolerates through its own index check.

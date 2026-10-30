@@ -71,6 +71,16 @@ describe('useActionItems handleReorderRows', () => {
     expect(summarize(setActionItems.mock.calls[0][0])).toEqual({ enabled: ['b'], disabled: ['c', 'a'] })
   })
 
+  it('saves a reorder among disabled actions when nothing is enabled', () => {
+    const setActionItems = vi.fn()
+    const items = [action('a', false), action('b', false)]
+    const { result } = renderHook(() => useActionItems(items, setActionItems))
+
+    result.current.handleReorderRows(rowsOf([], ['b', 'a']))
+
+    expect(setActionItems).toHaveBeenCalledExactlyOnceWith([action('b', false), action('a', false)])
+  })
+
   it('drops the reorder when a rollback mid-drag left the dragged action as the only enabled one', () => {
     const setActionItems = dropFirstBelowDivider([action('a', true), action('b', false)])
 

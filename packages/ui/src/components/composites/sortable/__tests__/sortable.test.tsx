@@ -162,6 +162,31 @@ describe('Sortable', () => {
       expect(onSortEnd).toHaveBeenCalledExactlyOnceWith({ oldIndex: 0, newIndex: 2 })
     })
 
+    it('ignores a dragover that arrives after the drop, while the drop is still rendering', async () => {
+      render(<Sortable items={items} itemKey="id" renderItem={renderRow} onSortEnd={() => {}} />)
+      await startKeyboardDrag(screen.getByTestId('row-a'))
+
+      act(() => {
+        manager.current?.actions.stop({ canceled: false })
+        void manager.current?.actions.setDropTarget('c')
+      })
+      await tick(20)
+
+      expect(rowOrder()).toEqual(['a', 'b', 'c'])
+    })
+
+    it('keeps the other rows in place when the dragged row leaves `items` before the first dragover', async () => {
+      const props = { itemKey: 'id' as const, renderItem: renderRow, onSortEnd: () => {} }
+      const { rerender } = render(<Sortable items={items} {...props} />)
+      await startKeyboardDrag(screen.getByTestId('row-a'))
+
+      rerender(<Sortable items={items.slice(1)} {...props} />)
+      await dropOver('b')
+
+      expect(rowOrder()).toEqual(['b', 'c'])
+      await stopDrag(true)
+    })
+
     it('lets a row return past the neighbour it just displaced', async () => {
       render(<Sortable items={items} itemKey="id" renderItem={renderRow} onSortEnd={() => {}} />)
 
@@ -301,10 +326,36 @@ describe('Sortable', () => {
       await startKeyboardDrag(screen.getByTestId('row-b'))
       expect(onDragStart).not.toHaveBeenCalled()
 
+      const row = manager.current!.registry
+      expect(row.draggables.get('b')?.disabled).toBe(true)
+      expect(row.droppables.get('b')?.disabled).toBe(false)
+
       await startKeyboardDrag(screen.getByTestId('row-a'))
       await dropOver('b')
       expect(rowOrder()).toEqual(['b', 'a', 'c'])
       await stopDrag(true)
+    })
+
+    it('keeps a drag-disabled row out of the tab order until it can drag again', async () => {
+      const list = (disabledId: string | null) => (
+        <Sortable
+          items={items}
+          itemKey="id"
+          isItemDragDisabled={(item) => item.id === disabledId}
+          onSortEnd={() => {}}
+          renderItem={renderRow}
+        />
+      )
+      const { rerender } = render(list('b'))
+      await tick(50)
+
+      const row = screen.getByTestId('row-b').closest('[data-index]')
+      expect(row).toHaveAttribute('tabindex', '-1')
+      expect(row).toHaveAttribute('role', 'group')
+
+      rerender(list(null))
+      await waitFor(() => expect(row).toHaveAttribute('tabindex', '0'))
+      expect(row).toHaveAttribute('role', 'button')
     })
 
     it('requires a touch to hold before it drags', async () => {
@@ -372,12 +423,21 @@ describe('Sortable', () => {
       await stopDrag()
     })
 
+    it('tells the row the gesture ended when the finger lifts without moving', async () => {
+      const onRowPointerMove = vi.fn()
+      await startTouchDrag(onRowPointerMove)
+
+      await stopDrag()
+
+      expect(onRowPointerMove).toHaveBeenCalledOnce()
+    })
+
     it('leaves the timer running while the finger holds still, so the menu can still open', async () => {
       const onRowPointerMove = vi.fn()
       await startTouchDrag(onRowPointerMove)
 
       expect(onRowPointerMove).not.toHaveBeenCalled()
-      await stopDrag()
+      await stopDrag(true)
     })
   })
 
