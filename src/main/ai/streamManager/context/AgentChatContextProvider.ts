@@ -336,8 +336,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
-    // are gated by AgentSessionDeliveryService and never enter this branch.
-    if (application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
+    // are gated by AgentSessionDeliveryService and never enter this branch. The one exception is
+    // the plan-execution follow-up completing a model handoff: the teardown holds preserved input
+    // for a replacement turn only the follow-up starts, so this dispatch is admitted as that turn
+    // (the preserved corrections replay into it) instead of joining the buffer behind it.
+    const runtimeService = application.get('AgentSessionRuntimeService')
+    const handoffFollowUp =
+      req.planExecutionFollowUp === true && runtimeService.isHandoffReplacementPending(validated.sessionId)
+    if (!handoffFollowUp && runtimeService.isSessionBusy(validated.sessionId)) {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }

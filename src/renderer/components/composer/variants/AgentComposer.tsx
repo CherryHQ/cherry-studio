@@ -307,6 +307,8 @@ export interface AgentComposerSendBody {
   reasoningEffort?: ThinkingOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
+  /** The plan-execution follow-up completing a plan-approval model handoff (see AiStreamOpenRequest). */
+  planExecutionFollowUp?: true
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }

@@ -1383,6 +1383,17 @@ export class AgentSessionRuntimeService extends BaseService {
     return isAgentSessionRuntimeBusy(entry.runtimeState)
   }
 
+  /**
+   * Whether a plan-model handoff has torn its entry down and is holding preserved input for a
+   * replacement turn nobody has started yet. The renderer's execution follow-up completes that
+   * handoff, so its dispatch must be admitted as the replacement turn (the preserved corrections
+   * replay into it ahead of later submissions) rather than join the buffer behind a turn that
+   * would then never start.
+   */
+  isHandoffReplacementPending(sessionId: string): boolean {
+    return !this.entries.has(sessionId) && this.handoffQueuedInput.has(sessionId)
+  }
+
   isSessionBusyForArchive(sessionId: string): boolean {
     const entry = this.entries.get(sessionId)
     return this.isSessionBusy(sessionId) || Boolean(entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))

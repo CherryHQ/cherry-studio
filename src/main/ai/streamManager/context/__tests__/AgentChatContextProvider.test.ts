@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
+  runtimeIsHandoffReplacementPending: vi.fn(),
   runtimeAssertWritable: vi.fn(),
   runtimeValidateSession: vi.fn()
 }))
@@ -141,6 +142,7 @@ describe('AgentChatContextProvider', () => {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
+          isHandoffReplacementPending: mocks.runtimeIsHandoffReplacementPending,
           assertSessionWritable: mocks.runtimeAssertWritable
         }
       }
@@ -153,6 +155,7 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    mocks.runtimeIsHandoffReplacementPending.mockReturnValue(false)
   })
 
   it.each(['busy', 'close_failed'] as const)(
@@ -289,6 +292,34 @@ describe('AgentChatContextProvider', () => {
       })
     ])
     expect(prepared.listeners).toEqual([subscriber])
+  })
+
+  it('admits the plan-execution follow-up as the replacement turn during a handoff teardown', async () => {
+    // The teardown holds preserved input for a replacement turn only the follow-up starts: routing
+    // the follow-up through the busy queue would enqueue it behind a turn that never begins, and
+    // every later submission would pile into the buffer with it.
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    mocks.runtimeIsHandoffReplacementPending.mockReturnValue(true)
+
+    const prepared = await provider.prepareDispatch(subscriber, openReq({ planExecutionFollowUp: true }))
+
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledOnce()
+    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
+    expect(prepared.models.length).toBeGreaterThan(0)
+  })
+
+  it('still queues an ordinary submission onto the preserved handoff buffer', async () => {
+    // A plain correction in the same window joins the buffer so the replacement turn replays it
+    // in admission order; only the marked follow-up may start that turn.
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    mocks.runtimeIsHandoffReplacementPending.mockReturnValue(true)
+
+    const prepared = await provider.prepareDispatch(subscriber, openReq())
+
+    expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
+    expect(prepared.models).toEqual([])
   })
 
   it('rejects a late busy transition when the caller requires an idle session', async () => {

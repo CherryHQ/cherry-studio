@@ -295,7 +295,8 @@ export function useAgentChatRuntimeState({
       userMessageParts: getAgentTurnParts(input),
       reasoningEffort: input.options?.body?.reasoningEffort,
       serviceTier: input.options?.body?.serviceTier,
-      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
+      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {}),
+      ...(input.options?.body?.planExecutionFollowUp === true ? { planExecutionFollowUp: true as const } : {})
     }),
     []
   )
@@ -340,7 +341,10 @@ export function useAgentChatRuntimeState({
   // automatic path left — and retrying blind could run the plan twice. Report and let the user re-send.
   const sendPlanExecutionFollowUp = useCallback(async () => {
     try {
-      return await send({ text: t('agent.toolPermission.executionModel.followUp') })
+      return await send({
+        text: t('agent.toolPermission.executionModel.followUp'),
+        options: { body: { planExecutionFollowUp: true } }
+      })
     } catch (error) {
       logger.error('Failed to send the plan execution follow-up', error as Error)
       toast.error(formatErrorMessage(error))

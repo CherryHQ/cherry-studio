@@ -210,6 +210,12 @@ export type AiStreamOpenRequest = {
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
+      /**
+       * The plan-execution follow-up completing a plan-approval model handoff: in the entry-less
+       * window before the replacement turn exists, this dispatch must start that turn rather than
+       * join the preserved handoff buffer behind it.
+       */
+      planExecutionFollowUp?: true
     }
   | ({
       /** Re-run the assistant under an existing user msg. */

@@ -283,7 +283,8 @@ export const aiRequestSchemas = {
           appendToLiveGroupMessageId: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
-          fastMode: z.boolean().optional()
+          fastMode: z.boolean().optional(),
+          planExecutionFollowUp: z.literal(true).optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
