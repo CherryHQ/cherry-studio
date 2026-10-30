@@ -23,6 +23,13 @@ interface UseComposerKnowledgeBaseScopeParams {
    * this.
    */
   remountsOnScopeChange?: boolean
+  /**
+   * Chat scope opts in (#20238): every loaded base is selectable so selecting an
+   * unconfigured one can auto-link it to the assistant. Agent scope keeps the
+   * configured intersection — linking is an agent-definition edit with
+   * session-wide effect, not a chat action.
+   */
+  allowUnconfigured?: boolean
 }
 
 interface UseComposerKnowledgeBaseScopeResult {
@@ -40,7 +47,8 @@ export function useComposerKnowledgeBaseScope({
   scopeKey,
   selectedKnowledgeBases,
   setSelectedKnowledgeBases,
-  remountsOnScopeChange
+  remountsOnScopeChange,
+  allowUnconfigured
 }: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(remountsOnScopeChange ? scopeKey : null)
 
@@ -63,7 +71,7 @@ export function useComposerKnowledgeBaseScope({
   )
   const filterSelectableKnowledgeBases = useCallback(
     (bases: readonly KnowledgeBase[]) => {
-      if (configuredKnowledgeBaseIdSet.size === 0)
+      if (allowUnconfigured || configuredKnowledgeBaseIdSet.size === 0)
         return bases.filter((base) => isKnowledgeBasesLoading || availableKnowledgeBaseIdSet.has(base.id))
       return bases.filter(
         (base) =>
@@ -71,21 +79,28 @@ export function useComposerKnowledgeBaseScope({
           (isKnowledgeBasesLoading || availableKnowledgeBaseIdSet.has(base.id))
       )
     },
-    [availableKnowledgeBaseIdSet, configuredKnowledgeBaseIdSet, isKnowledgeBasesLoading]
+    [allowUnconfigured, availableKnowledgeBaseIdSet, configuredKnowledgeBaseIdSet, isKnowledgeBasesLoading]
   )
   const selectableKnowledgeBases = useMemo(
     () => filterSelectableKnowledgeBases(allKnowledgeBases),
     [allKnowledgeBases, filterSelectableKnowledgeBases]
   )
+  // Paste resolution stays restricted to configured bases: an unlinked pick must go through the
+  // explicit picker flow (which auto-links it) — resolving a pasted unlinked marker without linking
+  // would name a base the request's retrieval never uses. Previously selected stale bases keep their
+  // chips via selection retention, not via this map.
   const knowledgeBaseMarkerMap = useMemo(() => {
     const map = new Map<string, KnowledgeBase>()
-    selectableKnowledgeBases.forEach((base) => {
+    const resolvable = allowUnconfigured
+      ? selectableKnowledgeBases.filter((base) => configuredKnowledgeBaseIdSet.has(base.id))
+      : selectableKnowledgeBases
+    resolvable.forEach((base) => {
       map.set(base.id, base)
       map.set(base.name, base)
       map.set(composerKnowledgeBaseTokenId(base), base)
     })
     return map
-  }, [selectableKnowledgeBases])
+  }, [allowUnconfigured, configuredKnowledgeBaseIdSet, selectableKnowledgeBases])
   const resolveKnowledgeBaseMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {
       const base = knowledgeBaseMarkerMap.get(marker)
