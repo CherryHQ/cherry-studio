@@ -1471,7 +1471,13 @@ async function killMarkerSurvivors(
   let captureUnresolved = false
   while (true) {
     const read = readMarkerProcesses(record.id, record.pid)
-    if (read.status === 'unknown') return 'unknown'
+    if (read.status === 'unknown') {
+      // A table read that failed under load proves nothing either way; retry until the drain
+      // deadline instead of turning one transient `ps` failure into an unverified termination.
+      if (Date.now() >= deadline) return 'unknown'
+      await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+      continue
+    }
     if (read.holders.length === 0) {
       // About to certify that nothing is left: the sweep is only conclusive if the environment
       // channel can rule out a row of the task's shape.
@@ -1485,7 +1491,15 @@ async function killMarkerSurvivors(
     // below destroys that chain. Record the holders first, then walk their descendants, so the
     // child is swept by pid and stamp however the signal ends.
     await recordObservedMembers(storageDir, record.id, read.holders)
-    if ((await captureSurvivorDescendants(storageDir, record.id)) === 'unverified') captureUnresolved = true
+    let capture = await captureSurvivorDescendants(storageDir, record.id)
+    while (capture === 'unverified' && Date.now() < deadline) {
+      // An unreadable table at capture time leaves the child's parent chain to the kill below;
+      // retry while the holder still names it, rather than sacrificing the child to a transient
+      // read failure.
+      await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+      capture = await captureSurvivorDescendants(storageDir, record.id)
+    }
+    if (capture === 'unverified') captureUnresolved = true
     for (const holder of read.holders) {
       // The pid is only a number: the OS may have handed it to someone else since the read.
       if (getPidStartTime(holder.pid) !== holder.lstart) continue
