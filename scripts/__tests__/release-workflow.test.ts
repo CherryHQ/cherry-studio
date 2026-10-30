@@ -1240,6 +1240,7 @@ describe('release workflow gates', () => {
     )
     expect(dispatchStep.run).toContain('Release build all $BRANCH @ $CI_SHA')
     expect(dispatchStep.run).toContain('-f platform=all')
+    expect(dispatchStep.run).toContain('-f incremental=true')
     expect(dispatchStep.run).toContain('if [ "$BRANCH_SHA" != "$CI_SHA" ]')
     expect(dispatchStep.run).toContain('--ref main')
     expect(dispatchStep.run).toContain('-f tag="$TAG"')

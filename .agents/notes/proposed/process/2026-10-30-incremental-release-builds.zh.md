@@ -46,7 +46,7 @@ flowchart TD
     H --> I[Existing complete-asset and publication gates]
 ```
 
-下述实现是显式开启的试用版本，正式启用仍待验收。实现应进入 `main`；从发布分支创建的计划工作树不能直接成为 release-to-main PR 的来源。后续如需回补，应作为单独改动接受评审。可信控制工作流必须识别选定发布工作树是否支持新构建契约；不支持时使用现有完整构建路径。
+自动发布触发时传入 `incremental=true`，启用符合条件的缓存，也适用于 backport 后重建；手动 Release 和 Preview 仍需显式开启。完整平台验收和基准数据仍待完成。实现应进入 `main`；从发布分支创建的计划工作树不能直接成为 release-to-main PR 的来源。后续如需回补，应作为单独改动接受评审。可信控制工作流必须识别选定发布工作树是否支持新构建契约；不支持时使用现有完整构建路径。
 
 ### Phase 0: Establish a measurable baseline
 
@@ -129,7 +129,7 @@ Preview Release 也接入同一套可选 runner，用于正式启用前的线上
 | 3：JS 缓存与 source map | Vite 配置、`scripts/release/` 任务清单、`release.yml` | 精确输入/输出验证、当前 source-map 交付、可复现任务 fixture 和干净回退。 |
 | 4：启用与操作指南 | `release.yml`、`docs/contrib/release-workflow.md`、相关打包文档 | 可比较的冷/热报告、完整签名资产、发布拒绝条件不变、旁路验证。 |
 
-Spec 批准后，按依赖顺序拆成可独立评审的 PR。第 1、2 层在第 0 层后逻辑上独立，但线性 stack 更便于审核启用顺序。最终一层验证全部 AC 前，本文保持 proposed。用户于 2026-10-30 授权开始实现。首版加入任务边界、保守缓存、内置发布信息和工作流接入。Windows 原生复用与默认开启缓存仍暂缓；涉及 Sentry 或密钥的 JS 任务需要获准的加密缓存才能复用。完整签名的平台验收和成对基准数据仍是后续要求。
+Spec 批准后，按依赖顺序拆成可独立评审的 PR。第 1、2 层在第 0 层后逻辑上独立，但线性 stack 更便于审核启用顺序。最终一层验证全部 AC 前，本文保持 proposed。用户于 2026-10-30 授权开始实现。首版加入任务边界、保守缓存、内置发布信息和工作流接入。用户于 2026-10-31 授权自动发布触发时默认开启缓存；手动触发仍默认关闭缓存，Windows 原生复用仍暂缓；涉及 Sentry 或密钥的 JS 任务需要获准的加密缓存才能复用。完整签名的平台验收和成对基准数据仍是后续要求。
 
 需要扩展或运行的现有聚焦测试包括 `scripts/__tests__/before-pack.test.ts`、`linux-native.test.ts`、`edition-packaging.test.ts`、`sentry-build.test.ts`、`release-workflow.test.ts`、`release-baseline.test.ts` 和 `backport-release-fixes.test.ts`；后几个文件同属 `scripts/__tests__/`。还应包含 `src/renderer/pages/releaseNotes/__tests__/ReleaseNotesPage.test.tsx`、`src/shared/utils/__tests__/releaseNotes.test.ts`、受影响的 AppUpdaterService/IPC 消费者以及新增任务缓存 fixture。使用仓库 project wrapper 并给出明确测试文件路径。完整签名矩阵构建属于受控 CI 验收，不是默认本地测试命令。
 
@@ -153,7 +153,7 @@ Spec 批准后，按依赖顺序拆成可独立评审的 PR。第 1、2 层在�
 - AC5 — 任务输入精确匹配时恢复完整有效输出；依赖/配置/发行版/环境变化、删除及新增 import 使受影响任务失效；未命中或无效条目会重建，不使用过期输出。 (verification: 任务缓存 fixture 构建及冷/热有效负载比较)
 - AC6 — 恢复的 JS 保留匹配的 source-map/debug 标识并完成要求的上传；缓存存储和生产方边界排除凭据及未经批准的敏感输出。 (verification: Sentry 集成 fixture 及 CI 缓存访问/输出检查)
 - AC7 — 所有最终资产仍绑定当前发布 SHA 和目标集合，过期 head、已发布 tag、待回补 hotfix、失败任务与错误基线仍被拒绝；缓存旁路恢复正常构建路径。 (verification: 发布工作流/状态测试及完整签名 CI 验收)
-- AC8 — 正确性通过后，每个评估场景至少三组成对尝试证明复用在计入缓存开销后是否降低执行时间和 runner 分钟数；未证明收益的任务保持禁用缓存。 (verification: 受控基准报告)
+- AC8 — 正确性通过后，每个评估场景至少三组成对尝试证明复用在计入缓存开销后是否降低执行时间和 runner 分钟数；报告未证明收益的任务，以便决定是否关闭其缓存。 (verification: 受控基准报告)
 
 ## Risks
 

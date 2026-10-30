@@ -46,7 +46,7 @@ flowchart TD
     H --> I[Existing complete-asset and publication gates]
 ```
 
-The implementation below is an opt-in trial; rollout acceptance remains outstanding. Implementation belongs on `main`; a release-derived planning checkout must not become the source of a release-to-main PR. Any later backport is a separate reviewed change. A trusted control workflow must detect whether the selected release tree supports the new build contract and use the existing full path when it does not.
+Automatic release dispatches enable eligible caches with `incremental=true`, including rebuilds after backports; manual Release and Preview dispatches remain opt-in. Full platform acceptance and benchmark evidence remain outstanding. Implementation belongs on `main`; a release-derived planning checkout must not become the source of a release-to-main PR. Any later backport is a separate reviewed change. A trusted control workflow must detect whether the selected release tree supports the new build contract and use the existing full path when it does not.
 
 ### Phase 0: Establish a measurable baseline
 
@@ -129,7 +129,7 @@ Do not cancel `release-state` mutation jobs. Existing dispatch already discards 
 | 3: JS cache and source maps | Vite configurations, `scripts/release/` task manifest, `release.yml` | Exact input/output validation, current source-map delivery, reproducible task fixtures and clean fallback. |
 | 4: rollout and runbook | `release.yml`, `docs/contrib/release-workflow.md`, relevant packaging docs | Comparable cold/warm reports, complete signed assets, unchanged release rejection cases, tested bypass. |
 
-Use separate reviewable PRs in dependency order after Spec approval. Layers 1 and 2 are logically independent after layer 0, but a linear stack keeps rollout review straightforward. Keep the note proposed until the final layer verifies every AC. The user authorized implementation on 2026-10-30. The first implementation adds task boundaries, conservative caches, bundled release information and workflow integration. Windows native reuse and default cache enablement remain deferred; Sentry/secret-bearing JS tasks require the approved encrypted cache for reuse. Full signed platform acceptance and paired benchmark evidence are still required.
+Use separate reviewable PRs in dependency order after Spec approval. Layers 1 and 2 are logically independent after layer 0, but a linear stack keeps rollout review straightforward. Keep the note proposed until the final layer verifies every AC. The user authorized implementation on 2026-10-30. The first implementation adds task boundaries, conservative caches, bundled release information and workflow integration. The user authorized automatic release dispatches to enable caching by default on 2026-10-31; manual dispatches retain the cache-off default and Windows native reuse remains deferred; Sentry/secret-bearing JS tasks require the approved encrypted cache for reuse. Full signed platform acceptance and paired benchmark evidence are still required.
 
 Existing focused suites to extend/run include `scripts/__tests__/before-pack.test.ts`, `linux-native.test.ts`, `edition-packaging.test.ts`, `sentry-build.test.ts`, `release-workflow.test.ts`, `release-baseline.test.ts`, and `backport-release-fixes.test.ts`; the latter filenames share `scripts/__tests__/`. Include `src/renderer/pages/releaseNotes/__tests__/ReleaseNotesPage.test.tsx`, `src/shared/utils/__tests__/releaseNotes.test.ts`, affected AppUpdaterService/IPC consumers, and new task-cache fixtures. Use explicit test file paths with the repository project wrappers. Full signed matrix builds are controlled CI acceptance work, not the default local test command.
 
@@ -153,7 +153,7 @@ Benchmark three scenarios: same inputs on a new commit, AiHubMix-style Main-only
 - AC5 — Exact task-input matches restore complete valid outputs; dependency/configuration/edition/environment changes, deletions and new imports invalidate affected tasks; cache misses or invalid entries rebuild without stale output. (verification: task-cache fixture builds and cold/warm payload comparisons)
 - AC6 — Restored JS retains its matching source-map/debug identity and required upload; cache storage/producer boundaries exclude credentials and unapproved sensitive output. (verification: Sentry integration fixtures and CI cache access/output inspection)
 - AC7 — All final assets remain bound to the current release SHA and target set, and stale-head, published-tag, pending-hotfix, failed-job and wrong-baseline cases remain rejected; cache bypass restores the normal build path. (verification: release workflow/state tests and full signed CI acceptance)
-- AC8 — After correctness passes, at least three paired attempts per evaluated scenario establish whether reuse reduces execution time and runner minutes after cache overhead; tasks with no demonstrated benefit remain disabled. (verification: controlled benchmark reports)
+- AC8 — After correctness passes, at least three paired attempts per evaluated scenario establish whether reuse reduces execution time and runner minutes after cache overhead; report tasks with no demonstrated benefit for a decision on disabling their caches. (verification: controlled benchmark reports)
 
 ## Risks
 
