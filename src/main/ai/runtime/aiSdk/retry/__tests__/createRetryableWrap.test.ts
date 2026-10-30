@@ -473,4 +473,37 @@ describe('createRetryableWrap', () => {
     expect(canDispatch).toHaveBeenCalledWith(expect.objectContaining({ maxOutputTokens: 900 }))
     expect(secondGenerate).not.toHaveBeenCalled()
   })
+  it('restores primary helpers when a cached API key resumes after cross-model fallback', async () => {
+    let activeModel = 'primary'
+    const onPrimaryActivated = vi.fn(() => {
+      activeModel = 'primary'
+    })
+    const onFallbackActivated = vi.fn((fallback: RetryFallback) => {
+      if (fallback.streamErrorSerialization?.ollamaNumCtx) activeModel = 'fallback'
+    })
+    const keyGenerate = vi.fn().mockRejectedValue(new Error('primary key operation failed'))
+    const crossGenerate = vi.fn().mockResolvedValue(okResult)
+    let allowed = true
+    const wrapped = createRetryableWrap({
+      apiKeyFallbacks: [async () => ({ model: makeFakeLanguageModel('primary-key2', keyGenerate) })],
+      fallbacks: [
+        async () => ({
+          model: makeFakeLanguageModel('fallback', crossGenerate),
+          streamErrorSerialization: {
+            ollamaNumCtx: { uniqueModelId: 'ollama::fallback', numCtx: 32768, trainedContextWindow: 65536 }
+          },
+          canDispatch: async () => allowed
+        })
+      ],
+      retryPolicy: policy(),
+      onPrimaryActivated,
+      onFallbackActivated
+    })!(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401))))
+    await wrapped.doGenerate({ prompt: [] })
+    expect(activeModel).toBe('fallback')
+    allowed = false
+    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toThrow('primary key operation failed')
+    expect(activeModel).toBe('primary')
+    expect(crossGenerate).toHaveBeenCalledTimes(1)
+  })
 })

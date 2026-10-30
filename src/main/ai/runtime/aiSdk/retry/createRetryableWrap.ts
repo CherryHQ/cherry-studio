@@ -262,12 +262,22 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       },
       doGenerate: (callOptions) => {
         if (exhaustedApiKeyError) throw exhaustedApiKeyError
-        if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
+        if (activeApiKeyFallback) {
+          // A cached credential still serves the primary model. Restore its
+          // request context before applying optional credential overrides.
+          options.onPrimaryActivated?.()
+          options.onFallbackActivated?.(activeApiKeyFallback)
+        }
         return activeApiKeyModel.doGenerate(callOptions)
       },
       doStream: (callOptions) => {
         if (exhaustedApiKeyError) throw exhaustedApiKeyError
-        if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
+        if (activeApiKeyFallback) {
+          // A cached credential still serves the primary model. Restore its
+          // request context before applying optional credential overrides.
+          options.onPrimaryActivated?.()
+          options.onFallbackActivated?.(activeApiKeyFallback)
+        }
         return activeApiKeyModel.doStream(callOptions)
       }
     }

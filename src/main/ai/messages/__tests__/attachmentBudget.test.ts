@@ -4,6 +4,7 @@ import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as TokenProfiles from '@main/ai/tokens/profiles'
 import { resolveOllamaRequestNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { Model } from '@shared/data/types/model'
@@ -46,7 +47,7 @@ const charTokenizer = { id: 'chars', count: (text: string) => text.length }
 const budgetOf = (tokens: number) => ({ tokens, tokenizer: charTokenizer })
 
 vi.mock('@main/ai/tokens/profiles', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/ai/tokens/profiles')>()),
+  ...(await importOriginal<typeof TokenProfiles>()),
   getTextTokenizer: async () => charTokenizer
 }))
 
@@ -516,12 +517,12 @@ describe('actual SDK fallback capacity', () => {
       await isFallbackCallWithinWindow({
         call: { prompt: [] },
         fallbackProvider: provider,
-        fallbackModel: makeModel({ contextWindow: null })
+        fallbackModel: makeModel({ contextWindow: undefined })
       })
     ).toBe(true)
     expect(mockBudgetWarn).not.toHaveBeenCalled()
     const call = {
-      get prompt() {
+      get prompt(): LanguageModelV3CallOptions['prompt'] {
         throw new Error('private payload must not be logged')
       }
     } as LanguageModelV3CallOptions

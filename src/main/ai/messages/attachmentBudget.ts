@@ -331,7 +331,7 @@ export async function isFallbackCallWithinWindow(input: {
     // SDK v3 prompt content shares the footprint walker's text/media/tool-result
     // structure. Tools here are already JSON schemas, not the original ToolSet.
     const tokens =
-      estimateModelMessagesSync(input.call.prompt as ModelMessage[], { dialect, tokenizer }) +
+      estimateModelMessagesSync(input.call.prompt, { dialect, tokenizer }) +
       (input.call.tools ?? []).reduce(
         (total, tool) =>
           total +
