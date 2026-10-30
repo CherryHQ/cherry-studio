@@ -36,6 +36,9 @@ export type PreferenceShortcutType = {
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
+/** Side of a wide Agent file pane that holds the file tree. */
+export type AgentFilePaneTreePosition = 'left' | 'right'
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
@@ -268,6 +271,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'serply',
   'yuanbao',
   'deepseek',
+  'desearch',
+  'searchapi',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 
@@ -456,4 +461,7 @@ export type CustomToolDefinition = {
   requestedVersion?: string
 }
 
-export type AdvertisedRemoteEndpoint = DirectEndpoint
+export type AdvertisedRemoteEndpoint = DirectEndpoint & {
+  /** Original validated input for display; transport endpoints omit this field. */
+  inputUrl?: string
+}

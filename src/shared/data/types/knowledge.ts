@@ -71,6 +71,9 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  *       +--------------------+-------------+-----------> failed
  *      \---------------------------------------------> deleting
  *
+ * file added through the async copy (before `processing`):
+ *   preparing -> processing -> ...   (preparing -> failed / deleting as above)
+ *
  * directory:
  *   idle -> preparing -> processing -> completed
  *      \        \             \          \
@@ -79,7 +82,9 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * ```
  *
  * - `idle`: item row exists but indexing has not started.
- * - `preparing`: container expansion is running; only `directory` items may use it.
+ * - `preparing`: the item's source is being acquired into the base — a directory expanding its tree,
+ *   or a file whose bytes are still being copied in (its `raw/` file may not exist yet); only
+ *   `directory` and `file` items may use it.
  * - `processing`: work has been queued or is running before a more specific phase is known.
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
  * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
@@ -383,7 +388,9 @@ const IdleKnowledgeItemLifecycleSchema = {
 } as const
 
 const PreparingKnowledgeItemLifecycleSchema = {
-  status: z.literal('preparing').describe('Container expansion is running; only directory items use it.'),
+  status: z
+    .literal('preparing')
+    .describe('Source acquisition is running: a directory expanding, or a file still being copied in.'),
   error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
@@ -498,10 +505,15 @@ const createContainerKnowledgeItemEntitySchemas = <TType extends KnowledgeItemTy
     })
   ] as const
 
-const FileKnowledgeItemSchema = z.discriminatedUnion(
-  'status',
-  createLeafKnowledgeItemEntitySchemas('file', FileItemDataSchema)
-)
+const FileKnowledgeItemSchema = z.discriminatedUnion('status', [
+  ...createLeafKnowledgeItemEntitySchemas('file', FileItemDataSchema),
+  // Only files are copied in after their row exists (knowledge.copy-sources), so only files wait in `preparing`.
+  KnowledgeItemEntityBaseSchema.extend({
+    type: z.literal('file'),
+    data: FileItemDataSchema,
+    ...PreparingKnowledgeItemLifecycleSchema
+  })
+])
 const UrlKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createLeafKnowledgeItemEntitySchemas('url', UrlItemDataSchema)

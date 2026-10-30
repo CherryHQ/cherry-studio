@@ -26,19 +26,34 @@ export default function ElectronFilePreview({
   filePath,
   fileName,
   metadata,
+  metadataRequest,
   refreshKey,
   onSelectionReference
 }: FilePreviewPluginProps) {
   const { i18n, t } = useTranslation()
+  const sourceMetadata = metadataRequest ?? metadata
   const source = useMemo(
-    () => createElectronPreviewSource(filePath, fileName, metadata),
-    [filePath, fileName, metadata]
+    () => createElectronPreviewSource(filePath, fileName, sourceMetadata),
+    [filePath, fileName, sourceMetadata]
   )
   const onSelection = useCallback(
     (selection: PreviewSelection | null) => {
-      onSelectionReference?.(selection ? createSelectionReference({ filePath, metadata, selection }) : null)
+      if (!selection) {
+        onSelectionReference?.(null)
+      } else if (typeof sourceMetadata === 'function') {
+        const metadataPromise = sourceMetadata()
+        void metadataPromise.then(
+          (loadedMetadata) => {
+            if (sourceMetadata() !== metadataPromise || loadedMetadata?.kind !== 'file') return
+            onSelectionReference?.(createSelectionReference({ filePath, metadata: loadedMetadata, selection }))
+          },
+          () => {}
+        )
+      } else {
+        onSelectionReference?.(createSelectionReference({ filePath, metadata: sourceMetadata, selection }))
+      }
     },
-    [filePath, metadata, onSelectionReference]
+    [filePath, sourceMetadata, onSelectionReference]
   )
   const onDiagnostic = useCallback(
     (diagnostic: PreviewDiagnostic) => {
@@ -63,7 +78,7 @@ export default function ElectronFilePreview({
   return (
     <Preview
       source={source}
-      refreshKey={refreshKey}
+      refreshKey={metadataRequest ? undefined : refreshKey}
       locale={i18n.language}
       resources={resources}
       onSelection={onSelectionReference ? onSelection : undefined}

@@ -45,6 +45,24 @@ describe('buildPathRegistry', () => {
     expect(paths['feature.credentials']).not.toBe(path.dirname(paths['feature.cherry_account.credentials_file']))
     expect(shouldAutoEnsure('feature.credentials')).toBe(false)
   })
+  it.each(['darwin', 'win32', 'linux'] as const)(
+    'locates the %s addon in target-specific unpackable resources',
+    (platform) => {
+      for (const arch of ['arm64', 'x64']) {
+        vi.stubGlobal(
+          'process',
+          Object.defineProperties(Object.create(process), {
+            platform: { value: platform },
+            arch: { value: arch }
+          })
+        )
+        expect(buildPathRegistry()['feature.external_app.native_file']).toBe(
+          path.normalize(`/mock/app/resources/binaries/${platform}-${arch}/external-app.node`)
+        )
+      }
+      expect(shouldAutoEnsure('feature.external_app.native_file')).toBe(false)
+    }
+  )
 
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {

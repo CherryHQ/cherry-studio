@@ -1,7 +1,6 @@
-import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { replayMigration, setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
@@ -16,11 +15,6 @@ describe('knowledge ordering migrate-forward', () => {
   const dbh = setupTestDatabase()
 
   it('upgrades a populated previous schema without losing rows or changing timestamps', () => {
-    const migrationsFolder = resolve('migrations/sqlite-drizzle')
-    const journal = JSON.parse(readFileSync(resolve(migrationsFolder, 'meta/_journal.json'), 'utf8')) as {
-      entries: Array<{ tag: string; when: number }>
-    }
-    const migration = journal.entries.find((entry) => entry.tag === '0027_knowledge_base_order')!
     const values = [
       { id: '11111111-1111-4111-8111-111111111111', name: 'Older', createdAt: 1000, updatedAt: 1100 },
       { id: '22222222-2222-4222-8222-222222222222', name: 'Newer', createdAt: 2000, updatedAt: 2100 }
@@ -52,8 +46,7 @@ describe('knowledge ordering migrate-forward', () => {
     dbh.sqlite.exec(
       'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
     )
-    dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
-    applyMigrations(dbh.db, migrationsFolder)
+    replayMigration(dbh, '0027_knowledge_base_order')
     new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])
     const service = new KnowledgeBaseService()
     const rows = service.listCursor({ limit: 100, sortBy: 'orderKey', sortOrder: 'asc' }).items
