@@ -401,8 +401,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
       const drainInFlightImagePaste =
-        trackImagePastesForRelocation && areNotesEditsLockedForRelocation() && hasPendingNotesImagePastes()
-      if ((!editable && !drainInFlightImagePaste) || !transaction.docChanged || !editor.isFocused) return
+        trackImagePastesForRelocation &&
+        areNotesEditsLockedForRelocation() &&
+        hasPendingNotesImagePastes() &&
+        transaction.getMeta('notesRelocationImagePaste') === true
+      if (!transaction.docChanged || ((!editable || !editor.isFocused) && !drainInFlightImagePaste)) return
 
       const content = editor.getText()
       try {
@@ -490,7 +493,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         if (editor && !editor.isDestroyed) {
           const imageUrl = `file://${physicalPath}`
           const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
-          editor.chain().focus().setImage({ src: imageUrl, alt }).run()
+          editor.chain().focus().setMeta('notesRelocationImagePaste', true).setImage({ src: imageUrl, alt }).run()
         }
 
         logger.info('Image pasted and saved:', { id: entry.id })

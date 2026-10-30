@@ -454,3 +454,79 @@ describe('useRichEditor image drag and drop', () => {
     expect(countImageNodes(result.current.editor)).toBe(1)
   })
 })
+
+describe('useRichEditor notes relocation paste drain', () => {
+  it('publishes only the accepted image paste while read-only and unfocused', async () => {
+    const {
+      flushAllNotesEdits,
+      hasPendingNotesImagePastes,
+      lockNotesEditsForRelocation,
+      registerNotesEditFlush,
+      registerNotesEditPreFlush,
+      unlockNotesEditsForRelocation
+    } = await import('@renderer/hooks/notesFileEditFlush')
+    let resolveEntry!: (entry: { id: string; name: string; ext: string }) => void
+    vi.mocked(window.api.file.createInternalEntry).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveEntry = resolve
+        }) as never
+    )
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue('/notes/paste.png' as never)
+    const onChange = vi.fn()
+    const { result, rerender, unmount } = renderHook(
+      ({ editable }) =>
+        useRichEditor({
+          initialContent: 'before',
+          editable,
+          autoFocus: false,
+          trackImagePastesForRelocation: true,
+          onChange
+        }),
+      { initialProps: { editable: true } }
+    )
+    let draft = 'before'
+    let saved = 'before'
+    const removePreFlush = registerNotesEditPreFlush(() => {
+      draft = result.current.markdown
+    })
+    const removeFlush = registerNotesEditFlush(async () => {
+      saved = draft
+    })
+    try {
+      const editor = result.current.editor
+      Object.defineProperty(editor, 'isFocused', { configurable: true, get: () => false })
+      await act(async () => {
+        pasteImage(editor)
+      })
+      await waitFor(() => expect(window.api.file.createInternalEntry).toHaveBeenCalledOnce())
+      expect(hasPendingNotesImagePastes()).toBe(true)
+      act(() => lockNotesEditsForRelocation())
+      rerender({ editable: false })
+      act(() => {
+        editor.commands.insertContent('programmatic')
+      })
+      expect(result.current.markdown).toBe('before')
+      expect(onChange).not.toHaveBeenCalled()
+      act(() => {
+        editor.commands.setContent('before', { contentType: 'markdown' })
+      })
+      await act(async () => {
+        pasteImage(editor)
+      })
+      expect(window.api.file.createInternalEntry).toHaveBeenCalledOnce()
+      await act(async () => {
+        const flushing = flushAllNotesEdits()
+        resolveEntry({ id: 'image', name: 'paste', ext: 'png' })
+        await flushing
+      })
+      expect(onChange).toHaveBeenCalledWith(expect.stringContaining('file:///notes/paste.png'))
+      expect(saved).toContain('file:///notes/paste.png')
+    } finally {
+      removePreFlush()
+      removeFlush()
+      unlockNotesEditsForRelocation()
+      unmount()
+    }
+  })
+})
