@@ -178,7 +178,93 @@ describe('DoctorAgentService.start', () => {
     const service = new DoctorAgentService()
     const result = await service.start({ scope: 'global', reportRunId: 'report-1' })
     expect(result).toEqual({ status: 'failed', message: 'not started: busy' })
-    expect(agentState()).toMatchObject({ status: 'failed', error: 'not started: busy' })
+    expect(agentState()).toMatchObject({
+      status: 'failed',
+      error: 'not started: busy',
+      errorSource: 'service',
+      ownedFailure: { kind: 'not_started', reason: 'busy' }
+    })
+  })
+
+  it('marks an invalid session as a service-owned not-started failure', async () => {
+    mocks.startRun.mockResolvedValue({ mode: 'not-started', reason: 'session-invalid' })
+    const service = new DoctorAgentService()
+    const result = await service.start({ scope: 'global', reportRunId: 'report-1' })
+    expect(result).toEqual({ status: 'failed', message: 'not started: session-invalid' })
+    expect(agentState()).toMatchObject({
+      status: 'failed',
+      error: 'not started: session-invalid',
+      errorSource: 'service',
+      ownedFailure: { kind: 'not_started', reason: 'session-invalid' }
+    })
+  })
+
+  it('keeps a thrown start error external even when its text matches a service sentence', async () => {
+    mocks.startRun.mockRejectedValue(new Error('not started: busy'))
+    const service = new DoctorAgentService()
+    await expect(service.start({ scope: 'global', reportRunId: 'report-1' })).rejects.toThrow('not started: busy')
+    const state = agentState()
+    expect(state).toMatchObject({ status: 'failed', error: 'not started: busy', errorSource: 'external' })
+    if (state?.status === 'failed') expect(state.ownedFailure).toBeUndefined()
+  })
+
+  it('marks a missing execution message as the service fallback and preserves a real one', async () => {
+    const { service, runId } = await startedService()
+    await listener!.onError({ status: 'error', error: { name: 'Error', message: null, stack: null } })
+    expect(agentState()).toMatchObject({
+      status: 'failed',
+      runId,
+      error: 'Execution failed',
+      errorSource: 'service',
+      ownedFailure: { kind: 'execution_failed' }
+    })
+
+    const again = await service.start({ scope: 'global', reportRunId: 'report-1' })
+    expect(again.status).toBe('started')
+    const againRunId = (again as { runId: string }).runId
+    await listener!.onError({ status: 'error', error: { name: 'Error', message: 'Execution failed', stack: null } })
+    const state = agentState()
+    expect(state).toMatchObject({
+      status: 'failed',
+      runId: againRunId,
+      error: 'Execution failed',
+      errorSource: 'external'
+    })
+    if (state?.status === 'failed') expect(state.ownedFailure).toBeUndefined()
+
+    const empty = await service.start({ scope: 'global', reportRunId: 'report-1' })
+    expect(empty.status).toBe('started')
+    await listener!.onError({ status: 'error', error: { name: 'Error', message: '', stack: null } })
+    expect(agentState()).toMatchObject({
+      status: 'failed',
+      runId: (empty as { runId: string }).runId,
+      error: '',
+      errorSource: 'external'
+    })
+  })
+
+  it('keeps an external run error when a later proposal failure is recorded', async () => {
+    const { service, runId } = await startedService()
+    const outcome = await service.requestWrite(
+      'session-1',
+      { kind: 'preference_set', key: 'app.proxy.mode', value: 'none' },
+      'Disable the proxy'
+    )
+    const proposalId = (outcome as { proposal: { id: string } }).proposal.id
+    await listener!.onError({ status: 'error', error: { name: 'Error', message: 'database locked', stack: null } })
+    mocks.applyWrite.mockRejectedValue(new Error('unknown error'))
+    expect(await service.apply({ key: 'global', runId, proposalId })).toEqual({
+      status: 'failed',
+      message: 'unknown error'
+    })
+    const state = agentState()
+    expect(state).toMatchObject({
+      status: 'failed',
+      error: 'database locked',
+      errorSource: 'external',
+      proposals: [{ id: proposalId, status: 'failed', error: 'unknown error', errorSource: 'external' }]
+    })
+    if (state?.status === 'failed') expect(state.ownedFailure).toBeUndefined()
   })
 
   it('cancel preserves final streamed output before the terminal callback settles the state', async () => {
@@ -268,7 +354,17 @@ describe('DoctorAgentService writes', () => {
 
     expect(await service.apply({ key: 'global', runId, proposalId })).toEqual({ status: 'stale' })
     expect(mocks.applyWrite).not.toHaveBeenCalled()
-    expect(agentState()).toMatchObject({ proposals: [{ id: proposalId, status: 'rejected' }] })
+    expect(agentState()).toMatchObject({
+      proposals: [
+        {
+          id: proposalId,
+          status: 'rejected',
+          error: 'report superseded',
+          errorSource: 'service',
+          ownedError: 'report_superseded'
+        }
+      ]
+    })
   })
 
   it('rejects undo once the report behind the change is superseded', async () => {
@@ -422,6 +518,35 @@ describe('DoctorAgentService incidents', () => {
     expect(stateOf(incidentA)).toMatchObject({ sessionId: 'session-a', incident: incidentA })
     expect(stateOf(incidentB)).toMatchObject({ sessionId: 'session-b', incident: incidentB })
     expect(agentState()).toBeUndefined()
+  })
+
+  it('analyzes an operation incident without reading a conversation', async () => {
+    const service = new DoctorAgentService()
+    const incident = {
+      kind: 'operation' as const,
+      context: {
+        id: 'op-1',
+        occurredAt: '2026-10-14T00:00:00.000Z',
+        source: 'painting',
+        operation: 'painting.generate',
+        message: 'upstream rejected the image request',
+        providerId: 'openai',
+        modelId: 'gpt-image-1',
+        imageOnly: true,
+        statusCode: 429,
+        responseBody: '{"error":"quota","note":"Bearer sk-proj-abcdefghijklmnopqrstuvwxyz123456"}'
+      }
+    }
+    expect((await service.start({ scope: 'global', reportRunId: 'report-1', incident })).status).toBe('started')
+    const prompt = (mocks.startRun.mock.calls[0][0] as { userParts: { text: string }[] }).userParts[0].text
+    expect(mocks.readConversation).not.toHaveBeenCalled()
+    expect(prompt).toContain('THAT operation')
+    expect(prompt).toContain('painting.generate')
+    expect(prompt).toContain('upstream rejected the image request')
+    expect(prompt).toContain('"statusCode":429')
+    expect(prompt).toContain('quota')
+    expect(prompt).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+    expect(prompt).not.toContain('failed message')
   })
 
   it('hands the model the failed message error, redacted, without the conversation it carried', async () => {

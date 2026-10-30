@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
+import type { AppErrorContext } from '@shared/types/appError'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
 
@@ -23,9 +25,11 @@ const mocks = vi.hoisted(() => ({
     'common.loading': 'Loading...',
     'settings.about.diagnostics.actions.reveal': 'Show in folder',
     'settings.about.diagnostics.errors.busy': 'Another diagnostic bundle operation is already in progress',
+    'settings.about.diagnostics.errors.reveal_failed': 'Could not open the file location',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
       'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.',
+    'settings.about.diagnostics.report.ai_diagnosis_included': 'The AI diagnostic result is included.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
     'settings.about.diagnostics.report.copy_url': 'Copy status link',
     'settings.about.diagnostics.report.description_label': 'Problem description',
@@ -35,6 +39,7 @@ const mocks = vi.hoisted(() => ({
       'The diagnostic report service is temporarily unavailable. Try again later or use manual feedback.',
     'settings.about.diagnostics.report.feedback_id': 'Feedback ID',
     'settings.about.diagnostics.report.processing_status': 'Processing status',
+    'settings.about.diagnostics.report.open_failed': 'Could not open the diagnostic status page.',
     'settings.about.diagnostics.report.open_location': 'Open location',
     'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
     'settings.about.diagnostics.report.retry': 'Retry',
@@ -55,6 +60,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
     'settings.about.diagnostics.upload.actions.consent_upload': 'Submit diagnostic report',
     'settings.about.diagnostics.upload.errors.discard_failed': 'Could not close the problem report. Try again.',
+    'settings.about.diagnostics.upload.errors.open_form_failed': 'Could not open the feedback form',
     'settings.about.diagnostics.upload.errors.save_failed': 'Could not save the diagnostic report',
     'settings.about.diagnostics.upload.manual.title': 'Diagnostic report was not submitted',
     'settings.about.diagnostics.upload.unknown.description':
@@ -77,7 +83,8 @@ vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: (...args: unknown[]) => mocks.toastError(...args),
     success: (...args: unknown[]) => mocks.toastSuccess(...args)
-  }
+  },
+  toastInlineError: (message: string) => mocks.toastError({ title: message, data: { suppressDetail: true } })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -134,10 +141,14 @@ async function closeResultDialog(user: ReturnType<typeof userEvent.setup>) {
 }
 
 function TestDiagnosticUploadPanel({
+  aiDiagnosis,
+  errorContext,
   initialDescription = '',
   onBusyChange,
   onClose = () => undefined
 }: {
+  readonly aiDiagnosis?: DiagnosticAiDiagnosis
+  readonly errorContext?: AppErrorContext
   readonly initialDescription?: string
   readonly onBusyChange?: (busy: boolean) => void
   readonly onClose?: () => void
@@ -145,7 +156,9 @@ function TestDiagnosticUploadPanel({
   const [description, setDescription] = useState(initialDescription)
   return (
     <DiagnosticUploadPanel
+      aiDiagnosis={aiDiagnosis}
       description={description}
+      errorContext={errorContext}
       onBusyChange={onBusyChange}
       onClose={onClose}
       onDescriptionChange={setDescription}
@@ -270,6 +283,37 @@ describe('DiagnosticUploadPanel', () => {
     )
   })
 
+  it('uploads the same error context that opened the report', async () => {
+    const errorContext: AppErrorContext = {
+      id: 'op-1',
+      message: 'quota exceeded',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      operation: 'painting.generate',
+      responseBody: '{"error":"quota"}',
+      source: 'painting',
+      statusCode: 429
+    }
+    const user = userEvent.setup()
+    render(<TestDiagnosticUploadPanel errorContext={errorContext} />)
+    await completeReview(user)
+
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith(
+        'diagnostics.bundle.upload',
+        expect.objectContaining({
+          description: 'App freezes on launch.',
+          errorContext,
+          includeChatRecords: true,
+          includeLogs: true,
+          includeTraces: true,
+          range: '24h'
+        })
+      )
+    )
+  })
+
   it('exposes no dismiss action while submitting and shows the report status details on success', async () => {
     let resolveUpload: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
@@ -350,8 +394,8 @@ describe('DiagnosticUploadPanel', () => {
     await completeReview(user)
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
-    await waitFor(() =>
-      expect(mocks.toastError).toHaveBeenCalledWith('Another diagnostic bundle operation is already in progress')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Another diagnostic bundle operation is already in progress'
     )
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     expect(description).toHaveValue('  App freezes on launch.  ')
@@ -362,6 +406,7 @@ describe('DiagnosticUploadPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
     expect(await screen.findByText(reportId)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(2)
     expect(mocks.request).toHaveBeenLastCalledWith('diagnostics.bundle.upload', {
       description: 'The app freezes after reopening.',
@@ -484,8 +529,8 @@ describe('DiagnosticUploadPanel', () => {
 
     await closeResultDialog(user)
 
-    await waitFor(() =>
-      expect(mocks.toastError).toHaveBeenCalledWith('Another diagnostic bundle operation is already in progress')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Another diagnostic bundle operation is already in progress'
     )
     expect(onOpenChange).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
@@ -505,7 +550,7 @@ describe('DiagnosticUploadPanel', () => {
 
     await closeResultDialog(user)
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Could not close the problem report. Try again.'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not close the problem report. Try again.')
     expect(onOpenChange).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
@@ -555,9 +600,105 @@ describe('DiagnosticUploadPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
     await user.click(await screen.findByRole('button', { name: 'Save locally' }))
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Could not save the diagnostic report'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the diagnostic report')
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByText('Diagnostic report submitted')).not.toBeInTheDocument()
+  })
+
+  it('keeps the saved upload and retry when opening its location fails', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'diagnostics.bundle.save_upload') return savedUploadResult
+      if (route === 'file.show_in_folder') throw new Error('reveal failed')
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await user.click(await screen.findByRole('button', { name: 'Save locally' }))
+    const savedBundle = await screen.findByRole('region', { name: 'Saved locally' })
+    await user.click(within(savedBundle).getByRole('button', { name: 'Open location' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not open the file location')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(within(savedBundle).getByText('saved-diagnostics.zip')).toBeInTheDocument()
+    expect(within(savedBundle).getByRole('button', { name: 'Open location' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('keeps manual feedback and retry when the feedback form cannot be opened', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'system.shell.open_external_website') throw new Error('form failed')
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await user.click(await screen.findByRole('button', { name: 'Manual feedback' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not open the feedback form')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(screen.getByText('Diagnostic report was not submitted')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manual feedback' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('keeps the submitted report when its status page cannot be opened', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.upload') return uploadedResult
+      if (route === 'system.shell.open_external_website') throw new Error('status failed')
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await user.click(await screen.findByRole('button', { name: 'Open status page' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not open the diagnostic status page.')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(screen.getByText(reportId)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open status page' })).toBeInTheDocument()
+  })
+
+  it('keeps the first AI snapshot in a retry upload after the prop changes', async () => {
+    const first: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'First conclusion.'
+    }
+    const replacement: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'Replacement conclusion.'
+    }
+    let attempts = 0
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route !== 'diagnostics.bundle.upload') return undefined
+      attempts += 1
+      if (attempts === 1) throw new Error('upload failed')
+      return uploadedResult
+    })
+    const user = userEvent.setup()
+    const view = render(<TestDiagnosticUploadPanel aiDiagnosis={first} />)
+
+    expect(screen.getByText('The AI diagnostic result is included.')).toBeInTheDocument()
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await waitFor(() => expect(attempts).toBe(1))
+
+    view.rerender(<TestDiagnosticUploadPanel aiDiagnosis={replacement} />)
+    expect(screen.getByText('The AI diagnostic result is included.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await waitFor(() => expect(attempts).toBe(2))
+
+    const uploads = mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')
+    expect(uploads).toHaveLength(2)
+    expect(uploads[0]?.[1]).toEqual(expect.objectContaining({ aiDiagnosis: first }))
+    expect(uploads[1]?.[1]).toEqual(expect.objectContaining({ aiDiagnosis: first }))
   })
 })

@@ -1,5 +1,6 @@
 import type { FC } from 'react'
 
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -40,6 +41,7 @@ const SelectionActionApp: FC = () => {
           <ErrorBoundary>
             <ActionWindow />
           </ErrorBoundary>
+          <AppErrorRuntime mode="local" />
           <PopupHost />
           <ToastHost />
           <DictationShortcutHost />

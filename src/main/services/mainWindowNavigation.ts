@@ -3,7 +3,11 @@ import { WindowType } from '@main/core/window/types'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
+import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
+import type { EventPayload } from '@shared/ipc/types'
+import type { AppErrorContext } from '@shared/types/appError'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { createAppErrorContext } from '@shared/utils/appError'
 
 /**
  * Route allowlist for externally-triggered main-window navigation (protocol
@@ -54,6 +58,21 @@ function resolveLiveMainWindowId(): string | undefined {
  */
 const pendingTabAttachQueue: Tab[] = []
 let isMainRendererReadyForTabAttach = false
+let errorReceiverReady = false
+
+type MainSurfaceReceiver = 'error'
+
+/**
+ * The tab-ready flag stays set after a provider crash: the webContents is still
+ * alive, but AppErrorRuntime has unmounted. Delivery of that event requires the
+ * receiver that actually mounts the listener.
+ */
+export function setMainSurfaceReceiver(kind: MainSurfaceReceiver, ready: boolean): void {
+  if (kind === 'error') {
+    errorReceiverReady = ready
+    if (ready) flushMainRendererFault()
+  }
+}
 
 /**
  * Mark the main renderer ready and deliver any tabs queued while it was not.
@@ -75,6 +94,7 @@ export function markMainRendererReadyForTabAttach(senderId: string): void {
  */
 export function resetMainRendererTabAttachDelivery(): void {
   isMainRendererReadyForTabAttach = false
+  errorReceiverReady = false
 }
 
 function flushPendingTabAttaches(): void {
@@ -88,12 +108,54 @@ function flushPendingTabAttaches(): void {
   }
 }
 
+let pendingRendererFault: AppErrorContext | undefined
+
+/**
+ * Remember a main-renderer crash until that renderer is ready again.
+ * The second crash inside the force-exit window never queues a fault: that path
+ * leaves the process, so there is no window left to present it.
+ */
+export function queueMainRendererFault(message: string): void {
+  pendingRendererFault = createAppErrorContext({
+    source: 'mainWindow',
+    operation: 'renderer.crash',
+    message
+  })
+}
+
+function flushMainRendererFault(): void {
+  if (!pendingRendererFault) return
+  if (deliverToReadyMain('app.error.open', pendingRendererFault)) pendingRendererFault = undefined
+}
+
+/**
+ * Show and focus a ready main window, then deliver one event to it.
+ * Returns false when main is missing, still loading, or crashed — callers must
+ * fail the IPC instead of broadcasting into an empty room.
+ */
+export function deliverToReadyMain<E extends IpcEventName>(event: E, payload: EventPayload<E>): boolean {
+  const windowManager = application.get('WindowManager')
+  const mainWindow = windowManager.getWindowsByType(WindowType.Main).find((win) => !win.isDestroyed())
+  if (!mainWindow) return false
+  const windowId = windowManager.getWindowId(mainWindow)
+  if (!windowId || !isTabDeliveryReady(windowId) || !isSurfaceReceiverReady(event)) return false
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+  application.get('IpcApiService').send(windowId, event, payload)
+  return true
+}
+
 /**
  * A live window id only proves the BrowserWindow exists — the renderer may still
- * be booting, reloading, or crashed, with no `tab.attached` listener mounted.
- * The ready flag plus a synchronous webContents check covers the reload() →
- * did-start-loading gap that event-driven resets cannot see.
+ * be booting, reloading, or crashed, with no listener mounted.
+ * The ready flag plus a synchronous webContents check covers the reload gap.
  */
+function isSurfaceReceiverReady(event: IpcEventName): boolean {
+  if (event === 'app.error.open') return errorReceiverReady
+  return true
+}
+
 function isTabDeliveryReady(windowId: string): boolean {
   if (!isMainRendererReadyForTabAttach) return false
   const win = application.get('WindowManager').getWindow(windowId)
