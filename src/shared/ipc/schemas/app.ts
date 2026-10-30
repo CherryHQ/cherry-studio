@@ -93,8 +93,9 @@ export const appRequestSchemas = {
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
+  'app.updater.present_check': defineRoute({ input: z.void(), output: z.void() }),
   'app.surface.receiver': defineRoute({
-    input: z.object({ kind: z.enum(['error']), ready: z.boolean() }),
+    input: z.object({ kind: z.enum(['error', 'update']), ready: z.boolean() }),
     output: z.void()
   }),
   'app.updater.release_notes.get': defineRoute({
@@ -126,5 +127,6 @@ export type AppEventSchemas = {
   'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  'app.updater.run_check': void
   'app.error.open': AppErrorContext
 }
