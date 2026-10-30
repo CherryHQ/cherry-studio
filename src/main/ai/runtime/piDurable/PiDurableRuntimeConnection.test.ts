@@ -253,6 +253,16 @@ describe('desktop Pi Durable connection', () => {
     }
   )
 
+  // A no-op command must explain its result instead of persisting an empty successful reply.
+  it('shows an unchanged-history reply when manual compaction has no summary to commit', async () => {
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/compact') })
+    await done(events)
+    expect(text(events)).toBe('No summary was committed; the conversation is unchanged.')
+    expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([{ type: 'compaction-complete' }])
+    expect(script.calls).toHaveLength(0)
+  })
+
   // Catches approval edits being shown in the UI but the original write still executing.
   it('executes only approved arguments and returns a question answer to the native loop', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }

@@ -90,6 +90,9 @@ raw adapter never delivers child results to the parent; native tasks own that be
 Its receipt distinguishes a committed summary from a no-op (including a declined
 summary); a failed or unplaced summary is never reported as committed.
 
+Input observations publish changed evidence only. Polling an unchanged pending
+receipt does not emit another `input.changed` or wake an observer's reconciliation loop.
+
 ## Shared behavior
 
 The optional `behavior` factory option installs `agent-behavior` with Cherry's

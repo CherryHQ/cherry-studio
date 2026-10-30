@@ -15,6 +15,7 @@ import { prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { t } from '@main/i18n'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
@@ -179,6 +180,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       try {
         const compacted = await this.handle.durable.compact(text.trim().slice('/compact'.length).trim() || undefined)
         if (compacted.status !== 'confirmed') throw new Error(compacted.error.message)
+        if (!this.closing && !compacted.value.compacted) this.projection?.notice(t('common.agent_compaction_unchanged'))
         if (!this.closing)
           this.events.push({
             type: 'compaction-complete',

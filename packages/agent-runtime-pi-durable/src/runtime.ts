@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
@@ -296,8 +297,10 @@ export async function createPiDurableRuntime(
       if (id) logicalIds.set(record.id, runtimeId(id))
     }
     const input = await inputState(record)
-    if (inputs.get(record.id) === record)
-      live.get(record.conversationId)?.projection.feed.publish({ type: 'input.changed', input })
+    const feed = live.get(record.conversationId)?.projection.feed
+    const previous = feed?.snapshot.inputs.find((value) => value.nativeInput?.id === input.nativeInput?.id)
+    if (feed && inputs.get(record.id) === record && !isDeepStrictEqual(previous, input))
+      feed.publish({ type: 'input.changed', input })
     return input
   }
   const publishRelation = (record: ConversationRecord) => {
