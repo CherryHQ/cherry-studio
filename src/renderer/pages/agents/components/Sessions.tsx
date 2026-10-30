@@ -41,6 +41,7 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
@@ -373,22 +374,7 @@ const Sessions = ({
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [groupNow, setGroupNow] = useState(() => new Date())
-
-  useEffect(() => {
-    const updateGroupNow = () => setGroupNow(new Date())
-    const intervalId = window.setInterval(updateGroupNow, 60_000)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') updateGroupNow()
-    }
-    window.addEventListener('focus', updateGroupNow)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      window.clearInterval(intervalId)
-      window.removeEventListener('focus', updateGroupNow)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [])
+  const groupNow = useCurrentDayStart()
 
   const { notesPath } = useNotesSettings()
   const [exportMenuOptions] = useMultiplePreferences({
