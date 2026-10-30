@@ -1,4 +1,4 @@
-import { PointerSensor, type PointerSensorProps } from '@dnd-kit/core'
+import { PointerSensor, type PointerSensorProps, TouchSensor } from '@dnd-kit/core'
 import { getWindow } from '@dnd-kit/utilities'
 
 /** dnd-kit keeps `handleCancel` private, yet it is the only path that both detaches the sensor and notifies DndContext. */
@@ -39,6 +39,16 @@ export class BlurCancelPointerSensor extends PointerSensor {
   }
 }
 
+function isInsideNoDnd(target: HTMLElement | null) {
+  while (target) {
+    if (target.dataset?.noDnd) {
+      return true
+    }
+    target = target.parentElement
+  }
+  return false
+}
+
 /**
  * Prevent drag on elements marked with data-no-dnd.
  */
@@ -54,13 +64,8 @@ export class PortalSafePointerSensor extends BlurCancelPointerSensor {
           return false
         }
 
-        let target = event.target as HTMLElement
-
-        while (target) {
-          if (target.dataset?.noDnd) {
-            return false
-          }
-          target = target.parentElement as HTMLElement
+        if (isInsideNoDnd(event.target as HTMLElement)) {
+          return false
         }
 
         onActivation?.({ event })
@@ -68,4 +73,22 @@ export class PortalSafePointerSensor extends BlurCancelPointerSensor {
       }
     }
   ] as (typeof PointerSensor)['activators']
+}
+
+/**
+ * Prevent touch drag on elements marked with data-no-dnd.
+ */
+export class PortalSafeTouchSensor extends TouchSensor {
+  static activators = [
+    {
+      eventName: 'onTouchStart',
+      handler: (event, options) => {
+        if (isInsideNoDnd(event.nativeEvent.target as HTMLElement)) {
+          return false
+        }
+
+        return TouchSensor.activators[0].handler(event, options)
+      }
+    }
+  ] as (typeof TouchSensor)['activators']
 }

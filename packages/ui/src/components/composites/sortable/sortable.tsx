@@ -13,7 +13,6 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  TouchSensor,
   useSensor,
   useSensors
 } from '@dnd-kit/core'
@@ -38,7 +37,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { ItemRenderer } from './item-renderer'
 import { SortableItem } from './sortable-item'
 import type { RenderItemType } from './types'
-import { PortalSafePointerSensor } from './utils'
+import { PortalSafePointerSensor, PortalSafeTouchSensor } from './utils'
 
 interface SortableProps<T> {
   /** Array of sortable items */
@@ -134,7 +133,7 @@ function Sortable<T>({
         distance: 8
       }
     }),
-    useSensor(TouchSensor, {
+    useSensor(PortalSafeTouchSensor, {
       activationConstraint: {
         delay: 100,
         tolerance: 5

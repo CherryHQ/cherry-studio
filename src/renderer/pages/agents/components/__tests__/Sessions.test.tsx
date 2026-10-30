@@ -209,6 +209,7 @@ vi.mock('@dnd-kit/core', () => {
       React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
     KeyboardSensor: vi.fn(),
     PointerSensor: vi.fn(),
+    TouchSensor: vi.fn(),
     useDroppable: ({ data, id }: { data: unknown; id: string }) => {
       dndMocks.droppableData.set(id, data)
       return { isOver: false, setNodeRef: vi.fn() }
