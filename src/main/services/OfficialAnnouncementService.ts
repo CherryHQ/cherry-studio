@@ -32,6 +32,7 @@ const AnnouncementPageSchema = z.object({
 @DependsOn(['NotificationService', 'SchedulerService'])
 export class OfficialAnnouncementService extends BaseService {
   private ready = false
+  private hasChecked = false
   private controller?: AbortController
   private runningController?: AbortController
   private removeFocusListeners?: () => void
@@ -61,6 +62,7 @@ export class OfficialAnnouncementService extends BaseService {
   private configure(): void {
     this.cancel()
     if (!this.ready || !application.get('PreferenceService').get('app.notification.center.official.enabled')) return
+    this.hasChecked = false
     this.controller = new AbortController()
     this.observeFocus(this.controller)
     this.schedule(this.controller, 5000)
@@ -80,7 +82,7 @@ export class OfficialAnnouncementService extends BaseService {
     const onFocus = () => {
       if (blurTimer) clearTimeout(blurTimer)
       blurTimer = undefined
-      const returned = hasFocused && !foreground
+      const returned = (hasFocused || this.hasChecked) && !foreground
       foreground = true
       hasFocused = true
       if (returned) void this.check(controller)
@@ -103,6 +105,7 @@ export class OfficialAnnouncementService extends BaseService {
 
   private async check(controller: AbortController): Promise<void> {
     if (controller.signal.aborted || this.runningController === controller) return
+    this.hasChecked = true
     this.runningController = controller
     application.get('SchedulerService').unregister(SCHEDULE_ID)
     const cutoff = Date.now() - RETENTION_MS

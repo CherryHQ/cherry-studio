@@ -177,6 +177,7 @@ export interface ConversationCompletedEvent {
  */
 export interface ActiveStream {
   completedTaskCount?: number
+  completionFailed?: boolean
   terminalLifecyclePending?: boolean
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */

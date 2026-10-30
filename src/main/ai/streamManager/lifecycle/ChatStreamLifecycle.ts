@@ -74,7 +74,7 @@ export function createChatStreamLifecycle(
         stream.status === 'done' &&
         completedAt !== undefined &&
         stream.isPersistentConversation &&
-        stream.completedTaskCount !== 0
+        !stream.completionFailed
       ) {
         const responseText = [...stream.executions.values()]
           .sort((a, b) => (b.timings.completedAt ?? 0) - (a.timings.completedAt ?? 0))

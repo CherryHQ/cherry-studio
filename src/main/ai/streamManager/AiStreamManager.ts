@@ -1452,7 +1452,8 @@ export class AiStreamManager extends BaseService {
         for (const taskId of execution.taskIds ?? [stream.turnId]) tasks.add(taskId)
       }
       this.completedBatchTasks.set(topicId, tasks)
-      stream.completedTaskCount = this.failedCompletionAttempts.has(topicId) ? 0 : tasks.size
+      stream.completedTaskCount = tasks.size
+      stream.completionFailed = this.failedCompletionAttempts.has(topicId)
     }
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
@@ -1485,7 +1486,7 @@ export class AiStreamManager extends BaseService {
 
     // Mixed done/aborted topics resolve to done, but cancelled work cannot complete a notification batch.
     this.markCompletionFailed(topicId, exec.attemptId)
-    stream.completedTaskCount = 0
+    stream.completionFailed = true
 
     // A turn torn down while a tool is still `approval-requested` (or any
     // in-flight tool) gets no `tool-output-*` to clear it. Clear the set so the
@@ -2204,7 +2205,7 @@ export class AiStreamManager extends BaseService {
       } catch (err) {
         if (listener.terminalPhase === 'persistence' && err instanceof TerminalPersistenceError) {
           this.markCompletionFailed(stream.topicId, exec.attemptId)
-          stream.completedTaskCount = 0
+          stream.completionFailed = true
           suppressNotification = true
           continue
         }

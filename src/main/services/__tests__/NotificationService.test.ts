@@ -327,6 +327,21 @@ describe('NotificationService', () => {
       expect(mocks.fetch).toHaveBeenCalledTimes(2)
     })
 
+    it('refreshes on first activation after polling while launched to tray', async () => {
+      mocks.focused = false
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      mocks.fetch.mockImplementation(async () => respond([announcement('first-activation')]))
+      mocks.focused = true
+      mocks.focusListeners.get('browser-window-focus')?.()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(mocks.fetch).toHaveBeenCalledTimes(2)
+      expect(notificationRecordService.list({}).items.map((record) => record.title)).toContain(
+        'Announcement first-activation'
+      )
+    })
+
     it('lets the in-flight round satisfy repeated foreground requests without queuing another round', async () => {
       let finish!: (response: Response) => void
       mocks.fetch.mockImplementation(
