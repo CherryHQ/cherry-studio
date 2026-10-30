@@ -1,0 +1,67 @@
+{
+  "repository": "CherryHQ/mlx-node",
+  "tag": "qwen3-asr-1.7b-8bit-5db3d24bc87a-r1",
+  "sourceRevision": "5db3d24bc87a9eb6fdb48c7ab3c9d8f126bf8d7d",
+  "modelRevision": "bcd2b5b7f32b480ab5790554cfa8347f246a14f3",
+  "upstream": "Qwen/Qwen3-ASR-1.7B-hf",
+  "files": [
+    {
+      "relPath": "chat_template.jinja",
+      "asset": "chat_template.jinja",
+      "sizeBytes": 1434,
+      "sha256": "f50e6b694fbf4a683206e37869990d68333fe95d285730f084c838a34b0d98c2"
+    },
+    {
+      "relPath": "config.json",
+      "asset": "config.json",
+      "sizeBytes": 2480,
+      "sha256": "1e4c7e8c5cef6c25912da53db50ad97f3f38b1e11e88fc6c3a29e260c6a07788"
+    },
+    {
+      "relPath": "generation_config.json",
+      "asset": "generation_config.json",
+      "sizeBytes": 165,
+      "sha256": "9939fc9388b79bd70757f938b87381e817173d6a6158f5af6506c0b73e775c3c"
+    },
+    {
+      "relPath": "model-00001-of-00002.safetensors",
+      "asset": "model-00001-of-00002.safetensors",
+      "sizeBytes": 1494998496,
+      "sha256": "d8fd2a53f5ffd4e5a4665c9759ea41b10b029cc3ee3fd0a7edd3cdb1c89c6c53"
+    },
+    {
+      "relPath": "model-00002-of-00002.safetensors",
+      "asset": "model-00002-of-00002.safetensors",
+      "sizeBytes": 968315248,
+      "sha256": "3b1c8e00ca2c949ee7b8f5a09c24cea15b9446ea7e50a8d78d5251988299b49c"
+    },
+    {
+      "relPath": "model.safetensors.index.json",
+      "asset": "model.safetensors.index.json",
+      "sizeBytes": 97415,
+      "sha256": "7f68ca3e199a7de1480c31045313338347ded01b5c610909e076a3749ba25f16"
+    },
+    {
+      "relPath": "processor_config.json",
+      "asset": "processor_config.json",
+      "sizeBytes": 487,
+      "sha256": "bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a"
+    },
+    {
+      "relPath": "tokenizer.json",
+      "asset": "tokenizer.json",
+      "sizeBytes": 11429653,
+      "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05"
+    },
+    {
+      "relPath": "tokenizer_config.json",
+      "asset": "tokenizer_config.json",
+      "sizeBytes": 998,
+      "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11"
+    }
+  ],
+  "modelscope": {
+    "repo": "CherryHQ/Qwen3-ASR-1.7B-8bit",
+    "revision": "3f63ca97045a7bde7860ce0a57addf6a78d6056a"
+  }
+}

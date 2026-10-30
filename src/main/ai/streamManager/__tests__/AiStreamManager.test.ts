@@ -2929,6 +2929,93 @@ describe('AiStreamManager', () => {
   // mis-classification bug.
 
   describe('idle timeout', () => {
+    it('keeps a default chat turn live past 30 minutes and pauses at 120 minutes without a parsed chunk', async () => {
+      useWatchdogTimers()
+
+      const controlled = controlledStream()
+      let signal!: AbortSignal
+      mockStreamText.mockImplementationOnce(async (request) => {
+        signal = (request.requestOptions as { signal: AbortSignal }).signal
+        signal.addEventListener('abort', () => controlled.close(), { once: true })
+        return controlled.stream
+      })
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      controlled.enqueue({ type: 'start' })
+      await flushUntil(() => listener.chunks.length >= 1)
+
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      expect(signal.aborted).toBe(false)
+      expect(mgr.inspect('a')!.status).not.toBe('aborted')
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(90 * 60 * 1000 - 1)
+      expect(signal.aborted).toBe(false)
+      expect(mgr.inspect('a')!.status).not.toBe('aborted')
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(1)
+      await flushUntil(() => listener.pausedResults.length > 0)
+      expect(signal.aborted).toBe(true)
+      expect(signal.reason).toBeInstanceOf(DOMException)
+      expect(signal.reason.name).toBe('TimeoutError')
+      expect(signal.reason.message).toBe('Stream idle timeout exceeded')
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(mgr.inspect('a')!.status).toBe('aborted')
+    })
+
+    it('inherits the 120-minute chat idle bound for a prompt stream without an override', async () => {
+      useWatchdogTimers()
+
+      const controlled = controlledStream()
+      let signal!: AbortSignal
+      mockStreamText.mockImplementationOnce(async (request) => {
+        signal = (request.requestOptions as { signal: AbortSignal }).signal
+        signal.addEventListener('abort', () => controlled.close(), { once: true })
+        return controlled.stream
+      })
+
+      const listener = new FakeListener('l:prompt')
+      mgr.streamPrompt({
+        streamId: 'prompt',
+        uniqueModelId: 'provider-a::model-a',
+        prompt: 'hello',
+        listener
+      })
+      controlled.enqueue({ type: 'start' })
+      await flushUntil(() => listener.chunks.length >= 1)
+
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      expect(signal.aborted).toBe(false)
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(90 * 60 * 1000 + 1)
+      await flushUntil(() => listener.pausedResults.length > 0)
+      expect(signal.aborted).toBe(true)
+      expect(signal.reason).toBeInstanceOf(DOMException)
+      expect(signal.reason.name).toBe('TimeoutError')
+      expect(signal.reason.message).toBe('Stream idle timeout exceeded')
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+    })
+
     it('settles a timed-out execution as paused, not done', async () => {
       useWatchdogTimers()
 

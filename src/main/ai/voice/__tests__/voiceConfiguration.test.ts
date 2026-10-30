@@ -32,6 +32,7 @@ describe('voice product defaults', () => {
     vi.spyOn(funAsrTranscriptionDefinition, 'support').mockReturnValue(VoiceModelSupport.Supported)
     vi.spyOn(funAsrTranscriptionDefinition, 'status').mockResolvedValue({ status: 'ready' })
     expect(await resolveTranscriptionConfiguration({ language }, undefined, mac)).toEqual({
+      capabilities: { transcription: [{ input: 'audio', output: 'final' }] },
       modelId: FUNASR_MODEL_ID,
       language: { source: TranscriptionLanguageSource.ModelDefault },
       status: { status: 'ready' }

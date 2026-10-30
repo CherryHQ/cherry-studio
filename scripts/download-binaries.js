@@ -221,7 +221,7 @@ function hasReferencedFile(dir) {
 
 const MISE_VERSION = '2026.7.14'
 const BUN_VERSION = '1.4.2'
-const UV_VERSION = '0.11.16'
+const UV_VERSION = '0.13.6'
 const RG_VERSION = '14.1.1'
 const MINGIT_VERSION = '2.54.0'
 
@@ -347,37 +347,37 @@ const TOOLS = [
         url: uvUrl('uv-aarch64-apple-darwin', 'tar.gz'),
         archive: 'tar.gz',
         binaries: ['uv', 'uvx'],
-        sha256: '2b25be1af546be330b340b0a76b99f989daa6d92678fdffb87438e661e9d88fb'
+        sha256: '60fbd5c8a1ed681845eea28d9d622fcde03c51e91a43465b64a1e17db1ed3472'
       },
       'darwin-x64': {
         url: uvUrl('uv-x86_64-apple-darwin', 'tar.gz'),
         archive: 'tar.gz',
         binaries: ['uv', 'uvx'],
-        sha256: '6b91ae3de155f51bd1f5b74814821c79f016a176561f252cd9ddfb976939af2e'
+        sha256: '63ba17fdda55ad1a230d4b37fc6017ffa10c23688c83818bd3bfdf914c652a02'
       },
       'linux-arm64': {
         url: uvUrl('uv-aarch64-unknown-linux-gnu', 'tar.gz'),
         archive: 'tar.gz',
         binaries: ['uv', 'uvx'],
-        sha256: '8c9d0f0ee98166ae6ab198747519ba6f25db29d185bd2ae5960ecebc91a5c22a'
+        sha256: '229e194255c7958d86d56e8790d969a6f74736592133f0dfd0076f754c642c1d'
       },
       'linux-x64': {
         url: uvUrl('uv-x86_64-unknown-linux-gnu', 'tar.gz'),
         archive: 'tar.gz',
         binaries: ['uv', 'uvx'],
-        sha256: '74947fe2c03315cf07e82ab3acc703eddef01aba4d5232a98e4c6825ec116131'
+        sha256: 'f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645'
       },
       'win32-x64': {
         url: uvUrl('uv-x86_64-pc-windows-msvc', 'zip'),
         archive: 'zip',
         binaries: ['uv.exe', 'uvx.exe'],
-        sha256: 'dd9d6d6554bfab265bfa98aa8e8a406c5c3a7b97582f93de1f4d48d9154a0395'
+        sha256: 'a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f'
       },
       'win32-arm64': {
         url: uvUrl('uv-aarch64-pc-windows-msvc', 'zip'),
         archive: 'zip',
         binaries: ['uv.exe', 'uvx.exe'],
-        sha256: 'e4f8e70eb21f0f4efd2eeb159ab289f9a16057d59881a4475758be4ce39bc8c5'
+        sha256: 'c2426c0c8e28b53d8c440e47a18d96ad4db51e159866c0e81435b196d7f0081c'
       }
     }
   },

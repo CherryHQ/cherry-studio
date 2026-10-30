@@ -21,6 +21,7 @@ export interface KnowledgeBaseDiscoveryPage {
 
 type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [
+  'knowledge.copy-sources',
   'knowledge.prepare-root',
   'knowledge.index-documents',
   'knowledge.check-file-processing-result',
@@ -56,12 +57,6 @@ export type KnowledgeProgressDetail =
       // warn-logged) so the partial no-op is observable rather than silently rolled into a plain
       // "done"; it is not (yet) surfaced in the renderer. Present only when non-zero.
       skippedMissingSource?: number
-    }
-  | {
-      stage: 'waiting'
-      pollRound: number
-      fileProcessingJobId?: string
-      fileProcessing?: unknown
     }
   | {
       stage: 'failed'
@@ -103,6 +98,10 @@ export function knowledgeReindexSubtreeIdempotencyKey(baseId: KnowledgeBaseId, r
   return `knowledge:${baseId}:${rootKey}:reindex`
 }
 
+export function knowledgeCopySourcesIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
+  return `knowledge:${baseId}:${itemId}:copy`
+}
+
 export function knowledgePrepareIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
   return `knowledge:${baseId}:${itemId}:prepare`
 }
@@ -119,8 +118,7 @@ export function knowledgeIndexIdempotencyKey(
 export function knowledgeFileProcessingCheckIdempotencyKey(
   baseId: KnowledgeBaseId,
   itemId: KnowledgeItemId,
-  fileProcessingJobId: string,
-  pollRound: number
+  fileProcessingJobId: string
 ): string {
-  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}:${pollRound}`
+  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}`
 }

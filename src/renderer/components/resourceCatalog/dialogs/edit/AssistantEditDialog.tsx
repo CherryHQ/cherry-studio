@@ -608,6 +608,7 @@ function AssistantPromptField({
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const [polishing, setPolishing] = useState(false)
   const prompt = form.watch('prompt')
   const name = form.watch('name')
   const processedPrompt = usePromptProcessor({
@@ -631,6 +632,7 @@ function AssistantPromptField({
       emptyValueSystemPrompt={AGENT_PROMPT}
       existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
       onChange={handlePromptActionChange}
+      onRunningChange={setPolishing}
     />
   )
 
@@ -656,6 +658,7 @@ function AssistantPromptField({
           fill
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+          disabled={polishing}
         />
       )}
     />

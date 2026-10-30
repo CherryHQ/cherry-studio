@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +10,6 @@ const useProviderApiKeysMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
 const deleteApiKeyMock = vi.fn()
-const copyApiKeyToClipboardMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, type = 'button', ...props }: any) => (
@@ -31,10 +30,6 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: vi.fn() }
-}))
-
-vi.mock('../copyApiKeyToClipboard', () => ({
-  copyApiKeyToClipboard: (...args: any[]) => copyApiKeyToClipboardMock(...args)
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
@@ -142,8 +137,10 @@ describe('ApiKey', () => {
 
     render(<ApiKey providerId="openai" onOpenApiSetup={onOpenApiSetup} />)
 
-    await user.click(screen.getByRole('button', { name: 'settings.provider.api_key.copy' }))
-    expect(copyApiKeyToClipboardMock).toHaveBeenCalledWith('sk-visible-action', expect.any(Function))
+    const copyButton = screen.getByRole('button', { name: 'settings.provider.api_key.copy' })
+    await user.click(copyButton)
+    expect(await navigator.clipboard.readText()).toBe('sk-visible-action')
+    await waitFor(() => expect(copyButton.querySelector('.lucide-check')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: 'common.edit' }))
     expect(onOpenApiSetup).toHaveBeenCalledTimes(1)

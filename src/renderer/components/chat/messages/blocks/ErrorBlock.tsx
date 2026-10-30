@@ -11,7 +11,12 @@ import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/labe
 import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
-import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
+import {
+  classifyError,
+  getClaudeCodeExitCategory,
+  getClaudeCodeExitInfo,
+  getLocalModelResolutionFailure
+} from '@renderer/utils/errorClassifier'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { suggestReducedOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -61,6 +66,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
+  const localModelFailure = getLocalModelResolutionFailure(error)
   const errorStatus =
     error && ('status' in error || 'statusCode' in error)
       ? ((error as Record<string, unknown>).status as number | undefined) ||
@@ -108,6 +114,10 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     return t(errorKey)
   }
 
+  // The headline supplies either the missing model or configuration guidance; the raw local
+  // resolution message adds no useful recovery detail.
+  if (localModelFailure) return null
+
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <span>
@@ -147,6 +157,7 @@ const MessageErrorInfo: React.FC<{
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
@@ -160,8 +171,25 @@ const MessageErrorInfo: React.FC<{
       return t('error.ollama_context_memory', { trained, effective })
     }
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    if (localModelFailure) {
+      const { providerId: failedProviderId, modelId } = localModelFailure
+      if (!modelId) return t('code.select_provider_model')
+      return t('error.diagnosis.model_unavailable', {
+        model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
+      })
+    }
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
-  }, [appOwnedErrorKey, classification.i18nKey, error, errorI18nKey, hasAppOwnedI18nKey, i18n, providerId, t])
+  }, [
+    appOwnedErrorKey,
+    classification.i18nKey,
+    error,
+    errorI18nKey,
+    hasAppOwnedI18nKey,
+    i18n,
+    localModelFailure,
+    providerId,
+    t
+  ])
 
   useEffect(() => {
     if (

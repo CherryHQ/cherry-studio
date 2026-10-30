@@ -8,7 +8,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
 import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
-import dshIcon from '@renderer/assets/images/apps/launchpad-dsh.svg'
 import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
 import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
@@ -29,17 +28,14 @@ import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVI
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
-const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
 
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
-const APP_ICON_TILE_CLASS =
-  'flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-transparent'
 const APP_ICON_SURFACE_CLASS =
-  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-card'
+  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-transparent transition-[background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:bg-accent motion-reduce:transition-none'
 const APP_ICON_FRAME_CLASS =
-  'relative flex size-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
-const APP_ICON_CLASS = 'size-[50px] object-contain'
+  'relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
+const APP_ICON_CLASS = 'size-11 object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
 const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
@@ -152,10 +148,6 @@ export default function LaunchpadPage() {
     [navigateToUrl, shouldSuppressLaunchClick]
   )
 
-  const openDeepSeekHarness = () => {
-    void navigateToUrl(DEEPSEEK_HARNESS_URL)
-  }
-
   const pinToSidebar = useCallback(
     (favorite: SidebarAppId) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
@@ -190,8 +182,6 @@ export default function LaunchpadPage() {
     [isPinned, pinToSidebar, t, unpinFromSidebar]
   )
 
-  // Sidebar-backed app tiles keep their existing launchpad order. The direct
-  // Harness shortcut is fixed because it is not a sidebar destination.
   const appMenuItems = useMemo(
     () =>
       orderedAppIds.flatMap((favorite) => {
@@ -311,19 +301,6 @@ export default function LaunchpadPage() {
                 onSortEnd={handleAppsSortEnd}
                 renderItem={(item) => renderAppMenuItem(item)}
               />
-              <button
-                type="button"
-                onClick={openDeepSeekHarness}
-                className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
-                <span className={APP_ICON_TILE_CLASS}>
-                  <span className={APP_ICON_FRAME_CLASS}>
-                    <img src={dshIcon} alt="" className={APP_ICON_CLASS} draggable={false} />
-                  </span>
-                </span>
-                <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
-                  {t('launchpad.deepseek_harness_shortcut')}
-                </span>
-              </button>
             </div>
           </section>
 

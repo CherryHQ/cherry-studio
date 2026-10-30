@@ -1,12 +1,15 @@
 import os from 'node:os'
 
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveOllamaRequestNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
@@ -14,7 +17,8 @@ import {
   allocateInlineCaps,
   buildFallbackOllamaNumCtxSnapshots,
   resolveAttachmentBudgetContextWindow,
-  isFallbackCallWithinWindow
+  isFallbackCallWithinWindow,
+  resolveAttachmentBudget
 } from '../attachmentBudget'
 
 vi.mock('node:os', () => ({
@@ -611,4 +615,42 @@ describe('resolved audio/video fallback budget parity', () => {
       ).toBe(131072)
     }
   )
+})
+
+it('#22441 prices duplicate history as one surviving pair while distinct ids cost two pairs', async () => {
+  const price = (parts: UIMessage['parts']) =>
+    resolveAttachmentBudget({
+      provider: { id: 'test', endpointConfigs: {} } as Provider,
+      model: {
+        id: 'test::model',
+        providerId: 'test',
+        name: 'Test model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        contextWindow: 100_000
+      } satisfies Model,
+      system: undefined,
+      tools: undefined,
+      maxOutputTokens: 1_000,
+      messages: [{ id: 'history', role: 'assistant', parts }],
+      mediaCapabilities: { image: false, video: false, audio: false }
+    })
+  const winner = {
+    type: 'dynamic-tool',
+    toolName: 'lookup',
+    toolCallId: 'one',
+    state: 'output-available',
+    input: { query: 'winner' },
+    output: { answer: 'retained' }
+  } satisfies UIMessage['parts'][number]
+  const loser = { ...winner, input: { query: 'loser'.repeat(100) }, output: { answer: 'discarded'.repeat(100) } }
+  const single = await price([winner])
+  const duplicate = await price([winner, loser])
+  const distinct = await price([winner, { ...winner, toolCallId: 'two' }])
+  expect(single).not.toBeNull()
+  expect(duplicate?.tokens).toBe(single?.tokens)
+  expect(distinct).not.toBeNull()
+  expect(distinct!.tokens).toBeLessThan(single!.tokens)
 })

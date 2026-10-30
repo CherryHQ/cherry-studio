@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-21-screenshot-copy-clipboard.md
+2026-10-21-screenshot-copy-clipboard.md: 8ee145bdfbd5b832f6873a9f2d1be75f96b6dcf0
+2026-10-21-screenshot-copy-clipboard.zh.md: ee82542a247151754debb634eaaba302d9039f7c

@@ -248,7 +248,7 @@ describe('FileProcessingService.startJob — routing', () => {
     })
     const svc = makeSvc()
 
-    const result = await svc.startJob({
+    await svc.startJob({
       feature: 'image_to_text',
       file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
       processorId: 'tesseract'
@@ -259,12 +259,6 @@ describe('FileProcessingService.startJob — routing', () => {
       entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
       {}
     )
-    expect(result).toEqual({
-      id: 'job-test-1',
-      type: 'file-processing.background',
-      status: 'pending',
-      input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
-    })
   })
 
   it('routes a background-mode handler on a remote processor to file-processing.background', async () => {
@@ -309,7 +303,7 @@ describe('FileProcessingService.startJob — routing', () => {
     )
   })
 
-  it('passes parent job linkage to JobManager enqueue options', async () => {
+  it('passes parent job linkage and restart recovery to JobManager enqueue options', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
@@ -322,13 +316,13 @@ describe('FileProcessingService.startJob — routing', () => {
         file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
         processorId: 'tesseract'
       },
-      { parentId: 'parent-job-1' }
+      { parentId: 'parent-job-1', recovery: 'abandon' }
     )
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background-local',
       entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
-      { parentId: 'parent-job-1' }
+      { parentId: 'parent-job-1', recovery: 'abandon' }
     )
   })
 

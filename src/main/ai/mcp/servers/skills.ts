@@ -44,7 +44,7 @@ export function createSkillsServer(agentId: string): McpServer {
     'search_skills',
     {
       description:
-        'Search supported skill marketplaces for installable skills by keyword, or resolve a GitHub SKILL.md URL the user gave you. Returns quality/source metadata, a review URL, and an opaque `install_source` string you pass verbatim to install_skill. Use this when the user wants a capability that might already exist as a skill, or points you at a skill on GitHub.',
+        'Find installable skills by keyword, or resolve a GitHub SKILL.md URL. Returns an install_source for install_skill.',
       inputSchema: z.object({
         query: z
           .string()
@@ -102,7 +102,7 @@ export function createSkillsServer(agentId: string): McpServer {
     'install_skill',
     {
       description:
-        "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only when the user intends to install the skill; the active Claude permission mode controls whether execution prompts or runs directly.",
+        'Install one marketplace skill from an exact install_source returned by search_skills. Never clone or run npx yourself.',
       inputSchema: z.object({
         install_source: z
           .string()

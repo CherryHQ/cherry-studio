@@ -160,6 +160,12 @@ mac:
     NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
     NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCalendarsUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsWriteOnlyAccessUsageDescription: Cherry Studio allows local MCP servers to create calendar events.
+    NSRemindersUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSRemindersFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSAppleEventsUsageDescription: Cherry Studio allows local MCP servers to control other applications using AppleScript.
   target:
     - target: dmg
     - target: zip
@@ -199,23 +205,82 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.6 - Bug Fixes and Provider Updates
+    Cherry Studio 2.1.8 - Editing, Voice, and Integration Updates
+
+    ✨ New Features
+    - [File Editing] Isolate drafts across notes, skills and artifacts, retain failed edits for retry, and support up to 8 MiB text editing and previews.
+    - [Language] Add Italian (it-IT) UI support with full translations and emoji picker.
+    - [Voice] Hold the mouse button in a text input to start dictation, release to transcribe.
+    - [Voice] Streaming speech synthesis with real-time audio playback.
+    - [Web Search] Add Tencent Yuanbao Search as a built-in provider.
+    - [Scheduled Tasks] Create and manage scheduled tasks through an agent chat with an interactive task card.
+    - [Screenshot] Copy the capture to clipboard while keeping the overlay open.
+    - [Selection] Select text anywhere to automatically copy it and show a quick-quote toolbar.
+    - [Composer] File and link tokens align with the text line, show per-type file icons, and load favicons while editing.
+    - [RTF] Preview Rich Text Format files as formatted documents.
+    - [Feishu] Configure whether the bot only replies to @mentions in group chats.
+    - [Remote Access] Set a custom hostname, IP or port for pairing invitations.
+    - [Assistant] Remember the “Also archive related topics” choice for future archives.
 
     🐛 Bug Fixes
-    - [Search] Fix searches for programming languages with hash symbols (e.g., C#, F#) not matching messages.
-    - [Backup] Fix restore failing on Windows when browser storage is locked by the current session. Restore progress now stays monotonic, failed attempts are reported with retry guidance, and orphaned restore files are cleaned up.
-    - [Errors] Stop misreporting client-refusal errors as "invalid API key" — now shows the correct permission guidance instead of sending users to regenerate working keys.
-    - [Chat] Context-usage token counts now follow the selected interface language and update when it changes.
+    - [Notes] Fix note content being overwritten when switching between cached notes.
+    - [Skills] Show localized error messages when a ZIP or folder is missing SKILL.md, without leaking temporary paths.
+    - [Chat] Expand long user messages by default; keep follow-up queues independent of read receipts.
+    - [Proxy] Match short wildcard IP bypass rules like 192.168.* on Windows.
+    - [Claude Code] Keep the 1M context budget when routing through the internal gateway.
+    - [Tab Bar] Closing the last tab opens the Launchpad instead of quitting the app.
+    - [File Preview] Preserve reading state when refreshing files; fix line spacing for Word documents.
+    - [Sidebar] Selected entries use neutral filled icons in both light and dark themes.
+    - [Chat Layout] Isolate list-group expansion state per window.
+    - [Paintings] Cap loading grid density to prevent performance issues.
+    - [MCP] Keep literal # characters in saved headers and environment values.
+    - [Knowledge] Ship a baseline sqlite-vec build for Linux x64.
+    - [Voice] Add diagnostics for operation failures and stream timeouts.
+    - [Agent Session] Continue the target workspace when creating across agents; surface compaction failures.
+    - [Messages] Drop historical tool parts with incompatible replay inputs.
+    - [Virtual List] Hand sticky headers over at the pinned stack bottom.
+    - [Notes] Fixed an issue where dismissing the "note changed on disk" conflict dialog left the editor session stuck, failing all later note renames, deletions, and moves with misleading errors.
+
+    🔒 Security
+    - [Electron] Upgrade to 44.9.3 for certificate security fixes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.6 - 问题修复与供应商更新
+    Cherry Studio 2.1.8 - 编辑、语音与集成更新
+
+    ✨ 新功能
+    - [文件编辑] 隔离笔记、技能和工件的草稿，保留保存失败的编辑以便重试，支持最大 8 MiB 的文本编辑与预览。
+    - [语言] 添加意大利语 (it-IT) 界面支持，包含完整翻译和表情选择器。
+    - [语音] 在文本输入中按住鼠标按钮开始听写，松开后转写。
+    - [语音] 流式语音合成与实时音频播放。
+    - [网页搜索] 添加腾讯元宝搜索作为内置提供商。
+    - [定时任务] 通过智能体对话创建和管理定时任务，并在聊天中显示交互式任务卡片。
+    - [截图] 复制截图到剪贴板，同时保持截图覆盖层开启。
+    - [选区] 选中任意文本即可自动复制并显示快速引用工具栏。
+    - [输入框] 文件和链接标记与文本行对齐，显示按类型的文件图标，编辑时加载网站图标。
+    - [RTF] 将富文本格式文件预览为格式化文档。
+    - [飞书] 配置群聊中的机器人是否仅在@提及时回复。
+    - [远程访问] 为配对邀请设置自定义主机名、IP 或端口。
+    - [助手] 记住归档时”同时归档相关话题”的选择。
 
     🐛 问题修复
-    - [搜索] 修复搜索包含井号的编程语言（如 C#、F#）时无法匹配消息的问题。
-    - [备份] 修复 Windows 上浏览器存储被当前会话锁定导致恢复失败的问题。恢复进度现在保持单调，失败的恢复会显示重试指引，孤立的恢复文件会被清理。
-    - [错误] 修复客户端拒绝被错误报告为"API 密钥无效"的问题 — 现在显示正确的权限指引，而不是引导用户重新生成有效的密钥。
-    - [对话] 上下文使用量的 token 计数现在跟随所选界面语言，并在切换语言时更新。
+    - [笔记] 修复在已缓存的笔记之间切换时内容被覆盖的问题。
+    - [技能] 当 ZIP 或文件夹缺少 SKILL.md 时显示本地化错误提示，不再泄露临时路径。
+    - [对话] 默认展开较长的用户消息；后续消息队列独立于已读回执。
+    - [代理] 匹配 Windows 上的短通配符 IP 绕过规则（如 192.168.*）。
+    - [Claude Code] 通过内部网关路由时保持 1M 上下文预算。
+    - [标签栏] 关闭最后一个标签页时打开启动台而非退出应用。
+    - [文件预览] 刷新文件时保持阅读状态；修复 Word 文档的行间距。
+    - [侧边栏] 选中的项目在浅色和深色主题中使用中性的填充图标。
+    - [对话布局] 按窗口隔离列表组展开状态。
+    - [绘画] 限制加载网格密度以防止性能问题。
+    - [MCP] 在保存的标头和环境值中保留 # 字符。
+    - [知识库] 为 Linux x64 提供基准 sqlite-vec 构建。
+    - [语音] 为操作失败和流超时添加诊断信息。
+    - [智能体会话] 跨智能体创建时继续目标工作区；显示压缩失败。
+    - [消息] 丢弃历史工具部件中不兼容的重放输入。
+    - [虚拟列表] 在固定堆栈底部移交粘性标题。
+    - [笔记] 修复关闭“笔记已在磁盘上更改”冲突对话框后编辑会话卡住，导致后续笔记重命名、删除和移动失败并显示误导性错误的问题。
 
-    💡 提示
-    - 腾讯 TI 和混元供应商已随腾讯平台下线而停用。请配置 TokenHub 或其他可用供应商以继续使用；现有本地数据已保留。
+    🔒 安全
+    - [Electron] 升级到 44.9.3 以修复证书安全问题。
     <!--LANG:END-->

@@ -28,6 +28,10 @@ const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(
   './native/darwin/build'
 )
 
+const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
+  './native/external-app/build.cjs'
+)
+
 type ElectronBuilderConfig = {
   releaseInfo?: {
     releaseNotes?: unknown
@@ -153,6 +157,27 @@ export const mainResolveAlias = {
   '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
   '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
   '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+  '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+  '@cherrystudio/web-search/providers/zhipu': resolve('packages/web-search/src/providers/zhipu.ts'),
+  '@cherrystudio/web-search/providers/tavily': resolve('packages/web-search/src/providers/tavily.ts'),
+  '@cherrystudio/web-search/providers/searxng': resolve('packages/web-search/src/providers/searxng.ts'),
+  '@cherrystudio/web-search/providers/exa': resolve('packages/web-search/src/providers/exa.ts'),
+  '@cherrystudio/web-search/providers/exa-mcp': resolve('packages/web-search/src/providers/exaMcp.ts'),
+  '@cherrystudio/web-search/providers/bocha': resolve('packages/web-search/src/providers/bocha.ts'),
+  '@cherrystudio/web-search/providers/querit': resolve('packages/web-search/src/providers/querit.ts'),
+  '@cherrystudio/web-search/providers/jina': resolve('packages/web-search/src/providers/jina.ts'),
+  '@cherrystudio/web-search/providers/firecrawl': resolve('packages/web-search/src/providers/firecrawl.ts'),
+  '@cherrystudio/web-search/providers/crawl4ai': resolve('packages/web-search/src/providers/crawl4ai.ts'),
+  '@cherrystudio/web-search/providers/parallel': resolve('packages/web-search/src/providers/parallel.ts'),
+  '@cherrystudio/web-search/providers/serply': resolve('packages/web-search/src/providers/serply.ts'),
+  '@cherrystudio/web-search/providers/yuanbao': resolve('packages/web-search/src/providers/yuanbao.ts'),
+  '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
+  '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
+  '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
+  '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
+  '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),
+  '@cherrystudio/web-search/tools/content': resolve('packages/web-search/src/tools/content.ts'),
+  '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts'),
   '@test-mocks': resolve('tests/__mocks__'),
   '@test-helpers': resolve('tests/helpers')
 }
@@ -169,6 +194,14 @@ export default defineConfig({
         buildStart() {
           this.addWatchFile(selectionPanelSource)
           buildSelectionPanel()
+        }
+      },
+      {
+        name: 'cherry-external-app',
+        apply: 'build',
+        buildStart() {
+          for (const file of externalAppSources) this.addWatchFile(file)
+          buildExternalApp()
         }
       },
       chunkExportGuardPlugin(),
@@ -216,7 +249,9 @@ export default defineConfig({
     plugins: [...sentrySourceMapPlugins('preload')],
     resolve: {
       alias: {
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+        '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
       }
     },
     build: {
@@ -272,6 +307,26 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+        '@cherrystudio/web-search/providers/zhipu': resolve('packages/web-search/src/providers/zhipu.ts'),
+        '@cherrystudio/web-search/providers/tavily': resolve('packages/web-search/src/providers/tavily.ts'),
+        '@cherrystudio/web-search/providers/searxng': resolve('packages/web-search/src/providers/searxng.ts'),
+        '@cherrystudio/web-search/providers/exa': resolve('packages/web-search/src/providers/exa.ts'),
+        '@cherrystudio/web-search/providers/exa-mcp': resolve('packages/web-search/src/providers/exaMcp.ts'),
+        '@cherrystudio/web-search/providers/bocha': resolve('packages/web-search/src/providers/bocha.ts'),
+        '@cherrystudio/web-search/providers/querit': resolve('packages/web-search/src/providers/querit.ts'),
+        '@cherrystudio/web-search/providers/jina': resolve('packages/web-search/src/providers/jina.ts'),
+        '@cherrystudio/web-search/providers/firecrawl': resolve('packages/web-search/src/providers/firecrawl.ts'),
+        '@cherrystudio/web-search/providers/crawl4ai': resolve('packages/web-search/src/providers/crawl4ai.ts'),
+        '@cherrystudio/web-search/providers/parallel': resolve('packages/web-search/src/providers/parallel.ts'),
+        '@cherrystudio/web-search/providers/serply': resolve('packages/web-search/src/providers/serply.ts'),
+        '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
+        '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
+        '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
+        '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
+        '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),
+        '@cherrystudio/web-search/tools/content': resolve('packages/web-search/src/tools/content.ts'),
+        '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts'),
         '@cherrystudio/file-preview/core': resolve('packages/file-preview/src/core.ts'),
         '@cherrystudio/file-preview/react': resolve('packages/file-preview/src/react.ts'),
         '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),

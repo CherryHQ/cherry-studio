@@ -519,7 +519,7 @@ describe('ResourceGrid empty state copy', () => {
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
   })
 
-  it('keeps the settings grid single-column with a little more space below the header', async () => {
+  it('defaults the settings grid to a single column', async () => {
     const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
 
     try {
@@ -527,8 +527,6 @@ describe('ResourceGrid empty state copy', () => {
 
       const loadingGrid = screen.getByTestId('resource-grid-loading')
       await waitFor(() => expect(loadingGrid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
-      expect(loadingGrid.parentElement).toBe(screen.getByTestId('shared-scrollbar'))
-      expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
     } finally {
       clientWidthSpy.mockRestore()
     }
@@ -575,6 +573,13 @@ describe('ResourceGrid empty state copy', () => {
 
   it('uses the no-match copy when search has no results', () => {
     renderResourceGrid({ search: 'missing' })
+
+    expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
+  })
+
+  it('uses the no-match copy when an external filter hides installed resources', () => {
+    renderResourceGrid({ hasHiddenResources: true })
 
     expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
     expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()

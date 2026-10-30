@@ -52,6 +52,16 @@ export function stripClaudeOneMMarker(value: string): string {
   return value
 }
 
+/**
+ * Apply or remove the 1M context marker on a role model id. The marker is appended without a
+ * separating space (`model[1M]`, Claude Code's documented form): Claude Code strips only the
+ * bracket token, so a spaced marker leaves a trailing space in the model id it sends.
+ */
+export function setClaudeOneMMarker(value: string, enabled: boolean): string {
+  const base = stripClaudeOneMMarker(value).trim()
+  return enabled && base ? `${base}${ONE_M_MARKER}` : base
+}
+
 export function hasClaudeDetailedModels(config: Record<string, unknown>): boolean {
   const env = getEnv(config)
   return CLAUDE_DETAILED_MODEL_ROLES.some((role) => stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim())

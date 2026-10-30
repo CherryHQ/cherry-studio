@@ -17,6 +17,12 @@ import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/dat
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
+const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+
+vi.mock('@renderer/components/chat/archiveAgentSessionsPopup', () => ({
+  archiveAgentSessionsPopup: archiveSessionsPopupMocks
+}))
+
 const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
 vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
@@ -315,6 +321,7 @@ const dataApiMocks = vi.hoisted(() => ({
   refetchAgents: vi.fn().mockResolvedValue(undefined),
   refetchChannels: vi.fn().mockResolvedValue(undefined),
   reorderAgent: vi.fn().mockResolvedValue(undefined),
+  reorderPin: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   restoreAgent: vi.fn().mockResolvedValue(undefined),
   updateWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -474,7 +481,15 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
 })
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [undefined, vi.fn()],
+  // Mirrors the real seeding: a window-scoped key falls back to the initValue
+  // (the persisted value) until an explicit write lands in the local tier.
+  useCache: (key: string, initValue?: unknown) => [
+    cacheMocks.values.has(key) ? cacheMocks.values.get(key) : initValue,
+    (value: unknown) => {
+      cacheMocks.values.set(key, value)
+      cacheMocks.setCache(key, value)
+    }
+  ],
   usePersistCache: (key: string) => [
     cacheMocks.values.get(key),
     (value: unknown) => {
@@ -566,13 +581,15 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
             ? dataApiMocks.reorderAgent
             : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
               ? dataApiMocks.updateWorkspace
-              : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
-                ? dataApiMocks.deleteWorkspace
-                : method === 'DELETE' && path === '/agents/:agentId'
-                  ? dataApiMocks.deleteAgent
-                  : method === 'DELETE' && path === '/agents/:agentId/sessions'
-                    ? dataApiMocks.deleteAgentSessions
-                    : dataApiMocks.findOrCreateWorkspace,
+              : method === 'PATCH' && path === '/pins/:id/order'
+                ? dataApiMocks.reorderPin
+                : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
+                  ? dataApiMocks.deleteWorkspace
+                  : method === 'DELETE' && path === '/agents/:agentId'
+                    ? dataApiMocks.deleteAgent
+                    : method === 'DELETE' && path === '/agents/:agentId/sessions'
+                      ? dataApiMocks.deleteAgentSessions
+                      : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -623,7 +640,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.agent.delete.content':
           'Delete all sessions for this agent. The agent itself will not be deleted.',
         'agent.session.agent.delete.title': 'Delete all sessions',
-        'agent.session.agent.delete.trigger': 'Delete all sessions',
+        'agent.session.archive.trigger': 'Archive all conversations',
         'agent.edit.title': 'Edit Agent',
         'agent.icon.type': 'Agent icon',
         'agent.session.auto_rename': 'Generate task name',
@@ -941,13 +958,6 @@ describe('Sessions', () => {
     sessionDataMocks.deleteSession.mockResolvedValue(true)
     sessionDataMocks.deleteSessions.mockResolvedValue({ deletedIds: [] })
     sessionDataMocks.restoreSession.mockResolvedValue(undefined)
-    Object.assign(window, {
-      api: {
-        file: {
-          openPath: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
     cacheMocks.state.activeSessionId = 'session-a'
     fileNavigationMocks.request = null
     setupSessions()
@@ -987,6 +997,11 @@ describe('Sessions', () => {
         return dataApiMocks.findOrCreateWorkspace({ body: { path: input.path as string } })
       }
       return Promise.resolve(undefined)
+    })
+    archiveSessionsPopupMocks.show.mockReset()
+    archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
     })
     conversationOwnerPopupMocks.show.mockImplementation(
       async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
@@ -3361,7 +3376,10 @@ describe('Sessions', () => {
     )
   })
 
-  it('rejects drops onto pinned sessions within an agent group', () => {
+  // Would catch: a pinned move being sent to `/agent-sessions/:id/order`, which
+  // writes the session's own orderKey and leaves the pinned order untouched, or
+  // the anchor being sent as a session id where the pin id is required.
+  it('reorders a pinned session through the pin order endpoint using pin ids', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
@@ -3370,30 +3388,75 @@ describe('Sessions', () => {
     })
     setupSessions({
       sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
-        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'b' })
+        createSession({ id: 'session-pinned-a', name: 'Alpha pinned', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-pinned-b', name: 'Beta pinned', agentId: 'agent-a', orderKey: 'b' })
       ],
-      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+      pinIdBySessionId: new Map([
+        ['session-pinned-a', 'pin-a'],
+        ['session-pinned-b', 'pin-b']
+      ])
     })
 
     render(<SessionsForTest />)
-    startDraggingSession('session-a')
+    startDraggingSession('session-pinned-a')
 
     act(() => {
       dndMocks.onDragEnd?.({
         active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
+          data: sortableData('item:session-pinned-a'),
+          id: 'item:session-pinned-a',
           rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
         },
         over: {
-          data: sortableData('item:session-pinned'),
-          id: 'item:session-pinned',
+          data: sortableData('item:session-pinned-b'),
+          id: 'item:session-pinned-b',
           rect: { top: 10, height: 20 }
         }
       })
     })
 
+    await vi.waitFor(() =>
+      expect(dataApiMocks.reorderPin).toHaveBeenCalledWith({ params: { id: 'pin-a' }, body: { after: 'pin-b' } })
+    )
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
+  })
+
+  // Would catch: dragging across the pinned boundary, which would silently pin or
+  // unpin a task — pin state must only change through the star button.
+  it('rejects dragging a pinned session onto an unpinned one', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-plain', name: 'Plain session', agentId: 'agent-a', orderKey: 'b' })
+      ],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+    startDraggingSession('session-pinned')
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-pinned'),
+          id: 'item:session-pinned',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: {
+          data: sortableData('item:session-plain'),
+          id: 'item:session-plain',
+          rect: { top: 10, height: 20 }
+        }
+      })
+    })
+
+    expect(dataApiMocks.reorderPin).not.toHaveBeenCalled()
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
   })
 
@@ -3509,7 +3572,9 @@ describe('Sessions', () => {
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Files' }))
 
-    await vi.waitFor(() => expect(window.api.file.openPath).toHaveBeenCalledWith('/Users/jd/project-a'))
+    await vi.waitFor(() =>
+      expect(dataApiMocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_path', '/Users/jd/project-a')
+    )
   })
 
   it('collapses workspace groups from the display options menu', async () => {
@@ -3874,7 +3939,7 @@ describe('Sessions', () => {
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    expect(screen.queryByRole('menuitem', { name: 'Delete all sessions' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('menuitem', { name: 'Archive all conversations' }).length).toBeGreaterThan(0)
     expect(
       screen.queryByRole('menuitem', { name: /Delete Permanently|common.delete_permanently/ })
     ).not.toBeInTheDocument()
@@ -4059,7 +4124,7 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteSessionsMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Delete all sessions' })
+      .getAllByRole('menuitem', { name: 'Archive all conversations' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(deleteSessionsMenuItem).toBeDefined()
     expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument()
@@ -4073,6 +4138,9 @@ describe('Sessions', () => {
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
     expect(popup.confirm).not.toHaveBeenCalled()
     expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+    expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: name, sessionCount: 1 })
+    )
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
       itemCount: 2,
@@ -4096,6 +4164,64 @@ describe('Sessions', () => {
     expect(dataApiMocks.restoreAgent).not.toHaveBeenCalled()
     getActiveSession.mockRestore()
   })
+
+  it.each(['cancel', 'confirm', 'empty'] as const)(
+    'archives only the selected Agent conversations after %s',
+    async (outcome) => {
+      preferenceMocks.values.set('agent.session.display_mode', 'agent')
+      setupSessions({
+        pinIdBySessionId: new Map([['session-pinned', 'pin-a']]),
+        sessions: [
+          createSession({ id: 'session-a', agentId: 'agent-a' }),
+          createSession({ id: 'session-pinned', agentId: 'agent-a' }),
+          createSession({ id: 'session-other', agentId: 'agent-b' })
+        ]
+      })
+      archiveSessionsPopupMocks.show.mockResolvedValueOnce(false)
+      render(<SessionsForTest />)
+      const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
+      fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+      const item = screen
+        .getAllByRole('menuitem', { name: 'Archive all conversations' })
+        .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
+      fireEvent.click(item as HTMLElement)
+      await vi.waitFor(() =>
+        expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+          expect.objectContaining({ agentName: 'Alpha agent', sessionCount: 2 })
+        )
+      )
+      expect(dataApiMocks.ipcRequest).not.toHaveBeenCalled()
+      if (outcome === 'cancel') return
+      dataApiMocks.deleteAgentSessions.mockResolvedValueOnce({
+        deletedIds: outcome === 'empty' ? [] : ['session-a', 'session-pinned']
+      })
+
+      await act(async () => {
+        await archiveSessionsPopupMocks.show.mock.calls.at(-1)?.[0].action()
+      })
+      expect(dataApiMocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.sessions.delete', {
+        agentId: 'agent-a'
+      })
+      expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
+      for (const key of ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']) {
+        expect(dataApiMocks.invalidate).toHaveBeenCalledWith(key)
+      }
+      if (outcome === 'empty') {
+        expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin')
+        expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+        expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+      } else {
+        expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-pinned'])
+        expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+          itemCount: 2,
+          onUndo: expect.any(Function)
+        })
+        await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+        expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-a')
+        expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-pinned')
+      }
+    }
+  )
 
   it('collapses agent groups from the display options menu', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')

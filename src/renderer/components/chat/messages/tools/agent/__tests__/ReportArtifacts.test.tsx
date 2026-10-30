@@ -5,6 +5,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import enUs from '@renderer/i18n/locales/en-us.json'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
@@ -51,12 +52,17 @@ vi.mock('@renderer/components/OpenTarget', () => ({
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
-    t: (key: string) => {
+    t: (key: string, options?: { format?: string }) => {
+      const messages: Record<string, string> = enUs
+      if (key.startsWith('chat.input.tools.file_type.') || key.startsWith('files.')) {
+        return messages[key]?.replace('{{format}}', options?.format ?? '') ?? key
+      }
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.copied') return 'Copied'
       if (key === 'common.copy') return 'Copy'
       if (key === 'chat.input.tools.open_file') return 'Open File'
       if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
+      if (key === 'chat.input.tools.open_preview') return 'Open preview'
       if (key === 'chat.input.tools.open_with') return 'Open with'
       if (key === 'chat.input.tools.file_not_found') return 'File not found'
       if (key === 'agent.session.file_manager.finder') return 'Finder'
@@ -122,8 +128,51 @@ describe('MessageReportArtifacts', () => {
 
     expect(screen.getByRole('button', { name: 'Preview report.md' })).toBeInTheDocument()
     expect(screen.getByText('report.md')).toBeInTheDocument()
+    expect(screen.queryByText('Open preview')).not.toBeInTheDocument()
     expect(screen.queryByText('Created final outputs')).toBeNull()
     expect(screen.queryByText('- Report')).toBeNull()
+  })
+
+  it.each([
+    ['slides.PPTX', 'PowerPoint presentation'],
+    ['legacy.ppt', 'PowerPoint presentation'],
+    ['report.docx', 'Word document'],
+    ['report.pdf', 'PDF document'],
+    ['report.md', 'Markdown document'],
+    ['page.html', 'HTML webpage'],
+    ['sheet.xlsx', 'Excel spreadsheet'],
+    ['data.csv', 'CSV spreadsheet'],
+    ['slides.odp', 'OpenDocument presentation'],
+    ['document.odt', 'OpenDocument document'],
+    ['sheet.ods', 'OpenDocument spreadsheet'],
+    ['photo.PNG', 'Image'],
+    ['music.mp3', 'Audio'],
+    ['movie.mp4', 'Video'],
+    ['backup.tar.gz', 'Archive'],
+    ['data.json', 'JSON file'],
+    ['script.py', 'PY file'],
+    ['unknown.xyz', 'XYZ file'],
+    ['unknown.constructor', 'CONSTRUCTOR file'],
+    ['README', 'File'],
+    ['.gitignore', 'File'],
+    ['report.', 'File']
+  ])('labels %s as %s without requiring a preview action', (fileName, label) => {
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'file-type-test',
+            toolCallId: 'file-type-test',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: { artifacts: [{ path: `/folder.with.dots/${fileName}` }] }
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByText('Open preview')).not.toBeInTheDocument()
   })
 
   it('uses the latest declaration for duplicate artifact paths', () => {
@@ -181,6 +230,7 @@ describe('MessageReportArtifacts', () => {
       { openArtifactFile, resolvePath: (path) => `/workspace/${path}` }
     )
 
+    expect(screen.getByText('Open preview')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
     await waitFor(() => {
       expect(openArtifactFile).toHaveBeenCalledWith('/workspace/dist/report.md')

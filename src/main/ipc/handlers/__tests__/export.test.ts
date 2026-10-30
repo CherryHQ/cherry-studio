@@ -28,7 +28,7 @@ beforeEach(() => {
 describe('exportHandlers', () => {
   it('to_word delegates the markdown + filename to ExportService', async () => {
     await exportHandlers['export.word.from_markdown']({ markdown: '# hi', fileName: 'doc' }, ctx)
-    expect(exportToWordMock).toHaveBeenCalledWith('# hi', 'doc')
+    expect(exportToWordMock).toHaveBeenCalledWith('# hi', 'doc', 'w1')
   })
 
   it('get_obsidian_vaults returns the vault list', async () => {
