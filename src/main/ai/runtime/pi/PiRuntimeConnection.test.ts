@@ -1907,6 +1907,43 @@ describe('PiRuntimeConnection', () => {
     void conn
   })
 
+  it('keeps the admitted reply language through the replay, not one saved during backoff', async () => {
+    // The turn was admitted with English; Japanese is saved while the provider backs off. The replay
+    // stays inside this host turn, so it keeps materializing the admitted language.
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'Japanese')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: {}
+    })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      promptPolicy: { instructions: null, language: 'English' }
+    }).start()
+
+    expect(appendedSystemPrompt()).toContain('By default, respond in English.')
+    expect(appendedSystemPrompt()).not.toContain('Japanese')
+    expect(conn.getPromptPolicy?.()).toMatchObject({ language: 'English' })
+  })
+
+  it('pins an admitted language opt-out through the replay', async () => {
+    // `null` is the explicit "no language" admission; the row's later Japanese save must not leak in.
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'Japanese')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: {}
+    })
+    await new PiRuntimeConnection({
+      ...input,
+      promptPolicy: { instructions: null, language: null }
+    }).start()
+
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
+  })
+
   it('rebuilds the fresh turn after a replay whose pinned prompt the saved row no longer has', async () => {
     // The turn started on the primary with instructions A; the user saved the fallback model plus
     // instructions B while the provider backed off. The replay on the fallback materializes A, but

@@ -90,6 +90,10 @@ export interface AgentRuntimePromptPolicy {
    * instruction content (agent-prompt-layers.md).
    */
   promptVariables?: PromptVariableInputs
+  /**
+   * The effective reply language the turn materialized, as `getEffectiveAgentLanguage` resolved.
+   */
+  language?: string | null
 }
 
 export interface AgentRuntimeConnectInput {

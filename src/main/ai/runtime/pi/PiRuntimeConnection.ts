@@ -178,6 +178,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private turnInstructions?: string | null
   /** Variable values this turn resolved its instructions with; a replay reuses them, not live rows. */
   private turnPromptVariables?: PromptVariableInputs
+  /** Effective reply language this turn materialized; a replay keeps it, `null` pinning none. */
+  private turnLanguage?: string | null
   /** Whether this connection materialized a pinned (replayed) prompt rather than the row's own. */
   private replayingPrompt = false
   private disabledTools = new Set<string>()
@@ -269,6 +271,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       : (initialSnapshot.agent.instructions ?? null)
     this.turnPromptVariables =
       this.input.promptPolicy?.promptVariables ?? capturePromptVariableInputs(initialSnapshot.agent.modelName ?? null)
+    // Language is a prompt-rebuild fact the ordinary reconciliation applies at the next fresh turn,
+    // so a language saved while the failed provider request backs off must not change this turn's
+    // replay. `null` pins the resolved-to-none case; an absent pin keeps the freshly read row.
+    this.turnLanguage =
+      this.input.promptPolicy?.language !== undefined
+        ? this.input.promptPolicy.language
+        : initialSnapshot.effectiveLanguage
     this.replayingPrompt = this.input.promptPolicy !== undefined
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
@@ -347,7 +356,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         // applies on the next fresh turn (agent-prompt-layers.md).
         agent: { ...agent, instructions: this.turnInstructions ?? undefined },
         citationsGuidance,
-        effectiveLanguage: initialSnapshot.effectiveLanguage,
+        effectiveLanguage: this.turnLanguage,
         promptVariables: this.turnPromptVariables
       })
       const mountedServers = resolveMountedMcpServers(agent, {
@@ -603,7 +612,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   /** The prompt this turn was admitted with — what a fallback replay must keep materializing. */
   getPromptPolicy(): AgentRuntimePromptPolicy {
-    return { instructions: this.turnInstructions ?? null, promptVariables: this.turnPromptVariables }
+    return {
+      instructions: this.turnInstructions ?? null,
+      promptVariables: this.turnPromptVariables,
+      ...(this.turnLanguage !== undefined ? { language: this.turnLanguage } : {})
+    }
   }
 
   /**
