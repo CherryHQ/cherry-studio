@@ -24,7 +24,10 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
   })
 
   useEffect(() => registerNotesEditFlush(session.flush), [session.flush])
-  useEffect(() => registerNotesRelocationAutosaveCancel(session.cancelPendingAutosave), [session.cancelPendingAutosave])
+  useEffect(
+    () => registerNotesRelocationAutosaveCancel(session.cancelPendingAutosave, session.resumePendingAutosave),
+    [session.cancelPendingAutosave, session.resumePendingAutosave]
+  )
 
   return <NotesFileEditSessionContext value={session}>{children}</NotesFileEditSessionContext>
 }

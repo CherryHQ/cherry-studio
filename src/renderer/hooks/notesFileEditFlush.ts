@@ -16,6 +16,7 @@ const preFlushCallbacks = new Set<() => void | Promise<void>>()
 const departingWriteAttempts = new Set<DepartingWriteAttempt>()
 const pendingImagePasteOperations = new Set<Promise<void>>()
 const autosaveCancelCallbacks = new Set<() => void>()
+const autosaveResumeCallbacks = new Set<() => void>()
 const relocationEditLockListeners = new Set<() => void>()
 let relocationEditLockDepth = 0
 let relocationBarrierEpoch = 0
@@ -55,10 +56,27 @@ export function lockNotesEditsForRelocation(): void {
   notifyRelocationEditLockChanged()
 }
 
-export function registerNotesRelocationAutosaveCancel(cancel: () => void): () => void {
+/**
+ * `cancel` drops a scheduled autosave when the barrier engages. `resume` (optional) re-schedules the autosave
+ * that `cancel` dropped, called once the lock is fully released; it must itself re-check that the draft is
+ * still dirty and current, so a barrier that aborted (or a flush that already saved it) never loses or duplicates a write.
+ */
+export function registerNotesRelocationAutosaveCancel(cancel: () => void, resume?: () => void): () => void {
   autosaveCancelCallbacks.add(cancel)
+  if (resume) {
+    autosaveResumeCallbacks.add(resume)
+  }
   return () => {
     autosaveCancelCallbacks.delete(cancel)
+    if (resume) {
+      autosaveResumeCallbacks.delete(resume)
+    }
+  }
+}
+
+function resumeAutosavesAfterRelocationUnlock(): void {
+  for (const resume of autosaveResumeCallbacks) {
+    resume()
   }
 }
 
@@ -68,6 +86,9 @@ export function releaseOneNotesRelocationEditLock(): void {
   }
   relocationEditLockDepth -= 1
   notifyRelocationEditLockChanged()
+  if (relocationEditLockDepth === 0) {
+    resumeAutosavesAfterRelocationUnlock()
+  }
 }
 
 export function getNotesRelocationBarrierEpoch(): number {
@@ -81,6 +102,7 @@ export function unlockNotesEditsForRelocation(): void {
   relocationEditLockDepth = 0
   relocationBarrierEpoch += 1
   notifyRelocationEditLockChanged()
+  resumeAutosavesAfterRelocationUnlock()
 }
 
 export function areNotesEditsLockedForRelocation(): boolean {

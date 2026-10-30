@@ -12,7 +12,13 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { resetNotesEditFlushTrackingForTests } from '../notesFileEditFlush'
+import {
+  areNotesEditsLockedForRelocation,
+  lockNotesEditsForRelocation,
+  registerNotesRelocationAutosaveCancel,
+  resetNotesEditFlushTrackingForTests,
+  unlockNotesEditsForRelocation
+} from '../notesFileEditFlush'
 import { FILE_EDIT_MAX_SIZE_BYTES, resetRetainedNotesModelsForTests, useFileEditSession } from '../useFileEditSession'
 
 const path = '/ws/notes.txt' as AbsoluteFilePath
@@ -795,6 +801,81 @@ describe('useFileEditSession', () => {
     expect(result.current.isDirty).toBe(true)
     expect(writeCalls()).toHaveLength(0)
     expect(suppressAutosave).toHaveBeenCalled()
+  })
+
+  it('resumes the autosave a relocation barrier cancelled once an aborted barrier unlocks', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderHook(
+        () => useFileEditSession(handle, { suppressAutosave: () => areNotesEditsLockedForRelocation() }),
+        { wrapper }
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      const unregister = registerNotesRelocationAutosaveCancel(
+        result.current.cancelPendingAutosave,
+        result.current.resumePendingAutosave
+      )
+
+      act(() => result.current.setDraft('changed\n'))
+      // Barrier engages with the autosave still pending, then aborts (e.g. another window has no flush listener).
+      act(() => lockNotesEditsForRelocation())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+      expect(writeCalls()).toHaveLength(0)
+      expect(result.current.isDirty).toBe(true)
+
+      ipcMocks.request.mockResolvedValueOnce(writeResult(2, 8))
+      act(() => unlockNotesEditsForRelocation())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+      expect(writeCalls()).toHaveLength(1)
+      expect(writeCalls()[0][1]).toMatchObject({ data: utf8('changed\n') })
+      expect(result.current.isDirty).toBe(false)
+
+      // A second unlock must not write again.
+      act(() => unlockNotesEditsForRelocation())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+      expect(writeCalls()).toHaveLength(1)
+      unregister()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not resume a cancelled autosave whose draft was saved or discarded in the meantime', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderHook(
+        () => useFileEditSession(handle, { suppressAutosave: () => areNotesEditsLockedForRelocation() }),
+        { wrapper }
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      const unregister = registerNotesRelocationAutosaveCancel(
+        result.current.cancelPendingAutosave,
+        result.current.resumePendingAutosave
+      )
+      act(() => result.current.setDraft('changed\n'))
+      act(() => lockNotesEditsForRelocation())
+      act(() => result.current.discard())
+      act(() => unlockNotesEditsForRelocation())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+      expect(writeCalls()).toHaveLength(0)
+      unregister()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('rejects a departing relocation flush when unmount cannot persist a dirty draft', async () => {

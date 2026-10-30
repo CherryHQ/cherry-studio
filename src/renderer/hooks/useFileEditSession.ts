@@ -100,6 +100,8 @@ export interface FileEditSession {
   flush: () => Promise<void>
   /** Drops a scheduled debounced autosave without writing. */
   cancelPendingAutosave: () => void
+  /** Re-schedules an autosave dropped by `cancelPendingAutosave` if its draft is still dirty and current. */
+  resumePendingAutosave: () => void
   /**
    * A watcher observed a change on this file. Pass the event's mtime (ms) when
    * available so a self-save echo is dismissed without any IPC. Dirty models are
@@ -325,8 +327,15 @@ export function useFileEditSession(
     void model.writeTask.run(() => runWritesRef.current?.(model) ?? Promise.resolve())
   }, [])
 
+  // The model whose debounced autosave is scheduled and has not fired yet. Lets a relocation barrier that
+  // cancels the timer (and then aborts) put back exactly the save it dropped.
+  const scheduledAutosaveModelRef = useRef<FileEditModel | null>(null)
   const debouncedWrite = useMemo(
-    () => debounce((model: FileEditModel) => requestWrite(model), AUTOSAVE_DEBOUNCE_MS),
+    () =>
+      debounce((model: FileEditModel) => {
+        if (scheduledAutosaveModelRef.current === model) scheduledAutosaveModelRef.current = null
+        requestWrite(model)
+      }, AUTOSAVE_DEBOUNCE_MS),
     [requestWrite]
   )
 
@@ -441,7 +450,10 @@ export function useFileEditSession(
       // A persistent I/O failure must not turn every keystroke into another
       // doomed write. Keep accepting edits in memory and wait for an explicit
       // retry (`flush`) or discard from the consumer.
-      if (!model.lastWriteError) debouncedWrite(model)
+      if (!model.lastWriteError) {
+        scheduledAutosaveModelRef.current = model
+        debouncedWrite(model)
+      }
     },
     [debouncedWrite]
   )
@@ -498,6 +510,17 @@ export function useFileEditSession(
 
   const cancelPendingAutosave = useCallback(() => {
     debouncedWrite.cancel()
+  }, [debouncedWrite])
+
+  const resumePendingAutosave = useCallback(() => {
+    const model = scheduledAutosaveModelRef.current
+    scheduledAutosaveModelRef.current = null
+    if (!model || model !== modelRef.current) return // switched files or departed: that model owns its own save
+    if (model.draft === model.snapshot.content || model.conflict || model.lastWriteError) return // saved, discarded or blocked
+    // Do not read the suppression flag here: it still reflects the pre-unlock render. The debounced write
+    // re-checks it when the timer fires, by which time the unlock has re-rendered.
+    scheduledAutosaveModelRef.current = model
+    debouncedWrite(model)
   }, [debouncedWrite])
 
   const flush = useCallback(async () => {
@@ -591,6 +614,7 @@ export function useFileEditSession(
       keepDraft,
       flush,
       cancelPendingAutosave,
+      resumePendingAutosave,
       notifyExternalChange,
       refreshFromDiskIfIdle
     }
@@ -611,6 +635,7 @@ export function useFileEditSession(
     keepDraft,
     flush,
     cancelPendingAutosave,
+    resumePendingAutosave,
     notifyExternalChange,
     refreshFromDiskIfIdle
   ])

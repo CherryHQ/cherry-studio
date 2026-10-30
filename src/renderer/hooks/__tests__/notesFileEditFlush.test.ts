@@ -8,6 +8,7 @@ import {
   lockNotesEditsForRelocation,
   registerNotesEditFlush,
   registerNotesEditPreFlush,
+  registerNotesRelocationAutosaveCancel,
   releaseOneNotesRelocationEditLock,
   runStructuralNotesFilesystemWrite,
   trackDepartingNotesFileWrite,
@@ -190,5 +191,35 @@ describe('notesFileEditFlush failed departing writes', () => {
     await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
     await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
     expect(attempt).toBe(2)
+  })
+})
+
+describe('notesFileEditFlush autosave resume', () => {
+  it('cancels on first lock and resumes only when the lock is fully released', () => {
+    unlockNotesEditsForRelocation()
+    const cancel = vi.fn()
+    const resume = vi.fn()
+    const unregister = registerNotesRelocationAutosaveCancel(cancel, resume)
+
+    lockNotesEditsForRelocation()
+    lockNotesEditsForRelocation()
+    expect(cancel).toHaveBeenCalledTimes(1)
+
+    releaseOneNotesRelocationEditLock()
+    expect(resume).not.toHaveBeenCalled()
+    releaseOneNotesRelocationEditLock()
+    expect(resume).toHaveBeenCalledTimes(1)
+
+    lockNotesEditsForRelocation()
+    unlockNotesEditsForRelocation()
+    expect(resume).toHaveBeenCalledTimes(2)
+
+    unlockNotesEditsForRelocation() // no lock held: no resume
+    expect(resume).toHaveBeenCalledTimes(2)
+
+    unregister()
+    lockNotesEditsForRelocation()
+    unlockNotesEditsForRelocation()
+    expect(resume).toHaveBeenCalledTimes(2)
   })
 })
