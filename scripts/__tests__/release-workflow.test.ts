@@ -1336,8 +1336,9 @@ describe('release workflow gates', () => {
 
   it('uploads one directly downloadable installer per preview architecture', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
-    const uploads = workflow.jobs.build.steps.filter((step: { uses?: string }) =>
-      step.uses?.startsWith('actions/upload-artifact@')
+    const uploads = workflow.jobs.build.steps.filter(
+      (step: { name?: string; uses?: string }) =>
+        step.uses?.startsWith('actions/upload-artifact@') && step.name?.endsWith(' installer')
     )
 
     expect(uploads).toHaveLength(2)

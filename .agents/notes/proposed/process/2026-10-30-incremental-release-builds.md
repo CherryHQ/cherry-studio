@@ -94,6 +94,8 @@ The approved follow-up uses authenticated encryption in GitHub Actions cache rat
 
 Resolve each task's Vite environment with Vite's own loader and namespace rules, including dotenv expansion and process overrides. A keyed digest captures effective values without recording them. Sentry upload credentials are not compilation inputs. The release builder produces hidden source maps, injects Debug IDs with the pinned Sentry CLI before caching, uploads on both hits and misses, and deletes maps only from packaging output after successful upload. Failed uploads fail the release. Ordinary build aliases keep their existing Sentry plugin path. Validate encryption tampering/key rotation, environment invalidation, credential exclusion, map/JS identity and failure propagation using real fixtures before enabling reuse.
 
+The same opt-in runner is available through Preview Release for online acceptance before formal rollout. Detect support in the selected same-repository source tree and retain the existing full preview path when disabled or unsupported. Run preview type checks before cached compilation, package with explicit `--publish never`, and remove cache/upload credentials before the packager. Use independent preview native/encrypted namespaces and upload only installer and timing artifacts. A maintainer testing workflow changes before merge selects a reviewed workflow branch separately from the source branch. Compare an unchanged source SHA because preview versions embed that SHA; no release branch, tag, draft or approval state is created by this trial.
+
 ### Cache contract
 
 | Layer | Required identity and invalidation inputs | Restore rule |

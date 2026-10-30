@@ -39,14 +39,24 @@ The release branch is the source of every installer and release asset. `main` re
 Use **Preview Release** when a maintainer needs installable packages from an unreleased feature branch for internal testing:
 
 1. Open **Actions** → **Preview Release** → **Run workflow**.
-2. Select `main` in the workflow branch selector. The workflow definition and its permissions must always come from `main`.
+2. Normally select `main` in the workflow branch selector. To validate a workflow change before merge, a maintainer may select the reviewed same-repository workflow branch; this selects the workflow definition and permissions, independently of the source `branch` input.
 3. Enter a same-repository source branch in the `branch` input.
-4. Select `all`, `windows`, `mac`, or `linux`, then run the workflow.
+4. Select `all`, `windows`, `mac`, or `linux`. Leave `incremental=false` for the existing full build, or enable it for the cache trial below, then run the workflow.
 5. Open the completed workflow run and use the **Preview downloads** summary table to choose a platform, edition, and architecture; each row includes the version, size, and a direct artifact download link. The files are also listed under **Artifacts**.
 
 Every selected platform builds both the global and China editions from the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. Each successful platform and edition build uploads one installer per architecture as a separate, unarchived Actions artifact: Windows `setup.exe`, macOS `.dmg`, or Linux `.AppImage`. Download only the edition and architecture you need; artifact names are the original installer filenames and retention is 3 days. Portable executables, ZIP archives, DEB/RPM packages, and update metadata are not uploaded for previews. The download table includes available installers even if another build fails; if no installers were uploaded, it points to the build jobs instead. The workflow does not create GitHub Releases or tags.
 
 Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. Preview jobs use repository-level secrets and do not reference a GitHub Environment, so they start without deployment approval. Only dispatch previews for trusted same-repository source branches. Formal publishing still requires approval through the `release` Environment. Preview builds explicitly disable package publishing and do not acquire the `release-state` lock or participate in formal release preparation, hotfix backports, or Post Release.
+
+### Preview incremental cache trial
+
+Set `incremental=true` to exercise the release compilation runner on a source branch containing `build:release` and `scripts/release/build-app.js`. Unsupported source branches fall back to the existing full preview commands. Supported incremental previews still run type checks in each selected platform/edition job, then compile with `pnpm build:release` and package separately with `--publish never`. Turning the switch off restores the original aggregate build path.
+
+Configure `RELEASE_BUILD_CACHE_KEY` as described in [Incremental build trial](#incremental-build-trial) to test encrypted JS/source-map reuse. The key is exposed only to enabled build steps and removed, along with Sentry upload credentials, before invoking the packager. A missing or invalid key still permits normal compilation and Sentry upload; sensitive JS tasks bypass caching. Native and encrypted JS caches use separate `preview-release-build-v1-*` and `preview-js-encrypted-v1-*` namespaces, isolated from formal release caches and partitioned by OS, host architecture, edition and lockfile. Cache transfer errors do not fail a valid build.
+
+For a controlled comparison, run the same workflow branch and unchanged source branch twice with `incremental=true`, starting with `platform=mac`. Keep the resolved source SHA, encryption key and build configuration stable. The first cold run populates caches; the next run should report JS `hit` results while still uploading matching maps to Sentry and creating new installers. Preview versions contain the source SHA, so changing commits changes build inputs and is not a pure warm-cache comparison. Compare the `preview-build-timings-<os>-<edition>` JSONL artifacts (retained for 14 days) for compilation, Sentry and native stages; the build log's `time` output measures the separate packaging command. Use Actions step durations for transfers and total elapsed time. Download and smoke-test both editions' installers; a cache hit alone does not establish runtime or signing acceptance.
+
+Before merge, both the workflow branch selector and source `branch` input must point to branches containing the new workflow and runner respectively. For this trial they can be the same reviewed PR branch. Do not approve or dispatch untrusted branch code with repository secrets. Preview runs continue to upload only Actions artifacts and never publish a GitHub Release.
 
 ## Nightly Builds
 
