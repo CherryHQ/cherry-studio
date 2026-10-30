@@ -237,7 +237,6 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 
 vi.mock('@renderer/ipc', async (importActual) => ({
   ...(await importActual<typeof RendererIpc>()),
-  useIpcOn: vi.fn(),
   ipcApi: { ...(await importActual<typeof RendererIpc>()).ipcApi, request: ipcRequestMock }
 }))
 

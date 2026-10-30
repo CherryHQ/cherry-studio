@@ -7,7 +7,7 @@ sources:
   - src/renderer/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
-  - src/main/ai/runtime/claudeCode/streamAdapter.ts
+  - src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
@@ -111,10 +111,10 @@ The rendered card is not byte-bound to that object: the stream approval chunk
 carries only IDs, the card uses earlier streamed tool input, and a configured
 `PreToolUse` hook may rewrite input before approval
 (`src/main/ai/agentSession/AgentSessionRuntimeService.ts:2582`,
-`src/main/ai/runtime/claudeCode/streamAdapter.ts:1954`,
+`src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts`,
 `src/renderer/components/chat/messages/tools/toolResponse.ts:238`,
 `src/main/ai/runtime/claudeCode/settingsBuilder.ts:335`). The pinned
-`@anthropic-ai/claude-agent-sdk` 0.3.284 (`package.json:134`) permits this through
+`@anthropic-ai/claude-agent-sdk` 0.3.311 (`package.json`) permits this through
 `PreToolUseHookSpecificOutput.updatedInput`. The renderer also
 cannot distinguish every JSON value type: the string `"false"` and boolean
 `false` render identically

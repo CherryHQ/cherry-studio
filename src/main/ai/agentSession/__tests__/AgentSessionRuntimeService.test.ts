@@ -2458,9 +2458,11 @@ describe('AgentSessionRuntimeService', () => {
       getEntry(service).connection = connectionFor('default')
       service.markTurnTerminal('session-1', 'success')
       const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-2') })
-      const reader = service
-        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
-        .getReader()
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      }).getReader()
       await reader.read()
       await vi.waitFor(() => expect(sent).toEqual([{ effort: 'max', messageId: 'user-2' }]))
       expect(mocks.getAgent()).not.toHaveProperty('configuration')
@@ -2486,9 +2488,11 @@ describe('AgentSessionRuntimeService', () => {
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-1') })
-      const reader = service
-        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
-        .getReader()
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      }).getReader()
       await reader.read()
       await vi.waitFor(() => expect(sent).toEqual(['max']))
       service.enqueueUserMessage('session-1', userMessage('user-2'), { reasoningEffort: 'low' })
@@ -2498,13 +2502,11 @@ describe('AgentSessionRuntimeService', () => {
       expect(sent).toEqual(['max'])
       await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn.mock.lastCall?.[0].request.reasoningEffort).toBe('low'))
-      const followUpReader = service
-        .openTurnStream({
-          sessionId: 'session-1',
-          turnId: entry.currentTurn.turnId,
-          signal: new AbortController().signal
-        })
-        .getReader()
+      const followUpReader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: entry.currentTurn.turnId,
+        signal: new AbortController().signal
+      }).getReader()
       await followUpReader.read()
       await vi.waitFor(() => expect(sent).toEqual(['max', 'low']))
       await followUpReader.cancel()
