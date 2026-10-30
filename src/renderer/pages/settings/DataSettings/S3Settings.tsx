@@ -21,6 +21,7 @@ import {
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -79,7 +80,7 @@ const S3Settings: FC = () => {
         {s3Sync?.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
-            content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
+            content={formatErrorMessageWithPrefix(s3Sync.lastSyncError, t('settings.data.s3.syncStatus.error'))}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}

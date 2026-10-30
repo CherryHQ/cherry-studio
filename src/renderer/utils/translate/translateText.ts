@@ -2,6 +2,7 @@ import { t } from 'i18next'
 import { v4 as uuid } from 'uuid'
 
 import { ipcApi } from '@renderer/ipc'
+import { LocalizedError } from '@renderer/utils/error'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -81,7 +82,7 @@ export const translateText = async (
         const trimmed = accumulated.trim()
         cleanup()
         if (!trimmed) {
-          reject(new Error(t('translate.error.empty')))
+          reject(new LocalizedError(t('translate.error.empty')))
           return
         }
         onResponse?.(trimmed, true)

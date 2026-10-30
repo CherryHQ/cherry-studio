@@ -390,7 +390,7 @@ const HomePage: FC = () => {
         }
       } catch (err) {
         logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('chat.topics.create_failed')))
       } finally {
         isCreatingTopicRef.current = false
       }
@@ -432,7 +432,7 @@ const HomePage: FC = () => {
         return topic
       } catch (err) {
         logger.error('Failed to create empty topic', err as Error)
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('chat.topics.create_failed')))
         return null
       } finally {
         isCreatingTopicRef.current = false
@@ -473,7 +473,7 @@ const HomePage: FC = () => {
       } catch (err) {
         if (requestId !== ownerFallbackRequestIdRef.current) return
         logger.error('Failed to settle chat after deleting active assistant', err as Error, { deletedAssistantId })
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('chat.topics.switch_failed')))
         reenterChatRoute()
       }
     },

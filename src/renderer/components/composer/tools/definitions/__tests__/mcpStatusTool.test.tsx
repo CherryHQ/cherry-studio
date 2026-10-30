@@ -549,7 +549,7 @@ describe('mcpStatusTool', () => {
       openLatestRegisteredPanel()[0].action?.({})
     })
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Save failed: Network down'))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Save failed'))
     expect(mocks.loggerError).toHaveBeenCalledWith(
       'Failed to update MCP binding from the composer',
       expect.any(Error),

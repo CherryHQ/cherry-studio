@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18next from 'i18next'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
@@ -47,6 +48,15 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 import { toast } from '@renderer/services/toast'
 
 import { ImportSkillDialog } from '../ImportSkillDialog'
+
+/** The localized main-process reason is shown only under the UI language it was written in. */
+function useChineseUi() {
+  const previous = i18next.language
+  i18next.language = 'zh-CN'
+  onTestFinished(() => {
+    i18next.language = previous
+  })
+}
 
 const createDropData = (files: File[]) => ({
   dataTransfer: {
@@ -141,6 +151,7 @@ describe('ImportSkillDialog', () => {
   })
 
   it('展示主进程返回的本地化 ZIP 原因', async () => {
+    useChineseUi()
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const originalError = '未找到可安装的技能。技能 ZIP 压缩包必须在根目录或某个子目录里包含 SKILL.md。'
@@ -164,6 +175,7 @@ describe('ImportSkillDialog', () => {
   })
 
   it('展示主进程返回的本地化目录原因', async () => {
+    useChineseUi()
     const user = userEvent.setup()
     const originalError = '未在所选文件夹中找到 SKILL.md。请选择直接包含 SKILL.md 的文件夹。'
     vi.mocked(window.api.file.select).mockResolvedValue([{ name: 'broken-skill', path: '/tmp/broken-skill' }] as any)

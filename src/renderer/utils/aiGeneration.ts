@@ -13,7 +13,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import { getErrorMessage } from '@renderer/utils/error'
+import { getErrorMessage, LocalizedError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdownLight'
 import { getNamingTextContent } from '@renderer/utils/message/find'
 import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
@@ -123,7 +123,7 @@ export async function fetchGenerate({
     const resolvedModel = model ?? (await readDefaultModel())
     if (!resolvedModel) {
       logger.error('fetchGenerate: no model available')
-      if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
+      if (throwOnError) throw new LocalizedError(i18n.t('error.model.not_exists'))
       return ''
     }
     signal?.throwIfAborted()

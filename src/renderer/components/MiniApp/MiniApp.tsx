@@ -15,6 +15,7 @@ import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
 
@@ -123,7 +124,7 @@ const MiniApp: FC<Props> = ({
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
-      toast.error(e.message || t(fallbackKey))
+      toast.error(formatErrorMessageWithPrefix(e, t(fallbackKey)))
     } else {
       logger.error('mutation failed', err as Error)
       toast.error(t(fallbackKey))
@@ -170,7 +171,7 @@ const MiniApp: FC<Props> = ({
       await ipcApi.request(route, { appId: app.appId })
       setPendingOpen(false)
     } catch (error) {
-      toast.error(t('miniApp.detail.action_error', { message: error instanceof Error ? error.message : String(error) }))
+      toast.error(formatErrorMessageWithPrefix(error, t('miniApp.detail.action_error')))
     } finally {
       setPendingBusy(false)
     }

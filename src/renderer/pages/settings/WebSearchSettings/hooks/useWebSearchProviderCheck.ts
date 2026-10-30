@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { webSearchErrorCodes } from '@shared/ipc/errors/webSearch'
@@ -59,7 +60,7 @@ export function useWebSearchProviderCheck({ provider, capability }: UseWebSearch
             description: t('settings.tool.websearch.check_page_fetch_failed', { url: probeUrl })
           })
         } else {
-          toast.error(`${t('settings.tool.websearch.check_failed')}: ${errorMessage}`)
+          toast.error(formatErrorMessageWithPrefix(errorMessage, t('settings.tool.websearch.check_failed')))
         }
       }
     )

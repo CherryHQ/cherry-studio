@@ -1,5 +1,5 @@
 import { APICallError, NoSuchToolError, RetryError } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
@@ -10,6 +10,7 @@ import {
   formatAiSdkError,
   formatErrorMessage,
   formatErrorMessageWithPrefix,
+  LocalizedError,
   getErrorDetails,
   getErrorMessage,
   isAbortError,
@@ -20,7 +21,9 @@ import {
 } from '../error'
 import { classifyError } from '../errorClassifier'
 
-vi.mock('i18next', () => ({ t: (key: string) => key }))
+const i18nState = vi.hoisted(() => ({ language: 'en-US' }))
+
+vi.mock('i18next', () => ({ default: i18nState, t: (key: string) => key }))
 
 describe('error', () => {
   it.each(['responseBody', 'data'] as const)('preserves quota diagnosis after sanitizing %s', (field) => {
@@ -73,6 +76,57 @@ describe('error', () => {
     expect(formatErrorMessageWithPrefix(error, 'Failed to delete the session')).toBe(
       'recycle_bin.move.blocked_generation'
     )
+  })
+
+  describe('formatErrorMessageWithPrefix language', () => {
+    afterEach(() => {
+      i18nState.language = 'en-US'
+    })
+
+    it('keeps an English cause out of a Chinese prefix', () => {
+      i18nState.language = 'zh-CN'
+      expect(formatErrorMessageWithPrefix(new Error('Request failed with status code 500'), '添加失败')).toBe(
+        '添加失败'
+      )
+    })
+
+    it('appends a cause that already reads in the UI language', () => {
+      i18nState.language = 'zh-CN'
+      expect(formatErrorMessageWithPrefix(new Error('PDF 页数超过 100 页上限'), '处理失败')).toBe(
+        '处理失败: PDF 页数超过 100 页上限'
+      )
+      i18nState.language = 'en-US'
+      expect(formatErrorMessageWithPrefix(new Error('Disk is full'), 'Save failed')).toBe('Save failed: Disk is full')
+    })
+
+    it('never shows a Chinese cause under an English prefix', () => {
+      expect(formatErrorMessageWithPrefix(new Error('磁盘已满'), 'Save failed')).toBe('Save failed')
+    })
+
+    it('hides a cause whose language cannot be told apart from the UI language', () => {
+      i18nState.language = 'de-DE'
+      expect(formatErrorMessageWithPrefix(new Error('Disk is full'), 'Speichern fehlgeschlagen')).toBe(
+        'Speichern fehlgeschlagen'
+      )
+    })
+
+    it('treats a stored failure string like an error message', () => {
+      i18nState.language = 'zh-CN'
+      expect(formatErrorMessageWithPrefix('ECONNRESET socket hang up', '同步失败')).toBe('同步失败')
+      expect(formatErrorMessageWithPrefix('坚果云返回 507：空间不足', '同步失败')).toBe(
+        '同步失败: 坚果云返回 507：空间不足'
+      )
+    })
+
+    it('always appends a LocalizedError and never repeats the prefix', () => {
+      i18nState.language = 'de-DE'
+      expect(formatErrorMessageWithPrefix(new LocalizedError('Datei ist leer'), 'Import fehlgeschlagen')).toBe(
+        'Import fehlgeschlagen: Datei ist leer'
+      )
+      expect(formatErrorMessageWithPrefix(new LocalizedError('Import fehlgeschlagen'), 'Import fehlgeschlagen')).toBe(
+        'Import fehlgeschlagen'
+      )
+    })
   })
 
   describe('getErrorDetails', () => {

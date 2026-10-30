@@ -36,7 +36,7 @@ import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
-import { getErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { matchesSearchText } from '@renderer/utils/pinyin'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
@@ -236,7 +236,7 @@ const AssistantHistoryRecords = ({
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('recycle_bin.move_failed'))
+        else toast.error(formatErrorMessageWithPrefix(err, t('recycle_bin.move_failed')))
         return
       }
 
@@ -319,12 +319,12 @@ const AssistantHistoryRecords = ({
         }
 
         const firstReason = failedResults[0]?.reason
-        const message = firstReason instanceof Error ? firstReason.message : t('history.records.bulkMoveTopics.error')
+        const message = formatErrorMessageWithPrefix(firstReason, t('history.records.bulkMoveTopics.error'))
         toast.error(message)
         return movedIds
       } catch (err) {
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
-        const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error')
+        const message = formatErrorMessageWithPrefix(err, t('history.records.bulkMoveTopics.error'))
         toast.error(message)
         return undefined
       }
@@ -349,11 +349,11 @@ const AssistantHistoryRecords = ({
             didPersistRename = true
           } catch (err) {
             logger.error('Failed to save automatically renamed topic from history records', { topicId: topic.id, err })
-            const message = err instanceof Error ? err.message : t('common.save_failed')
+            const message = formatErrorMessageWithPrefix(err, t('common.save_failed'))
             toast.error(message)
           }
         } else if (summaryError) {
-          toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+          toast.error(formatErrorMessageWithPrefix(summaryError, t('message.error.fetchTopicName')))
         }
       } finally {
         if (didPersistRename) {
@@ -380,7 +380,7 @@ const AssistantHistoryRecords = ({
         toast.success(t('common.saved'))
       } catch (err) {
         logger.error('Failed to rename topic from history records', { topicId, err })
-        const message = err instanceof Error ? err.message : t('common.save_failed')
+        const message = formatErrorMessageWithPrefix(err, t('common.save_failed'))
         toast.error(message)
       }
     },

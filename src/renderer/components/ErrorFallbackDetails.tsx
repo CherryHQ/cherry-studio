@@ -10,8 +10,12 @@ interface ErrorFallbackDetailsProps {
   error: unknown
 }
 
+/** Raw text stays collapsed so the fallback reads in one language until the user asks for details. */
 const ErrorFallbackDetails: FC<ErrorFallbackDetailsProps> = ({ error }) => (
-  <pre className="selectable whitespace-pre-wrap break-words font-sans">{formatErrorDetails(error)}</pre>
+  <details>
+    <summary className="cursor-pointer select-none">{i18n.t('error.diagnosis.view_details')}</summary>
+    <pre className="selectable mt-2 whitespace-pre-wrap break-words font-sans">{formatErrorDetails(error)}</pre>
+  </details>
 )
 
 const ErrorFallbackCopyButton: FC<ErrorFallbackDetailsProps> = ({ error }) => {

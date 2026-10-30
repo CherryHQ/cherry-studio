@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { WebviewHost } from '@renderer/components/WebviewHost'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
 
 const logger = loggerService.withContext('WebviewContainer')
@@ -149,7 +150,7 @@ const MiniAppWebview = memo(
           }
         } catch (error) {
           logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
-          toast.error(t('miniApp.shortcut.failed', { message: (error as Error).message }))
+          toast.error(formatErrorMessageWithPrefix(error, t('miniApp.shortcut.failed')))
         }
       }
 

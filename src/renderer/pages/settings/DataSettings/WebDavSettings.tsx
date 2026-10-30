@@ -19,6 +19,7 @@ import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -73,7 +74,7 @@ const WebDavSettings: FC = () => {
         {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
-            content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
+            content={formatErrorMessageWithPrefix(webdavSync.lastSyncError, t('settings.data.webdav.syncError'))}
             iconProps={{ color: 'var(--error)' }}
           />
         )}

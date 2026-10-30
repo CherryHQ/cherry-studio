@@ -22,6 +22,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('LocalBackupSettings')
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
@@ -162,7 +163,7 @@ const LocalBackupSettings: React.FC = () => {
         {localBackupSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <WarnTooltip
-            content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
+            content={formatErrorMessageWithPrefix(localBackupSync.lastSyncError, t('settings.data.local.syncError'))}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}

@@ -357,7 +357,7 @@ describe('GeneralSettings', () => {
     const user = userEvent.setup()
     render(<GeneralSettings />)
     await user.click(screen.getByRole('switch', { name: 'Developer mode' }))
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Cannot save CDP setting'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.save_failed'))
     expect(MockUsePreferenceUtils.getPreferenceValue('app.developer_mode.enabled')).toBe(true)
     expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
     expect(screen.getByRole('switch', { name: 'Developer mode' })).toBeEnabled()

@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import { LocalizedError } from '@renderer/utils/error'
 import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
@@ -109,7 +110,7 @@ export async function backupToNutstore({ customFileName = '' }: { customFileName
         toast.success(i18n.t('message.backup.success'))
       }
     } else {
-      throw new Error(i18n.t('message.backup.failed'))
+      throw new LocalizedError(i18n.t('message.backup.failed'))
     }
   } catch (error) {
     logger.error('[Nutstore] Backup failed:', error as Error)

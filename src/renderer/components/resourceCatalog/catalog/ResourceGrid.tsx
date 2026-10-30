@@ -48,6 +48,7 @@ import { SettingDescription, SettingTitle } from '@renderer/components/SettingsP
 import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
 import type { GroupItem, ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
@@ -315,7 +316,7 @@ export const ResourceGrid: FC<Props> = ({
       await updateGroup(group.id, { name: nextName })
       setRenamingGroup(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
+      const message = formatErrorMessageWithPrefix(error, t('library.group_sync_failed'))
       toast.error(message)
       logger.error('Failed to rename assistant group', error instanceof Error ? error : new Error(String(error)), {
         id: group.id,
@@ -337,7 +338,7 @@ export const ResourceGrid: FC<Props> = ({
       if (activeGroupId === group.id) onGroupFilter(null)
       setDeletingGroup(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
+      const message = formatErrorMessageWithPrefix(error, t('library.group_sync_failed'))
       toast.error(message)
       logger.error('Failed to delete assistant group', error instanceof Error ? error : new Error(String(error)), {
         id: group.id,

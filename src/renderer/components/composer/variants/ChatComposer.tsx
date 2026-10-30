@@ -55,6 +55,7 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
+import { LocalizedError } from '@renderer/utils/error'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -1550,7 +1551,7 @@ const ChatComposerInner = ({
         return true
       } catch (error) {
         logger.warn('send failed', { error })
-        toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
+        toast.errorFromException(error ?? new LocalizedError(t('chat.input.send_failed')))
         return false
       } finally {
         setIsSending(false)

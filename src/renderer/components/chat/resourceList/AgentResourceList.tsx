@@ -168,7 +168,7 @@ export function AgentResourceList({
   const handleActivationError = useCallback(
     (error: unknown) => {
       logger.error('Failed to activate agent resource from classic-layout rail', { error })
-      toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
+      toast.error(formatErrorMessageWithPrefix(error, t('chat.resource.open_failed')))
     },
     [t]
   )

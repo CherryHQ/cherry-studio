@@ -638,7 +638,7 @@ export function Topics({
         () => toast.success(t('common.saved')),
         (err) => {
           logger.error('Failed to rename topic', { err, topicId })
-          toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+          toast.error(formatErrorMessageWithPrefix(err, t('chat.topics.manage.rename.error')))
         }
       )
     },
@@ -674,7 +674,7 @@ export function Topics({
         toast.success(t('chat.topics.manage.move.success', { count: 1 }))
       } catch (err) {
         logger.error('Failed to move topic to assistant', { assistantId, err, topicId: topic.id })
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('chat.topics.manage.move.error')))
       }
     },
     [patchTopic, setActiveTopic, t]
@@ -696,7 +696,7 @@ export function Topics({
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
+        else toast.error(formatErrorMessageWithPrefix(err, t('chat.topics.manage.delete.error')))
         return
       }
 
@@ -742,11 +742,11 @@ export function Topics({
             didPersistRename = true
           } catch (err) {
             logger.error('Failed to save automatically renamed topic', { topicId: topic.id, err })
-            const message = err instanceof Error ? err.message : t('common.save_failed')
+            const message = formatErrorMessageWithPrefix(err, t('common.save_failed'))
             toast.error(message)
           }
         } else if (summaryError) {
-          toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+          toast.error(formatErrorMessageWithPrefix(summaryError, t('message.error.fetchTopicName')))
         }
       } finally {
         if (didPersistRename) {

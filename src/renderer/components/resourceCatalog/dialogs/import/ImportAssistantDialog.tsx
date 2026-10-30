@@ -20,6 +20,7 @@ import {
 import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
+import { formatErrorMessageWithPrefix, LocalizedError } from '@renderer/utils/error'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
 const ALLOWED_FETCH_HOSTS = new Set(['gist.githubusercontent.com', 'raw.githubusercontent.com'])
@@ -116,7 +117,7 @@ export function summarizeAssistantImportOutcomes(
 
   return {
     kind: 'error',
-    message: t('library.import_dialog.failure', { error: first.error })
+    message: formatErrorMessageWithPrefix(first.error, t('library.import_dialog.failure'))
   }
 }
 
@@ -275,14 +276,14 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     try {
       const response = await fetch(validation.url, createAssistantImportFetchInit())
       if (!response.ok) {
-        throw new Error(t('assistants.presets.import.error.fetch_failed'))
+        throw new LocalizedError(t('assistants.presets.import.error.fetch_failed'))
       }
       if (isAssistantImportResponseTooLarge(response.headers)) {
-        throw new Error(t('library.import_dialog.error.response_too_large'))
+        throw new LocalizedError(t('library.import_dialog.error.response_too_large'))
       }
       const content = await response.text()
       if (isAssistantImportContentTooLarge(content)) {
-        throw new Error(t('library.import_dialog.error.response_too_large'))
+        throw new LocalizedError(t('library.import_dialog.error.response_too_large'))
       }
       setLoading(false)
       await runImport(content, 'url')

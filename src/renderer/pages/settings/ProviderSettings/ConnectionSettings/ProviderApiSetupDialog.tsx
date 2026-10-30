@@ -27,6 +27,7 @@ import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { joinApiKeyString } from '@renderer/utils/api'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
@@ -201,7 +202,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         ...storedApiKeyEntries.map((entry) => entry.key)
       ])
       const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
-      return { kind, message: summary ? `${fallback} ${summary}` : fallback }
+      return { kind, message: summary ? formatErrorMessageWithPrefix(summary, fallback) : fallback }
     },
     [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
   )

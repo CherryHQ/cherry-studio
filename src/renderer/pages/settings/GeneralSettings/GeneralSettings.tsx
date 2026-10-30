@@ -23,7 +23,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -125,7 +125,7 @@ const GeneralSettings: FC = () => {
     try {
       await setDisableHardwareAcceleration(checked)
     } catch (error) {
-      toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       throw error
     }
 
@@ -145,7 +145,7 @@ const GeneralSettings: FC = () => {
     try {
       await save()
     } catch (error) {
-      toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
     } finally {
       developerSettingsSaving.current = false
       setIsSavingDeveloperSettings(false)
@@ -169,7 +169,7 @@ const GeneralSettings: FC = () => {
     try {
       await setRemoteDebuggingPort(port)
     } catch (error) {
-      toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
     }
   }
 

@@ -16,6 +16,7 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
+import { LocalizedError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
@@ -132,7 +133,7 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
             })
             if (notify) toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
             else if (result.kind === 'ok') {
-              throw new Error(i18n.t('settings.provider.enable_failed_after_connection'), { cause: error })
+              throw new LocalizedError(i18n.t('settings.provider.enable_failed_after_connection'), { cause: error })
             }
           }
         }
@@ -145,7 +146,7 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
         }
         // Mixed failures use credential order; keep the aggregate for the results panel.
         const error = keyResults.find((keyResult) => keyResult.kind === 'failed')?.error ?? result.error
-        if (!notify) throw error ?? new Error(i18n.t('settings.models.check.failed_to_start'))
+        if (!notify) throw error ?? new LocalizedError(i18n.t('settings.models.check.failed_to_start'))
         reportFailure(error)
         return 'failed' as const
       } catch (error) {

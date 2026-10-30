@@ -33,6 +33,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatFileSize } from '@renderer/utils/file'
 import { permissionLabel } from '@renderer/utils/miniAppPermission'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
@@ -102,8 +103,6 @@ interface Props {
 
 const logger = loggerService.withContext('MiniAppDetailPanel')
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
-
 const asUniqueModelId = (id: string | null | undefined): UniqueModelId | null => (id && isUniqueModelId(id) ? id : null)
 
 const hostOf = (url: string): string => {
@@ -168,7 +167,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
       logger.error('Failed to load mini app activity', e as Error)
       // Not a silent empty list: this panel is where a user goes to find out what an app
       // did, and "nothing recorded" is the one answer a failed read must never give.
-      setError(t('miniApp.activity.load_error', { message: errorMessage(e) }))
+      setError(formatErrorMessageWithPrefix(e, t('miniApp.activity.load_error')))
     }
   }, [appId, deniedOnly, t])
   // Pulled on open, on the filter, and on the user's refresh — never pushed: a log that
@@ -197,7 +196,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
       setDetail(await ipcApi.request('mini_app.detail', { appId }))
     } catch (e) {
       logger.error('Failed to load mini app detail', e as Error)
-      setError(t('miniApp.detail.load_error', { message: errorMessage(e) }))
+      setError(formatErrorMessageWithPrefix(e, t('miniApp.detail.load_error')))
     }
   }, [appId, t])
 
@@ -215,7 +214,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
       return true
     } catch (e) {
       logger.error('Mini app action failed', e as Error)
-      setError(t('miniApp.detail.action_error', { message: errorMessage(e) }))
+      setError(formatErrorMessageWithPrefix(e, t('miniApp.detail.action_error')))
       return false
     } finally {
       setBusy(false)
@@ -242,7 +241,8 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   const replace = useMiniAppInstallPreview(reload, { expectAppId: appId })
   const replaceError = replace.error
   useEffect(() => {
-    if (replaceError) toast.error(t(replaceError.key, replaceError.params))
+    if (replaceError)
+      toast.error(formatErrorMessageWithPrefix(replaceError.cause, t(replaceError.key, replaceError.params)))
   }, [replaceError, t])
   const handlePickReplacement = () =>
     replace.settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')

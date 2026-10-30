@@ -994,7 +994,7 @@ const Sessions = ({
             { showSuccessToast: false }
           )
         } else if (summaryError) {
-          toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+          toast.error(formatErrorMessageWithPrefix(summaryError, t('message.error.fetchTopicName')))
         }
       } finally {
         finishTopicRenaming(topicId)
