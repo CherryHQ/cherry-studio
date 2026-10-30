@@ -142,6 +142,7 @@ const UserActionOpSection = ({ className, ...props }: React.ComponentPropsWithou
       'flex flex-row items-center gap-2 [&_.btn-icon-delete]:text-muted-foreground [&_.btn-icon-delete:hover]:text-destructive [&_.btn-icon-edit]:text-muted-foreground [&_.btn-icon-edit:hover]:text-foreground',
       className
     )}
+    data-no-dnd="true"
     {...props}
   />
 )

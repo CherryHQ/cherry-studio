@@ -109,7 +109,12 @@ export const useActionItems = (
     [enabledItems, disabledItems]
   )
 
-  const handleReorderRows = (rows: ActionRow[]) => setActionItems(actionItemsFromRows(rows))
+  const handleReorderRows = (rows: ActionRow[]) => {
+    const nextItems = actionItemsFromRows(rows)
+    // A drag that began before a rollback left its item as the last enabled one can still drop it below the divider.
+    if (!nextItems.some((item) => item.enabled)) return
+    setActionItems(nextItems)
+  }
 
   const getSearchEngineInfo = (searchEngine: string) => {
     if (!searchEngine) return null
