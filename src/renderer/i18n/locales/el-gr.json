@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "Αποτυχία ενημέρωσης της καθολικής κατάστασης της δεξιότητας {{name}}",
   "settings.skills.tryNow": "Δοκιμή τώρα",
   "settings.skills.viewSource": "Προβολή Πηγής",
+  "settings.subscription.activated": "Το {{plan}} είναι ενεργό",
   "settings.subscription.card_label": "Συνδρομή",
   "settings.subscription.go_to_subscribe": "Εγγραφή σε συνδρομή",
   "settings.subscription.limit_daily": "Ημερήσιο όριο",

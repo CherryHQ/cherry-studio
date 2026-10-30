@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "更新技能 {{name}} 的全域狀態失敗",
   "settings.skills.tryNow": "立即試用",
   "settings.skills.viewSource": "檢視原始碼",
+  "settings.subscription.activated": "{{plan}} 已生效",
   "settings.subscription.card_label": "訂閱",
   "settings.subscription.go_to_subscribe": "前往訂閱",
   "settings.subscription.limit_daily": "每日額度",

@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "Не удалось обновить глобальное состояние навыка {{name}}",
   "settings.skills.tryNow": "Попробовать сейчас",
   "settings.skills.viewSource": "Посмотреть исходный код",
+  "settings.subscription.activated": "{{plan}} активирован",
   "settings.subscription.card_label": "Подписка",
   "settings.subscription.go_to_subscribe": "Оформить подписку",
   "settings.subscription.limit_daily": "Дневной лимит",

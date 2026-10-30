@@ -7,7 +7,7 @@ import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/
 import type { Model } from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 
-const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
+export const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
 const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
   entitledModelIds: [],

@@ -1321,6 +1321,47 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('refreshes the model snapshot once account plans show a new active entitlement', async () => {
+    const service = await createSignedInService()
+    const plansWith = (entitlementIds: string[]) =>
+      jsonResponse({
+        measured_at: '2030-01-02T03:00:00Z',
+        available_plans: [],
+        entitlements: entitlementIds.map((id) => ({
+          id,
+          source: 'checkout',
+          plan: {
+            id: '00000000-0000-4000-8000-000000000041',
+            display_name: 'Plus',
+            is_free: false,
+            default_for_new_accounts: false,
+            quota_pool_count: 0,
+            model_count: 1,
+            purchase_available: true
+          },
+          state: 'active',
+          starts_at: '2030-01-02T03:00:00Z',
+          quota_pools: []
+        }))
+      })
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+    mockCloudRoute('/api/v1/account/plans', plansWith([]))
+    await service.getAccountPlans()
+    mockCloudRoute('/api/v1/account/plans', plansWith([]))
+    await service.getAccountPlans()
+    mocks.netFetch.mockClear()
+    await service.syncEntitledModelsIfStale()
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(0)
+
+    mockCloudRoute('/api/v1/account/plans', plansWith(['00000000-0000-4000-8000-000000000050']))
+    await service.getAccountPlans()
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+  })
+
   it('bounds model sync requests without clearing the retriable Session', async () => {
     const service = await createSignedInService()
     const timeoutController = new AbortController()

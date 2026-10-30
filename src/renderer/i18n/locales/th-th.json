@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "อัปเดตสถานะทั่วโลกของสกิล {{name}} ไม่สำเร็จ",
   "settings.skills.tryNow": "ลองเลย",
   "settings.skills.viewSource": "ดูซอร์ส",
+  "settings.subscription.activated": "{{plan}} เปิดใช้งานแล้ว",
   "settings.subscription.card_label": "การสมัครสมาชิก",
   "settings.subscription.go_to_subscribe": "สมัครสมาชิก",
   "settings.subscription.limit_daily": "จำกัดต่อวัน",

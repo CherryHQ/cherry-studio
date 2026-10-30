@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "{{name}} becerisinin genel durumu güncellenemedi",
   "settings.skills.tryNow": "Şimdi dene",
   "settings.skills.viewSource": "Kaynağı Görüntüle",
+  "settings.subscription.activated": "{{plan}} etkin",
   "settings.subscription.card_label": "Abonelik",
   "settings.subscription.go_to_subscribe": "Abone ol",
   "settings.subscription.limit_daily": "Günlük limit",

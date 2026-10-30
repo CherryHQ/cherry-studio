@@ -5692,6 +5692,7 @@
   "settings.skills.toggleFailed": "Não foi possível atualizar o estado global da competência {{name}}",
   "settings.skills.tryNow": "Experimentar agora",
   "settings.skills.viewSource": "Ver Fonte",
+  "settings.subscription.activated": "{{plan}} está ativo",
   "settings.subscription.card_label": "Subscrição",
   "settings.subscription.go_to_subscribe": "Subscrever",
   "settings.subscription.limit_daily": "Limite diário",
