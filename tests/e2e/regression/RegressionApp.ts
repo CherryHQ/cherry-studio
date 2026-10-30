@@ -70,10 +70,27 @@ export class RegressionApp {
     this.browser = undefined
   }
 
+  private recoveredOwnership = false
+
   private async connect(): Promise<Browser> {
     if (this.browser?.isConnected()) return this.browser
-    const record = this.record
-    await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
+    let record = this.record
+    try {
+      await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
+    } catch (error) {
+      // The recorded instance crashed or lost its inspector; one stale record would fail every
+      // later case. Relaunch once — the re-check below still gates the replacement process.
+      if (this.recoveredOwnership) throw error
+      this.recoveredOwnership = true
+      try {
+        await this.disconnect()
+        record = await restartApp(this.paths)
+        await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
+      } catch (recoveryError) {
+        if (error instanceof Error) error.cause = recoveryError
+        throw error
+      }
+    }
     const { cdpPort } = record
     this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
       isLocal: true,
