@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { query, type McpSdkServerConfigWithInstance, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
   createAgentSession,
@@ -12,12 +12,10 @@ import {
   SessionManager,
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
-import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { PromptBuilder } from '@main/ai/agents/prompt'
-import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 
 import { createClaudeCodeIdentityHooks } from './claudeCode/identityHooks'
 import { createPiIdentityExtension } from './pi/identityExtension'
@@ -107,68 +105,56 @@ describe('Identity delivered by the native SDKs', () => {
   const lastMessages = () => JSON.stringify(requests.at(-1)?.messages)
   const lastSystem = () => JSON.stringify(requests.at(-1)?.system)
 
-  it.each([false, true])('delivers MCP memory instructions only when enabled (disabled=%s)', async (disabled) => {
-    await writeIdentity('MEMORY_GATE')
-    const mounted = resolveMountedMcpServers(
-      { type: 'claude-code', configuration: {}, disabledTools: disabled ? ['mcp__agent-memory__memory'] : [] },
-      { channelLinked: false }
-    )
-    const { context } = await new PromptBuilder().buildPromptParts(root, { bootstrap_completed: true })
-    const stream = query({
-      prompt: 'Say hello.',
-      options: {
-        cwd: root,
-        abortController,
-        env: {
-          PATH: process.env.PATH,
-          ANTHROPIC_API_KEY: 'local-test-key',
-          ANTHROPIC_BASE_URL: baseUrl,
-          CLAUDE_CONFIG_DIR: path.join(root, 'config'),
-          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-          DISABLE_TELEMETRY: '1',
-          DISABLE_ERROR_REPORTING: '1'
-        },
-        model: 'claude-sonnet-4-5-20250929',
-        allowedTools: ['mcp__agent-memory__memory'],
-        mcpServers: mounted.has('agent-memory')
-          ? {
-              'agent-memory': {
-                type: 'sdk',
-                name: 'agent-memory',
-                instance: {
-                  connect: serveMcpTestServer(() =>
-                    createAgentMemoryServer({ agentId: 'fixture', agentDataPath: root })
-                  )
-                } as unknown as McpSdkServerConfigWithInstance['instance']
-              }
-            }
-          : {},
-        strictMcpConfig: true,
-        settingSources: [],
-        settings: { autoMemoryEnabled: false },
-        hooks: createClaudeCodeIdentityHooks(root),
-        systemPrompt: { type: 'preset', preset: 'claude_code', append: context, snapshot: false }
-      }
-    })
-    try {
-      for await (const message of stream) {
-        if (!disabled && message.type === 'system' && message.subtype === 'init') {
-          expect(message.mcp_servers).toEqual(
-            expect.arrayContaining([expect.objectContaining({ name: 'agent-memory', status: 'connected' })])
-          )
+  it.each([false, true])(
+    'retains legacy recall without mounting the retired writer (disabled=%s)',
+    async (disabled) => {
+      await writeIdentity('MEMORY_GATE')
+      const mounted = resolveMountedMcpServers(
+        { type: 'claude-code', configuration: {}, disabledTools: disabled ? ['mcp__agent-memory__memory'] : [] },
+        { channelLinked: false }
+      )
+      const { context } = await new PromptBuilder().buildPromptParts(root, { bootstrap_completed: true })
+      expect(mounted.has('agent-memory')).toBe(false)
+      const stream = query({
+        prompt: 'Say hello.',
+        options: {
+          cwd: root,
+          abortController,
+          env: {
+            PATH: process.env.PATH,
+            ANTHROPIC_API_KEY: 'local-test-key',
+            ANTHROPIC_BASE_URL: baseUrl,
+            CLAUDE_CONFIG_DIR: path.join(root, 'config'),
+            CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+            DISABLE_TELEMETRY: '1',
+            DISABLE_ERROR_REPORTING: '1'
+          },
+          model: 'claude-sonnet-4-5-20250929',
+          mcpServers: {},
+          strictMcpConfig: true,
+          settingSources: [],
+          settings: { autoMemoryEnabled: false },
+          hooks: createClaudeCodeIdentityHooks(root),
+          systemPrompt: { type: 'preset', preset: 'claude_code', append: context, snapshot: false }
         }
-        if (message.type === 'result') expect(message.is_error).toBe(false)
+      })
+      try {
+        for await (const message of stream) {
+          if (message.type === 'system' && message.subtype === 'init') {
+            expect(message.mcp_servers.some((server) => server.name === 'agent-memory')).toBe(false)
+          }
+          if (message.type === 'result') expect(message.is_error).toBe(false)
+        }
+        expect(requests.length).toBeGreaterThan(0)
+        expect(lastMessages()).toContain('IDENTITY_FACT_MEMORY_GATE')
+        const guide = 'Use the memory tool for persistent memory'
+        const requestContext = lastSystem() + lastMessages()
+        expect(requestContext).not.toContain(guide)
+      } finally {
+        stream.close()
       }
-      expect(requests.length).toBeGreaterThan(0)
-      expect(lastMessages()).toContain('IDENTITY_FACT_MEMORY_GATE')
-      const guide = 'Use the memory tool for persistent memory'
-      const requestContext = lastSystem() + lastMessages()
-      if (disabled) expect(requestContext).not.toContain(guide)
-      else expect(requestContext).toContain(guide)
-    } finally {
-      stream.close()
     }
-  })
+  )
 
   it('refreshes a live Claude query, rehydrates after compaction, and reloads on resume', async () => {
     const { context } = await new PromptBuilder().buildPromptParts(root, { bootstrap_completed: true })

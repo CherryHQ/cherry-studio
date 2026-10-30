@@ -73,30 +73,22 @@ vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mocks.findChannelBySessionId }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'ApiGatewayService') {
-        return {
-          ensureInternalGateway: mocks.apiGatewayEnsureInternal,
-          getInternalGatewayOrigin: () => mocks.internalGateway.baseUrl,
-          start: mocks.apiGatewayStart,
-          getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders
-        }
-      }
-      if (name === 'PreferenceService') {
-        return { get: mocks.preferenceGet }
-      }
-      if (name === 'AgentSessionRuntimeService') {
-        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
-      }
-      if (name === 'McpRuntimeService') {
-        return { getConnectedServerInstructions: mocks.getMcpInstructions }
-      }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  return {
+    application: createMockApplication({
+      ApiGatewayService: {
+        ensureInternalGateway: mocks.apiGatewayEnsureInternal,
+        getInternalGatewayOrigin: () => mocks.internalGateway.baseUrl,
+        start: mocks.apiGatewayStart,
+        getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders
+      },
+      PreferenceService: { get: mocks.preferenceGet },
+      AgentSessionRuntimeService: { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels },
+      McpRuntimeService: { getConnectedServerInstructions: mocks.getMcpInstructions }
+    } as never)
   }
-}))
+})
 
 vi.mock('@main/i18n', () => ({
   getAppLanguage: mocks.getAppLanguage

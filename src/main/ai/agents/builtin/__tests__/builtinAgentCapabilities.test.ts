@@ -106,8 +106,8 @@ describe('Agent browser mounting', () => {
 })
 
 describe('Agent memory mounting', () => {
-  it.each(AGENT_TYPES)('mounts memory by default on %s', (type) => {
-    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('agent-memory')).toBe(true)
+  it.each(AGENT_TYPES)('does not mount the retired memory writer on %s', (type) => {
+    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('agent-memory')).toBe(false)
   })
 
   it.each([
@@ -128,12 +128,12 @@ describe('Agent memory mounting', () => {
     }
   })
 
-  it.each(AGENT_TYPES)('keeps memory mounted when an unrelated tool is disabled on %s', (type) => {
+  it.each(AGENT_TYPES)('does not revive the retired writer through unrelated tool settings on %s', (type) => {
     expect(
       resolveMountedMcpServers(
         { type, configuration: {}, disabledTools: ['mcp__cherry-tools__notify'] },
         { channelLinked: false }
       ).has('agent-memory')
-    ).toBe(true)
+    ).toBe(false)
   })
 })
