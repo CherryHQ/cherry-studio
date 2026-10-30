@@ -49,7 +49,11 @@ const context = (signal = new AbortController().signal): UtilityProcessHandlerCo
   }
 })
 
-describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
+// macOS platform-test CI downloads FFmpeg (`--only=ffmpeg`), so a missing bundle there fails instead of skipping.
+// The Linux LGPL build has no lavfi sources to generate these fixtures.
+const requiresBundledFfmpeg = Boolean(process.env.CI) && process.platform === 'darwin'
+
+describe.skipIf(!hasBundledFfmpeg && !requiresBundledFfmpeg)('mediaFfmpegHandlers', () => {
   let root: string
   let tonePath: string
   let metadataTonePath: string

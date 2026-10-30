@@ -272,6 +272,9 @@ jobs:
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         shell: bash
         run: ":"
+      - name: Download FFmpeg for media integration tests
+        if: runner.os == 'macOS'
+        run: node scripts/download-binaries.js --only=ffmpeg
       - name: Platform contracts
         env:
           VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
