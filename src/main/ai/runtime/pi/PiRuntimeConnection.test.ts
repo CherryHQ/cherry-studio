@@ -603,24 +603,32 @@ describe('desktop Pi root connection', () => {
     expect(text(next.events)).toBe('resumed')
   })
 
-  it.each(['high', 'low', 'none'] as const)('retains explicit %s reasoning in the native session', async (reasoningEffort) => {
-    input.reasoningEffort = reasoningEffort
-    const { connection, events } = await connect()
-    await connection.send({ message: message('question') })
-    await done(events)
-    expect(events.filter((event) => event.type === 'error')).toEqual([])
-    const entries = readFileSync(join(application.getPath('feature.agents.pi.sessions'), nativeFiles()[0]), 'utf8')
-      .trim().split('\n').map((line) => JSON.parse(line))
-    expect(entries).toContainEqual(expect.objectContaining({
-      type: 'thinking_level_change', thinkingLevel: reasoningEffort === 'none' ? 'off' : reasoningEffort
-    }))
-  })
+  it.each(['high', 'low', 'none'] as const)(
+    'retains explicit %s reasoning in the native session',
+    async (reasoningEffort) => {
+      input.reasoningEffort = reasoningEffort
+      const { connection, events } = await connect()
+      await connection.send({ message: message('question') })
+      await done(events)
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+      const entries = readFileSync(join(application.getPath('feature.agents.pi.sessions'), nativeFiles()[0]), 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      expect(entries).toContainEqual(
+        expect.objectContaining({
+          type: 'thinking_level_change',
+          thinkingLevel: reasoningEffort === 'none' ? 'off' : reasoningEffort
+        })
+      )
+    }
+  )
 
   it('keeps equivalent automatic reasoning selections on the same connection', async () => {
     input.reasoningEffort = 'auto'
     const { connection } = await connect()
-    expect(await connection.reconcile({ modelId: MODEL.id, reasoningEffort: 'default' })).toBe('current')
-    expect(await connection.reconcile({ modelId: MODEL.id })).toBe('current')
+    expect(await connection.reconcile({ modelId: input.modelId, reasoningEffort: 'default' })).toBe('current')
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('current')
   })
 
   it('rebuilds for changed per-turn settings and rejects startup configuration drift', async () => {
