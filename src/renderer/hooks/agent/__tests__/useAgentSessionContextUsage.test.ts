@@ -83,6 +83,23 @@ describe('useAgentSessionContextUsage', () => {
     expect(result.current.percentage).toBe(50)
   })
 
+  it('does not mistake a gateway SDK raw window for the full model window', () => {
+    const nativeUsage = {
+      categories: [],
+      totalTokens: 34_087,
+      maxTokens: 854_560,
+      rawMaxTokens: 854_560,
+      percentage: 4,
+      model: 'small-model'
+    }
+    cacheService.setShared(KEY, nativeUsage)
+    const { result } = renderHook(() =>
+      useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 1_000_000))
+    )
+    expect(result.current.maxTokens).toBe(1_000_000)
+    expect(result.current.percentage).toBe(3)
+  })
+
   it('falls back to the payload when the model declares no window', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 0)))
 
