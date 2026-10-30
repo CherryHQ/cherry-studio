@@ -1484,6 +1484,10 @@ describe('cherry-tools autonomy tools', () => {
           required_fields: ['client_id', 'client_secret', 'robot_code'],
           optional_fields: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id']
         })
+        expect(parsed.supported_channel_types.find((type: any) => type.type === 'feishu')).toMatchObject({
+          required_fields: ['applicationCredentialId'],
+          optional_fields: ['allowed_chat_ids', 'mention_only']
+        })
         expect(parsed.soul_enabled).toBeUndefined()
         expect(parsed.heartbeat_enabled).toBe(true)
       })
@@ -1639,7 +1643,9 @@ describe('cherry-tools autonomy tools', () => {
             auth_mode: 'qr',
             config: {
               applicationCredentialId: 'a4564266-060f-4f5c-acb0-9705404f41f8',
-              allowed_chat_ids: ['chat-1']
+              allowed_chat_ids: ['chat-1'],
+              registrationDomain: 'lark',
+              mention_only: false
             }
           },
           'config'
@@ -1650,7 +1656,9 @@ describe('cherry-tools autonomy tools', () => {
             config: {
               type: 'feishu',
               applicationCredentialId: null,
-              allowed_chat_ids: ['chat-1']
+              allowed_chat_ids: ['chat-1'],
+              registrationDomain: 'lark',
+              mention_only: false
             }
           }),
           30_000
@@ -1697,7 +1705,12 @@ describe('cherry-tools autonomy tools', () => {
       })
 
       it('should reuse one unverified Feishu channel without losing the new setup options', async () => {
-        const existingChannel = { ...feishuChannel, id: 'ch_existing', isActive: false }
+        const existingChannel = {
+          ...feishuChannel,
+          id: 'ch_existing',
+          isActive: false,
+          config: { ...feishuChannel.config, mention_only: false }
+        }
         const updatedChannel = {
           ...existingChannel,
           name: 'Updated Feishu',
@@ -1705,7 +1718,7 @@ describe('cherry-tools autonomy tools', () => {
           config: {
             ...existingChannel.config,
             allowed_chat_ids: ['chat-1'],
-            domain: 'lark'
+            registrationDomain: 'lark'
           }
         }
         mockListChannels.mockReturnValue([
@@ -1733,7 +1746,8 @@ describe('cherry-tools autonomy tools', () => {
             auth_mode: 'qr',
             config: {
               applicationCredentialId: 'a4564266-060f-4f5c-acb0-9705404f41f8',
-              allowed_chat_ids: ['chat-1']
+              allowed_chat_ids: ['chat-1'],
+              registrationDomain: 'lark'
             }
           },
           'config'
@@ -1748,7 +1762,9 @@ describe('cherry-tools autonomy tools', () => {
             config: {
               type: 'feishu',
               applicationCredentialId: null,
-              allowed_chat_ids: ['chat-1']
+              allowed_chat_ids: ['chat-1'],
+              registrationDomain: 'lark',
+              mention_only: false
             },
             isActive: true
           },
@@ -1848,6 +1864,54 @@ describe('cherry-tools autonomy tools', () => {
         expect(result.content[0].text).toContain('QR authentication requires the channel to be enabled')
         expect(mockCreateChannel).not.toHaveBeenCalled()
         expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('headless turns', () => {
+      beforeEach(() => {
+        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        mockGetChannel.mockReturnValue(telegramChannel)
+        mockGetAgent.mockReturnValue(agentWithConfig)
+      })
+
+      it('refuses to add a sender to allowed_chat_ids from a channel or scheduled turn', async () => {
+        const result = await callTool(
+          createServer('agent_1'),
+          { action: 'update_channel', channel_id: 'ch_1', config: { allowed_chat_ids: ['100', 'attacker'] } },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain(
+          'Headless channel or scheduled turns cannot mutate agent configuration'
+        )
+        expect(mockUpdateChannel).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        { action: 'rename', name: 'Renamed' },
+        { action: 'add_channel', type: 'telegram', name: 'Extra', config: { bot_token: 'tok_2' } },
+        { action: 'remove_channel', channel_id: 'ch_1' },
+        { action: 'reconnect_channel', channel_id: 'ch_1' },
+        { action: 'complete_bootstrap' },
+        { action: 'reset_bootstrap' }
+      ])('refuses $action', async (args) => {
+        const result = await callTool(createServer('agent_1'), args, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(mockUpdateAgent).not.toHaveBeenCalled()
+        expect(mockCreateChannel).not.toHaveBeenCalled()
+        expect(mockDeleteChannel).not.toHaveBeenCalled()
+        expect(mockReconnectChannel).not.toHaveBeenCalled()
+      })
+
+      it('still reports status', async () => {
+        mockListChannels.mockReturnValue([telegramChannel])
+
+        const result = await callTool(createServer('agent_1'), { action: 'status' }, 'config')
+
+        expect(result.isError).toBeUndefined()
+        expect(JSON.parse(result.content[0].text).channels).toHaveLength(1)
       })
     })
 

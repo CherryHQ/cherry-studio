@@ -8,11 +8,11 @@ import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledge
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { JobManager } from '@main/core/job/JobManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
+import { KeyedMutex } from '@shared/utils/async'
 
 const { cancelMock, enqueueTxMock, getJobMock, unregisterScheduleMock, notifyDataChangeMock } = vi.hoisted(() => ({
   cancelMock: vi.fn(),

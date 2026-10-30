@@ -45,9 +45,9 @@ const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
 
 /**
  * Live " NN%" suffix for a row whose linked document processor is running (remote OCR /
- * conversion). Mounted only while `item.status === 'processing'`; the check job mirrors the
- * processor job's progress into the shared cache every poll round and TTL-collects it when
- * polling stops, so absence just means the processor reports no progress.
+ * conversion). Mounted only while `item.status === 'processing'`; the main process mirrors the
+ * processor job's progress into the shared cache while the item waits on it and clears it once
+ * the job settles, so absence just means the processor reports no progress.
  */
 const KnowledgeItemFileProcessingProgress = ({ itemId }: { itemId: string }) => {
   const progress = useSharedCacheValue(`knowledge.item.file_processing_progress.${itemId}` as const)

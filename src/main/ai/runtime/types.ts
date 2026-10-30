@@ -276,6 +276,14 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }>
   /**
+   * Reclaim artifacts for exactly these known, permanently purged resume tokens.
+   * This is not a discovery sweep: the caller has drained the runtime and deleted
+   * the rows, so no freshness gate applies. Never touch artifacts for tokens
+   * outside the set, even when another session writes in the same tree.
+   * Must be idempotent and no-op when the runtime root does not exist.
+   */
+  reclaimPurgedSessions?(purgedResumeTokens: ReadonlySet<string>): Promise<{ removed: string[] }>
+  /**
    * Diagnostic events (API errors, retries, failing tools, hook errors) from the tail of this runtime's
    * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.
    */

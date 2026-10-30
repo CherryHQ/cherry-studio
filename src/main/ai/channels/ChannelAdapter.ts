@@ -62,6 +62,7 @@ type ChannelConfigByType = {
         verification_token: string
         domain: 'feishu' | 'lark'
         allowed_chat_ids: string[]
+        mention_only?: boolean
       }
     : Extract<AgentChannelEntity, { type: T }>['config']
 }

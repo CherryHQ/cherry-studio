@@ -7,11 +7,12 @@ import { externalKnowledgeDocumentTable } from '@data/db/schemas/externalKnowled
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext } from '@main/core/job/types'
 import type * as FsUtils from '@main/utils/file'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
+import { KeyedMutex } from '@shared/utils/async'
 
+import { FileProcessingWaitManager } from '../../ingestion/FileProcessingWaitManager'
 import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
 import type * as PathStorage from '../../pathStorage'
 import { loadVisibleItems } from '../../query/visibility'
@@ -95,7 +96,6 @@ function createCtx<TInput>(input: TInput): JobContext<TInput> {
 describe('owned subtree job handler admission', () => {
   const dbh = setupTestDatabase()
   const scheduler: KnowledgeItemScheduler = {
-    scheduleFileProcessingCheck: vi.fn(),
     scheduleIndexing: vi.fn(),
     scheduleItem: vi.fn()
   }
@@ -111,7 +111,6 @@ describe('owned subtree job handler admission', () => {
     listMock.mockResolvedValue([])
     vi.mocked(scheduler.scheduleItem).mockResolvedValue(undefined)
     vi.mocked(scheduler.scheduleIndexing).mockResolvedValue(undefined)
-    vi.mocked(scheduler.scheduleFileProcessingCheck).mockResolvedValue(undefined)
 
     await dbh.db.insert(knowledgeBaseTable).values({
       orderKey: 'a0',
@@ -229,7 +228,7 @@ describe('owned subtree job handler admission', () => {
         return await task()
       })
     )
-    const handler = createReindexSubtreeJobHandler(lock, scheduler)
+    const handler = createReindexSubtreeJobHandler(lock, scheduler, new FileProcessingWaitManager())
 
     await expect(handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [DIRECTORY_ID] }))).rejects.toMatchObject({
       code: 'INVALID_OPERATION'
@@ -278,7 +277,7 @@ describe('owned subtree job handler admission', () => {
     vi.mocked(scheduler.scheduleItem).mockImplementation(async (_base, id) => {
       knowledgeItemService.updateStatus(id, 'completed')
     })
-    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler)
+    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler, new FileProcessingWaitManager())
     const oldCtx = { ...createCtx({ baseId: BASE_ID, rootItemIds: [URL_ITEM_ID, EXTERNAL_ITEM_ID] }), jobId: 'old' }
     const oldRun = handler.execute(oldCtx)
     const oldFailure = expect(oldRun).rejects.toThrow('old acquisition failed')
@@ -306,7 +305,7 @@ describe('owned subtree job handler admission', () => {
       error: null
     })
     deleteMaterialsMock.mockResolvedValue(undefined)
-    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler)
+    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler, new FileProcessingWaitManager())
 
     await expect(
       handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [EXTERNAL_ITEM_ID] }))
@@ -336,7 +335,7 @@ describe('owned subtree job handler admission', () => {
     })
     await seedActiveOwner()
     deleteMaterialsMock.mockResolvedValue(undefined)
-    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler)
+    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler, new FileProcessingWaitManager())
 
     await expect(
       handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [EXTERNAL_ITEM_ID] }))
@@ -370,7 +369,7 @@ describe('owned subtree job handler admission', () => {
       await seedActiveOwner()
       throw new Error('404 Not Found')
     })
-    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler)
+    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler, new FileProcessingWaitManager())
 
     await expect(
       handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [DIRECTORY_ID, URL_ITEM_ID] }))
@@ -387,7 +386,7 @@ describe('owned subtree job handler admission', () => {
 
   it('delete recovery rejects an active-owned subtree before artifact cleanup', async () => {
     await seedSubtree('deleting')
-    const handler = createDeleteSubtreeJobHandler(new KeyedMutex())
+    const handler = createDeleteSubtreeJobHandler(new KeyedMutex(), new FileProcessingWaitManager())
 
     await expect(handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [DIRECTORY_ID] }))).rejects.toMatchObject({
       code: 'INVALID_OPERATION'

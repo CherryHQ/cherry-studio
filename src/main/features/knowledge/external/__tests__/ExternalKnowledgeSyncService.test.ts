@@ -12,9 +12,9 @@ import { externalKnowledgeDocumentTable } from '@data/db/schemas/externalKnowled
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
+import { KeyedMutex } from '@shared/utils/async'
 
 import type { IndexableKnowledgeItem } from '../../items'
 import { deleteKnowledgeItemFiles, getKnowledgeBaseFilePath, writeFileIntoKnowledgeBaseAt } from '../../pathStorage'

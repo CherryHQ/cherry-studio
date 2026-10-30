@@ -30,7 +30,7 @@ describe('external knowledge persistence migrate-forward', () => {
     })
     .passthrough()
     .parse(JSON.parse(readFileSync(join(migrations, 'meta/_journal.json'), 'utf8')))
-  const baselineIndex = journal.entries.findIndex((entry) => entry.tag === '0029_sticky_human_robot')
+  const baselineIndex = journal.entries.findIndex((entry) => entry.tag === '0031_mighty_domino')
   if (baselineIndex < 0) throw new Error('External knowledge baseline migration is missing')
   const entries = journal.entries.slice(0, baselineIndex + 1)
   mkdirSync(join(baseline, 'meta'))

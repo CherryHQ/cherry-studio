@@ -37,6 +37,7 @@ vi.mock('@cherrystudio/ui', async () => ({
   ...(await import('@cherrystudio/ui/components/primitives/alert')),
   ...(await import('@cherrystudio/ui/components/primitives/badge')),
   ...(await import('@cherrystudio/ui/components/primitives/combobox')),
+  ...(await import('@cherrystudio/ui/components/primitives/select')),
   ...(await import('@cherrystudio/ui/components/primitives/input')),
   ...(await import('@cherrystudio/ui/components/primitives/field')),
   ...(await import('@cherrystudio/ui/components/primitives/label')),
@@ -582,7 +583,22 @@ describe('ExternalSourcesSection', () => {
       isLoading: false,
       refetch: vi.fn()
     }))
+    let saved = false
+    const app = {
+      id: '11111111-1111-4111-8111-111111111111',
+      connector: 'feishu',
+      kind: 'application',
+      status: 'available',
+      domain: 'feishu',
+      label: 'cli_research',
+      appId: 'cli_research'
+    }
     mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'credential.list') return saved ? [app] : []
+      if (route === 'credential.feishu.create_application') {
+        saved = true
+        return app
+      }
       if (route === 'knowledge.feishu.authorization.begin')
         return {
           authorizationSessionId: 'new-application-session',
@@ -600,9 +616,11 @@ describe('ExternalSourcesSection', () => {
     await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.sources.manage_connections') }))
     await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.connect_application') }))
     const form = screen.getByRole('dialog', { name: i18n.t('knowledge.external.wizard.connect_application') })
+    await user.click(within(form).getByRole('button', { name: i18n.t('credentials.feishu.manual') }))
     await user.type(within(form).getByLabelText('App ID'), 'cli_research')
     await user.type(within(form).getByLabelText('App Secret'), 'research-secret')
-    await user.click(within(form).getByRole('button', { name: 'Connect to Feishu' }))
+    await user.click(within(form).getByRole('button', { name: i18n.t('common.save') }))
+    await user.click(await within(form).findByRole('button', { name: 'Connect to Feishu' }))
     expect(
       await within(form).findByText(i18n.t('knowledge.external.wizard.verification_code', { code: 'NEW-APP' }))
     ).toBeVisible()
@@ -620,6 +638,9 @@ describe('ExternalSourcesSection', () => {
     expect(
       within(form).getByRole('button', { name: i18n.t('knowledge.external.wizard.open_authorization_page') })
     ).toBeEnabled()
+    await user.click(
+      within(form).getByRole('button', { name: i18n.t('knowledge.external.wizard.open_authorization_page') })
+    )
     expect(mockOpenExternal).toHaveBeenCalledWith('https://accounts.feishu.cn/verify')
     connections = [...connections, connected]
     await act(async () => finishAuthorization(connected))
@@ -645,7 +666,22 @@ describe('ExternalSourcesSection', () => {
     const user = userEvent.setup()
     let attempt = 0
     let failAuthorization!: (reason: Error) => void
+    let saved = false
+    const app = {
+      id: '11111111-1111-4111-8111-111111111111',
+      connector: 'feishu',
+      kind: 'application',
+      status: 'available',
+      domain: 'feishu',
+      label: 'cli_research',
+      appId: 'cli_research'
+    }
     mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'credential.list') return saved ? [app] : []
+      if (route === 'credential.feishu.create_application') {
+        saved = true
+        return app
+      }
       if (route === 'knowledge.feishu.authorization.begin') {
         attempt += 1
         return {
@@ -665,24 +701,27 @@ describe('ExternalSourcesSection', () => {
     await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.sources.manage_connections') }))
     await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.connect_application') }))
     const form = screen.getByRole('dialog', { name: i18n.t('knowledge.external.wizard.connect_application') })
+    await user.click(within(form).getByRole('button', { name: i18n.t('credentials.feishu.manual') }))
     await user.type(within(form).getByLabelText('App ID'), 'cli_research')
     await user.type(within(form).getByLabelText('App Secret'), 'retry-secret')
-    await user.click(within(form).getByRole('button', { name: 'Connect to Feishu' }))
+    await user.click(within(form).getByRole('button', { name: i18n.t('common.save') }))
+    await user.click(await within(form).findByRole('button', { name: 'Connect to Feishu' }))
     expect(
       await within(form).findByText(i18n.t('knowledge.external.wizard.verification_code', { code: 'FIRST-CODE' }))
     ).toBeVisible()
     await act(async () => failAuthorization(new Error('raw secret provider failure')))
 
-    expect(await within(form).findByRole('alert')).toHaveTextContent(
-      i18n.t('knowledge.external.wizard.authorization_error')
+    expect(await within(form).findByText(i18n.t('knowledge.external.wizard.authorization_error'))).toHaveAttribute(
+      'role',
+      'alert'
     )
-    expect(within(form).getByRole('alert')).not.toHaveTextContent('raw secret provider failure')
+    expect(within(form).queryByText('raw secret provider failure')).not.toBeInTheDocument()
     expect(screen.queryByText(/FIRST-CODE/)).not.toBeInTheDocument()
     expect(
       within(form).queryByRole('button', { name: i18n.t('knowledge.external.wizard.open_authorization_page') })
     ).not.toBeInTheDocument()
-    expect(within(form).getByLabelText('App ID')).toHaveValue('cli_research')
-    expect(within(form).getByLabelText('App Secret')).toHaveValue('retry-secret')
+    expect(within(form).getByRole('combobox')).toHaveTextContent('cli_research')
+    expect(within(form).queryByLabelText('App Secret')).not.toBeInTheDocument()
     await user.click(within(form).getByRole('button', { name: 'Connect to Feishu' }))
     expect(
       await within(form).findByText(i18n.t('knowledge.external.wizard.verification_code', { code: 'SECOND-CODE' }))
@@ -698,7 +737,7 @@ describe('ExternalSourcesSection', () => {
       authorizationSessionId: 'application-session-2'
     })
     await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.connect_application') }))
-    expect(screen.getByLabelText('App Secret')).toHaveValue('')
+    expect(screen.queryByLabelText('App Secret')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: i18n.t('knowledge.external.wizard.open_authorization_page') })
     ).not.toBeInTheDocument()

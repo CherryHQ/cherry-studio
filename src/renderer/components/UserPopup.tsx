@@ -26,6 +26,7 @@ import { toast } from '@renderer/services/toast'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 
+import { AccountSignOutButton } from './AccountSignOutButton'
 import { EmojiPicker } from './EmojiPicker'
 
 type Props = PopupInjectedProps<Record<string, never>>
@@ -164,6 +165,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             maxLength={30}
           />
         </RowFlex>
+        <AccountSignOutButton className="mx-5 mb-5" />
       </DialogContent>
     </Dialog>
   )

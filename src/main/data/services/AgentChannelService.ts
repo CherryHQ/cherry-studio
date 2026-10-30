@@ -66,7 +66,8 @@ export class AgentChannelService {
             ...(row.config.registrationDomain === 'feishu' || row.config.registrationDomain === 'lark'
               ? { registrationDomain: row.config.registrationDomain }
               : {}),
-            allowed_chat_ids: Array.isArray(row.config.allowed_chat_ids) ? row.config.allowed_chat_ids : []
+            allowed_chat_ids: Array.isArray(row.config.allowed_chat_ids) ? row.config.allowed_chat_ids : [],
+            ...(typeof row.config.mention_only === 'boolean' ? { mention_only: row.config.mention_only } : {})
           }
         : normalizeChannelConfig(row.config)) as AgentChannelEntity['config'],
       workspace: row.workspace,

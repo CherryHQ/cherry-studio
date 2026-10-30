@@ -130,7 +130,10 @@ const PlantUmlPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="plantuml">
-      <ShadowWhiteContainer ref={containerRef} className="plantuml-preview special-preview" />
+      <ShadowWhiteContainer
+        ref={containerRef}
+        className="plantuml-preview special-preview flex items-center justify-center"
+      />
     </ImagePreviewLayout>
   )
 }

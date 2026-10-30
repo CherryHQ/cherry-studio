@@ -2,8 +2,8 @@ import { isWebSearchError } from '@cherrystudio/web-search'
 import { yuanbao } from '@cherrystudio/web-search/providers/yuanbao'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
-import { parseMatchPattern } from '@shared/utils/blacklistMatchPattern'
 
+import { toExcludedSiteDomains } from '../../utils/blacklist'
 import type { ApiKeyRotationState } from '../../utils/provider'
 import { RemoteWebSearchProvider } from '../base/RemoteWebSearchProvider'
 
@@ -19,16 +19,7 @@ export class YuanbaoProvider extends RemoteWebSearchProvider {
   ): Promise<WebSearchResponse> {
     const requestConfig = {
       ...config,
-      excludeDomains: config.excludeDomains.flatMap((rule) => {
-        const pattern = parseMatchPattern(rule.trim())
-        return pattern &&
-          !pattern.allURLs &&
-          pattern.scheme === '*' &&
-          pattern.path === '/*' &&
-          pattern.host.startsWith('*.')
-          ? [pattern.host.slice(2)]
-          : []
-      })
+      excludeDomains: toExcludedSiteDomains(config.excludeDomains)
     }
     const credentials = this.credentials()
     try {

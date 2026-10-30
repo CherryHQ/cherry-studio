@@ -3,8 +3,8 @@ import { externalKnowledgeDocumentService } from '@data/services/ExternalKnowled
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import { enqueueKnowledgeSubtreeDeletionTx } from '../ingestion/subtreeDeletion'
 import { cancelJobAndConfirmStopped } from '../tasks/utils/cancel'

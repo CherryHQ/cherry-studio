@@ -70,7 +70,7 @@ describe('KnowledgeBaseSelector', () => {
     expect(screen.getAllByRole('option')).toHaveLength(2)
   })
 
-  it('opens a trigger-width SelectorShell and filters by name', () => {
+  it('opens a trigger-width SelectorShell and filters by name or ID', () => {
     renderSelector()
 
     const trigger = screen.getByRole('button', { name: 'Select knowledge base' })
@@ -94,6 +94,13 @@ describe('KnowledgeBaseSelector', () => {
     expect(screen.getByTestId('knowledge-base-selector-content')).toHaveStyle({ height: '84px' })
     expect(screen.queryByRole('option', { name: 'Alpha Knowledge' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Beta Knowledge' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search knowledge bases'), {
+      target: { value: 'base-gamma' }
+    })
+
+    expect(screen.queryByRole('option', { name: 'Alpha Knowledge' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Gamma Knowledge' })).toBeInTheDocument()
   })
 
   it('selects available knowledge bases and ignores unavailable ones', () => {
