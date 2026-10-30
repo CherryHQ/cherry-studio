@@ -245,6 +245,7 @@ exports.default = async function (context) {
         electronVersion: 'standalone',
         inputs: [
           'packages/system-speech/native/Package.swift',
+          'packages/system-speech/native/Info.plist',
           'packages/system-speech/native/Sources',
           'packages/system-speech/scripts/build-native.cjs'
         ],

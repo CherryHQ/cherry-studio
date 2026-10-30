@@ -1,10 +1,14 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
 
+import { Arch } from 'electron-builder'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as packagingHooks from '../packaging/before-pack'
 import { saveTask } from '../release/build-cache'
 import { cachedNativeBuild, nativeTask } from '../release/native-build-cache'
 
@@ -29,6 +33,65 @@ function fixture() {
 }
 
 describe('native build reuse', () => {
+  it.skipIf(process.platform !== 'darwin')(
+    'rebuilds the packaged speech helper when only its embedded permission plist changes',
+    async () => {
+      vi.stubEnv('CHERRY_BUILD_CACHE', '1')
+      const { root } = fixture()
+      const plist = join(root, 'packages/system-speech/native/Info.plist')
+      const executable = join(root, `packages/system-speech/dist/native/darwin-${process.arch}/cherry-system-speech`)
+      mkdirSync(dirname(plist), { recursive: true })
+      mkdirSync(dirname(executable), { recursive: true })
+      const originalPlist = readFileSync('packages/system-speech/native/Info.plist', 'utf8')
+      writeFileSync(plist, originalPlist)
+      let allowCompile = true
+      const compile = () => {
+        if (!allowCompile) throw new Error('expected an unchanged helper cache hit')
+        return execFileSync('xcrun', [
+          'clang',
+          join(root, 'input.c'),
+          '-Wl,-sectcreate,__TEXT,__info_plist,' + plist,
+          '-o',
+          executable
+        ])
+      }
+      const hookPath = resolve('scripts/packaging/before-pack.js')
+      const requireHook = createRequire(hookPath)
+      const hooks = {} as typeof packagingHooks
+      const prepared = new Error('speech helper prepared; stop before unrelated packaging')
+      runInNewContext(readFileSync(hookPath, 'utf8'), {
+        exports: hooks,
+        __dirname: join(root, 'scripts/packaging'),
+        require: (id: string) =>
+          id === '../release/native-build-cache'
+            ? {
+                cachedNativeBuild: async (options: Parameters<typeof cachedNativeBuild>[0]) => {
+                  await cachedNativeBuild(options, compile)
+                  throw prepared
+                }
+              }
+            : requireHook(id)
+      })
+      const prepare = () =>
+        expect(hooks.default({ arch: Arch[process.arch], packager: { platform: { name: 'mac' } } })).rejects.toBe(
+          prepared
+        )
+      await prepare()
+      const original = readFileSync(executable)
+      expect(original.includes(Buffer.from(originalPlist))).toBe(true)
+      rmSync(executable)
+      allowCompile = false
+      await prepare()
+      expect(readFileSync(executable)).toEqual(original)
+      allowCompile = true
+      const updatedPlist = originalPlist.replace('</string>', ' Updated permission description.</string>')
+      writeFileSync(plist, updatedPlist)
+      await prepare()
+      expect(readFileSync(executable).includes(Buffer.from(updatedPlist))).toBe(true)
+      expect(readFileSync(executable).includes(Buffer.from(originalPlist))).toBe(false)
+    }
+  )
+
   it('does not reuse a Windows output without a verified toolchain', async () => {
     vi.stubEnv('CHERRY_BUILD_CACHE', '1')
     const options = { ...fixture(), platform: 'win32' }
