@@ -3,6 +3,11 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import {
+  createEditToolDefinition,
+  createReadToolDefinition,
+  createWriteToolDefinition
+} from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { t } from '@main/i18n'
@@ -77,6 +82,9 @@ vi.mock('./piSdk', () => ({
     createCodemodeExtension: () => () => undefined,
     createToolSearchExtension: () => () => undefined,
     createBashToolDefinition: () => ({ name: 'bash' }),
+    createReadToolDefinition,
+    createWriteToolDefinition,
+    createEditToolDefinition,
     createAgentSession: mocks.createAgentSession
   })
 }))

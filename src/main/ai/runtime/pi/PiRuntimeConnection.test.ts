@@ -3,7 +3,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import {
+  createEditToolDefinition,
+  createReadToolDefinition,
+  createWriteToolDefinition,
+  type AgentSessionEvent
+} from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -276,6 +281,9 @@ const fakePi = {
     }
   },
   createAgentSession: mocks.createAgentSession,
+  createReadToolDefinition,
+  createWriteToolDefinition,
+  createEditToolDefinition,
   createBashToolDefinition: mocks.createBashToolDefinition
 }
 
@@ -1770,7 +1778,12 @@ describe('PiRuntimeConnection', () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
-    expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL])
+    expect((mocks.createOpts?.customTools as Array<{ name: string }>).map((tool) => tool.name)).toEqual([
+      'bash',
+      'read',
+      'write',
+      'edit'
+    ])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
