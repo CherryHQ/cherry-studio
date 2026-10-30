@@ -1,11 +1,18 @@
 import { createHash } from 'node:crypto'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { measureSystemContext } from '@earendil-works/pi-ai/utils/context-usage'
 import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
 import { getCurrentSystemMessage } from '@earendil-works/pi-ai/utils/transcript'
 import type { Conversation } from '@earendil-works/pi-durable'
 
-import type { OperationResult, ThreadContextUsage } from '@cherrystudio/agent-runtime'
+import type {
+  ContextCategory,
+  ContextCategoryKey,
+  ContextResource,
+  OperationResult,
+  ThreadContextUsage
+} from '@cherrystudio/agent-runtime'
 
 export async function readContextUsage(conversation: Conversation): Promise<OperationResult<ThreadContextUsage>> {
   const usage = await conversation.contextUsage(BACKGROUND_CONTEXT)
@@ -15,24 +22,37 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
       error: { operation: 'contextUsage', code: 'unavailable', message: 'Context measurement unavailable' }
     }
   const system = getCurrentSystemMessage(usage.messages)
-  const categories: NonNullable<ThreadContextUsage['breakdown']>['categories'][number][] = []
-  if (system) {
-    const { toolsAdded, ...prompt } = system
-    categories.push({
-      id: 'system-prompt',
-      key: 'system-prompt',
-      occupancy: 'included',
-      precision: 'estimated',
-      tokens: estimateMessageTokens(prompt)
-    })
-    if (toolsAdded?.length)
-      categories.push({
-        id: 'system-tools',
-        key: 'system-tools',
-        occupancy: 'included',
-        precision: 'estimated',
-        tokens: estimateMessageTokens({ role: 'system', content: '', toolsAdded, timestamp: system.timestamp })
+  const categories: ContextCategory[] = []
+  const resources: ContextResource[] = []
+  for (const part of measureSystemContext(system, usage.deferred)) {
+    const key = categoryKeys[part.kind] ?? 'other'
+    const occupancy = part.state === 'deferred' ? 'deferred' : 'included'
+    const id = `${key}:${occupancy}`
+    const category = categories.find((category) => category.id === id)
+    if (category) categories[categories.indexOf(category)] = { ...category, tokens: category.tokens + part.tokens }
+    else categories.push({ id, key, occupancy, tokens: part.tokens, precision: 'estimated' })
+    if (part.state)
+      resources.push({
+        id: `tool:${part.id}`,
+        category: key,
+        name: part.id,
+        source: part.source,
+        state: part.state,
+        count: { tokens: part.tokens, precision: 'estimated' }
       })
+    else
+      for (const resource of part.resources ?? [])
+        resources.push({
+          id: `section:${part.id}:${resource.id}`,
+          category: key,
+          name: resource.name,
+          source: resource.source,
+          state: 'loaded',
+          count: {
+            tokens: estimateMessageTokens({ role: 'system', content: ' '.repeat(resource.characters), timestamp: 0 }),
+            precision: 'estimated'
+          }
+        })
   }
   categories.push({
     id: 'messages',
@@ -43,14 +63,6 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
       .filter((message) => message.role !== 'system')
       .reduce((sum, message) => sum + estimateMessageTokens(message), 0)
   })
-  if (usage.deferred.length)
-    categories.push({
-      id: 'deferred-tools',
-      key: 'system-tools',
-      occupancy: 'deferred',
-      precision: 'estimated',
-      tokens: estimateMessageTokens({ role: 'system', content: '', toolsAdded: [...usage.deferred], timestamp: 0 })
-    })
   return {
     status: 'confirmed',
     value: {
@@ -61,20 +73,17 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
       used: { tokens: usage.tokens, precision: 'estimated' },
       basis: 'current-context',
       breakdown: { coverage: 'partial', categories },
-      resources: [
-        ...(system?.toolsAdded ?? []).map((tool) => ({
-          id: tool.name,
-          category: 'system-tools' as const,
-          name: tool.name,
-          state: 'loaded' as const
-        })),
-        ...usage.deferred.map((tool) => ({
-          id: tool.name,
-          category: 'system-tools' as const,
-          name: tool.name,
-          state: 'deferred' as const
-        }))
-      ]
+      resources
     }
   }
+}
+
+const categoryKeys: Record<string, ContextCategoryKey> = {
+  'system-prompt': 'system-prompt',
+  'system-tools': 'system-tools',
+  'mcp-tools': 'mcp-tools',
+  'mcp-instructions': 'mcp-instructions',
+  'memory-files': 'memory-files',
+  skills: 'skills',
+  agents: 'agents'
 }
