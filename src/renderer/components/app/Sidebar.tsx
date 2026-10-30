@@ -84,7 +84,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
   useEffect(() => {
-    if (layout === 'hidden') setUserMenuOpen(false)
+    if (layout === 'hidden') {
+      setUserMenuOpen(false)
+      setHoverVisible(false)
+    }
   }, [layout])
 
   const avatar = useAvatar()
@@ -218,6 +221,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const sidebarProps = {
     entries,
+    emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <>

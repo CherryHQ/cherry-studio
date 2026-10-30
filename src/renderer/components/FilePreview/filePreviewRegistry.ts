@@ -4,7 +4,9 @@ import { normalizeExt } from '@shared/utils/file'
 
 import { htmlFilePreviewPlugin } from './plugins/html/htmlFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
+import { mermaidFilePreviewPlugin } from './plugins/mermaid/mermaidFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
+import { videoFilePreviewPlugin } from './plugins/video/videoFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
 
 export interface FilePreviewRegistry {
@@ -43,11 +45,19 @@ export const filePreviewRegistry = createFilePreviewRegistry({
     ...previewFormats.map((format) => ({ ...format, load: () => import('./ElectronFilePreview') })),
     htmlFilePreviewPlugin,
     markdownFilePreviewPlugin,
-    textFilePreviewPlugin
+    mermaidFilePreviewPlugin,
+    textFilePreviewPlugin,
+    videoFilePreviewPlugin
   ]
 })
 
 /** Whether the plugin that would render `filePath` declares `supportsSelectionReference`. */
 export function canProduceSelectionReference(filePath: string): boolean {
   return resolveExtensionPlugin(filePath, filePreviewRegistry)?.supportsSelectionReference === true
+}
+
+/** Whether `filePath` gets a rendered preview (HTML, Markdown, images, documents) rather than plain text. */
+export function hasRenderedFilePreview(filePath: string): boolean {
+  const plugin = resolveExtensionPlugin(filePath, filePreviewRegistry)
+  return plugin !== null && plugin !== textFilePreviewPlugin
 }

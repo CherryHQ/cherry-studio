@@ -147,11 +147,6 @@ vi.stubGlobal('api', {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
   },
-  // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
-  // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
-  application: {
-    relaunch: vi.fn().mockResolvedValue(undefined)
-  },
   // Low-level IpcApi bridge — the typed `ipcApi` facade calls through this. Stubbed so
   // module-level `ipcApi.on(...)` side effects (e.g. the renderer notification singleton)
   // don't crash tests that transitively import them without a local `@renderer/ipc` mock.
@@ -172,6 +167,8 @@ vi.mock('@cherrystudio/ui', async () => {
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
+  const { createCodeHighlightPlugin } =
+    await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -186,6 +183,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const FormFieldNameContext = React.createContext(undefined)
   return {
     BarVisualizer,
+    createCodeHighlightPlugin,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
     Markdown: ({ children }) => React.createElement('div', null, children),

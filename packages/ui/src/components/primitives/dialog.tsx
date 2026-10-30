@@ -82,10 +82,13 @@ function DialogContent({
   overlayClassName,
   onPointerDown,
   size = 'default',
+  style,
   ref,
   ...props
 }: DialogContentProps) {
+  const dialogPortalContainer = useDialogPortalContainer()
   const [contentElement, setContentElement] = React.useState<HTMLDivElement | null>(null)
+  const [contentZIndex, setContentZIndex] = React.useState<string>()
   const handleRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       setContentElement(node)
@@ -97,6 +100,11 @@ function DialogContent({
     },
     [ref]
   )
+
+  // Callers raise the dialog's z-index through className or style; tooltips opened later must follow it.
+  React.useLayoutEffect(() => {
+    if (contentElement) setContentZIndex(getComputedStyle(contentElement).zIndex)
+  }, [contentElement, className, style])
 
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -113,6 +121,9 @@ function DialogContent({
         Keep Content as a direct Portal child so Radix Presence receives its DOM ref and
         can retain it for the closed-state animation. Nested overlays still inherit the
         content element as their portal target from the provider inside Content.
+        Tooltips portal beside Content instead: Content is the containing block for their
+        fixed positioning, so overflow set by callers on Content would clip them. Each one is
+        appended after Content when it opens and takes Content's z-index, so it paints above it.
 
         The closed-state animation duration below must equal DIALOG_CLOSE_DURATION_MS
         (above); a test enforces it. Imperative host removal timing is defined separately
@@ -125,8 +136,8 @@ function DialogContent({
           // no-drag punches the dialog's area out of any titlebar drag region it overlaps,
           // so the close button stays clickable when the dialog reaches max height (Electron).
           'fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 bg-card p-6 text-card-foreground shadow-xl [-webkit-app-region:no-drag]',
-          'data-[state=open]:animate-in data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=open]:animation-duration-[260ms] data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99',
-          'data-[state=closed]:animate-out data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)] data-[state=closed]:animation-duration-[200ms] data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99',
+          'data-[state=open]:animate-in data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=open]:animation-duration-[260ms] data-[state=open]:fade-in-0',
+          'data-[state=closed]:animate-out data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)] data-[state=closed]:animation-duration-[200ms] data-[state=closed]:fade-out-0',
           motion === 'directional' &&
             'data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4',
           'fill-mode-both motion-reduce:animate-none',
@@ -136,8 +147,12 @@ function DialogContent({
         onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
           checkForDefaultPrevented: false
         })}
+        style={style}
         {...props}>
-        <PortalContainerProvider container={contentElement}>
+        <PortalContainerProvider
+          container={contentElement}
+          tooltipContainer={dialogPortalContainer}
+          tooltipZIndex={contentZIndex}>
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close

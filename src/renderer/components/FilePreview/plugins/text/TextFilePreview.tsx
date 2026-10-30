@@ -1,20 +1,19 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type ReactNode, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import CodeViewer from '@renderer/components/CodeViewer'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')
-const TEXT_PREVIEW_MAX_SIZE_MIB = 2
-const TEXT_PREVIEW_MAX_SIZE_BYTES = TEXT_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
+const TEXT_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
 
 type TextFileLoadState =
   | { status: 'empty' }
@@ -92,32 +91,43 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
 
   return (
     <div className="flex min-h-full w-full">
-      {/* The composer inset pads inside the viewer, whose shiki theme paints an opaque
-          background — the code surface then runs to the container bottom under the composer. */}
-      <CodeViewer
-        value={loadState.content}
-        language={getLanguageByFilePath(filePath)}
-        className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
-      />
+      <Suspense fallback={<TextPreviewLoading />}>
+        <FileEditor
+          value={loadState.content}
+          fileName={filePath}
+          readOnly
+          expanded
+          wrapLines
+          className="min-w-0 flex-1"
+        />
+      </Suspense>
     </div>
   )
 }
 
-export default function TextFilePreview({ filePath, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function TextFilePreview({ filePath, metadata, metadataRequest, refreshKey }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
+  const sourceMetadata = metadataRequest ?? metadata.size
 
-  useEffect(() => {
+  // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
+  // Read metadata after ancestor layout setup, including Activity reconnections.
+  useLayoutEffect(() => {
     let cancelled = false
-    setLoadState({ status: 'loading' })
+    setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {
-        if (metadata.size === 0) {
+        const loadedMetadata =
+          typeof sourceMetadata === 'function'
+            ? await Promise.resolve().then(sourceMetadata)
+            : { kind: 'file', size: sourceMetadata }
+        if (cancelled || loadedMetadata?.kind !== 'file') return
+        if (loadedMetadata.size === 0) {
           setLoadState({ status: 'empty' })
           return
         }
 
-        if (metadata.size > TEXT_PREVIEW_MAX_SIZE_BYTES) {
+        if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }
@@ -135,7 +145,7 @@ export default function TextFilePreview({ filePath, metadata, refreshKey }: File
     return () => {
       cancelled = true
     }
-  }, [filePath, metadata.size, refreshKey])
+  }, [filePath, sourceMetadata, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>

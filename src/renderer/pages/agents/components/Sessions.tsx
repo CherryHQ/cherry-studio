@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import { archiveAgentSessionsPopup } from '@renderer/components/chat/archiveAgentSessionsPopup'
 import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import {
   remapResourceListCollapsedGroupIds,
@@ -33,7 +34,6 @@ import {
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
@@ -48,6 +48,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
 import { popup } from '@renderer/services/popup'
@@ -95,6 +96,7 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -171,6 +173,7 @@ function AgentGroupMoreMenu({
   deleteSessionsOnly,
   pinDisabled,
   pinned,
+  onArchiveSessions,
   onDeleteAgent,
   onEdit,
   onSetAgentIconType,
@@ -185,6 +188,7 @@ function AgentGroupMoreMenu({
   pinDisabled?: boolean
   pinned: boolean
   sidebarPinned: boolean
+  onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
@@ -197,6 +201,7 @@ function AgentGroupMoreMenu({
     assistantIconType,
     deleteAgentDisabled,
     deleteSessionsOnly,
+    onArchiveSessions,
     onDeleteAgent,
     onEdit,
     onSetAgentIconType,
@@ -406,9 +411,18 @@ const Sessions = ({
   const resolvedPanePosition = panePosition ?? storedPanePosition
   const setResolvedPanePosition =
     panePosition === undefined ? (onSetPanePosition ?? setStoredPanePosition) : onSetPanePosition
-  const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
-  const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
-  const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
+  const [sessionExpansionTime, setSessionExpansionTime] = useWindowScopedPersistCache(
+    'ui.agent.session.expansion.time',
+    'ui.window.agent.session.expansion.time'
+  )
+  const [sessionExpansionAgent, setSessionExpansionAgent] = useWindowScopedPersistCache(
+    'ui.agent.session.expansion.agent',
+    'ui.window.agent.session.expansion.agent'
+  )
+  const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = useWindowScopedPersistCache(
+    'ui.agent.session.expansion.workdir',
+    'ui.window.agent.session.expansion.workdir'
+  )
   const {
     sessions,
     pinIdBySessionId,
@@ -1200,6 +1214,12 @@ const Sessions = ({
   )
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
+  // Pinned order lives in `pin.orderKey`, not on the session row, so a pinned move
+  // goes through `/pins` — and the server's two-section cursor means it also
+  // reshuffles `/agent-sessions` pages.
+  const { trigger: reorderPin } = useMutation('PATCH', '/pins/:id/order', {
+    refresh: ['/pins', '/agent-sessions']
+  })
   const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
 
   const createSessionFromSeed = useCallback(
@@ -1293,11 +1313,10 @@ const Sessions = ({
   }, [refetchAgents, reload])
 
   const handleDeleteAgent = useCallback(
-    async (agentId: string) => {
+    async (agentId: string, deleteSessionsOnly = false) => {
       if (deletingAgentId) return
 
       const agent = agentById.get(agentId)
-      const deleteSessionsOnly = isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
 
       const performDelete = async (deleteSessions: boolean) => {
         const currentActiveSessionId = activeSessionIdRef.current
@@ -1398,15 +1417,21 @@ const Sessions = ({
           }
         } catch (err) {
           logger.error('Failed to delete agent from session group', { agentId, err })
-          if (!deleteSessionsOnly) throw err
-          toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
+          throw err
         } finally {
           setDeletingAgentId(null)
         }
       }
 
       if (deleteSessionsOnly) {
-        await performDelete(true)
+        await archiveAgentSessionsPopup.show({
+          agentName: agent?.name || t('common.unnamed'),
+          sessionCount: isFullyLoaded
+            ? sessionItemsRef.current.filter((session) => session.agentId === agentId).length
+            : undefined,
+          t,
+          action: () => performDelete(true)
+        })
         return
       }
 
@@ -1417,6 +1442,7 @@ const Sessions = ({
       agentById,
       deletingAgentId,
       invalidate,
+      isFullyLoaded,
       onActiveAgentDeleted,
       refetchAgents,
       refreshAgentResources,
@@ -1428,6 +1454,8 @@ const Sessions = ({
       t
     ]
   )
+
+  const handleArchiveSessions = useCallback((agentId: string) => handleDeleteAgent(agentId, true), [handleDeleteAgent])
 
   const handleDeleteWorkdirGroup = useCallback(
     async (group: ResourceListGroup) => {
@@ -1529,7 +1557,7 @@ const Sessions = ({
   const handleOpenWorkdirGroup = useCallback(
     async (workdirPath: string) => {
       try {
-        await window.api.file.openPath(workdirPath)
+        await ipcApi.request('system.shell.open_path', workdirPath)
       } catch (err) {
         toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
       }
@@ -1585,23 +1613,27 @@ const Sessions = ({
       displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
     [displayMode]
   )
-  const canDragSessionItem = useCallback(
-    ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned,
-    [itemDragReady]
-  )
+  // Pinned rows now drag: a pinned task's position is the one thing a user could
+  // not choose before. They stay inside the pinned set — crossing the pinned
+  // boundary would silently pin or unpin, which only the star button should do.
+  const canDragSessionItem = useCallback(() => itemDragReady, [itemDragReady])
 
   const canDropSessionItem = useCallback(
     ({
+      activeItem,
       overItem,
       sourceGroupId,
       targetGroupId
     }: {
+      activeItem: SessionListItem
       overItem?: SessionListItem
       sourceGroupId: string
       targetGroupId: string
     }) =>
       itemDragReady &&
-      !overItem?.pinned &&
+      // A drop onto a group header has no `overItem`; the same-group check below
+      // is what keeps that drop inside the item's own group.
+      (overItem ? activeItem.pinned === overItem.pinned : true) &&
       canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
     [displayMode, itemDragReady]
   )
@@ -1640,6 +1672,33 @@ const Sessions = ({
       return workdirDragReady && !!activeWorkspaceId && !!overWorkspaceId && activeWorkspaceId !== overWorkspaceId
     },
     [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
+  )
+
+  // Pinned order is stored on the pin row, and `applyScopedMoves` resolves both
+  // the moved row and the before/after anchor by `pin.id` — so both session ids
+  // have to be translated before the move is sent.
+  const reorderPinnedSession = useCallback(
+    async (payload: ResourceListItemReorderPayload) => {
+      const activePinId = pinIdBySessionId.get(payload.activeId)
+      if (!activePinId) return
+
+      const overPinId = pinIdBySessionId.get(payload.overId)
+      const anchor: OrderRequest =
+        payload.overType === 'item' && overPinId
+          ? payload.position === 'before'
+            ? { before: overPinId }
+            : { after: overPinId }
+          : { position: 'last' }
+
+      try {
+        await reorderPin({ params: { id: activePinId }, body: anchor })
+      } catch (err) {
+        setOptimisticMove(null)
+        logger.error('Failed to reorder pinned session', { activePinId, err })
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+      }
+    },
+    [pinIdBySessionId, reorderPin, t]
   )
 
   const handleSessionReorder = useCallback(
@@ -1744,12 +1803,17 @@ const Sessions = ({
       }
 
       const session = sessionItems.find((candidate) => candidate.id === payload.activeId)
-      if (!session || session.pinned) return
+      if (!session) return
 
       const normalizedPayload = normalizeSessionDropPayload(payload)
-      const anchor = buildSessionDropAnchor(normalizedPayload)
       setOptimisticMove(normalizedPayload)
 
+      if (session.pinned) {
+        await reorderPinnedSession(normalizedPayload)
+        return
+      }
+
+      const anchor = buildSessionDropAnchor(normalizedPayload)
       const reordered = await reorderSession(payload.activeId, anchor)
       if (!reordered) {
         setOptimisticMove(null)
@@ -1764,6 +1828,7 @@ const Sessions = ({
       refetchAgents,
       refetchWorkspaces,
       reorderAgent,
+      reorderPinnedSession,
       reorderSession,
       reorderWorkspace,
       sessionItems,
@@ -1816,6 +1881,7 @@ const Sessions = ({
                 )}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
+                onArchiveSessions={handleArchiveSessions}
                 onDeleteAgent={handleDeleteAgent}
                 onEdit={openAgentEditor}
                 onSetAgentIconType={setAssistantIconType}
@@ -1867,6 +1933,7 @@ const Sessions = ({
       deletingWorkspaceGroupId,
       displayMode,
       createSessionSeedIndex,
+      handleArchiveSessions,
       handleDeleteAgent,
       handleToggleAgentPin,
       handleToggleAgentSidebar,
@@ -1983,6 +2050,7 @@ const Sessions = ({
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
           deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
+          onArchiveSessions: handleArchiveSessions,
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
@@ -2030,6 +2098,7 @@ const Sessions = ({
       deletingAgentId,
       deletingWorkspaceGroupId,
       displayMode,
+      handleArchiveSessions,
       handleDeleteAgent,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,

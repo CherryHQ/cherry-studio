@@ -207,6 +207,37 @@ pnpm theme:check
 pnpm test
 ```
 
+### Headless Code Highlighting
+
+`@cherrystudio/ui/code-highlight` exposes language/theme metadata, a lazy Highlights runtime,
+synchronous document sessions, and a bounded asynchronous snapshot executor. It imports neither
+React nor application services; metadata access does not initialize WASM. Import this subpath
+instead of the component entry in workers and editor adapters.
+
+`createCodeHighlightPlugin({ execute, themes })` connects Streamdown to a snapshot executor.
+Standalone Markdown defaults to a shared local executor and GitHub light/dark themes. The app
+injects its renderer worker executor and viewer theme preferences. Adopted message editors use the same selected code palette; generic CodeMirror editors and standalone UI consumers retain their own themes.
+
+`@cherrystudio/ui/code-block` supplies the shared code-block language loader, semantic
+HighlightStyle, palette variables and incremental parser documents. CodeViewer range jobs
+and Tiptap decorations use it in the existing renderer worker; adopted message editors install the same syntax
+classes and palette. Snapshot/HTML/Markdown jobs use its bounded snapshot adapter as well. It does not construct EditorView or import application services.
+`readCodeBlockState` reads an already parsed editor range to preserve syntax on the first
+viewer paint; it returns `null` when that range is not parsed, without starting parsing.
+Grammar modules can still depend on CodeMirror runtime modules and are cached separately
+in the worker and renderer.
+
+### Mermaid Diagrams
+
+`@cherrystudio/ui/mermaid` renders Mermaid source with Merman (`@mermanjs/web-render`, Mermaid
+compiled from Rust to WASM). `renderMermaidSvg(source, { theme, diagramId })` loads the runtime once
+per realm on first use and measures labels with an `OffscreenCanvas`, so it runs on the page or in a
+Web Worker; the app runs it in a worker. A worker must load the theme's `fontFaces` first, which
+`renderMermaidSvg` does. `resolveMermaidTheme(element)`
+maps the design tokens and the background actually painted behind `element` to Merman's semantic
+roles, so diagrams follow light/dark mode and sit on their surface. The Markdown `withMermaid()`
+preset uses the same renderer for Streamdown.
+
 ### Icon Generation
 
 Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
