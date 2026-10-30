@@ -127,7 +127,7 @@
     },
     {
       "path": "docs/references/ai/tool-approval.md",
-      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/hooks/useToolApprovalBridge.ts"]
+      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/mcp/McpRuntimeService.ts","src/main/ai/mcp/connections/ClientMcpConnection.ts","src/main/ai/mcp/connections/ExternalMcpConnection.ts","src/main/ai/mcp/createMcpBridgeServer.ts","src/main/ai/mcp/mcpRequestOptions.ts","src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts","src/main/ai/runtime/claudeCode/hooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/runtime/claudeCode/streamAdapter.ts","src/main/ai/toolApproval/ToolApprovalRegistry.ts","src/main/ai/toolApproval/builtinToolPolicy.ts","src/main/ai/tools/adapters/claudeCode/agentTools.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx","src/renderer/components/chat/messages/tools/toolResponse.ts","src/renderer/components/composer/variants/PermissionRequestComposer.tsx","src/renderer/hooks/useToolApprovalBridge.ts","src/shared/ai/claudecode/toolRules.ts","src/shared/ai/tools/mcpSourcePolicy.ts","src/shared/ipc/schemas/ai.ts"]
     },
     {
       "path": "docs/references/ai/tool-registry.md",
