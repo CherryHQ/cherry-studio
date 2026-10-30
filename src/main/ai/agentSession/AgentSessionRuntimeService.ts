@@ -2920,8 +2920,10 @@ export class AgentSessionRuntimeService extends BaseService {
       // still running (an interactive subagent, a co-spawned shell), SDK 0.3.284 queues this task's
       // own receive-only generation after the foreground settles instead of folding its result into
       // the streaming query — unless the streaming turn is blocked on a tool whose output this very
-      // completion feeds, which is consumption. Retiring the authority on the open-stream edge alone
-      // then leaves that generation to inherit whatever responder the remaining work holds.
+      // completion feeds, which is consumption. Even the last live task can notify during final-text
+      // streaming and still receive its own generation afterwards, so neither the open stream nor
+      // being the last work in flight retires it: only the tool continuation proves consumption.
+      // Retiring on a weaker edge leaves that generation to inherit whatever responder remains.
       const turn = this.currentTurn(entry)
       const feedingLiveTool = (turn?.activeToolIds.size ?? 0) > 0
       if (hasAgentSessionRuntimeOpenStream(entry.runtimeState) && feedingLiveTool) {
