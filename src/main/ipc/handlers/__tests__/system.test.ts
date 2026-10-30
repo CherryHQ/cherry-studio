@@ -8,6 +8,7 @@ const {
   getFontsMock,
   isTrustedMock,
   openPathMock,
+  openRequestPathMock,
   openExternalMock,
   isSafeMock,
   nativeThemeMock,
@@ -22,6 +23,7 @@ const {
   getFontsMock: vi.fn(),
   isTrustedMock: vi.fn(),
   openPathMock: vi.fn(),
+  openRequestPathMock: vi.fn(),
   openExternalMock: vi.fn(),
   isSafeMock: vi.fn(),
   nativeThemeMock: { shouldUseDarkColors: false },
@@ -34,6 +36,7 @@ const {
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/utils/system', () => ({ getDeviceType: getDeviceTypeMock }))
 vi.mock('@main/services/RegionService', () => ({ regionService: { getCountry: getCountryMock } }))
+vi.mock('@main/services/file', () => ({ openRequestPath: openRequestPathMock }))
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeMock }))
 vi.mock('@main/core/platform', () => ({
   get isMac() {
@@ -53,6 +56,8 @@ vi.mock('@main/utils/screenCapturePermission', () => ({
   requestScreenCapturePermission: requestScreenCaptureMock,
   openScreenCaptureSettings: openScreenCaptureSettingsMock
 }))
+
+import { systemRequestSchemas } from '@shared/ipc/schemas/system'
 
 import { systemHandlers } from '../system'
 
@@ -148,9 +153,11 @@ describe('systemHandlers', () => {
     expect(await systemHandlers['system.mac.request_screen_capture'](undefined, ctx('w1'))).toBe('denied')
   })
 
-  it('shell.open_path delegates straight to shell.openPath', async () => {
+  it('shell.open_path delegates to the file entry point that validates the path', async () => {
     await systemHandlers['system.shell.open_path']('/tmp/foo', ctx('w1'))
-    expect(openPathMock).toHaveBeenCalledWith('/tmp/foo')
+
+    expect(openRequestPathMock).toHaveBeenCalledWith('/tmp/foo')
+    expect(openPathMock).not.toHaveBeenCalled()
   })
 
   it('shell.open_website opens a URL that passes the scheme guard', async () => {
@@ -159,9 +166,23 @@ describe('systemHandlers', () => {
     expect(navigation.openWebsite).toHaveBeenCalledWith('https://example.com')
   })
 
-  it('shell.open_website drops an unsafe URL without calling shell.openExternal', async () => {
+  it('shell.open_website delegates unsafe URL rejection to main without calling shell.openExternal', async () => {
     isSafeMock.mockReturnValue(false)
     await systemHandlers['system.shell.open_website']('javascript:alert(1)', ctx('w1'))
+    expect(openExternalMock).not.toHaveBeenCalled()
+    expect(navigation.openWebsite).toHaveBeenCalledWith('javascript:alert(1)')
+  })
+})
+
+describe('external website input compatibility', () => {
+  it.each([
+    'https://example.test',
+    { url: 'obsidian://open?vault=Notes', options: { activate: false, workingDirectory: '/tmp', logUsage: true } }
+  ])('accepts and delegates %j with forced-external routing', async (input) => {
+    const parsed = systemRequestSchemas['system.shell.open_external_website'].input.parse(input)
+    await systemHandlers['system.shell.open_external_website'](parsed, ctx('w1'))
+    const { url, options } = typeof input === 'string' ? { url: input, options: undefined } : input
+    expect(navigation.openWebsite).toHaveBeenCalledExactlyOnceWith(url, true, options)
     expect(openExternalMock).not.toHaveBeenCalled()
   })
 })

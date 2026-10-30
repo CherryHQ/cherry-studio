@@ -28,7 +28,7 @@ interface ResizeObserverMockInstance {
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 240, paneWidth: 460, listPaneWidth: 275 }
+  const state = { width: 240, paneWidth: 460, listPaneWidth: 275, windowWidth: 240 }
 
   return {
     state,
@@ -40,6 +40,9 @@ const persistCacheMock = vi.hoisted(() => {
     }),
     setListPaneWidth: vi.fn((width: number) => {
       state.listPaneWidth = width
+    }),
+    setWindowWidth: vi.fn((width: number) => {
+      state.windowWidth = width
     })
   }
 })
@@ -64,6 +67,7 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
+  useCache: vi.fn(() => [persistCacheMock.state.windowWidth, persistCacheMock.setWindowWidth]),
   usePersistCache: vi.fn((key: string) => {
     if (key === 'ui.chat.artifact_pane.width') return [persistCacheMock.state.paneWidth, persistCacheMock.setPaneWidth]
     if (key === 'ui.chat.resource_pane.width')
@@ -141,14 +145,27 @@ describe('ChatAppShell', () => {
     persistCacheMock.state.width = RESOURCE_LIST_PANE_DEFAULT_WIDTH
     persistCacheMock.state.paneWidth = 460
     persistCacheMock.state.listPaneWidth = 275
+    persistCacheMock.state.windowWidth = RESOURCE_LIST_PANE_DEFAULT_WIDTH
     persistCacheMock.setWidth.mockClear()
     persistCacheMock.setPaneWidth.mockClear()
     persistCacheMock.setListPaneWidth.mockClear()
+    persistCacheMock.setWindowWidth.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.documentElement.style.removeProperty('--assistants-width')
     vi.restoreAllMocks()
     globalThis.ResizeObserver = originalResizeObserver
+  })
+
+  it('scopes the message-well theme surface to the conversation center', () => {
+    const { container } = render(
+      <ChatAppShell centerId="chat-main" pane={<div data-testid="pane" />} paneOpen main={<div data-testid="main" />} />
+    )
+
+    // The public message-well token belongs to the conversation, while its rails keep the frame surface.
+    expect(container.querySelector('#chat-main')).toHaveClass('bg-chat-message-well')
+    expect(container.querySelector('[data-chat-app-shell-root]')).not.toHaveClass('bg-chat-message-well')
+    expect(screen.getByTestId('pane').closest('[data-resource-list-pane]')).not.toHaveClass('bg-chat-message-well')
   })
 
   it('renders side panel in a root overlay host above center layers', () => {
@@ -349,6 +366,22 @@ describe('ChatAppShell', () => {
     expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
   })
 
+  it('keeps detached left-pane resizing local to its renderer window', () => {
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />
+      </WindowFrameProvider>
+    )
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!handle) throw new Error('Expected resource list pane resize handle')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setWindowWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+  })
+
   it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
@@ -539,6 +572,27 @@ describe('ChatAppShell', () => {
     notifyObservedShellWidth(599)
 
     expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+  })
+
+  it('predicts detached auto-collapse from the same renderer-local list width used by its splitter', () => {
+    persistCacheMock.state.width = RESOURCE_LIST_PANE_MIN_WIDTH
+    persistCacheMock.state.windowWidth = RESOURCE_LIST_PANE_MAX_WIDTH
+    const onPaneAutoCollapseChange = vi.fn()
+
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ChatAppShell
+          pane={<aside>topics</aside>}
+          paneOpen
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+          main={<div />}
+        />
+      </WindowFrameProvider>
+    )
+
+    notifyObservedShellWidth(700)
+
     expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
   })
 

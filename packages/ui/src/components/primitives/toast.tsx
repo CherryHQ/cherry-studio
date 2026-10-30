@@ -1,6 +1,7 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import type React from 'react'
-import { createContext, use, useMemo, useSyncExternalStore } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { cn } from '../../lib/utils'
 import { Button } from './button'
@@ -15,8 +16,11 @@ export interface ToastAction {
 
 export interface ToastConfig {
   action?: ToastAction
+  /** Lower-emphasis control rendered before `action`, for a secondary way out (e.g. a link to where the item went). */
+  secondaryAction?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
+  details?: string
   icon?: React.ReactNode
   key?: string | number
   timeout?: number
@@ -28,7 +32,7 @@ export interface ToastConfig {
 
 export interface LoadingToastConfig<T = unknown> extends ToastConfig {
   onError?: (error: unknown) => void
-  promise: Promise<T>
+  promise?: Promise<T>
 }
 
 export interface ToastRecord extends ToastConfig {
@@ -38,6 +42,7 @@ export interface ToastRecord extends ToastConfig {
 
 export interface ToastLabels {
   close: string
+  details?: string
   error: React.ReactNode
   errorDescription: React.ReactNode
   loading: React.ReactNode
@@ -58,6 +63,7 @@ export type ToastStore = ReturnType<typeof createToastStore>
 const DEFAULT_TIMEOUT = 3000
 const DEFAULT_TOAST_LABELS: ToastLabels = {
   close: 'Close',
+  details: 'View details',
   error: 'Error',
   errorDescription: 'An error occurred',
   loading: 'Loading...',
@@ -78,6 +84,9 @@ const createToastStore = () => {
   let toastQueue: ToastRecord[] = []
   const listeners = new Set<() => void>()
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
+  const deadlines = new Map<string, number>()
+  const remaining = new Map<string, number>()
+  let paused = false
   const loadingTokens = new Map<string, symbol>()
 
   const notify = () => {
@@ -112,6 +121,8 @@ const createToastStore = () => {
     const toast = toastQueue.find((item) => item.key === key)
     clearTimer(key)
     loadingTokens.delete(key)
+    deadlines.delete(key)
+    remaining.delete(key)
     toastQueue = toastQueue.filter((item) => item.key !== key)
     toast?.onClose?.()
     notify()
@@ -119,18 +130,48 @@ const createToastStore = () => {
 
   const schedule = (toast: ToastRecord) => {
     clearTimer(toast.key)
+    deadlines.delete(toast.key)
+    remaining.delete(toast.key)
 
     if (toast.timeout === 0 || toast.type === 'loading') {
       return
     }
 
     const timeout = toast.timeout ?? DEFAULT_TIMEOUT
+    if (paused) {
+      remaining.set(toast.key, timeout)
+      return
+    }
+    deadlines.set(toast.key, Date.now() + timeout)
     timers.set(
       toast.key,
       setTimeout(() => {
         remove(toast.key)
       }, timeout)
     )
+  }
+
+  const setPaused = (value: boolean) => {
+    if (paused === value) return
+    paused = value
+    if (paused) {
+      deadlines.forEach((deadline, key) => {
+        remaining.set(key, Math.max(0, deadline - Date.now()))
+        clearTimer(key)
+      })
+      deadlines.clear()
+    } else {
+      toastQueue.forEach((toast) => {
+        const timeout = remaining.get(toast.key)
+        if (timeout === undefined) return
+        deadlines.set(toast.key, Date.now() + timeout)
+        timers.set(
+          toast.key,
+          setTimeout(() => remove(toast.key), timeout)
+        )
+      })
+      remaining.clear()
+    }
   }
 
   const upsert = (toast: ToastRecord) => {
@@ -152,6 +193,8 @@ const createToastStore = () => {
       loadingTokens.delete(toast.key)
       toast.onClose?.()
     })
+    deadlines.clear()
+    remaining.clear()
     toastQueue = []
     notify()
   }
@@ -161,6 +204,7 @@ const createToastStore = () => {
     getLoadingToken: (key: string) => loadingTokens.get(key),
     getSnapshot,
     remove,
+    setPaused,
     setLoadingToken: (key: string, token: symbol) => loadingTokens.set(key, token),
     subscribe,
     unsetLoadingToken: (key: string) => loadingTokens.delete(key),
@@ -179,6 +223,7 @@ const createToast = (type: StaticToastType, store = defaultToastStore) => {
   return (arg: ToastConfig | string): string => {
     const config = typeof arg === 'string' ? { title: arg } : arg
     const key = getToastKey(config.key)
+    store.unsetLoadingToken(key)
 
     upsertToast(
       {
@@ -216,7 +261,7 @@ const createLoadingToast =
     )
 
     promise
-      .then((result) => {
+      ?.then((result) => {
         if (store.getLoadingToken(key) !== token) {
           return result
         }
@@ -327,6 +372,7 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
 
 const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
   const action = toast.action
+  const secondaryAction = toast.secondaryAction
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
 
@@ -336,16 +382,21 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       className={cn(
         // no-drag punches the popup's area out of any titlebar drag region it overlaps,
         // so hover/click reach the items instead of the window-drag hit test (Electron).
-        'pointer-events-auto flex max-w-[min(420px,calc(100vw-2rem))] min-w-72 items-start gap-3 [-webkit-app-region:no-drag]',
+        'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
+        action && 'w-[min(480px,calc(100vw-2rem))]',
         toast.className
       )}
       style={toast.style}
       onClick={toast.onClick}>
-      <div className={cn('flex shrink-0 items-center justify-center', action ? 'min-h-7' : 'mt-0.5')}>{icon}</div>
+      <div className="flex min-h-7 shrink-0 items-center justify-center">{icon}</div>
       <div className="min-w-0 flex-1">
         {toast.title && (
-          <div className={cn('text-sm leading-5 font-medium break-words', action && 'min-h-7 py-1')}>{toast.title}</div>
+          <div
+            title={typeof toast.title === 'string' ? toast.title : undefined}
+            className={cn('min-h-7 py-1 text-sm leading-5 font-medium', toast.details ? 'break-words' : 'truncate')}>
+            {toast.title}
+          </div>
         )}
         {toast.description && (
           <div
@@ -357,7 +408,29 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
             {toast.description}
           </div>
         )}
+        {toast.details && (
+          <details className="mt-1 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+            <summary className="cursor-pointer" title={toast.details}>
+              {labels.details ?? DEFAULT_TOAST_LABELS.details}
+            </summary>
+            <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">{toast.details}</pre>
+          </details>
+        )}
       </div>
+      {secondaryAction && (
+        <Button
+          type="button"
+          className="shrink-0"
+          size="sm"
+          variant="link"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+            void secondaryAction.onClick()
+          }}>
+          {secondaryAction.label}
+        </Button>
+      )}
       {action && (
         <Button
           type="button"
@@ -372,7 +445,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
           {action.label}
         </Button>
       )}
-      <div className={cn('flex shrink-0 items-center', action && 'min-h-7')}>
+      <div className="flex min-h-7 shrink-0 items-center">
         <button
           type="button"
           aria-label={labels.close}
@@ -397,6 +470,24 @@ export const ToastViewport = ({
 }) => {
   const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const toastLabels = getToastLabels(labels)
+  const reducedMotion = useReducedMotion()
+  const transition = { duration: reducedMotion ? 0 : 0.25, ease: 'easeOut' as const }
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const expanded = hovered || focused
+
+  useEffect(() => {
+    store.setPaused(expanded && toasts.length > 0)
+    return () => store.setPaused(false)
+  }, [expanded, store, toasts.length])
+
+  useEffect(() => {
+    setFocused(viewportRef.current?.contains(document.activeElement) ?? false)
+    if (toasts.length === 0) {
+      setHovered(false)
+    }
+  }, [toasts.length])
 
   if (toasts.length === 0) {
     return null
@@ -404,11 +495,39 @@ export const ToastViewport = ({
 
   return (
     <div
+      ref={viewportRef}
       aria-label="notifications"
-      className="pointer-events-none fixed top-5 left-1/2 z-[10000] flex -translate-x-1/2 flex-col items-center gap-2"
+      className={cn(
+        'pointer-events-auto fixed top-5 left-1/2 z-[10000] -translate-x-1/2 [-webkit-app-region:no-drag]',
+        expanded ? 'flex max-h-[calc(100vh-2.5rem)] flex-col items-center gap-2 overflow-y-auto p-2' : 'grid pb-4'
+      )}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+      }}
       role="region">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.key} labels={toastLabels} store={store} toast={toast} />
+      {[...toasts].reverse().map((toast, index) => (
+        <motion.div
+          key={toast.key}
+          layout={reducedMotion ? false : 'position'}
+          transition={transition}
+          inert={!expanded && index > 0}
+          className={cn(!expanded && 'col-start-1 row-start-1')}
+          style={{ zIndex: toasts.length - index }}>
+          <motion.div
+            initial={false}
+            animate={{
+              y: expanded ? 0 : Math.min(index, 2) * 8,
+              scale: expanded ? 1 : 1 - Math.min(index, 2) * 0.04,
+              opacity: expanded || index < 3 ? 1 : 0
+            }}
+            transition={transition}
+            className="origin-top">
+            <ToastItem labels={toastLabels} store={store} toast={toast} />
+          </motion.div>
+        </motion.div>
       ))}
     </div>
   )

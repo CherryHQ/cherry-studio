@@ -30,6 +30,7 @@ import {
 } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 import NutstorePathPopup from './NutstorePathPopup'
@@ -62,7 +63,7 @@ const NutstoreSettings: FC = () => {
 
   const handleClickNutstoreSSO = useCallback(async () => {
     const ssoUrl = await window.api.nutstore.getSSOUrl()
-    window.open(ssoUrl, '_blank')
+    void openExternalWebsite(ssoUrl)
     const nutstoreToken = await nutstoreSsoHandler()
 
     if (!nutstoreToken) {

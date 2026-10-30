@@ -36,7 +36,10 @@ export class ApiKeyRotationState {
   private readonly lastUsedKeyByProvider = new Map<WebSearchProvider['id'], string>()
 
   resolve(provider: WebSearchProvider, required: boolean = true): string {
-    const keys = provider.apiKeys.map((key) => key.trim()).filter(Boolean)
+    // Rotate over distinct keys. `indexOf` always reports the first occurrence, so a repeated
+    // entry pinned the rotation to it: with `['A','A','B']` every call resolved to `'A'` and
+    // `'B'` — the whole point of configuring several keys — was never used.
+    const keys = [...new Set(provider.apiKeys.map((key) => key.trim()).filter(Boolean))]
 
     if (keys.length === 0) {
       if (required) {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +20,80 @@ describe('Toast', () => {
     vi.useRealTimers()
   })
 
+  it('keeps older actions inaccessible until the stack expands, then restores the chosen item', async () => {
+    const user = userEvent.setup()
+    const archived = new Set(['First', 'Second', 'Third', 'Fourth'])
+    render(<ToastViewport />)
+    act(() => {
+      for (const title of archived) {
+        toast.success({
+          title,
+          action: {
+            label: `Restore ${title}`,
+            onClick: () => {
+              archived.delete(title)
+            }
+          }
+        })
+      }
+    })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+    expect(screen.getByText('Fourth').closest('[inert]')).toBeNull()
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Restore Second' }))
+    expect([...archived]).toEqual(['First', 'Third', 'Fourth'])
+    expect(screen.queryByText('Second')).not.toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+  })
+
+  it('pauses existing and newly arriving notifications while expanded and resumes the remaining timeout', () => {
+    vi.useFakeTimers()
+    render(<ToastViewport />)
+    act(() => {
+      toast.info({ title: 'First', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    act(() => {
+      toast.info({ title: 'Second', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(screen.getByText('First')).toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+    expect(screen.queryByText('First')).not.toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  it('expands for keyboard focus and stays expanded when the pointer leaves', () => {
+    render(<ToastViewport />)
+    act(() => {
+      toast.info('First')
+      toast.info('Second')
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.focus(screen.getAllByRole('button', { name: 'Close' })[0])
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    fireEvent.blur(region, { relatedTarget: document.body })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+  })
+
   it('renders a string toast in the viewport', () => {
     render(<ToastViewport />)
 
@@ -30,6 +104,41 @@ describe('Toast', () => {
     expect(screen.getByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'notifications' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('shows technical details only on request while preserving the recovery action', async () => {
+    const user = userEvent.setup()
+    render(<ToastViewport />)
+    act(() => {
+      toast.warning({ title: 'Configure your provider', details: 'HTTP 401: invalid_api_key' })
+    })
+    expect(screen.getByText('HTTP 401: invalid_api_key')).not.toBeVisible()
+    await user.click(screen.getByText('View details'))
+    expect(screen.getByText('HTTP 401: invalid_api_key')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByText('Configure your provider')).not.toBeInTheDocument()
+  })
+
+  it('settles manual loading in place and ignores a superseded promise', async () => {
+    let settle!: () => void
+    render(<ToastViewport />)
+    act(() => {
+      toast.loading({
+        key: 'request',
+        title: 'Old request',
+        promise: new Promise<void>((resolve) => {
+          settle = resolve
+        })
+      })
+      toast.loading({ key: 'request', title: 'Retrying' })
+    })
+    expect(screen.getByText('Retrying')).toBeInTheDocument()
+    await act(async () => {
+      toast.success({ key: 'request', title: 'Recovered' })
+      settle()
+    })
+    expect(screen.getByText('Recovered')).toBeInTheDocument()
+    expect(toast.getToastQueue().toasts).toHaveLength(1)
   })
 
   it('dismisses an actionable toast before running its action without triggering the toast click', async () => {
@@ -55,6 +164,40 @@ describe('Toast', () => {
     expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
     expect(onToastClick).not.toHaveBeenCalled()
     expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs the secondary action without disturbing the primary one, then dismisses the toast', async () => {
+    // The archive action navigates instead of restoring, so it must not also fire the
+    // primary action or the toast's own click handler.
+    const user = userEvent.setup()
+    const onSecondaryAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+    const onAction = vi.fn()
+    const onToastClick = vi.fn()
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'archived-item',
+        onClick: onToastClick,
+        secondaryAction: { label: 'View in Archive', onClick: onSecondaryAction },
+        title: 'Archived Draft'
+      })
+    })
+
+    const secondaryButton = screen.getByRole('button', { name: 'View in Archive' })
+
+    expect(secondaryButton).toHaveAttribute('data-variant', 'link')
+
+    await user.click(secondaryButton)
+
+    expect(onSecondaryAction).toHaveBeenCalledTimes(1)
+    expect(onAction).not.toHaveBeenCalled()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(screen.queryByText('Archived Draft')).not.toBeInTheDocument()
   })
 
   it('aligns actionable toast controls to the primary content row', () => {
@@ -156,8 +299,8 @@ describe('Toast', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('uses configured labels for fallback loading states and close button', async () => {
-    const labels: Partial<ToastLabels> = {
+  it('accepts the original label shape and defaults the details label', async () => {
+    const labels: ToastLabels = {
       close: 'Dismiss',
       error: 'Localized error',
       errorDescription: 'Localized fallback error',
@@ -169,11 +312,12 @@ describe('Toast', () => {
     render(<ToastViewport labels={labels} />)
 
     await act(async () => {
-      localizedToast.loading({ promise: Promise.resolve() })
+      localizedToast.loading({ promise: Promise.resolve(), details: 'Operation details' })
     })
 
     expect(screen.getByText('Localized success')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
+    expect(screen.getByText('View details')).toBeInTheDocument()
   })
 
   it('keeps loading rejection errors sticky and calls onError', async () => {

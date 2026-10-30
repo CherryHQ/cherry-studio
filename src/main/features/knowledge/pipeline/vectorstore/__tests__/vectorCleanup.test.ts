@@ -37,6 +37,7 @@ const { deleteKnowledgeItemVectors, reclaimKnowledgeIndexSpace } = await import(
 
 function createBase(): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: 'kb-1',
     name: 'KB',
     groupId: null,

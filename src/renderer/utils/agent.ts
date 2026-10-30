@@ -31,6 +31,9 @@ export function getAgentDescriptionForDisplay(
   if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT) {
     return t('agent.builtin.cherry_support.description')
   }
+  if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.DOCTOR) {
+    return t('agent.builtin.cherry_doctor.description')
+  }
   return ''
 }
 

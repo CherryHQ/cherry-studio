@@ -205,23 +205,18 @@ describe('session item actions', () => {
     expect(onDelete).toHaveBeenCalledOnce()
   })
 
-  it('offers irreversible deletion separately with a destructive confirmation', () => {
-    const actions = resolveSessionMenuActions(createSessionActionFixture({ onDeletePermanently: vi.fn() }))
-    expect(actions.find((action) => action.id === 'session.delete-permanently')).toMatchObject({
-      label: 'common.delete_permanently',
-      danger: true,
-      confirm: { destructive: true, confirmText: 'common.delete_permanently' }
-    })
+  it('does not offer permanent deletion in the conversation menu', () => {
+    const actions = resolveSessionMenuActions(createSessionActionFixture())
+    expect(actions.map((action) => action.id)).not.toContain('session.delete-permanently')
   })
 
-  it('rejects both removal actions while generation is unsettled', async () => {
-    const context = createSessionActionFixture({ isBusy: true, onDeletePermanently: vi.fn() })
+  it('rejects archiving while generation is unsettled', async () => {
+    const context = createSessionActionFixture({ isBusy: true })
     for (const action of resolveSessionMenuActions(context).filter((action) => action.group === 'danger')) {
       expect(action.availability.enabled).toBe(false)
       expect(await executeSessionMenuAction(action, context)).toBe(false)
     }
     expect(context.onDelete).not.toHaveBeenCalled()
-    expect(context.onDeletePermanently).not.toHaveBeenCalled()
   })
 
   it('keeps Save to Notes independent from export and copy preferences', () => {

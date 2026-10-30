@@ -91,7 +91,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
   if (status === 'reading') {
     return {
       kind: 'processing',
-      labelKey: 'knowledge.rag.file_processing',
+      labelKey: 'knowledge.data_source.status.reading',
       textClassName: 'text-info',
       icon: 'loader'
     }

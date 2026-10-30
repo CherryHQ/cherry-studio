@@ -7,6 +7,8 @@ const editAndGenerate = (mode: ImageModeDef) => ({ edit: mode, generate: mode })
 export default openaiCompatible({
   id: 'ppio',
   name: 'PPIO',
+  // The API lists chat, embedding and reranker models but omits the image endpoints.
+  supplementModelsFromRegistry: true,
   availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.ppinfra.com/v3/openai/',
   website: {

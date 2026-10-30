@@ -1,7 +1,5 @@
 import * as z from 'zod'
 
-import { BROWSER_TOOL_NAMES } from './browserTools'
-
 export const browserRefSchema = z.string().regex(/^e[1-9]\d*$/)
 
 export const snapshotOptionsSchema = z
@@ -86,7 +84,9 @@ export const interactionSchemas = {
   click: z.strictObject({
     ...refShape,
     button: z.enum(['left', 'right', 'middle']).default('left'),
-    clickCount: z.union([z.literal(1), z.literal(2)]).default(1)
+    // Bounded number, not `z.union([z.literal(1), z.literal(2)])`: that serializes to an `anyOf` of
+    // numeric consts, which @ai-sdk/google maps to non-string enums — Gemini rejects the request (400).
+    clickCount: z.number().int().min(1).max(2).default(1).describe('Number of clicks: 1 (default) or 2.')
   }),
   hover: z.strictObject(refShape),
   scroll: z.strictObject({
@@ -287,19 +287,3 @@ export const toolDefinitions = [
   ...webMcpToolDefinitions,
   ...navigateToolDefinitions
 ]
-
-export const sessionToolDefinitions = toolDefinitions
-  .filter(({ name }) => BROWSER_TOOL_NAMES.some((known) => known === name))
-  .map((definition) =>
-    definition.name === 'open'
-      ? {
-          ...definition,
-          description:
-            'Navigate this conversation browser pane. The user sees the same page. New tabs and private windows are unavailable.',
-          inputSchema: OpenSchema.omit({ showWindow: true }).extend({
-            privateMode: OpenSchema.shape.privateMode.describe('Unsupported by this host; must be false.'),
-            newTab: OpenSchema.shape.newTab.describe('Unsupported by this host; must be false.')
-          })
-        }
-      : definition
-  )

@@ -32,4 +32,22 @@ describe('decisionToPermissionResult — DispatchDecision → Claude PermissionR
       message: 'User denied permission for this tool'
     })
   })
+
+  it('attributes a reason the user supplied', () => {
+    expect(
+      decisionToPermissionResult({ approved: false, reason: 'use a copy instead', reasonSource: 'user' }, original)
+    ).toEqual({
+      behavior: 'deny',
+      message:
+        "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy instead"
+    })
+  })
+
+  it('tells the model the tool did not run when the user denied without a reason', () => {
+    expect(decisionToPermissionResult({ approved: false, reasonSource: 'user' }, original)).toEqual({
+      behavior: 'deny',
+      message:
+        "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). Wait for the user's instructions instead of retrying it."
+    })
+  })
 })

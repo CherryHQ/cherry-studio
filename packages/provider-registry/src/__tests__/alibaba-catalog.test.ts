@@ -14,6 +14,16 @@ const loader = new RegistryLoader({
 })
 
 describe('Alibaba Qwen catalog', () => {
+  it('preserves Flash Next video inputs in the creator source and shipped catalog', () => {
+    const creator = CREATORS.find(({ id }) => id === 'alibaba')
+    const source = creator?.models?.find(({ id }) => id === 'qwen3-8-flash-next')
+
+    for (const model of [source, loader.findModel('qwen3-8-flash-next')]) {
+      expect(model?.inputModalities).toEqual(['text', 'image', 'video'])
+      expect(model?.capabilities).toContain('video-recognition')
+    }
+  })
+
   it('hand-lists Qwen3.8 Flash with its documented capabilities and token limits', () => {
     const alibaba = CREATORS.find(({ id }) => id === 'alibaba')
 
@@ -58,5 +68,25 @@ describe('Alibaba Qwen catalog', () => {
         }
       }
     })
+  })
+
+  it('maps QwenCloud to qwen3.8-flash with the Qwen3.8 chat effort contract', () => {
+    const override = loader.findOverride('qwencloud', 'qwen3.8-flash')
+    expect(override).toMatchObject({
+      apiModelId: 'qwen3.8-flash',
+      modelId: 'qwen3-8-flash',
+      name: 'Qwen3.8 Flash',
+      reasoningContracts: {
+        'openai-chat-completions': {
+          support: {
+            controls: [{ default: 'xhigh', kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+            thinkingTokenLimits: { min: 0, max: 262144 }
+          }
+        }
+      }
+    })
+    // No per-model Responses support list is published internationally, so the
+    // contract mirrors qwen3.8-max's Chat-only shape, not DashScope's dual-endpoint one.
+    expect(override?.reasoningContracts).not.toHaveProperty('openai-responses')
   })
 })

@@ -1,0 +1,10 @@
+{
+  "query": "hello",
+  "results": [
+    {
+      "content": "Searxng Content",
+      "title": "Searxng Title",
+      "url": "https://searx.example/result"
+    }
+  ]
+}

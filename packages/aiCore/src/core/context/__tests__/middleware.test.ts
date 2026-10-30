@@ -6,7 +6,8 @@ import type {
   LanguageModelV3GenerateResult,
   LanguageModelV3Prompt,
   LanguageModelV3StreamPart,
-  LanguageModelV3StreamResult
+  LanguageModelV3StreamResult,
+  SharedV3ProviderMetadata
 } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +18,7 @@ function createMockModel(options?: {
   inputTokens?: number | undefined
   outputText?: string
   omitUsageTotal?: boolean
+  providerMetadata?: SharedV3ProviderMetadata
 }): LanguageModelV3 {
   const inputTokens = options?.omitUsageTotal ? undefined : (options?.inputTokens ?? 100)
   const outputText = options?.outputText ?? 'Hello'
@@ -34,6 +36,7 @@ function createMockModel(options?: {
         content,
         finishReason,
         warnings: [],
+        providerMetadata: options?.providerMetadata,
         usage: {
           inputTokens: {
             total: inputTokens,
@@ -58,6 +61,7 @@ function createMockModel(options?: {
         { type: 'text-end', id: '1' },
         {
           type: 'finish',
+          providerMetadata: options?.providerMetadata,
           usage: {
             inputTokens: {
               total: inputTokens,
@@ -191,6 +195,49 @@ describe('createContextMiddleware', () => {
         expect(part.output.value).toContain('truncated')
       }
     }
+  })
+
+  it('uses the originating tool name before applying per-tool truncation policy', async () => {
+    const middleware = createContextMiddleware({
+      truncate: { threshold: 50, headChars: 10, tailChars: 10, perTool: ['read'] }
+    })
+    const longOutput = 'x'.repeat(200)
+    const prompt: LanguageModelV3Prompt = [
+      { role: 'user', content: [{ type: 'text', text: 'Read the file' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'read', input: { path: 'file.txt' } }]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call_1',
+            toolName: 'skill',
+            output: { type: 'text', value: longOutput }
+          }
+        ]
+      }
+    ]
+
+    const result = await assertDefined(
+      middleware.transformParams,
+      'transformParams'
+    )({
+      params: { prompt },
+      type: 'generate',
+      model: createMockModel()
+    })
+    const toolMessage = result.prompt.find((message) => message.role === 'tool')
+    if (toolMessage?.role !== 'tool') throw new Error('expected a tool message')
+    const toolResult = toolMessage.content.find((part) => part.type === 'tool-result')
+
+    expect(toolResult).toMatchObject({
+      toolCallId: 'call_1',
+      toolName: 'read',
+      output: { type: 'text', value: longOutput }
+    })
   })
 
   it('wrapGenerate feeds token usage to janitor', async () => {
@@ -499,6 +546,35 @@ describe('onBeforeCompress flow', () => {
 
     expect(onBeforeCompress).not.toHaveBeenCalled()
     expect(result.prompt).toEqual(longPrompt)
+  })
+
+  it.each(['generate', 'stream'] as const)('uses the original prompt size after %s continuation', async (type) => {
+    const middleware = createContextMiddleware({
+      contextWindow: 1_000_000,
+      onBeforeCompress: () => [{ role: 'user', content: 'compressed' }]
+    })
+    const model = createMockModel({
+      inputTokens: 2_000_000,
+      providerMetadata: { google: { initialPromptTokenCount: 200 } }
+    })
+    const args = {
+      doGenerate: () => model.doGenerate({ prompt: [] }),
+      doStream: () => model.doStream({ prompt: [] }),
+      params: { prompt: [] },
+      model
+    }
+    if (type === 'generate') {
+      await assertDefined(middleware.wrapGenerate, 'wrapGenerate')(args)
+    } else {
+      const result = await assertDefined(middleware.wrapStream, 'wrapStream')(args)
+      await result.stream.pipeTo(new WritableStream())
+    }
+    const prompt = makeConversation(10)
+    const result = await assertDefined(
+      middleware.transformParams,
+      'transformParams'
+    )({ params: { prompt }, type, model })
+    expect(result.prompt).toEqual(prompt)
   })
 })
 

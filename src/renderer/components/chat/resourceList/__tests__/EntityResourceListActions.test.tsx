@@ -1,5 +1,5 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -81,6 +81,12 @@ const resourceEntityRailMocks = vi.hoisted(() => ({
 
 const tabsContextMocks = vi.hoisted(() => ({
   closeConversationTabs: vi.fn()
+}))
+
+const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+
+vi.mock('@renderer/components/chat/archiveAgentSessionsPopup', () => ({
+  archiveAgentSessionsPopup: archiveSessionsPopupMocks
 }))
 
 const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
@@ -556,58 +562,17 @@ describe('classic layout entity resource list actions', () => {
     recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
     recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
     conversationOwnerPopupMocks.show.mockClear()
+    archiveSessionsPopupMocks.show.mockReset()
+    archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
     conversationOwnerPopupMocks.show.mockImplementation(
       async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
         await action(false)
         return true
       }
     )
-  })
-
-  it('permanently deletes an Assistant through confirmation without offering an archive undo', async () => {
-    render(
-      <TestAssistantResourceList
-        activeAssistantId="assistant-1"
-        activeTopicId="topic-1"
-        onSelectTopic={vi.fn()}
-        onCreateTopic={vi.fn()}
-      />
-    )
-    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success'))
-    expect(conversationOwnerPopupMocks.show).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'assistant', permanent: true })
-    )
-    expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledExactlyOnceWith('assistant-1', {
-      deleteTopics: false,
-      permanent: true
-    })
-    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
-    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
-  })
-
-  it('permanently deletes an Agent through its dedicated command without offering an archive undo', async () => {
-    render(
-      <AgentResourceList
-        activeAgentId="agent-1"
-        activeSessionId="session-1"
-        agentSessionsSource={createAgentSessionsSource()}
-        onSelectSession={vi.fn()}
-        onCreateSession={vi.fn()}
-        onShowMissingAgentSelection={vi.fn()}
-      />
-    )
-    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success'))
-    expect(conversationOwnerPopupMocks.show).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'agent', permanent: true })
-    )
-    expect(agentDataMocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.delete_permanently', {
-      agentId: 'agent-1',
-      deleteSessions: false
-    })
-    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
-    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
   })
 
   it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {
@@ -625,7 +590,9 @@ describe('classic layout entity resource list actions', () => {
     )
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('assistant-1-context-menu')).not.toHaveTextContent('common.delete_permanently')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('assistant-1-more-menu')).not.toHaveTextContent('common.delete_permanently')
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.clear.menu_title')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.clear.menu_title')
 
@@ -633,8 +600,7 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
-        deleteTopics: false,
-        permanent: false
+        deleteTopics: false
       })
     )
     expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
@@ -678,8 +644,7 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
-        deleteTopics: true,
-        permanent: false
+        deleteTopics: true
       })
     )
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1', 'topic-not-loaded'])
@@ -1348,9 +1313,11 @@ describe('classic layout entity resource list actions', () => {
     )
 
     expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('common.delete_permanently')
     expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('common.archive')
-    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
-    expect(screen.getByTestId('agent-1-more-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
+    expect(screen.getByTestId('agent-1-more-menu')).not.toHaveTextContent('common.delete_permanently')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.archive.trigger')
+    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('agent.session.archive.trigger')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
@@ -1488,16 +1455,19 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.agent.delete.trigger')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.archive.trigger')
     expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('common.archive')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.delete.trigger' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.archive.trigger' })[0])
 
     await waitFor(() =>
       expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
     )
     expect(popup.confirm).not.toHaveBeenCalled()
     expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+    expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'Cherry Assistant', sessionCount: 1 })
+    )
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
@@ -1544,7 +1514,7 @@ describe('classic layout entity resource list actions', () => {
         onShowMissingAgentSelection={vi.fn()}
       />
     )
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.delete.trigger' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.archive.trigger' })[0])
     await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalled())
 
     await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
@@ -1552,6 +1522,62 @@ describe('classic layout entity resource list actions', () => {
       failed: [{ id: 'session-purged', error: purgedError.message }]
     })
   })
+
+  it.each(['cancel', 'confirm', 'empty'] as const)(
+    'archives regular Agent conversations after %s in the sidebar',
+    async (outcome) => {
+      archiveSessionsPopupMocks.show.mockResolvedValueOnce(false)
+      render(
+        <AgentResourceList
+          activeAgentId="agent-1"
+          agentSessionsSource={createAgentSessionsSource({
+            pinIdBySessionId: new Map([['session-pinned', 'pin-a']]),
+            sessions: [
+              createAgentSession(),
+              createAgentSession({ id: 'session-pinned' }),
+              createAgentSession({ id: 'session-other', agentId: 'agent-2' })
+            ]
+          })}
+          onSelectSession={vi.fn()}
+          onCreateSession={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.archive.trigger' })[0])
+      expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+        expect.objectContaining({ agentName: 'Agent 1', sessionCount: 2 })
+      )
+      expect(agentDataMocks.ipcRequest).not.toHaveBeenCalled()
+      if (outcome === 'cancel') return
+      agentDataMocks.deleteAgentSessions.mockResolvedValueOnce({
+        deletedIds: outcome === 'empty' ? [] : ['session-1', 'session-pinned']
+      })
+
+      await act(async () => {
+        await archiveSessionsPopupMocks.show.mock.calls.at(-1)?.[0].action()
+      })
+      expect(agentDataMocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.sessions.delete', {
+        agentId: 'agent-1'
+      })
+      expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
+      for (const key of ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']) {
+        expect(agentDataMocks.invalidate).toHaveBeenCalledWith(key)
+      }
+      if (outcome === 'empty') {
+        expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved')
+        expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+        expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+      } else {
+        expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-pinned'])
+        expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+          itemCount: 2,
+          onUndo: expect.any(Function)
+        })
+        await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+        expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
+        expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-pinned' })
+      }
+    }
+  )
 
   it('refreshes a stale Agent delete without closing tabs, reconciling selection, or offering Undo', async () => {
     const onActiveAgentDeleted = vi.fn()

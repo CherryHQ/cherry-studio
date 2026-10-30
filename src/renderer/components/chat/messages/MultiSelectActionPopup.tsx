@@ -1,15 +1,19 @@
-import { Save, X } from 'lucide-react'
+import { Save, Upload, X } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
+import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import type { MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
+import type { MessageExportTarget } from '@renderer/types/messageExport'
 import { cn } from '@renderer/utils/style'
 
-import type { SelectAllState } from './types'
+import { messageExportTargets } from './messageExportTargets'
+import type { MessageMenuExportOptions, SelectAllState } from './types'
 
 interface Props {
   selectedMessageIds: readonly string[]
@@ -20,6 +24,8 @@ interface Props {
   onToggleSelectAll?: (checked: boolean) => void
   onSave?: () => void
   onCopy?: () => void
+  onExport?: (target: MessageExportTarget) => void
+  exportMenuOptions?: MessageMenuExportOptions
   onDelete?: () => void
   deleteDisabledReason?: Extract<MessageDeleteAvailability, { enabled: false }>['reason']
   onClose: () => void
@@ -34,11 +40,27 @@ const MultiSelectActionPopup: FC<Props> = ({
   onToggleSelectAll,
   onSave,
   onCopy,
+  onExport,
+  exportMenuOptions,
   onDelete,
   deleteDisabledReason,
   onClose
 }) => {
   const { t } = useTranslation()
+  const exportItems = useMemo<CommandContextMenuExtraItem[]>(() => {
+    if (!onExport) return []
+    const toItem = ({ target, labelKey }: (typeof messageExportTargets)[number]): CommandContextMenuExtraItem => ({
+      type: 'item',
+      id: `multi-select-export.${target}`,
+      label: t(labelKey),
+      onSelect: () => onExport(target)
+    })
+    const enabledTargets = messageExportTargets.filter(({ option }) => exportMenuOptions?.[option])
+    const fileItems = enabledTargets.filter(({ group }) => group === 'file').map(toItem)
+    const externalItems = enabledTargets.filter(({ group }) => group === 'external').map(toItem)
+    const separator: CommandContextMenuExtraItem = { type: 'separator' }
+    return [...fileItems, ...(fileItems.length > 0 && externalItems.length > 0 ? [separator] : []), ...externalItems]
+  }, [exportMenuOptions, onExport, t])
 
   if (!isMultiSelectMode) return null
 
@@ -73,6 +95,25 @@ const MultiSelectActionPopup: FC<Props> = ({
               <Button className="rounded-full" variant="ghost" disabled={isActionDisabled} onClick={onCopy} size="icon">
                 <CopyIcon size={16} />
               </Button>
+            </Tooltip>
+          )}
+          {exportItems.length > 0 && (
+            <Tooltip content={t('chat.topics.export.title')}>
+              <CommandPopupMenu
+                location="webcontents.context"
+                extraItems={exportItems}
+                align="center"
+                side="top"
+                deferActionsUntilClosed>
+                <Button
+                  className="rounded-full"
+                  variant="ghost"
+                  disabled={isActionDisabled || isSelectAllLoading}
+                  aria-label={t('chat.topics.export.title')}
+                  size="icon">
+                  <Upload size={16} />
+                </Button>
+              </CommandPopupMenu>
             </Tooltip>
           )}
           {onDelete && (

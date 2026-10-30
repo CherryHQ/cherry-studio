@@ -1,5 +1,4 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
@@ -10,6 +9,8 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { useResourceCatalogController } from '../useResourceCatalogController'
 
 type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
+
+const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
 const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
@@ -120,32 +121,42 @@ const assistantResource = {
   raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', groupId: null }
 } as unknown as ResourceItem
 
+function createSkillResource(id: string, folderName: string, source: string): Extract<ResourceItem, { type: 'skill' }> {
+  return {
+    id,
+    type: 'skill',
+    name: folderName,
+    description: '',
+    avatar: 'S',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    raw: {
+      id,
+      name: folderName,
+      description: null,
+      folderName,
+      source,
+      sourceUrl: null,
+      namespace: null,
+      author: null,
+      version: null,
+      sourceTags: [],
+      contentHash: 'hash',
+      isGlobalEnabled: true,
+      isEnabled: false,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z'
+    }
+  }
+}
+
 describe('useResourceCatalogController', () => {
-  it('keeps route selection authoritative when switching and closing skill details', () => {
-    const skillA = { id: 'skill-a', type: 'skill', raw: { id: 'skill-a', name: 'Skill A' } } as ResourceItem
-    const skillB = { id: 'skill-b', type: 'skill', raw: { id: 'skill-b', name: 'Skill B' } } as ResourceItem
-    controllerMocks.resourceLibraryState.allResources = [skillA, skillB]
-    const { result, rerender } = renderHook(() => {
-      const [id, onChange] = useState<string | undefined>('skill-a')
-      return { id, onChange, controller: useResourceCatalogController('skill', { id, onChange }) }
-    })
-
-    expect(result.current.controller.dialogs.selectedSkill?.id).toBe('skill-a')
-    act(() => result.current.controller.gridProps.onEdit(skillB))
-    rerender()
-    expect(result.current.id).toBe('skill-b')
-    expect(result.current.controller.dialogs.selectedSkill?.id).toBe('skill-b')
-
-    act(() => result.current.onChange('skill-a'))
-    expect(result.current.controller.dialogs.selectedSkill?.id).toBe('skill-a')
-    act(() => result.current.controller.dialogs.setSelectedSkill(null))
-    rerender()
-    expect(result.current.id).toBeUndefined()
-    expect(result.current.controller.dialogs.selectedSkill).toBeNull()
-  })
-
   beforeEach(() => {
     vi.clearAllMocks()
+    archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.dataApiGet.mockResolvedValue([])
@@ -253,6 +264,43 @@ describe('useResourceCatalogController', () => {
     })
   })
 
+  it('opens and launches a Skill through the shared callbacks', async () => {
+    const skill = createSkillResource('skill-1', 'writer', 'local')
+    const onOpenSkill = vi.fn()
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onOpenSkill, onLaunchSkill }))
+
+    act(() => result.current.gridProps.onEdit(skill))
+    act(() => result.current.gridProps.onLaunchSkill?.(skill))
+
+    expect(onOpenSkill).toHaveBeenCalledExactlyOnceWith(skill.raw)
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(skill.raw)
+  })
+
+  it('launches only the exact builtin skill-creator from the unfiltered catalog', () => {
+    const localImpostor = createSkillResource('local-creator', 'skill-creator', 'local')
+    const builtinCreator = createSkillResource('builtin-creator', 'skill-creator', 'builtin')
+    controllerMocks.resourceLibraryState.allResources = [localImpostor, builtinCreator]
+    controllerMocks.resourceLibraryState.resources = []
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onLaunchSkill }))
+
+    act(() => result.current.gridProps.onCreateSkillWithAgent?.())
+
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(builtinCreator.raw)
+  })
+
+  it('does not create a session when the builtin skill-creator is unavailable', () => {
+    controllerMocks.resourceLibraryState.allResources = [createSkillResource('local-creator', 'skill-creator', 'local')]
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onLaunchSkill }))
+
+    act(() => result.current.gridProps.onCreateSkillWithAgent?.())
+
+    expect(onLaunchSkill).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('settings.skills.creatorUnavailable')
+  })
+
   it('reports assistant export failures without throwing', async () => {
     controllerMocks.saveFile.mockRejectedValueOnce(new Error('export failed'))
     const { result } = renderHook(() => useResourceCatalogController('assistant'))
@@ -354,7 +402,7 @@ describe('useResourceCatalogController', () => {
     })
   })
 
-  it('moves protected Agent sessions directly without opening the owner confirmation', async () => {
+  it('confirms before archiving protected Agent sessions without opening the owner confirmation', async () => {
     const protectedAgent = {
       id: 'agent-protected',
       type: 'agent',
@@ -369,13 +417,20 @@ describe('useResourceCatalogController', () => {
         configuration: { builtin_role: 'assistant' }
       }
     } as unknown as ResourceItem
-    const { result } = renderHook(() => useResourceCatalogController('agent'))
+    const { result } = renderHook(() =>
+      useResourceCatalogController('agent', {
+        onConfirmArchiveAgentSessions: (agentName, action) => archiveSessionsPopupMocks.show({ agentName, action })
+      })
+    )
 
     act(() => {
       result.current.gridProps.onDelete(protectedAgent)
     })
 
     expect(result.current.dialogs.deleteConfirm).toBeNull()
+    expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'Cherry Assistant' })
+    )
     await waitFor(() =>
       expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', {
         agentId: 'agent-protected'

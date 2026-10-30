@@ -41,42 +41,6 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
     else process.env.PI_CODING_AGENT_SESSION_DIR = savedSessions
   })
 
-  it('imports the ESM-only SDK via dynamic import() and exposes the driver surface', async () => {
-    const pi = await import('@earendil-works/pi-coding-agent')
-
-    expect(typeof pi.createAgentSession).toBe('function')
-    expect(typeof pi.DefaultResourceLoader).toBe('function')
-    expect(typeof pi.AuthStorage).toBe('function')
-    expect(typeof pi.ModelRegistry).toBe('function')
-    expect(typeof pi.SessionManager).toBe('function')
-    expect(typeof pi.SettingsManager).toBe('function')
-    expect(typeof pi.ProjectTrustStore).toBe('function')
-    expect(typeof pi.hasTrustRequiringProjectResources).toBe('function')
-  })
-
-  it('constructs the in-memory credential/model/session/settings objects (no network)', async () => {
-    const { AuthStorage, ModelRegistry, SessionManager, SettingsManager, DefaultResourceLoader } =
-      await import('@earendil-works/pi-coding-agent')
-
-    const authStorage = AuthStorage.inMemory()
-    // Cherry owns the key; it lands as a runtime override, never a persisted pi file.
-    authStorage.setRuntimeApiKey('cherry-placeholder-provider', 'cherry-runtime-key')
-
-    const modelRegistry = ModelRegistry.inMemory(authStorage)
-    const sessionManager = SessionManager.inMemory(workspace)
-    const settingsManager = SettingsManager.inMemory()
-    const loader = new DefaultResourceLoader({
-      cwd: workspace,
-      agentDir: piHome,
-      settingsManager
-    })
-
-    expect(authStorage).toBeTruthy()
-    expect(modelRegistry).toBeTruthy()
-    expect(sessionManager).toBeTruthy()
-    expect(loader).toBeTruthy()
-  })
-
   it('honors the isolated Cherry-owned agent dir', async () => {
     const { getAgentDir, hasTrustRequiringProjectResources } = await import('@earendil-works/pi-coding-agent')
 

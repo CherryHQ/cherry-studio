@@ -22,6 +22,7 @@ export default defineCreator({
   modelsDevProviders: ['deepseek'],
   idPrefixes: ['deepseek'],
   models: [
+    // DeepSeek publishes one V4 effort table; keep it authoritative over stale upstream vocabularies.
     {
       id: 'deepseek-v4-flash',
       name: 'DeepSeek V4 Flash',
@@ -57,7 +58,11 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
-      pricing: v4FlashPeakPricing,
+      pricing: {
+        cacheRead: { currency: 'USD', perMillionTokens: 0.006 },
+        input: { currency: 'USD', perMillionTokens: 0.3 },
+        output: { currency: 'USD', perMillionTokens: 1.2 }
+      },
       reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     },

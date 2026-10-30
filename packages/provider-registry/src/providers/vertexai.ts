@@ -11,6 +11,7 @@ const claudeWebSearchModels = [
 const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',
+  'gemini-4-argon',
   'gemini-flash-latest',
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
@@ -19,6 +20,8 @@ const geminiWebToolModels = [
 export default defineProvider({
   id: 'vertexai',
   name: 'VertexAI',
+  // Publisher discovery excludes Claude models served through the Anthropic adapter.
+  supplementModelsFromRegistry: true,
   availableInEditions: ['global'],
   defaultChatEndpoint: 'google-generate-content',
   endpointConfigs: {
