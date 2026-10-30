@@ -1,6 +1,5 @@
 import { application } from '@application'
 import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
@@ -20,6 +19,7 @@ import type {
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
@@ -29,6 +29,7 @@ import {
   ExternalKnowledgeRuntime
 } from './external/ExternalKnowledgeRuntime'
 import { FEISHU_REQUIRED_USER_SCOPES } from './external/feishuKnowledgeProvider'
+import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
@@ -40,11 +41,14 @@ import type {
 import { KnowledgeConceptService } from './query/KnowledgeConceptService'
 import { KnowledgeQueryService } from './query/KnowledgeQueryService'
 import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
+import { createCopySourcesJobHandler } from './tasks/copySourcesJobHandler'
 import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
 import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
+
+const FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS = 5_000
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
@@ -65,8 +69,13 @@ import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from '
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
   private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)
-  private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
-  private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
+  private readonly fileProcessingWaits = new FileProcessingWaitManager()
+  private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager, this.fileProcessingWaits)
+  private readonly baseAdmin = new KnowledgeBaseAdminService(
+    this.knowledgeLockManager,
+    this.ingestionService,
+    this.fileProcessingWaits
+  )
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
   private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime({
@@ -76,6 +85,10 @@ export class KnowledgeService extends BaseService {
   protected onInit(): void {
     const jobManager = application.get('JobManager')
     jobManager.registerHandler(
+      'knowledge.copy-sources',
+      createCopySourcesJobHandler(this.knowledgeLockManager, this.ingestionService)
+    )
+    jobManager.registerHandler(
       'knowledge.prepare-root',
       createPrepareRootJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
@@ -84,11 +97,15 @@ export class KnowledgeService extends BaseService {
       'knowledge.check-file-processing-result',
       createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
-    jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.knowledgeLockManager))
+    jobManager.registerHandler(
+      'knowledge.delete-subtree',
+      createDeleteSubtreeJobHandler(this.knowledgeLockManager, this.fileProcessingWaits)
+    )
     jobManager.registerHandler(
       'knowledge.reindex-subtree',
-      createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService)
+      createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService, this.fileProcessingWaits)
     )
+    this.registerInterval(() => this.fileProcessingWaits.mirrorProgress(), FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS)
   }
 
   protected async onReady(): Promise<void> {

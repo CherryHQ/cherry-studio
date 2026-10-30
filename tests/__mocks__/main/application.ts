@@ -82,6 +82,17 @@ export const mockJobManager = {
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
+const serviceOverrides = new Map<string, unknown>()
+
+export const MockApplicationUtils = {
+  setService(name: string, service: unknown): void {
+    serviceOverrides.set(name, service)
+  },
+  resetServices(): void {
+    serviceOverrides.clear()
+  }
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -116,6 +127,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
   // property behaves exactly as it does against the real ServiceContainer.
   class MockServiceContainer {
     get(name: string) {
+      if (serviceOverrides.has(name)) return serviceOverrides.get(name)
       if (name in serviceInstances) {
         return serviceInstances[name as keyof typeof serviceInstances]
       }

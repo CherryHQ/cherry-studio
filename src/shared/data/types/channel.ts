@@ -17,7 +17,8 @@ export const FeishuChannelConfigSchema = z.strictObject({
   type: z.literal('feishu'),
   applicationCredentialId: z.uuid().nullable(),
   registrationDomain: FeishuDomainSchema.optional(),
-  allowed_chat_ids: z.array(z.string()).default([])
+  allowed_chat_ids: z.array(z.string()).default([]),
+  mention_only: z.boolean().optional()
 })
 
 export type FeishuChannelConfig = z.infer<typeof FeishuChannelConfigSchema>

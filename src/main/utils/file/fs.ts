@@ -709,7 +709,7 @@ export async function assertPathVersionUnchanged(
     throw new PathStaleVersionError(target, expected, current)
   }
   const ambiguousMtime = current.mtime % 1000 === 0 && expected.mtime % 1000 === 0
-  if (ambiguousMtime && expectedContentHash !== undefined) {
+  if (expectedContentHash !== undefined) {
     const actualHash = await hash(target)
     if (actualHash !== expectedContentHash) {
       throw new PathStaleVersionError(target, expected, current)

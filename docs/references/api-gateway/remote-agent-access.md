@@ -236,8 +236,12 @@ port from `1` through `65535`, and `ws` or `wss`. Reject wildcard destinations
 (`0.0.0.0`, `::`), loopback destinations for another device, URL credentials,
 query/fragment values and arbitrary paths. IPv6 URL construction and interface
 scope follow the [connection contract](./remote-connectivity.md#5-连接消费契约).
-The Desktop input also accepts `https://` and `http://`, normalized to `wss://`
-and `ws://` respectively, preserving explicit ports (defaults: 443 and 80).
+The Desktop input also accepts `https://` and `http://`. The validated input is
+saved, with surrounding whitespace removed, as the optional `inputUrl` alongside
+the endpoint in the same Preference. The address selector and edit dialog display
+that input; older settings without it display the endpoint URL. Invitations and
+connection snapshots contain only `host`, `port` and `security`, using `wss` for
+HTTPS and `ws` for HTTP, preserving explicit ports (defaults: 443 and 80).
 Use the fixed `/v1/remote/connect` route. Public hops require WSS; an explicit
 scheme must never silently downgrade after a failure. Keep domain names for
 system DNS resolution on each connection attempt rather than persisting resolved IPs.

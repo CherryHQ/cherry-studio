@@ -672,7 +672,7 @@ describe('ComposerSurface', () => {
   it('uses the card color with a subtle shadow', () => {
     render(<ComposerSurface {...baseProps} />)
 
-    expect(document.getElementById('inputbar')).toHaveClass('bg-card', 'shadow-sm')
+    expect(document.getElementById('inputbar')).toHaveClass('bg-composer-surface', 'shadow-sm')
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 
@@ -1394,6 +1394,37 @@ describe('ComposerSurface', () => {
 
     expect(document.querySelector('[data-composer-editing-header]')).toBeNull()
     expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
+  })
+
+  it('keeps a text drop inside the reasoning textarea', () => {
+    const onChange = vi.fn()
+    const onComposerDrop = vi.fn()
+
+    render(
+      <div onDrop={onComposerDrop}>
+        <ComposerSurface
+          {...baseProps}
+          editingState={{
+            messageId: 'message-1',
+            onCancel: vi.fn(),
+            reasoning: {
+              value: 'old thinking',
+              label: 'thinking',
+              actionLabel: 'edit thinking',
+              title: 'edit thinking',
+              placeholder: 'thinking',
+              hint: 'hint',
+              onChange
+            }
+          }}
+        />
+      </div>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'thinking' }))
+    fireEvent.drop(screen.getByLabelText('thinking'), { dataTransfer: { getData: () => 'dropped' } })
+
+    expect(onComposerDrop).not.toHaveBeenCalled()
   })
 
   it('focuses the editor when an editing session starts', async () => {

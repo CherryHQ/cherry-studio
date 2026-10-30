@@ -98,6 +98,23 @@ describe('migrateFeishuCredentials', () => {
     expect(await fixture.store.listSummaries()).toHaveLength(2)
   })
 
+  it.each([false, true])('preserves mention-only=%s for configured and pending channels', async (mentionOnly) => {
+    const configured = channel({ mention_only: mentionOnly })
+    const pending = channel({
+      app_id: '',
+      app_secret: '',
+      encrypt_key: '',
+      verification_token: '',
+      mention_only: mentionOnly
+    })
+    await migrateFeishuCredentials(fixture.store, legacy)
+    for (const id of [configured.id, pending.id]) {
+      expect(
+        fixture.dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.id, id)).get()?.config.mention_only
+      ).toBe(mentionOnly)
+    }
+  })
+
   it('preserves Lark registration intent and pending user authorizations without inventing tokens', async () => {
     const blank = channel({ app_id: '', app_secret: '', encrypt_key: '', verification_token: '', domain: 'lark' })
     const grantId = randomUUID()

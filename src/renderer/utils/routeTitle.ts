@@ -94,12 +94,12 @@ export function isTopLevelRoute(url: string): boolean {
   return !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
 }
 
-/** Conversation routes that use the fixed application title and default route icon. */
-const CONVERSATION_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
+/** Routes whose tab title + icon are owned by the page (topic / session name + emoji). */
+const PAGE_TITLED_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
 
-export function isConversationRoute(url: string): boolean {
+export function isPageTitledRoute(url: string): boolean {
   const pathname = new URL(url, BASE_URL).pathname
-  return CONVERSATION_ROUTE_BASE_PATHS.has(getBasePath(pathname))
+  return PAGE_TITLED_ROUTE_BASE_PATHS.has(getBasePath(pathname))
 }
 
 /**

@@ -63,6 +63,21 @@ describe('Feishu channel credential binding', () => {
     expect(await fixture.store.read(app.id)).toEqual({ status: 'missing' })
   })
 
+  it('preserves mention-only settings when reading and updating credential-backed channels', async () => {
+    const app = await fixture.store.create(applicationInput)
+    const channel = await createAgentChannel({
+      ...input,
+      config: { applicationCredentialId: app.id, mention_only: false }
+    })
+    expect(agentChannelService.getChannel(channel.id)?.config).toMatchObject({ mention_only: false })
+    agentChannelService.updateChannel(channel.id, { configPatch: { allowed_chat_ids: ['new-chat'] } })
+    expect(agentChannelService.getChannel(channel.id)?.config).toMatchObject({
+      applicationCredentialId: app.id,
+      mention_only: false,
+      allowed_chat_ids: ['new-chat']
+    })
+  })
+
   it('keeps blocked legacy secrets on disk while excluding them from Channel list/get responses', () => {
     const id = randomUUID()
     const config = {
