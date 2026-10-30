@@ -616,11 +616,25 @@ public static class NativeDialog {
           ]
         : [
             // Typing into the dialog depends on focus the runner cannot guarantee, so set the name
-            // field directly and accept through the dialog's own default button.
+            // field directly and accept through the dialog's own default button. The file name
+            // control is populated after the dialog is created, so wait for it before failing.
             '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
             '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
-            '$fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
-            'if (-not $fileInput) { throw "Native file name input was not found" }',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+            '$fileInput = $null',
+            'do {',
+            '  $fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
+            '  if (-not $fileInput) { Start-Sleep -Milliseconds 200 }',
+            '} while (-not $fileInput -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $fileInput) {',
+            '  $editCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
+            '  $fileInput = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition) | Where-Object { -not $_.Current.IsOffscreen } | Select-Object -Last 1',
+            '}',
+            'if (-not $fileInput) {',
+            '  $all = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+            '  $seen = ($all | Select-Object -First 40 | ForEach-Object { "$($_.Current.AutomationId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
+            '  throw ("Native file name input was not found. Dialog descendants: " + $seen)',
+            '}',
             `$requested = '${escapePowerShell(filePath)}'`,
             '$valuePattern = $null',
             'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
