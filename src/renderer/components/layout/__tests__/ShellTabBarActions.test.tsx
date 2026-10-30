@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 
@@ -45,10 +45,6 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
-vi.mock('../HelpMenu', () => ({
-  HelpMenu: () => <button aria-label="Help" type="button" />
-}))
-
 vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: {
     show: mocks.showUpdatePopup
@@ -65,7 +61,8 @@ vi.mock('react-i18next', () => ({
       ({
         'globalSearch.open': 'Open global search',
         'settings.about.updateAvailable': 'Found new version',
-        'settings.title': 'Settings'
+        'settings.title': 'Settings',
+        'sidebar.account_menu': 'Account menu'
       })[key] ?? key
   })
 }))
@@ -74,7 +71,7 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
-import { AppUpdateButton, ShellTabBarActions, SidebarSettingsButton } from '../ShellTabBarActions'
+import { AppUpdateButton, ShellTabBarActions } from '../ShellTabBarActions'
 
 afterEach(() => {
   cleanup()
@@ -86,13 +83,6 @@ afterEach(() => {
 })
 
 describe('ShellTabBarActions', () => {
-  beforeEach(() => {
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: { error: vi.fn() }
-    })
-  })
-
   it('opens global search from the action area', async () => {
     const user = userEvent.setup()
 
@@ -150,13 +140,13 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Found new version',
-      'Help',
-      'Settings',
-      'Open global search'
+      'Open global search',
+      'Settings'
     ])
   })
 
-  it('keeps theme and settings actions out of the tab bar while the sidebar is visible', () => {
+  it.each([50, 180])('keeps settings in the sidebar at width %ipx', (width) => {
+    cacheService.setPersist('ui.sidebar.width', width)
     render(<ShellTabBarActions />)
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
@@ -164,32 +154,14 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
   })
 
-  it('opens settings from the tab bar when the sidebar is hidden', async () => {
-    const user = userEvent.setup()
+  it('opens settings from the right action area when the sidebar is hidden', async () => {
     cacheService.setPersist('ui.sidebar.width', 0)
-
+    const user = userEvent.setup()
     render(<ShellTabBarActions />)
 
-    await user.click(screen.getByRole('button', { name: /settings/i }))
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
-  })
-})
-
-describe('SidebarSettingsButton', () => {
-  it('opens settings from the icon action', async () => {
-    const user = userEvent.setup()
-    render(<SidebarSettingsButton layout="icon" />)
-
-    const button = screen.getByRole('button', { name: 'Settings' })
-    await user.click(button)
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
-  })
-
-  it('renders a labeled full-width action in the full sidebar layout', () => {
-    render(<SidebarSettingsButton layout="full" />)
-
-    const button = screen.getByRole('button', { name: 'Settings' })
-    expect(button).toHaveTextContent('Settings')
+    expect(screen.queryByRole('button', { name: 'Account menu' })).not.toBeInTheDocument()
   })
 })

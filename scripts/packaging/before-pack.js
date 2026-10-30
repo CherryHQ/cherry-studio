@@ -7,6 +7,7 @@ const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('../linux-native/download')
 const { buildSelectionPanel } = require('../../native/darwin/build')
+const { buildExternalApp } = require('../../native/external-app/build.cjs')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -215,6 +216,7 @@ exports.default = async function (context) {
 
   await prepareNativeModulesForElectron(context)
   buildSelectionPanel({ platform, arch })
+  buildExternalApp({ platform, arch, packaging: true })
   assertPrebuiltPackages(platform, arch)
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)

@@ -261,6 +261,62 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
   })
 
+  it('materializes a Google stream that preserves tool signatures behind a dispatch alias (#22810)', async () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'google-generate-content',
+      endpointConfigs: {
+        'google-generate-content': { adapterFamily: 'google', baseUrl: 'https://gemini.test' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({ apiModelId: 'gemini-4-argon', capabilities: ['function-call'] }),
+      'fixture-only'
+    )
+    const { streamSimple } = await materializePiProviderStream(injection)
+    const target = {
+      ...injection.providerConfig.models![0],
+      api: 'cherry-fixture-google-generative-ai',
+      provider: 'p:fixture-connection',
+      baseUrl: injection.providerConfig.baseUrl
+    } as PiModel<PiApi>
+    const signature = Buffer.from('fixture-signature').toString('base64')
+    const history = normalizeContext({ messages: [{ role: 'user', content: 'Read fixture.', timestamp: 1 }] })
+    const requests: Array<{ contents: Array<{ parts: Array<Record<string, unknown>> }> }> = []
+    const options = {
+      apiKey: 'fixture-only',
+      maxRetries: 0,
+      fetch: async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        const parts =
+          requests.length === 1
+            ? [{ functionCall: { id: 'call_a', name: 'read', args: {} }, thoughtSignature: signature }]
+            : [{ text: 'complete' }]
+        return new Response(
+          `data: ${JSON.stringify({ candidates: [{ content: { role: 'model', parts }, finishReason: 'STOP' }] })}\n\n`,
+          { headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      }
+    }
+    const first = await streamSimple(target, history, options).result()
+    history.messages.push(first, {
+      role: 'toolResult',
+      toolCallId: 'call_a',
+      toolName: 'read',
+      content: [{ type: 'text', text: 'fixture content' }],
+      isError: false,
+      timestamp: 3
+    })
+    const second = await streamSimple(target, history, options).result()
+
+    expect(second.stopReason).toBe('stop')
+    expect(requests[1].contents.flatMap((content) => content.parts)).toContainEqual({
+      functionCall: { id: 'call_a', name: 'read', args: {} },
+      thoughtSignature: signature
+    })
+    expect(target.api).toBe('cherry-fixture-google-generative-ai')
+  })
+
   it.each([
     ['openai-chat-completions', 'openai-completions', 'https://open.cherryin.net/v1'],
     ['openai-responses', 'openai-responses', 'https://open.cherryin.net/v1'],

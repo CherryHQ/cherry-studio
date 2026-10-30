@@ -38,6 +38,25 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it.each(['darwin', 'win32', 'linux'] as const)(
+    'locates the %s addon in target-specific unpackable resources',
+    (platform) => {
+      for (const arch of ['arm64', 'x64']) {
+        vi.stubGlobal(
+          'process',
+          Object.defineProperties(Object.create(process), {
+            platform: { value: platform },
+            arch: { value: arch }
+          })
+        )
+        expect(buildPathRegistry()['feature.external_app.native_file']).toBe(
+          path.normalize(`/mock/app/resources/binaries/${platform}-${arch}/external-app.node`)
+        )
+      }
+      expect(shouldAutoEnsure('feature.external_app.native_file')).toBe(false)
+    }
+  )
+
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {
       getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))

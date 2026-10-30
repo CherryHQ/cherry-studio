@@ -101,6 +101,13 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.external_app.native_file': path.join(
+      appRootResources,
+      'binaries',
+      `${process.platform}-${process.arch}`,
+      'external-app.node'
+    ),
+
     'feature.selection.native_panel_file': path.join(
       appRootResources,
       'binaries',
@@ -418,6 +425,7 @@ const NO_ENSURE = [
   'app.exe_file',
   'app.extra_resources',
   'feature.voice.helper_file',
+  'feature.external_app.native_file',
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',

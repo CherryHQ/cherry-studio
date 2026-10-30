@@ -1,19 +1,44 @@
-diff --git a/dist/types.d.ts b/dist/types.d.ts
---- a/dist/types.d.ts
-+++ b/dist/types.d.ts
-@@ -21,7 +21,7 @@
- export type KnownProvider = "amazon-bedrock" | "ant-ling" | "anthropic" | "google" | "google-vertex" | "openai" | "azure-openai-responses" | "openai-codex" | "radius" | "typesafe" | "nvidia" | "deepseek" | "github-copilot" | "xai" | "groq" | "cerebras" | "openrouter" | "vercel-ai-gateway" | "zai" | "zai-coding-cn" | "mistral" | "minimax" | "minimax-cn" | "moonshotai" | "moonshotai-cn" | "huggingface" | "fireworks" | "together" | "baseten" | "opencode" | "opencode-go" | "kimi-coding" | "meta" | "cloudflare-workers-ai" | "cloudflare-ai-gateway" | "qwen-token-plan" | "qwen-token-plan-cn" | "qwen-token-plan-individual" | "xiaomi" | "xiaomi-token-plan-cn" | "xiaomi-token-plan-ams" | "xiaomi-token-plan-sgp";
- export type ProviderId = KnownProvider | string;
- export type ToolChoice = "auto" | "none";
--export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-+export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
- export type ModelThinkingLevel = "off" | ThinkingLevel;
- export type ThinkingLevelMap = Partial<Record<ModelThinkingLevel, string | null>>;
- export type ChatTemplateKwargValue = string | number | boolean | null | {
+diff --git a/dist/providers/model-schema.js b/dist/providers/model-schema.js
+--- a/dist/providers/model-schema.js
++++ b/dist/providers/model-schema.js
+@@ -1,5 +1,5 @@
+ import { Type } from "typebox";
+-export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"];
++export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export const MODEL_THINKING_LEVELS = ["off", ...THINKING_LEVELS];
+ export const MODEL_INPUT_MODALITIES = ["text", "image"];
+ export const CACHE_RETENTIONS = ["none", "short", "long"];
+diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
+--- a/dist/providers/model-schema.d.ts
++++ b/dist/providers/model-schema.d.ts
+@@ -1,11 +1,11 @@
+ import { type Static, Type } from "typebox";
+-export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
+-export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
++export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export declare const MODEL_INPUT_MODALITIES: readonly ["text", "image"];
+ export declare const CACHE_RETENTIONS: readonly ["none", "short", "long"];
+ export declare const MODEL_PROMPT_CACHE_RETENTIONS: readonly ["short", "long"];
+-export declare const ThinkingLevelSchema: Type.TEnum<["minimal", "low", "medium", "high", "xhigh", "max"]>;
+-export declare const ModelThinkingLevelSchema: Type.TEnum<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
++export declare const ThinkingLevelSchema: Type.TEnum<["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]>;
++export declare const ModelThinkingLevelSchema: Type.TEnum<["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]>;
+ export declare const ModelInputModalitySchema: Type.TEnum<["text", "image"]>;
+ export declare const CacheRetentionSchema: Type.TEnum<["none", "short", "long"]>;
+ export declare const ThinkingLevelMapSchema: Type.TObject<{
+@@ -16,6 +16,7 @@
+     minimal: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+     off: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+     xhigh: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
++    ultra: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+ }>;
+ export declare const ModelPromptCacheSchema: Type.TObject<{
+     long: Type.TOptional<Type.TNumber>;
 diff --git a/dist/models.js b/dist/models.js
 --- a/dist/models.js
 +++ b/dist/models.js
-@@ -677,7 +677,7 @@
+@@ -689,7 +689,7 @@
      usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
      return usage.cost;
  }
@@ -22,7 +47,7 @@ diff --git a/dist/models.js b/dist/models.js
  export function getSupportedThinkingLevels(model) {
      if (!model.reasoning)
          return ["off"];
-@@ -685,7 +685,7 @@
+@@ -697,7 +697,7 @@
          const mapped = model.thinkingLevelMap?.[level];
          if (mapped === null)
              return false;
@@ -58,7 +83,7 @@ diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-respon
 diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
 --- a/dist/api/google-generative-ai.js
 +++ b/dist/api/google-generative-ai.js
-@@ -33,14 +33,11 @@ export const stream = (model, context, options) => {
+@@ -33,14 +33,11 @@
              timestamp: Date.now(),
          };
          try {
@@ -69,17 +94,17 @@ diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
              if (!apiKey) {
                  throw new Error(`No API key for provider: ${model.provider}`);
              }
--            const client = createClient(model, apiKey, options?.headers);
-+            const client = createClient(model, apiKey, options?.headers, options?.fetch);
+-            const client = createClient(model, apiKey, options?.headers, options?.identity);
++            const client = createClient(model, apiKey, options?.headers, options?.identity, options?.fetch);
              let params = buildParams(model, normalizedContext, options);
              const nextParams = await options?.onPayload?.(params, model);
              if (nextParams !== undefined) {
-@@ -267,8 +264,11 @@ export const streamSimple = (model, context, options) => {
+@@ -267,8 +264,11 @@
          },
      });
  };
--function createClient(model, apiKey, optionsHeaders) {
-+function createClient(model, apiKey, optionsHeaders, fetch) {
+-function createClient(model, apiKey, optionsHeaders, identity) {
++function createClient(model, apiKey, optionsHeaders, identity, fetch) {
      const httpOptions = {};
 +    if (fetch) {
 +        httpOptions.fetch = fetch;
