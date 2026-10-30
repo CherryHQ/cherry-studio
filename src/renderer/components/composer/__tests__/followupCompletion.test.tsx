@@ -58,6 +58,7 @@ it('keeps an in-flight send exclusive across remounts and removes it from the re
   await act(async () =>
     cacheService.setShared('topic.stream.statuses.topic', {
       status: 'done',
+      turnId: 'turn-100',
       lastCompletedAt: 100,
       activeExecutions: [],
       awaitingApprovalAnchors: []
@@ -91,6 +92,7 @@ it('sends a queued follow-up when completion has already been marked read', asyn
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
+      turnId: 'turn-100',
       lastCompletedAt: 100
     })
     cacheService.setShared('topic.stream.last_seen_completion.topic', 100)
@@ -120,6 +122,7 @@ it('resumes a paused queue after the current conversation was marked read', asyn
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
+      turnId: 'turn-100',
       lastCompletedAt: 100
     })
     cacheService.setShared('topic.stream.last_seen_completion.topic', 100)
@@ -150,6 +153,7 @@ it('preserves a failed draft and lets resume retry without another model complet
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
+      turnId: 'turn-100',
       lastCompletedAt: 100
     })
   )
@@ -182,6 +186,7 @@ it('sends once per completion even across remounts, then sends the next FIFO ite
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
+      turnId: 'turn-100',
       lastCompletedAt: 100
     })
   )
@@ -194,6 +199,7 @@ it('sends once per completion even across remounts, then sends the next FIFO ite
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
+      turnId: 'turn-200',
       lastCompletedAt: 200
     })
   )
@@ -225,6 +231,7 @@ it('settles a pending send in its original queue after switching conversations',
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
+      turnId: 'turn-100',
       lastCompletedAt: 100
     })
   )
@@ -264,6 +271,7 @@ it.each(['automatic', 'manual'] as const)(
     await act(async () => {
       cacheService.setShared('topic.stream.statuses.topic', {
         status: 'done',
+        turnId: 'turn-100',
         lastCompletedAt: 100,
         activeExecutions: [],
         awaitingApprovalAnchors: []
@@ -295,6 +303,7 @@ it('consumes an idle completion when manually sending from a paused queue', asyn
       useFollowupQueue({
         scopeKey: 'topic',
         status: 'done',
+        turnId: `turn-${lastCompletedAt}`,
         lastCompletedAt,
         onDrain: async ({ text }) => {
           delivered.push(text)
@@ -327,6 +336,7 @@ it.each<TopicStreamStatus>(['streaming', 'done'])(
     const setStatus = (status: TopicStreamStatus, lastCompletedAt: number) =>
       cacheService.setShared('topic.stream.statuses.topic', {
         status,
+        turnId: `turn-${lastCompletedAt}`,
         lastCompletedAt,
         activeExecutions: [],
         awaitingApprovalAnchors: []
@@ -375,6 +385,7 @@ it.each(['pending', 'settled'] as const)(
         useFollowupQueue({
           scopeKey: 'topic',
           status: 'done',
+          turnId: `turn-${lastCompletedAt}`,
           lastCompletedAt,
           onDrain: async ({ text }) => {
             attempted.push(text)
@@ -426,6 +437,7 @@ it.each([
         useFollowupQueue({
           scopeKey: 'topic',
           status,
+          turnId: 'turn-100',
           lastCompletedAt: status === 'done' ? 100 : null,
           onDrain: async ({ text }) => {
             attempts += 1

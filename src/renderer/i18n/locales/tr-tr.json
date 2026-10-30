@@ -723,6 +723,7 @@
   "chat.input.file_error": "Dosya işlenirken hata oluştu",
   "chat.input.file_not_supported": "Model bu dosya türünü desteklemiyor",
   "chat.input.file_not_supported_count": "{{count}} dosya desteklenmiyor",
+  "chat.input.followup_queue.auto_send_stopped": "Otomatik gönderim durduruldu. Mesajlarınız kuyrukta kalır; bunları düzenleyebilir, kaldırabilir veya elle gönderebilirsiniz.",
   "chat.input.followup_queue.edit": "Düzenle",
   "chat.input.followup_queue.pause": "Otomatik göndermeyi duraklat",
   "chat.input.followup_queue.remove": "Kaldır",

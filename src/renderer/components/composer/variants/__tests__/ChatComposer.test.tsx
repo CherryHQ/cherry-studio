@@ -1,4 +1,4 @@
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { createMockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -7,10 +7,12 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
+import { useChatRuntimeState } from '@renderer/pages/home/useChatRuntimeState'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -58,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
   topicPending: false,
+  topicStatus: undefined as 'done' | 'error' | 'aborted' | undefined,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
@@ -153,7 +156,7 @@ const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipcRequestMock },
+  ipcApi: { request: ipcRequestMock, on: () => () => {} },
   useIpcOn: (event: string, callback: (payload: unknown) => void) => {
     useEffect(() => {
       mocks.eventListeners.set(event, callback)
@@ -568,6 +571,7 @@ vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
 })
 
 vi.mock('@renderer/hooks/command', () => ({
+  useCommandRuntime: () => ({ hasHandler: () => false, execute: vi.fn() }),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
     mocks.commandHandlers.set(command, handler)
     mocks.commandOptions.set(command, options ?? {})
@@ -585,13 +589,31 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useChatWithHistory', () => ({
+  useChatWithHistory: () => ({ activeExecutions: [], regenerate: vi.fn(), stop: vi.fn(), setMessages: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({ overlay: {}, liveAssistants: [], disposeOverlay: vi.fn(), reset: vi.fn() })
+}))
+
+vi.mock('@renderer/pages/home/hooks/useChatWriteActions', () => ({
+  useChatWriteActions: () => ({ actions: {} })
+}))
+
 vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
   useTopicAwaitingApproval: () => false
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicOverlayHandoffOnTerminal: () => {},
   useTopicAwaitingApproval: () => mocks.awaitingApproval,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: mocks.topicPending,
+    status: mocks.topicStatus,
+    turnId: 'chat-turn-1',
+    markSeen: () => {}
+  })
 }))
 
 vi.mock('@shared/utils/model', () => ({
@@ -710,8 +732,10 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.set).mockReset()
-    vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.setCasual).mockReset()
+    const queueCache = createMockCacheService()
+    vi.mocked(cacheService.getCasual).mockReset().mockImplementation(queueCache.getCasual)
+    vi.mocked(cacheService.subscribe).mockReset().mockImplementation(queueCache.subscribe)
+    vi.mocked(cacheService.setCasual).mockReset().mockImplementation(queueCache.setCasual)
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
@@ -796,6 +820,7 @@ describe('ChatComposer', () => {
     mocks.modelMissing = undefined
     mocks.selectedModel = undefined
     mocks.modelSelectorProps = []
+    mocks.topicStatus = undefined
     mocks.topicPending = false
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
@@ -2450,6 +2475,8 @@ describe('ChatComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.errorFromException).toHaveBeenCalledTimes(1)
     expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
@@ -5476,6 +5503,10 @@ describe('ChatComposer', () => {
   })
   describe('queued edit switching', () => {
     async function setup(texts = ['A', 'B']) {
+      const queueCache = createMockCacheService()
+      vi.mocked(cacheService.getCasual).mockImplementation(queueCache.getCasual)
+      vi.mocked(cacheService.setCasual).mockImplementation(queueCache.setCasual)
+      vi.mocked(cacheService.subscribe).mockImplementation(queueCache.subscribe)
       mocks.topicPending = true
       mocks.getDraft.mockImplementation((props) => ({ text: props.text, tokens: [] }))
       const send = vi.fn().mockResolvedValue(undefined)
@@ -5498,6 +5529,299 @@ describe('ChatComposer', () => {
       }
       return { dock, originals, edit, view, component, send }
     }
+
+    it.each(['error', 'aborted'] as const)(
+      'does not strand stored payloads on %s or overwrite the unsent editor',
+      async (status) => {
+        const {
+          dock,
+          originals: [a, b],
+          view,
+          component,
+          send
+        } = await setup()
+        await act(async () => {
+          mocks.surfaceProps?.onTextChange('unsent D')
+        })
+        mocks.topicStatus = status
+        view.rerender(component(false))
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+        expect(send).toHaveBeenCalledWith(
+          a.payload.text,
+          expect.objectContaining({
+            userMessageParts: a.payload.userMessageParts,
+            mentionedModels: a.payload.mentionedModels,
+            reasoningEffort: a.payload.reasoningEffort,
+            serviceTier: a.payload.serviceTier,
+            chatTarget: a.payload.chatTarget
+          })
+        )
+        expect(dock().items).toEqual([b])
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+      }
+    )
+
+    it.each(['error', 'aborted'] as const)(
+      'waits for history readiness before draining a remounted %s terminal',
+      async (status) => {
+        const draftCache = createMockCacheService()
+        vi.mocked(cacheService.get).mockImplementation(draftCache.get)
+        vi.mocked(cacheService.set).mockImplementation(draftCache.set)
+        const {
+          dock,
+          originals: [b, c],
+          view,
+          send
+        } = await setup(['B', 'C'])
+        act(() => mocks.surfaceProps?.onTextChange('unsent D'))
+        view.unmount()
+        mocks.topicPending = false
+        mocks.topicStatus = status
+        const component = (sendDisabled: boolean) => (
+          <ChatComposer topic={topic} onSend={send} sendDisabled={sendDisabled} />
+        )
+        const replacement = render(component(true))
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+        await act(async () => {})
+        const scope = `${topic.id}:${topic.assistantId}`
+        expect(send).not.toHaveBeenCalled()
+        expect(cacheService.getCasual(`followup-queue-drained.${scope}`)).toBeUndefined()
+        expect(cacheService.getCasual(`followup-queue-drained.${scope}`)).toBeUndefined()
+        expect(cacheService.getCasual(`followup-queue-paused.${scope}`)).toBeUndefined()
+        expect(dock().paused).toBe(false)
+        expect(toast.warning).not.toHaveBeenCalled()
+        expect(dock().items).toEqual([b, c])
+        const acceptance = createDeferred<boolean>()
+        send.mockReturnValueOnce(acceptance.promise)
+        replacement.rerender(component(false))
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+        expect(send).toHaveBeenCalledWith('B', expect.objectContaining({ notifyFailure: false }))
+        expect(dock().items).toEqual([b, c])
+        await act(async () => acceptance.resolve(true))
+        expect(dock().items).toEqual([c])
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+        replacement.rerender(component(false))
+        await act(async () => {})
+        expect(send).toHaveBeenCalledTimes(1)
+      }
+    )
+
+    it('reports automatic stream-open failure through the queue and manual retry through the controller once', async () => {
+      const draftCache = createMockCacheService()
+      vi.mocked(cacheService.get).mockImplementation(draftCache.get)
+      vi.mocked(cacheService.set).mockImplementation(draftCache.set)
+      function RuntimeComposer() {
+        const runtime = useChatRuntimeState({
+          topic,
+          isHistoryLoading: false,
+          initialMessages: [],
+          uiMessages: [],
+          refresh: async () => [],
+          activeNodeId: null,
+          messagesCacheMutate: vi.fn(),
+          composerModelId: model.id
+        })
+        return <ChatComposer topic={topic} onSend={runtime.sendMessage} />
+      }
+      mocks.topicPending = true
+      mocks.getDraft.mockImplementation((props) => ({ text: props.text, tokens: [] }))
+      const view = render(<RuntimeComposer />)
+      const dock = () => (mocks.surfaceProps?.queueContent as any)?.props
+      for (const text of ['B', 'C']) {
+        await act(async () => {
+          await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+        })
+      }
+      const originals = [...dock().items]
+      act(() => mocks.surfaceProps?.onTextChange('unsent D'))
+      const providerLookup = createDeferred<any>()
+      const getProvider = vi.spyOn(dataApiService, 'get').mockReturnValueOnce(providerLookup.promise)
+      ipcRequestMock.mockImplementation(async (route: string) => {
+        if (route === 'ai.stream.open') throw new Error('automatic open failed')
+        return {}
+      })
+      const openRequests = () => ipcRequestMock.mock.calls.filter(([route]) => route === 'ai.stream.open')
+      mocks.topicPending = false
+      mocks.topicStatus = 'aborted'
+      view.rerender(<RuntimeComposer />)
+      await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('chat.input.followup_queue.auto_send_stopped'))
+      await act(async () => {
+        providerLookup.resolve({ id: 'provider', name: 'Provider' })
+        await providerLookup.promise
+      })
+      expect(openRequests()).toEqual([
+        [
+          'ai.stream.open',
+          expect.objectContaining({
+            userMessageParts: [{ type: 'text', text: 'B' }]
+          })
+        ]
+      ])
+      expect(toast.warning).toHaveBeenCalledTimes(1)
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(toast.errorFromException).not.toHaveBeenCalled()
+      expect(dock().items).toEqual(originals)
+      expect(dock().paused).toBe(true)
+      expect(cacheService.getCasual(`followup-queue-drained.${topic.id}:${topic.assistantId}`)).toMatchObject({
+        pendingIds: []
+      })
+      expect(mocks.surfaceProps?.text).toBe('unsent D')
+      view.rerender(<RuntimeComposer />)
+      view.unmount()
+      render(<RuntimeComposer />)
+      await act(async () => {})
+      expect(openRequests()).toHaveLength(1)
+      expect(toast.warning).toHaveBeenCalledTimes(1)
+      expect(toast.errorFromException).not.toHaveBeenCalled()
+      expect(dock().items).toEqual(originals)
+      expect(dock().paused).toBe(true)
+      expect(mocks.surfaceProps?.text).toBe('unsent D')
+      expect(toast.error).not.toHaveBeenCalled()
+      getProvider.mockRestore()
+      vi.mocked(toast.warning).mockClear()
+      await act(async () => {
+        await dock().onSteer(originals[0].id)
+      })
+      await waitFor(() => expect(toast.errorFromException).toHaveBeenCalledTimes(1))
+      expect(toast.errorFromException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'automatic open failed' }),
+        expect.any(Object)
+      )
+      expect(openRequests()).toHaveLength(2)
+      expect(toast.warning).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(dock().items).toEqual(originals)
+      expect(dock().paused).toBe(true)
+    })
+
+    it.each(['false', 'reject'] as const)(
+      'retains a failed automatic payload (%s) with exactly one stopped notice',
+      async (outcome) => {
+        const {
+          dock,
+          originals: [a, b],
+          view,
+          component,
+          send
+        } = await setup()
+        if (outcome === 'false') send.mockResolvedValueOnce(false)
+        else send.mockRejectedValueOnce(new Error('automatic failure'))
+        await act(async () => {
+          mocks.surfaceProps?.onTextChange('unsent D')
+        })
+        mocks.topicStatus = 'error'
+        view.rerender(component(false))
+        await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('chat.input.followup_queue.auto_send_stopped'))
+        expect(toast.warning).toHaveBeenCalledTimes(1)
+        expect(toast.errorFromException).not.toHaveBeenCalled()
+        if (outcome === 'false') {
+          expect(send).toHaveBeenCalledWith(a.payload.text, expect.objectContaining({ notifyFailure: false }))
+          expect(toast.error).not.toHaveBeenCalled()
+        }
+        expect(dock().items).toEqual([a, b])
+        expect(dock().paused).toBe(true)
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+      }
+    )
+
+    it('replacement dock cannot Steer pending automatic B twice after remount and removes it on acceptance', async () => {
+      const {
+        dock,
+        originals: [b, c],
+        view,
+        component,
+        send
+      } = await setup(['B', 'C'])
+      let accept!: (sent: boolean) => void
+      send.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            accept = resolve
+          })
+      )
+      act(() => mocks.surfaceProps?.onTextChange('unsent D'))
+      mocks.topicStatus = 'aborted'
+      view.rerender(component(false))
+      await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+      view.unmount()
+      render(component(false))
+      act(() => mocks.surfaceProps?.onTextChange('replacement editor'))
+      await act(async () => {
+        await dock().onSteer(b.id)
+      })
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send).toHaveBeenCalledWith(
+        b.payload.text,
+        expect.objectContaining({
+          userMessageParts: b.payload.userMessageParts,
+          mentionedModels: b.payload.mentionedModels,
+          reasoningEffort: b.payload.reasoningEffort,
+          serviceTier: b.payload.serviceTier,
+          chatTarget: b.payload.chatTarget
+        })
+      )
+      expect(dock().items).toEqual([b, c])
+      expect(mocks.surfaceProps?.text).toBe('replacement editor')
+      await act(async () => {
+        accept(true)
+      })
+      expect(dock().items).toEqual([c])
+      expect(mocks.surfaceProps?.text).toBe('replacement editor')
+      expect(send).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['false', 'reject'] as const)(
+      'replacement dock retains late automatic %s without retrying B',
+      async (outcome) => {
+        const {
+          dock,
+          originals: [b, c],
+          view,
+          component,
+          send
+        } = await setup(['B', 'C'])
+        let accept!: (sent: boolean) => void
+        let reject!: (error: Error) => void
+        send.mockImplementationOnce(
+          () =>
+            new Promise<boolean>((resolve, fail) => {
+              accept = resolve
+              reject = fail
+            })
+        )
+        mocks.topicStatus = 'aborted'
+        view.rerender(component(false))
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+        view.unmount()
+        render(component(false))
+        act(() => mocks.surfaceProps?.onTextChange('replacement editor'))
+        await act(async () => {
+          await dock().onSteer(b.id)
+        })
+        expect(send).toHaveBeenCalledTimes(1)
+        await act(async () => {
+          if (outcome === 'false') accept(false)
+          else reject(new Error('late failure'))
+        })
+        expect(dock().items).toEqual([b, c])
+        expect(dock().paused).toBe(true)
+        expect(vi.mocked(toast.warning).mock.calls).toEqual([['chat.input.followup_queue.auto_send_stopped']])
+        expect(send).toHaveBeenCalledTimes(1)
+        expect(mocks.surfaceProps?.text).toBe('replacement editor')
+        await act(async () => {
+          await dock().onEdit(b.id)
+        })
+        expect(dock().items).toEqual([c])
+        expect(mocks.surfaceProps?.text).toBe('B')
+        await act(async () => {
+          dock().onTogglePause()
+        })
+        expect(cacheService.getCasual(`followup-queue-paused.${topic.id}:${topic.assistantId}`)).toBe(false)
+        expect(send).toHaveBeenCalledTimes(2)
+        expect(dock()).toBeUndefined()
+        expect(mocks.surfaceProps?.text).toBe('B')
+      }
+    )
 
     it('rebuilds live controls without reviving removed Fast mode', async () => {
       mocks.model = { ...model, supportsFastMode: true }

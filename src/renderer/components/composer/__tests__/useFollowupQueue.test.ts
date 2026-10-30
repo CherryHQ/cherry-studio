@@ -1,8 +1,10 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import type { TopicStreamStatus } from '@shared/ai/transport'
 
 const { useFollowupQueue } = await import('../useFollowupQueue')
 
@@ -18,7 +20,14 @@ describe('useFollowupQueue', () => {
 
   it('enqueues (storing draft + payload, persisting) and removeId dequeues', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
+      useFollowupQueue({
+        turnId: 'turn-1',
+        autoSendEnabled: true,
+        scopeKey: 's1',
+        status: undefined,
+        lastCompletedAt: null,
+        onDrain: vi.fn()
+      })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -34,7 +43,14 @@ describe('useFollowupQueue', () => {
 
   it('reorders the queue and persists the new order', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
+      useFollowupQueue({
+        turnId: 'turn-1',
+        autoSendEnabled: true,
+        scopeKey: 's1',
+        status: undefined,
+        lastCompletedAt: null,
+        onDrain: vi.fn()
+      })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -50,7 +66,15 @@ describe('useFollowupQueue', () => {
   it('reloads the queue from the cache when the scopeKey changes', () => {
     cacheService.setCasual('followup-queue.s2', [item('x', 'queued')])
     const { result, rerender } = renderHook(
-      ({ scopeKey }) => useFollowupQueue({ scopeKey, status: undefined, lastCompletedAt: null, onDrain: vi.fn() }),
+      ({ scopeKey }) =>
+        useFollowupQueue({
+          turnId: 'turn-1',
+          autoSendEnabled: true,
+          scopeKey,
+          status: undefined,
+          lastCompletedAt: null,
+          onDrain: vi.fn()
+        }),
       { initialProps: { scopeKey: 's1' } }
     )
 
@@ -66,7 +90,14 @@ describe('useFollowupQueue', () => {
 
     const { result, rerender } = renderHook(
       ({ isFulfilled }) =>
-        useFollowupQueue({ scopeKey: 's1', status: isFulfilled ? 'done' : 'streaming', lastCompletedAt: 100, onDrain }),
+        useFollowupQueue({
+          turnId: 'turn-1',
+          autoSendEnabled: true,
+          scopeKey: 's1',
+          status: isFulfilled ? 'done' : 'streaming',
+          lastCompletedAt: 100,
+          onDrain
+        }),
       { initialProps: { isFulfilled: false } }
     )
 
@@ -76,7 +107,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(onDrain).toHaveBeenCalledWith(headPayload)
+    expect(onDrain).toHaveBeenCalledWith(headPayload, true)
     expect(result.current.items).toEqual([])
   })
 
@@ -89,6 +120,8 @@ describe('useFollowupQueue', () => {
     const { result, rerender } = renderHook(
       ({ isFulfilled }) =>
         useFollowupQueue({
+          turnId: 'turn-1',
+          autoSendEnabled: true,
           scopeKey: 's1',
           status: isFulfilled ? 'done' : 'streaming',
           lastCompletedAt: 100,
@@ -102,7 +135,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(onDrain).toHaveBeenCalledWith(head.payload, true)
     expect(onDrainFailed).toHaveBeenCalledOnce()
     expect(result.current.items).toEqual([head])
   })
@@ -116,6 +149,8 @@ describe('useFollowupQueue', () => {
     const { result, rerender } = renderHook(
       ({ isFulfilled }) =>
         useFollowupQueue({
+          turnId: 'turn-1',
+          autoSendEnabled: true,
           scopeKey: 's1',
           status: isFulfilled ? 'done' : 'streaming',
           lastCompletedAt: 100,
@@ -129,7 +164,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(onDrain).toHaveBeenCalledWith(head.payload, true)
     expect(onDrainFailed).toHaveBeenCalledOnce()
     expect(result.current.items).toEqual([head])
   })
@@ -140,7 +175,14 @@ describe('useFollowupQueue', () => {
 
     const { result, rerender } = renderHook(
       ({ isFulfilled }) =>
-        useFollowupQueue({ scopeKey: 's1', status: isFulfilled ? 'done' : 'streaming', lastCompletedAt: 100, onDrain }),
+        useFollowupQueue({
+          turnId: 'turn-1',
+          autoSendEnabled: true,
+          scopeKey: 's1',
+          status: isFulfilled ? 'done' : 'streaming',
+          lastCompletedAt: 100,
+          onDrain
+        }),
       { initialProps: { isFulfilled: false } }
     )
 
@@ -159,7 +201,14 @@ describe('useFollowupQueue', () => {
 
     const { result, rerender } = renderHook(
       ({ scopeKey, isFulfilled }) =>
-        useFollowupQueue({ scopeKey, status: isFulfilled ? 'done' : 'streaming', lastCompletedAt: 100, onDrain }),
+        useFollowupQueue({
+          turnId: 'turn-1',
+          autoSendEnabled: true,
+          scopeKey,
+          status: isFulfilled ? 'done' : 'streaming',
+          lastCompletedAt: 100,
+          onDrain
+        }),
       { initialProps: { scopeKey: 's1', isFulfilled: false } }
     )
 
@@ -189,6 +238,8 @@ describe('queued edit switching', () => {
     const hook = renderHook(
       ({ scopeKey, isFulfilled }) =>
         useFollowupQueue({
+          turnId: 'turn-1',
+          autoSendEnabled: true,
           scopeKey,
           status: isFulfilled ? 'done' : 'streaming',
           lastCompletedAt: 100,
@@ -379,7 +430,7 @@ describe('queued edit switching', () => {
         outcome === 'success' ? [b] : [a, b]
       )
       expect(onDrain.mock.calls, 'queue mutations must not dispatch a second head on the same completion').toEqual([
-        [a.payload]
+        [a.payload, true]
       ])
       expect(onDrainFailed.mock.calls.length, 'failed acceptance must keep existing failure reporting').toBe(
         outcome === 'success' ? 0 : 1
@@ -434,5 +485,226 @@ describe('queued edit switching', () => {
       expect(result.current.takeForEdit(a.id, capture), 'delivered source item must remain removed').toBeNull()
     })
     expect(result.current.items, 'scope reload must not reinsert old taken B').toEqual([])
+  })
+})
+
+describe('identified terminal turns', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+
+  // Catches duplicate dispatch across peers/remounts and timestamp-based suppression of a new turn.
+  it.each<TopicStreamStatus>(['done', 'error', 'aborted'])(
+    'drains exactly one FIFO head per %s turn across mounted peers and remounts',
+    async (status) => {
+      cacheService.setCasual('followup-queue.s1', [item('a', 'a'), item('b', 'b')])
+      const delivered: string[] = []
+      const useQueue = ({ turnId = 'turn-1' } = {}) =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status,
+          turnId,
+          lastCompletedAt: 100,
+          onDrain: async ({ text }) => {
+            delivered.push(text)
+            return true
+          }
+        })
+      const first = renderHook(useQueue, { wrapper: StrictMode })
+      const peer = renderHook(useQueue, { wrapper: StrictMode })
+      await act(async () => {})
+      expect(delivered).toEqual(['a'])
+      expect(peer.result.current.items.map(({ id }) => id)).toEqual(['b'])
+      first.unmount()
+      peer.unmount()
+      const next = renderHook(useQueue, { wrapper: StrictMode })
+      await act(async () => {})
+      expect(delivered).toEqual(['a'])
+      await act(async () => next.rerender({ turnId: 'turn-2' }))
+      expect(delivered).toEqual(['a', 'b'])
+      expect(next.result.current.items).toEqual([])
+    }
+  )
+
+  it.each<TopicStreamStatus>(['done', 'error', 'aborted'])(
+    'keeps the turn receipt when Pause→Resume happens during a pending automatic send (%s)',
+    async (status) => {
+      const b = item('B', 'B')
+      const c = item('C', 'C')
+      cacheService.setCasual('followup-queue.s1', [b, c])
+      const acceptance = Promise.withResolvers<boolean>()
+      const delivered: string[] = []
+      const { result, rerender } = renderHook(
+        ({ turnId }) =>
+          useFollowupQueue({
+            scopeKey: 's1',
+            status,
+            turnId,
+            lastCompletedAt: 100,
+            onDrain: async ({ text }) => {
+              delivered.push(text)
+              return text === 'B' ? acceptance.promise : true
+            }
+          }),
+        { initialProps: { turnId: 'T' } }
+      )
+      expect(delivered).toEqual(['B'])
+      act(() => result.current.setPaused(true))
+      act(() => result.current.setPaused(false))
+      expect(cacheService.getCasual('followup-queue-drained.s1')).toMatchObject({
+        lastAttemptedTurnId: 'T',
+        pendingIds: ['B']
+      })
+      await act(async () => acceptance.resolve(true))
+      expect(result.current.items).toEqual([c])
+      expect(delivered).toEqual(['B'])
+      expect(cacheService.getCasual('followup-queue-drained.s1')).toMatchObject({
+        lastAttemptedTurnId: 'T',
+        consumed: true,
+        pendingIds: []
+      })
+      await act(async () => rerender({ turnId: 'next-T' }))
+      expect(delivered).toEqual(['B', 'C'])
+      expect(result.current.items).toEqual([])
+    }
+  )
+
+  it.each(['false', 'reject'] as const)(
+    'reports automatic failures but not manual ones through the queue notice (%s)',
+    async (outcome) => {
+      const head = item('B', 'B')
+      cacheService.setCasual('followup-queue.s1', [head])
+      const automatic = Promise.withResolvers<boolean>()
+      const manual = Promise.withResolvers<boolean>()
+      const onDrain = vi.fn().mockReturnValueOnce(automatic.promise).mockReturnValueOnce(manual.promise)
+      const onDrainFailed = vi.fn()
+      const { result } = renderHook(() =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status: 'done',
+          turnId: 'T',
+          lastCompletedAt: 100,
+          onDrain,
+          onDrainFailed
+        })
+      )
+      await act(async () => {
+        if (outcome === 'reject') automatic.reject(new Error('send failed'))
+        else automatic.resolve(false)
+      })
+      expect(onDrainFailed).toHaveBeenCalledTimes(1)
+      expect(result.current.paused).toBe(true)
+      expect(result.current.items).toEqual([head])
+      onDrainFailed.mockClear()
+      let sending!: Promise<boolean>
+      act(() => {
+        sending = result.current.sendId(head.id)
+      })
+      await act(async () => {
+        if (outcome === 'reject') manual.reject(new Error('send failed'))
+        else manual.resolve(false)
+        expect(await sending).toBe(false)
+      })
+      expect(onDrainFailed).not.toHaveBeenCalled()
+      expect(result.current.paused).toBe(true)
+      expect(result.current.items).toEqual([head])
+    }
+  )
+
+  // Catches silent draft loss, repeated background attempts, and a broken explicit Resume retry.
+  it.each(['false', 'reject'] as const)('pauses and reports an automatic %s until Resume', async (failure) => {
+    const head = item('a', 'a')
+    cacheService.setCasual('followup-queue.s1', [head])
+    let attempts = 0
+    const onDrainFailed = vi.fn()
+    const useQueue = () =>
+      useFollowupQueue({
+        scopeKey: 's1',
+        status: 'error',
+        turnId: 'turn-1',
+        lastCompletedAt: null,
+        onDrain: async () => {
+          attempts += 1
+          if (attempts > 1) return true
+          if (failure === 'reject') throw new Error('send failed')
+          return false
+        },
+        onDrainFailed
+      })
+    const first = renderHook(useQueue)
+    await act(async () => {})
+    expect(first.result.current.items).toEqual([head])
+    expect(first.result.current.paused).toBe(true)
+    expect(onDrainFailed).toHaveBeenCalledTimes(1)
+    first.unmount()
+    const next = renderHook(useQueue)
+    await act(async () => {})
+    expect(attempts).toBe(1)
+    await act(async () => next.result.current.setPaused(false))
+    expect(attempts).toBe(2)
+    expect(next.result.current.items).toEqual([])
+  })
+
+  it('retries a failed new terminal with the preceding completion timestamp only on Resume', async () => {
+    cacheService.setCasual('followup-queue.s1', [item('a', 'a'), item('b', 'b'), item('c', 'c')])
+    const delivered: string[] = []
+    let attempts = 0
+    const { result, rerender } = renderHook(
+      ({ status, turnId }: { status: TopicStreamStatus; turnId: string }) =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status,
+          turnId,
+          lastCompletedAt: 100,
+          onDrain: async ({ text }) => {
+            attempts += 1
+            if (attempts === 2) return false
+            delivered.push(text)
+            return true
+          }
+        }),
+      { initialProps: { status: 'done' as TopicStreamStatus, turnId: 'turn-1' } }
+    )
+    await act(async () => {})
+    await act(async () => rerender({ status: 'error', turnId: 'turn-2' }))
+    expect(attempts).toBe(2)
+    expect(result.current.paused).toBe(true)
+    expect(result.current.items.map(({ id }) => id)).toEqual(['b', 'c'])
+    await act(async () => result.current.setPaused(false))
+    expect(delivered).toEqual(['a', 'b'])
+    act(() => result.current.setPaused(true))
+    await act(async () => result.current.setPaused(false))
+    expect(attempts).toBe(3)
+    expect(result.current.items.map(({ id }) => id)).toEqual(['c'])
+  })
+
+  // Catches sending without identity or while Agent editing/disabled, and cross-scope claims.
+  it('waits for an identity and enabled auto-send, then isolates receipts by scope', async () => {
+    for (const scope of ['s1', 's2']) cacheService.setCasual(`followup-queue.${scope}`, [item(scope, scope)])
+    const delivered: string[] = []
+    const { result, rerender } = renderHook(
+      ({ scopeKey, turnId, autoSendEnabled }: { scopeKey: string; turnId?: string; autoSendEnabled: boolean }) =>
+        useFollowupQueue({
+          scopeKey,
+          status: 'aborted',
+          turnId,
+          autoSendEnabled,
+          lastCompletedAt: null,
+          onDrain: async ({ text }) => {
+            delivered.push(text)
+            return true
+          }
+        }),
+      { initialProps: { scopeKey: 's1', turnId: undefined as string | undefined, autoSendEnabled: true } }
+    )
+    await act(async () => {})
+    expect(delivered).toEqual([])
+    await act(async () => rerender({ scopeKey: 's1', turnId: 'turn-1', autoSendEnabled: false }))
+    expect(delivered).toEqual([])
+    act(() => result.current.setPaused(true))
+    await act(async () => rerender({ scopeKey: 's1', turnId: 'turn-1', autoSendEnabled: true }))
+    expect(delivered).toEqual([])
+    await act(async () => result.current.setPaused(false))
+    await act(async () => rerender({ scopeKey: 's2', turnId: 'turn-1', autoSendEnabled: true }))
+    expect(delivered).toEqual(['s1', 's2'])
+    expect(result.current.items).toEqual([])
   })
 })

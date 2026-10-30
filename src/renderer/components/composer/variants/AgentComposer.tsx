@@ -309,7 +309,7 @@ export interface AgentComposerSendBody {
   fastMode?: boolean
 }
 
-export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody; notifyFailure?: boolean }
 
 export interface AgentComposerLaunchOptions {
   initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
@@ -1524,7 +1524,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, queueOwnsFailureNotice = false) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1542,6 +1542,7 @@ const AgentComposerInner = ({
         const sent = await chatSendMessage(
           { text: payload.text },
           {
+            notifyFailure: !queueOwnsFailureNotice,
             body: {
               agentId,
               sessionId,
@@ -1559,7 +1560,7 @@ const AgentComposerInner = ({
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
-        toast.errorFromException(error)
+        if (!queueOwnsFailureNotice) toast.errorFromException(error)
         return false
       }
     },
@@ -1613,7 +1614,7 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
+  const { status: sessionStatus, turnId, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1626,9 +1627,12 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
-    status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
+    status: sessionStatus,
+    turnId,
+    autoSendEnabled: !sendDisabled && !launchOptions?.editing,
     lastCompletedAt,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    onDrainFailed: () => toast.warning(t('chat.input.followup_queue.auto_send_stopped'))
   })
   releaseFollowupEditRef.current = releaseEdit
 
