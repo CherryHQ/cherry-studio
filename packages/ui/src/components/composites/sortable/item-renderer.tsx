@@ -1,71 +1,40 @@
-import type { DraggableSyntheticListeners } from '@dnd-kit/core'
-import type { Transform } from '@dnd-kit/utilities'
-import { CSS } from '@dnd-kit/utilities'
-import React, { useEffect } from 'react'
+import React from 'react'
 
 import type { RenderItemType, SortableDragHandleProps } from './types'
 
 interface ItemRendererProps<T> {
   ref?: React.Ref<HTMLDivElement>
-  activatorRef?: React.Ref<HTMLDivElement>
   index?: number
   item: T
   renderItem: RenderItemType<T>
   dragging?: boolean
   dragOverlay?: boolean
   ghost?: boolean
-  transform?: Transform | null
-  transition?: string | null
-  listeners?: DraggableSyntheticListeners
   dragHandleProps?: SortableDragHandleProps
   itemStyle?: React.CSSProperties
 }
 
 export function ItemRenderer<T>({
   ref,
-  activatorRef,
   index,
   item,
   renderItem,
   dragging,
   dragOverlay,
   ghost,
-  transform,
-  transition,
-  listeners,
   dragHandleProps,
-  itemStyle,
-  ...props
+  itemStyle
 }: ItemRendererProps<T>) {
-  useEffect(() => {
-    if (!dragOverlay) {
-      return
-    }
-
-    document.body.style.cursor = 'grabbing'
-
-    return () => {
-      document.body.style.cursor = ''
-    }
-  }, [dragOverlay])
-
-  const style = {
-    transition,
-    transform: CSS.Transform.toString(transform ?? null)
-  } as React.CSSProperties
-
   return (
     <div
       ref={ref}
       data-index={index}
       className="box-border origin-top-left touch-manipulation"
       style={{
-        ...style,
         ...itemStyle,
         ...(dragOverlay ? ({ '--scale': 1.02, zIndex: 999, position: 'relative' } as React.CSSProperties) : {})
       }}>
       <div
-        ref={activatorRef}
         style={{
           position: 'relative',
           boxSizing: 'border-box',
@@ -76,9 +45,7 @@ export function ItemRenderer<T>({
           opacity: dragging && !dragOverlay ? (ghost ? 0.25 : 0) : 1,
           cursor: dragOverlay ? 'inherit' : (itemStyle?.cursor ?? 'pointer'),
           pointerEvents: dragOverlay ? 'none' : undefined
-        }}
-        {...listeners}
-        {...props}>
+        }}>
         {renderItem(item, { dragging: !!dragging, overlay: !!dragOverlay, dragHandleProps })}
       </div>
     </div>
