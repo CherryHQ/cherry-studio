@@ -205,6 +205,11 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.submit_failed': 'Create failed',
           'library.config.dialogs.create.back': 'Back',
           'library.config.dialogs.create.next': 'Next',
+          'library.config.dialogs.create.quick.auto_create': 'Agent create',
+          'library.config.dialogs.create.quick.manual_create': 'Manual create',
+          'library.config.dialogs.create.quick.model_required': 'No default model yet. Choose a model to continue.',
+          'library.config.dialogs.create.quick.name_placeholder': 'Name your Agent, e.g. Slide Expert',
+          'library.config.dialogs.create.quick.purpose_label': 'Purpose',
           'library.config.dialogs.create.step.basic': 'Basic info',
           'library.config.dialogs.create.step.capability': 'Capabilities',
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
@@ -494,14 +499,18 @@ describe('AgentSelector', () => {
     expect(togglePinMock).toHaveBeenCalledWith(ALPHA_AGENT_ID)
   })
 
-  it('opens the lightweight create dialog from the create action', async () => {
+  it('opens the quick-create page from the create action', async () => {
     renderSelector()
     await openCreateDialog()
 
     expect(screen.getByRole('heading', { name: 'New Agent' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Name this resource')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Name your Agent, e.g. Slide Expert')).toBeInTheDocument()
+    expect(screen.getByText('Purpose')).toBeInTheDocument()
+    // No default model in this fixture, so the picker and its prompt are shown.
     expect(screen.getByText('Model')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
+    expect(screen.getByText('No default model yet. Choose a model to continue.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Agent create' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Manual create' })).toBeDisabled()
   })
 
   it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
@@ -526,8 +535,12 @@ describe('AgentSelector', () => {
     const { onChange } = renderSelector()
     await openCreateDialog()
 
-    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
+    fireEvent.change(screen.getByPlaceholderText('Name your Agent, e.g. Slide Expert'), {
+      target: { value: 'Created Agent' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Manual create' }))
+    expect(screen.getByPlaceholderText('Name this resource')).toHaveValue('Created Agent')
     fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
       target: { value: 'Created from selector' }
     })
@@ -569,8 +582,12 @@ describe('AgentSelector', () => {
     )
     await openCreateDialog()
 
-    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
+    fireEvent.change(screen.getByPlaceholderText('Name your Agent, e.g. Slide Expert'), {
+      target: { value: 'Created Agent' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Manual create' }))
+    expect(screen.getByPlaceholderText('Name this resource')).toHaveValue('Created Agent')
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
@@ -586,8 +603,12 @@ describe('AgentSelector', () => {
     renderSelector()
     await openCreateDialog()
 
-    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
+    fireEvent.change(screen.getByPlaceholderText('Name your Agent, e.g. Slide Expert'), {
+      target: { value: 'Created Agent' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Manual create' }))
+    expect(screen.getByPlaceholderText('Name this resource')).toHaveValue('Created Agent')
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))

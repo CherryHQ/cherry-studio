@@ -12,7 +12,6 @@ import {
   InputGroupAddon,
   InputGroupInput
 } from '@cherrystudio/ui'
-import { AgentRuntimeTiles } from '@renderer/components/AgentRuntimeOption'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
@@ -22,8 +21,6 @@ import {
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import type { AgentType } from '@shared/data/types/agent'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 
@@ -50,18 +47,17 @@ type BasicInfoStepProps = {
   fallbackAvatar: string
   modelFilter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
-  /** Agent create flows expose a runtime selector that drives the model filter (D8). */
-  runtimeSelectable?: boolean
+  /** Agent create flows add the permission mode and the Pi model filter. */
+  isAgent?: boolean
   onSettingsNavigate?: (navigate: () => void) => void
 }
 
 /**
- * Runtime selector + model picker for agent create flows. Isolated into its own
- * component so `useAgentModelFilter` (and its provider subscription) only mounts
- * for agents — assistants keep using the static `modelFilter` prop and never
- * touch the agent-runtime filter.
+ * Permission mode + model picker for agent create flows. Every new Agent runs on Pi, so there is no
+ * runtime choice. Isolated so `useAgentModelFilter` (and its provider subscription) only mounts for
+ * agents — assistants keep using the static `modelFilter` prop.
  */
-function AgentRuntimeModelFields({
+function AgentModelFields({
   form,
   portalContainer,
   modelLabels,
@@ -75,42 +71,8 @@ function AgentRuntimeModelFields({
   const agentName = useWatch({ control: form.control, name: 'name' })
   const permissionModeCards = getPermissionModeCards(agentType)
 
-  const handleRuntimeChange = (next: AgentType) => {
-    form.setValue('agentType', next, { shouldDirty: true })
-    form.setValue('permissionMode', AGENT_RUNTIME_CAPABILITIES[next].createDefaults.permissionMode, {
-      shouldDirty: true
-    })
-    // A model compatible with one runtime may be unsupported by another, so
-    // clear the current pick to force a re-select against the new filter.
-    form.setValue('modelId', null, { shouldDirty: true })
-    setModelLabels(EMPTY_MODEL_LABELS)
-  }
-
   return (
     <>
-      <FormField
-        control={form.control}
-        name="agentType"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="gap-1.5 font-medium">
-              {t('library.config.agent.field.runtime.label')}
-              <span className="font-normal text-muted-foreground text-xs">
-                {t('library.config.agent.field.runtime.immutable_hint')}
-              </span>
-            </FormLabel>
-            <FormControl>
-              <AgentRuntimeTiles
-                value={field.value}
-                onValueChange={handleRuntimeChange}
-                ariaLabel={t('library.config.agent.field.runtime.label')}
-                t={t}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
       <FormField
         control={form.control}
         name="permissionMode"
@@ -160,7 +122,7 @@ export function BasicInfoStep({
   fallbackAvatar,
   modelFilter,
   isModelDisabled,
-  runtimeSelectable = false,
+  isAgent = false,
   onSettingsNavigate
 }: BasicInfoStepProps) {
   const { t } = useTranslation()
@@ -208,8 +170,8 @@ export function BasicInfoStep({
         )}
       />
 
-      {runtimeSelectable ? (
-        <AgentRuntimeModelFields
+      {isAgent ? (
+        <AgentModelFields
           form={form}
           portalContainer={portalContainer}
           modelLabels={modelLabels}
