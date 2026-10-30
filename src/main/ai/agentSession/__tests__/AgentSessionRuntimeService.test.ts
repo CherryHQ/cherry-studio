@@ -2168,9 +2168,7 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleAgentUpdated('agent-1', { name: 'Renamed' }, { id: 'agent-1' })
 
     // The transition's accepted execution keeps ownership protection in the scope…
-    expect(connection.reconcile).toHaveBeenCalledWith(
-      expect.objectContaining({ servesAcceptedTurn: true })
-    )
+    expect(connection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ servesAcceptedTurn: true }))
     // …and even a racing stale-owner verdict must not close a connection that is still streaming.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBeDefined()
