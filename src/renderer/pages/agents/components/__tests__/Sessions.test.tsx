@@ -2220,6 +2220,37 @@ describe('Sessions', () => {
     expect(revealedRow!).not.toHaveAttribute('data-reveal-focus')
   })
 
+  it('keeps rows stable through same-day refreshes and regroups them after midnight', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(new Date(2026, 0, 7, 23, 58))
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          lastActivityAt: new Date(2026, 0, 7, 12).toISOString()
+        }),
+        createSession({ id: 'session-b', name: 'Beta session', lastActivityAt: new Date(2025, 11, 1).toISOString() })
+      ]
+    })
+    render(<SessionsForTest />)
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    const rowRenders = topicStreamStatusMocks.useTopicStreamStatus.mock.calls.length
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000)
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(topicStreamStatusMocks.useTopicStreamStatus.mock.calls.length).toBe(rowRenders)
+
+    await act(async () => {
+      vi.advanceTimersByTime(120_000)
+    })
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(screen.getByText('Yesterday')).toBeInTheDocument()
+  })
+
   it('renames sessions optimistically and rolls back when the update fails', async () => {
     let resolveRename!: (session: AgentSessionEntity | undefined) => void
     sessionDataMocks.updateSession.mockReturnValueOnce(
