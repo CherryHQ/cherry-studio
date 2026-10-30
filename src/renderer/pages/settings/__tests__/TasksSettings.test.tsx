@@ -34,7 +34,7 @@ const taskLogsMock = vi.hoisted(() => {
     defaultTaskLog,
     logs: [defaultTaskLog],
     isLoading: false,
-    error: null
+    error: null as Error | null
   }
 })
 
@@ -278,6 +278,15 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => translationMock
+}))
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', () => {
@@ -1669,6 +1678,151 @@ describe('TasksSettings detail behavior', () => {
     await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
     const row = await screen.findByRole('row', { name: /agent\.tasks\.logs\.cancelled/ })
     expect(within(row).getByText('-')).toBeInTheDocument()
+    await user.click(within(row).getByRole('button', { name: 'error.details' }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'agent.tasks.logs.cancelled',
+          source: 'settings.tasks',
+          operation: 'task.run',
+          recordId: 'task-1:log-null-duration'
+        })
+      )
+    )
+    expect(detailMocks.open.mock.calls.at(-1)?.[0].error).toBeInstanceOf(Error)
+    expect(detailMocks.open.mock.calls.at(-1)?.[0].error.message).toBe('cancelled before start')
+  })
+
+  it('binds each failed run separately and leaves completed runs without details', async () => {
+    taskLogsMock.logs = [
+      { ...taskLogsMock.defaultTaskLog, id: 'run-a', status: 'failed', result: null, error: 'disk full' },
+      {
+        ...taskLogsMock.defaultTaskLog,
+        id: 'run-b',
+        status: 'failed',
+        result: null,
+        error: 'timeout',
+        sessionId: null
+      },
+      taskLogsMock.defaultTaskLog
+    ]
+    const user = userEvent.setup()
+    const { rerender } = render(<TasksSettings />)
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+
+    const failed = await screen.findByRole('row', { name: /disk full/ })
+    expect(within(failed).getByText('disk full')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('row', { name: /done/ })).queryByRole('button', { name: 'error.details' })
+    ).toBeNull()
+    await user.click(within(failed).getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const first = detailMocks.open.mock.calls.at(-1)?.[0]
+    expect(first.localizedErrorMessage ?? first.message).toBe('agent.tasks.logs.failed')
+    expect(first.context?.source ?? first.source).toBe('settings.tasks')
+    expect(first.context?.operation ?? first.operation).toBe('task.run')
+    expect(first.context?.recordId ?? first.recordId).toBe('task-1:run-a')
+    expect(first.error.message).toBe('disk full')
+
+    detailMocks.open.mockClear()
+    rerender(<TasksSettings />)
+    await user.click(
+      within(screen.getByRole('row', { name: /disk full/ })).getByRole('button', { name: 'error.details' })
+    )
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    expect(detailMocks.open.mock.calls.at(-1)?.[0].error.message).toBe('disk full')
+    expect(
+      detailMocks.open.mock.calls.at(-1)?.[0].context?.recordId ?? detailMocks.open.mock.calls.at(-1)?.[0].recordId
+    ).toBe('task-1:run-a')
+
+    detailMocks.open.mockClear()
+    await user.click(
+      within(screen.getByRole('row', { name: /timeout/ })).getByRole('button', { name: 'error.details' })
+    )
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const second = detailMocks.open.mock.calls.at(-1)?.[0]
+    expect(second.context?.recordId ?? second.recordId).toBe('task-1:run-b')
+    expect(second.localizedErrorMessage ?? second.message).toBe('agent.tasks.logs.failed')
+    expect(second.error.message).toBe('timeout')
+    expect(second).not.toBe(first)
+  })
+
+  it('attaches the original logs error and still shows the load-failure empty state', async () => {
+    const logsError = new Error('log store down')
+    taskLogsMock.logs = []
+    taskLogsMock.isLoading = false
+    taskLogsMock.error = logsError
+    const user = userEvent.setup()
+    render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByText('agent.tasks.logs.loadError')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('agent.tasks.logs.search')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const opened = detailMocks.open.mock.calls.at(-1)?.[0]
+    expect(opened.localizedErrorMessage ?? opened.message).toBe('agent.tasks.logs.loadError')
+    expect(opened.context?.source ?? opened.source).toBe('settings.tasks')
+    expect(opened.context?.operation ?? opened.operation).toBe('task.logs.load')
+    expect(opened.context?.recordId ?? opened.recordId).toBe('task-1')
+    expect(opened.error?.message).toBe('log store down')
+  })
+
+  it('keeps loading and an empty log list free of failure details', async () => {
+    taskLogsMock.logs = []
+    taskLogsMock.isLoading = true
+    taskLogsMock.error = null
+    const user = userEvent.setup()
+    const { rerender } = render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByText('common.loading')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+
+    taskLogsMock.isLoading = false
+    rerender(<TasksSettings />)
+    expect(screen.getByText('agent.tasks.logs.empty')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+  })
+
+  it('diagnoses a failed run that has no error text and skips a user cancellation', async () => {
+    taskLogsMock.logs = [
+      {
+        ...taskLogsMock.defaultTaskLog,
+        id: 'run-empty',
+        status: 'failed',
+        result: null,
+        error: '   ',
+        sessionId: null
+      },
+      {
+        ...taskLogsMock.defaultTaskLog,
+        id: 'run-cancel',
+        status: 'cancelled',
+        result: null,
+        error: null,
+        sessionId: null
+      }
+    ]
+    const user = userEvent.setup()
+    render(<TasksSettings />)
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+
+    const failed = await screen.findByRole('row', { name: /agent\.tasks\.logs\.failed/ })
+    await user.click(within(failed).getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const opened = detailMocks.open.mock.calls.at(-1)?.[0]
+    expect(opened.localizedErrorMessage ?? opened.message).toBe('agent.tasks.logs.failed')
+    expect(opened.context?.source ?? opened.source).toBe('settings.tasks')
+    expect(opened.context?.operation ?? opened.operation).toBe('task.run')
+    expect(opened.context?.recordId ?? opened.recordId).toBe('task-1:run-empty')
+    expect(opened.error?.message ?? null).toBeNull()
+    if (opened.error) {
+      expect(opened.error).toEqual({ status: 'failed', scheduleId: 'task-1', id: 'run-empty' })
+    }
+
+    const cancelled = screen.getByRole('row', { name: /agent\.tasks\.logs\.cancelled/ })
+    expect(within(cancelled).queryByRole('button', { name: 'error.details' })).toBeNull()
   })
 
   it('filters channels to the owning Agent and uses Alert for delivery warnings', async () => {

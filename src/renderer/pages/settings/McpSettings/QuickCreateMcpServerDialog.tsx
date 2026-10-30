@@ -18,7 +18,7 @@ import {
   Form,
   Scrollbar
 } from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 
@@ -90,7 +90,11 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
       await onCreate({ ...toMcpServerFields(values), name, isActive: false, installSource: 'manual' })
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
+      toastAppError(t('settings.mcp.addError'), error, {
+        source: 'settings.mcp',
+        operation: 'mcp.server.create',
+        recordId: name
+      })
     } finally {
       setSubmitting(false)
     }

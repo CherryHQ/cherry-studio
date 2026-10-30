@@ -264,7 +264,8 @@ describe('ResourceDeleteConfirmDialog', () => {
 
   it('keeps the owner dialog open after a failed delete and allows retry', async () => {
     const user = userEvent.setup()
-    mocks.deleteAssistant.mockRejectedValueOnce(new Error('delete failed')).mockResolvedValueOnce({
+    const failure = new Error('delete failed')
+    mocks.deleteAssistant.mockRejectedValueOnce(failure).mockResolvedValueOnce({
       deleted: true,
       deletedTopicIds: []
     })
@@ -273,7 +274,23 @@ describe('ResourceDeleteConfirmDialog', () => {
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={onClose} />)
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'common.delete_failed',
+          cause: failure,
+          data: expect.objectContaining({
+            localizedErrorMessage: 'common.delete_failed',
+            errorContext: expect.objectContaining({
+              message: 'delete failed',
+              source: 'resource',
+              operation: 'assistant.delete',
+              recordId: 'assistant-1'
+            })
+          })
+        })
+      )
+    )
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
 
@@ -372,6 +389,52 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     await waitFor(() => expect(mutation).toHaveBeenCalledTimes(1))
     expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps the skill dialog open after a failed uninstall and allows retry without a second fault', async () => {
+    const user = userEvent.setup()
+    const failure = new Error('skill uninstall failed')
+    const reasons: unknown[] = []
+    const onUnhandled = (event: PromiseRejectionEvent) => {
+      event.preventDefault()
+      reasons.push(event.reason)
+    }
+    window.addEventListener('unhandledrejection', onUnhandled)
+    mocks.uninstallSkill.mockRejectedValueOnce(failure).mockResolvedValueOnce(undefined)
+    const onClose = vi.fn()
+
+    try {
+      render(<ResourceDeleteConfirmDialog resource={createResource('skill')} onClose={onClose} />)
+      await user.click(screen.getByRole('button', { name: 'Uninstall' }))
+
+      await waitFor(() =>
+        expect(mocks.toastError).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'common.delete_failed',
+            cause: failure,
+            data: expect.objectContaining({
+              localizedErrorMessage: 'common.delete_failed',
+              errorContext: expect.objectContaining({
+                message: 'skill uninstall failed',
+                source: 'resource',
+                operation: 'resource.delete',
+                recordId: 'skill-1'
+              })
+            })
+          })
+        )
+      )
+      expect(mocks.toastError).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(onClose).not.toHaveBeenCalled()
+      expect(reasons).toEqual([])
+
+      await user.click(screen.getByRole('button', { name: 'Uninstall' }))
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+      expect(reasons).toEqual([])
+    } finally {
+      window.removeEventListener('unhandledrejection', onUnhandled)
+    }
   })
 
   it('closes when the confirm dialog is dismissed', async () => {

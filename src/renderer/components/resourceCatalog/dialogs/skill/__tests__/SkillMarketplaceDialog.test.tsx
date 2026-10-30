@@ -53,10 +53,12 @@ let skillSearchState: {
   results: SkillSearchResult[]
   searching: boolean
   error: string | null
+  cause: unknown
 } = {
   results: resultsFixture,
   searching: false,
-  error: null
+  error: null,
+  cause: null
 }
 
 vi.mock('react-i18next', () => ({
@@ -186,7 +188,8 @@ beforeEach(() => {
   skillSearchState = {
     results: resultsFixture,
     searching: false,
-    error: null
+    error: null,
+    cause: null
   }
   installMock.mockResolvedValue({ skill: { id: 'skill-1', name: 'Installed Skill' } })
   isInstallingMock.mockReturnValue(false)
@@ -410,13 +413,16 @@ describe('SkillMarketplaceDialog', () => {
   it('shows a localized marketplace error message when search fails', async () => {
     skillSearchState.results = []
     skillSearchState.error = 'Search failed'
+    skillSearchState.cause = new Error('registry timeout')
     renderDialog()
 
     typeSearchQuery('react')
 
     expect(screen.getByText('common.error')).toBeInTheDocument()
     expect(screen.getByText('library.skill_marketplace.search_failed_description')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
     expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
+    expect(screen.queryByText('registry timeout')).not.toBeInTheDocument()
   })
 
   it('installs a marketplace skill and keeps the dialog open', async () => {
@@ -520,8 +526,23 @@ describe('SkillMarketplaceDialog', () => {
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('settings.skills.installFailed:React Skill: clone failed')
+      expect(toastError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'settings.skills.installFailed:React Skill',
+          cause: 'clone failed',
+          data: expect.objectContaining({
+            localizedErrorMessage: 'settings.skills.installFailed:React Skill',
+            errorContext: expect.objectContaining({
+              message: 'clone failed',
+              source: 'skills',
+              operation: 'skill.install',
+              recordId: 'skills.sh:vercel/skills/react-skill'
+            })
+          })
+        })
+      )
     })
+    expect(toastError).not.toHaveBeenCalledWith(expect.stringContaining('clone failed'))
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 })

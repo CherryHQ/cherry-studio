@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Download, Mic, Play, Square } from 'lucide-react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -17,6 +17,7 @@ import {
 import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import {
   SettingDescription,
   SettingDivider,
@@ -189,6 +190,54 @@ function previewSampleCatalog(locale: string): string {
   return catalogs.length === 1 ? catalogs[0].value : fallbackSampleCatalog
 }
 
+type LoadFaultSource = 'catalog' | 'modelStatus' | 'locales' | 'voices' | 'recognition' | 'speech' | 'defaultVoice'
+
+interface LoadFault {
+  readonly error: unknown
+  readonly token: number
+}
+
+type LoadFaults = Partial<Record<LoadFaultSource, LoadFault>>
+
+function withoutLoadFault(current: LoadFaults, source: LoadFaultSource): LoadFaults {
+  if (!current[source]) return current
+  const next = { ...current }
+  delete next[source]
+  return next
+}
+
+function latestLoadFault(faults: LoadFaults): unknown {
+  let latest: LoadFault | undefined
+  for (const fault of Object.values(faults)) {
+    if (!fault) continue
+    if (!latest || fault.token > latest.token) latest = fault
+  }
+  return latest?.error
+}
+
+function VoiceFailureDetail({
+  className,
+  error,
+  id,
+  message,
+  operation
+}: {
+  className: string
+  error: unknown
+  id?: string
+  message: string
+  operation: string
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <p className={className} id={id} role="alert">
+        {message}
+      </p>
+      <ErrorDetailAction error={error} message={message} operation={operation} source="voice" />
+    </div>
+  )
+}
+
 function trackSettingsInspection(pending: Set<Promise<unknown>>, promise: Promise<unknown>) {
   pending.add(promise)
   void promise.finally(() => pending.delete(promise)).catch(() => undefined)
@@ -210,6 +259,8 @@ function VoiceSettings() {
   const [microphoneDeviceId, setMicrophoneDeviceId] = usePreference('feature.voice.input.device_id')
   const [microphones, setMicrophones] = useState<readonly MicrophoneDevice[]>([])
   const [microphonesFailed, setMicrophonesFailed] = useState(false)
+  const [microphoneListFailure, setMicrophoneListFailure] = useState<unknown>()
+  const [microphoneTestFailure, setMicrophoneTestFailure] = useState<unknown>()
   const [testingMicrophone, setTestingMicrophone] = useState(false)
   const [microphoneReady, setMicrophoneReady] = useState(false)
   const [microphoneLevel, setMicrophoneLevel] = useState(0)
@@ -257,7 +308,12 @@ function VoiceSettings() {
   const installingRecognitionLocaleRef = useRef(false)
   const pendingSettingsInspectionsRef = useRef(new Set<Promise<unknown>>())
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
-  const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
+  const [actionFailure, setActionFailure] = useState<unknown>()
+  const [previewFailure, setPreviewFailure] = useState<{
+    snapshot: SpeechPlaybackSnapshot
+    reason: VoiceErrorReason
+    cause: unknown
+  }>()
   const autoReadRef = useRef<HTMLButtonElement>(null)
   const previewController = useRef<AbortController | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -265,10 +321,17 @@ function VoiceSettings() {
   const loadedCatalogs = useRef(new Set<string>())
   const catalogAttempt = useRef(-1)
   const [queryRevision, setQueryRevision] = useState(0)
+  const loadFaultToken = useRef(0)
+  const [loadFaults, setLoadFaults] = useState<LoadFaults>({})
   const [catalogLoading, setCatalogLoading] = useState(true)
+  const rememberLoadFault = useCallback((source: LoadFaultSource, error: unknown) => {
+    const token = ++loadFaultToken.current
+    setLoadFaults((current) => ({ ...current, [source]: { error, token } }))
+  }, [])
 
   useEffect(() => {
     let current = true
+    setLoadFaults((faults) => withoutLoadFault(faults, 'catalog'))
     if (catalogAttempt.current === queryRevision) loadedCatalogs.current.clear()
     catalogAttempt.current = queryRevision
     setCatalogLoading(true)
@@ -285,7 +348,7 @@ function VoiceSettings() {
     void voiceService
       .initialize()
       .then(async () => {
-        await Promise.allSettled([
+        const results = await Promise.allSettled([
           load('models', async () => {
             const result = await voiceService.listModels()
             if (!current) return
@@ -298,9 +361,14 @@ function VoiceSettings() {
             if (current) setMicrophoneStatus(result)
           })
         ])
+        if (!current) return
+        const rejected = results.find((result) => result.status === 'rejected')
+        if (rejected?.status === 'rejected') rememberLoadFault('catalog', rejected.reason)
+        else setLoadFaults((faults) => withoutLoadFault(faults, 'catalog'))
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         logger.warn('Voice catalog query failed', { error })
+        if (current) rememberLoadFault('catalog', error)
       })
       .finally(() => {
         if (current) setCatalogLoading(false)
@@ -308,11 +376,12 @@ function VoiceSettings() {
     return () => {
       current = false
     }
-  }, [queryRevision])
+  }, [queryRevision, rememberLoadFault])
 
   useEffect(() => {
     if (installingRecognitionLocaleRef.current) return
     let current = true
+    setLoadFaults((faults) => withoutLoadFault(faults, 'modelStatus'))
     const downloadable = models.filter((model) => model.resourceOperations.includes(VoiceResourceOperation.Download))
     const inspection = Promise.all(
       downloadable.map((model) => {
@@ -325,13 +394,14 @@ function VoiceSettings() {
       .then((statuses) => {
         if (current) setDownloadableModelStatuses(Object.fromEntries(statuses))
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         logger.warn('Voice catalog query failed', { error })
+        if (current) rememberLoadFault('modelStatus', error)
       })
     return () => {
       current = false
     }
-  }, [models, queryRevision, asrInstallationStatus, ttsInstallationStatus])
+  }, [models, queryRevision, asrInstallationStatus, ttsInstallationStatus, rememberLoadFault])
 
   const configuredRecognitionModel =
     recognitionModel && isTranscriptionModelId(recognitionModel) ? recognitionModel : undefined
@@ -449,9 +519,13 @@ function VoiceSettings() {
         : { status: !configuredSpeechModel && !catalogLoading ? 'unsupported' : 'loading' }
 
   useEffect(() => {
-    if (hasConfiguredRecognitionModel && !configuredRecognitionModel) return
     if (installingRecognitionLocaleRef.current) return
+    if (hasConfiguredRecognitionModel && !configuredRecognitionModel) {
+      setLoadFaults((faults) => withoutLoadFault(faults, 'recognition'))
+      return
+    }
     let current = true
+    setLoadFaults((faults) => withoutLoadFault(faults, 'recognition'))
     const inspection = recognitionInspectionRef.current.then(async () => {
       if (!current || installingRecognitionLocaleRef.current) return
       setQueriedRecognitionStatus(undefined)
@@ -475,6 +549,7 @@ function VoiceSettings() {
           })
       } catch (error) {
         logger.warn('Recognition configuration query failed', { error })
+        if (current && !installingRecognitionLocaleRef.current) rememberLoadFault('recognition', error)
       }
     })
     recognitionInspectionRef.current = inspection
@@ -488,13 +563,15 @@ function VoiceSettings() {
     recognitionLanguage,
     effectiveRecognitionLanguage,
     queryRevision,
-    asrInstallationStatus
+    asrInstallationStatus,
+    rememberLoadFault
   ])
 
   useEffect(() => {
     if (installingRecognitionLocaleRef.current) return
     setQueriedSpeechStatus(undefined)
     setDefaultVoice(undefined)
+    setLoadFaults((faults) => withoutLoadFault(withoutLoadFault(faults, 'speech'), 'defaultVoice'))
     if (!configuredSpeechModel) return
     let current = true
     const query = { modelId: configuredSpeechModel, language: configuredSpeechLanguage, voice: configuredSpeechVoice }
@@ -516,13 +593,23 @@ function VoiceSettings() {
               modelId: configuredSpeechModel,
               language: effectiveSpeechLanguage
             })
-            if (current) setDefaultVoice(automatic)
-          } catch {
-            if (current) setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
+            if (!current) return
+            setDefaultVoice(automatic)
+            if (automatic.status.status === 'failed') {
+              rememberLoadFault('defaultVoice', automatic.status.reason ?? 'operation_failed')
+            } else {
+              setLoadFaults((faults) => withoutLoadFault(faults, 'defaultVoice'))
+            }
+          } catch (error) {
+            if (current) {
+              rememberLoadFault('defaultVoice', error)
+              setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
+            }
           }
         }
-      } catch {
+      } catch (error) {
         if (current) {
+          rememberLoadFault('speech', error)
           setQueriedSpeechStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
           setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
         }
@@ -540,13 +627,15 @@ function VoiceSettings() {
     effectiveSpeechLanguage,
     speechSpeed,
     ttsInstallationStatus,
-    queryRevision
+    queryRevision,
+    rememberLoadFault
   ])
 
   useEffect(() => {
     if (installingRecognitionLocaleRef.current) return
     let current = true
     setAsrLocales(undefined)
+    setLoadFaults((faults) => withoutLoadFault(faults, 'locales'))
     if (effectiveRecognitionModel && recognitionDescriptor?.localeSelection) {
       const inspection = voiceService.listTranscriptionLocales(effectiveRecognitionModel)
       trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
@@ -554,20 +643,22 @@ function VoiceSettings() {
         .then((result) => {
           if (current) setAsrLocales(result)
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           logger.warn('Voice catalog query failed', { error })
+          if (current) rememberLoadFault('locales', error)
         })
     }
     return () => {
       current = false
     }
-  }, [effectiveRecognitionModel, recognitionDescriptor, queryRevision])
+  }, [effectiveRecognitionModel, recognitionDescriptor, queryRevision, rememberLoadFault])
 
   useEffect(() => {
     if (installingRecognitionLocaleRef.current) return
     let current = true
     setVoices([])
     setVoicesLoading(false)
+    setLoadFaults((faults) => withoutLoadFault(faults, 'voices'))
     if (configuredSpeechModel && models.some((model) => model.id === configuredSpeechModel)) {
       setVoicesLoading(true)
       const inspection = voiceService.listVoices(configuredSpeechModel)
@@ -576,8 +667,9 @@ function VoiceSettings() {
         .then((result) => {
           if (current) setVoices(result)
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           logger.warn('Voice catalog query failed', { error })
+          if (current) rememberLoadFault('voices', error)
         })
         .finally(() => {
           if (current) setVoicesLoading(false)
@@ -586,7 +678,7 @@ function VoiceSettings() {
     return () => {
       current = false
     }
-  }, [configuredSpeechModel, models, queryRevision])
+  }, [configuredSpeechModel, models, queryRevision, rememberLoadFault])
 
   useEffect(() => {
     let disposed = false
@@ -597,9 +689,13 @@ function VoiceSettings() {
           if (disposed || query !== microphoneQueryGeneration.current) return
           setMicrophones(devices)
           setMicrophonesFailed(false)
+          setMicrophoneListFailure(undefined)
         })
-        .catch(() => {
-          if (!disposed && query === microphoneQueryGeneration.current) setMicrophonesFailed(true)
+        .catch((error: unknown) => {
+          if (!disposed && query === microphoneQueryGeneration.current) {
+            setMicrophoneListFailure(error)
+            setMicrophonesFailed(true)
+          }
         })
     }
     refresh()
@@ -629,6 +725,7 @@ function VoiceSettings() {
     setTestingMicrophone(true)
     setMicrophoneReady(false)
     setMicrophoneError(undefined)
+    setMicrophoneTestFailure(undefined)
     try {
       await voiceService.testMicrophone(
         controller.signal,
@@ -638,14 +735,17 @@ function VoiceSettings() {
           ++microphoneQueryGeneration.current
           setMicrophones(devices)
           setMicrophonesFailed(false)
+          setMicrophoneListFailure(undefined)
           setMicrophoneReady(true)
           setMicrophoneStatus('granted')
         },
         setMicrophoneLevel
       )
     } catch (error) {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        setMicrophoneTestFailure(error)
         setMicrophoneError(error instanceof VoiceDomainError ? error.reason : 'recording_failed')
+      }
     } finally {
       if (microphoneAuthorization.current === controller) {
         microphoneAuthorization.current = null
@@ -674,9 +774,13 @@ function VoiceSettings() {
           setMicrophoneStatus(status)
           if (status !== 'granted') return
           setMicrophoneError(undefined)
+          setMicrophoneTestFailure(undefined)
         })
-        .catch(() => {
-          if (current) setActionFailed(true)
+        .catch((error: unknown) => {
+          if (current) {
+            setActionFailure(error)
+            setActionFailed(true)
+          }
         })
         .finally(() => {
           refreshPending = false
@@ -696,6 +800,19 @@ function VoiceSettings() {
   const canOpenMicrophoneSettings = needsMicrophoneRecovery
   const speechBusy = previewLoading || ['generating', 'ready', 'playing', 'paused'].includes(speech.phase)
   const speechError = previewFailure?.snapshot === speech ? previewFailure.reason : speech.error
+  const speechDetail = previewFailure?.snapshot === speech ? previewFailure.cause : speech.error
+  const microphoneDetail = microphoneError
+    ? (microphoneTestFailure ?? microphoneError)
+    : (microphoneListFailure ?? 'operation_failed')
+  const currentLoadFault = latestLoadFault(loadFaults)
+  const showLoadFailure =
+    currentLoadFault !== undefined || recognitionStatus.status === 'failed' || speechStatus.status === 'failed'
+  const loadFailure =
+    currentLoadFault ??
+    (recognitionStatus.status === 'failed' ? (recognitionStatus.reason ?? 'operation_failed') : undefined) ??
+    (speechStatus.status === 'failed' ? (speechStatus.reason ?? 'operation_failed') : undefined) ??
+    'operation_failed'
+  const actionDetail = actionFailure ?? (typeof actionFailed === 'string' ? actionFailed : 'operation_failed')
 
   useEffect(() => {
     const refresh = () => setQueryRevision((revision) => revision + 1)
@@ -706,9 +823,19 @@ function VoiceSettings() {
     }
   }, [])
 
-  const openSystemVoiceSettings = () => {
+  const clearActionFailure = () => {
     setActionFailed(false)
-    void voiceService.openSystemVoiceSettings().catch(() => setActionFailed(true))
+    setActionFailure(undefined)
+  }
+
+  const reportActionFailure = (error: unknown) => {
+    setActionFailure(error)
+    setActionFailed(error instanceof VoiceDomainError ? error.reason : true)
+  }
+
+  const openSystemVoiceSettings = () => {
+    clearActionFailure()
+    void voiceService.openSystemVoiceSettings().catch((error: unknown) => reportActionFailure(error))
   }
 
   const needsLocaleInstallation = (value: string) => {
@@ -734,7 +861,7 @@ function VoiceSettings() {
     localeSelectionPending.current = true
     if (install) installingRecognitionLocaleRef.current = true
     setInstallingLocale(install)
-    setActionFailed(false)
+    clearActionFailure()
     try {
       await setRecognitionPreferences({ language })
       if (generation !== localeSelectionGeneration.current) return
@@ -748,8 +875,7 @@ function VoiceSettings() {
         }).result
       }
     } catch (error) {
-      if (generation === localeSelectionGeneration.current)
-        setActionFailed(error instanceof VoiceDomainError ? error.reason : true)
+      if (generation === localeSelectionGeneration.current) reportActionFailure(error)
     } finally {
       // Activity suspends effects without discarding the operation's pending state.
       installingRecognitionLocaleRef.current = false
@@ -760,16 +886,16 @@ function VoiceSettings() {
   }
 
   const savePreference = (write: () => Promise<void>) => {
-    setActionFailed(false)
+    clearActionFailure()
     try {
-      void write().catch(() => setActionFailed(true))
-    } catch {
-      setActionFailed(true)
+      void write().catch((error: unknown) => reportActionFailure(error))
+    } catch (error) {
+      reportActionFailure(error)
     }
   }
 
   const togglePreview = async () => {
-    setActionFailed(false)
+    clearActionFailure()
     setPreviewFailure(undefined)
     previewController.current?.abort()
     previewController.current = null
@@ -798,7 +924,8 @@ function VoiceSettings() {
     } catch (error) {
       if (controller.signal.aborted || previewController.current !== controller) return
       const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
-      if (reason !== 'aborted') setPreviewFailure({ snapshot: speechPlaybackService.getSnapshot(), reason })
+      if (reason !== 'aborted')
+        setPreviewFailure({ cause: error, reason, snapshot: speechPlaybackService.getSnapshot() })
     } finally {
       if (previewController.current === controller) {
         previewController.current = null
@@ -808,7 +935,7 @@ function VoiceSettings() {
   }
 
   const updateAutoRead = async (enabled: boolean) => {
-    setActionFailed(false)
+    clearActionFailure()
     try {
       if (!enabled) {
         await setAutoRead(false)
@@ -827,13 +954,30 @@ function VoiceSettings() {
         await setDisclosureConfirmed(true)
       }
       await setAutoRead(true)
-    } catch {
-      setActionFailed(true)
+    } catch (error) {
+      reportActionFailure(error)
     }
   }
 
   return (
     <SettingsContentColumn theme={theme} className="[&_[data-slot=select-trigger]]:max-w-full">
+      {showLoadFailure ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <SettingDescription>{t('settings.voice.status.operation_failed')}</SettingDescription>
+          <Button
+            variant="outline"
+            disabled={catalogLoading}
+            onClick={() => setQueryRevision((revision) => revision + 1)}>
+            {t('common.retry')}
+          </Button>
+          <ErrorDetailAction
+            error={loadFailure}
+            message={t('settings.voice.status.operation_failed')}
+            operation="voice.load"
+            source="voice"
+          />
+        </div>
+      ) : null}
       <h1 className="text-xl font-semibold text-foreground">{t('settings.voice.title')}</h1>
       <SettingDescription>{t('settings.voice.description')}</SettingDescription>
 
@@ -893,9 +1037,12 @@ function VoiceSettings() {
               />
             ) : null}
             {microphoneError || microphonesFailed ? (
-              <p role="alert" className="text-sm text-destructive">
-                {t(errorKey(microphoneError ?? 'operation_failed'))}
-              </p>
+              <VoiceFailureDetail
+                className="text-destructive text-sm"
+                error={microphoneDetail}
+                message={t(errorKey(microphoneError ?? 'operation_failed'))}
+                operation="voice.microphone"
+              />
             ) : null}
           </div>
         ) : null}
@@ -915,7 +1062,7 @@ function VoiceSettings() {
                   void navigate({
                     to: '/settings/local-models',
                     hash: bundleId === 'funasr-nano-int8' ? 'voice-resources' : bundleId
-                  }).catch(() => setActionFailed(true))
+                  }).catch((error: unknown) => reportActionFailure(error))
                 return
               }
               savePreference(async () => {
@@ -1055,8 +1202,8 @@ function VoiceSettings() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  setActionFailed(false)
-                  void voiceService.openMicrophoneSettings().catch(() => setActionFailed(true))
+                  clearActionFailure()
+                  void voiceService.openMicrophoneSettings().catch((error: unknown) => reportActionFailure(error))
                 }}>
                 {t('settings.voice.microphone.open_settings')}
               </Button>
@@ -1224,9 +1371,13 @@ function VoiceSettings() {
             </span>
           </div>
           {speechError ? (
-            <p id="voice-speech-error" role="alert" className="text-error text-sm">
-              {t(errorKey(speechError))}
-            </p>
+            <VoiceFailureDetail
+              className="text-error text-sm"
+              error={speechDetail}
+              id="voice-speech-error"
+              message={t(errorKey(speechError))}
+              operation="voice.speech.preview"
+            />
           ) : null}
         </div>
         <SettingDivider />
@@ -1245,9 +1396,14 @@ function VoiceSettings() {
       </SettingGroup>
 
       {actionFailed ? (
-        <p role="alert" className="mt-4 text-sm text-destructive">
-          {t(errorKey(actionFailed))}
-        </p>
+        <div className="mt-4">
+          <VoiceFailureDetail
+            className="text-destructive text-sm"
+            error={actionDetail}
+            message={t(errorKey(actionFailed))}
+            operation="voice.action"
+          />
+        </div>
       ) : null}
     </SettingsContentColumn>
   )

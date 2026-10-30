@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 
 const mocks = vi.hoisted(() => ({
   importConversations: vi.fn(),
@@ -135,5 +136,69 @@ describe('ImportPopup', () => {
     })
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('shows a translated import failure and keeps the service error', async () => {
+    const user = userEvent.setup()
+    mocks.openFile.mockResolvedValue({ content: '[]' })
+    mocks.importConversations.mockResolvedValue({
+      error: 'database unavailable',
+      messagesCount: 0,
+      success: false,
+      topicsCount: 0
+    })
+
+    render(<PopupHost />)
+    act(() => {
+      void ImportPopup.show({ source: 'chatgpt' })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'import.chatgpt.button' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.objectContaining({ message: 'database unavailable' }),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ message: 'database unavailable', operation: 'import.chatgpt' }),
+            localizedErrorMessage: 'import.chatgpt.error.unknown'
+          }),
+          title: 'import.chatgpt.error.unknown'
+        })
+      )
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('keeps a thrown file-open error and still closes the dialog', async () => {
+    const user = userEvent.setup()
+    const openError = new Error('EACCES: permission denied')
+    mocks.openFile.mockRejectedValue(openError)
+
+    render(<PopupHost />)
+    act(() => {
+      void ImportPopup.show({ source: 'chatgpt' })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'import.chatgpt.button' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: openError,
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'EACCES: permission denied',
+              operation: 'import.chatgpt',
+              source: 'settings.import'
+            }),
+            localizedErrorMessage: 'import.chatgpt.error.unknown'
+          }),
+          title: 'import.chatgpt.error.unknown'
+        })
+      )
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.importConversations).not.toHaveBeenCalled()
   })
 })

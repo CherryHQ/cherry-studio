@@ -64,6 +64,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
 import { type AgentInfo, TaskFormDialog, toChannelInfo } from '@renderer/components/ScheduledTask/TaskFormDialog'
 import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
@@ -167,6 +168,27 @@ const TaskCardRunStatus: FC<{ task: ScheduledTaskListItem }> = ({ task }) => {
   )
 }
 
+function TaskRunFailureDetail({ run }: { run: TaskRunLogEntity }) {
+  const { t } = useTranslation()
+  const reason = run.error?.trim() ?? ''
+  const show = run.status === 'failed' || (run.status === 'cancelled' && reason.length > 0)
+  const cause = useMemo(() => {
+    if (!show) return null
+    if (reason) return new Error(reason)
+    return { status: run.status, scheduleId: run.scheduleId, id: run.id }
+  }, [reason, run.id, run.scheduleId, run.status, show])
+  if (!cause) return null
+  return (
+    <ErrorDetailAction
+      error={cause}
+      message={t(run.status === 'failed' ? 'agent.tasks.logs.failed' : 'agent.tasks.logs.cancelled')}
+      source="settings.tasks"
+      operation="task.run"
+      recordId={`${run.scheduleId}:${run.id}`}
+    />
+  )
+}
+
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.resolvedLanguage ?? i18n.language
@@ -264,6 +286,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
                 </Tooltip>
               )}
               <span className={isErrorStatus ? 'line-clamp-4 text-error' : 'line-clamp-4'}>{text}</span>
+              <TaskRunFailureDetail run={record} />
             </RowFlex>
           )
         }
@@ -281,7 +304,18 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   }
 
   if (logsError) {
-    return <EmptyState compact preset="no-result" description={t('agent.tasks.logs.loadError')} />
+    return (
+      <>
+        <EmptyState compact preset="no-result" description={t('agent.tasks.logs.loadError')} />
+        <ErrorDetailAction
+          error={logsError}
+          message={t('agent.tasks.logs.loadError')}
+          source="settings.tasks"
+          operation="task.logs.load"
+          recordId={taskId}
+        />
+      </>
+    )
   }
 
   if (logs.length === 0) {

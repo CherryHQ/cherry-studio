@@ -18,8 +18,10 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
 import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
@@ -44,7 +46,7 @@ const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
 
 export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation()
-  const { results, searching, error, search, clear } = useSkillSearch()
+  const { results, searching, error, cause, search, clear } = useSkillSearch()
   const { install, isInstalling } = useSkillInstall()
   const [query, setQuery] = useState('')
   const [submittedUrl, setSubmittedUrl] = useState('')
@@ -148,7 +150,11 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         const { skill, error: installError } = await install(result.installSource)
         if (!skill) {
           const message = t('settings.skills.installFailed', { name: result.name })
-          toast.error(installError ? `${message}: ${installError}` : message)
+          toastAppError(message, installError, {
+            source: 'skills',
+            operation: 'skill.install',
+            recordId: result.installSource
+          })
           return
         }
 
@@ -241,6 +247,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
                 : 'library.skill_marketplace.empty_description'
             )}
             error={isGithubSource ? null : error}
+            cause={isGithubSource ? null : (cause ?? null)}
             searching={!isGithubSource && (searching || searchDebouncing)}
             results={visibleResults}
             installedSources={installedSources}
@@ -258,6 +265,7 @@ function SkillSearchBody({
   emptyTitle,
   emptyDescription,
   error,
+  cause,
   searching,
   results,
   installedSources,
@@ -268,6 +276,7 @@ function SkillSearchBody({
   emptyTitle: string
   emptyDescription: string
   error: string | null
+  cause: unknown
   searching: boolean
   results: SkillSearchResult[]
   installedSources: Set<string>
@@ -298,13 +307,14 @@ function SkillSearchBody({
   }
 
   if (error) {
+    const summary = t('library.skill_marketplace.search_failed_description')
     return (
-      <EmptyState
-        preset="no-result"
-        title={t('common.error')}
-        description={t('library.skill_marketplace.search_failed_description')}
-        className="min-h-0 flex-1"
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <EmptyState preset="no-result" title={t('common.error')} description={summary} className="min-h-0 flex-1" />
+        <div className="flex justify-center pb-6">
+          <ErrorDetailAction error={cause ?? error} message={summary} source="skills/search" operation="search" />
+        </div>
+      </div>
     )
   }
 

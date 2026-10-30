@@ -1,5 +1,4 @@
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -14,6 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import {
   SettingDivider,
   SettingGroup,
@@ -22,6 +22,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 
 const logger = loggerService.withContext('ObsidianSettings')
 
@@ -32,40 +33,56 @@ const ObsidianSettings: FC = () => {
 
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [loading, setLoading] = useState<boolean>(false)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<unknown>(null)
+
+  const saveVault = useCallback(
+    async (vaultName: string) => {
+      try {
+        await setDefaultObsidianVault(vaultName)
+      } catch (cause) {
+        logger.error('Failed to save Obsidian vault', cause as Error)
+        toastAppError(t('common.save_failed'), cause, {
+          source: 'settings.obsidian',
+          operation: 'obsidian.vault.save',
+          recordId: vaultName
+        })
+      }
+    },
+    [setDefaultObsidianVault, t]
+  )
 
   useEffect(() => {
     const fetchVaults = async () => {
       try {
         setLoading(true)
-        setError(null)
+        setLoadError(null)
         const vaultsData = await ipcApi.request('export.obsidian.get_vaults')
 
         if (vaultsData.length === 0) {
-          setError(t('settings.data.obsidian.default_vault_no_vaults'))
-          setLoading(false)
           return
         }
 
         setVaults(vaultsData)
 
-        if (!defaultObsidianVault && vaultsData.length > 0) {
-          void setDefaultObsidianVault(vaultsData[0].name)
+        if (!defaultObsidianVault) {
+          void saveVault(vaultsData[0].name)
         }
-      } catch (error) {
-        logger.error('Failed to fetch Obsidian vaults', error as Error)
-        setError(t('settings.data.obsidian.default_vault_fetch_error'))
+      } catch (caught) {
+        logger.error('Failed to fetch Obsidian vaults', caught as Error)
+        setLoadError(caught)
       } finally {
         setLoading(false)
       }
     }
 
     void fetchVaults()
-  }, [defaultObsidianVault, setDefaultObsidianVault, t])
+  }, [defaultObsidianVault, saveVault])
 
   const handleChange = (value: string) => {
-    void setDefaultObsidianVault(value)
+    void saveVault(value)
   }
+
+  const fetchFailureSummary = t('settings.data.obsidian.default_vault_fetch_error')
 
   return (
     <SettingGroup>
@@ -89,11 +106,21 @@ const ObsidianSettings: FC = () => {
                 ))}
               </SelectContent>
             </Select>
+          ) : loadError != null ? (
+            <div className="flex flex-col items-end gap-2">
+              <EmptyState compact preset="no-resource" description={fetchFailureSummary} />
+              <ErrorDetailAction
+                error={loadError}
+                message={fetchFailureSummary}
+                source="settings.obsidian"
+                operation="obsidian.vaults.fetch"
+              />
+            </div>
           ) : (
             <EmptyState
               compact
               preset="no-resource"
-              description={error || t('settings.data.obsidian.default_vault_no_vaults')}
+              description={t('settings.data.obsidian.default_vault_no_vaults')}
             />
           )}
         </RowFlex>
