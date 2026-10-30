@@ -177,7 +177,8 @@ see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
   `experimental_repairToolCall`. When the model emits **malformed args**
   (`InvalidToolInputError`), the repair function gets one chance to fix it via a
   follow-up LLM call. Other failures (e.g. an unknown tool name) are
-  returned unrepaired.
+  returned unrepaired. The follow-up call passes `maxRetries: 0`, so one bad
+  tool call cannot become more than one repair request.
 
 ## Where to read more
 

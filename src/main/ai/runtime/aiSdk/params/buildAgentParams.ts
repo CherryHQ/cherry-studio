@@ -853,10 +853,10 @@ export function composeStopWhen(
 export function resolveToolCallLimit(assistant: Assistant | undefined): number {
   if (!assistant) return SDK_DEFAULT_STEP_COUNT
 
+  // "Limit disabled" still needs a step cap: the tool loop is the request multiplier, so it
+  // falls back to the SDK default instead of the (much larger) configured maximum.
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
-  if (!enableMaxToolCalls) {
-    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-  }
+  if (!enableMaxToolCalls) return SDK_DEFAULT_STEP_COUNT
   const raw = assistant.settings?.maxToolCalls
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
   return valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
