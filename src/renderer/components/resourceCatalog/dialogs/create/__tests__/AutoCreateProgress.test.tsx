@@ -3,15 +3,21 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { InstalledSkill } from '@shared/types/skill'
+import type { InstalledSkill, SkillSearchResult } from '@shared/types/skill'
 
-const { mockFetchGenerate } = vi.hoisted(() => ({ mockFetchGenerate: vi.fn() }))
+const { mockFetchGenerate, mockInstallSkill, mockSearchSkills } = vi.hoisted(() => ({
+  mockFetchGenerate: vi.fn(),
+  mockInstallSkill: vi.fn(),
+  mockSearchSkills: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate: mockFetchGenerate }))
+vi.mock('@renderer/utils/skillSearch', () => ({ searchSkills: mockSearchSkills }))
+vi.mock('@renderer/hooks/useSkills', () => ({ useSkillInstall: () => ({ install: mockInstallSkill }) }))
 
 import { type AutoCreateInput, AutoCreateProgress } from '../AutoCreateProgress'
 
@@ -66,7 +72,31 @@ beforeEach(() => {
   MockDataApiUtils.resetMocks()
   MockDataApiUtils.setCustomResponse('/skills', 'GET', [])
   mockFetchGenerate.mockReset()
+  mockSearchSkills.mockReset()
+  mockSearchSkills.mockResolvedValue([])
+  mockInstallSkill.mockReset()
 })
+
+const PPTX_RESULT: SkillSearchResult = {
+  slug: 'pptx',
+  name: 'pptx',
+  description: 'Create and edit PowerPoint decks',
+  author: null,
+  stars: 0,
+  downloads: 900,
+  sourceRegistry: 'skills.sh',
+  sourceUrl: null,
+  installSource: 'skills.sh:pptx'
+}
+
+/** Answer each model call by its role: prompt writing, marketplace queries, or the final pick. */
+function answerModelCalls() {
+  mockFetchGenerate.mockImplementation(async ({ prompt }: { prompt: string }) => {
+    if (prompt.includes('search queries')) return '["pptx"]'
+    if (prompt.includes('numbered list')) return '[1]'
+    return 'prompt'
+  })
+}
 
 afterEach(cleanup)
 
@@ -135,5 +165,31 @@ describe('AutoCreateProgress', () => {
 
     await user.click(screen.getByRole('button', { name: 'library.config.dialogs.create.back' }))
     expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('installs the recommended marketplace skill and enables it for the new Agent', async () => {
+    answerModelCalls()
+    mockSearchSkills.mockResolvedValue([PPTX_RESULT])
+    mockInstallSkill.mockResolvedValue({ skill: makeSkill('installed-pptx', { name: 'pptx', source: 'marketplace' }) })
+
+    const { onSubmit } = renderProgress()
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ skillIds: ['installed-pptx'] }))
+    )
+    expect(mockInstallSkill).toHaveBeenCalledWith('skills.sh:pptx')
+    expect(screen.getByText('library.config.dialogs.create.auto.step.recommend_installed')).toBeInTheDocument()
+  })
+
+  it('still creates the Agent and reports it when the recommended install fails', async () => {
+    answerModelCalls()
+    MockDataApiUtils.setCustomResponse('/skills', 'GET', [makeSkill('pdf')])
+    mockSearchSkills.mockResolvedValue([PPTX_RESULT])
+    mockInstallSkill.mockResolvedValue({ skill: null, error: 'clone failed' })
+
+    const { onSubmit } = renderProgress()
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ skillIds: ['pdf'] })))
+    expect(screen.getByText('library.config.dialogs.create.auto.step.recommend_failed')).toBeInTheDocument()
   })
 })
