@@ -15,7 +15,7 @@ beforeEach(() => {
 })
 
 describe('memory generation settings', () => {
-  it('disables child controls under the parent while preserving the automatic setting', async () => {
+  it('keeps generation and organization independent and allows manual organization with both off', async () => {
     const user = userEvent.setup()
     render(<MemoryDreamingControls scope={{ kind: 'shared' }} />)
     const parent = screen.getByRole('switch', { name: '聊天中生成记忆' })
@@ -25,16 +25,27 @@ describe('memory generation settings', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '立即整理' })).toBeEnabled())
     await user.click(parent)
     await waitFor(() => expect(parent).not.toBeChecked())
-    expect(automatic).toBeDisabled()
-    expect(automatic).toBeChecked()
-    expect(screen.getByRole('button', { name: '立即整理' })).toBeDisabled()
-    await waitFor(() => expect(parent).toBeEnabled())
-    await user.click(parent)
     await waitFor(() => expect(automatic).toBeEnabled())
+    expect(automatic).toBeChecked()
+    expect(screen.getByRole('button', { name: '立即整理' })).toBeEnabled()
     await user.click(automatic)
     await waitFor(() => expect(automatic).not.toBeChecked())
-    expect(parent).toBeChecked()
-    expect(screen.getByRole('button', { name: '立即整理' })).toBeEnabled()
+    expect(parent).not.toBeChecked()
+    await waitFor(() => expect(screen.getByRole('button', { name: '立即整理' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '立即整理' }))
+    await waitFor(() =>
+      expect(window.api.ipcApi.request).toHaveBeenCalledWith('memory.dreaming.request', { kind: 'shared' })
+    )
+  })
+
+  it.each([
+    [/使用默认模型从开启共享记忆的对话/, '可能会产生少量 token 消耗'],
+    [/应用空闲时/, '整理已有记忆']
+  ] as const)('explains %s through the model-settings info tooltip', async (name, text) => {
+    const user = userEvent.setup()
+    render(<MemoryDreamingControls scope={{ kind: 'shared' }} />)
+    await user.hover(screen.getByRole('img', { name }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(text)
   })
 
   it('shows the recorded failed result even when the current task is idle and generation is disabled', async () => {
