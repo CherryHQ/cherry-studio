@@ -7,7 +7,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { SignatureClient } from '@main/ai/provider/cherryai'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -148,6 +148,8 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['PowerService'])
 export class CherryCloudService extends BaseService {
+  private readonly _onStatusChanged = new Emitter<CherryCloudStatus>()
+  public readonly onStatusChanged: Event<CherryCloudStatus> = this._onStatusChanged.event
   private cloudState = emptyState()
   private machineCode: string | null = null
   private lifecycleGeneration = 0
@@ -209,6 +211,10 @@ export class CherryCloudService extends BaseService {
     if (this.cloudState.session) this.sessionGeneration += 1
     this.cloudState = emptyState()
     this.machineCode = null
+  }
+
+  protected async onDestroy(): Promise<void> {
+    this._onStatusChanged.dispose()
   }
 
   public async getStatus(): Promise<CherryCloudStatus> {
@@ -575,7 +581,9 @@ export class CherryCloudService extends BaseService {
   }
 
   private emitStatus(): void {
-    application.get('IpcApiService').broadcast('cherry_cloud.status_changed', this.currentStatus())
+    const status = this.currentStatus()
+    application.get('IpcApiService').broadcast('cherry_cloud.status_changed', status)
+    this._onStatusChanged.fire(status)
   }
 
   private invalidateModelSync(): void {
@@ -611,6 +619,12 @@ export class CherryCloudService extends BaseService {
       })
     this.modelSyncPromise = { controller, generation, promise: sync }
     return sync
+  }
+
+  /** Re-reads the account and model catalog, skipping the cached snapshot. */
+  public async refreshEntitledModels(): Promise<CherryCloudModelSyncResult> {
+    this.invalidateModelSync()
+    return this.syncEntitledModels()
   }
 
   public async syncEntitledModelsIfStale(): Promise<CherryCloudModelSyncResult> {

@@ -124,3 +124,20 @@ export const cloudModelListSchema = z.looseObject({
     })
   )
 })
+
+// Provisional notification payloads, limited to the fields the client relies on, until the backend publishes
+// the field documentation for /api/v1/notifications.
+export const notificationReadySchema = z.looseObject({ cursor: z.string().min(1) })
+
+export const cloudNotificationSchema = z.looseObject({
+  id: z.string().min(1),
+  cursor: z.string().min(1),
+  refresh: z.array(z.string()).optional()
+})
+
+export const cloudNotificationPageSchema = z.looseObject({
+  notifications: z.array(cloudNotificationSchema),
+  next_cursor: z.string().min(1).nullable()
+})
+
+export type CloudNotification = z.infer<typeof cloudNotificationSchema>

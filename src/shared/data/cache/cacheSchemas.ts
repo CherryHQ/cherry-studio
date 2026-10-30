@@ -582,6 +582,8 @@ export type MainPersistCacheSchema = {
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
+  // Last processed Cherry Cloud notification position for one account; losing it only rebuilds the baseline.
+  'cherry_cloud.notification_cursor': { accountId: string; cursor: string } | null
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -595,6 +597,7 @@ export type MainPersistCacheSchema = {
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
+  'cherry_cloud.notification_cursor': null,
   'internal.persist_probe': 0,
   'window.bounds': {}
 }
