@@ -265,6 +265,33 @@ describe('Pi Durable runtime contract', () => {
     expect(await session.interrupt!()).toEqual({ status: 'confirmed', value: { effect: 'native-scope-idle' } })
   })
 
+  it('does not re-emit unchanged input evidence when an observer polls its pending receipt', async () => {
+    const { runtime, faux } = await setup()
+    const hold = blocked()
+    faux.setResponses([hold.step])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(handle)
+    const receipt = await handle.input.submit(draft('pending input'))
+    if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Missing receipt')
+    await hold.reached
+    await expect
+      .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input.facts)
+      .toContain('placed')
+    const observed = events.filter((event) => event.type === 'input.changed').length
+    for (let i = 0; i < 3; i++) {
+      expect(confirmed(await handle.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))).toMatchObject({
+        found: true,
+        input: { inputId: 'pending input', facts: ['accepted', 'placed'] }
+      })
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(events.filter((event) => event.type === 'input.changed')).toHaveLength(observed)
+    await handle.interrupt!()
+    await expect
+      .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input.outcome)
+      .toBe('aborted')
+  })
+
   it('preserves a truncated native answer without reporting successful input completion', async () => {
     const { runtime, faux } = await setup()
     faux.setResponses([fauxAssistantMessage('cut off', { stopReason: 'length' })])
