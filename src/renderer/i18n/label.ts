@@ -79,6 +79,7 @@ const providerKeyMap = {
   together: 'provider.together',
   tokendance: 'provider.tokendance',
   tokenhub: 'provider.tokenhub',
+  uberllm: 'provider.uberllm',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
   xirang: 'provider.xirang',
