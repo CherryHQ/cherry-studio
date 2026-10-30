@@ -155,7 +155,10 @@ continuation nor the header-mismatch retry re-enters the approval check; an
 absolute "never retried automatically" is not a property of the implementation.
 
 The connected request and its continuations have a default 60,000 ms budget;
-a server's `timeout` overrides it in seconds. `longRunning` resets the request
+a server's `timeout` overrides it in seconds only when truthy
+(`src/main/ai/mcp/mcpRequestOptions.ts:18`). The schema accepts `timeout: 0`
+(`src/shared/data/types/mcpServer.ts:72`), but zero falls back to 60,000 ms
+rather than disabling the timer. `longRunning` resets the request
 timer on progress with a ten-minute total cap
 (`src/main/ai/mcp/mcpRequestOptions.ts:18`), enforced by the connection's abort
 signal (`src/main/ai/mcp/connections/ClientMcpConnection.ts:267`). Connection
