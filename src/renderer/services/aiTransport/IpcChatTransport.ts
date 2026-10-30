@@ -17,9 +17,29 @@ export function isPerExecutionOnly(data: { executionId?: UniqueModelId; isTopicD
 
 export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
   readonly #defaultBody: Partial<AiChatRequestBody>
+  // Topics whose abort is already on its way to main with the origin its caller named.
+  readonly #attributedStops = new Map<string, number>()
 
   constructor(defaultBody: Partial<AiChatRequestBody> = {}) {
     this.#defaultBody = defaultBody
+  }
+
+  /**
+   * Run `stop` while this transport's own `ai.stream.abort` for `topicId` is held back.
+   *
+   * The caller sends `ai.stream.abort` with the origin it knows, and the SDK's stop also aborts the
+   * stream's signal. A second request from the signal would race the first to main and could be
+   * the one the abort is attributed to, so for the duration of `stop` the signal only closes the stream.
+   */
+  async withAttributedStop<T>(topicId: string, stop: () => Promise<T>): Promise<T> {
+    this.#attributedStops.set(topicId, (this.#attributedStops.get(topicId) ?? 0) + 1)
+    try {
+      return await stop()
+    } finally {
+      const remaining = (this.#attributedStops.get(topicId) ?? 1) - 1
+      if (remaining > 0) this.#attributedStops.set(topicId, remaining)
+      else this.#attributedStops.delete(topicId)
+    }
   }
 
   sendMessages(
@@ -96,6 +116,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
     let isStreamClosed = false
+    const attributedStops = this.#attributedStops
 
     const cleanup = () => {
       if (isCleaned) return
@@ -197,19 +218,23 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         )
 
         if (abortSignal) {
-          if (abortSignal.aborted) {
+          const requestAbort = () => {
+            // A stop that named its own origin has already asked main; this signal is that stop.
+            if (attributedStops.has(topicId)) return
+            logger.info('Stream abort requested', { topicId }, { logToMain: true })
             ipcApi
-              .request('ai.stream.abort', { topicId })
+              .request('ai.stream.abort', { topicId, origin: 'transport-abort-signal' })
               .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
+          }
+
+          if (abortSignal.aborted) {
+            requestAbort()
             closeStream()
             return
           }
 
           const onAbort = () => {
-            logger.info('Stream abort requested', { topicId })
-            ipcApi
-              .request('ai.stream.abort', { topicId })
-              .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
+            requestAbort()
             closeStream()
           }
           abortSignal.addEventListener('abort', onAbort, { once: true })

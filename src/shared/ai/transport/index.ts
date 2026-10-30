@@ -17,6 +17,7 @@ export type {
   AiAgentSessionWarmCloseRequest,
   AiAgentSessionWarmRequest,
   AiChatRequestBody,
+  AiStreamAbortOrigin,
   AiStreamAbortRequest,
   AiStreamAdmissionReason,
   AiStreamAttachRequest,
@@ -37,6 +38,6 @@ export type {
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from './stream'
-export { aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
+export { aiStreamAbortOrigins, aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'
