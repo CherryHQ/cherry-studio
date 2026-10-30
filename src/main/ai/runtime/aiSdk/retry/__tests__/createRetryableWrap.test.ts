@@ -2,6 +2,8 @@ import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provid
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { serializeError, type SerializeErrorContext } from '@main/ai/utils/serializeError'
+
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
@@ -506,4 +508,71 @@ describe('createRetryableWrap', () => {
     expect(activeModel).toBe('primary')
     expect(crossGenerate).toHaveBeenCalledTimes(1)
   })
+})
+
+describe('fallback dispatch recovery identity', () => {
+  for (const method of ['doGenerate', 'doStream'] as const) {
+    it(`${method} leaves recovery identity on the last dispatched model when a duplicate runtime is skipped`, async () => {
+      const primaryContext = { uniqueModelId: 'ollama-A::qwen3', numCtx: 32768, trainedContextWindow: 65536 }
+      const skippedContext = { uniqueModelId: 'ollama-B::qwen3', numCtx: 4096, trainedContextWindow: 131072 }
+      let context: SerializeErrorContext = { ollamaNumCtx: primaryContext }
+      const terminal = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://host-A.invalid/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: false
+      })
+      const primaryCall = vi.fn().mockRejectedValue(terminal)
+      const skippedCall = vi.fn().mockResolvedValue(okResult)
+      const activated = vi.fn((fallback: RetryFallback) => {
+        context = fallback.streamErrorSerialization!
+      })
+      const wrapped = createRetryableWrap({
+        fallbacks: [
+          async () => ({
+            model: makeFakeLanguageModel('qwen3', skippedCall, skippedCall),
+            streamErrorSerialization: { ollamaNumCtx: skippedContext }
+          })
+        ],
+        retryPolicy: policy(),
+        onPrimaryActivated: () => {
+          context = { ollamaNumCtx: primaryContext }
+        },
+        onFallbackActivated: activated
+      })!(makeFakeLanguageModel('qwen3', primaryCall, primaryCall))
+      const caught = await wrapped[method]({ prompt: [] }).catch((error: unknown) => error)
+      expect(primaryCall).toHaveBeenCalledTimes(1)
+      expect(skippedCall).not.toHaveBeenCalled()
+      expect(activated).not.toHaveBeenCalled()
+      expect(serializeError(caught, context)).toMatchObject({
+        i18nKey: 'ollama_context_memory',
+        ollamaNumCtxModelId: primaryContext.uniqueModelId,
+        ollamaEffectiveNumCtx: primaryContext.numCtx,
+        ollamaTrainedNumCtx: primaryContext.trainedContextWindow
+      })
+    })
+
+    it(`${method} activates an accepted fallback immediately before its actual dispatch`, async () => {
+      const events: string[] = []
+      const fallbackCall = vi.fn(async () => {
+        events.push('dispatch')
+        return okResult
+      })
+      const wrapped = createRetryableWrap({
+        fallbacks: [async () => ({ model: makeFakeLanguageModel('different-model', fallbackCall, fallbackCall) })],
+        retryPolicy: policy(),
+        onFallbackActivated: () => events.push('activate')
+      })!(
+        makeFakeLanguageModel(
+          'primary',
+          vi.fn().mockRejectedValue(makeApiError(401)),
+          vi.fn().mockRejectedValue(makeApiError(401))
+        )
+      )
+      await wrapped[method]({ prompt: [] })
+      expect(events).toEqual(['activate', 'dispatch'])
+    })
+  }
 })

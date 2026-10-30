@@ -83,7 +83,7 @@ export interface CreateRetryableWrapOptions {
   diagnosticContext?: Readonly<Record<string, unknown>>
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
-  /** Switches request-scoped helpers to the credential/model selected by a fallback. */
+  /** Switches request-scoped helpers immediately before a fallback is actually dispatched. */
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
   onPrimaryActivated?: () => void
@@ -119,8 +119,21 @@ function lazyFallbackRetryable(
     ) {
       return undefined
     }
-    onFallbackActivated?.(fallback)
-    const model = wrapFallbackModel?.(fallback.model) ?? fallback.model
+    // Resolution is only a candidate: ai-retry may reject a runtime identity
+    // it already attempted. Activate helpers only when the accepted model runs.
+    const dispatchModel = onFallbackActivated
+      ? wrapLanguageModel({
+          model: fallback.model,
+          middleware: {
+            specificationVersion: 'v3',
+            transformParams: async ({ params }) => {
+              onFallbackActivated(fallback)
+              return params
+            }
+          }
+        })
+      : fallback.model
+    const model = wrapFallbackModel?.(dispatchModel) ?? dispatchModel
     return fallback.options ? { model, options: fallback.options } : { model }
   }
 }
