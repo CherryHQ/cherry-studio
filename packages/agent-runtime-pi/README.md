@@ -74,7 +74,7 @@ hand off its work because callbacks run inline. `dispose()` flushes the final ob
 
 ## Input correlation
 
-The pinned [Pi 1.3.0 patch](../../patches/@earendil-works__pi-coding-agent@1.3.0.patch)
+The pinned [Pi 1.4.0 patch](../../patches/@earendil-works__pi-coding-agent@1.4.0.patch)
 adds an optional caller `inputId` to native prompts, steering, follow-ups, and custom messages.
 Pi carries it with the actual message through input transforms and queues. After its session
 manager appends that message, `input_placed` reports the token and native entry ID; the builder's
