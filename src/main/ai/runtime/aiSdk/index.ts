@@ -4,7 +4,12 @@ export type { AgentLoopHooks } from './loop/types'
 export { mergeUsage, ZERO_USAGE } from './observers/usage'
 export { buildAgentParams } from './params/buildAgentParams'
 export type { RequestFeature } from './params/feature'
-export { supportsNativePdf, resolveNativeFileSupport, type NativeFileSupport } from './params/nativeFileSupport'
+export {
+  supportsNativePdf,
+  resolveNativeFileSupport,
+  resolveFallbackNativeFileSupport,
+  type NativeFileSupport
+} from './params/nativeFileSupport'
 export { buildApiKeyFallbackModels, hasApiKeyFallbackCandidates } from './retry/buildApiKeyFallbackModels'
 export { buildFallbackModels } from './retry/buildFallbackModels'
 export { createRetryableWrap } from './retry/createRetryableWrap'

@@ -23,10 +23,7 @@ import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow
 import { resolveMinContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
-import {
-  resolveFallbackNativeFileSupport,
-  type NativeFileSupport
-} from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import { resolveFallbackNativeFileSupport, type NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
