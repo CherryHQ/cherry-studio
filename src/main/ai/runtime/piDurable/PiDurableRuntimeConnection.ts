@@ -91,9 +91,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           }
         }
       )
+      const behaviorRoot = runtimeId<'thread'>(this.context.nativeThreadId ?? '0')
       const behavior = await createPiBehaviorHost({
         input: this.input,
-        root: runtimeId(this.context.nativeThreadId ?? '0'),
+        root: behaviorRoot,
         binding,
         model: desktop.snapshot.model,
         approval: desktop.approval,
@@ -108,8 +109,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         emit: (event) => this.events.push(event),
         observe: (event) => this.onBehavior(event),
         usageSessionId: async (thread) => {
-          if (thread === this.handle?.thread.id || thread === (this.context!.nativeThreadId ?? '0'))
-            return this.input.sessionId
+          if (thread === this.handle?.thread.id || thread === behaviorRoot) return this.input.sessionId
           await this.observeChild(thread)
           return this.childProjections.get(thread)!.context.sessionId
         },
