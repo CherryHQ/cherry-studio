@@ -128,10 +128,11 @@ describe('memory organization lifecycle and commit fences', () => {
     expect((await session.read('MEMORY.md')).content).toBe('Keep this complete fact')
     expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({ changes: 0, processedAt: expect.any(Number) })
     expect(readDreamingState(scope).files['MEMORY.md'].pendingSince).toBeUndefined()
+    expect(dreaming.status(scope).lastResult).toMatchObject({ outcome: 'completed', finishedAt: expect.any(Number) })
     expect(JSON.stringify(dbh.db.select().from(appStateTable).all())).not.toContain('Keep this complete fact')
   })
 
-  it.each(['cancel', 'disable', 'foreground', 'external-edit', 'clear'] as const)(
+  it.each(['cancel', 'disable', 'generation-off-on', 'foreground', 'external-edit', 'clear'] as const)(
     'does not publish delayed model output after %s',
     async (action) => {
       await save('Original fact')
@@ -142,6 +143,10 @@ describe('memory organization lifecycle and commit fences', () => {
       await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
       if (action === 'cancel') dreaming.cancel(scope)
       if (action === 'disable') await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+      if (action === 'generation-off-on') {
+        await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
+        await application.get('PreferenceService').set('feature.memory.generation.enabled', true)
+      }
       if (action === 'foreground') busy.mockReturnValue(true)
       if (action === 'external-edit')
         await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'External edit')
@@ -156,6 +161,35 @@ describe('memory organization lifecycle and commit fences', () => {
       )
     }
   )
+
+  it('blocks automatic and manual organization under the parent switch without changing the automatic preference', async () => {
+    await save('A fact to retain')
+    const prefs = application.get('PreferenceService')
+    await prefs.set('feature.memory.generation.enabled', false)
+    expect(() => dreaming.request(scope)).toThrow('unavailable')
+    expect(await dreaming.execute(job())).toEqual({ deferred: true })
+    expect(generate).not.toHaveBeenCalled()
+    expect(prefs.get('feature.memory.dreaming.enabled')).toBe(true)
+    expect((await session.read('MEMORY.md')).content).toBe('A fact to retain')
+    await prefs.set('feature.memory.generation.enabled', true)
+    dreaming.request(scope)
+    expect(await dreaming.execute(job())).toMatchObject({ checked: 1 })
+  })
+
+  it('keeps the last failed result after disabling organization instead of reporting idle as success', async () => {
+    await save('A fact to retain')
+    generate.mockResolvedValueOnce({ text: 'Invalid proposal', finishReason: 'stop' })
+    dreaming.request(scope)
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
+    const failed = dreaming.status(scope).lastResult
+    expect(failed).toMatchObject({ outcome: 'failed', reason: 'output', finishedAt: expect.any(Number) })
+    await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
+    expect(dreaming.status(scope)).toMatchObject({ status: 'idle', lastResult: failed })
+    await application.get('PreferenceService').set('feature.memory.generation.enabled', true)
+    dreaming.request(scope)
+    await dreaming.execute(job())
+    expect(dreaming.status(scope).lastResult?.outcome).toBe('completed')
+  })
 
   it('rejects deletion while another memory file still links to the source', async () => {
     await save('[Details](.memories/old.md)')

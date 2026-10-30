@@ -13,6 +13,13 @@
       "description": "Predict a next prompt after Agent replies and let Tab fill it into the draft"
     },
     {
+      "targetKey": "feature.memory.generation.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable Dreaming memory processing; the automatic organization preference is subordinate to this switch"
+    },
+    {
       "targetKey": "feature.memory.dreaming.enabled",
       "type": "boolean",
       "defaultValue": true,
