@@ -208,7 +208,14 @@ vi.mock('../components/FeatureMenus', () => ({
       setRoute: (route: 'chat' | 'translate' | 'summary' | 'explanation') => void
     }) => {
       if (ref) {
-        ref.current = { useFeature: onSendMessage, resetSelectedIndex: vi.fn() }
+        // Match FeatureMenus: the selected home action opens its route before sending.
+        ref.current = {
+          resetSelectedIndex: vi.fn(),
+          useFeature: () => {
+            setRoute('chat')
+            onSendMessage()
+          }
+        }
       }
       return (
         <div data-testid="feature-menus">
@@ -359,6 +366,31 @@ describe('HomeWindow', () => {
 
     expect(screen.queryByTestId('quick-input')).not.toBeInTheDocument()
     expect(state.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('shows a translated explanation when sending fails without an Error', () => {
+    state.sendMessage.mockImplementation(() => {
+      throw 'socket down'
+    })
+    render(<HomeWindow draggable={false} />)
+
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+
+    expect(screen.getByText('error.unexpected')).toBeInTheDocument()
+    expect(screen.queryByText('socket down')).not.toBeInTheDocument()
+  })
+
+  it('keeps a stream Error message as the visible explanation', () => {
+    state.sendMessage.mockImplementation(() => {
+      throw new Error('stream closed')
+    })
+    render(<HomeWindow draggable={false} />)
+
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+
+    expect(screen.getByText('stream closed')).toBeInTheDocument()
   })
 
   it('keeps typed input out of the clipboard preview', () => {

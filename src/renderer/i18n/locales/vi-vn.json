@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "Thao tác tin nhắn không khả dụng. Vui lòng thử lại.",
   "message.error.siyuan.export": "Không xuất được sang Siyuan Note, vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu",
   "message.error.siyuan.no_config": "Địa chỉ API hoặc mã thông báo của Siyuan Note chưa được cấu hình",
+  "message.error.still_syncing": "Tin nhắn vẫn đang đồng bộ — hãy thử lại sau giây lát",
   "message.error.stream_admission.execution_changed": "Phản hồi đã thay đổi trước khi bắt đầu thử lại. Vui lòng thử lại.",
   "message.error.stream_admission.execution_not_ready": "Phản hồi này vẫn đang được tạo nên chưa thể thử lại.",
   "message.error.stream_admission.model_already_in_live_group": "Mô hình này đang tạo phản hồi trong nhóm trả lời đang hoạt động.",

@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "Message operation is unavailable. Please try again.",
   "message.error.siyuan.export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
   "message.error.siyuan.no_config": "Siyuan Note API address or token is not configured",
+  "message.error.still_syncing": "Message is still syncing — try again in a moment",
   "message.error.stream_admission.execution_changed": "The response changed before the retry started. Please try again.",
   "message.error.stream_admission.execution_not_ready": "This response is still generating and cannot be retried yet.",
   "message.error.stream_admission.model_already_in_live_group": "This model is already generating in the active reply group.",

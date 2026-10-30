@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "訊息操作無法使用，請稍後再試。",
   "message.error.siyuan.export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
   "message.error.siyuan.no_config": "未設定思源筆記 API 位址或 Token",
+  "message.error.still_syncing": "訊息仍在同步，請稍後再試",
   "message.error.stream_admission.execution_changed": "回應在重試開始前已變更。請再試一次。",
   "message.error.stream_admission.execution_not_ready": "此回應仍在生成中，暫時無法重試。",
   "message.error.stream_admission.model_already_in_live_group": "此模型已在目前作用中的回覆群組中生成。",

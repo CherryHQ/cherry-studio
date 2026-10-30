@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
@@ -117,7 +117,13 @@ const MessageErrorInfo: React.FC<{
     useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const [aiSummary, setAiSummary] = useState<string>('')
+  const [storedSummary, setStoredSummary] = useState<{ readonly fault: string; readonly text: string } | undefined>(
+    undefined
+  )
+  const errorRef = useRef(error)
+  const messageRef = useRef(message)
+  errorRef.current = error
+  messageRef.current = message
 
   const errorMessage = error?.message ?? undefined
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
@@ -145,45 +151,46 @@ const MessageErrorInfo: React.FC<{
     }
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, localModelFailure, providerId, t])
+  const summaryFault = [
+    message.id,
+    partId,
+    message.updatedAt ?? '',
+    error?.name ?? '',
+    errorMessage ?? '',
+    i18n.language
+  ].join('\0')
+  // Fault identity omits status and app i18n key, so a newly classifiable error would keep the previous class's summary.
+  const summaryEligible =
+    claudeCodeExitCategory === undefined &&
+    !localModelFailure &&
+    !hasAppOwnedI18nKey &&
+    classification.category === 'unknown' &&
+    !!errorMessage &&
+    !!error &&
+    !!diagnoseMessageError
+  const aiSummary = summaryEligible && storedSummary?.fault === summaryFault ? storedSummary.text : ''
 
   useEffect(() => {
-    if (
-      claudeCodeExitCategory !== undefined ||
-      hasAppOwnedI18nKey ||
-      classification.category !== 'unknown' ||
-      !errorMessage ||
-      !error ||
-      !diagnoseMessageError
-    )
-      return
+    const currentError = errorRef.current
+    if (!summaryEligible || !currentError) return
     let cancelled = false
-    diagnoseMessageError({
-      message,
+    const fault = summaryFault
+    void diagnoseMessageError({
+      message: messageRef.current,
       partId,
-      error,
+      error: currentError,
       language: i18n.language
     })
       .then((result) => {
+        if (cancelled) return
         const summary = typeof result === 'string' ? result : (result?.summary ?? '')
-        if (!cancelled && summary) setAiSummary(summary)
+        setStoredSummary(summary ? { fault, text: summary } : undefined)
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-    // Intentionally exclude `error` from deps — its identity changes per render
-    // but the action input's scalar message/language fields are both stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    claudeCodeExitCategory,
-    classification.category,
-    diagnoseMessageError,
-    errorMessage,
-    hasAppOwnedI18nKey,
-    i18n.language,
-    message,
-    partId
-  ])
+  }, [diagnoseMessageError, i18n.language, partId, summaryEligible, summaryFault])
 
   const onRemoveErrorPart = useCallback(
     (e: React.MouseEvent) => {
@@ -209,7 +216,8 @@ const MessageErrorInfo: React.FC<{
       message,
       error,
       partId,
-      localizedErrorMessage
+      localizedErrorMessage,
+      ...(aiSummary ? { aiSummary } : {})
     })
   }
 

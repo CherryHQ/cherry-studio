@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "Операция с сообщением недоступна. Пожалуйста, попробуйте ещё раз.",
   "message.error.siyuan.export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
   "message.error.siyuan.no_config": "Не настроен API адрес или токен Siyuan",
+  "message.error.still_syncing": "Сообщение ещё синхронизируется — повторите попытку через мгновение",
   "message.error.stream_admission.execution_changed": "Ответ изменился до начала повторной попытки. Повторите попытку.",
   "message.error.stream_admission.execution_not_ready": "Этот ответ все еще генерируется, поэтому его пока нельзя повторить.",
   "message.error.stream_admission.model_already_in_live_group": "Эта модель уже генерирует ответ в активной группе ответов.",

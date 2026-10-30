@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "メッセージ操作は利用できません。もう一度お試しください。",
   "message.error.siyuan.export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
   "message.error.siyuan.no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません",
+  "message.error.still_syncing": "メッセージはまだ同期中です。しばらくしてからもう一度試してください",
   "message.error.stream_admission.execution_changed": "リトライを開始する前に応答が変更されました。もう一度お試しください。",
   "message.error.stream_admission.execution_not_ready": "この応答はまだ生成中で、再試行できません。",
   "message.error.stream_admission.model_already_in_live_group": "このモデルはアクティブな返信グループで既に生成中です。",

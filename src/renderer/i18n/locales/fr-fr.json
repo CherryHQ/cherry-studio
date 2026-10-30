@@ -2341,6 +2341,7 @@
   "message.error.operation_unavailable": "L'opération de message est indisponible. Veuillez réessayer.",
   "message.error.siyuan.export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
   "message.error.siyuan.no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré",
+  "message.error.still_syncing": "Le message est encore en cours de synchronisation — réessayez dans un instant",
   "message.error.stream_admission.execution_changed": "La réponse a changé avant que la nouvelle tentative ne commence. Veuillez réessayer.",
   "message.error.stream_admission.execution_not_ready": "Cette réponse est encore en cours de génération et ne peut pas être retentée pour le moment.",
   "message.error.stream_admission.model_already_in_live_group": "Ce modèle génère déjà dans le groupe de réponse actif.",
