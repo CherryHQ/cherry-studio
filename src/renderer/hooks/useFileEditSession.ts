@@ -50,10 +50,21 @@ interface FileEditModel {
   snapshot: FileEditSnapshot
   draft: string
   conflict: boolean
+  saving: boolean
+  notifyActive?: () => void
   /** Last non-stale write failure (disk full, permissions…); cleared on success. */
   lastWriteError: Error | null
   /** Serialized writer: at most one write loop runs per model at a time. */
   writeTask: SingleFlight<void>
+}
+
+// A departing relocation save may fail after its editor has unmounted. Keep
+// that exact model reachable when the note is reopened, including its draft,
+// conflict and serialized writer. Never replace it with a fresh disk snapshot.
+const retainedNotesModels = new Map<string, FileEditModel>()
+
+export function resetRetainedNotesModelsForTests(): void {
+  retainedNotesModels.clear()
 }
 
 export interface FileEditSession {
@@ -172,7 +183,14 @@ export function useFileEditSession(
 
   // Mirror a model into React state — only while it is still the active model.
   const syncFromModel = useCallback((model: FileEditModel) => {
-    if (modelRef.current !== model) return
+    if (!model.conflict && model.draft === model.snapshot.content && retainedNotesModels.get(model.key) === model) {
+      retainedNotesModels.delete(model.key)
+    }
+    if (modelRef.current !== model) {
+      model.notifyActive?.()
+      return
+    }
+    setIsSaving(model.saving)
     setDraftState(model.draft)
     setSavedContentState(model.snapshot.content)
     setSavedSizeBytes(model.snapshot.version.size)
@@ -186,7 +204,8 @@ export function useFileEditSession(
   const runWritesRef = useRef<(model: FileEditModel) => Promise<void>>(undefined)
   runWritesRef.current = async (model) => {
     let rebases = 0
-    if (modelRef.current === model) setIsSaving(true)
+    model.saving = true
+    syncFromModel(model)
     try {
       // Re-reads `model.draft` every round: edits made while a write was in
       // flight coalesce into one follow-up write with the rebased baseline.
@@ -264,7 +283,8 @@ export function useFileEditSession(
         }
       }
     } finally {
-      if (modelRef.current === model) setIsSaving(false)
+      model.saving = false
+      syncFromModel(model)
     }
   }
 
@@ -285,8 +305,16 @@ export function useFileEditSession(
   // Adopt SWR data: first load creates the model; a later revalidation only
   // applies when idle, deduped by content/version and guarded by mtime monotonicity.
   useEffect(() => {
-    if (!data || !handle || !handleKey) return
+    if (!handle || !handleKey) return
     const model = modelRef.current
+    const retained = trackDepartingWritesForRelocation ? retainedNotesModels.get(handleKey) : undefined
+    if (retained && model !== retained) {
+      modelRef.current = retained
+      retained.notifyActive = () => syncFromModel(retained)
+      syncFromModel(retained)
+      return
+    }
+    if (!data) return
     if (model?.key === handleKey) {
       if (
         data.content === model.snapshot.content &&
@@ -310,12 +338,14 @@ export function useFileEditSession(
       snapshot: data,
       draft: data.content,
       conflict: false,
+      saving: false,
       lastWriteError: null,
       writeTask: new SingleFlight<void>()
     }
     modelRef.current = next
+    next.notifyActive = () => syncFromModel(next)
     syncFromModel(next)
-  }, [data, handle, handleKey, syncFromModel])
+  }, [data, handle, handleKey, syncFromModel, trackDepartingWritesForRelocation])
 
   // Path switch / unmount: hand the leaving model its final write (serialized
   // on its own chain, against its own rebased baseline — safe even if a write
@@ -333,8 +363,10 @@ export function useFileEditSession(
           if (model.conflict || model.draft !== model.snapshot.content) {
             throw model.lastWriteError ?? new Error('Pending edit could not be saved')
           }
+          if (retainedNotesModels.get(model.key) === model) retainedNotesModels.delete(model.key)
         }
         if (trackDepartingWritesForRelocation) {
+          retainedNotesModels.set(model.key, model)
           // Start the final write now; relocation flushes rejoin it in flight and
           // retry it after failures until it lands (tracked attempt, see
           // notesFileEditFlush). Discarding the draft resolves the model here
@@ -345,6 +377,7 @@ export function useFileEditSession(
           void persistDepartingEdits().catch(() => undefined)
         }
       }
+      if (model) model.notifyActive = undefined
       modelRef.current = null
       setDraftState('')
       setSavedContentState('')

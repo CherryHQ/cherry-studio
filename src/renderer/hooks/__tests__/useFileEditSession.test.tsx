@@ -13,7 +13,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { resetNotesEditFlushTrackingForTests } from '../notesFileEditFlush'
-import { FILE_EDIT_MAX_SIZE_BYTES, useFileEditSession } from '../useFileEditSession'
+import { FILE_EDIT_MAX_SIZE_BYTES, resetRetainedNotesModelsForTests, useFileEditSession } from '../useFileEditSession'
 
 const path = '/ws/notes.txt' as AbsoluteFilePath
 const handle = { kind: 'path' as const, path }
@@ -46,6 +46,7 @@ function renderSession() {
 beforeEach(() => {
   ipcMocks.request.mockReset()
   resetNotesEditFlushTrackingForTests()
+  resetRetainedNotesModelsForTests()
 })
 
 afterEach(() => {
@@ -908,6 +909,149 @@ describe('useFileEditSession', () => {
         await expect(flushAllNotesEdits()).resolves.toBeUndefined()
       })
       expect(writeCalls()).toHaveLength(writesAfterRetry)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['reload', 'discard', 'keepDraft'] as const)(
+    'reconnects a departed conflicted draft so %s resolves relocation without losing it',
+    async (recovery) => {
+      const { flushAllNotesEdits } = await import('../notesFileEditFlush')
+      vi.useFakeTimers()
+      try {
+        ipcMocks.request.mockResolvedValueOnce(readResult(utf8('original\n')))
+        const first = renderHook(() => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }), {
+          wrapper
+        })
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0)
+        })
+        act(() => first.result.current.setDraft('local draft\n'))
+        ipcMocks.request
+          .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+          .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+        await act(async () => {
+          first.unmount()
+          await vi.advanceTimersByTimeAsync(0)
+          await expect(flushAllNotesEdits()).rejects.toThrow()
+        })
+        ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+        const reopened = renderHook(() => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }), {
+          wrapper
+        })
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0)
+        })
+        expect(reopened.result.current.draft).toBe('local draft\n')
+        expect(reopened.result.current.conflict).toBe(true)
+        await act(async () => {
+          await expect(flushAllNotesEdits()).rejects.toThrow()
+        })
+        if (recovery !== 'discard') {
+          ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+        }
+        if (recovery === 'keepDraft') ipcMocks.request.mockResolvedValueOnce(writeResult(10, 12))
+        await act(async () => {
+          await reopened.result.current[recovery]()
+        })
+        await act(async () => {
+          await expect(flushAllNotesEdits()).resolves.toBeUndefined()
+        })
+        expect(reopened.result.current.isDirty).toBe(false)
+        const writes = writeCalls().length
+        await act(async () => {
+          await expect(flushAllNotesEdits()).resolves.toBeUndefined()
+        })
+        expect(writeCalls()).toHaveLength(writes)
+        if (recovery === 'keepDraft') expect(reopened.result.current.draft).toBe('local draft\n')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('mirrors an in-flight departing save after a rapid reopen', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('original\n')))
+      const first = renderHook(() => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }), {
+        wrapper
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      act(() => first.result.current.setDraft('local draft\n'))
+      let finishWrite!: (value: ReturnType<typeof writeResult>) => void
+      ipcMocks.request.mockImplementation((route) =>
+        route === 'file.write_if_unchanged'
+          ? new Promise((resolve) => {
+              finishWrite = resolve
+            })
+          : Promise.resolve(readResult(utf8('original\n')))
+      )
+      act(() => first.unmount())
+      const reopened = renderHook(() => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }), {
+        wrapper
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(reopened.result.current.draft).toBe('local draft\n')
+      await act(async () => {
+        finishWrite(writeResult(9, 12))
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(reopened.result.current.isDirty).toBe(false)
+      expect(reopened.result.current.savedContent).toBe('local draft\n')
+      expect(writeCalls()).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves the retained draft through a failed reopen read and explicit reload failure', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('original\n')))
+      const first = renderHook(() => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }), {
+        wrapper
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      act(() => first.result.current.setDraft('local draft\n'))
+      ipcMocks.request
+        .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+      await act(async () => {
+        first.unmount()
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      ipcMocks.request.mockRejectedValueOnce(new Error('unreadable'))
+      const reopened = renderHook(() => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }), {
+        wrapper
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(reopened.result.current.conflict).toBe(true)
+      expect(reopened.result.current.draft).toBe('local draft\n')
+      ipcMocks.request.mockRejectedValueOnce(new Error('still unreadable'))
+      await act(async () => {
+        await expect(reopened.result.current.reload()).rejects.toThrow('still unreadable')
+      })
+      expect(reopened.result.current.draft).toBe('local draft\n')
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+      await act(async () => {
+        await reopened.result.current.reload()
+      })
+      expect(reopened.result.current.conflict).toBe(false)
+      expect(reopened.result.current.draft).toBe('external\n')
+      const { flushAllNotesEdits } = await import('../notesFileEditFlush')
+      await act(async () => {
+        await expect(flushAllNotesEdits()).resolves.toBeUndefined()
+      })
     } finally {
       vi.useRealTimers()
     }
