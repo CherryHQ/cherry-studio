@@ -462,6 +462,24 @@ describe('AgentChat plan-execution handoff gates', () => {
     expect(respondApprovalPayload()?.executionModelId).toBe(PLAN_EXECUTION_MODEL_ID)
   })
 
+  // A failed model switch means no follow-up is coming; dropping the handoff locally would leave
+  // Main's preserved-input gate set, so the renderer must coordinate the abandonment.
+  it('abandons the handoff with Main when the model switch fails', async () => {
+    updateModelMock.mockResolvedValue(undefined)
+    renderAgentChat()
+
+    await screen.findByTestId('plan-execution-model')
+    fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
+
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.session.abandon_plan_handoff', {
+        sessionId: 'session-1'
+      })
+    )
+    // The failed switch is the only honest ending: nothing may execute the approved plan.
+    expect(ipcMocks.request.mock.calls.filter(([route]) => route === 'ai.stream.open')).toHaveLength(0)
+  })
+
   // Two windows on one session: the plan is approved here, and the user presses Stop in the other
   // one before this window's teardown finishes. Stop invalidates only its own window, so without a
   // session-wide flag this window still sends the execution follow-up and restarts the cancelled plan.

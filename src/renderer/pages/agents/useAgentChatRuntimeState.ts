@@ -18,7 +18,10 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
-import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import type {
+  AgentComposerSendBody,
+  AgentComposerSendOptions
+} from '@renderer/components/composer/variants/AgentComposer'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
@@ -69,7 +72,9 @@ export type AgentSendOptions = AgentComposerSendOptions
 export interface AgentTurnInput {
   text: string
   editTarget?: AgentSessionEditTarget
-  options?: AgentSendOptions
+  /** Only the fields the turn controller forwards are read here: an internal follow-up (such as
+   *  the plan-execution handoff) may carry just its marker, without the composer's identity fields. */
+  options?: { body?: Partial<AgentComposerSendBody> }
 }
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
@@ -149,6 +154,11 @@ export interface AgentChatRuntimeState {
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   /** Sends the execution follow-up for an approved plan; a failure is reported, never thrown. */
   sendPlanExecutionFollowUp: () => Promise<boolean>
+  /**
+   * Tell Main a plan-model handoff cannot be completed; it retains the preserved input and stops
+   * gating the session busy, so a later submission starts a turn instead of queueing forever.
+   */
+  abandonPlanExecutionHandoff: (sessionId: string) => void
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
@@ -351,6 +361,14 @@ export function useAgentChatRuntimeState({
       return false
     }
   }, [send, t])
+  // No follow-up is coming when the page cannot finish the handoff, so release Main's preserved
+  // input; otherwise every later submission queues behind a replacement nobody will send.
+  const abandonPlanExecutionHandoff = useCallback((targetSessionId: string) => {
+    if (!targetSessionId) return
+    void ipcApi.request('ai.agent.session.abandon_plan_handoff', { sessionId: targetSessionId }).catch((error) => {
+      logger.warn('Failed to abandon the plan execution handoff', error as Error)
+    })
+  }, [])
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
@@ -596,6 +614,7 @@ export function useAgentChatRuntimeState({
     stop,
     sendMessage,
     sendPlanExecutionFollowUp,
+    abandonPlanExecutionHandoff,
     deleteMessage,
     respondToolApproval,
     composerContext,

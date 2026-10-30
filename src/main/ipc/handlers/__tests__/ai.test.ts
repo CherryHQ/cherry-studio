@@ -83,7 +83,12 @@ const toolPart = (toolCallId: string, output: unknown) => ({
 const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn(), forkSession: vi.fn() }
+const agentSessionRuntimeService = {
+  acquireWarmLease: vi.fn(),
+  releaseWarmLease: vi.fn(),
+  forkSession: vi.fn(),
+  abandonPlanModelHandoff: vi.fn()
+}
 const agentLifecycleService = {
   archiveSessions: vi.fn(),
   restoreSession: vi.fn(),
@@ -704,6 +709,11 @@ describe('aiHandlers — agent sessions & tasks', () => {
     await aiHandlers['ai.agent.session.close_warm']({ sessionId: 's1' }, ctx)
     expect(agentSessionRuntimeService.releaseWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
     expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
+  })
+
+  it('abandon_plan_handoff delegates to the runtime service', async () => {
+    await aiHandlers['ai.agent.session.abandon_plan_handoff']({ sessionId: 's1' }, ctx)
+    expect(agentSessionRuntimeService.abandonPlanModelHandoff).toHaveBeenCalledWith('s1')
   })
 
   // Relative paths reported by a session's tools are resolved against that session's workspace,

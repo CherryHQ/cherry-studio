@@ -209,6 +209,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
+  // The renderer cannot complete a plan-model handoff: release the busy gate, retain its input.
+  'ai.agent.session.abandon_plan_handoff': async ({ sessionId }) => {
+    application.get('AgentSessionRuntimeService').abandonPlanModelHandoff(sessionId)
+  },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
     exposeAgentSessionArchiveError(() =>
       permanent

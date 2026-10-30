@@ -206,6 +206,9 @@ const AgentChat = ({
   }>()
   // Latest (session, agent) pair, readable from stale respond callbacks that survive navigation.
   const latestSessionKeyRef = useRef<{ id: string | null; agentId: string | null }>({ id: null, agentId: null })
+  // Latest armed handoff, readable from the navigation effect that retires it.
+  const planExecutionHandoffRef = useRef(planExecutionHandoff)
+  planExecutionHandoffRef.current = planExecutionHandoff
   // A user stop must disarm an in-flight handoff: the follow-up effect fires when the turn settles,
   // and a stopped turn settles too — so a handoff left armed would restart the cancelled plan.
   const disarmPlanExecutionHandoff = useCallback(() => setPlanExecutionHandoff(undefined), [])
@@ -250,13 +253,6 @@ const AgentChat = ({
   useEffect(() => {
     setCitationPanelState(null)
   }, [currentSessionId])
-  useEffect(() => {
-    latestSessionKeyRef.current = { id: sessionSnapshot?.id ?? null, agentId: sessionSnapshot?.agentId ?? null }
-    // A pending handoff belongs to the (session, agent) pair it was approved on; navigating away
-    // or rebinding the session's agent drops it so a stale follow-up cannot fire.
-    setPlanExecutionHandoff(undefined)
-  }, [currentSessionId, sessionSnapshot?.agentId])
-
   const handleOpenCitationsPanel = useCallback(
     ({ citations }: { citations: Citation[] }) => {
       if (!currentSessionId) return
@@ -312,6 +308,20 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
+  const abandonPlanExecutionHandoff = runtime.abandonPlanExecutionHandoff
+  useEffect(() => {
+    latestSessionKeyRef.current = { id: sessionSnapshot?.id ?? null, agentId: sessionSnapshot?.agentId ?? null }
+    // A pending handoff belongs to the pair it was approved on; dropping it locally must also
+    // release Main's preserved-input gate, or the old session reads busy forever.
+    const stale = planExecutionHandoffRef.current
+    if (
+      stale &&
+      (stale.sessionId !== (sessionSnapshot?.id ?? '') || stale.agentId !== (sessionSnapshot?.agentId ?? null))
+    ) {
+      abandonPlanExecutionHandoff(stale.sessionId)
+    }
+    setPlanExecutionHandoff(undefined)
+  }, [abandonPlanExecutionHandoff, sessionSnapshot?.agentId, sessionSnapshot?.id])
   // Any window can stop this session, and the handoff is armed in whichever one approved the plan —
   // so the stopping window's own state cannot be the invalidation. The session-wide flag is.
   const sessionStopped = runtime.sessionStopped
@@ -341,7 +351,11 @@ const AgentChat = ({
       // Last check before the send: a stop that landed while the model switch was applying would
       // otherwise restart the cancelled plan once the shared stream settled.
       if (sessionStopped) return
-      void runtime.sendPlanExecutionFollowUp()
+      void runtime.sendPlanExecutionFollowUp().then((sent) => {
+        // An unsent follow-up leaves the same dead end as a failed switch: release Main's gate so a
+        // manual re-send starts a turn, which replays the retained input.
+        if (!sent) runtime.abandonPlanExecutionHandoff(handoff.sessionId)
+      })
       return
     }
     // The update revalidates the agent query, handing `activeAgent` a fresh identity while this
@@ -362,6 +376,9 @@ const AgentChat = ({
       // A superseded run must not touch the handoff — the run that re-ran this effect owns it.
       if (cancelled) return
       if (!updated) {
+        // Main stopped the turn and holds preserved input; no follow-up is coming, so release that
+        // gate. The retained input replays into the next turn instead.
+        runtime.abandonPlanExecutionHandoff(handoff.sessionId)
         setPlanExecutionHandoff(undefined)
         return
       }
@@ -373,6 +390,7 @@ const AgentChat = ({
   }, [
     activeAgent,
     planExecutionHandoff,
+    runtime.abandonPlanExecutionHandoff,
     runtime.isPending,
     runtime.sendPlanExecutionFollowUp,
     sessionSnapshot?.id,

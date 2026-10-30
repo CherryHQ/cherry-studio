@@ -390,6 +390,12 @@ export const aiRequestSchemas = {
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),
+  // The renderer cannot complete a plan-model handoff: Main retains the preserved input and stops
+  // gating the session busy, so later submissions start a turn instead of queueing forever.
+  'ai.agent.session.abandon_plan_handoff': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
   'ai.agent.session.fork': defineRoute({
     input: z.strictObject({
       sourceSessionId: z.uuid(),

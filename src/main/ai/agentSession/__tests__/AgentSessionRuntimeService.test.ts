@@ -1120,6 +1120,299 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('keeps admission order for a submission that lands after the replacement entry exists', async () => {
+      // A is preserved; B arrives after the follow-up creates the replacement entry but before its
+      // stream opens. B must join the buffer, or it would run ahead of the older A.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-startup',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-startup',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const entry = getEntry(service)
+      const stashed: any[] = []
+      entry.connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn((input: any) => {
+          stashed.push(input)
+          return true
+        }),
+        drainPendingSteers: vi.fn(() => stashed.splice(0)),
+        reconcile: vi.fn().mockResolvedValue('patched')
+      } as any
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      const result = service.respondToolApproval('approval-plan-startup', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      // Older correction A reaches the driver buffer before the teardown.
+      service.enqueueUserMessage('session-1', userMessage('user-a'), {})
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+
+      // The marked follow-up creates the replacement entry; its connection has not started yet, so
+      // replay has not run.
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
+      const followUp = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        userMessage: userMessage('user-follow-up'),
+        assistantMessageId: 'assistant-follow-up'
+      })
+      // Newer correction B arrives in that window. It must not be queued through the entry.
+      service.enqueueUserMessage('session-1', userMessage('user-b'), {})
+      expect(getEntry(service).pendingTurns).toEqual([])
+
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      getEntry(service).connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      // Replay delivers both in admission order: A before B.
+      await vi.waitFor(() => expect(connection.redirect).toHaveBeenCalledTimes(2))
+      expect(connection.redirect.mock.calls.map((call: any[]) => call[0].message.id)).toEqual(['user-a', 'user-b'])
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('queues later preserved input behind an earlier one the backend will not steer', async () => {
+      // A file-bearing correction A is declined by `redirect` and queues as the next turn. A later
+      // plain-text B must not steer into the current turn ahead of it, or B → A again.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-fifo',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-fifo',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      const result = service.respondToolApproval('approval-plan-fifo', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      service.enqueueUserMessage('session-1', userMessage('user-a'), {})
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+      service.enqueueUserMessage('session-1', userMessage('user-b'), {})
+
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn((input: any) => input.message.id !== 'user-a'),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
+      const followUp = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        userMessage: userMessage('user-follow-up'),
+        assistantMessageId: 'assistant-follow-up'
+      })
+      getEntry(service).connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      // A queues, and B queues behind it instead of being steered into the current turn.
+      await vi.waitFor(() =>
+        expect(getEntry(service).pendingTurns.map((pending: any) => pending.message.id)).toEqual(['user-a', 'user-b'])
+      )
+      expect(connection.redirect.mock.calls.map((call: any[]) => call[0].message.id)).toEqual(['user-a'])
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('abandons a handoff whose completion failed: retained input stops gating and replays', async () => {
+      // The model switch failed after the teardown preserved A: abandoning must release the busy
+      // gate without losing A, so later manual submissions start a turn.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-abandon',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-abandon',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      const result = service.respondToolApproval('approval-plan-abandon', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      service.enqueueUserMessage('session-1', userMessage('user-a'), {})
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+      expect(service.isSessionBusy('session-1')).toBe(true)
+
+      // The renderer cannot apply the chosen model, so it coordinates the abandonment with Main.
+      service.abandonPlanModelHandoff('session-1')
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isHandoffReplacementPending('session-1')).toBe(false)
+
+      // A later manual submission starts a real turn (an activation) and receives the retained
+      // correction instead of leaving it behind.
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+      const manual = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-manual'),
+        assistantMessageId: 'assistant-manual'
+      })
+      getEntry(service).connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: manual.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      await vi.waitFor(() =>
+        expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-manual') }))
+      )
+      await vi.waitFor(() =>
+        expect(connection.redirect).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-a') }))
+      )
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('retains input when abandonment lands before the teardown preserves it', async () => {
+      // Abandonment lands while the teardown still awaits the plan result, before the buffer exists;
+      // the teardown must retain its capture instead of gating the session.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const settle = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settle.promise)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-abandon-early',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-abandon-early',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-plan'),
+        assistantMessageId: 'assistant-plan'
+      })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+      const result = service.respondToolApproval('approval-plan-abandon-early', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      service.enqueueUserMessage('session-1', userMessage('user-a'), {})
+      // The model switch fails now — the buffer this teardown will preserve does not exist yet.
+      service.abandonPlanModelHandoff('session-1')
+
+      settle.resolve(true)
+      await vi.waitFor(() => expect((service as any).entries.get('session-1')).toBeUndefined())
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isHandoffReplacementPending('session-1')).toBe(false)
+
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+      const manual = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-manual'),
+        assistantMessageId: 'assistant-manual'
+      })
+      getEntry(service).connection = connection
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: manual.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      await vi.waitFor(() =>
+        expect(connection.redirect).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-a') }))
+      )
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('records the approved execution as a session-scoped permission, leaving the shared agent row alone', async () => {
       // The teardown discards the connection that carried the SDK's post-approval mode shift, and
       // the follow-up's fresh connection would re-read the row: spawning it back into `plan` ("no
