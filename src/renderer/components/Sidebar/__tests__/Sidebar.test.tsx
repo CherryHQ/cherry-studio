@@ -41,6 +41,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const { Button } = await vi.importActual<typeof ButtonModule>('@cherrystudio/ui/components/primitives/button')
   return {
     Button,
+    ...(await vi.importActual('@cherrystudio/ui/components/primitives/separator')),
     Tooltip: (await vi.importActual<typeof TooltipModule>('@cherrystudio/ui/components/primitives/tooltip')).Tooltip,
     ...menuList,
     ...popover,

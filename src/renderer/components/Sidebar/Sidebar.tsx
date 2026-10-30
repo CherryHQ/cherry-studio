@@ -2,7 +2,7 @@ import '../layout/ShellNavigation.css'
 import { ChevronDown, Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Separator, Tooltip } from '@cherrystudio/ui'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
@@ -127,6 +127,7 @@ export function Sidebar({
   }
   const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
   const contentLayout = isFloating ? 'full' : layout
+  const showHeaderDivider = contentLayout === 'icon' && (isFullscreen || (!isMac && !hasLeadingWindowControls))
   const emptyState =
     entries.length === 0 && contentLayout === 'full' && emptyHint ? (
       <p className="px-4 py-3 text-xs text-muted-foreground [-webkit-app-region:no-drag]">{emptyHint}</p>
@@ -169,7 +170,8 @@ export function Sidebar({
     user && userButton ? (
       <div
         className={cn(
-          'flex shrink-0',
+          'relative flex shrink-0',
+          showHeaderDivider && 'mb-2',
           contentLayout === 'icon'
             ? 'h-11 items-center'
             : isMac && !isFullscreen
@@ -180,6 +182,9 @@ export function Sidebar({
         <Tooltip content={user.name} placement="right" delay={400} fullWidthTrigger={contentLayout === 'full'}>
           {renderUserTrigger?.(userButton) ?? userButton}
         </Tooltip>
+        {showHeaderDivider && (
+          <Separator className="absolute top-full left-1/2 -translate-x-1/2 data-[orientation=horizontal]:w-4" />
+        )}
       </div>
     ) : null
 
@@ -307,7 +312,11 @@ export function Sidebar({
         ))}
 
       {/* Content */}
-      <div className={cn('min-h-0 flex-1 overflow-y-auto pb-1 [&::-webkit-scrollbar]:hidden', isMac && 'pt-1')}>
+      <div
+        className={cn(
+          'min-h-0 flex-1 overflow-y-auto pb-1 [&::-webkit-scrollbar]:hidden',
+          isMac && !showHeaderDivider && 'pt-1'
+        )}>
         <SidebarList layout={layout} {...listProps} />
         {emptyState}
       </div>
