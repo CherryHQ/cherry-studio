@@ -56,6 +56,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
   let fakeMembers: string
   let realPlatform: NodeJS.Platform
   let realPath: string | undefined
+  let realGetuid: typeof process.getuid
 
   /**
    * Puts a stand-in `powershell.exe` on PATH that prints a fake process table and serves the job
@@ -188,6 +189,10 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // itself sees the real platform, so the fake probe below is what it consults.
     realPlatform = process.platform
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    // Windows has no `process.getuid`; the simulation must not leave the POSIX one in place, or a
+    // scan that treats "no uid" as "cannot tell" would read as working here and not on Windows.
+    realGetuid = process.getuid
+    Object.defineProperty(process, 'getuid', { value: undefined, configurable: true })
     realPath = process.env.PATH
     storageDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-shell-exit-'))
   })
@@ -201,6 +206,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     delete process.env.BG_FAKE_TABLE
     delete process.env.BG_FAKE_MEMBERS
     Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
+    Object.defineProperty(process, 'getuid', { value: realGetuid, configurable: true })
     taskkillMock.mockReset()
     const deadline = Date.now() + 10_000
     for (;;) {
@@ -579,6 +585,57 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
 
     expect(requested.flat()).not.toContain('424242')
+  }, 20_000)
+
+  it('does not adopt an older orphan whose parent number a remembered member reused', async () => {
+    // An unrelated parent can exit, leave a child, and have its number reused by a legitimate
+    // member of this task. Windows keeps the orphan's parent number, so the older child then names
+    // the verified member as its parent. Creation order is what separates them: a child created
+    // before the member cannot be its own, and without Job membership it is not the task's to keep
+    // — a walk that trusts the remembered number alone records it and a stop then kills it.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER, { members: '[999999]' })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 10_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
+
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+    // The member is verified and remembered while it lives under the shell.
+    await vi.waitFor(
+      async () => {
+        expect(await readKnownPids()).toContain(999_999)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
+
+    // `555555` predates the member that now holds its parent's number: it was forked by whoever
+    // held that number before, and the job does not hold it.
+    await writeFakeRows(
+      `${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n"555555","999999","${BEFORE_SHELL_STAMP}"\n`
+    )
+    // Several polls' worth: a walk that trusts a remembered parent number alone records it.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(await readKnownPids()).not.toContain(555_555)
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      requested.push(args[1] as string[])
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    expect(requested.flat()).not.toContain('555555')
+    expect(requested.some((args) => args.includes(String(record.pid)))).toBe(true)
   }, 20_000)
 
   it('spares orphan rows that predate the verified roots force-stop extends ancestry through', async () => {

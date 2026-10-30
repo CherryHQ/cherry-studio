@@ -1331,13 +1331,22 @@ describe('backgroundTasks', () => {
           await expect(hasLiveTaskEvidence(storageDir, settled)).resolves.toBe(true)
           expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
 
-          // The settlement holds the completion until the worker leaves, and its identity is now
-          // in the ledger — so a stop reaches the worker the table cannot otherwise name and
-          // certifies the kill, instead of reporting an unverifiable survivor.
+          // Nothing tied the worker to the task — no ancestry, no marker, no descriptor — so no
+          // signalable identity exists for it. A stop may not claim a termination it never
+          // verified: the record stays live instead of handing the survivor to a purge.
           const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
-          expect(stopped?.status).toBe('stopped')
-          expect(stopped?.terminationUnverified).toBeUndefined()
-          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+          expect(stopped?.status).toBe('running')
+          expect(stopped?.terminationUnverified).toBe(true)
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          // The survivor leaving is the only thing that ends the task.
+          process.kill(workerPid, 'SIGKILL')
+          await vi.waitFor(
+            async () => {
+              expect((await readdir(storageDir)).some((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toBe(true)
+            },
+            { timeout: 15_000 }
+          )
         } finally {
           try {
             if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
@@ -1351,20 +1360,22 @@ describe('backgroundTasks', () => {
 
     // An unreadable row is only evidence about this task while something ties it to what the task
     // ran. A daemon another program leaves behind shares uid, orphanhood, age and an empty
-    // environment; without the tie it must not hold the task open.
+    // environment; without the tie it must not hold the task open, enter the identity ledger, or
+    // become a kill target.
     it.skipIf(process.platform === 'win32' || !python3Available)(
       'completes past an unrelated same-user orphan it never launched',
       async () => {
         const orphanPidFile = path.join(storageDir, 'unrelated.pid')
-        // The task is still running when the orphan appears, so the orphan is a row the task's
-        // completion check will actually see and have to rule out.
         const record = await startDetachedBackgroundTask({
           storageDir,
           command: `${nodeBin} -e "setTimeout(() => process.exit(0), 1_500)"`,
           cwd: storageDir
         })
-        // Truly empty environment, own session, and no working relation to the task: it runs in the
-        // harness's directory, not the task's, and names a program the task never launched.
+        // Born just before the task's leader exits — the window a completion heuristic could read
+        // as this task's own work. Truly empty environment, own session, and no working relation to
+        // the task: it runs in the harness's directory, not the task's, and names a program the
+        // task never launched.
+        await new Promise((resolve) => setTimeout(resolve, 800))
         const launcher = spawn(
           `python3 -c "import subprocess,sys; p=subprocess.Popen(['/bin/sleep','300'], env={}, close_fds=True, start_new_session=True); open(sys.argv[1],'w').write(str(p.pid))" "${orphanPidFile}"`,
           { cwd: process.cwd(), env: {}, detached: true, stdio: 'ignore', shell: true }
@@ -1389,6 +1400,20 @@ describe('backgroundTasks', () => {
             },
             { timeout: 15_000 }
           )
+
+          // Nothing tied the orphan to the task, so its pid may not be in the signalable ledger,
+          // and a stop may never reach it.
+          let ledger: Array<{ pid: number }> = []
+          try {
+            ledger = JSON.parse(
+              await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+            ).members
+          } catch {
+            // No ledger at all is the strongest form of the same guarantee.
+          }
+          expect(ledger.map((member) => member.pid)).not.toContain(orphanPid)
+          await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(isPidAlive(orphanPid)).toBe(true)
         } finally {
           try {
             if (orphanPid > 0) process.kill(orphanPid, 'SIGKILL')
