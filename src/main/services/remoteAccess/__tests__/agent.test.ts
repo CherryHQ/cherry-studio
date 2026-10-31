@@ -99,7 +99,7 @@ const fake = vi.hoisted(() => {
       assertSessionWritable() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
-      respondToolApproval: vi.fn(() => true),
+      respondToolApproval: vi.fn(() => 'accepted'),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
       recoverSessionForks: async () => {}
@@ -1275,7 +1275,7 @@ describe('remote agent access', () => {
     expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
       'question',
       { approved: true, updatedInput: { ...input, answers: params.response.answers } },
-      anchor
+      { anchorId: anchor }
     )
     expect(await call('agent.interactions.respond', params)).toEqual(receipt)
     expect(fake.runtime.respondToolApproval).toHaveBeenCalledTimes(1)
@@ -1309,7 +1309,7 @@ describe('remote agent access', () => {
     expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
       'read-approval',
       { approved: false, reason: '请勿读取' },
-      anchor
+      { anchorId: anchor }
     )
   })
 
@@ -1638,7 +1638,11 @@ describe('remote agent access', () => {
       decision: 'approve'
     })
     expect(respond.status).toBe('applied')
-    expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith('approval-1', { approved: true }, assistantId)
+    expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
+      'approval-1',
+      { approved: true },
+      { anchorId: assistantId }
+    )
     emit({ type: 'tool-output-available', toolCallId: 'call-1', output: 'x'.repeat(5000) }, assistantId)
     projection = await drain(projection)
     expect(projection.interactions['approval-1'].status).toBe('approved')

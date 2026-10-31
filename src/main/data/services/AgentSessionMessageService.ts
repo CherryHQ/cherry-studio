@@ -2068,6 +2068,85 @@ export class AgentSessionMessageService {
     return saved
   }
 
+  finalizeInterruptedToolApproval(
+    sessionId: string,
+    approvalId: string,
+    options: { messageId?: string; decision?: ApprovalDecision; errorText: string }
+  ): boolean {
+    const messageId = application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.role, 'assistant'),
+            sql<boolean>`exists (
+              select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+              where json_extract(part.value, '$.state') = 'approval-requested'
+                and json_extract(part.value, '$.approval.id') = ${approvalId}
+            )`,
+            options.messageId ? eq(sessionMessagesTable.id, options.messageId) : undefined
+          )
+        )
+        .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+        .limit(1)
+        .all()
+      for (const row of rows) {
+        const parts = row.data.parts ?? []
+        const index = parts.findIndex(
+          (part) => isToolUIPart(part) && part.state === 'approval-requested' && part.approval.id === approvalId
+        )
+        if (index < 0) continue
+        const part = parts[index] as Extract<CherryMessagePart, { state: 'approval-requested' }>
+        const decision = options.decision
+        const nextParts = [...parts]
+        nextParts[index] =
+          decision?.approved === false
+            ? {
+                ...part,
+                ...(decision?.updatedInput !== undefined ? { input: decision.updatedInput } : {}),
+                state: 'output-denied',
+                approval: {
+                  id: approvalId,
+                  approved: false,
+                  ...(decision.reason !== undefined ? { reason: decision.reason } : {})
+                }
+              }
+            : ({
+                ...part,
+                ...(decision?.updatedInput !== undefined ? { input: decision.updatedInput } : {}),
+                state: 'output-error',
+                errorText: options.errorText,
+                // Interrupted history retains the ID without the user decision required by the SDK's terminal type.
+                approval: decision ? { id: approvalId, approved: true } : part.approval
+              } as CherryMessagePart)
+        const updatedAt = Date.now()
+        tx.update(sessionMessagesTable)
+          .set({ data: { ...row.data, parts: nextParts }, updatedAt })
+          .where(and(eq(sessionMessagesTable.id, row.id), eq(sessionMessagesTable.sessionId, sessionId)))
+          .run()
+        if (decision) {
+          agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+          agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
+        }
+        return row.id
+      }
+      return undefined
+    })
+    if (!messageId) return false
+    agentSessionService.notifyReadModelChange([sessionId], 'projection')
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        entityIds: [messageId]
+      }
+    ])
+    return true
+  }
+
   /**
    * Atomically settle one persisted agent-session approval card. The SDK callback is resolved only
    * after this returns true, so a displayed question cannot resume its agent while remaining stuck
