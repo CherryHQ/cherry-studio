@@ -52,8 +52,8 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@vectorstores/readers/csv', () => ({
-  CSVReader: class {
+vi.mock('../files/CsvReader', () => ({
+  CsvReader: class {
     loadData = readerSpies.csv
   }
 }))
