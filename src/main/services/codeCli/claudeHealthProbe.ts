@@ -1,13 +1,12 @@
-import { execFile } from 'child_process'
+import { spawn } from 'child_process'
 import path from 'node:path'
-import { promisify } from 'util'
 
+import { terminateProcessTree } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
-
-const execFileAsync = promisify(execFile)
 
 // Bounded `--version` run: proves the binary starts without needing auth or a session.
 const PROBE_TIMEOUT_MS = 10_000
+const CLEANUP_TIMEOUT_MS = 2_000
 const DETAIL_LIMIT = 500
 
 // Windows fatal application-exit range (0xC0000000-0xCFFFFFFF): access violations surface
@@ -85,13 +84,76 @@ export async function probeClaudeExecutable(executablePath: string, cwd?: string
   // launches with that same env; probe with it too, not the stale process env.
   try {
     const env = await getRawShellEnv()
-    await execFileAsync(command, ['--version'], {
-      timeout: PROBE_TIMEOUT_MS,
+    const child = spawn(command, ['--version'], {
       windowsHide: true,
-      killSignal: 'SIGKILL',
+      detached: process.platform !== 'win32',
       shell: needsShell,
       env,
+      stdio: ['ignore', 'pipe', 'pipe'],
       ...(cwd ? { cwd } : {})
+    })
+    await new Promise<void>((resolve, reject) => {
+      let stopping = false
+      let stdout = ''
+      let stderr = ''
+      const stop = (error: Error) => {
+        if (stopping) return
+        stopping = true
+        clearTimeout(timeout)
+        // Keep the wrapper PID for tree termination, but do not let a stalled taskkill
+        // turn this bounded diagnostic into an unbounded settings action.
+        let cleanupFinished = false
+        const finishCleanup = (detail?: string) => {
+          if (cleanupFinished) return
+          cleanupFinished = true
+          clearTimeout(cleanupTimeout)
+          reject(
+            detail
+              ? Object.assign(new Error(`${error.message}; ${detail}`), { code: (error as NodeJS.ErrnoException).code })
+              : error
+          )
+        }
+        const cleanupTimeout = setTimeout(() => {
+          finishCleanup('process cleanup did not finish within 2000 ms; descendants may still be running')
+        }, CLEANUP_TIMEOUT_MS)
+        void terminateProcessTree(child, true, 'Claude Code startup probe').then(
+          () => finishCleanup(),
+          (cleanupError) => finishCleanup(`process cleanup failed: ${String(cleanupError)}`)
+        )
+      }
+      const timeout = setTimeout(() => {
+        stop(Object.assign(new Error('Claude Code startup probe timed out'), { code: 'ETIMEDOUT' }))
+      }, PROBE_TIMEOUT_MS)
+      const collect = (chunk: Buffer, isError: boolean) => {
+        if (stopping) return
+        if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) + chunk.length > 1024 * 1024) {
+          stop(new Error('Claude Code startup probe exceeded its output limit'))
+          return
+        }
+        if (isError) stderr += chunk.toString()
+        else stdout += chunk.toString()
+      }
+      child.stdout?.on('data', (chunk) => collect(chunk, false))
+      child.stderr?.on('data', (chunk) => collect(chunk, true))
+      child.once('error', (error) => {
+        if (stopping) return
+        clearTimeout(timeout)
+        reject(error)
+      })
+      child.once('close', (code, signal) => {
+        if (stopping) return
+        clearTimeout(timeout)
+        if (code === 0) resolve()
+        else
+          reject(
+            Object.assign(new Error(`Claude Code startup probe failed (${signal ?? code}): ${stderr || stdout}`), {
+              code,
+              signal,
+              stdout,
+              stderr
+            })
+          )
+      })
     })
     return { ok: true }
   } catch (error) {
