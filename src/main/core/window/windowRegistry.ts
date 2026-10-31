@@ -554,6 +554,64 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Capsule stack of collapsed agent windows — one per display that has capsules, destroyed when its stack empties.
+  // Managed by SelectionAgentWindowService, which sizes it to the stack it measures and anchors it bottom-right.
+  [WindowType.SelectionCapsule]: {
+    type: WindowType.SelectionCapsule,
+    lifecycle: 'default',
+    htmlPath: 'windows/selection/capsule/index.html',
+    showMode: 'manual',
+    windowOptions: {
+      width: 240,
+      height: 52,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false, // [macOS] must be false, as for the toolbar
+      movable: false,
+      hasShadow: false,
+      thickFrame: false,
+      // The capsules draw their own rounded surfaces, like the toolbar pill.
+      roundedCorners: false,
+      // Clicks reach the capsules without the window ever taking focus; macOS drops focus at show time instead.
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          hiddenInMissionControl: true,
+          acceptFirstMouse: true
+        },
+        win: {
+          type: 'toolbar',
+          focusable: false
+        },
+        linux: {
+          type: 'toolbar',
+          focusable: false
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        devTools: isDev
+      }
+    },
+    behavior: {
+      alwaysOnTop: { level: 'screen-saver' },
+      // Same as the toolbar: visible over full-screen apps without transforming the process type.
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
+      macShowInDock: false
+    },
+    quirks: {
+      reapplyAlwaysOnTop: true
+    }
+  },
+
   // Full-display capture overlay — one instance per display, opened and dismissed together.
   // Pooled because a session creates N windows at once and users re-trigger it repeatedly.
   [WindowType.Screenshot]: {

@@ -219,7 +219,10 @@ describe('SelectionAgentWindow', () => {
       selectedText: 'ubiquity',
       sessionId: 'open-4'
     }
-    const closeRequests = () => requestsTo('window.close').length
+    const blurDismissals = (dismissal: 'close' | 'collapse') =>
+      requestsTo('selection.dismiss_blurred_agent_window').filter(([, value]) => value === dismissal).length
+    const closeRequests = () => requestsTo('window.close').length + blurDismissals('close')
+    const collapseRequests = () => requestsTo('selection.collapse_agent_window').length + blurDismissals('collapse')
     const lastReplaceable = () => requestsTo('selection.set_agent_window_replaceable').at(-1)?.[1]
     const pressEscape = ({ handled = false, isComposing = false } = {}) => {
       const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, isComposing })
@@ -303,16 +306,19 @@ describe('SelectionAgentWindow', () => {
       pressEscape()
 
       expect(closeRequests()).toBe(0)
+      // The compose bar cannot collapse, even while it sends.
+      expect(collapseRequests()).toBe(0)
       expect(lastReplaceable()).toBe(false)
     })
 
-    it('keeps a starting custom action open, and closes one that failed to start', async () => {
+    it('collapses a starting custom action on blur, and closes one that failed to start', async () => {
       vi.mocked(dataApiService.post).mockReturnValueOnce(new Promise(() => undefined))
       mocks.action = CUSTOM_AGENT_ACTION
       const { unmount } = render(<SelectionAgentWindow />)
       fireEvent.blur(window)
       pressEscape()
       expect(closeRequests()).toBe(0)
+      expect(collapseRequests()).toBe(1)
       expect(lastReplaceable()).toBe(false)
       unmount()
 
