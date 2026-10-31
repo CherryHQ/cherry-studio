@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentSessionMessageHandlers } from '@data/api/handlers/agentSessionMessages'
 import { agentSessionHandlers } from '@data/api/handlers/agentSessions'
 import { agentTable } from '@data/db/schemas/agent'
@@ -10,6 +11,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const { notify } = vi.hoisted(() => ({ notify: vi.fn() }))
@@ -86,8 +88,19 @@ describe('background session isolation', () => {
     expect(agentSessionService.getById(background.id).id).toBe(background.id)
   })
 
-  it('rejects a background ID at the conversation API while retaining internal execution access', async () => {
+  it('rejects background conversation reads and navigation while retaining internal execution access', async () => {
     const background = create('heartbeat', 'background')
+    const windowManager = application.get('WindowManager')
+    const ipc = application.get('IpcApiService')
+    vi.mocked(windowManager.open).mockClear()
+    vi.mocked(ipc.send).mockClear()
+    const navigation = new ConversationNavigationService()
+    await expect(
+      navigation.focusOrOpen({ conversationType: 'agent', conversationId: background.id }, 'Background task')
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(windowManager.open).not.toHaveBeenCalled()
+    expect(ipc.send).not.toHaveBeenCalled()
+
     await expect(
       agentSessionHandlers['/agent-sessions/:sessionId'].GET({ params: { sessionId: background.id } })
     ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })

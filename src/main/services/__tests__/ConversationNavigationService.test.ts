@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
-vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getConversationById: mocks.getSession }
+}))
 vi.mock('../mainWindowNavigation', () => ({ openRouteInMainWindow: mocks.openRouteInMainWindow }))
 
 const { ConversationNavigationService } = await import('../ConversationNavigationService')

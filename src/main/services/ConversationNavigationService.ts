@@ -118,7 +118,7 @@ export class ConversationNavigationService extends BaseService {
     requestingWindowId: WindowId | null,
     messageId?: string | null
   ): Promise<void> {
-    if (target.conversationType === 'agent') agentSessionService.getById(target.conversationId)
+    if (target.conversationType === 'agent') agentSessionService.getConversationById(target.conversationId)
     const discoveryDeadline = Date.now() + NAVIGATION_DISCOVERY_TIMEOUT_MS
     let coldRouteOpened = false
 
