@@ -7,7 +7,9 @@ export const apiGatewayPairedDeviceTable = sqliteTable(
   'api_gateway_paired_device',
   {
     id: uuidPrimaryKey(),
+    // name is reported by the phone; customName is local and must survive re-pairing.
     name: text().notNull(),
+    customName: text(),
     platform: text().notNull(),
     // Pre-Noise device rows survive migration without an identity or remote grants.
     peerIdentity: text(),

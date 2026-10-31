@@ -1,0 +1,1 @@
+ALTER TABLE `api_gateway_paired_device` ADD `custom_name` text;

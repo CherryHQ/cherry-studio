@@ -450,14 +450,21 @@ enabled but its listener is down, the page offers Retry alongside Disable LAN
 access so recovery does not require toggling the preference off first.
 Its pairing section asks Main for one invitation, renders the QR, shows each
 pending claim with its verification code and requested capabilities for approval,
-and uses DataApi to list or revoke paired devices. Readiness requires both enabled LAN intent and the live LAN
+and uses DataApi to list, rename or revoke paired devices. Readiness requires both enabled LAN intent and the live LAN
 running state. Its strings live under the `deviceConnections` i18n namespace.
 
 Paired-device records are SQLite-backed business data in
 `api_gateway_paired_device`, keyed by the device's proven identity with one
 grant id per approved capability. Renderer-facing DataApi returns
-device metadata only (`GET /api-gateway/paired-devices`) and exposes revocation
-as `DELETE /api-gateway/paired-devices/:id`.
+device metadata only (`GET /api-gateway/paired-devices`), exposes renaming as
+`PATCH /api-gateway/paired-devices/:id` with body `{ customName: string | null }`,
+and revocation as `DELETE /api-gateway/paired-devices/:id`. String values are
+trimmed and must be 1–64 characters after trimming; `null` clears the custom name
+so the reported name is shown again. The strict rename schema rejects `name`,
+`platform` and all unknown keys, so renaming cannot overwrite identity fields.
+Only the rename route writes `custom_name`; `name` is client-reported and
+refreshed on every re-pairing of the same `peer_identity`, so the custom name
+survives re-pairing.
 The owning data service validates device metadata before persisting a claim.
 
 ### Mobile pairing protocol

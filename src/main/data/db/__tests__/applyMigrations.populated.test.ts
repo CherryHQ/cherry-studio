@@ -115,7 +115,8 @@ describe('applyMigrations over a populated database', () => {
         updated_at: 2000,
         peer_identity: null,
         configuration_grant_id: null,
-        agent_grant_id: null
+        agent_grant_id: null,
+        custom_name: null
       }))
     )
     const insertReceipt = sqlite.prepare(`INSERT INTO remote_command
