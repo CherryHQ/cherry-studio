@@ -20,11 +20,13 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type {
-  ScheduledTaskEntity,
-  ScheduledTaskListItem,
-  TaskRunLogEntity,
-  TaskRunSummary
+import {
+  type ScheduledTaskEntity,
+  type ScheduledTaskListItem,
+  type TaskDependency,
+  TaskDependencySchema,
+  type TaskRunLogEntity,
+  type TaskRunSummary
 } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -90,6 +92,7 @@ export type TaskSessionReuse = {
 }
 
 const TASK_REUSE_METADATA_KEY = 'reuse'
+const TASK_DEPENDENCY_METADATA_KEY = 'dependsOn'
 const CIRCUIT_BREAKER_PAUSED_KEY = 'circuitBreakerPaused'
 
 /** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
@@ -151,6 +154,22 @@ export function writeTaskSessionReuse(
   reuse: TaskSessionReuse
 ): Record<string, unknown> {
   return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
+}
+
+/** Dependency config lives in schedule metadata, like reuse state: it is schedule state, not handler input. */
+export function readTaskDependency(metadata: Record<string, unknown> | undefined): TaskDependency | null {
+  const parsed = TaskDependencySchema.safeParse(metadata?.[TASK_DEPENDENCY_METADATA_KEY])
+  return parsed.success ? parsed.data : null
+}
+
+export function writeTaskDependency(
+  metadata: Record<string, unknown> | undefined,
+  dependency: TaskDependency | null
+): Record<string, unknown> {
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}) }
+  if (dependency) next[TASK_DEPENDENCY_METADATA_KEY] = dependency
+  else delete next[TASK_DEPENDENCY_METADATA_KEY]
+  return next
 }
 
 export function isMissedTask(metadata: Record<string, unknown>): boolean {
@@ -524,6 +543,7 @@ export class AgentTaskService {
       workspace: tmpl.workspace,
       reuseSession: reuse.enabled,
       reuseSessionId: reuse.enabled ? reuseSessionId : null,
+      dependsOn: readTaskDependency(snapshot.metadata),
       channelIds: channelRows.map((c) => c.id),
       nextRun: snapshot.nextRun,
       lastRun: snapshot.lastRun,

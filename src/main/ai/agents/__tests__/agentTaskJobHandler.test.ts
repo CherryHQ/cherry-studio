@@ -155,7 +155,7 @@ describe('AgentTaskJobHandler', () => {
 
   describe('execute', () => {
     it('delegates to runAgentTask with the JobContext', async () => {
-      vi.mocked(runAgentTask).mockResolvedValueOnce({ result: 'ok' })
+      vi.mocked(runAgentTask).mockResolvedValueOnce({ result: 'ok', skipped: false })
       const ctx = {
         jobId: 'j1',
         input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
@@ -163,7 +163,7 @@ describe('AgentTaskJobHandler', () => {
 
       const out = await agentTaskJobHandler.execute(ctx)
 
-      expect(out).toEqual({ result: 'ok' })
+      expect(out).toEqual({ result: 'ok', skipped: false })
       expect(runAgentTask).toHaveBeenCalledWith(ctx)
     })
 
@@ -171,7 +171,7 @@ describe('AgentTaskJobHandler', () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {
         expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'j1', 'projection']])
-        return { result: 'ok' }
+        return { result: 'ok', skipped: false }
       })
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
