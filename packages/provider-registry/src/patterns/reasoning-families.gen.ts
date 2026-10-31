@@ -213,6 +213,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^minimax-m3[.-]1-flash$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
+  { pattern: '^mistral-large-4(?:[-.]|$)', effort: ['none', 'high'] },
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
   { pattern: 'magistral' },
   { pattern: 'mistral-small-2603' },
