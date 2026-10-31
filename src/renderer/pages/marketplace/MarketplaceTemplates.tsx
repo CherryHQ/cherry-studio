@@ -69,6 +69,7 @@ export function MarketplaceTemplates({
   }, [items, query, preview, category, categories])
   const categoryLabel = (group: string) =>
     groupTranslations[group]?.[i18n.language] ??
+    groupTranslations[group]?.['en-US'] ??
     (MARKETPLACE_CATEGORY_KEYS[group] ? t(MARKETPLACE_CATEGORY_KEYS[group]) : group)
   const add = (item: MarketplaceTemplate) => {
     setSelected(null)
