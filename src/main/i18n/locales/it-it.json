@@ -2,6 +2,7 @@
   "agent.builtin.cherry_assistant.description": "Consulente integrato di Cherry Studio. Diagnostica problemi, guida le operazioni, raccoglie FAQ, invia segnalazioni di bug e richieste di funzionalità, cerca e crea Skills",
   "agent.builtin.cherry_doctor.description": "Analista integrato di diagnostica di sistema. Legge il rapporto diagnostico e lo stato di esecuzione, spiega la causa del problema e propone correzioni circoscritte",
   "agent.builtin.cherry_support.description": "Agente di supporto ufficiale di Cherry Studio per la configurazione, la risoluzione dei problemi, le FAQ e i commenti",
+  "agent.session.claude.linux_session_bus_unavailable": "Claude Code non può avviarsi su Linux senza un bus di sessione desktop (DBUS_SESSION_BUS_ADDRESS mancante). Apri Cherry Studio dalla sessione desktop per ereditare l'indirizzo del bus, quindi riprova.",
   "agent.session.claude.runtime_unavailable": "L'agente Claude non è pronto. Attendi il completamento del download o riprova.",
   "agent.session.fork.execution_not_inherited": "Questa diramazione della sessione non ha ereditato lo stato di esecuzione.",
   "agent.session.new": "Nuova attività",
