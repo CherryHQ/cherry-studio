@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, readdir, rmdir, symlink, unlink, writeFile } from 'node:fs/promises'
+import { link, mkdtemp, readFile, readdir, rmdir, symlink, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MEMORY_BACKUP_BYTES } from '../memoryBackups'
+import { createMemoryBackup, MEMORY_BACKUP_BYTES } from '../memoryBackups'
 import * as memoryFiles from '../memoryFiles'
 import { type MemoryAccess, type MemoryApproval, MemoryStore } from '../MemoryStore'
 
@@ -155,21 +155,27 @@ describe('memory save contract', () => {
     expect((await store.read(caller, '.memories/destination.md')).content).toBeNull()
   })
 
-  it.skipIf(process.platform !== 'win32')(
-    'rejects a rename between case aliases of the same Windows file',
-    async () => {
+  it.each(['.memories/TOPIC.md', '.memories/alias.md'])(
+    'rejects a rename to the same physical file at %s before approval',
+    async (alias) => {
       await save('.memories/topic.md', 'Keep me')
+      if ((await memoryFiles.readMemoryBytes(root, alias)) === null) {
+        await link(path.join(root, '.memories/topic.md'), path.join(root, alias))
+      }
       const source = await store.read(caller, '.memories/topic.md')
-      const destination = await store.read(caller, '.memories/TOPIC.md')
+      const destination = await store.read(caller, alias)
+      const approval = vi.fn(approve)
       await expect(
         store.commit(
           caller,
           [{ kind: 'rename', receipt: source.receipt, destinationReceipt: destination.receipt }],
           'controlled',
-          approve
+          approval
         )
       ).rejects.toMatchObject({ code: 'conflict' })
+      expect(approval).not.toHaveBeenCalled()
       expect((await store.read(caller, '.memories/topic.md')).content).toBe('Keep me')
+      expect((await store.read(caller, alias)).content).toBe('Keep me')
     }
   )
 
@@ -363,6 +369,54 @@ describe('limits, access, and recovery', () => {
     await store.initialize()
     const preview = await store.previewRecovery(caller)
     expect(preview!.files).toMatchObject([{ path: 'MEMORY.md', conflict: false }])
+    await store.recover(caller, preview!.token, approve)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('preserves a deleted entry across restart so its backup remains recoverable', async () => {
+    await save('MEMORY.md', 'Keep this original')
+    const original = await store.read(caller, 'MEMORY.md')
+    const deleted = await store.commit(caller, [{ kind: 'delete', receipt: original.receipt }], 'controlled', approve)
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    expect((await store.read(caller, 'MEMORY.md')).content).toBeNull()
+    const preview = await store.previewRecovery(caller)
+    expect(preview).toMatchObject({ batchId: deleted.batchId, files: [{ path: 'MEMORY.md', conflict: false }] })
+    await store.recover(caller, preview!.token, approve)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Keep this original')
+  })
+
+  it.each(['', 'A later file'])(
+    'does not mistake a later entry %j for initialization during recovery',
+    async (later) => {
+      await save('MEMORY.md', 'Original')
+      const original = await store.read(caller, 'MEMORY.md')
+      await store.commit(caller, [{ kind: 'delete', receipt: original.receipt }], 'controlled', approve)
+      await writeFile(path.join(root, 'MEMORY.md'), later)
+      store = new MemoryStore(root, backups)
+      await store.initialize()
+      const preview = await store.previewRecovery(caller)
+      expect(preview!.files).toMatchObject([{ path: 'MEMORY.md', conflict: true }])
+      const result = await store.recover(caller, preview!.token, approve)
+      expect(result.files).toMatchObject([{ path: 'MEMORY.md', outcome: 'conflict' }])
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(later)
+    }
+  )
+
+  it.each([false, true])('skips an unapplied crash batch when selecting recovery (prior=%s)', async (prior) => {
+    const saved = prior ? await save('MEMORY.md', 'Saved') : undefined
+    await createMemoryBackup(
+      backups,
+      [{ path: 'MEMORY.md', before: Buffer.from(prior ? 'Saved' : ''), after: Buffer.from('Never applied') }],
+      'controlled'
+    )
+    const preview = await store.previewRecovery(caller)
+    if (!saved) {
+      expect(preview).toBeUndefined()
+      return
+    }
+    expect(preview?.batchId).toBe(saved.batchId)
+    expect(preview?.files).toMatchObject([{ path: 'MEMORY.md', conflict: false }])
     await store.recover(caller, preview!.token, approve)
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
   })

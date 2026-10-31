@@ -27,6 +27,7 @@ import {
   memoryHash,
   readMemoryBytes,
   readMemoryEntry,
+  statIfPresent,
   writeMemoryBytes
 } from './memoryFiles'
 
@@ -115,9 +116,13 @@ export class MemoryStore {
 
   async initialize(): Promise<void> {
     await this.lock.runExclusive(async () => {
-      await initializeMemoryFiles(this.root)
       await mkdir(this.backupRoot, { recursive: true, mode: 0o700 })
       await assertMemoryPath(this.backupRoot, '')
+      const latest = await latestMemoryBackup(this.backupRoot)
+      const deletedEntry = latest?.steps.some(
+        (step) => step.path === MEMORY_ENTRY && step.afterHash === null && step.outcome !== 'unchanged'
+      )
+      await initializeMemoryFiles(this.root, { createEntry: !deletedEntry })
     })
   }
 
@@ -216,12 +221,7 @@ export class MemoryStore {
         changes.push({ path: baseline.path, before, after: null })
       }
     }
-    if (
-      new Set(changes.map((change) => (process.platform === 'win32' ? change.path.toLowerCase() : change.path)))
-        .size !== changes.length
-    ) {
-      throw new MemoryError('conflict', 'A memory batch must name each target once')
-    }
+    await this.assertDistinctTargets(changes)
     this.assertGeneration(generation)
     const approval = await approve(this.preview(changes))
     const validateApproval = (): undefined => {
@@ -240,6 +240,7 @@ export class MemoryStore {
       }
       for (const change of changes)
         await this.readMatching({ path: change.path, hash: memoryHash(change.before), generation })
+      await this.assertDistinctTargets(changes)
       await assertLegacy()
       if (source === 'clear' || source === 'recovery') this.invalidate()
       return this.apply(access, changes, source, validateApproval, epoch, legacy)
@@ -281,9 +282,13 @@ export class MemoryStore {
       const epoch = this.accessEpochs.get(access) ?? 0
       const generation = this.generation
       access.assertAuthorized()
-      const latest = await latestMemoryBackup(this.backupRoot)
-      if (!latest) return undefined
-      const batch = await reconcileMemoryBackup(this.backupRoot, this.root, latest)
+      let batch = await latestMemoryBackup(this.backupRoot)
+      while (batch) {
+        batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
+        if (batch.steps.some((step) => step.outcome !== 'unchanged')) break
+        batch = await latestMemoryBackup(this.backupRoot)
+      }
+      if (!batch) return undefined
       const hashes = new Map<string, string | null>()
       const files: MemoryRecoveryPreview['files'] = []
       for (const step of batch.steps) {
@@ -435,6 +440,21 @@ export class MemoryStore {
       result.error = error instanceof Error ? error.message : String(error)
     }
     return result
+  }
+
+  private async assertDistinctTargets(changes: readonly MemoryFileChange[]): Promise<void> {
+    const names = new Set<string>()
+    const files = new Set<string>()
+    for (const change of changes) {
+      const name = process.platform === 'win32' ? change.path.toLowerCase() : change.path
+      const stat = await statIfPresent(await assertMemoryPath(this.root, change.path))
+      const identity = stat ? `${stat.dev}:${stat.ino}` : undefined
+      if (names.has(name) || (identity !== undefined && files.has(identity))) {
+        throw new MemoryError('conflict', 'A memory batch must name each physical target once')
+      }
+      names.add(name)
+      if (identity !== undefined) files.add(identity)
+    }
   }
 
   private baseline(access: MemoryAccess, receipt: string): ReadBaseline {
