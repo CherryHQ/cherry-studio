@@ -205,6 +205,7 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
+  readonly usageSource: SourceSnapshot
   forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
@@ -255,6 +256,7 @@ type BackgroundFlowAccumulator = {
 }
 
 type SteerContinuationReservation = {
+  readonly usageSource: SourceSnapshot
   assistantMessageId: string
   userMessageId: string
   messageSnapshot?: MessageSnapshot
@@ -275,6 +277,7 @@ type RuntimeStateEvent = AgentSessionRuntimeStateEvent<
 >
 
 type AgentSessionRuntimeEntry = {
+  usageSource: SourceSnapshot
   interactionWindowId?: string
   sessionId: string
   topicId: string
@@ -627,6 +630,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
     const turn: AgentSessionTurn = {
+      usageSource: this.freezeUsageSource(input.agentId, messageSnapshot),
       turnId,
       assistantMessageId: input.assistantMessageId,
       userMessage,
@@ -655,6 +659,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.modelId = input.modelId
       existing.interactionWindowId = undefined
       existing.messageSnapshot = messageSnapshot
+      existing.usageSource = turn.usageSource
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
@@ -679,6 +684,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentType: input.agentType,
       modelId: input.modelId,
       messageSnapshot,
+      usageSource: turn.usageSource,
       runtimeState: createAgentSessionRuntimeState(turn)
     }
     this.entries.set(input.sessionId, entry)
@@ -702,27 +708,40 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   getActiveUsageContext(sessionId: string): InProcessUsageContext | undefined {
     const entry = this.entries.get(sessionId)
+    if (!entry) return undefined
     const reservation =
-      entry?.runtimeState.execution.kind === 'turn'
+      entry.runtimeState.execution.kind === 'turn'
         ? entry.runtimeState.execution.reservation
-        : entry?.runtimeState.execution.kind === 'steer-transition'
+        : entry.runtimeState.execution.kind === 'steer-transition'
           ? entry.runtimeState.execution.reservation
           : undefined
     if (reservation) {
       return {
         agentSessionId: sessionId,
         assistantMessageId: reservation.assistantMessageId,
-        source: sourceSnapshotFromMessageSnapshot(reservation.messageSnapshot)
+        source: reservation.usageSource
       }
     }
 
-    const turn = entry ? this.liveTurn(entry) : undefined
+    const turn = this.liveTurn(entry)
     if (!turn) return undefined
     return {
       agentSessionId: sessionId,
       assistantMessageId: turn.assistantMessageId,
-      source: sourceSnapshotFromMessageSnapshot(turn.messageSnapshot)
+      source: turn.usageSource
     }
+  }
+
+  private freezeUsageSource(agentId: string, messageSnapshot?: MessageSnapshot): SourceSnapshot {
+    const source = sourceSnapshotFromMessageSnapshot(messageSnapshot)
+    if (source) return Object.freeze(source)
+    const agent = agentService.getAgent(agentId)
+    return Object.freeze({
+      type: 'agent',
+      id: agentId,
+      name: agent?.name ?? null,
+      icon: agent ? agent.configuration?.avatar?.trim() || '🤖' : null
+    })
   }
 
   private reserveSteerContinuation(entry: AgentSessionRuntimeEntry, inputs: AgentRuntimeUserInput[]): void {
@@ -742,6 +761,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.applyRuntimeStateEvent(entry, {
       type: 'reserve-steer',
       reservation: {
+        usageSource: this.freezeUsageSource(entry.agentId, messageSnapshot),
         assistantMessageId: uuidv7(),
         userMessageId: steerMessage.id,
         ...(messageSnapshot ? { messageSnapshot: structuredClone(messageSnapshot) } : {})
@@ -800,6 +820,7 @@ export class AgentSessionRuntimeService extends BaseService {
         agentId: session.agentId,
         agentType: agent.type,
         modelId: agent.model,
+        usageSource: this.freezeUsageSource(session.agentId),
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
@@ -2101,7 +2122,7 @@ export class AgentSessionRuntimeService extends BaseService {
             ? (frozenModel?.pricingSnapshot ?? null)
             : invocation.pricingSnapshot,
         credentialReceipt: capture.credentialReceipt,
-        source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
+        source: turn?.usageSource ?? capture.source ?? entry.usageSource,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
       }),
       modality: 'language',
@@ -2940,6 +2961,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const turnId = crypto.randomUUID()
     const nextTurn: AgentSessionTurn = {
+      usageSource: this.freezeUsageSource(entry.agentId, messageSnapshot),
       turnId,
       systemReminder: pendingTurn.steer === true,
       assistantMessageId,
@@ -2955,6 +2977,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
+    entry.usageSource = nextTurn.usageSource
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).
@@ -3113,6 +3136,7 @@ export class AgentSessionRuntimeService extends BaseService {
       .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
     const receiveOnlyTurn: AgentSessionTurn = {
+      usageSource: this.freezeUsageSource(entry.agentId),
       turnId,
       assistantMessageId,
       userMessage: syntheticMessage,
@@ -3127,6 +3151,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless: this.getInteractionState(entry.sessionId).userResponse === 'unavailable',
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
+    entry.usageSource = receiveOnlyTurn.usageSource
     this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-created', turn: receiveOnlyTurn })
     await this.refreshTurnTraceContext(entry, receiveOnlyTurn)
     if (
@@ -3227,6 +3252,10 @@ export class AgentSessionRuntimeService extends BaseService {
     const assistantMessageId = assistantMessage.id
     const turnId = crypto.randomUUID()
     const continuationTurn: AgentSessionTurn = {
+      usageSource:
+        reservation?.userMessageId === steerMessage.id
+          ? reservation.usageSource
+          : this.freezeUsageSource(entry.agentId, messageSnapshot),
       turnId,
       assistantMessageId,
       userMessage: steerMessage,
@@ -3242,6 +3271,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
+    entry.usageSource = continuationTurn.usageSource
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
     await this.refreshTurnTraceContext(entry, continuationTurn)
     if (
