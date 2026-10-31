@@ -26,6 +26,8 @@ describe('agentSessionRuntimeState', () => {
       let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
       state.connection = { kind: 'connected', connection: {} as never, occupancy: {} }
       state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+      state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+      state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
       state = transitionAgentSessionRuntime(state, {
         type: 'connection-occupancy',
         occupancy: 'background',
@@ -53,6 +55,8 @@ describe('agentSessionRuntimeState', () => {
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
     state.connection = { kind: 'connected', connection: {} as never, occupancy: {} }
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
     state = transitionAgentSessionRuntime(state, {
       type: 'connection-occupancy',
       occupancy: 'background',
@@ -119,15 +123,108 @@ describe('agentSessionRuntimeState', () => {
 
     expect(state.execution).toMatchObject({ kind: 'turn', stream: 'unopened', admission: 'pending' })
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
     state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
 
     expect(state.execution).toMatchObject({ kind: 'turn', stream: 'open', admission: 'admitted' })
+  })
+
+  it('earns admission only from a confirmed submission', () => {
+    const current = turn('user-1')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+
+    const premature = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current })
+    expect(premature.effects).toEqual([{ type: 'log-invalid-transition', event: 'turn-admitted', state: 'turn' }])
+    expect(premature.state.execution).toMatchObject({ admission: 'pending' })
+
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+    expect(state.execution).toMatchObject({ admission: 'submitting' })
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
+    expect(state.execution).toMatchObject({ admission: 'admitted' })
+  })
+
+  it('keeps a stop-discarded prompt submittable and bars it from a success terminal', () => {
+    const current = turn('user-1')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+
+    state = transitionAgentSessionRuntime(state, { type: 'turn-send-discarded', turn: current }).state
+    expect(state.execution).toMatchObject({ kind: 'turn', stream: 'open', admission: 'pending' })
+
+    // The stopped generation's result lands afterwards: the unconsumed prompt must not claim it.
+    const foreign = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } })
+    expect(foreign.effects).toEqual([])
+    expect(foreign.state.execution).toMatchObject({ kind: 'turn', stream: 'open', admission: 'pending' })
+    expect('terminal' in foreign.state.execution).toBe(false)
+
+    // The turn stays eligible: a fresh submission earns admission and its own result settles it.
+    state = transitionAgentSessionRuntime(foreign.state, { type: 'turn-submitting', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
+    const own = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } })
+    expect(own.effects).toEqual([{ type: 'settle-turn', turn: current, outcome: { status: 'success' } }])
+  })
+
+  it('keeps a deferred stop-discarded turn unclaimed when the stopped generation settles first', () => {
+    const current = turn('user-1')
+    const receiveOnly = turn('wake')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' },
+      deferCurrentTurn: true
+    }).state
+    expect(state.execution).toMatchObject({ deferredTurn: current, deferredAdmission: 'submitting' })
+
+    // The stop fences the in-flight send while the turn is parked behind the generation.
+    state = transitionAgentSessionRuntime(state, { type: 'turn-send-discarded', turn: current }).state
+    expect(state.execution).toMatchObject({ deferredTurn: current, deferredAdmission: 'pending' })
+
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-state', state: 'finished' }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-terminal', turn: receiveOnly, status: 'paused' }).state
+
+    // The restore must not resurrect the stale submission: the deferred prompt stays unadmitted,
+    // so the stopped generation's trailing success cannot settle it as an empty reply.
+    expect(state.execution).toEqual({ kind: 'turn', turn: current, stream: 'unopened', admission: 'pending' })
+    const foreign = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } })
+    expect(foreign.effects).toEqual([])
+    expect(foreign.state.execution).toEqual({ kind: 'turn', turn: current, stream: 'unopened', admission: 'pending' })
+  })
+
+  it('confirms a deferred submission that completed while parked behind the generation', () => {
+    const current = turn('user-1')
+    const receiveOnly = turn('wake')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' },
+      deferCurrentTurn: true
+    }).state
+
+    // The driver waited the generation out and pushed the prompt: the confirmation reaches the
+    // parked execution, so the restore must not re-send it.
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
+    expect(state.execution).toMatchObject({ deferredTurn: current, deferredAdmission: 'admitted' })
+
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-state', state: 'finished' }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-terminal', turn: receiveOnly, status: 'success' }).state
+    expect(state.execution).toMatchObject({ kind: 'turn', turn: current, admission: 'admitted' })
   })
 
   it('waits for stream persistence before a completed normal turn becomes terminal', () => {
     const current = turn('user-1')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
 
     const runtimeCompleted = transitionAgentSessionRuntime(state, {
       type: 'runtime-terminal',
@@ -389,6 +486,7 @@ describe('agentSessionRuntimeState', () => {
     const receiveOnly = turn('wake')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(admitted)
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: admitted }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: admitted }).state
     state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: admitted }).state
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
@@ -435,6 +533,7 @@ describe('agentSessionRuntimeState', () => {
     const current = turn('deferred')
     const reply = { type: 'text-delta', id: 'reply', delta: 'answer' } as const
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
     state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
     state = transitionAgentSessionRuntime(state, { type: 'buffer-chunk', chunk: reply }).state
     state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome }).state
@@ -461,6 +560,7 @@ describe('agentSessionRuntimeState', () => {
     const admitted = turn('user')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(admitted)
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: admitted }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: admitted }).state
     state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: admitted }).state
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
@@ -485,6 +585,7 @@ describe('agentSessionRuntimeState', () => {
     const receiveOnly = turn('wake')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(admitted)
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: admitted }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: admitted }).state
     state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: admitted }).state
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',

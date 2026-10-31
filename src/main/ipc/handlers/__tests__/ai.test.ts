@@ -537,7 +537,7 @@ describe('aiHandlers — streaming', () => {
       })
     )
 
-    const aborting = aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
+    const aborting = aiHandlers['ai.stream.abort']({ topicId: 't', stopId: 'stop-1' }, { senderId: null })
     let settled = false
     void aborting.then(() => {
       settled = true
@@ -545,11 +545,23 @@ describe('aiHandlers — streaming', () => {
     await Promise.resolve()
 
     expect(settled).toBe(false)
-    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested', undefined, 'stop-1')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
 
     finishDrain()
     await expect(aborting).resolves.toBeUndefined()
+  })
+
+  it('stream_abort forwards the Stop identity so a duplicate does not start a second drain', async () => {
+    await aiHandlers['ai.stream.abort']({ topicId: 't', stopId: 'stop-7' }, { senderId: null })
+
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested', undefined, 'stop-7')
+  })
+
+  it('stream_abort drains a Stop that carries no identity', async () => {
+    await aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
+
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested', undefined, undefined)
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {

@@ -5,7 +5,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import { IpcChatTransport } from '../IpcChatTransport'
+import { IpcChatTransport, beginUserStop, clearPendingUserStop } from '../IpcChatTransport'
 
 interface IpcMock {
   request: (route: string, input: unknown) => unknown
@@ -137,6 +137,9 @@ describe('IpcChatTransport', () => {
     ipcMock.request = mock.request
     ipcMock.on = mock.on
     transport = new IpcChatTransport()
+    // Drop a Stop id a previous test left unconsumed, so it cannot leak into the next test's
+    // assertion about which aborts carry an identity.
+    clearPendingUserStop(topicId)
   })
 
   const topicId = 'topic-1'
@@ -256,6 +259,39 @@ describe('IpcChatTransport', () => {
 
     expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
     expect(chunks).toHaveLength(1)
+  })
+
+  it('carries the pending Stop identity on the sdkStop twin abort', async () => {
+    // `sdkStop`'s signal is the second abort of one Stop. It must reach main under the Stop's own
+    // id so main recognises a duplicate instead of draining the resumed successor turn a second time.
+    beginUserStop(topicId, 'stop-9')
+    const abortController = new AbortController()
+    const stream = await transport.sendMessages({
+      ...baseOptions,
+      abortSignal: abortController.signal
+    })
+    const reader = stream.getReader()
+
+    abortController.abort()
+    await reader.read()
+
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId, stopId: 'stop-9' })
+  })
+
+  it('omits the Stop identity once the twin already consumed it', async () => {
+    beginUserStop(topicId, 'stop-10')
+    const first = new AbortController()
+    const firstStream = await transport.sendMessages({ ...baseOptions, abortSignal: first.signal })
+    first.abort()
+    await firstStream.getReader().read()
+
+    const second = new AbortController()
+    const secondStream = await transport.sendMessages({ ...baseOptions, abortSignal: second.signal })
+    second.abort()
+    await secondStream.getReader().read()
+
+    expect(mock.mockApi.streamAbort).toHaveBeenNthCalledWith(1, { topicId, stopId: 'stop-10' })
+    expect(mock.mockApi.streamAbort).toHaveBeenNthCalledWith(2, { topicId })
   })
 
   it('handles already-aborted signal', async () => {

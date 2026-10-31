@@ -11,7 +11,7 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { USER_STOP_ABORT_REASON, buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
@@ -152,8 +152,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
-  'ai.stream.abort': async ({ topicId }) => {
-    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
+  'ai.stream.abort': async ({ topicId, stopId }) => {
+    await application.get('AiStreamManager').abortAndDrain(topicId, USER_STOP_ABORT_REASON, undefined, stopId)
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──

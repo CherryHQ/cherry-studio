@@ -12,7 +12,7 @@ export type AgentSessionTerminalOutcome =
   | { status: 'error'; error?: unknown }
 
 export type AgentSessionRuntimeStreamPhase = 'unopened' | 'open' | 'awaiting-persistence' | 'settled'
-export type AgentSessionRuntimeAdmissionPhase = 'pending' | 'admitted'
+export type AgentSessionRuntimeAdmissionPhase = 'pending' | 'submitting' | 'admitted'
 
 export type AgentSessionRuntimeLaunchTarget = 'queued-turn' | 'steer-continuation' | 'receive-only' | 'deferred-turn'
 
@@ -131,7 +131,9 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'autonomous-turn-created'; turn: TTurn }
   | { type: 'continuation-turn-created'; turn: TTurn }
   | { type: 'turn-stream-opened'; turn: TTurn }
+  | { type: 'turn-submitting'; turn: TTurn }
   | { type: 'turn-admitted'; turn: TTurn }
+  | { type: 'turn-send-discarded'; turn: TTurn }
   | { type: 'buffer-chunk'; chunk: UIMessageChunk }
   | { type: 'runtime-terminal'; outcome: AgentSessionTerminalOutcome }
   | { type: 'flush-transition' }
@@ -389,13 +391,55 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       }
       return invalid(state, event)
     }
-    case 'turn-admitted':
+    case 'turn-submitting':
       if (state.execution.kind !== 'turn' || state.execution.turn !== event.turn) return invalid(state, event)
-      if (state.execution.admission === 'admitted') return { state, effects: [] }
+      if (state.execution.admission !== 'pending') return { state, effects: [] }
       return {
-        state: { ...state, execution: { ...state.execution, admission: 'admitted' } },
+        state: { ...state, execution: { ...state.execution, admission: 'submitting' } },
         effects: []
       }
+    case 'turn-admitted':
+      // Admission is earned by a confirmed submission: the driver reported the prompt as handed to
+      // the runtime, so only a `submitting` phase can upgrade.
+      if (state.execution.kind === 'turn' && state.execution.turn === event.turn) {
+        if (state.execution.admission !== 'submitting') return invalid(state, event)
+        return {
+          state: { ...state, execution: { ...state.execution, admission: 'admitted' } },
+          effects: []
+        }
+      }
+      if (
+        state.execution.kind === 'autonomous-turn' &&
+        state.execution.deferredTurn === event.turn &&
+        state.execution.deferredAdmission === 'submitting'
+      ) {
+        return {
+          state: { ...state, execution: { ...state.execution, deferredAdmission: 'admitted' } },
+          effects: []
+        }
+      }
+      return invalid(state, event)
+    case 'turn-send-discarded':
+      // A stop fence invalidated the submission mid-preparation: the prompt never reached the
+      // runtime, so it returns to `pending` and stays eligible for a later admission.
+      if (state.execution.kind === 'turn' && state.execution.turn === event.turn) {
+        if (state.execution.admission !== 'submitting') return { state, effects: [] }
+        return {
+          state: { ...state, execution: { ...state.execution, admission: 'pending' } },
+          effects: []
+        }
+      }
+      if (
+        state.execution.kind === 'autonomous-turn' &&
+        state.execution.deferredTurn === event.turn &&
+        state.execution.deferredAdmission === 'submitting'
+      ) {
+        return {
+          state: { ...state, execution: { ...state.execution, deferredAdmission: 'pending' } },
+          effects: []
+        }
+      }
+      return { state, effects: [] }
     case 'buffer-chunk': {
       const execution = state.execution
       // An admitted turn the runtime resumed before its relaunched stream opened.
@@ -438,6 +482,11 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
     case 'runtime-terminal': {
       const execution = state.execution
       if (execution.kind === 'turn') {
+        // An unconfirmed prompt owns no success: a result landing before admission belongs to
+        // another generation on the connection. Paused/error still settle it (stop/failure paths).
+        if (event.outcome.status === 'success' && execution.admission !== 'admitted') {
+          return { state, effects: [] }
+        }
         if (
           event.outcome.status === 'success' &&
           hasAgentSessionRuntimePendingReply(state) &&
@@ -825,12 +874,16 @@ export function isAgentSessionRuntimeAutonomous<TTurn, TPendingTurn, TReservatio
   return state.execution.kind === 'autonomous-turn' && state.execution.ownership === 'active'
 }
 
+/**
+ * Whether the turn's prompt has been (or is being) handed to the runtime: a `submitting` phase
+ * counts, so an in-flight send is never re-sent and its connection stays exempt from reconcile.
+ */
 export function isAgentSessionRuntimeTurnAdmitted<TTurn, TPendingTurn, TReservation>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>,
   turn: TTurn
 ): boolean {
   const execution = state.execution
-  if (execution.kind === 'turn') return execution.turn === turn && execution.admission === 'admitted'
+  if (execution.kind === 'turn') return execution.turn === turn && execution.admission !== 'pending'
   if (execution.kind === 'steer-transition') {
     return execution.sourceTurn === turn || execution.continuationTurn === turn
   }

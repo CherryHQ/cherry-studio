@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { beginUserStop, ipcChatTransport } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
@@ -68,7 +68,11 @@ export function useChatWithHistory(
   })
 
   const stop = useCallback(async () => {
-    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId }) : Promise.resolve()
+    // One Stop sends two aborts: the explicit one here and `sdkStop`'s transport signal. They must
+    // reach main under one identity so it can tell the duplicate from a Stop for a later turn.
+    const stopId = crypto.randomUUID()
+    beginUserStop(topicId, stopId)
+    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId, stopId }) : Promise.resolve()
     const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
     if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
     if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason

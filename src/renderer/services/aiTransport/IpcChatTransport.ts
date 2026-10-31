@@ -2,13 +2,40 @@ import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
+import {
+  type AiChatRequestBody,
+  type AiStreamAbortRequest,
+  type AiStreamOpenRequest,
+  type StreamChunkPayload
+} from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
+
+/**
+ * The user Stop each topic is currently delivering, so `sdkStop`'s abort twin reaches main under the
+ * same identity as the Stop's explicit abort. `useChatWithHistory.stop()` mints the id and registers
+ * it here before calling `sdkStop()`; the transport consumes it when the twin fires.
+ */
+const pendingStopIds = new Map<string, string>()
+
+/** Registers the Stop id whose `sdkStop` twin is about to fire, replacing any earlier one. */
+export function beginUserStop(topicId: string, stopId: string): void {
+  pendingStopIds.set(topicId, stopId)
+}
+
+/** The Stop id awaiting its twin, without consuming it. */
+export function peekPendingStopId(topicId: string): string | undefined {
+  return pendingStopIds.get(topicId)
+}
+
+/** Drops a registered Stop id that no twin consumed. */
+export function clearPendingUserStop(topicId: string): void {
+  pendingStopIds.delete(topicId)
+}
 
 /** Single execution terminated while other executions on the topic are still streaming. */
 export function isPerExecutionOnly(data: { executionId?: UniqueModelId; isTopicDone?: boolean }): boolean {
@@ -197,9 +224,17 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         )
 
         if (abortSignal) {
+          // `sdkStop`'s transport twin of the user's Stop: it joins the Stop's own identity so main
+          // recognises a duplicate instead of starting a second drain for the resumed successor.
+          const abortRequest = (): AiStreamAbortRequest => {
+            const stopId = pendingStopIds.get(topicId)
+            if (stopId === undefined) return { topicId }
+            pendingStopIds.delete(topicId)
+            return { topicId, stopId }
+          }
           if (abortSignal.aborted) {
             ipcApi
-              .request('ai.stream.abort', { topicId })
+              .request('ai.stream.abort', abortRequest())
               .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
             return
@@ -208,7 +243,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           const onAbort = () => {
             logger.info('Stream abort requested', { topicId })
             ipcApi
-              .request('ai.stream.abort', { topicId })
+              .request('ai.stream.abort', abortRequest())
               .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
           }
