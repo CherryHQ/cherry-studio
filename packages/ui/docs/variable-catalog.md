@@ -61,9 +61,9 @@ Component, page, and Electron-shell custom properties are a separate ownership c
 The migration registry's historical `--app-*` entries are retired semantic bridges, not a namespace-wide ban on
 genuine host-local variables.
 
-The Renderer Sidebar's hover and active-row custom properties are scoped by
-`src/renderer/components/Sidebar/Sidebar.css`. They remain private implementation details even though the Sidebar
-appears throughout the main App Shell; visual reach through one owner does not make them cross-package semantics.
+The App Shell's Sidebar and title-bar tabs share navigation states scoped by
+`src/renderer/components/layout/ShellNavigation.css`. These host-local custom properties remain private to the
+renderer; they are not cross-package semantics or generated Tailwind tokens.
 
 ## 4. Official Shadcn variables
 

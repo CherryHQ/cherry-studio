@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   dbWithWriteTx: vi.fn(),
+  relocateSystemWorkspaces: vi.fn<() => Promise<Set<string>>>(),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -94,6 +95,10 @@ vi.mock('../fork/resources', async (importOriginal) => ({
   readForkResources: forkRecoveryMocks.journals,
   writeForkResources: forkRecoveryMocks.writeJournal,
   removeForkResources: forkRecoveryMocks.removeJournal
+}))
+
+vi.mock('../relocateSystemWorkspaces', () => ({
+  relocateSystemWorkspaces: mocks.relocateSystemWorkspaces
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -521,6 +526,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.awaitToolSettled.mockResolvedValue(true)
     mocks.dbWithWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn({}))
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.relocateSystemWorkspaces.mockReset().mockResolvedValue(new Set())
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
@@ -2957,7 +2963,8 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it('resolves crash-orphaned pending rows with terminalized parts and invalidates their sessions', async () => {
+    it.each([false, true])('recovers crashed sessions (relocation blocked: %s)', async (blocked) => {
+      mocks.relocateSystemWorkspaces.mockResolvedValueOnce(new Set(blocked ? ['session-b'] : []))
       mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
         {
           id: 'stale-1',
@@ -2994,9 +3001,9 @@ describe('AgentSessionRuntimeService', () => {
             }
           },
           { id: 'stale-2', data: { parts: [] } },
-          { id: 'stale-3', data: { parts: [] } }
+          ...(blocked ? [] : [{ id: 'stale-3', data: { parts: [] } }])
         ],
-        ['session-a', 'session-b']
+        blocked ? ['session-a'] : ['session-a', 'session-b']
       )
     })
 

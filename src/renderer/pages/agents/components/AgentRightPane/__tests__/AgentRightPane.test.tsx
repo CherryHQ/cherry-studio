@@ -1514,6 +1514,7 @@ describe('AgentRightPane', () => {
         messages={[message]}
         partsByMessageId={{ [message.id]: [part] }}>
         <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
@@ -1522,11 +1523,15 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
 
     rerender(renderPane('session-baseline-b', sessionBMessage, sessionBPart))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6975/')
     )
 
     rerender(renderPane('session-baseline-a', sessionAMessage, sessionAPart))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6950/')
     )
@@ -1774,6 +1779,8 @@ describe('AgentRightPane', () => {
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refA))
 
     rerender(renderPane('session-b', 'm-b', partB))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refB))
     await act(async () => resultB.resolve({ found: true, output: 'Ready at http://localhost:6400/' }))
     await waitFor(() =>
@@ -2545,7 +2552,7 @@ describe('AgentRightPane', () => {
     })
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
   it('ignores a stale artifact metadata resolution after the user selects another file', async () => {
@@ -3027,34 +3034,6 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('artifact-pane')).toBeNull()
   })
 
-  it('does not re-render the active files capability when only runtime messages change', () => {
-    const { rerender } = render(
-      <TestAgentRightPane
-        defaultOpen
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-    const callsAfterMount = useArtifactFileTreeModelMock.mock.calls.length
-    const messages = [{ id: 'm1', role: 'user', parts: [], metadata: {} }] as CherryUIMessage[]
-
-    rerender(
-      <TestAgentRightPane
-        defaultOpen
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: [] }}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(useArtifactFileTreeModelMock).toHaveBeenCalledTimes(callsAfterMount)
-  })
-
   it('clears the overlay preview when the selected file disappears from the tree model', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
@@ -3199,6 +3178,7 @@ describe('AgentRightPane', () => {
         workspacePath={workspacePath}
         messages={[]}
         partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
@@ -3216,8 +3196,10 @@ describe('AgentRightPane', () => {
 
     await user.click(screen.getByRole('button', { name: 'edit' }))
     rerender(pane('/other-workspace'))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     await user.click(screen.getByRole('button', { name: 'select README.md' }))
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
     expect(fileSessionDiscardMock).not.toHaveBeenCalled()

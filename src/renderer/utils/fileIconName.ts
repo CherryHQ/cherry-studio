@@ -115,6 +115,8 @@ const extensionMap: Record<string, string> = {
   // Markup / Docs
   md: 'markdown',
   mdx: 'mdx',
+  mmd: 'mermaid',
+  mermaid: 'mermaid',
   rst: 'readme',
   txt: 'document',
   pdf: 'pdf',

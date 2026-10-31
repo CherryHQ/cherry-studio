@@ -1,17 +1,28 @@
-// Kept apart from presets.ts: `@streamdown/mermaid` statically imports mermaid and is not
-// tree-shakeable, so any consumer of the default presets would otherwise bundle it eagerly.
-import { mermaid } from '@streamdown/mermaid'
+// Kept apart from presets.ts so consumers of the default presets never reference the Merman runtime;
+// the WASM itself loads only when the first diagram renders.
 import type { PluginConfig } from 'streamdown'
 
+import { renderMermaidSvg } from '../../../lib/mermaid/runtime'
+import { resolveMermaidTheme } from '../../../lib/mermaid/theme'
 import { defaultMarkdownPlugins, withMath } from './presets'
 
 export interface WithFullMarkdownOptions {
   singleDollarMath?: boolean
 }
 
-/** Mermaid diagram plugin. Heavy — only import where actually rendered. */
+/** Mermaid diagram plugin backed by Merman, themed from the document's design tokens at render time. */
 export function withMermaid(): PluginConfig['mermaid'] {
-  return mermaid
+  return {
+    name: 'mermaid',
+    type: 'diagram',
+    language: 'mermaid',
+    getMermaid: () => ({
+      initialize: () => {},
+      render: async (id, source) => ({
+        svg: await renderMermaidSvg(source, { diagramId: id, theme: resolveMermaidTheme(document.documentElement) })
+      })
+    })
+  }
 }
 
 /**

@@ -49,6 +49,16 @@ A snapshot obtains live mise data with one `mise ls --json` query and reports a 
 
 Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The custom registry, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and drive update/uninstall/repair from `application`, never from `availability` alone.
 
+### Installed file sizes
+
+The full Environment Dependencies view accepts and renders snapshots before requesting `binary.get_tool_installed_sizes` for preset names and the custom cards it actually displays. Mini mode and boot do not request sizes. This separate batch returns only requested names mapped to bytes or null; pending, null and rejected requests add no badge, placeholder or error UI and do not change installation operations. Availability events and refresh start immediately discard old size responses.
+
+Sizes are the sum of ordinary files' logical `lstat.size` bytes, not allocated disk space or reclaimable space. Bundled tools count only their own executable (`uv` excludes `uvx`). Applied mise tools require one unique active backend entry with an absolute `install_path`, canonicalized under Cherry's `feature.binary.data` at `installs/<tool-directory>/<installation>`, with the runnable canonical inside the same root. Backend aliases can resolve during attribution; traversal never follows child symlinks or junctions. Missing versions do not prevent a measurement when root ownership is proven. System, absent, core Rust and unprovable installations remain blank; Rust's isolated homes include more than a single current installation.
+
+The size method reads current snapshots and, for mise candidates, one additional batch listing: at most two `mise ls --json` calls per size request. Scans are iterative and streaming, with sequential I/O per item and a service-wide semaphore of two across batches/windows. Each scan counts its root and every child toward a 100,000-node limit and has a 3,000 ms soft budget starting in its scan slot. Budget, I/O or root-type failures discard the entire sum; an empty real directory is zero. A pending OS call cannot be interrupted by this budget; backend queries, attribution and queue waiting are outside it.
+
+Main's internal Cache key `feature.binary.installed_sizes` holds per-name source/recipe/observed-version/root identity and expiry. Successful results, including zero, last 300,000 ms; unmeasurable null results last 30,000 ms. Identity changes bypass old entries. Concurrent merges preserve other entries and their original expiry. Mutations and service stop invalidate the revision and cache; busy, stale or shutdown results are not cached. Scans never hold the mutation mutex, and a final batch validity check prevents earlier completed siblings from escaping a later mutation. External file changes without an availability event appear on a subsequent request after expiry or identity change, not automatically on a static page.
+
 ### Application and action matrix
 
 `availability` authorizes execution; `application` authorizes backend mutation. System and bundled executables are external to BinaryManager and are never updated or removed.

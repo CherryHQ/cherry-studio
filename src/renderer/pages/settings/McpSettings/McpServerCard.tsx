@@ -244,8 +244,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
               variant="ghost"
               size="icon-sm"
               className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
-              onClick={handleOpenUrl}
-              data-no-dnd>
+              onClick={handleOpenUrl}>
               <ExternalLink size={13} />
             </Button>
           )}
@@ -259,7 +258,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             size="xs"
             className="shadow-none data-[state=checked]:bg-success"
             onCheckedChange={handleToggleActive}
-            data-no-dnd
           />
         </ToolbarWrapper>
       </CardContainer>

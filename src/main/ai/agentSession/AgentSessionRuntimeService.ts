@@ -117,6 +117,7 @@ import {
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
+import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import {
   agentPermissionEditEpoch,
   clearSessionEffectivePermissionMode,
@@ -523,6 +524,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
+    const blockedSessions = await relocateSystemWorkspaces()
     await this.forks.recover()
 
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
@@ -530,7 +532,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
-    this.reconcileStalePendingMessages()
+    this.reconcileStalePendingMessages(blockedSessions)
     recoverSessionDeliveries()
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
 
@@ -565,9 +567,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private reconcileStalePendingMessages(): void {
+  private reconcileStalePendingMessages(protectedSessions = new Set<string>()): void {
     try {
-      const stale = agentSessionMessageService.findCrashOrphanedAssistantMessages()
+      const stale = agentSessionMessageService
+        .findCrashOrphanedAssistantMessages()
+        .filter((row) => !protectedSessions.has(row.sessionId))
       if (stale.length === 0) return
       const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
       logger.info('Reconciling crash-orphaned pending agent-session messages', {

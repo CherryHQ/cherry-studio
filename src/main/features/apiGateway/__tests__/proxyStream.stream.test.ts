@@ -1,4 +1,5 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { UIMessageChunk } from 'ai'
 import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -88,7 +89,10 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
-      transformChunk: (chunk: unknown) => [chunk],
+      transformChunk: (chunk: UIMessageChunk) => {
+        if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
+        return [chunk]
+      },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
     }),
@@ -754,6 +758,44 @@ describe('processMessage (streaming)', () => {
 })
 
 describe('processMessage (error & pause)', () => {
+  it.each(['before-commit', 'after-commit', 'non-streaming'])(
+    'terminates adapter failures without returning a callable tool or success: %s',
+    async (mode) => {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream: mode !== 'non-streaming', messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      const settled = response.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error })
+      )
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      if (mode === 'after-commit') commit(listener)
+      listener.onChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad',
+        toolName: 'read',
+        input: null,
+        errorText: 'Invalid tool arguments'
+      })
+      listener.onChunk({ type: 'tool-input-available', toolCallId: 'late', toolName: 'read', input: {} })
+      await listener.onDone({} as any)
+      const result = await settled
+      if (mode === 'after-commit') {
+        if (!('value' in result)) throw new Error('Committed response rejected')
+        const body = await readAll(result.value.body)
+        expect(body).toContain('"error"')
+        expect(body).not.toContain('[DONE]')
+        expect(body).not.toContain('tool-input-available')
+      } else {
+        expect(result).toEqual({ error: new Error('Invalid tool arguments') })
+      }
+      expect(listener.isAlive?.()).toBe(false)
+    }
+  )
+
   it('rejects the original provider error before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
     const error = { name: 'AI_APICallError', message: 'Provider rejected the request', stack: null, statusCode: 400 }

@@ -71,7 +71,7 @@ export class MainWindowService extends BaseService {
 
   constructor() {
     super()
-    this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
+    this._onMainWindowCreated = new Emitter<BrowserWindow>()
     this.onMainWindowCreated = (listener) => {
       const disposable = this._onMainWindowCreated.event(listener)
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -175,6 +175,10 @@ export class MainWindowService extends BaseService {
     void installDevtoolsExtensions()
 
     this.openMainWindow()
+  }
+
+  protected async onDestroy() {
+    this._onMainWindowCreated.dispose()
   }
 
   private requireMainWindow(): BrowserWindow {

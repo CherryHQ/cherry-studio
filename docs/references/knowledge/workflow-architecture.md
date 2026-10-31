@@ -82,38 +82,39 @@ Registered job types:
 - `knowledge.copy-sources`: stream an added item's source bytes into temp files beside its reserved `raw/` names off the lock, then under the lock confirm the item is live and commit the renames, then call `scheduleItem`. A failed copy fails only that item; a delete that lands mid-copy discards the temp files.
 - `knowledge.prepare-root`: pin the container's `raw/` prefix under the lock, scan and copy the tree off it, create the child rows under it, and schedule each child.
 - `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
-- `knowledge.delete-subtree`: cancel active subtree jobs and the FileProcessing jobs its items wait on, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
+- `knowledge.delete-subtree`: cancel active subtree jobs and the FileProcessing tasks its items wait on, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
 - `knowledge.reindex-subtree`: for terminal subtrees only, activate the selected roots under the lock, re-acquire their bytes off it (an active root is invisible to search, so its old index is never served against new bytes), then under the lock again delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
 
-- `knowledge.check-file-processing-result`: inspect the settled FileProcessing job, record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
+- `knowledge.check-file-processing-result`: read the settled FileProcessing task (`getTask`), record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
 
-`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result` once that job settles, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
+`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result` once that task settles, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
 
-Nothing polls while the file is processed. `scheduleItem` waits on the FileProcessing
-job's `JobHandle.finished` and enqueues one `check-file-processing-result` when it
-settles. Until then the item is registered in `FileProcessingWaitManager`, which three
-readers use:
+Nothing polls while the file is processed. `scheduleItem` starts the conversion with
+`FileProcessingService.startTask`, waits on the task's `done`, and enqueues one
+`check-file-processing-result` when it settles. A direct add has no parent job, so the check
+job's own id scopes the indexing idempotency key. Until then the item is registered in
+`FileProcessingWaitManager`, which three readers use:
 
-- `KnowledgeService` copies each job's progress onto
-  `knowledge.item.file_processing_progress.${itemId}` every 5 seconds, writing only
-  values that changed, and the entry's removal clears it;
-- delete, replace, and base deletion cancel the FileProcessing jobs of the items they
-  remove. They read the registry only after their knowledge-job cancels settle,
+- `KnowledgeService` listens to `FileProcessingService.onDidChangeTask` and copies a
+  processing task's progress onto `knowledge.item.file_processing_progress.${itemId}`,
+  writing only values that changed, and the entry's removal clears it;
+- delete, replace, and base deletion cancel (`cancelTask`) the FileProcessing tasks of the
+  items they remove. They read the registry only after their knowledge-job cancels settle,
   because a copy job cancelled after its commit still starts file processing;
 - a failed `reindex-subtree` does not fail a root that is still waiting, just as it
   spares a root with an active follow-up job.
 
-Knowledge sets no wait limit of its own: the FileProcessing handlers' timeouts (15
-minutes for background jobs, 30 for remote polling) bound a running job, and a queued
-job waits as long as the queue ahead of it. The registry lives in memory, like
-`finished`; after a restart no item is waiting, and boot recovery fails the items left
+Knowledge sets no wait limit of its own: FileProcessing's timeouts (15 minutes for
+background conversions, 30 for remote polling) bound a running task, and a queued task
+waits as long as the queue ahead of it. The registry lives in memory, like `done`; after
+a restart no item is waiting, and boot recovery fails the items left
 in `processing`. On success the output's relative path is recorded via
 `updateIndexedRelativePath`, then `index-documents` is scheduled.
 
-Knowledge starts these FileProcessing jobs with `recovery: 'abandon'`. Boot recovery fails an
-interrupted item (`recoverInterruptedItems`), so its conversion is cancelled at startup instead of
-resuming into a result nothing reads, and cannot later overwrite the markdown of a same-named
-replacement.
+No FileProcessing task survives a restart: FileProcessing cancels the tasks the previous launch
+left unfinished. Boot recovery fails the interrupted item (`recoverInterruptedItems`), and because
+its conversion was cancelled instead of resumed into a result nothing reads, it cannot later
+overwrite the markdown of a same-named replacement.
 
 ## Mutation And Crash Semantics
 

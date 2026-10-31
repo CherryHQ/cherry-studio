@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import type { IpcMainInvokeEvent } from 'electron'
@@ -66,6 +66,16 @@ describe('isAppRendererUrl', () => {
 
   it('rejects a file:// path that merely shares a prefix with the app root', () => {
     expect(isAppRendererUrl(pathToFileURL(join(`${APP_ROOT}-evil`, 'index.html')).href, null, APP_ROOT)).toBe(false)
+  })
+
+  // Windows compares paths case-insensitively, matching default NTFS where the variant is the same directory.
+  it.skipIf(process.platform === 'win32')('rejects a page under a sibling whose name differs only in case', () => {
+    const caseVariantRoot = join(dirname(APP_ROOT), basename(APP_ROOT).toUpperCase())
+    expect(isAppRendererUrl(pathToFileURL(join(caseVariantRoot, 'index.html')).href, null, APP_ROOT)).toBe(false)
+  })
+
+  it('trusts a page under a child of the app root whose name starts with `..`', () => {
+    expect(isAppRendererUrl(appFileUrl('..x', 'index.html'), null, APP_ROOT)).toBe(true)
   })
 
   it('rejects file:// urls with percent-encoded path separators (encoded-traversal attempt)', () => {

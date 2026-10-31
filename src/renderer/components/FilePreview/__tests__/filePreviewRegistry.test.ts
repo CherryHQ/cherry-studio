@@ -192,7 +192,16 @@ describe('file preview registry', () => {
 
 describe('hasRenderedFilePreview', () => {
   it('treats rendered formats as preview-only and plain text as editable', () => {
-    for (const path of ['/w/README.md', '/w/page.html', '/w/logo.svg', '/w/photo.png', '/w/spec.pdf', '/w/clip.mp4']) {
+    for (const path of [
+      '/w/README.md',
+      '/w/page.html',
+      '/w/logo.svg',
+      '/w/photo.png',
+      '/w/spec.pdf',
+      '/w/clip.mp4',
+      '/w/flow.mmd',
+      '/w/flow.mermaid'
+    ]) {
       expect(hasRenderedFilePreview(path)).toBe(true)
     }
     for (const path of ['/w/main.ts', '/w/notes.txt', '/w/config.json', '/w/Makefile']) {

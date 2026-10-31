@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT } from '../../../types'
 
-const { cancelMock, listMock, knowledgeItemGetSubtreeItemsMock } = vi.hoisted(() => ({
+const { cancelMock, cancelTaskMock, listMock, knowledgeItemGetSubtreeItemsMock } = vi.hoisted(() => ({
   cancelMock: vi.fn(),
+  cancelTaskMock: vi.fn(),
   listMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn()
 }))
@@ -14,11 +16,14 @@ const { cancelMock, listMock, knowledgeItemGetSubtreeItemsMock } = vi.hoisted(()
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    FileProcessingService: {
+      cancelTask: cancelTaskMock
+    },
     JobManager: {
       cancel: cancelMock,
       list: listMock
     }
-  })
+  } as Parameters<typeof mockApplicationFactory>[0])
 })
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
@@ -31,6 +36,10 @@ const { cancelActiveKnowledgeJobs } = await import('../cancel')
 const { FileProcessingWaitManager } = await import('../../../ingestion/FileProcessingWaitManager')
 
 type JobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
+
+function taskId(id: string): FileProcessingTaskId {
+  return id as FileProcessingTaskId
+}
 
 function createJobSnapshot(overrides: JobSnapshotInput): JobSnapshot {
   return {
@@ -78,6 +87,7 @@ describe('cancelActiveKnowledgeJobs', () => {
   beforeEach(() => {
     fileProcessingWaits = new FileProcessingWaitManager()
     cancelMock.mockReset().mockResolvedValue({ outcome: 'cancelled' })
+    cancelTaskMock.mockReset().mockResolvedValue('cancelled')
     listMock.mockReset().mockResolvedValue([])
     knowledgeItemGetSubtreeItemsMock.mockReset()
   })
@@ -90,15 +100,15 @@ describe('cancelActiveKnowledgeJobs', () => {
         input: { baseId: 'kb-1', itemId: 'dir-1' }
       })
     ])
-    fileProcessingWaits.add('kb-1', 'file-1', 'fp-job-1')
-    fileProcessingWaits.add('kb-2', 'file-9', 'fp-job-other-base')
+    fileProcessingWaits.add('kb-1', 'file-1', taskId('fp-task-1'))
+    fileProcessingWaits.add('kb-2', 'file-9', taskId('fp-task-other-base'))
 
     await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed', fileProcessingWaits })
 
     expect(knowledgeItemGetSubtreeItemsMock).not.toHaveBeenCalled()
     expect(cancelMock).toHaveBeenCalledWith('prepare-job', 'delete-base')
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'delete-base')
-    expect(cancelMock).not.toHaveBeenCalledWith('fp-job-other-base', expect.anything())
+    expect(cancelTaskMock).toHaveBeenCalledWith('fp-task-1', 'delete-base')
+    expect(cancelTaskMock).not.toHaveBeenCalledWith('fp-task-other-base', expect.anything())
   })
 
   it('cancels the copy of an item that is deleted while its bytes are still copying', async () => {
@@ -133,7 +143,7 @@ describe('cancelActiveKnowledgeJobs', () => {
     // The copy had already committed, so it hands the file to processing before it stops.
     cancelMock.mockImplementation(async (jobId: string) => {
       if (jobId === 'copy-file-1') {
-        fileProcessingWaits.add('kb-1', 'file-1', 'fp-job-1')
+        fileProcessingWaits.add('kb-1', 'file-1', taskId('fp-task-1'))
       }
       return { outcome: 'cancelled' }
     })
@@ -144,7 +154,7 @@ describe('cancelActiveKnowledgeJobs', () => {
       fileProcessingWaits
     })
 
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
+    expect(cancelTaskMock).toHaveBeenCalledWith('fp-task-1', 'knowledge-delete-subtree')
   })
 
   it('returns without listing jobs when the requested subtree resolves empty', async () => {
@@ -242,6 +252,20 @@ describe('cancelActiveKnowledgeJobs', () => {
         fileProcessingWaits
       })
     ).rejects.toThrow('Job cancel timed out: index-job')
+  })
+
+  it('throws when a scoped file-processing cancel times out, so the purge waits for the conversion', async () => {
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('file-1')])
+    fileProcessingWaits.add('kb-1', 'file-1', taskId('fp-task-1'))
+    cancelTaskMock.mockResolvedValue('timed-out')
+
+    await expect(
+      cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
+        rootItemIds: ['file-1'],
+        onCancelTimeout: 'throw',
+        fileProcessingWaits
+      })
+    ).rejects.toThrow('File processing task cancel timed out: fp-task-1')
   })
 
   it('does not throw on a cancel timeout when proceeding base-wide', async () => {
