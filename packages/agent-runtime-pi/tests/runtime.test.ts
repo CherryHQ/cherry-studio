@@ -6,7 +6,6 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
   fauxProvider,
-  fauxToolCall,
   InMemoryCredentialStore,
   Type,
   type FauxResponseStep
@@ -128,6 +127,7 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
               commands++
             }
           })
+          pi.on('input', (event) => (event.text === 'handled' ? { action: 'handled' } : undefined))
         }
       ]
     })
@@ -140,6 +140,11 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     facts: ['locally-handled']
   })
   expect(commands).toBe(1)
+  expect(await handle.input.submit(input('handled'))).toMatchObject({
+    status: 'acknowledged',
+    facts: ['locally-handled']
+  })
+  expect(await handle.pi.compact()).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(await handle.input.submit(input('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(manager.buildSessionContext().messages.filter((message) => message.role === 'user')).toHaveLength(1)
   expect(await handle.input.submit(input('later', 'follow-up'))).toMatchObject({
@@ -156,6 +161,14 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     outcome: 'aborted',
     response: { session: handle.thread }
   })
+  expect(handle.pi.cancelQueuedInputs()).toEqual({ status: 'confirmed', value: ['later'] })
+  const after = await observe(handle)
+  await expect
+    .poll(() => after[0])
+    .toMatchObject({
+      type: 'snapshot',
+      inputs: expect.arrayContaining([{ inputId: 'later', facts: ['queued'], outcome: 'aborted' }])
+    })
 })
 
 it('rejects a loader returning a different native identity', async () => {
@@ -710,9 +723,9 @@ it('binds a child launched during session initialization to its ready parent', a
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   expect(JSON.stringify(snapshot.messages)).toContain('child report')
   expect(JSON.stringify(snapshot.messages)).not.toContain('before initialization')
-  expect(snapshot.delegations).toHaveLength(1)
-  const delegation = snapshot.delegations?.[0]
-  if (!delegation) throw new Error('Missing child delegation')
+  expect(snapshot.subagents).toHaveLength(1)
+  const delegation = snapshot.subagents?.[0]
+  if (!delegation?.child) throw new Error('Missing child thread')
   const child = confirmed(await runtime.open(delegation.child))
   expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
 })

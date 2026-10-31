@@ -14,8 +14,8 @@ sources:
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
   - src/shared/ai/piBuiltinTools.ts
-  - patches/@sting8k__pi-vcc@0.8.1.patch
-  - scripts/piVccBundle.ts
+  - packages/agent-behavior/src
+  - packages/agent-runtime-pi/src
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
@@ -52,7 +52,7 @@ driver internals behind the same host contract.
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
-| Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
+| Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
 
 ## Heartbeat execution deadline
@@ -199,7 +199,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    next tool runs). The message is folded into the current turn — no new
    turn, no queue entry. If the turn ends before the steer is injected
    (it called no tool after the steer arrived), the connection emits
-   `steer-undelivered` and the host queues it as the next turn.
+   `steer-undelivered` and the host queues it as the next turn. Pi consumes its own
+   queue: unplaced inputs remaining after stop/error become aborted submission
+   facts and are not automatically resent.
 2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
    appends the message to the session entry's `pendingTurns` (recording its id in
    `steerMessageIds` so the next turn wraps it in a steer system-reminder)
@@ -541,6 +543,14 @@ native identity and resolves through its branch binding, without falling back to
 the shared prefix's original context. Confirmed native progress records the
 binding's native identity and published message head.
 
+For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
+Main records submission facts privately on the existing user message; final response persistence
+commits response associations in the same transaction. Observation snapshots establish the live
+projection baseline and never replace or replay the product archive. Lost observations fail closed.
+A bound or previously submitted context requires exactly one existing native file with the expected
+ID. A missing or ambiguous file is an error, not permission to recreate from display history.
+Only a never-submitted intent can stay unflushed; its resume token is published after native persistence.
+
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
@@ -688,8 +698,8 @@ Allowed in v1:
   These files are a **connection-lifetime snapshot**: editing them deliberately
   does not invalidate a warm connection or its provider prompt cache. Changes
   apply when that connection is naturally rebuilt or the session is reopened.
-- Inline Cherry-owned extensions required for the integration: provider
-  injection and tool approval/policy enforcement.
+- A native Pi provider bound to the internal gateway for model requests, plus inline Cherry-owned
+  extensions for tool approval/policy enforcement.
 - The complete runtime-neutral result of `buildAgentMcpServers()` — Cherry
   knowledge, memory, skills, assistant/autonomy tools, plus the agent's selected
   MCP servers — converted uniformly to pi `customTools` through an in-memory MCP
@@ -764,11 +774,11 @@ user directory exists, preventing missing system directories from aborting start
 
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
-the runtime from that captured provider, model, enabled-key set, skill paths,
+the runtime from that captured provider, model, skill paths,
 MCP rows, and linked channel, then captures those facts again before publishing
 the connection.
-If the signatures differ, startup fails closed and cleans up the connection's
-generation-scoped provider registration. Prompt-file content is deliberately
+If the signatures differ, startup fails closed before publishing the connection.
+The internal gateway resolves upstream credentials for each native Pi request through Cherry's provider path. Prompt-file content is deliberately
 outside this signature because it follows the connection-lifetime cache
 contract above.
 
@@ -782,94 +792,43 @@ after any applicable live tightening has landed.
 
 ### Pi conversation compaction
 
-Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
-Users do not need to install the npm package or enable disk extension discovery.
-The main-process build compiles the extension into `out/main/pi-vcc.mjs`.
-`loadPiVccExtension` imports that ESM bundle and registers it through
-`DefaultResourceLoader.extensionFactories`; `noExtensions` remains enabled to
-prevent discovery of unrelated executable extensions. The source package is a
-build-time dependency; no TypeScript extension sources ship in `node_modules`.
-The separate ESM bundle preserves Pi SDK's import-only entry point while
-Cherry's main bundle remains CommonJS.
+The desktop Pi connection installs `agent-behavior` through the Runtime adapter.
+The shared context handlers request a summary from `piBehaviorHost.ts`, which makes
+one native model request through Cherry's gateway without starting another agent
+loop. Automatic compaction and `/compact` use this same path; text following
+`/compact` becomes summary instructions, never another user turn. An empty or
+failed summary cancels compaction without a second native fallback.
 
-#### User-visible behavior
+Pi retains its native JSONL history and writes the compaction boundary. Product
+messages remain a display projection. The shared `vcc_recall` tool searches the
+current conversation history, including after reopening; it cannot select an
+arbitrary session file. Recall is allowed as a metadata tool, unless explicitly
+disabled. Disabling recall does not disable compaction.
 
-With the default pi-vcc configuration, compaction works as follows:
+The previous pi-vcc dependency, patch, ESM bundle and configuration override are
+removed. There is no `/pi-vcc` command or separate compaction toggle. Tests in
+`PiRuntimeConnection.test.ts` cover instruction forwarding and product input
+boundaries, while the package behavior tests cover declined summaries and
+reopening native compaction history. Electron acceptance is checked separately.
 
-| Input | Compaction behavior |
-|---|---|
-| Automatic compaction or bare `/compact` | pi-vcc extracts transcript content algorithmically instead of asking an LLM to generate a summary. |
-| `/compact Focus on the API decisions` | Pi's native LLM summarizer receives `Focus on the API decisions` as summary instructions. |
-| `/compact keep:3` | Pi's native LLM summarizer receives `keep:3` as summary instructions; this does not select pi-vcc's keep-three-turns behavior. |
-| `/pi-vcc` or `/pi-vcc-recall` | These extension commands are not registered in Cherry. Use `/compact` to compact; the model can call `vcc_recall` to retrieve history. |
+### Pi behavior host
 
-Compaction reduces the model's active context; it does not erase the persisted
-session transcript. The `vcc_recall` tool searches the current session's raw
-JSONL history, so the model can retrieve details omitted from the compacted
-context, including after reopening that session. It cannot choose another
-session file or an arbitrary filesystem path.
+`piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
+Approvals and questions use existing cards; approval outcomes stay in message
+parts. Environment facts (disabled tools, protected paths, delegation attendance
+and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
+whether to run, ask or block. No new approval table is required.
 
-Cherry lists recall in the agent's tool settings. It is auto-approved in default
-and acceptEdits permission modes, including unattended turns, because it reads
-only the current session history. Explicitly disabling it still blocks access;
-disabling recall does not disable compaction.
+The Pi facet resolves behavior call keys to native tool ids. Each live child is
+observed separately and attached to its spawn card through the existing
+background-flow transport. Foreground completion can continue the same child in
+the background. User stop still observes the shared ownership rules.
 
-#### Why the bundled dependency is patched
-
-The version-pinned
-[pnpm patch](../../../patches/@sting8k__pi-vcc@0.8.1.patch) changes two integration
-behaviors. pnpm applies it during installation; there is no runtime source rewrite.
-
-First, unpatched pi-vcc does not interpret `/compact` text the same way as Pi's
-native summarizer. For `/compact Focus on the API decisions`, the call chain is:
-
-1. Cherry passes the text unchanged to `session.compact(customInstructions)`.
-2. pi-vcc intercepts the compaction and treats that text as a follow-up user
-   message, rather than instructions for the summary.
-3. Its `session_compact` handler calls `pi.sendUserMessage` with that text.
-4. Pi emits this event before clearing its manual-compaction state, so the
-   resulting prompt is rejected because compaction is still in progress. The
-   text neither guides the summary nor reaches the model as a follow-up.
-
-This failure occurs between pi-vcc and the Pi SDK; Cherry does not discard or
-rewrite the instructions. A thin wrapper that makes the same SDK call encounters
-the same failure. The patch makes pi-vcc defer to native compaction when ordinary
-nonempty custom instructions are present. Bare `/compact` and automatic
-compaction still use VCC. Merely delaying the follow-up would not preserve the
-original contract: summary instructions would still become a new user turn.
-
-Second, the patch removes registration of `/pi-vcc` and `/pi-vcc-recall`, while
-retaining the compaction hook and recall tool. Cherry tracks `/compact` as a
-manual compaction turn and closes that turn from compaction events. An extension
-command invoked through `session.prompt()` can return before its work completes,
-causing Cherry to finish the turn before the later compaction events arrive.
-Removing these command entry points keeps operations on the existing tracked
-paths without adding another command lifecycle to Cherry.
-
-The patch does not implement compaction or recall in Cherry. Pi and pi-vcc still
-own those operations; Cherry owns loading, permissions, and UI turn completion.
-Recall's tool-catalog entry and auto-approval are Cherry code, separate from the
-dependency patch. Remove the corresponding patch changes when an upstream
-version preserves native instruction semantics and offers a way to omit these
-commands, after verifying the same integration contracts.
-
-#### Configuration and verification
-
-All Cherry Pi sessions share
-`application.getPath('feature.agents.pi.root', 'pi-vcc-config.json')`, supplied to
-pi-vcc through `PI_VCC_CONFIG_PATH`. This is isolated from standalone Pi's
-configuration. Setting `overrideDefaultCompaction` to `false` restores native
-LLM compaction for bare `/compact` and automatic compaction; instruction-bearing
-`/compact` already uses native compaction. No separate compaction toggle is added
-to Cherry's UI.
-
-The real-SDK integration tests in
-[piVcc.test.ts](../../../src/main/ai/runtime/pi/piVcc.test.ts) cover default
-compaction without an LLM call, native instruction-guided compaction, recall
-after reopening, unattended approval, explicit disabling, command exclusion,
-and production file filtering. They build and load the real ESM artifact,
-including a native Node import with source-package resolution blocked.
-These checks do not replace a full installed Electron/asar smoke test.
+`PiRuntimeConnection` remains responsible for product branch bindings, input
+persistence, UI chunks and configuration reconciliation. It can retire after
+`AgentSessionRuntimeService` consumes the common Runtime directly; enabling
+shared behavior does not by itself replace those responsibilities. A reopened
+root restores history, but live children are not reconstructed after restart.
 
 ### Pi code mode
 
@@ -944,9 +903,10 @@ for other sessions; validation, connection, editing, and forking retry the impor
 using that session. No failed conversion silently starts an empty context. The original DSH
 files remain untouched. Restoring an older backup repeats the same conversion.
 
-Pi retains direct transport for supported models. Other gateway-routable chat models use
-the existing local Gateway's OpenAI-compatible route, preserving model identity, consent,
-credential invalidation, and provider-owned usage capture.
+Pi model calls use native Pi protocols against Cherry's internal gateway. The gateway resolves
+the configured provider/model and owns credentials, request options and billing through Cherry's
+provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
+owns retries; the native HTTP client and gateway do not retry the same request independently.
 
 ## Internal Agent continuation normalization
 
@@ -983,7 +943,9 @@ For a short idle window it keeps:
 If a new turn arrives during that window, `beginTurn()` reuses the same
 entry and only swaps the current UI turn plus the UI pending queue.
 
-When the idle timer expires, the runtime closes the entry:
+Pi declares `retainWhileIdle`: its in-process owner remains available beyond the idle TTL.
+Explicit close, branch replacement, configuration rebuild, and service shutdown still retire it.
+For other connections, when the idle timer expires, the runtime closes the entry:
 
 - clears `pendingTurns`;
 - closes the runtime connection;

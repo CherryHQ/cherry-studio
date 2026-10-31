@@ -1,0 +1,438 @@
+import { Type } from '@earendil-works/pi-ai'
+import { defineTool } from '@earendil-works/pi-coding-agent'
+import { describe, expect, it } from 'vitest'
+
+import { type AskUserPort, createAskUserExtension, type SubagentSessionOptions, type ToolOutputStore } from '../src'
+import { assistantReply, createTestSession, hostStore, MODEL, scriptedModel } from './sessionSupport'
+import {
+  noteTool,
+  outputText,
+  recordingSubagentPort,
+  routedModel,
+  subagentCall,
+  toolCallPart,
+  toolResultOf,
+  toolResults
+} from './subagentSupport'
+
+const DELEGATE_A = 'Delegate the check of module A'
+const TASK_A = { description: 'Check module A', prompt: 'TASK-A: inspect module A' }
+
+/** Parent delegates TASK-A once; the subagent writes a note, then reports. */
+function delegateOnce(report: string[] = ['REPORT-A']) {
+  return routedModel(({ userText, lastRole }) => {
+    if (userText.includes('TASK-A'))
+      return lastRole === 'user'
+        ? assistantReply([toolCallPart('note_1', 'note')], 'toolUse', 100, 20)
+        : assistantReply([{ type: 'text', text: [...report].join('') }], 'stop', 200, 40)
+    return lastRole === 'user'
+      ? assistantReply([subagentCall('call_a', TASK_A)], 'toolUse')
+      : assistantReply([{ type: 'text', text: 'Done' }])
+  })
+}
+
+describe('subagent', () => {
+  it('runs a fresh subagent in its own context and returns its final message, session id and usage', async () => {
+    const { model, calls } = delegateOnce()
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({
+      stream: model,
+      tools: [noteTool],
+      subagents: host.port
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(calls[0].options.tools?.map((tool) => tool.name)).toContain('subagent')
+    const first = calls.find((call) => call.userText.includes('TASK-A'))!
+    expect(first.options.messages.map((message) => message.role)).toEqual(['system', 'user'])
+    expect(first.userText).not.toContain(DELEGATE_A)
+    expect(first.options.tools?.map((tool) => tool.name)).not.toContain('subagent')
+    const { sessionId } = host.subagents[0]
+    expect(toolResults(calls.at(-1)!).map((part) => outputText(part.content))).toEqual([
+      `REPORT-A\n\n(id: ${sessionId} — continue this subagent with message_subagent.)`
+    ])
+
+    const result = toolResultOf(session, 'call_a')
+    expect(result.isError).toBe(false)
+    expect(result.details).toEqual({ sessionId, fork: false, background: false, outcome: 'completed' })
+    // Two replies: 100 + 20 + 2 cached and 200 + 40 + 2 cached tokens.
+    expect(result.usage?.totalTokens).toBe(364)
+    expect(result.usage?.cost.total).toBeCloseTo(0.0004204, 10)
+  })
+
+  it.each(['resolve', 'reject'] as const)('aborts while configuring a child and ignores late %s', async (settle) => {
+    let markConfigured!: () => void
+    const configured = new Promise<void>((resolve) => {
+      markConfigured = resolve
+    })
+    let resolveConfiguration!: (value: SubagentSessionOptions) => void
+    let rejectConfiguration!: (error: Error) => void
+    const configuration = new Promise<SubagentSessionOptions>((resolve, reject) => {
+      resolveConfiguration = resolve
+      rejectConfiguration = reject
+    })
+    const { model, calls } = delegateOnce()
+    let childCreated = false
+    let configureSignal: AbortSignal | undefined
+    const { session } = await createTestSession({
+      stream: model,
+      subagents: {
+        configure(_child, signal) {
+          configureSignal = signal
+          markConfigured()
+          return configuration
+        }
+      }
+    })
+    const turn = session.prompt(DELEGATE_A)
+    await configured
+    await session.abort()
+    await turn
+    expect(configureSignal?.aborted).toBe(true)
+    expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
+    if (settle === 'resolve')
+      resolveConfiguration({
+        onSessionCreated: () => {
+          childCreated = true
+        }
+      })
+    else rejectConfiguration(new Error('late configuration failure'))
+    await configuration.catch(() => undefined)
+    await Promise.resolve()
+    expect(childCreated).toBe(false)
+    expect(calls.filter((call) => call.userText.includes('TASK-A'))).toEqual([])
+  })
+
+  it('offers subagent only when the host passes a subagent port', async () => {
+    const { model, calls } = scriptedModel([assistantReply([{ type: 'text', text: 'Hi' }])])
+    const { session } = await createTestSession({ stream: model })
+
+    await session.prompt('Hello')
+
+    expect(calls[0].tools?.map((tool) => tool.name) ?? []).not.toContain('subagent')
+  })
+
+  // Child output belongs to its own observation stream; origin remains in native storage.
+  it('sends child entries only to its listener and preserves native origin state', async () => {
+    const { model } = delegateOnce()
+    const host = recordingSubagentPort()
+    const parent = hostStore()
+    const { session } = await createTestSession({
+      stream: model,
+      tools: [noteTool],
+      subagents: host.port,
+      onEvent: parent.onEvent
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    const roles = (entries: typeof parent.entries) =>
+      entries.flatMap((entry) =>
+        entry.type === 'message' && entry.message.role !== 'system' ? [entry.message.role] : []
+      )
+    expect(roles(parent.entries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
+    expect(JSON.stringify(parent.entries)).not.toContain('noted')
+    const childEvents = host.events.get(host.subagents[0].sessionId)!
+    const childEntries = childEvents.flatMap((event) => (event.type === 'session-append' ? event.entries : []))
+    expect(roles(childEntries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
+    expect(
+      host.sessions
+        .get(host.subagents[0].sessionId)!
+        .sessionManager.getBranch()
+        .find((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-origin')
+    ).toMatchObject({
+      type: 'custom',
+      customType: 'cherry.subagent-origin',
+      data: {
+        parentToolCallId: 'call_a',
+        fork: false,
+        description: 'Check module A',
+        modelKey: `${MODEL.provider}/${MODEL.id}`
+      }
+    })
+    expect(new Set(childEntries.map((entry) => entry.id)).size).toBe(childEntries.length)
+    expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: false })
+  })
+
+  it('hands the subagent session to the host before its first model request', async () => {
+    const { model, calls } = delegateOnce()
+    const seen: { sessionId: string; requestsBefore: number }[] = []
+    const host = recordingSubagentPort(() => ({
+      onSessionCreated: (child) =>
+        seen.push({
+          sessionId: child.sessionId,
+          requestsBefore: calls.filter((call) => call.userText.includes('TASK-A')).length
+        })
+    }))
+    const { session } = await createTestSession({
+      stream: model,
+      tools: [noteTool],
+      subagents: host.port
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(seen).toEqual([{ sessionId: host.subagents[0].sessionId, requestsBefore: 0 }])
+  })
+
+  it('runs host before_agent_start handlers inside the subagent', async () => {
+    const { model, calls } = delegateOnce()
+    const host = recordingSubagentPort(() => ({
+      extensionFactories: [
+        (pi) => {
+          pi.on('before_agent_start', () => ({
+            message: { customType: 'cherry.test-note', content: 'NOTE-FOR-SUBAGENT', display: false }
+          }))
+        }
+      ]
+    }))
+    const { session } = await createTestSession({
+      stream: model,
+      tools: [noteTool],
+      subagents: host.port
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(calls.find((call) => call.userText.includes('TASK-A'))!.userText).toContain('NOTE-FOR-SUBAGENT')
+  })
+
+  it('runs the subagent calls of one step at the same time', async () => {
+    let active = 0
+    let maxActive = 0
+    const waitTool = defineTool({
+      name: 'wait',
+      label: 'Wait',
+      description: 'Wait a moment',
+      parameters: Type.Object({}),
+      async execute() {
+        maxActive = Math.max(maxActive, ++active)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        active--
+        return { content: [{ type: 'text', text: 'waited' }], details: undefined }
+      }
+    })
+    const { model } = routedModel(({ userText, lastRole }) => {
+      for (const task of ['TASK-A', 'TASK-B'])
+        if (userText.includes(task))
+          return lastRole === 'user'
+            ? assistantReply([toolCallPart('wait_1', 'wait')], 'toolUse')
+            : assistantReply([{ type: 'text', text: `REPORT ${task}` }])
+      return lastRole === 'user'
+        ? assistantReply(
+            [
+              subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }),
+              subagentCall('call_b', { description: 'Check B', prompt: 'TASK-B' })
+            ],
+            'toolUse'
+          )
+        : assistantReply([{ type: 'text', text: 'Done' }])
+    })
+    const { session } = await createTestSession({
+      stream: model,
+      tools: [waitTool],
+      subagents: recordingSubagentPort().port
+    })
+
+    await session.prompt('Check modules A and B')
+
+    expect(maxActive).toBe(2)
+  })
+
+  it('tells the parent when the subagent ends without a final message', async () => {
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-A')) return assistantReply([])
+      return lastRole === 'user'
+        ? assistantReply([subagentCall('call_a', TASK_A)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
+    })
+    const { session } = await createTestSession({
+      stream: model,
+      subagents: recordingSubagentPort().port
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    const [result] = toolResults(calls.at(-1)!)
+    expect(result.content[0].type).toBe('text')
+    expect(outputText(result.content)).toMatch(/without a final message/)
+  })
+
+  it('offloads an oversized subagent report like any other tool result', async () => {
+    const saved: { toolName: string }[] = []
+    const store: ToolOutputStore = {
+      async save(file) {
+        saved.push({ toolName: file.toolName })
+        return `/offload/${file.name}`
+      }
+    }
+    const { model, calls } = delegateOnce(['R'.repeat(20_000)])
+    const { session } = await createTestSession({
+      stream: model,
+      tools: [noteTool],
+      subagents: recordingSubagentPort().port,
+      offload: { store, thresholdChars: 5_000 }
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(saved).toEqual([{ toolName: 'subagent' }])
+    expect(outputText(toolResults(calls.at(-1)!)[0].content)).toContain('<persisted-output>')
+  })
+
+  it('rejects a call with an empty prompt without configuring a subagent', async () => {
+    const { model, calls } = routedModel(({ lastRole }) =>
+      lastRole === 'user'
+        ? assistantReply([subagentCall('call_a', { description: 'Check A', prompt: '   ' })], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
+    )
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(host.subagents).toEqual([])
+    const [result] = toolResults(calls.at(-1)!)
+    expect(result.content[0].type).toBe('text')
+    expect(outputText(result.content)).toMatch(/non-empty description and prompt/)
+  })
+
+  // Breaks when two subagents of one parent can share a session id, the host and the result disagree
+  // on it, or it is derived from the parent's id (Cherry's Pi session ids change between rebuilds).
+  it('gives every subagent its own random UUID, even when provider call ids collide', async () => {
+    const check = (id: string) => subagentCall(id, { description: 'Check', prompt: `TASK ${id}` })
+    const { model, requests } = routedModel(({ userText, lastRole, options }) => {
+      if (!options.tools?.some((tool) => tool.name === 'subagent'))
+        return assistantReply([{ type: 'text', text: 'REPORT' }])
+      if (lastRole !== 'user') return assistantReply([{ type: 'text', text: 'Done' }])
+      const ids = userText.includes('Second prompt')
+        ? ['call_a', 'call_a-2']
+        : ['functions.subagent:0', 'functions.subagent-0', 'call_a']
+      return assistantReply([...ids.map(check)], 'toolUse')
+    })
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
+
+    await session.prompt('First prompt')
+    await session.prompt('Second prompt')
+
+    const ids = host.subagents.map((subagent) => subagent.sessionId)
+    expect(ids).toHaveLength(5)
+    expect(new Set(ids).size).toBe(5)
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(new Set(requests.map((request) => request.sessionId).filter((id) => id !== session.sessionId))).toEqual(
+      new Set(ids)
+    )
+
+    const results = session.messages.flatMap((message) =>
+      message.role === 'toolResult' && message.toolName === 'subagent'
+        ? [{ toolCallId: message.toolCallId, details: message.details }]
+        : []
+    )
+    const configured = host.subagents.map((subagent) => ({
+      toolCallId: subagent.parentToolCallId,
+      details: { sessionId: subagent.sessionId, fork: false, background: false, outcome: 'completed' }
+    }))
+    expect(results).toHaveLength(5)
+    expect(results).toEqual(expect.arrayContaining(configured))
+  })
+
+  it('counts the usage of subagent replies a compaction folded away', async () => {
+    const replies = [
+      assistantReply([toolCallPart('note_1', 'note')], 'toolUse', 100, 10),
+      assistantReply([toolCallPart('note_2', 'note')], 'toolUse', 20_000, 20),
+      assistantReply([{ type: 'text', text: 'REPORT-A' }], 'stop', 100, 10)
+    ]
+    let subagentRequests = 0
+    const { model } = routedModel(({ lastRole, options }) => {
+      // Only a subagent lacks the `subagent` tool; after compaction its task text is gone.
+      if (!options.tools?.some((tool) => tool.name === 'subagent')) return replies[subagentRequests++]
+      return lastRole === 'user'
+        ? assistantReply([subagentCall('call_a', TASK_A)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
+    })
+    const host = recordingSubagentPort()
+    const summarizedSessions: string[] = []
+    const { session } = await createTestSession({
+      stream: model,
+      tools: [noteTool],
+      subagents: host.port,
+      // Threshold 32_000 - 16_384 tokens: the second reply crosses it and the compaction folds the first.
+      compaction: {
+        reserveTokens: 16_384,
+        keepRecentTokens: 1,
+        summarize: async ({ sessionId }) => {
+          summarizedSessions.push(sessionId)
+          return {
+            summary: 'Summary of earlier work.',
+            usage: {
+              input: 10,
+              output: 5,
+              cacheRead: 2,
+              cacheWrite: 0,
+              totalTokens: 17,
+              cost: { input: 0.1, output: 0.05, cacheRead: 0.02, cacheWrite: 0, total: 0.17 }
+            }
+          }
+        }
+      }
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(host.events.get(host.subagents[0].sessionId)!.filter((event) => event.type === 'compaction-end')).toEqual([
+      { type: 'compaction-end', reason: 'threshold', entryId: expect.any(String), aborted: false }
+    ])
+    const result = toolResultOf(session, 'call_a')
+    expect(result.content).toEqual([{ type: 'text', text: expect.stringMatching(/^REPORT-A\n\n\(id: /) }])
+    expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112 + 17)
+    expect(summarizedSessions).toEqual([host.subagents[0].sessionId])
+    expect(summarizedSessions[0]).not.toBe(session.sessionId)
+  })
+
+  it('answers AskUserQuestion inside a subagent as unavailable without asking the host', async () => {
+    const asked: unknown[] = []
+    const askPort: AskUserPort = {
+      async ask(request) {
+        asked.push(request)
+        return { status: 'answered', answers: {} }
+      }
+    }
+    const question = {
+      questions: [
+        {
+          question: 'Which file?',
+          header: 'File',
+          options: [
+            { label: 'a.ts', description: 'File A' },
+            { label: 'b.ts', description: 'File B' }
+          ],
+          multiSelect: false
+        }
+      ]
+    }
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-A'))
+        return lastRole === 'user'
+          ? assistantReply([toolCallPart('ask_1', 'AskUserQuestion', question)], 'toolUse')
+          : assistantReply([{ type: 'text', text: 'REPORT-A' }])
+      return lastRole === 'user'
+        ? assistantReply([subagentCall('call_a', TASK_A)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
+    })
+    const host = recordingSubagentPort(() => ({ extensionFactories: [createAskUserExtension(askPort)] }))
+    const { session } = await createTestSession({
+      stream: model,
+      subagents: host.port,
+      extensionFactories: [createAskUserExtension(askPort)]
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(asked).toEqual([])
+    const [answer] = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1])
+    expect(answer.content[0].type).toBe('text')
+    expect(outputText(answer.content)).toMatch(/No one can answer/)
+  })
+})

@@ -9,21 +9,21 @@ import type { Provider } from '@shared/data/types/provider'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentRuntimeConnectInput } from '../types'
-import { buildPiGatewayInjection, materializePiProviderStream } from './modelInjection'
-import { loadPiAi, loadPiSdk } from './piSdk'
+import { buildPiGatewayInjection } from './modelInjection'
+import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
 
 /** Native Pi protocols target Cherry's internal gateway; Cherry retains provider credentials and billing. */
 export async function createPiGatewayModelBinding(
   input: Pick<AgentRuntimeConnectInput, 'sessionId' | 'reasoningEffort' | 'serviceTier' | 'fastMode' | 'trace'>,
   provider: Provider,
   model: Model,
-  onUsage?: (usage: Usage) => void
+  onUsage?: (usage: Usage, nativeSessionId: string | undefined) => void
 ) {
   const injection = buildPiGatewayInjection(provider, model, await resolveApiGatewayRuntime(input.sessionId))
-  const [{ InMemoryCredentialStore }, { ModelRuntime }, native] = await Promise.all([
+  const [{ InMemoryCredentialStore }, { ModelRuntime }, streamSimple] = await Promise.all([
     loadPiAi(),
     loadPiSdk(),
-    materializePiProviderStream(injection)
+    loadPiApiStreamSimple(injection.api)
   ])
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
@@ -31,9 +31,9 @@ export async function createPiGatewayModelBinding(
     refreshOnCreate: false
   })
   modelRuntime.registerProvider(injection.providerName, {
-    ...native.providerConfig,
+    ...injection.providerConfig,
     headers: {
-      ...native.providerConfig.headers,
+      ...injection.providerConfig.headers,
       [CHERRY_REASONING_EFFORT_HEADER]: input.reasoningEffort ?? 'default',
       ...(input.serviceTier ? { [CHERRY_SERVICE_TIER_HEADER]: input.serviceTier } : {}),
       [CHERRY_FAST_MODE_HEADER]: String(input.fastMode === true)
@@ -45,11 +45,11 @@ export async function createPiGatewayModelBinding(
         'gen_ai.provider.name': provider.id,
         'gen_ai.request.model': model.id
       })
-      const stream = native.streamSimple(model, context, { ...options, maxRetries: 0 })
+      const stream = streamSimple(model, context, { ...options, maxRetries: 0 })
       void stream
         .result()
         .then((message) => {
-          onUsage?.(message.usage)
+          onUsage?.(message.usage, options?.sessionId)
           const failed = message.stopReason === 'error' || message.stopReason === 'aborted'
           if (span) {
             span.setAttribute(

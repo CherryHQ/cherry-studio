@@ -10,15 +10,62 @@ the supplied model runtime usable. Content uses the common AI SDK message protoc
 
 Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
 `steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
-controller: a live run receives a queued message; a finished child needs `SubagentPort.load` to
-start another background run. An unsupported policy is rejected before native dispatch.
+controller: a live run receives a queued message; a finished child continues in the background.
+The legacy controller needs `SubagentPort.load`; the behavior-backed controller retains the same
+native session. An unsupported policy is rejected before native dispatch.
 
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
 Pi owns the execution loop, tools, context accounting and compaction. Content uses the common AI SDK message protocol; the package imports no Cherry application code.
 Native deltas accumulate once into ordered SDK messages, including preliminary/final tool results.
 
+## Common runtime with Cherry behavior
+
+Pass `behavior: { host, configureChild }` in `PiSessionOptions` to install
+[`agent-behavior`](../agent-behavior/README.md) through `createPiBehavior`. Each root and its children
+share one behavior instance. `host` implements the existing `HostPorts`: application facts and
+services such as approval UI, model selection, settings, output storage and summarization.
+The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
+
+`configureChild({ thread, parent, origin })` supplies the native model/runtime, extensions and
+listeners once per child context. The selected model must match `origin.modelKey` (`provider/id`).
+Unspecified native options inherit from the root. The adapter installs the behavior extension and
+summarizer on every child, filters parent-only tools, and disables native retries and cache warming
+as required by the behavior adapter's request accounting.
+
+- Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
+  `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
+- Child `input.submit` supports `steer` through `entries.messageSubagent`, using the same admission,
+  continuation and reporting rules as the model's `message_subagent` tool. Its native custom input
+  carries the caller's `inputId`, including when a background report job starts the continuation.
+  A refused continuation returns `rejected`; no raw child prompt bypasses that decision.
+- `interrupt()` records a user stop through the root or child entry. A foreground child's stop
+  stops its parent turn; a finished child does not stop later work. A continued child's run is
+  background work and has no cancellation ownership from its completed foreground run.
+- `pi.permissionModeChanged()` notifies behavior after the host changes permission settings;
+  `pi.compact(instructions)` uses its summary acceptance and compaction lifecycle. A declined
+  summary returns `rejected` with code `declined`; no native summary fallback runs.
+- Subagent relations are projected onto the parent; each live child can be opened, observed and
+  released independently. Releasing a handle stops its observations. Shutdown closes the shared
+  behavior instance, all native sessions and projections.
+
+This is an opt-in migration path: omitting `behavior` retains the existing native extension path.
+Combining it with legacy `subagents`, `offload`, `recall` or a direct compaction summarizer is rejected.
+Host extensions must not install duplicate behavior tools or start native runs themselves.
+The desktop connection opts in through `src/main/ai/runtime/pi/piBehaviorHost.ts`; its production
+approval, question, model, summary, verifier and output ports use existing Cherry services.
+
+Reopening a root restores native history and child relations, but does not reconstruct child sessions
+or resume work. A loader cannot reopen a stored child as an independent root: that returns
+`child-owner-unavailable`. Reconstructing the owning child graph after restart remains separate work.
+
+`tests/behaviorRuntime.test.ts` exercises these public accesses against real Pi execution with
+scripted native providers and host ports, rather than calling the harness ports directly.
+
 ## Session builder
+
+The standalone extension APIs below describe the legacy native-builder path. Shared behavior rules
+are documented in `agent-behavior`; the [behavior ports](#behavior-ports) section describes their Pi adapter.
 
 `createAgentRuntimeSession({ modelRuntime, model, cwd, agentDir, ... })` returns a native
 `AgentSession` and an asynchronous `dispose()` method. The model runtime is borrowed: the caller
@@ -29,7 +76,8 @@ The builder uses in-memory settings, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
 Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
 built-in tool is enabled unless `builtinTools` names it. Workspace `AGENTS.md` / `CLAUDE.md` files
-load only with `contextFiles: true`, and skills only from the host's `skillPaths`.
+load only with `contextFiles: true` (explicit project trust), and skills only from the host's
+`skillPaths`. `excludeTools` removes disabled tools from the native loadout.
 `dispose()` aborts execution, lets extensions handle `session_shutdown`, then disposes the session.
 Pi is ESM-only; CommonJS hosts must load the package with dynamic `import()`.
 
@@ -41,8 +89,12 @@ Known gap: Pi's resource loader still resolves its discovery directories while i
 Cherry registers native Pi providers against its internal gateway in `src/main/ai/runtime/pi/gatewayModelBinding.ts`.
 The gateway owns upstream credentials and billing. Pi owns protocol replay, tool execution and session retries.
 
-This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
-gateway integration; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+Cherry's desktop root Pi connection uses this package through `create/open/observe/input.submit`.
+Live child projections feed the existing desktop tool-card transport. Native session, goal and subagent
+tests live in `tests/`, using Pi providers directly. `tests/sessionSupport.ts` supplies native
+scripted streams with fixed usage for budget and compaction assertions, without an HTTP or AI SDK fixture.
+Cherry gateway integration tests remain in `src/main/ai/runtime/pi/`.
+`tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
 `tests/runtime.test.ts` exercises public child discovery, input and observation through native
 execution, including continuation, release, once-only native reporting, and shutdown during child loading.
 
@@ -55,7 +107,7 @@ pnpm --filter @cherrystudio/agent-runtime-pi typecheck
 ## Native session storage
 
 Pass `sessionManager: SessionManager.create(cwd, sessionDir)` to create a persistent session, or
-`SessionManager.open(file)` to reopen it. Omit the manager for an in-memory session. The host chooses
+`SessionManager.openExisting(file, expectedId, cwd)` to reopen a known association strictly. Omit the manager for an in-memory session. The host chooses
 the location and records the native session ID/file association. Pi writes and reads its own JSONL;
 there is no second transcript schema, message conversion for storage, or host event replay.
 
@@ -71,6 +123,16 @@ existence and verify the native session ID instead of silently replacing it.
 `onEvent` observes copied native entries (`session-append`), compaction start/end, and completed
 turns. These events are for observation; storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
+
+## Pi-specific access
+
+The handle's `pi` facet provides native branch history, context usage, tool metadata and opaque
+item-to-tool-call lookup. These remain Pi-specific, without enlarging the common contract.
+`compact(instructions?)` serializes with input admission and rejects an actively streaming root;
+it does not abort that turn to compact. `cancelQueuedInputs()` is owner-only and idle-only: it clears
+native queued input, records `aborted` for known unplaced inputs, and returns their identities.
+`permissionModeChanged()` is available only with behavior installed; otherwise it returns `unsupported`.
+Released access cannot use these controls. Neither operation deletes the native history.
 
 ## Input correlation
 
@@ -93,7 +155,7 @@ and explicit boundary continuations retain it, and errors settle only after nati
 recovery stop. Queued or subsequently placed inputs are excluded from the preceding response.
 
 `input_settled` reports the batch, actual assistant entry/message, and abort flag. The builder
-forwards `input-settled` with typed `stopReason`, native entry ID, input IDs, and optional error.
+forwards `input-settled` with typed `stopReason`, `hasToolCalls`, native entry ID, input IDs, and optional error.
 The common projection links each input's `response` to the observed item. Several inputs may
 share it; assistant messages do not receive a guessed single `inputId`. Normal final replies map
 to `completed`, errors to `failed`, and interruption to `aborted`. Truncation and settlement
@@ -190,10 +252,10 @@ live-session callback the host returns from `SubagentPort.configure(subagent)`, 
 `session.prompt()`, so `before_agent_start` handlers run as in any turn. A continuation run
 (`message_subagent`) starts with a custom message, so those handlers see it with
 `messageType: 'custom'`; one that should act only on prompts checks `messageType === 'user'`. The
-parent's `extensionFactories` and `onEvent` are not inherited. The host supplies each child's extensions and settings explicitly. A subagent's session id is a random UUID: the id the model
-addresses it by, the key the host stores it under and the `sessionId` its requests carry, which
-tells them apart from the parent's. Calls of one step run at the same time. A host whose
-`configure` throws fails that call only.
+parent's `extensionFactories` and `onEvent` are not inherited. The host supplies each child's
+extensions and settings explicitly. A subagent's session id is a random UUID: the id the model
+addresses it by and the key the host stores it under. Calls of one step run at the same time.
+A host whose `configure` throws fails that call only.
 
 A fresh subagent starts empty and has none of the three tools. A fork starts at the native
 assistant entry that holds the calling tool: every tool call in that entry gets a placeholder

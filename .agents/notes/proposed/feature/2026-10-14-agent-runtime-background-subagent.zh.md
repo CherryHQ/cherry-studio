@@ -125,17 +125,17 @@ active 且已武装的 goal 用完预算后，拒绝新的后台派出和续接�
 
 以下结果描述完整功能；现有源码测试是证据位置，不表示本次迁移重跑过测试或已经验收。
 
-- AC1 — 新建与 fork 子会话具有独立原生身份；fork 保留正确前缀/工具顺序，不改变父会话，也不启用嵌套管理。 (verification: unit — Pi adapter owner, `gatewaySubagent.test.ts` and `gatewaySubagentFork.test.ts`)
-- AC2 — 点名模型时拒绝零个或多个精确匹配；fork 保持父模型/runtime，续接保留记录的模型与 binding。 (verification: unit — Pi adapter owner, `gatewaySubagentModel.test.ts` and `gatewaySubagentBinding.test.ts`)
-- AC3 — 子会话第 201 次模型请求（包含压缩请求）在发出前被拒绝；后台名额预留遵守配置上限，失败时释放。 (verification: unit — Pi adapter owner, `gatewaySubagentStops.test.ts` and `gatewaySubagentBackground.test.ts`)
-- AC4 — 前台转后台使父调用立即返回，不重放子请求，并断开之后的父轮次取消关联。 (verification: unit — Pi adapter owner, `gatewaySubagentMove.test.ts`)
-- AC5 — 在子会话 settle 边界接受的消息到达同一会话；并发续接只打开一次运行，原生存储缺失或不属于该子会话时不会创建替代会话。 (verification: unit — Pi adapter owner, `gatewaySubagentMessage.test.ts` and `gatewaySubagentContinue.test.ts`)
-- AC6 — 结果投递保留用户优先、结束顺序、compaction/prompt hold 和命令开轮投递；用户中止抑制期内不由通知开轮。 (verification: unit — Pi adapter owner, `gatewaySubagentDelivery.test.ts` and `subagentDelivery.test.ts`)
-- AC7 — 用户停止意图跨重叠停止和收尾期间关闭保留；模型停止的运行只汇报一次，公共子会话中断到达正确原生所有者。 (verification: unit — Pi adapter owner, `gatewaySubagentStop.test.ts`)
-- AC8 — 重开后每次未投递运行只汇报一次，不自动执行；保留关闭期间已经结束的结果，并以结果未知标记恢复中断上下文。 (verification: unit — Pi adapter owner, `gatewaySubagentRebuild.test.ts` and `gatewaySubagentContinue.test.ts`)
-- AC9 — 子会话审批状态可观察；含会话身份的事件不影响其他会话，子会话拒绝审批不会停止父 goal。 (verification: unit — Pi adapter owner, `gatewaySubagentApproval.test.ts` and `gatewayGoalSubagents.test.ts`)
-- AC10 — goal 等待时不变成 blocked；独立通知结束前一轮进展但不增加 goal 轮数，随轮次开头附带的通知保留该轮身份。 (verification: unit — goal owner, `gatewayGoalSubagents.test.ts` and `goalState.test.ts`)
-- AC11 — goal 用量和逐次运行归属跨重启保留，每次投递只计一次；暂停或排队输入不跳过预算停止，也不停止之后无关的运行。 (verification: unit — goal owner, `gatewayGoalSubagents.test.ts`)
+- AC1 — 新建与 fork 子会话具有独立原生身份；fork 保留正确前缀/工具顺序，不改变父会话，也不启用嵌套管理。 (verification: unit — Pi adapter owner, `subagent.test.ts` and `subagentFork.test.ts`)
+- AC2 — 点名模型时拒绝零个或多个精确匹配；fork 保持父模型/runtime，续接保留记录的模型与 binding。 (verification: unit — Pi adapter owner, `subagentModel.test.ts` and `subagentBinding.test.ts`)
+- AC3 — 子会话第 201 次模型请求（包含压缩请求）在发出前被拒绝；后台名额预留遵守配置上限，失败时释放。 (verification: unit — Pi adapter owner, `subagentStops.test.ts` and `subagentBackground.test.ts`)
+- AC4 — 前台转后台使父调用立即返回，不重放子请求，并断开之后的父轮次取消关联。 (verification: unit — Pi adapter owner, `subagentMove.test.ts`)
+- AC5 — 在子会话 settle 边界接受的消息到达同一会话；并发续接只打开一次运行，原生存储缺失或不属于该子会话时不会创建替代会话。 (verification: unit — Pi adapter owner, `subagentMessage.test.ts` and `subagentContinue.test.ts`)
+- AC6 — 结果投递保留用户优先、结束顺序、compaction/prompt hold 和命令开轮投递；用户中止抑制期内不由通知开轮。 (verification: unit — Pi adapter owner, `subagentDelivery.integration.test.ts` and `subagentDelivery.test.ts`)
+- AC7 — 用户停止意图跨重叠停止和收尾期间关闭保留；模型停止的运行只汇报一次，公共子会话中断到达正确原生所有者。 (verification: unit — Pi adapter owner, `subagentStop.test.ts`)
+- AC8 — 重开后每次未投递运行只汇报一次，不自动执行；保留关闭期间已经结束的结果，并以结果未知标记恢复中断上下文。 (verification: unit — Pi adapter owner, `subagentRebuild.test.ts` and `subagentContinue.test.ts`)
+- AC9 — 子会话审批状态可观察；含会话身份的事件不影响其他会话，子会话拒绝审批不会停止父 goal。 (verification: unit — Pi adapter owner, `subagentApproval.test.ts` and `goalSubagents.test.ts`)
+- AC10 — goal 等待时不变成 blocked；独立通知结束前一轮进展但不增加 goal 轮数，随轮次开头附带的通知保留该轮身份。 (verification: unit — goal owner, `goalSubagents.test.ts` and `goalState.test.ts`)
+- AC11 — goal 用量和逐次运行归属跨重启保留，每次投递只计一次；暂停或排队输入不跳过预算停止，也不停止之后无关的运行。 (verification: unit — goal owner, `goalSubagents.test.ts`)
 - AC12 — 桌面展示独立子会话进展、审批来源、模型和用量；停止与转后台控制保持包语义，自主通知不显示成人类气泡。 (verification: Electron — Cherry runtime integration owner)
 - AC13 — 桌面持久化会话重开相同的原生子 ID/文件，无需事件重放即可加载，并按产品删除策略清理关联存储。 (verification: Electron — Cherry storage integration owner)
 
