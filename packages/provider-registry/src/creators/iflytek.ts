@@ -25,6 +25,8 @@ export default defineCreator({
     { pattern: '^xopglmv?(?:4[5-7]|5\\d*)', toggle: true },
     // xsparkx2 -> spark-x2, xsparkx2flash -> spark-x2-flash (thinking toggle).
     // Narrow to `x2` so xsparkx1 / xsparkx3 etc. are not treated as reasoning.
-    { pattern: '^xsparkx2', toggle: true }
+    { pattern: '^xsparkx2', toggle: true },
+    // Spark X2.5 is served under its dotted id, `spark-x2.5` (thinking toggle).
+    { pattern: '^spark-x2[.-]5', toggle: true }
   ]
 })
