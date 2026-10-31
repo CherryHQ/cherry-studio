@@ -68,6 +68,7 @@ export {
   lstat,
   mkdir,
   move,
+  moveNew,
   openReadableFileSnapshot,
   type PathReadability,
   PathStaleVersionError,
