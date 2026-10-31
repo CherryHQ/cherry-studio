@@ -38,6 +38,12 @@ describe('validation selection', () => {
     expect(plan.projects).toEqual([])
   })
   it.each([
+    [
+      'packages/agent-runtime/src/contracts.ts',
+      ['agent-runtime', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main']
+    ],
+    ['packages/agent-runtime-pi/src/runtime.ts', ['agent-runtime-pi', 'main']],
+    ['packages/agent-runtime-pi-durable/src/runtime.ts', ['agent-runtime-pi-durable']],
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],

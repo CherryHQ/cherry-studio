@@ -182,7 +182,8 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTabId: () => 'chat-tab',
-  useIsActiveTab: () => homeMocks.isActiveTab
+  useIsActiveTab: () => homeMocks.isActiveTab,
+  useTabSelfVisuals: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -686,6 +687,7 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
+import { useTabSelfVisuals } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -2017,6 +2019,12 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-b'))
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        routePrefix: '/app/chat',
+        preserveVisuals: true
+      })
+    )
   })
 
   it('writes same-tab topic changes to the URL', async () => {

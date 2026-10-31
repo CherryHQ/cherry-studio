@@ -28,6 +28,10 @@ const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(
   './native/darwin/build'
 )
 
+const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
+  './native/external-app/build.cjs'
+)
+
 type ElectronBuilderConfig = {
   releaseInfo?: {
     releaseNotes?: unknown
@@ -168,6 +172,7 @@ export const mainResolveAlias = {
   '@cherrystudio/web-search/providers/serply': resolve('packages/web-search/src/providers/serply.ts'),
   '@cherrystudio/web-search/providers/yuanbao': resolve('packages/web-search/src/providers/yuanbao.ts'),
   '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
+  '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
   '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
   '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
   '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),
@@ -189,6 +194,14 @@ export default defineConfig({
         buildStart() {
           this.addWatchFile(selectionPanelSource)
           buildSelectionPanel()
+        }
+      },
+      {
+        name: 'cherry-external-app',
+        apply: 'build',
+        buildStart() {
+          for (const file of externalAppSources) this.addWatchFile(file)
+          buildExternalApp()
         }
       },
       chunkExportGuardPlugin(),
@@ -308,6 +321,7 @@ export default defineConfig({
         '@cherrystudio/web-search/providers/parallel': resolve('packages/web-search/src/providers/parallel.ts'),
         '@cherrystudio/web-search/providers/serply': resolve('packages/web-search/src/providers/serply.ts'),
         '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
+        '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
         '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
         '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
         '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),

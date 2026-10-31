@@ -1888,6 +1888,112 @@ export class MessageService {
     return response
   }
 
+  /**
+   * Delete one complete path's exclusive suffix, keeping the shared prefix and other paths.
+   * Empty reservations go through `delete(id, false, 'parent', true)` instead.
+   */
+  deleteBranch(selectedId: string, expectedTopicId: string): DeleteMessageResponse {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const message = this.getAddressableMessageRowTx(tx, selectedId)
+      if (message.topicId !== expectedTopicId) throw DataApiErrorFactory.notFound('Message', selectedId)
+      if (message.role === 'root' || message.parentId === null) {
+        throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
+      }
+
+      const leaves = tx.all<{ id: string }>(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id FROM message WHERE id = ${selectedId} AND deleted_at IS NULL
+          UNION ALL
+          SELECT m.id FROM message m INNER JOIN subtree s ON m.parent_id = s.id
+          WHERE m.deleted_at IS NULL
+        )
+        SELECT s.id FROM subtree s
+        WHERE NOT EXISTS (
+          SELECT 1 FROM message c WHERE c.parent_id = s.id AND c.deleted_at IS NULL
+        )
+        LIMIT 2
+      `)
+      if (leaves.length !== 1) {
+        throw DataApiErrorFactory.invalidOperation('delete branch', 'select a branch that leads to a single path')
+      }
+
+      let candidate = this.getRowsInOrderTx(tx, [leaves[0].id])[0]
+      while (candidate.parentId !== null) {
+        const parent = this.getRowsInOrderTx(tx, [candidate.parentId])[0]
+        const children = tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(and(eq(messageTable.parentId, parent.id), isNull(messageTable.deletedAt)))
+          .limit(2)
+          .all()
+        if (children.length > 1) break
+        if (parent.parentId === null) {
+          throw DataApiErrorFactory.invalidOperation(
+            'delete branch',
+            'the only conversation path cannot be deleted as a branch'
+          )
+        }
+        candidate = parent
+      }
+
+      const descendantIds = this.getDescendantIdsTx(tx, candidate.id)
+      for (const row of this.getRowsInOrderTx(tx, [candidate.id, ...descendantIds])) {
+        if (
+          row.status === 'pending' ||
+          row.data.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
+        ) {
+          throw DataApiErrorFactory.invalidOperation('delete branch', 'a message in this branch is still running')
+        }
+        if (row.topicId !== expectedTopicId) {
+          throw DataApiErrorFactory.invalidOperation('delete branch', 'the branch crosses topic boundaries')
+        }
+      }
+
+      const topic = this.getActiveTopicTx(tx, expectedTopicId)
+      const deletedIds = [candidate.id, ...descendantIds]
+      for (let i = 0; i < descendantIds.length; i += SQLITE_INARRAY_CHUNK) {
+        const chunk = descendantIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+        this.flattenUnderTx(tx, candidate.id, inArray(messageTable.id, chunk))
+      }
+      tx.delete(messageTable).where(eq(messageTable.id, candidate.id)).run()
+
+      let newActiveNodeId: string | null | undefined
+      if (topic.activeNodeId && deletedIds.includes(topic.activeNodeId)) {
+        newActiveNodeId = this.resolveActiveNodeFallbackTx(tx, expectedTopicId, candidate.parentId)
+        const topicService = getDataService('TopicService')
+        if (newActiveNodeId === null) {
+          topicService.clearActiveNodeTx(tx, expectedTopicId)
+        } else {
+          topicService.setActiveNodeTx(tx, expectedTopicId, newActiveNodeId, { assumeValid: true })
+        }
+      }
+      return { deletedIds, newActiveNodeId }
+    })
+
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId: expectedTopicId },
+        entityIds: result.deletedIds
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId: expectedTopicId }, entityIds: result.deletedIds },
+      { endpoint: '/messages/:id', entityIds: result.deletedIds },
+      ...(result.newActiveNodeId !== undefined
+        ? ([
+            { endpoint: '/topics', kind: 'projection', entityIds: [expectedTopicId] },
+            { endpoint: '/topics/:id', routeParams: { id: expectedTopicId }, entityIds: [expectedTopicId] }
+          ] as const)
+        : [])
+    ])
+    logger.info('Deleted conversation branch', {
+      selectedId,
+      topicId: expectedTopicId,
+      count: result.deletedIds.length
+    })
+    return result
+  }
+
   /** Clear derived context after changing message ancestry or content. */
   private clearContextAnchorsTx(tx: DbOrTx, messageIds: string[]): void {
     for (let offset = 0; offset < messageIds.length; offset += SQLITE_INARRAY_CHUNK) {

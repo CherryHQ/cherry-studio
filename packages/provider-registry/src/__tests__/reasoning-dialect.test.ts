@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { providerModelEntries } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 import { configureOpenAIResponsesSummary, REASONING_FORMAT_PROFILES, selectFormatWire } from '../reasoningProfiles'
 import type { ModelConfig, ReasoningWireDialect } from '../schemas/model'
@@ -132,14 +133,14 @@ describe('native-protocol reasoning dialect', () => {
     const NATIVE = { 'google-generate-content': /thinkingConfig\./, 'anthropic-messages': /^thinking\./ }
     const leftovers: string[] = []
     for (const provider of PROVIDERS) {
-      for (const override of provider.overrides ?? []) {
+      for (const override of providerModelEntries(provider)) {
         for (const [endpoint, pattern] of Object.entries(NATIVE)) {
           const wire = override.reasoningContracts?.[endpoint as keyof typeof NATIVE]?.wire
           if (!wire) continue
           // aws-bedrock uses its own `reasoningConfig.*` namespace, and opencode
           // /mimo route non-Claude models over anthropic-messages with bespoke
           // budget policies — those are genuine provider variation, not dialect.
-          if (targetsOf(wire).some((t) => pattern.test(t)) && /^(gemini|claude)/.test(override.modelId ?? '')) {
+          if (targetsOf(wire).some((t) => pattern.test(t)) && /^(gemini|claude)/.test(override.modelId)) {
             leftovers.push(`${provider.id}/${override.modelId}/${endpoint}`)
           }
         }

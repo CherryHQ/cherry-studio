@@ -4,6 +4,8 @@ Status: proposed
 
 English | [中文](2026-10-25-knowledge-file-processing-completion-callback.zh.md)
 
+Partly superseded by [the FileProcessing task model](../../implemented/architecture/2026-10-29-file-processing-task-model.md): the item now waits on a task's `done` instead of a `JobHandle`, takes progress from `onDidChangeTask` instead of a 5-second poll, and cancels through `cancelTask`.
+
 ## Problem
 
 A file that needs conversion waits for its FileProcessing job through `knowledge.check-file-processing-result`, a job that enqueues its next round every 5 seconds until the FileProcessing job settles. Each round is a new job row, and the chain also serves three other purposes:

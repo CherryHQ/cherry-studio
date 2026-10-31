@@ -140,8 +140,6 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                   className="flex items-center gap-2 rounded-lg border border-border p-2">
                   <Button
                     ref={state.dragHandleProps?.ref}
-                    {...state.dragHandleProps?.attributes}
-                    {...state.dragHandleProps?.listeners}
                     data-ui="part:prompt-preset-drag"
                     variant="ghost"
                     size="icon"

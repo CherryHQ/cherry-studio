@@ -1,8 +1,7 @@
-import type { Active } from '@dnd-kit/core'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
-import { Sortable } from '@cherrystudio/ui'
+import { Sortable, type SortableItemId } from '@cherrystudio/ui'
 
 /**
  * After a drag-drop, dnd-kit fires a trailing synthetic click on the dragged
@@ -47,12 +46,12 @@ export function SidebarSortableList<T>({
     draggedItemIdRef.current = null
   }, [])
 
-  const markDragStarted = useCallback((event: { active: Active }) => {
+  const markDragStarted = useCallback((event: { activeId: SortableItemId }) => {
     if (suppressClickTimeoutRef.current) {
       clearTimeout(suppressClickTimeoutRef.current)
       suppressClickTimeoutRef.current = null
     }
-    draggedItemIdRef.current = String(event.active.id)
+    draggedItemIdRef.current = String(event.activeId)
     suppressClickRef.current = true
   }, [])
 

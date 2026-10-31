@@ -17,7 +17,7 @@ packageExtensions:
 overrides:
   # Linux x64 must stay usable without AVX/AVX2; the fork's prebuilt vec0.so requires them (#22048).
   "@aiany/sqlite-vec-linux-x64": "npm:sqlite-vec-linux-x64@0.1.9"
-  "@earendil-works/pi-ai@1.0.0>@google/genai": "2.23.0"
+  "@earendil-works/pi-ai@1.4.0>@google/genai": "2.23.0"
   picomatch: "4.0.4"
   "concurrently>shell-quote": "1.8.4"
   fast-xml-parser: ">=5.10.1"
@@ -111,7 +111,7 @@ patchedDependencies:
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
   # Preserve ultra reasoning and Google custom fetch until Pi supports both upstream.
-  "@earendil-works/pi-ai@1.0.0": patches/@earendil-works__pi-ai@1.0.0.patch
+  "@earendil-works/pi-ai@1.4.0": patches/@earendil-works__pi-ai@1.4.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch

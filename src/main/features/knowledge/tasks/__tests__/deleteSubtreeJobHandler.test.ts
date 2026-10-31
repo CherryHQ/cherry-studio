@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import {
+  cancelFileProcessingTaskMock,
   cancelMock,
   createCtx,
   createDeleteSubtreeJobHandler,
@@ -47,7 +49,7 @@ describe('delete-subtree job handler', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'note-1',
-          fileProcessingJobId: 'fp-job-1',
+          fileProcessingTaskId: 'fp-task-1',
           processedRelativePath: 'source.md'
         }
       }),
@@ -71,16 +73,16 @@ describe('delete-subtree job handler', () => {
 
   it('cancels the file processing a deleted file is still waiting on, before removing its files', async () => {
     const fileProcessingWaits = new FileProcessingWaitManager()
-    fileProcessingWaits.add('kb-1', FILE_ITEM_ID, 'fp-job-1')
-    fileProcessingWaits.add('kb-1', 'file-elsewhere', 'fp-job-elsewhere')
+    fileProcessingWaits.add('kb-1', FILE_ITEM_ID, 'fp-task-1' as FileProcessingTaskId)
+    fileProcessingWaits.add('kb-1', 'file-elsewhere', 'fp-task-elsewhere' as FileProcessingTaskId)
     const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never, fileProcessingWaits)
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([createFileItem(FILE_ITEM_ID, 'deleting')])
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }, 'delete-job'))
 
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
-    expect(cancelMock).not.toHaveBeenCalledWith('fp-job-elsewhere', expect.anything())
-    expect(cancelMock.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(cancelFileProcessingTaskMock).toHaveBeenCalledWith('fp-task-1', 'knowledge-delete-subtree')
+    expect(cancelFileProcessingTaskMock).not.toHaveBeenCalledWith('fp-task-elsewhere', expect.anything())
+    expect(cancelFileProcessingTaskMock.mock.invocationCallOrder[0]).toBeLessThan(
       deleteKnowledgeItemFilesBestEffortMock.mock.invocationCallOrder[0]
     )
   })

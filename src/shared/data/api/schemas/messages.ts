@@ -144,6 +144,11 @@ export const DeleteMessageQuerySchema = z.strictObject({
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
+export const DeleteBranchQuerySchema = z.strictObject({
+  topicId: z.string().min(1)
+})
+export type DeleteBranchQuery = z.infer<typeof DeleteBranchQuerySchema>
+
 /**
  * Query parameters for GET /topics/:topicId/path
  */
@@ -167,6 +172,14 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  '/messages/:id/branch': {
+    DELETE: {
+      params: { id: string }
+      query: DeleteBranchQuery
+      response: DeleteMessageResponse
+    }
+  }
+
   /**
    * Delete the complete assistant reply group containing one representative.
    *

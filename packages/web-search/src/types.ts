@@ -13,6 +13,7 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'serply',
   'yuanbao',
   'deepseek',
+  'desearch',
   'searchapi'
 ] as const)
 

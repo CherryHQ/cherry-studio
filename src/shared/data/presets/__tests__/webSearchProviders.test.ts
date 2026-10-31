@@ -112,6 +112,20 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models Desearch as an API-key-authenticated keyword search provider', () => {
+    const desearch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'desearch')
+
+    expect(desearch).toBeDefined()
+    expect(desearch!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.desearch.ai'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
