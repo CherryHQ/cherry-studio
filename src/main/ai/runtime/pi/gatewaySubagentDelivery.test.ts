@@ -1,6 +1,7 @@
 import { Type } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { createTestSession, finish, hostStore, gatewayModel } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -24,7 +25,6 @@ import {
   untilStopped,
   waitFor
 } from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, gatewayModel } from './gatewaySupport'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const BG_B = { description: 'Check B', prompt: 'TASK-B', background: true }

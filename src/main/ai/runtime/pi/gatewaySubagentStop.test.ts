@@ -1,5 +1,16 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { createTestBinding } from '@test-helpers/piGateway'
+import {
+  createTestSession,
+  finish,
+  hostStore,
+  MODEL,
+  plain,
+  gatewayModel,
+  tempDir,
+  textParts
+} from '@test-helpers/piGateway'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { type ObservationPayload, type OperationResult, runtimeId, type Thread } from '@cherrystudio/agent-runtime'
@@ -21,8 +32,6 @@ import {
   untilStopped,
   waitFor
 } from './gatewaySubagentSupport'
-import { createTestBinding } from './gatewaySupport'
-import { createTestSession, finish, hostStore, MODEL, plain, gatewayModel, tempDir, textParts } from './gatewaySupport'
 import { textOf } from './gatewayToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }

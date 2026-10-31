@@ -1,4 +1,5 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import { createTestSession, finish, hostStore, gatewayModel } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -18,7 +19,6 @@ import {
   toolResults,
   waitFor
 } from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, gatewayModel } from './gatewaySupport'
 import { textOf } from './gatewayToolResults'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
