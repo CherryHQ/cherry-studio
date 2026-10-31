@@ -7,6 +7,7 @@
 import { access, constants, lstat, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -23,6 +24,8 @@ export function stripExtendedPathPrefix(value: string): string {
 }
 
 /** Normalize a realpath result for containment comparisons and stable lock keys. */
+// TEMPORARY windows-2022 CI diagnostic (revert with the fix).
+const canonDiagLogger = loggerService.withContext('File:PathDiag')
 export function normalizeRealpathResult(value: string): string {
   return path.resolve(stripExtendedPathPrefix(value))
 }
@@ -119,7 +122,7 @@ export async function canonicalizePathForContainment(
   // TEMPORARY windows-2022 CI diagnostic (revert with the fix): log which
   // branch returns undefined so the transient failure mode is identifiable.
   const diag = (branch: string, detail: unknown) =>
-    console.error('[canon-diag]', JSON.stringify({ target, branch, detail: String(detail) }))
+    canonDiagLogger.warn('[canon-diag]', { target, branch, detail: String(detail) })
   try {
     return normalizeRealpathResult(await realpath(target))
   } catch (error) {

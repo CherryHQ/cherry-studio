@@ -59,18 +59,15 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   if (!resolvedRoot || !resolvedPath || isOutsidePath(relativeToRoot as string)) {
     // TEMPORARY windows-2022 CI diagnostic (revert with the fix): identify
     // which condition denied admission and the raw forms at failure time.
-    console.error(
-      '[validate-diag]',
-      JSON.stringify({
-        requestedPath,
-        root,
-        absolute,
-        condition: !resolvedRoot ? 'root-undefined' : !resolvedPath ? 'path-undefined' : 'outside',
-        resolvedRoot,
-        resolvedPath,
-        relativeToRoot
-      })
-    )
+    logger.warn('[validate-diag]', {
+      requestedPath,
+      root,
+      absolute,
+      condition: !resolvedRoot ? 'root-undefined' : !resolvedPath ? 'path-undefined' : 'outside',
+      resolvedRoot,
+      resolvedPath,
+      relativeToRoot
+    })
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
