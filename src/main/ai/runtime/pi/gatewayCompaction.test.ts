@@ -1,10 +1,6 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { simulateReadableStream } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
-import { describe, expect, it } from 'vitest'
-
 import {
   createTestSession,
   finish,
@@ -13,7 +9,10 @@ import {
   scriptedModel,
   gatewayModel,
   textParts
-} from './gatewaySupport'
+} from '@test-helpers/piGateway'
+import { simulateReadableStream } from 'ai'
+import { MockLanguageModelV3 } from 'ai/test'
+import { describe, expect, it } from 'vitest'
 
 const PAGE_CHARS = 9_000 // ~2.6k tokens per tool result
 

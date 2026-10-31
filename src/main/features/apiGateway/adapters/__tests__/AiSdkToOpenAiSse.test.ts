@@ -338,8 +338,8 @@ describe('AiSdkToOpenAiSse', () => {
   })
 })
 
-it.each([null, undefined, { path: { nested: true } }])(
-  'rejects invalid tool input without emitting a callable tool: %j',
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
   (input) => {
     const adapter = new AiSdkToOpenAiSse({ model: 'test-model' })
     expect(() =>

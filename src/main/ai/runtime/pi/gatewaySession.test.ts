@@ -3,8 +3,6 @@ import path from 'node:path'
 
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { describe, expect, it } from 'vitest'
-
 import {
   createTestSession,
   finish,
@@ -13,7 +11,8 @@ import {
   gatewayModel,
   tempDir,
   textParts
-} from './gatewaySupport'
+} from '@test-helpers/piGateway'
+import { describe, expect, it } from 'vitest'
 
 const noopTool = (name: string) =>
   defineTool({
@@ -125,33 +124,6 @@ describe('createAgentRuntimeSession', () => {
       expect(requests).toHaveLength(1)
       expect(JSON.stringify(requests[0].messages)).toContain(`to ${label}`)
       expect(lastAssistant(session).content).toEqual([{ type: 'text', text: `from ${label}` }])
-    }
-  })
-
-  it.each(['null', '{}'])('executes only valid optional tool input from the gateway: %s', async (input) => {
-    const executed: unknown[] = []
-    const tool = defineTool({
-      name: 'optional_tool',
-      label: 'optional_tool',
-      description: 'Accepts an optional path',
-      parameters: Type.Object({ path: Type.Optional(Type.String()) }),
-      async execute(_id, args) {
-        executed.push(args)
-        return { content: [{ type: 'text', text: 'done' }], details: undefined }
-      }
-    })
-    const { model } = scriptedModel([
-      [{ type: 'tool-call', toolCallId: 'call', toolName: 'optional_tool', input }, finish('tool-calls')],
-      [...textParts('t', 'complete'), finish('stop')]
-    ])
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, tools: [tool] })
-    await session.prompt('use the optional tool')
-    if (input === 'null') {
-      expect(executed).toEqual([])
-      expect(lastAssistant(session).stopReason).toBe('error')
-    } else {
-      expect(executed).toEqual([{}])
-      expect(lastAssistant(session).content).toEqual([{ type: 'text', text: 'complete' }])
     }
   })
 

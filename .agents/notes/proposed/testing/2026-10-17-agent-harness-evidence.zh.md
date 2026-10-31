@@ -264,6 +264,8 @@ OAR 基线 `141921ea5a818bd8b0a1c0c1e17a2593898dbefe` 的 `packages/oar/src/runt
 | `src/main/ai/runtime/pi/gateway*.test.ts` 中的 Cherry 桥接测试 | 模型桥、原生历史、工具、压缩、goal、前后台子智能体、续接与结果交付。[子智能体停止测试](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkSubagentStop.test.ts)也覆盖通过所有者控制器中断 child thread。仅原生测试保留在 `packages/agent-runtime-pi/tests/`。 |
 | [校验范围选择](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/scripts/__tests__/validationPlan.test.ts)、[校验工作流](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/scripts/__tests__/validationWorkflow.test.ts) | 新包纳入影响范围选择；公共包变化包含两个适配器的消费者检查。 |
 
+客户端工具参数由执行它的 harness 校验。即使 schema 校验失败，网关也保留对象参数和调用身份，让 harness 返回错误并由模型纠正。拒绝所有校验错误会截断这个循环；把 null 或无法解析的参数替换成 `{}` 则可能执行另一个调用。因此网关拒绝非对象的错误输入。`toolInputRecovery.test.ts` 通过真实协议转换器和原生 Pi 循环覆盖两类结果；共享夹具位于 `tests/helpers/piGateway.ts`，不放在生产 runtime 代码中。
+
 [Pi 桥接 README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md)说明测试使用真实 AI SDK 流式处理和本地 HTTP 提供商。这不等于真实外部提供商验收、完整上游 SDK 测试套件或 Electron 验收。测试文件和历史通过记录不能替代这些边界。
 
 #### 剩余缺口
