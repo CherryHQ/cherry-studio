@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-28T16:20:14.303Z
- * Total icons: 166
+ * Generated at: 2026-10-30T03:02:52.346Z
+ * Total icons: 167
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -158,6 +158,7 @@ import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
 import { TokendanceIcon } from './tokendance'
 import { TwitterIcon } from './twitter'
+import { UberllmIcon } from './uberllm/uberllm'
 import { UpstageIcon } from './upstage'
 import { VercelIcon } from './vercel'
 import { VertexaiIcon } from './vertexai'
@@ -326,6 +327,7 @@ export const PROVIDER_ICON_CATALOG = {
   together: TogetherIcon,
   tokendance: TokendanceIcon,
   twitter: TwitterIcon,
+  uberllm: UberllmIcon,
   upstage: UpstageIcon,
   vercel: VercelIcon,
   vertexai: VertexaiIcon,
