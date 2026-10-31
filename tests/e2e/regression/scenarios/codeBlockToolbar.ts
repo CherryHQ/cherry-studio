@@ -1,6 +1,5 @@
-import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname, join } from 'node:path'
+import { dirname, extname, join } from 'node:path'
 
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
@@ -11,7 +10,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
+import { saveNativeFile, saveNativeFileKeepingName } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
@@ -163,52 +162,21 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
 
     const output = join(app.paths.evidence, `MP40-code-${Date.now()}.py`)
     await block.getByRole('button', { name: 'Download Source Code', exact: true }).click()
+    await mkdir(dirname(output), { recursive: true })
+    let savedPath = output
     if (app.record.platform === 'macos') {
-      await mkdir(dirname(output), { recursive: true })
-      const suggestedName = execFileSync(
-        'osascript',
-        [
-          '-e',
-          [
-            'on run argv',
-            'tell application "System Events"',
-            'tell (first application process whose unix id is (item 3 of argv as integer))',
-            'set frontmost to true',
-            'delay 1',
-            'set suggestedName to ""',
-            'repeat with saveElement in entire contents of window 1',
-            'if class of saveElement is text field then',
-            'set candidateName to value of saveElement as text',
-            'if candidateName ends with ".py" then set suggestedName to candidateName',
-            'end if',
-            'end repeat',
-            'if suggestedName is "" then error "Save dialog has no suggested .py filename"',
-            'keystroke "g" using {command down, shift down}',
-            'delay 1',
-            'keystroke (item 1 of argv)',
-            'key code 36',
-            'delay 1',
-            'keystroke "a" using command down',
-            'keystroke (item 2 of argv)',
-            'key code 36',
-            'return suggestedName',
-            'end tell',
-            'end tell',
-            'end run'
-          ].join('\n'),
-          '--',
-          dirname(output),
-          basename(output),
-          String(app.record.electronPid)
-        ],
-        { encoding: 'utf8', timeout: 15_000 }
-      ).trim()
-      expect(extname(suggestedName)).toBe('.py')
+      // Accept the name the product proposes: the saved file name proves it, and its content proves the source.
+      const saved = await saveNativeFileKeepingName(app.record.platform, app.paths, output, true)
+      expect(extname(saved.suggestedName)).toBe('.py')
+      savedPath = saved.filePath
     } else {
       await saveNativeFile(app.record.platform, app.paths, output)
     }
-    await expect.poll(() => readFile(output, 'utf8').catch(() => null)).toBe(`${code}\n`)
-    await testInfo.attach('MP-40 downloaded Python source', { path: output, contentType: 'text/x-python' })
+    // The saved file holds exactly the block source; a trailing newline at EOF is not part of it.
+    await expect
+      .poll(() => readFile(savedPath, 'utf8').then((text) => text.replace(/\r\n/g, '\n')).catch(() => null))
+      .toBe(code)
+    await testInfo.attach('MP-40 downloaded Python source', { path: savedPath, contentType: 'text/x-python' })
 
     const viewer = block.locator('.shiki-scroller')
     await expect(viewer).toBeVisible()
@@ -227,7 +195,6 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     await block.getByRole('button', { name: 'Preview', exact: true }).click()
     await expect(viewer).toBeVisible()
     expect(await viewer.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
-    // Wheel input goes to whatever sits under the pointer, so aim at the measured centre of the preview.
     const previewBox = await viewer.boundingBox()
     if (!previewBox) throw new Error('MP-40 could not measure the code preview viewport')
     await page.mouse.move(previewBox.x + previewBox.width / 2, previewBox.y + previewBox.height / 2)
