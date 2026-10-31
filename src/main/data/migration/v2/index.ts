@@ -40,6 +40,7 @@ export {
 
 // Migrators
 export { getAllMigrators } from './migrators/migratorRegistry'
+export { saveMigrationDiagnosticBundle } from './migrationDiagnosticBundle'
 
 // Window management
 export {

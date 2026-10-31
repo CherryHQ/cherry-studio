@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { degradedFaultHostService } from '@renderer/services/DegradedFaultHostService'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 
 type MockChildrenProps = { children?: ReactNode }
@@ -803,6 +804,91 @@ describe('MigrationApp', () => {
     render(<MigrationApp />)
 
     expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+  })
+
+  it('keeps the first runtime fault copyable and opens export only from the banner', () => {
+    const first = new Error('disk full')
+    first.name = 'MigrationBoom'
+    first.stack = 'MigrationBoom: disk full\n    at migrate (migration.ts:10:1)'
+    const later = new Error('later')
+    later.name = 'LaterFault'
+    later.stack = 'LaterFault: later\n    at next (next.ts:2:1)'
+    const formatted = 'error.unexpected\n\nTypeError: render failed\n    at Widget (widget.tsx:4:1)'
+    const { unmount } = render(<MigrationApp />)
+
+    act(() => {
+      expect(degradedFaultHostService.presentDegradedFault(first)).toBe(true)
+    })
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('MigrationBoom: disk full')
+    expect(alert).toHaveTextContent('at migrate (migration.ts:10:1)')
+    expect(alert).toHaveTextContent('migration.runtime.analysis_unavailable')
+    expect(within(alert).getByRole('button', { name: 'migration.runtime.feedback' })).toBeInTheDocument()
+    expect(within(alert).getByRole('button', { name: 'migration.runtime.releases' })).toBeInTheDocument()
+    expect(screen.queryByTestId('dialog-content')).not.toBeInTheDocument()
+
+    act(() => {
+      degradedFaultHostService.presentDegradedFault(later)
+    })
+    expect(alert).toHaveTextContent('MigrationBoom: disk full')
+    expect(alert).not.toHaveTextContent('LaterFault')
+
+    fireEvent.click(within(alert).getByRole('button', { name: 'migration.runtime.copy' }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(first.stack)
+
+    fireEvent.click(within(alert).getByRole('button', { name: 'migration.diagnostics.title' }))
+    expect(screen.getByTestId('dialog-content')).toBeInTheDocument()
+    expect(screen.getByTestId('migration-diagnostic-panel')).toBeInTheDocument()
+    expect(alert).toHaveTextContent('MigrationBoom: disk full')
+    expect(alert).not.toHaveTextContent('LaterFault')
+
+    fireEvent.click(within(alert).getByRole('button', { name: 'common.close' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    act(() => {
+      degradedFaultHostService.presentDegradedFault(formatted)
+    })
+    const nextAlert = screen.getByRole('alert')
+    expect(nextAlert).toHaveTextContent('TypeError: render failed')
+    expect(nextAlert).toHaveTextContent('at Widget (widget.tsx:4:1)')
+    expect(nextAlert).not.toHaveTextContent('LaterFault')
+    fireEvent.click(within(nextAlert).getByRole('button', { name: 'migration.runtime.copy' }))
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(formatted)
+
+    unmount()
+  })
+
+  it('asks main to open feedback and releases and keeps the banner retryable when that open fails', async () => {
+    const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      invoke.mockResolvedValue(false)
+      render(<MigrationApp />)
+      act(() => {
+        expect(degradedFaultHostService.presentDegradedFault(new Error('disk full'))).toBe(true)
+      })
+      const alert = screen.getByRole('alert')
+
+      fireEvent.click(within(alert).getByRole('button', { name: 'migration.runtime.feedback' }))
+      expect(await within(alert).findByText('migration.runtime.open_failed')).toBeInTheDocument()
+      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.OpenSupportLink, 'feedback')
+      expect(openWindow).not.toHaveBeenCalled()
+      expect(within(alert).getByRole('button', { name: 'migration.runtime.feedback' })).toBeEnabled()
+
+      invoke.mockResolvedValue(true)
+      fireEvent.click(within(alert).getByRole('button', { name: 'migration.runtime.releases' }))
+      await waitFor(() => {
+        expect(within(alert).queryByText('migration.runtime.open_failed')).not.toBeInTheDocument()
+      })
+
+      expect(invoke).toHaveBeenLastCalledWith(MigrationIpcChannels.OpenSupportLink, 'releases')
+      expect(openWindow).not.toHaveBeenCalled()
+      expect(enUS['migration.runtime.open_failed']).toBe('Could not open the link. Try again.')
+      expect(zhCN['migration.runtime.open_failed']).toBe('无法打开链接，请重试。')
+    } finally {
+      openWindow.mockRestore()
+      invoke.mockReset()
+    }
   })
 
   describe('v1 download dialog', () => {
