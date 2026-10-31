@@ -53,8 +53,12 @@ export interface AgentRuntimeSession {
 /**
  * Builds a Pi agent session using the caller's native model runtime and native session storage.
  * Workspace context files and skills load only when the host opts in.
+ * @param beforeStart Attach native observers before startup extensions can execute work.
  */
-export async function createAgentRuntimeSession(options: AgentRuntimeSessionOptions): Promise<AgentRuntimeSession> {
+export async function createAgentRuntimeSession(
+  options: AgentRuntimeSessionOptions,
+  beforeStart?: (session: AgentSession) => void
+): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
   const { modelRuntime, model } = options
   const settingsManager = SettingsManager.inMemory(options.settings)
@@ -91,9 +95,7 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
     customTools: options.tools ?? []
   })
-  await session.bindExtensions({})
-
-  return {
+  const owner: AgentRuntimeSession = {
     session,
     prompt: (text, promptOptions) => session.prompt(text, promptOptions),
     abort: () => session.abort(),
@@ -108,5 +110,13 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
         }
       }
     }
+  }
+  try {
+    beforeStart?.(session)
+    await session.bindExtensions({})
+    return owner
+  } catch (cause) {
+    await owner.dispose()
+    throw cause
   }
 }
