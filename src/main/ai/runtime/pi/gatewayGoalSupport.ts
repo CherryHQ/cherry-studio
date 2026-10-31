@@ -2,6 +2,18 @@ import type { LanguageModelV3CallOptions, LanguageModelV3Prompt, LanguageModelV3
 import { Type } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { type AgentSession, defineTool, type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
+import { createTestBinding } from '@test-helpers/piGateway'
+import {
+  createTestSession,
+  finish,
+  hostStore,
+  MODEL,
+  plain,
+  gatewayModel,
+  tempDir,
+  type TestSessionOptions,
+  textParts
+} from '@test-helpers/piGateway'
 import { type LanguageModel, simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { expect, onTestFinished } from 'vitest'
@@ -19,19 +31,6 @@ import {
   type GoalSnapshot,
   type RoundDetails
 } from '@cherrystudio/agent-runtime-pi'
-
-import { createTestBinding } from './gatewaySupport'
-import {
-  createTestSession,
-  finish,
-  hostStore,
-  MODEL,
-  plain,
-  gatewayModel,
-  tempDir,
-  type TestSessionOptions,
-  textParts
-} from './gatewaySupport'
 
 export function goalPort(
   overrides: Partial<Omit<GoalPort, 'defaults'>> & { defaults?: Partial<GoalPort['defaults']> } = {}

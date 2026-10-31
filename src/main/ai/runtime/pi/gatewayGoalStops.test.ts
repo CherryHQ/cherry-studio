@@ -1,6 +1,7 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import { createAskUserExtension, type GoalSnapshot } from '@cherrystudio/agent-runtime-pi'
@@ -27,7 +28,6 @@ import {
   working
 } from './gatewayGoalSupport'
 import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './gatewaySubagentSupport'
-import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from './gatewaySupport'
 import { textOf, toolResults } from './gatewayToolResults'
 
 describe('goal caps and budgets', () => {
