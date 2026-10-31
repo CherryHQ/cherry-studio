@@ -17,9 +17,10 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
     try {
       const parsed = JSON.parse(match[1])
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
-      const [first] = Object.values(parsed)
-      if (first && typeof first === 'object' && (first as Record<string, any>).command === 'npx') {
-        return first as Record<string, any>
+      for (const server of Object.values(parsed)) {
+        if (server && typeof server === 'object' && (server as Record<string, any>).command === 'npx') {
+          return server as Record<string, any>
+        }
       }
     } catch (e) {
       logger.error('getMcpConfigSampleFromReadme', e as Error)
