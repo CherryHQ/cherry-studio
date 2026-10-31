@@ -1065,6 +1065,15 @@ function assertUsableDotHooshListings(
 /** The default Anthropic-messages base of the DotHoosh preset (`packages/provider-registry/src/providers/dothoosh.ts`). */
 const DOTHOOSH_ANTHROPIC_API_URL = `${DOTHOOSH_API_URL}/anthropic`
 
+/** The public mirror is a static, header-free listing, however the base URL led there. */
+const isDotHooshMirrorUrl = (url: string): boolean => {
+  try {
+    return new URL(url).hostname === new URL(DOTHOOSH_MIRROR_URL).hostname
+  } catch {
+    return false
+  }
+}
+
 const dothooshFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, 'dothoosh'),
   fetch: async (provider, signal, options) => {
@@ -1081,12 +1090,11 @@ const dothooshFetcher: ModelFetcher = {
       ? `${DOTHOOSH_MIRROR_URL}/anthropic/v1/models`
       : `${formatApiHost(anthropicBase)}/models`
     const hostHeaders = mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
-    // The public mirror is requested without headers; a route on the user's host keeps the provider headers.
-    const openaiHeaders = openaiMirror ? {} : hostHeaders
-    const anthropicHeaders = anthropicMirror ? {} : hostHeaders
-    // Validation asks whether a keyless route reads the public mirror, which also covers a custom base typed as the mirror URL.
-    const openaiPublic = !apiKey && openaiUrl.startsWith(DOTHOOSH_MIRROR_URL)
-    const anthropicPublic = !apiKey && anthropicUrl.startsWith(DOTHOOSH_MIRROR_URL)
+    // The public mirror never receives provider headers; a route on the user's own host keeps them.
+    const openaiHeaders = isDotHooshMirrorUrl(openaiUrl) ? {} : hostHeaders
+    const anthropicHeaders = isDotHooshMirrorUrl(anthropicUrl) ? {} : hostHeaders
+    const openaiPublic = !apiKey && isDotHooshMirrorUrl(openaiUrl)
+    const anthropicPublic = !apiKey && isDotHooshMirrorUrl(anthropicUrl)
     const [openai, anthropic] = await Promise.all([
       getFromApi({
         url: openaiUrl,
