@@ -407,7 +407,7 @@ export class AgentTaskService {
   }
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
-  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ScheduledTaskEntity['status'] } = {}): {
     tasks: ScheduledTaskListItem[]
     total: number
   } {
@@ -419,7 +419,9 @@ export class AgentTaskService {
     }
   }
 
-  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+  private queryTasks(
+    options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ScheduledTaskEntity['status'] }
+  ): {
     tasks: ScheduledTaskEntity[]
     total: number
   } {
@@ -441,7 +443,11 @@ export class AgentTaskService {
     )
     const filtered = candidates.filter((schedule) => {
       const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
-      return template !== null && activeAgentIds.has(template.agentId)
+      return (
+        template !== null &&
+        activeAgentIds.has(template.agentId) &&
+        (!options.status || deriveStatus(schedule) === options.status)
+      )
     })
 
     const sorted = [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
@@ -485,14 +491,8 @@ export class AgentTaskService {
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
-    const jobs = jobService.list({ scheduleId: taskId })
-    const total = jobs.length
-    const sliced =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? jobs.slice(options.offset, options.offset + options.limit)
-          : jobs.slice(0, options.limit)
-        : jobs
+    const sliced = jobService.list({ scheduleId: taskId, limit: options.limit, offset: options.offset })
+    const total = jobService.count({ scheduleId: taskId })
 
     return {
       logs: sliced.map((j) => this.toTaskRunLogEntity(j)),

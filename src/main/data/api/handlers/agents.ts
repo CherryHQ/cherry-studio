@@ -15,6 +15,7 @@ import {
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
+  ListTasksQuerySchema,
   UpdateAgentSchema
 } from '@shared/data/api/schemas/agents'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -35,8 +36,14 @@ function parseListQuery(query: unknown): ListQuery {
 export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agent-tasks': {
     GET: async ({ query }) => {
-      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { tasks, total } = taskService.listAllTasks({ limit, offset })
+      const parsed = ListTasksQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const { page, limit, offset } = paginationFromQuery(parsed.data)
+      const { tasks, total } = taskService.listAllTasks({
+        limit,
+        offset,
+        ...('status' in parsed.data ? { status: parsed.data.status } : {})
+      })
       return { items: tasks, total, page }
     }
   },

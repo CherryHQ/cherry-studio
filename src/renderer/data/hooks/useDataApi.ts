@@ -243,6 +243,7 @@ export interface UseInfiniteQueryResult<TResponse> {
   loadNext: () => void
   refresh: () => Promise<unknown>
   reset: () => void
+  goToPage: (page: number) => void
   mutate: SWRInfiniteKeyedMutator<TResponse[]>
 }
 
@@ -1211,6 +1212,10 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     setCurrentPage(1)
   }, [])
 
+  const goToPage = useCallback((page: number) => {
+    if (Number.isInteger(page) && page > 0) setCurrentPage(page)
+  }, [])
+
   return {
     items,
     total,
@@ -1223,7 +1228,8 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     prevPage,
     nextPage,
     refresh: refetch,
-    reset
+    reset,
+    goToPage
   }
 }
 

@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -52,15 +52,19 @@ export const useTasks = (agentId: string | null) => {
 }
 
 /** All scheduled tasks across every agent — backs the settings overview page. */
-export const useAllTasks = () => {
-  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh } = usePaginatedQuery(
-    '/agent-tasks',
-    {
+export const useAllTasks = (status?: ScheduledTaskEntity['status']) => {
+  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh, goToPage } =
+    usePaginatedQuery('/agent-tasks', {
       limit: TASKS_PAGE_LIMIT,
+      query: status ? { status } : {},
       swrOptions: { keepPreviousData: false }
-    }
-  )
+    })
   useDataChange('/agent-tasks', () => refresh())
+  useEffect(() => {
+    if (status && !isLoading && !error && page > Math.max(1, Math.ceil(total / TASKS_PAGE_LIMIT))) {
+      goToPage(Math.max(1, Math.ceil(total / TASKS_PAGE_LIMIT)))
+    }
+  }, [status, isLoading, error, page, total, goToPage])
   return {
     tasks: items,
     total,
@@ -213,10 +217,10 @@ export const useDeleteTask = () => {
   return { deleteTask }
 }
 
-export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
+export const useTaskLogs = (agentId: string | null, taskId: string | null, page = 1) => {
   const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
     params: { agentId: agentId!, taskId: taskId! },
-    query: { limit: 50 },
+    query: { limit: 50, page },
     enabled: !!(agentId && taskId),
     swrOptions: { keepPreviousData: false }
   })
@@ -226,6 +230,8 @@ export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
   return {
     logs: data?.items ?? [],
     total: data?.total ?? 0,
+    hasNext: page * 50 < (data?.total ?? 0),
+    refetch,
     error,
     isLoading
   }
