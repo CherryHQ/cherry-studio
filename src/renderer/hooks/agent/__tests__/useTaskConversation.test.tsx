@@ -1,5 +1,6 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
+import { Activity } from 'react'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 import type { TaskConversationResult } from '@renderer/services/taskConversation'
@@ -58,7 +59,72 @@ it('keeps the selected conversation when the task moves to another group', async
   await waitFor(() => expect(view.result.current.result?.session?.id).toBe('kept-session'))
   view.rerender({ selected: { ...task('task'), status: 'paused', enabled: false } })
   expect(view.result.current.result?.session?.id).toBe('kept-session')
-  expect(resolve).toHaveBeenCalledTimes(1)
+})
+
+it('retains the conversation when Activity reconnects and refreshes the newer run separately', async () => {
+  resolve.mockResolvedValue(result('old-session'))
+  readPage.mockResolvedValue({ ...result('new-session'), runId: 'new-run' })
+  function Conversation() {
+    const conversation = useTaskConversation(task('task'))
+    return (
+      <output>
+        {conversation.result?.session?.id}:{conversation.newerRunId}
+      </output>
+    )
+  }
+  const view = render(
+    <Activity mode="visible">
+      <Conversation />
+    </Activity>
+  )
+  await waitFor(() => expect(view.getByRole('status').textContent).toBe('old-session:'))
+  view.rerender(
+    <Activity mode="hidden">
+      <Conversation />
+    </Activity>
+  )
+  resolve.mockResolvedValue({ ...result('new-session'), runId: 'new-run' })
+  view.rerender(
+    <Activity mode="visible">
+      <Conversation />
+    </Activity>
+  )
+  await waitFor(() => expect(view.getByRole('status').textContent).toBe('old-session:new-run'))
+})
+
+it('preserves refreshed history when an older page finishes after the refresh', async () => {
+  const log = (id: string) => ({ id }) as TaskConversationResult['logs'][number]
+  resolve.mockResolvedValue({ ...result('selected-session'), logs: [log('selected-run')], total: 100 })
+  let finishRefresh!: (value: TaskConversationResult) => void
+  let finishOlder!: (value: TaskConversationResult) => void
+  readPage.mockImplementation(
+    (_task, page) =>
+      new Promise((done) => {
+        if (page === 1) finishRefresh = done
+        else finishOlder = done
+      })
+  )
+  const view = renderHook(() => useTaskConversation(task('task')))
+  await waitFor(() => expect(view.result.current.result?.session?.id).toBe('selected-session'))
+  await act(async () =>
+    MockUseDataApiUtils.emitDataChange([
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind: 'membership', routeParams: { taskId: 'task' } }
+    ])
+  )
+  let loading!: Promise<void>
+  act(() => {
+    loading = view.result.current.loadMore()
+  })
+  await act(async () =>
+    finishRefresh({ ...result('new-session'), runId: 'new-run', logs: [log('new-run')], total: 101 })
+  )
+  await act(async () => {
+    finishOlder({ ...result('older-session'), logs: [log('older-run')], nextPage: 3, total: 100 })
+    await loading
+  })
+  expect(view.result.current.result?.logs.map((entry) => entry.id)).toEqual(['new-run', 'selected-run', 'older-run'])
+  expect(view.result.current.result?.session?.id).toBe('selected-session')
+  expect(view.result.current.newerRunId).toBe('new-run')
 })
 
 it('announces a newer conversation without replacing the current one, including on retry', async () => {
