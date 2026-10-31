@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { FilePenLine, MoreHorizontal, PinIcon, Plus, Archive, Unlink } from 'lucide-react'
+import { FilePenLine, MoreHorizontal, PinIcon, Plus, Unlink } from 'lucide-react'
 import type { RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -1825,7 +1825,6 @@ const TopicRow = memo(function TopicRow({
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time'
-  const canDeleteTopic = !topic.pinned
   const isArchiveBlocked = isTopicStreamPending || isTopicAwaitingApproval
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
@@ -1856,8 +1855,6 @@ const TopicRow = memo(function TopicRow({
     topic,
     topicsLength
   })
-  const deleteAction = useMemo(() => getMenuActions().find((action) => action.id === 'topic.delete'), [getMenuActions])
-
   const row = (
     <ResourceList.Item
       item={topic}
@@ -1915,21 +1912,6 @@ const TopicRow = memo(function TopicRow({
                 void onPinTopic(topic)
               }}>
               <PinIcon size={14} className={cn('size-3.5!', topic.pinned && 'fill-current')} />
-            </ResourceList.ItemAction>
-          </Tooltip>
-        )}
-        {canDeleteTopic && (
-          <Tooltip
-            title={isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : t('common.archive')}
-            delay={500}>
-            <ResourceList.ItemAction
-              aria-label={t('common.archive')}
-              disabled={isArchiveBlocked}
-              onClick={(event) => {
-                event.stopPropagation()
-                if (deleteAction) void handleMenuAction(deleteAction)
-              }}>
-              <Archive size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}
