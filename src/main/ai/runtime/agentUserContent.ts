@@ -17,6 +17,28 @@ export function buildAgentUserContent(message: AgentSessionMessageEntity): strin
   return wrapAgentSessionDeliveryContent(message, content)
 }
 
+/**
+ * The slash-command name a runtime admits as a command line, or `undefined` for
+ * ordinary prose. Mirrors dsh's `parseCommand` admission: the first token is
+ * `/name`, ended by end-of-string or ASCII whitespace. Shared by the dsh/pi
+ * dispatch paths and the terminal classification so they cannot drift.
+ */
+export function commandLineName(content: string): string | undefined {
+  return /^\/([a-z][a-z0-9_-]*)(?=$|[\t\n\r ])/.exec(content.trim())?.[1]
+}
+
+/**
+ * Whether the user turn is an explicit `/compact` command.
+ *
+ * Driver-neutral: a compaction command is answered by the fold itself, and a runtime may
+ * settle it with no anchor at all, so the intent has to be recognized from what the user
+ * typed rather than read back from the stream. Reads the same admission gesture as
+ * {@link commandLineName} so an ordinary prompt can never claim the exemption.
+ */
+export function isManualCompactCommand(content: string): boolean {
+  return commandLineName(content) === 'compact'
+}
+
 /** Append original filenames beside managed paths so agents can distinguish opaque storage names. */
 export function appendAgentAttachmentPaths(
   text: string,

@@ -41,7 +41,9 @@ export function recoverSessionDeliveries(): Set<string> {
             }
           }
         ],
-        [message.sessionId]
+        [message.sessionId],
+        // The process is alive — this was a delivery failure, not a restart.
+        'turn.interrupted'
       )
     }
     const result = agentSessionMessageService.finalizeSessionDelivery({

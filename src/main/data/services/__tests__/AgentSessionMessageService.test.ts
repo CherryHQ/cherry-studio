@@ -1084,7 +1084,11 @@ describe('AgentSessionMessageService', () => {
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
-      expect(row.data).toEqual(finalizedData)
+      // The caller's terminalized content survives, and the row also explains why
+      // it failed: a crash leaves no error object of its own, so the sentinel
+      // supplies one rather than leaving an error row with nothing in it.
+      expect(row.data.parts?.[0]).toEqual(finalizedData.parts[0])
+      expect(row.data.parts?.some((part) => part.type === 'data-error')).toBe(true)
       expect(session.lastActivityAt).toBe(1_000)
     })
 
@@ -1391,7 +1395,11 @@ describe('AgentSessionMessageService', () => {
     })
     notifyDataApiDataChangeMock.mockClear()
 
-    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    agentSessionMessageService.markAssistantMessageTerminalError(
+      SESSION_ID,
+      ASSISTANT_MESSAGE_ID,
+      'turn.persist_failed'
+    )
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
     expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-token')
@@ -1403,6 +1411,27 @@ describe('AgentSessionMessageService', () => {
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
+  })
+
+  it("persists the caller's terminal cause instead of a blanket persistence failure", () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID, 'turn.interrupted')
+
+    const parts = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts ?? []
+    const errorPart = parts.find((part) => part.type === 'data-error')
+    expect(errorPart).toBeDefined()
+    expect(errorPart && 'data' in errorPart ? errorPart.data?.i18nKey : undefined).toBe('turn.interrupted')
+    expect(errorPart && 'data' in errorPart ? errorPart.data?.message : undefined).toBe(
+      'The reply was interrupted before it finished.'
+    )
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {
