@@ -39,7 +39,7 @@ import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
-import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
+import { AttachmentTextTooLargeError, extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
 
@@ -314,7 +314,7 @@ async function prepareChatMessage<T extends UIMessage>(
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
-      if (error instanceof NonVisionImageOcrError) throw error
+      if (error instanceof NonVisionImageOcrError || error instanceof AttachmentTextTooLargeError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))
     }

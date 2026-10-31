@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
+import type * as AttachmentTextExtraction from '../attachmentTextExtraction'
+
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
@@ -14,7 +16,12 @@ const { getByIdMock, ocrMock } = vi.hoisted(() => ({
 }))
 vi.mock('@application', () => ({
   application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+    get: (name: string) =>
+      name === 'PreferenceService'
+        ? { get: () => 'en-US' }
+        : name === 'FileProcessingService'
+          ? { ocrImage: ocrMock }
+          : { getById: getByIdMock }
   }
 }))
 
@@ -22,12 +29,14 @@ const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
 
 const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
-vi.mock('../attachmentTextExtraction', () => ({
+vi.mock('../attachmentTextExtraction', async (importOriginal) => ({
+  ...(await importOriginal<typeof AttachmentTextExtraction>()),
   extractDocumentText: extractMock,
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { AttachmentTextTooLargeError } from '../attachmentTextExtraction'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -88,6 +97,13 @@ const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
 afterEach(() => vi.clearAllMocks())
+
+// A size error must reach the user, rather than silently sending an unreadable-file note.
+it('stops message preparation with the explicit text size error', async () => {
+  getByIdMock.mockResolvedValueOnce({ ext: 'md' })
+  extractMock.mockRejectedValueOnce(new AttachmentTextTooLargeError())
+  await expect(run([fileWithEntry('e1', 'large.md', 'text/markdown')], NONE)).rejects.toThrow(/8 MiB/)
+})
 
 describe('prepareChatMessages — routing', () => {
   it('keeps a native image inline (no extraction)', async () => {

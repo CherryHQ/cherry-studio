@@ -2,6 +2,7 @@
 description: Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow
 sources:
   - src/main/ai/messages/attachmentRouting.ts
+  - src/main/ai/messages/attachmentTextExtraction.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
   - src/shared/utils/file/fileExtensions.ts
@@ -57,6 +58,7 @@ Decided per file part in `prepareChatMessages`
   model that accepts images must have **Vision** enabled under Provider Settings
   → model input modalities; that user override takes precedence over the catalog
   and sends the native image without running OCR.
+- Plain-text extraction (including unknown or missing extensions) rejects source files larger than 8 MiB before decoding, with a localized size error and no provider request. Split or reduce the file; the inline token budget does not override this resource limit. PDF/Office extraction and native media are unaffected.
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
@@ -138,7 +140,7 @@ the feature, keeping processor/handler internals in that domain. Both
 `extractDocumentText` and the OCR path are path-free and cache their result by
 content version (30 min), so the eager every-turn pass over history doesn't
 re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
-`FileManager.read` (PDF via `pdf-parse`, office via
+`FileManager.read` for PDF/Office and a byte-bounded `FileManager.readChunk` for text (PDF via `pdf-parse`, office via
 `officeparser`/`word-extractor`, known text extensions via
 `decodeTextWithAutoEncoding`, and files with no extension or an unrecognized
 extension (`FILE_TYPE.OTHER`) via `decodeTextBufferIfText`) and dispatches on

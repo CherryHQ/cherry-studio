@@ -346,6 +346,34 @@ describe('readChunk', () => {
     }
   })
 
+  it('does not reserve the full ceiling when a tiny file reaches EOF', async () => {
+    const file = path.join(tmp, 'small.txt')
+    const content = new Uint8Array(1017).fill(65)
+    await writeFile(file, content)
+    const handle = await open(file, 'r')
+    const prototype = Object.getPrototypeOf(handle)
+    await handle.close()
+    const readSpy = vi.spyOn(prototype, 'read')
+    try {
+      const chunk = await readChunk(file as AbsoluteFilePath, 0, 8 * 1024 * 1024 + 1)
+      expect(chunk).toEqual(content)
+      expect(chunk.buffer.byteLength).toBe(content.byteLength)
+      for (const [buffer] of readSpy.mock.calls) {
+        expect((buffer as Uint8Array).byteLength).toBeLessThanOrEqual(64 * 1024)
+      }
+    } finally {
+      readSpy.mockRestore()
+    }
+  })
+
+  it('preserves bytes across allocation growth and reads the overflow byte', async () => {
+    const file = path.join(tmp, 'large.bin')
+    const content = Uint8Array.from({ length: 200_001 }, (_, i) => i % 251)
+    await writeFile(file, content)
+    expect(await readChunk(file as AbsoluteFilePath, 0, 200_001)).toEqual(content)
+    expect(await readChunk(file as AbsoluteFilePath, 23, 170_000)).toEqual(content.slice(23, 170_023))
+  })
+
   it('returns a tightly-backed short read at EOF', async () => {
     const file = path.join(tmp, 'bytes.bin')
     await writeFile(file, new Uint8Array([0, 1, 2, 3]))
