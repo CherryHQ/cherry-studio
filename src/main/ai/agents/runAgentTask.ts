@@ -45,6 +45,7 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { TaskRetry } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -53,6 +54,8 @@ export type AgentTaskInput = {
   agentId: string
   prompt: string
   timeoutMinutes: number
+  /** Failed-run retry config; absent means a failed run is not retried. */
+  retry?: TaskRetry
   workspace?: AgentSessionWorkspaceSource
   /** Reuse-config epoch captured when this job was enqueued. */
   reuseRevision: number

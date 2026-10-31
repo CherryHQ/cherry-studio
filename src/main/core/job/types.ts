@@ -84,6 +84,8 @@ export interface JobHandler<TPayload = unknown> {
   defaultConcurrency?: number
   /** Default retry policy. */
   defaultRetryPolicy?: RetryPolicy
+  /** Per-job override of `defaultRetryPolicy`, derived from the job input; `undefined` falls back. */
+  resolveRetryPolicy?: (input: TPayload) => RetryPolicy | undefined
   /** Default per-job timeout (ms). */
   defaultTimeoutMs?: number
   /** Grace period to wait for handler to react to AbortSignal after cancel. Defaults to 30000ms. */

@@ -29,6 +29,7 @@ declare module '@main/core/job/jobRegistry' {
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number
+      retry?: AgentTaskInput['retry']
     }
   }
 }
@@ -53,6 +54,17 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
    * up token spend without diagnostic value.
    */
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
+
+  /** Per-task retry config; tasks without one keep the single-attempt default. */
+  resolveRetryPolicy: (input) =>
+    input.retry
+      ? {
+          maxAttempts: input.retry.max + 1,
+          backoff: 'fixed',
+          baseDelayMs: input.retry.backoffSeconds * 1000,
+          maxDelayMs: input.retry.backoffSeconds * 1000
+        }
+      : undefined,
 
   onEnqueued(snapshot) {
     if (snapshot.scheduleId) {
