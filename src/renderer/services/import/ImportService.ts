@@ -9,7 +9,8 @@ import { isTrashTargetNotFoundError } from '@shared/ipc/errors/trash'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
-import type { ConversationImporter, ImportMessageNode, ImportResponse, ImportResult } from './types'
+import { CherryTopicImporter } from './importers/CherryTopicImporter'
+import type { ConversationImporter, ImportConversation, ImportMessageNode, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
 
@@ -17,7 +18,7 @@ type ImportProgressCallback = (percent: number) => void
 
 // Every conversation importer the service registers on construction. Add new
 // importers here as they are implemented.
-const availableImporters = [new ChatgptImporter(), new AnthropicImporter()]
+const availableImporters = [new ChatgptImporter(), new AnthropicImporter(), new CherryTopicImporter()]
 
 /**
  * Main import service that manages all conversation importers
@@ -100,6 +101,12 @@ class ImportService {
             error: i18n.t('import.error.unsupported_format', { defaultValue: 'Unsupported file format' })
           }
         }
+      }
+
+      // Native topic files carry no assistant: route them to the native import
+      // so a generic entry point never mints a throwaway assistant for them.
+      if (importer instanceof CherryTopicImporter) {
+        return this.importNativeTopic(fileContent, onProgress)
       }
 
       // Validate format
@@ -248,26 +255,98 @@ class ImportService {
   }
 
   /**
+   * Import a native Cherry Studio topic file. Unlike external imports this
+   * creates only the topic itself — no assistant — and preserves the exported
+   * snapshots, sibling groups and status verbatim. The file is fully validated
+   * before anything is written, so invalid input creates nothing.
+   */
+  async importNativeTopic(fileContent: string, onProgress?: ImportProgressCallback): Promise<ImportResponse> {
+    try {
+      logger.info('Starting native topic import...')
+      onProgress?.(0)
+
+      const importer = this.getImporter('cherry')
+      if (!importer) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: 'Importer "cherry" not found'
+        }
+      }
+      if (!importer.validate(fileContent)) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: i18n.t('import.error.invalid_format', { defaultValue: 'Invalid Cherry Studio topic file' })
+        }
+      }
+      onProgress?.(10)
+
+      const result = await importer.parse(fileContent)
+      const conversation = result.conversations[0]
+      if (!conversation) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: i18n.t('import.error.invalid_format', { defaultValue: 'Invalid Cherry Studio topic file' })
+        }
+      }
+      onProgress?.(20)
+
+      const messagesCount = await this.persistImport({ conversations: [conversation] }, undefined, onProgress)
+      onProgress?.(100)
+
+      logger.info(`Native topic import completed: 1 topic, ${messagesCount} messages imported`)
+
+      return {
+        success: true,
+        topicsCount: 1,
+        messagesCount
+      }
+    } catch (error) {
+      logger.error('Native topic import failed:', error as Error)
+      return {
+        success: false,
+        topicsCount: 0,
+        messagesCount: 0,
+        error:
+          error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
+      }
+    }
+  }
+
+  /**
    * Builds a v2 create-message DTO. Imported messages are historical, so they
-   * are persisted as `success`. For assistant rows the producing author is
-   * frozen into `messageSnapshot` so the header survives later rename/delete.
+   * are persisted as `success`. A `pending` source has no live stream on the
+   * destination to complete it, so it lands as `error` (same convention as the
+   * boot reconcile for crash-orphaned turns), keeping it terminal and retryable.
+   * For assistant rows the producing author is frozen into `messageSnapshot`
+   * so the header survives later rename/delete.
+   * Native topic nodes carry their snapshot, status and sibling group verbatim;
+   * external nodes synthesize them from the import assistant and tree position.
    */
   private toMessageDto(
     message: ImportMessageNode,
     parentId: string | null,
     siblingsGroupId: number | undefined,
-    assistant: { id: string; name: string; emoji: string }
+    assistant?: { id: string; name: string; emoji: string }
   ): CreateMessageDto {
+    const effectiveSiblingsGroupId = message.siblingsGroupId ?? siblingsGroupId
     const dto: CreateMessageDto = {
       parentId,
       role: message.role,
-      data: { parts: message.parts },
-      status: 'success',
+      data: message.turnOptions ? { parts: message.parts, turnOptions: message.turnOptions } : { parts: message.parts },
+      status: message.status === 'pending' ? 'error' : (message.status ?? 'success'),
       setAsActive: false,
-      ...(siblingsGroupId ? { siblingsGroupId } : {})
+      ...(effectiveSiblingsGroupId ? { siblingsGroupId: effectiveSiblingsGroupId } : {})
     }
 
-    if (message.role === 'assistant' && message.model) {
+    if (message.messageSnapshot) {
+      dto.messageSnapshot = message.messageSnapshot
+    } else if (assistant && message.role === 'assistant' && message.model) {
       dto.messageSnapshot = {
         id: assistant.id,
         name: assistant.name,
@@ -287,18 +366,21 @@ class ImportService {
   /**
    * Persists each imported conversation as a message tree. Source IDs stay
    * local to the import contract and are mapped to newly-created database IDs.
+   * Without an assistant the topic is created unlinked; the caller moves it to
+   * an assistant afterwards. Continuation then falls back to the destination's
+   * current assistant and model while history renders from the snapshots.
    */
   private async persistImport(
     result: ImportResult,
-    assistant: { id: string; name: string; emoji: string },
+    assistant: { id: string; name: string; emoji: string } | undefined,
     onProgress?: ImportProgressCallback,
     createdTopicIds?: string[]
   ): Promise<number> {
     const { conversations } = result
-    const totalSteps = conversations.reduce((count, conversation) => {
-      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
-      return count + 1 + conversation.messages.length + (activeSourceId ? 1 : 0)
-    }, 0)
+    const totalSteps = conversations.reduce(
+      (count, conversation) => count + 1 + conversation.messages.length + (conversation.activeSourceId ? 1 : 0),
+      0
+    )
     let completedSteps = 0
     const completeStep = () => {
       completedSteps++
@@ -307,69 +389,97 @@ class ImportService {
 
     for (const conversation of conversations) {
       const createdTopic = await dataApiService.post('/topics', {
-        body: { name: conversation.name, assistantId: assistant.id }
+        body: assistant ? { name: conversation.name, assistantId: assistant.id } : { name: conversation.name }
       })
       createdTopicIds?.push(createdTopic.id)
-      completeStep()
-
-      const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
-      for (const message of conversation.messages) {
-        const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
-        const siblings = messagesByRole.get(message.role) ?? []
-        siblings.push(message)
-        messagesByRole.set(message.role, siblings)
-        messagesByParent.set(message.parentSourceId, messagesByRole)
-      }
-
-      const siblingGroupIds = new Map<string, number>()
-      let nextSiblingGroupId = 1
-      for (const messagesByRole of messagesByParent.values()) {
-        for (const siblings of messagesByRole.values()) {
-          if (siblings.length < 2) continue
-          for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
-          nextSiblingGroupId++
-        }
-      }
-
-      const createdIds = new Map<string, string>()
-      const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
-      while (pendingSourceIds.size > 0) {
-        let createdInPass = 0
-        for (const message of conversation.messages) {
-          if (!pendingSourceIds.has(message.sourceId)) continue
-
-          let parentId: string | null = null
-          if (message.parentSourceId) {
-            const createdParentId = createdIds.get(message.parentSourceId)
-            if (!createdParentId) continue
-            parentId = createdParentId
+      try {
+        await this.persistConversation(conversation, createdTopic.id, assistant, completeStep)
+      } catch (error) {
+        // External imports are rolled back as a unit by their caller. Native
+        // imports have no assistant owner, so remove only this fresh topic.
+        if (!createdTopicIds) {
+          try {
+            await ipcApi.request('trash.topic.delete_permanently', { topicIds: [createdTopic.id] })
+          } catch (cleanupError) {
+            if (isTrashTargetNotFoundError(cleanupError)) {
+              await this.purgeTrashedTopic(createdTopic.id, error)
+            } else {
+              logger.warn('Failed to clean up a partially imported topic', { topicId: createdTopic.id, cleanupError })
+            }
           }
-
-          const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
-            body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
-          })
-          createdIds.set(message.sourceId, created.id)
-          pendingSourceIds.delete(message.sourceId)
-          createdInPass++
-          completeStep()
         }
-
-        if (createdInPass === 0) {
-          throw new Error(`Unable to resolve imported message parents for topic "${conversation.name}"`)
-        }
+        throw error
       }
-
-      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
-      const activeNodeId = activeSourceId ? createdIds.get(activeSourceId) : undefined
-      if (activeNodeId) {
-        await dataApiService.put(`/topics/${createdTopic.id}/active-node`, { body: { nodeId: activeNodeId } })
-      }
-      if (activeSourceId) completeStep()
     }
 
     const messagesCount = conversations.reduce((count, conversation) => count + conversation.messages.length, 0)
     logger.info(`Persisted import: ${conversations.length} topics, ${messagesCount} messages`)
     return messagesCount
+  }
+
+  private async persistConversation(
+    conversation: ImportConversation,
+    topicId: string,
+    assistant: { id: string; name: string; emoji: string } | undefined,
+    completeStep: () => void
+  ): Promise<void> {
+    if (conversation.isNameManuallyEdited) {
+      await dataApiService.patch(`/topics/${topicId}`, { body: { isNameManuallyEdited: true } })
+    }
+    completeStep()
+
+    const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
+    for (const message of conversation.messages) {
+      const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
+      const siblings = messagesByRole.get(message.role) ?? []
+      siblings.push(message)
+      messagesByRole.set(message.role, siblings)
+      messagesByParent.set(message.parentSourceId, messagesByRole)
+    }
+
+    const siblingGroupIds = new Map<string, number>()
+    let nextSiblingGroupId = 1
+    for (const messagesByRole of messagesByParent.values()) {
+      for (const siblings of messagesByRole.values()) {
+        if (siblings.length < 2) continue
+        for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
+        nextSiblingGroupId++
+      }
+    }
+
+    const createdIds = new Map<string, string>()
+    const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
+    while (pendingSourceIds.size > 0) {
+      let createdInPass = 0
+      for (const message of conversation.messages) {
+        if (!pendingSourceIds.has(message.sourceId)) continue
+
+        let parentId: string | null = null
+        if (message.parentSourceId) {
+          const createdParentId = createdIds.get(message.parentSourceId)
+          if (!createdParentId) continue
+          parentId = createdParentId
+        }
+
+        const created = await dataApiService.post(`/topics/${topicId}/messages`, {
+          body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
+        })
+        createdIds.set(message.sourceId, created.id)
+        pendingSourceIds.delete(message.sourceId)
+        createdInPass++
+        completeStep()
+      }
+
+      if (createdInPass === 0) {
+        throw new Error(`Unable to resolve imported message parents for topic "${conversation.name}"`)
+      }
+    }
+
+    const activeNodeId = conversation.activeSourceId ? createdIds.get(conversation.activeSourceId) : undefined
+    if (activeNodeId) {
+      await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
+      completeStep()
+    }
   }
 }
 
