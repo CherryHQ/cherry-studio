@@ -344,7 +344,10 @@ export class AgentSessionMessageService {
         checkpoint: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint')`
       })
       .from(sessionTable)
-      .leftJoin(sessionMessagesTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
+      .leftJoin(
+        sessionMessagesTable,
+        and(eq(sessionTable.id, sessionMessagesTable.sessionId), ne(sessionMessagesTable.role, 'root'))
+      )
       .leftJoin(agentTable, eq(agentTable.id, sessionTable.agentId))
       .where(eq(sessionTable.workspaceId, workspaceId))
       .all()
