@@ -1,6 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
-  ArrowUpCircle,
   CheckCircle2,
   Download,
   GripVertical,
@@ -67,6 +66,7 @@ import type { CodeCli } from '@shared/types/codeCli'
 import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 
 import { AgentServiceCard } from './AgentServiceCard'
+import { AgentUpgradeControl } from './AgentUpgradeControl'
 import { LocalAgentAdvancedSettings } from './LocalAgentAdvancedSettings'
 import { LocalAgentModelList } from './LocalAgentModelList'
 import { LocalAgentWebUiActions } from './LocalAgentWebUiActions'
@@ -157,14 +157,14 @@ export function LocalAgentDirectory({
         `cli:${search.tool}`))
   const [selected, setSelected] = useState(requestedId ?? 'claude')
   const [pendingSelection, setPendingSelection] = useState<string>()
-  const [installingAgents, setInstallingAgents] = useState<Set<string>>(() => new Set())
+  const [installingAgents, setInstallingAgents] = useState<Map<string, string | undefined>>(() => new Map())
   const installAgent = useCallback(async (presetId: string, targetVersion?: string) => {
-    setInstallingAgents((current) => new Set(current).add(presetId))
+    setInstallingAgents((current) => new Map(current).set(presetId, targetVersion))
     try {
       return await ipcApi.request('ai.local_agents.install', { presetId, targetVersion })
     } finally {
       setInstallingAgents((current) => {
-        const next = new Set(current)
+        const next = new Map(current)
         next.delete(presetId)
         return next
       })
@@ -441,6 +441,7 @@ export function LocalAgentDirectory({
         ) : entry || selected === 'custom-new' ? (
           <LocalAgentDetails
             installing={installingAgents.has(entry?.preset?.id ?? '')}
+            upgradeTargetVersion={installingAgents.get(entry?.preset?.id ?? '')}
             onInstall={installAgent}
             cliConfigEntry={renderCliConfig?.(cliTool ?? entry?.preset?.id ?? '')}
             key={entry?.id ?? selected}
@@ -472,6 +473,7 @@ export function LocalAgentDirectory({
 
 function LocalAgentDetails({
   installing,
+  upgradeTargetVersion,
   onInstall,
   cliConfigEntry,
   pendingSelection,
@@ -483,6 +485,7 @@ function LocalAgentDetails({
   onSaved
 }: {
   installing: boolean
+  upgradeTargetVersion?: string
   onInstall: (presetId: string, targetVersion?: string) => Promise<LocalAgentInstallResult>
   cliConfigEntry?: ReactNode
   pendingSelection?: string
@@ -843,9 +846,9 @@ function LocalAgentDetails({
   )
   return (
     <>
-      <Scrollbar className={cn('min-h-0 flex-1 overflow-x-hidden px-6 pt-3 pb-6', modelSavingClass)}>
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-          <section className="space-y-3">
+      <div className={cn('flex min-h-0 flex-1 flex-col', modelSavingClass)}>
+        <div className="shrink-0 overflow-y-hidden px-6 pt-3 pb-3 [scrollbar-color:transparent_transparent] [scrollbar-gutter:stable]">
+          <div className="mx-auto w-full max-w-3xl">
             <AgentServiceCard
               title={
                 preset ? (
@@ -871,6 +874,16 @@ function LocalAgentDetails({
                 )
               }
               version={initial.executableOverride ? connection?.version : (version?.current ?? detection?.version)}
+              versionAction={
+                (version?.canUpgrade || upgradeTargetVersion !== undefined) && (
+                  <AgentUpgradeControl
+                    latestVersion={upgradeTargetVersion ?? version?.latest}
+                    upgrading={upgradeTargetVersion !== undefined}
+                    disabled={busy}
+                    onUpgrade={() => void install(version?.latest)}
+                  />
+                )
+              }
               controls={
                 <>
                   {cliConfigEntry}
@@ -906,22 +919,6 @@ function LocalAgentDetails({
                 <>
                   {available ? (
                     <>
-                      {version?.canUpgrade && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 rounded-lg border-border-subtle text-xs shadow-none"
-                          disabled={busy}
-                          onClick={() => void install(version.latest)}>
-                          {installing ? (
-                            <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
-                          ) : (
-                            <ArrowUpCircle className="lucide-custom size-3.5 text-muted-foreground" />
-                          )}
-                          {t('code.upgrade')}
-                          {version.latest && ` v${version.latest}`}
-                        </Button>
-                      )}
                       {terminalButton}
                       <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
                       <Button
@@ -1039,6 +1036,10 @@ function LocalAgentDetails({
                 )}
               </div>
             </AgentServiceCard>
+          </div>
+        </div>
+        <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pb-6">
+          <div className="mx-auto w-full max-w-3xl space-y-3">
             {!editing && feedback}
             {archived && <p className="text-xs text-muted-foreground">{t('local_agents.disable_archive.status')}</p>}
             {(preset || agent) && (
@@ -1054,9 +1055,9 @@ function LocalAgentDetails({
                 onSelect={selectModel}
               />
             )}
-          </section>
-        </div>
-      </Scrollbar>
+          </div>
+        </Scrollbar>
+      </div>
       {editing && (
         <LocalAgentAdvancedSettings
           config={initial}

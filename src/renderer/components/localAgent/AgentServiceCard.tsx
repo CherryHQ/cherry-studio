@@ -4,6 +4,7 @@ export function AgentServiceCard({
   icon,
   title,
   version,
+  versionAction,
   controls,
   actions,
   trailing,
@@ -12,6 +13,7 @@ export function AgentServiceCard({
   icon: ReactNode
   title: ReactNode
   version?: string
+  versionAction?: ReactNode
   controls: ReactNode
   actions: ReactNode
   trailing?: ReactNode
@@ -24,10 +26,15 @@ export function AgentServiceCard({
           <div className="flex size-10 shrink-0 items-center justify-center">{icon}</div>
           <div className="min-w-0 space-y-1">
             <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>
-            {version && (
-              <p className="font-mono text-xs text-muted-foreground">
-                {version.startsWith('v') ? version : `v${version}`}
-              </p>
+            {(version || versionAction) && (
+              <div className="flex items-center gap-1.5">
+                {version && (
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {version.startsWith('v') ? version : `v${version}`}
+                  </p>
+                )}
+                <div className="flex size-5 shrink-0 items-center justify-center">{versionAction}</div>
+              </div>
             )}
           </div>
         </div>

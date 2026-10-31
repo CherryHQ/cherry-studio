@@ -113,7 +113,7 @@ describe('CLI-only Agent details', () => {
   it('launches DSH with the selected model and saved tool settings', async () => {
     configured(CodeCli.DEEPSEEK_HARNESS)
     render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} embedded />)
-    await userEvent.click(screen.getByRole('button', { name: '启动' }))
+    await userEvent.click(screen.getByRole('button', { name: '启动 WebUI' }))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('deepseek_harness.start', {
         mode: 'direct',
@@ -137,7 +137,8 @@ describe('CLI-only Agent details', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'DeepSeek Chat' })).toBeDisabled())
     expect(screen.getByRole('button', { name: '高级设置' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '升级' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '停止' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: 'WebUI 操作' }))
+    expect(screen.getByRole('menuitem', { name: '停止 WebUI' })).not.toHaveAttribute('aria-disabled', 'true')
   })
 
   it('stops DSH before uninstalling and preserves its saved settings', async () => {

@@ -169,6 +169,7 @@ export type UseCacheSchema = {
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
   'agent.session.local_options': Record<string, Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>>
+  'local_agent.versions': Record<string, { path: string; current?: string; latest?: string; canUpgrade: boolean }>
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
@@ -265,6 +266,7 @@ export const DefaultUseCache: UseCacheSchema = {
   // Agent management
   'agent.session.waiting_id_map': {},
   'agent.session.local_options': {},
+  'local_agent.versions': {},
   'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],

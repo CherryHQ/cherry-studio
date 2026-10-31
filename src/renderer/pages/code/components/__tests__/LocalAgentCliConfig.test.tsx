@@ -145,7 +145,7 @@ it('blocks editing while Hermes WebUI is running and offers stopping it before s
   await userEvent.click(screen.getByRole('button', { name: 'CLI 配置文件' }))
   expect(await screen.findByRole('status')).toHaveTextContent('请先停止 Hermes WebUI，再编辑其配置。')
   expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
-  await userEvent.click(screen.getByRole('button', { name: '停止' }))
+  await userEvent.click(screen.getByRole('button', { name: '停止 WebUI' }))
   rerender(<LocalAgentCliConfig tool={CodeCli.HERMES} />)
   await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
   fireEvent.change(screen.getByRole('textbox', { name: 'config' }), { target: { value: 'model: next' } })

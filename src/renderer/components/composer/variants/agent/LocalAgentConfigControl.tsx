@@ -184,6 +184,11 @@ export function LocalAgentConfigControl({
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           {single ? rows[0].option.name : t('local_agents.configuration')}
         </DropdownMenuLabel>
+        {disabled && (
+          <p role="status" className="px-2 pb-1.5 text-xs text-muted-foreground">
+            {t('local_agents.configuration_read_only')}
+          </p>
+        )}
         <Scrollbar className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
           {rows.map(({ kind, option }) => {
             const choices =
@@ -223,7 +228,7 @@ export function LocalAgentConfigControl({
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger
                     aria-label={option.name}
-                    disabled={disabled || saving}
+                    disabled={saving}
                     className="gap-2 rounded-md py-2 text-xs not-last:mb-1">
                     <span className="shrink-0">{option.name}</span>
                     <span className="min-w-0 flex-1 truncate text-right text-muted-foreground">

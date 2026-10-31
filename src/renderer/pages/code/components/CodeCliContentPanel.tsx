@@ -1,4 +1,4 @@
-import { ArrowUpCircle, Download, ExternalLink, Loader2, Play, Settings2, Square, Trash2 } from 'lucide-react'
+import { Download, ExternalLink, Loader2, Settings2, Trash2 } from 'lucide-react'
 import { type ComponentProps, type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,6 +6,8 @@ import { Badge, Button, InputGroup, InputGroupAddon, Scrollbar, Tooltip } from '
 import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { AgentServiceCard } from '@renderer/components/localAgent/AgentServiceCard'
+import { AgentUpgradeControl } from '@renderer/components/localAgent/AgentUpgradeControl'
+import { AgentWebUiControl } from '@renderer/components/localAgent/AgentWebUiControl'
 import { LocalAgentModelList } from '@renderer/components/localAgent/LocalAgentModelList'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
@@ -72,121 +74,110 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
 
   return (
     <>
-      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pt-3 pb-6">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-          <AgentServiceCard
-            title={activeMeta.label}
-            icon={<LocalAgentIcon cliId={selectedCliTool} size={36} />}
-            version={versionStatus.current}
-            controls={
-              <>
-                <Tooltip content={t('common.advanced_settings')} asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 shrink-0 rounded-lg"
-                    aria-label={t('common.advanced_settings')}
-                    disabled={busy || modelList.disabled || !onConfigureCurrent}
-                    onClick={onConfigureCurrent}>
-                    <Settings2 className={iconClass} />
-                  </Button>
-                </Tooltip>
-              </>
-            }
-            actions={
-              <>
-                {(!versionStatus.installed || retryInstall) && (
-                  <Button variant="outline" size="sm" className="h-8" onClick={onInstall} disabled={busy}>
-                    {busy ? <Loader2 className={`${iconClass} animate-spin`} /> : <Download className={iconClass} />}
-                    {t(retryInstall ? 'common.retry' : 'code.install')}
-                  </Button>
-                )}
-                {versionStatus.installed && (
-                  <>
-                    {versionStatus.canUpgrade && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8"
-                        onClick={onUpgrade}
-                        disabled={busy || versionCard.upgradeDisabled}>
-                        <ArrowUpCircle className={iconClass} />
-                        {t('code.upgrade')}
-                      </Button>
-                    )}
-                    {onRemove && (
-                      <Tooltip content={t('local_agents.uninstall')} asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label={t('local_agents.uninstall')}
-                          onClick={onRemove}
-                          disabled={busy || versionCard.launching || versionCard.stopping}>
-                          <Trash2 className={iconClass} />
-                        </Button>
-                      </Tooltip>
-                    )}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="shrink-0 overflow-y-hidden px-6 pt-3 pb-5 [scrollbar-color:transparent_transparent] [scrollbar-gutter:stable]">
+          <div className="mx-auto w-full max-w-3xl">
+            <AgentServiceCard
+              title={activeMeta.label}
+              icon={<LocalAgentIcon cliId={selectedCliTool} size={36} />}
+              version={versionStatus.current}
+              versionAction={
+                (versionStatus.canUpgrade || upgradingTools.has(selectedCliTool)) && (
+                  <AgentUpgradeControl
+                    latestVersion={versionStatus.latest}
+                    upgrading={upgradingTools.has(selectedCliTool)}
+                    disabled={busy || versionCard.upgradeDisabled}
+                    onUpgrade={onUpgrade}
+                  />
+                )
+              }
+              controls={
+                <>
+                  <Tooltip content={t('common.advanced_settings')} asChild>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8"
-                      onClick={versionCard.running ? onStop : onLaunch}
-                      disabled={
-                        busy ||
-                        versionCard.launching ||
-                        versionCard.stopping ||
-                        (!versionCard.running && !versionCard.canLaunch) ||
-                        (modelList.disabled && !versionCard.running)
-                      }>
-                      {versionCard.launching || versionCard.stopping ? (
-                        <Loader2 className={`${iconClass} animate-spin`} />
-                      ) : versionCard.running ? (
-                        <Square className={iconClass} />
-                      ) : (
-                        <Play className={iconClass} />
-                      )}
-                      {t(versionCard.running ? 'code.stop' : 'code.launch.label')}
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0 rounded-lg"
+                      aria-label={t('common.advanced_settings')}
+                      disabled={busy || modelList.disabled || !onConfigureCurrent}
+                      onClick={onConfigureCurrent}>
+                      <Settings2 className={iconClass} />
                     </Button>
-                    {versionCard.running && (
-                      <Button variant="outline" size="sm" className="h-8" onClick={onOpenDashboard}>
-                        <ExternalLink className={iconClass} />
-                        {t('code.open_web_ui')}
-                      </Button>
-                    )}
-                  </>
-                )}
-              </>
-            }>
-            <div className="flex flex-wrap items-center gap-2">
-              <InputGroup className="h-8 min-w-40 flex-1 rounded-lg border-border-subtle bg-muted/30 shadow-none">
-                <span className="min-w-0 flex-1 truncate px-3 text-left font-mono text-xs" dir="rtl" title={program}>
-                  <bdi dir="ltr">{program}</bdi>
-                </span>
-                <InputGroupAddon align="inline-end" className="gap-2 pr-2">
-                  <Badge variant="secondary" className="rounded-full text-[10px]">
-                    {t(versionStatus.installed ? 'local_agents.detected' : 'local_agents.not_installed')}
-                  </Badge>
-                </InputGroupAddon>
-              </InputGroup>
-            </div>
-            {installError && (
-              <Button variant="link" className="h-auto p-0 text-destructive" onClick={() => setShowInstallError(true)}>
-                {t('common.error')}
-              </Button>
-            )}
-          </AgentServiceCard>
-          <LocalAgentModelList {...modelList} />
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-dashed"
-            onClick={() => openSettingsTab('/settings/provider')}>
-            {t('code.add_provider_hint')}
-            <ExternalLink className={iconClass} />
-          </Button>
+                  </Tooltip>
+                </>
+              }
+              actions={
+                <>
+                  {(!versionStatus.installed || retryInstall) && (
+                    <Button variant="outline" size="sm" className="h-8" onClick={onInstall} disabled={busy}>
+                      {busy ? <Loader2 className={`${iconClass} animate-spin`} /> : <Download className={iconClass} />}
+                      {t(retryInstall ? 'common.retry' : 'code.install')}
+                    </Button>
+                  )}
+                  {versionStatus.installed && (
+                    <>
+                      {onRemove && (
+                        <Tooltip content={t('local_agents.uninstall')} asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            aria-label={t('local_agents.uninstall')}
+                            onClick={onRemove}
+                            disabled={busy || versionCard.launching || versionCard.stopping}>
+                            <Trash2 className={iconClass} />
+                          </Button>
+                        </Tooltip>
+                      )}
+                      <AgentWebUiControl
+                        disabled={busy || (!versionCard.running && (!versionCard.canLaunch || !!modelList.disabled))}
+                        running={versionCard.running}
+                        pending={versionCard.launching || versionCard.stopping}
+                        onStart={onLaunch}
+                        onStop={onStop}
+                        onOpen={onOpenDashboard}
+                      />
+                    </>
+                  )}
+                </>
+              }>
+              <div className="flex flex-wrap items-center gap-2">
+                <InputGroup className="h-8 min-w-40 flex-1 rounded-lg border-border-subtle bg-muted/30 shadow-none">
+                  <span className="min-w-0 flex-1 truncate px-3 text-left font-mono text-xs" dir="rtl" title={program}>
+                    <bdi dir="ltr">{program}</bdi>
+                  </span>
+                  <InputGroupAddon align="inline-end" className="gap-2 pr-2">
+                    <Badge variant="secondary" className="rounded-full text-[10px]">
+                      {t(versionStatus.installed ? 'local_agents.detected' : 'local_agents.not_installed')}
+                    </Badge>
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
+              {installError && (
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-destructive"
+                  onClick={() => setShowInstallError(true)}>
+                  {t('common.error')}
+                </Button>
+              )}
+            </AgentServiceCard>
+          </div>
         </div>
-      </Scrollbar>
+        <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pb-6">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+            <LocalAgentModelList {...modelList} />
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-dashed"
+              onClick={() => openSettingsTab('/settings/provider')}>
+              {t('code.add_provider_hint')}
+              <ExternalLink className={iconClass} />
+            </Button>
+          </div>
+        </Scrollbar>
+      </div>
       <BinaryInstallErrorDialog
         error={
           showInstallError && installError ? { name: activeMeta.label, message: installError, action: 'install' } : null

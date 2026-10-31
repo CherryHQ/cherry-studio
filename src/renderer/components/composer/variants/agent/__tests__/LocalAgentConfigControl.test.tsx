@@ -242,11 +242,27 @@ describe('LocalAgentConfigControl', () => {
     })
   })
 
-  it('keeps advertised settings read-only while a turn is running', async () => {
+  it('allows inspection while read-only and resumes changing settings when ready', async () => {
     const user = userEvent.setup()
-    render(<LocalAgentConfigControl sessionId="session" options={options} disabled />)
+    const { rerender } = render(<LocalAgentConfigControl sessionId="session" options={options} disabled />)
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
-    expect(screen.getByRole('menuitem', { name: '通知' })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('menuitem', { name: '回答详细程度' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('menuitem', { name: '通知' }))
+    const enabledChoice = await screen.findByRole('menuitemradio', { name: '已启用' })
+    expect(enabledChoice).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(enabledChoice)
+    expect(screen.getByRole('menuitemradio', { name: '已禁用' })).toHaveAttribute('aria-checked', 'true')
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toBeVisible()
+
+    rerender(<LocalAgentConfigControl sessionId="session" options={options} disabled={false} />)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '已启用' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+        sessionId: 'session',
+        configId: 'notify',
+        value: true
+      })
+    )
   })
 })

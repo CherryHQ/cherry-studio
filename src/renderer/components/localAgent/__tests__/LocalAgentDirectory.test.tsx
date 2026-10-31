@@ -31,6 +31,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.unmock('@cherrystudio/ui')
 
 beforeEach(() => {
+  MockUseCacheUtils.resetMocks()
   MockUseDataApiUtils.resetMocks()
   MockUseDataApiUtils.mockQueryData('/agents', { items: [], total: 0, page: 1 })
   navigation.search = { id: 'claude' }
@@ -85,9 +86,10 @@ describe('local agent settings navigation', () => {
       return { models: [] } as never
     })
     render(<LocalAgentSettingsPage />)
-    await userEvent.click(await screen.findByRole('button', { name: '停止' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'WebUI 操作' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: '停止 WebUI' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('停止 WebUI 失败，请重试。'))
-    expect(screen.getByRole('button', { name: '停止' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '打开 WebUI' })).toBeEnabled()
   })
 
   it.each(['opencode', 'codebuddy-code', 'hermes'])('requires an enabled agent to start %s WebUI', async (presetId) => {
@@ -100,7 +102,7 @@ describe('local agent settings navigation', () => {
       return { models: [] } as never
     })
     const { rerender } = render(<LocalAgentSettingsPage />)
-    const start = await screen.findByRole('button', { name: /^启动$/ })
+    const start = await screen.findByRole('button', { name: '启动 WebUI' })
     expect(start).toBeDisabled()
     await userEvent.click(start)
     expect(
@@ -124,7 +126,7 @@ describe('local agent settings navigation', () => {
       page: 1
     })
     rerender(<LocalAgentSettingsPage />)
-    await waitFor(() => expect(screen.getByRole('button', { name: /^启动$/ })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: '启动 WebUI' })).toBeEnabled())
   })
 
   it('keeps automatic authentication failures quiet and reports failures after a manual model refresh', async () => {
@@ -154,7 +156,10 @@ describe('local agent settings navigation', () => {
     })
     render(<LocalAgentSettingsPage />)
     expect(await screen.findByText('v1.0.0')).toBeInTheDocument()
-    await userEvent.click(await screen.findByRole('button', { name: /升级.*2.0.0/ }))
+    const upgradeButton = await screen.findByRole('button', { name: '升级至 v2.0.0' })
+    await userEvent.hover(upgradeButton)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('升级至 v2.0.0')
+    await userEvent.click(upgradeButton)
     expect(await screen.findByText(/升级成功/)).toBeInTheDocument()
   })
 
@@ -175,13 +180,19 @@ describe('local agent settings navigation', () => {
       return { models: [] } as never
     })
     render(<LocalAgentSettingsPage />)
-    await user.click(await screen.findByRole('button', { name: /升级.*2.0.0/ }))
+    await user.click(await screen.findByRole('button', { name: '升级至 v2.0.0' }))
     try {
       await user.click(screen.getByRole('button', { name: /^Codex ·/ }))
       await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
       expect(screen.getByRole('button', { name: '安装' })).toBeEnabled()
       await user.click(screen.getByRole('button', { name: /^Claude Code ·/ }))
-      expect(await screen.findByRole('button', { name: /升级.*2.0.0/ })).toBeDisabled()
+      const pendingButton = await screen.findByRole('button', { name: '正在升级至 v2.0.0…' })
+      expect(pendingButton).toBeDisabled()
+      expect(pendingButton).toHaveAttribute('aria-busy', 'true')
+      await user.click(pendingButton)
+      expect(
+        vi.mocked(ipcApi.request).mock.calls.filter(([route]) => route === 'ai.local_agents.install')
+      ).toHaveLength(1)
       await user.click(screen.getByRole('button', { name: /^Codex ·/ }))
       await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
       await act(async () => {
@@ -190,7 +201,7 @@ describe('local agent settings navigation', () => {
       })
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex')
       await user.click(screen.getByRole('button', { name: /^Claude Code ·/ }))
-      expect(await screen.findByRole('button', { name: /升级.*2.0.0/ })).toBeEnabled()
+      expect(await screen.findByRole('button', { name: '升级至 v2.0.0' })).toBeEnabled()
     } finally {
       finish()
     }

@@ -1,8 +1,6 @@
-import { ExternalLink, Loader2, Play, Square } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useHermesDashboardController } from '@renderer/hooks/agent/useHermesDashboardController'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
@@ -14,6 +12,7 @@ import { LOCAL_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/lo
 import { CodeCli } from '@shared/types/codeCli'
 import { LOCAL_AGENT_WEB_UI_IDS, type LocalAgentWebUiId } from '@shared/types/managedTool'
 
+import { AgentWebUiControl } from './AgentWebUiControl'
 import { CodeBuddyWebUiActions } from './CodeBuddyWebUiActions'
 
 interface Props {
@@ -31,7 +30,7 @@ export function LocalAgentWebUiActions(props: Props) {
 function HermesWebUiActions({ config, disabled }: Props) {
   const controller = useHermesDashboardController(CodeCli.HERMES)
   return (
-    <WebUiButtons
+    <AgentWebUiControl
       disabled={disabled || (!config.enabled && !controller.running)}
       running={controller.running}
       pending={controller.launching || controller.starting || controller.stopping}
@@ -71,7 +70,7 @@ function ManagedWebUiActions({ config, disabled, id }: Props & { id: LocalAgentW
     }
   }
   return (
-    <WebUiButtons
+    <AgentWebUiControl
       disabled={disabled || (!config.enabled && status?.status !== 'running')}
       running={status?.status === 'running'}
       pending={pending || status?.status === 'starting'}
@@ -81,53 +80,5 @@ function ManagedWebUiActions({ config, disabled, id }: Props & { id: LocalAgentW
         if (status?.url) open(status.url)
       }}
     />
-  )
-}
-
-function WebUiButtons({
-  disabled,
-  running,
-  pending,
-  onStart,
-  onStop,
-  onOpen
-}: {
-  disabled: boolean
-  running: boolean
-  pending: boolean
-  onStart: () => void
-  onStop: () => void
-  onOpen: () => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 rounded-lg border-border-subtle text-xs shadow-none"
-        disabled={disabled || pending}
-        onClick={running ? onStop : onStart}>
-        {pending ? (
-          <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
-        ) : running ? (
-          <Square className="lucide-custom size-3.5 text-muted-foreground" />
-        ) : (
-          <Play className="lucide-custom size-3.5 text-muted-foreground" />
-        )}
-        {t(running ? 'code.stop' : 'code.launch.label')}
-      </Button>
-      {running && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 rounded-lg border-border-subtle text-xs shadow-none"
-          disabled={disabled || pending}
-          onClick={onOpen}>
-          <ExternalLink className="lucide-custom size-3.5 text-muted-foreground" />
-          {t('code.open_web_ui')}
-        </Button>
-      )}
-    </>
   )
 }

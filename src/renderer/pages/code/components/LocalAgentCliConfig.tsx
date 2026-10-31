@@ -169,7 +169,7 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
                 size="sm"
                 loading={hermesDashboard.stopping}
                 onClick={() => void hermesDashboard.onStop()}>
-                {t('code.stop')}
+                {t('code.web_ui.stop')}
               </Button>
             </div>
           )}
