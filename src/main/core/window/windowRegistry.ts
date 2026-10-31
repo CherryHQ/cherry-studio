@@ -599,6 +599,39 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       inactivityTimeout: 600,
       warmup: 'lazy'
     }
+  },
+
+  // Hidden one-shot slide-render surface for the agent-facing `preview_slides` tool.
+  // cherryOfficeTools owns the job loop: loads the deck, screenshots slides one by one
+  // via capturePage, and closes the window. Never shown, never focused, no preload —
+  // the page is driven entirely over webContents.executeJavaScript.
+  [WindowType.OfficeRender]: {
+    type: WindowType.OfficeRender,
+    lifecycle: 'default',
+    htmlPath: 'windows/officeRender/index.html',
+    preload: '',
+    showMode: 'manual',
+    windowOptions: {
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      // capturePage() must get frames while the window stays hidden.
+      useContentSize: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        backgroundThrottling: false
+      }
+    },
+    behavior: {
+      // Hidden helper window: do not bring the macOS Dock icon back in tray mode.
+      macShowInDock: false
+    }
   }
 }
 

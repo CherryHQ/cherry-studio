@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1, width=device-width" />
+    <meta name="logger-window-source" content="officeRenderWindow" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src blob: cherry-media: *; script-src 'self' 'unsafe-eval' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; media-src 'self' cherry-media: file: http: https: blob:; frame-src * file:" />
+    <title>Cherry Studio Office Render</title>
+  </head>
+
+  <body>
+    <!-- style-host persists document stylesheets (docx-preview injects per load) -->
+    <div id="style-host"></div>
+    <div id="slide-host">
+      <div id="page-layer"></div>
+    </div>
+    <script type="module" src="/windows/officeRender/officeRender.ts"></script>
+    <style>
+      html {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+
+      #style-host {
+        display: none;
+      }
+
+      #slide-host {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+      }
+    </style>
+  </body>
+</html>
