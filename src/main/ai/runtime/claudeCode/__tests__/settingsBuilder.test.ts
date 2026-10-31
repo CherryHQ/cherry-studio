@@ -650,10 +650,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      { contextWindow: 1_048_576, maxOutputTokens: 65_536 }
+      { contextWindow: 1_048_576, maxOutputTokens: 16_384 }
     )
 
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '65536' })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '16384' })
   })
 
   it('never pins above the ceiling the CLI would clamp to anyway', async () => {
@@ -667,7 +667,110 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 1_048_576, maxOutputTokens: 393_216 }
     )
 
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '65536' })
+  })
+
+  // #22332: a catalog cap states what the model can emit, not what its endpoint accepts. Pinning
+  // grok-4.6's declared 500K against xAI's 65,536 cap failed every Work turn with
+  // `max_tokens must be at most 65536`.
+  it('holds a catalog cap above the endpoint maximum to that maximum', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 500_000, maxOutputTokens: 500_000 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '65536' })
+    // The budget still subtracts the request it pins, so the window stays usable.
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(400_000)
+  })
+
+  // #22332 also reaches the explicit override: it feeds the same request, so an agent pin above the
+  // endpoint maximum has to be held to it too.
+  it.each([
+    ['above the endpoint maximum', '500000', '65536'],
+    ['within the endpoint maximum', '48000', '48000']
+  ])('holds an explicit output-token override %s', async (_label, override, expected) => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: override } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_000_000, maxOutputTokens: 500_000 }
+    )
+
+    // The subprocess env carries the value actually requested and budgeted: an override above
+    // the endpoint maximum is normalized to the clamped figure, not passed through raw while
+    // the budget reserves less (#22332 review: 128000 reached the wire against a 65536 budget).
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: expected })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(
+      Math.floor((1_000_000 - Number(expected)) * 0.98)
+    )
+  })
+
+  // Without a usable context window there is no compaction budget, but the override still feeds
+  // the request: an oversized pin has to be held to the endpoint maximum for these inputs too,
+  // while a catalog-derived value stays unpinned (the CLI's own default applies).
+  it.each([
+    ['absent', undefined],
+    ['below the minimum compaction window', 64_000]
+  ])('normalizes an oversized override when the context window is %s', async (_label, contextWindow) => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow, maxOutputTokens: 500_000 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '65536' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeUndefined()
+  })
+
+  it('does not pin a catalog-derived value without a usable context window', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { maxOutputTokens: 500_000 }
+    )
+
+    expect(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS).toBeUndefined()
   })
 
   it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
