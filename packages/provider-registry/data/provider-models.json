@@ -10366,19 +10366,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.320835
+          "perMillionTokens": 0.320836
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 16.04167
+          "perMillionTokens": 16.041668
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 12.833334
+          "perMillionTokens": 12.833336
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 64.16667
+          "perMillionTokens": 64.166667
         }
       },
       "providerId": "dothoosh"
@@ -10399,40 +10399,40 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.012836
+          "perMillionTokens": 0.012834
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 0.160418
+          "perMillionTokens": 0.16042
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.128333
+          "perMillionTokens": 0.128335
         },
         "inputTokenTiers": [
           {
             "cacheRead": {
               "currency": "USD",
-              "perMillionTokens": 0.064169
+              "perMillionTokens": 0.06417
             },
             "cacheWrite": {
               "currency": "USD",
-              "perMillionTokens": 0.802085
+              "perMillionTokens": 0.802086
             },
             "input": {
               "currency": "USD",
-              "perMillionTokens": 0.641667
+              "perMillionTokens": 0.641669
             },
             "minInputTokens": 100001,
             "output": {
               "currency": "USD",
-              "perMillionTokens": 3.208336
+              "perMillionTokens": 3.208335
             }
           }
         ],
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.641667
+          "perMillionTokens": 0.641669
         }
       },
       "providerId": "dothoosh"
@@ -10457,15 +10457,15 @@
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 6.416669
+          "perMillionTokens": 6.41667
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 5.133334
+          "perMillionTokens": 5.133335
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 25.666668
+          "perMillionTokens": 25.666669
         }
       },
       "providerId": "dothoosh"
@@ -10486,11 +10486,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.128333
+          "perMillionTokens": 0.128335
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 3.208336
+          "perMillionTokens": 3.208335
         },
         "input": {
           "currency": "USD",
@@ -10498,7 +10498,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 12.833334
+          "perMillionTokens": 12.833336
         }
       },
       "providerId": "dothoosh"
@@ -10508,7 +10508,7 @@
         "add": ["function-call", "reasoning", "structured-output"],
         "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
       },
-      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "endpointTypes": ["openai-chat-completions"],
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 1048576,
@@ -10519,15 +10519,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0077
+          "perMillionTokens": 0.007701
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.385
+          "perMillionTokens": 0.385002
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.540001
+          "perMillionTokens": 1.540002
         }
       },
       "providerId": "dothoosh"
@@ -10537,7 +10537,7 @@
         "add": ["function-call", "reasoning", "structured-output"],
         "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
       },
-      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "endpointTypes": ["openai-chat-completions"],
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 1048576,
@@ -10552,11 +10552,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.694003
+          "perMillionTokens": 1.694001
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 5.082002
+          "perMillionTokens": 5.082003
         }
       },
       "providerId": "dothoosh"
@@ -10578,15 +10578,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0385
+          "perMillionTokens": 0.038502
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.385
+          "perMillionTokens": 0.385002
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.208336
+          "perMillionTokens": 3.208335
         }
       },
       "providerId": "dothoosh"
@@ -10608,11 +10608,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.096253
+          "perMillionTokens": 0.096251
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.962503
+          "perMillionTokens": 0.962502
         },
         "output": {
           "currency": "USD",
@@ -10637,7 +10637,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.128333
+          "perMillionTokens": 0.128335
         },
         "input": {
           "currency": "USD",
@@ -10645,7 +10645,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 12.833334
+          "perMillionTokens": 12.833336
         }
       },
       "providerId": "dothoosh"
@@ -10667,11 +10667,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.128333
+          "perMillionTokens": 0.128335
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 3.208336
+          "perMillionTokens": 3.208335
         },
         "input": {
           "currency": "USD",
@@ -10685,11 +10685,11 @@
             },
             "cacheWrite": {
               "currency": "USD",
-              "perMillionTokens": 6.416669
+              "perMillionTokens": 6.41667
             },
             "input": {
               "currency": "USD",
-              "perMillionTokens": 5.133334
+              "perMillionTokens": 5.133335
             },
             "minInputTokens": 272001,
             "output": {
@@ -10700,7 +10700,7 @@
         ],
         "output": {
           "currency": "USD",
-          "perMillionTokens": 12.833334
+          "perMillionTokens": 12.833336
         }
       },
       "providerId": "dothoosh"
@@ -10721,15 +10721,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 1.283334
+          "perMillionTokens": 1.283335
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 16.04167
+          "perMillionTokens": 16.041668
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 12.833334
+          "perMillionTokens": 12.833336
         },
         "inputTokenTiers": [
           {
@@ -10739,11 +10739,11 @@
             },
             "cacheWrite": {
               "currency": "USD",
-              "perMillionTokens": 32.083337
+              "perMillionTokens": 32.083335
             },
             "input": {
               "currency": "USD",
-              "perMillionTokens": 25.666668
+              "perMillionTokens": 25.666669
             },
             "minInputTokens": 272001,
             "output": {
@@ -10754,7 +10754,7 @@
         ],
         "output": {
           "currency": "USD",
-          "perMillionTokens": 64.16667
+          "perMillionTokens": 64.166667
         }
       },
       "providerId": "dothoosh"
@@ -10775,15 +10775,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.012836
+          "perMillionTokens": 0.012834
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 0.160418
+          "perMillionTokens": 0.16042
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.128333
+          "perMillionTokens": 0.128335
         },
         "inputTokenTiers": [
           {
@@ -10793,7 +10793,7 @@
             },
             "cacheWrite": {
               "currency": "USD",
-              "perMillionTokens": 0.320835
+              "perMillionTokens": 0.320836
             },
             "input": {
               "currency": "USD",
@@ -10802,13 +10802,13 @@
             "minInputTokens": 272001,
             "output": {
               "currency": "USD",
-              "perMillionTokens": 0.962503
+              "perMillionTokens": 0.962502
             }
           }
         ],
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.641667
+          "perMillionTokens": 0.641669
         }
       },
       "providerId": "dothoosh"
@@ -10829,15 +10829,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.205334
+          "perMillionTokens": 0.205335
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.21917
+          "perMillionTokens": 1.219169
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 5.133334
+          "perMillionTokens": 5.133335
         }
       },
       "providerId": "dothoosh"
@@ -10858,15 +10858,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.243835
+          "perMillionTokens": 0.243837
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.21917
+          "perMillionTokens": 1.219169
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 5.133334
+          "perMillionTokens": 5.133335
         }
       },
       "providerId": "dothoosh"
@@ -10886,11 +10886,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.385
+          "perMillionTokens": 0.385002
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 3.850003
+          "perMillionTokens": 3.850001
         },
         "output": {
           "currency": "USD",
@@ -48296,5 +48296,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "21bdc59eba8be1a1"
+  "version": "e10443833ce1f871"
 }

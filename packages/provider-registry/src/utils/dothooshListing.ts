@@ -206,6 +206,20 @@ function parseCapabilities(
   }
 }
 
+const ROUTE_CAPABILITIES = new Set<string>(Object.values(PROTOCOL_CAPABILITY))
+
+/** The tools / reasoning / structured-output capabilities an entry declares for one endpoint. */
+const routeCapabilities = (entry: EntryT, endpoint: EndpointType): string[] =>
+  parseCapabilities(entry, [], endpoint).add.filter((c) => ROUTE_CAPABILITIES.has(c))
+
+/** The Anthropic route joins an OpenAI-served model only when it verifies every route capability the model advertises. */
+function anthropicRouteCovers(slot: { entry: EntryT; endpoints: Set<EndpointType> }, anthropicEntry: EntryT): boolean {
+  const openaiEndpoint = ENDPOINT_ORDER.find((e) => e !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES && slot.endpoints.has(e))
+  if (!openaiEndpoint) return true
+  const anthropic = new Set(routeCapabilities(anthropicEntry, ENDPOINT_TYPE.ANTHROPIC_MESSAGES))
+  return routeCapabilities(slot.entry, openaiEndpoint).every((c) => anthropic.has(c))
+}
+
 function openAiEndpoints(entry: EntryT): EndpointType[] {
   const protocols = (entry.protocols ?? []).flatMap((p) => {
     const name = typeof p === 'string' ? p : (p as { protocol?: unknown } | null)?.protocol
@@ -270,7 +284,7 @@ export function parseDotHooshListings(listings: { openai?: unknown; anthropic?: 
   }
   for (const entry of anthropic) {
     const slot = byId.get(entry.id) ?? { entry, endpoints: new Set<EndpointType>() }
-    slot.endpoints.add(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    if (anthropicRouteCovers(slot, entry)) slot.endpoints.add(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     byId.set(entry.id, slot)
   }
 
