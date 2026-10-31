@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { resolveAgentUserMcpIds } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
@@ -99,11 +100,11 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
   return { descriptors, failedMcpIds }
 }
 
-export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'mcps'>): Promise<{
+export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'mcps' | 'configuration'>): Promise<{
   descriptors: ClaudeToolDescriptor[]
   failedMcpIds: Set<string>
 }> {
-  const mcpCatalog = await listMcpDescriptors(agent.mcps ?? [])
+  const mcpCatalog = await listMcpDescriptors(resolveAgentUserMcpIds(agent))
   return {
     descriptors: [...claudeRegistrySdkDescriptors(), ...mcpCatalog.descriptors],
     failedMcpIds: mcpCatalog.failedMcpIds

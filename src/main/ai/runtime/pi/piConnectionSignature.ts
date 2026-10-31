@@ -6,7 +6,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { resolveAgentUserMcpIds, resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
@@ -93,7 +93,8 @@ export async function capturePiConnectionSnapshot(
   })
   const enabledSkills = skills.filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
   const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
-  const mcpServers = (agent.mcps ?? []).map((idOrName) => {
+  const mcpIds = resolveAgentUserMcpIds(agent)
+  const mcpServers = mcpIds.map((idOrName) => {
     const server = mcpServerService.findByIdOrName(idOrName)
     mcpServerSnapshots.set(idOrName, server)
     return server ?? { idOrName }
@@ -114,7 +115,7 @@ export async function capturePiConnectionSnapshot(
     .update(
       JSON.stringify(
         stableValue({
-          agent: { ...agent, updatedAt: undefined, configuration },
+          agent: { ...agent, mcps: mcpIds, updatedAt: undefined, configuration },
           session: { workspaceId: session.workspaceId, workspace: session.workspace },
           modelId,
           provider,

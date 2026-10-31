@@ -94,6 +94,35 @@ beforeEach(() => {
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it.each(['doctor', 'support', undefined] as const)(
+    'ignores sealed binding edits and preserves open MCP rebuilds for role %s',
+    async (role) => {
+      const current = { ...agent, configuration: role ? { builtin_role: role } : {} }
+      mocks.getAgent.mockReturnValue(current)
+      mocks.findMcp.mockClear()
+      mocks.listTools.mockClear()
+      mocks.getInstructions.mockClear()
+      const before = await capturePiConnectionSnapshot('session-1', agent.id)
+      mocks.getAgent.mockReturnValue({ ...current, mcps: ['mcp-2'] })
+      const after = await capturePiConnectionSnapshot('session-1', agent.id)
+      if (role) {
+        expect(before.mcpServerSnapshots.size).toBe(0)
+        expect(after.mcpServerSnapshots.size).toBe(0)
+        expect(after.mcpInstructions).toBeUndefined()
+        expect(after.signature).toBe(before.signature)
+        expect(mocks.findMcp).not.toHaveBeenCalled()
+        expect(mocks.listTools).not.toHaveBeenCalled()
+        expect(mocks.getInstructions).not.toHaveBeenCalled()
+      } else {
+        expect(before.mcpServerSnapshots.has('mcp-1')).toBe(true)
+        expect(after.mcpServerSnapshots.has('mcp-2')).toBe(true)
+        expect(after.signature).not.toBe(before.signature)
+        expect(mocks.listTools).toHaveBeenCalled()
+      }
+      expect(current.mcps).toEqual(['mcp-1'])
+    }
+  )
+
   it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
     const cold = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
     mocks.getInstructions.mockReturnValue({

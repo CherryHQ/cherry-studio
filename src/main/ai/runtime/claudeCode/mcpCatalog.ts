@@ -9,6 +9,7 @@ import type { McpSdkServerConfigWithInstance, McpServerConfig } from '@anthropic
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { resolveAgentUserMcpIds } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import {
   type AgentNotificationContext,
   buildAgentMcpServers,
@@ -110,7 +111,7 @@ export interface McpWarmResult {
 }
 
 export async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWarmResult> {
-  const mcpIds = agent.mcps
+  const mcpIds = resolveAgentUserMcpIds(agent)
   if (!mcpIds?.length) return { completedInTime: true, warm: Promise.resolve() }
 
   const mcpService = application.get('McpCatalogService')
@@ -135,7 +136,7 @@ export async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWar
 export async function buildMcpToolMetadata(
   agent: AgentEntity
 ): Promise<Record<string, McpToolDisplayMetadata> | undefined> {
-  const mcpIds = agent.mcps
+  const mcpIds = resolveAgentUserMcpIds(agent)
   if (!mcpIds?.length) return undefined
 
   const metadataByName: Record<string, McpToolDisplayMetadata> = {}
