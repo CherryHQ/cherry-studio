@@ -56,6 +56,7 @@ export const AgentConfigurationSchema = z
     service_tier: ServiceTierSelectionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
+    shared_memory_enabled: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
     scheduler_type: AgentSchedulerTypeSchema.optional(),
     scheduler_cron: z.string().optional(),
