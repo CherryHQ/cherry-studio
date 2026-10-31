@@ -2722,6 +2722,7 @@
   "miniApp.popup.open_link_external_off": "Attuale: apri i collegamenti nella finestra predefinita",
   "miniApp.popup.open_link_external_on": "Attuale: apri i collegamenti nel browser",
   "miniApp.popup.refresh": "Aggiorna",
+  "miniApp.popup.restart": "Riavvia mini app",
   "miniApp.remove_from_launchpad": "Rimuovi dal pannello di avvio",
   "miniApp.remove_from_sidebar": "Rimuovi dalla barra laterale",
   "miniApp.reorder_failed": "Impossibile riordinare le mini app",

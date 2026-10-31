@@ -2722,6 +2722,7 @@
   "miniApp.popup.open_link_external_off": "ปัจจุบัน: เปิดลิงก์ในหน้าต่างเริ่มต้น",
   "miniApp.popup.open_link_external_on": "ปัจจุบัน: เปิดลิงก์ในเบราว์เซอร์",
   "miniApp.popup.refresh": "รีเฟรช",
+  "miniApp.popup.restart": "เริ่มมินิแอปใหม่",
   "miniApp.remove_from_launchpad": "เอาออกจาก Launchpad",
   "miniApp.remove_from_sidebar": "เอาออกจากแถบด้านข้าง",
   "miniApp.reorder_failed": "ไม่สามารถเรียงลำดับมินิแอปใหม่",
