@@ -388,8 +388,7 @@ function registerMemoryTools(server: McpServer, getManager: () => Promise<Knowle
   server.registerTool(
     'create_relations',
     {
-      description:
-        'Create multiple new relations between EXISTING entities. Skips existing relations or relations with non-existent entities.',
+      description: 'Create relations between existing entities. Skips duplicates and missing entities.',
       inputSchema: z.object({ relations: z.array(RelationSchema) })
     },
     async ({ relations }) => json(await (await getManager()).createRelations(relations))

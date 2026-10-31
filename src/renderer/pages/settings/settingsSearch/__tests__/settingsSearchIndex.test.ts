@@ -113,6 +113,23 @@ describe('settings search index', () => {
       }
     }
   })
+
+  it.each([
+    { locale: enUS, language: 'en-US', query: 'Expand long user messages by default' },
+    { locale: zhCN, language: 'zh-CN', query: '默认展开长用户消息' },
+    { locale: enUS, language: 'en-US', query: 'Messages you manually expand or collapse' }
+  ])('finds the long user message preference for $language query "$query"', ({ locale, query }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    const result = rankEntries(query, settingsSearchSections, t).find(
+      (entry) => entry.focusId === 'setting-appearance-user-message-default-expanded'
+    )
+
+    expect(result).toMatchObject({
+      route: '/settings/appearance',
+      title: t('settings.messages.user_content.default_expanded.label'),
+      description: t('settings.messages.user_content.default_expanded.hint')
+    })
+  })
 })
 
 // Chinese queries must hit their rows via aliases even under the en-US catalog:

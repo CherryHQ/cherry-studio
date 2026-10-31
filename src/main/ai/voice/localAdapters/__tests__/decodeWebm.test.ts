@@ -154,6 +154,17 @@ describe('private Voice WebM decoder', () => {
     await expect(decodeWebm({ audio, mimeType })).rejects.toMatchObject({ code: 'VOICE_AUDIO_LIMIT' })
   })
 
+  it('trims timer slop up to half a second past the five-minute contract instead of failing the recording', async () => {
+    // 4,989 extra blocks land the decoded total at 4,804,800 samples: 300ms of
+    // timer/final-packet slop past the 300s contract, inside the trim window.
+    const audio = editedRecording((elements) => {
+      const index = elements.findIndex((element) => element.name === 'SimpleBlock')
+      const block = elements[index]
+      elements.splice(index, 0, ...Array.from({ length: 4_989 }, () => block))
+    })
+    await expect(decodeWebm({ audio, mimeType })).resolves.toMatchObject({ durationSeconds: 300 })
+  })
+
   it('rejects laced packets that cannot be mapped safely to discard padding', async () => {
     const audio = editedRecording((elements) => {
       const block = elements.find((element) => element.name === 'SimpleBlock')!

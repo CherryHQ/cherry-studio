@@ -1,16 +1,12 @@
+import type { HighlightStyle } from '@codemirror/language'
+import type { EditorState } from '@codemirror/state'
 import type { BasicSetupOptions, Extension } from '@uiw/react-codemirror'
 
 export type CodeMirrorTheme = 'light' | 'dark' | 'none' | Extension
 
-/** Language data structure for file extension mapping */
-export interface LanguageData {
-  type: string
-  aliases?: string[]
-  extensions?: string[]
-}
+import type { LanguageConfig } from '../../../code-block'
 
-/** Language configuration mapping language names to their data */
-export type LanguageConfig = Record<string, LanguageData>
+export type { LanguageConfig, LanguageData } from '../../../code-block'
 
 export interface CodeEditorHandles {
   save?: () => void
@@ -24,6 +20,12 @@ export interface CodeEditorHandles {
 }
 
 export interface CodeEditorProps {
+  /** Retain document, selection, undo history and folds across compatible mounts. */
+  stateRef?: React.RefObject<EditorState | null>
+  /** Syntax classes shared with a caller's read-only viewer. */
+  syntaxHighlightStyle?: HighlightStyle
+  /** Content shown while the editor implementation loads. */
+  fallback?: React.ReactNode
   ref?: React.Ref<CodeEditorHandles>
   /** Value used in controlled mode, e.g., code blocks. */
   value: string

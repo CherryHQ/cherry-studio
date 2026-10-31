@@ -3,7 +3,6 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, HorizontalScrollContainer } from '@cherrystudio/ui'
-import { groupTranslations } from '@renderer/components/resourceCatalog/catalog'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
@@ -21,6 +20,7 @@ import {
   MarketplaceGrid,
   MarketplaceLoadState
 } from './MarketplaceComponents'
+import { groupTranslations } from './marketplaceGroupTranslations'
 import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
 
 export function MarketplaceTemplates({

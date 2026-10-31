@@ -24,6 +24,7 @@ vi.mock('react-i18next', () => ({
         'settings.about.feedback.history.refresh_failed': 'Could not refresh some statuses',
         'settings.about.feedback.history.previous': 'Previous',
         'settings.about.feedback.history.next': 'Next',
+        'settings.about.diagnostics.report.copy_url': 'Copy status link',
         'settings.about.diagnostics.status.pending': 'Pending',
         'settings.about.diagnostics.status.unavailable': 'Unavailable',
         'common.refresh': 'Refresh'
@@ -65,11 +66,19 @@ describe('DiagnosticHistoryDialog', () => {
     expect(screen.getByText('Pending')).toBeInTheDocument()
     expect(screen.getByText('Unavailable')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Could not refresh some statuses')).toBeInTheDocument())
-    expect(refetch).toHaveBeenCalled()
-    await user.click(screen.getAllByRole('button', { name: 'Open' })[0])
+    await user.click(screen.getAllByRole('button', { name: 'Copy status link' })[1])
+    expect(await navigator.clipboard.readText()).toBe('https://api.cherry-ai.com/diagnostics/report-2')
+    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', expect.anything())
+    await user.click(screen.getByRole('button', { name: 'Open report-1' }))
     expect(mocks.request).toHaveBeenCalledWith(
-      'system.shell.open_website',
+      'system.shell.open_external_website',
       'https://api.cherry-ai.com/diagnostics/report-1'
+    )
+    screen.getByRole('button', { name: 'Open report-2' }).focus()
+    await user.keyboard('{Enter}')
+    expect(mocks.request).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://api.cherry-ai.com/diagnostics/report-2'
     )
   })
 
@@ -79,7 +88,7 @@ describe('DiagnosticHistoryDialog', () => {
     render(<DiagnosticHistoryDialog open onOpenChange={vi.fn()} />)
 
     expect(screen.getByText('No diagnostic reports')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
@@ -97,7 +106,7 @@ describe('DiagnosticHistoryDialog', () => {
     await waitFor(() => expect(refetch).toHaveBeenCalledExactlyOnceWith())
   })
 
-  it('disables refresh and pagination controls while the query is revalidating', async () => {
+  it('disables pagination controls while the query is revalidating', async () => {
     MockUseDataApiUtils.mockQueryResult('/diagnostic-reports', {
       data: {
         items: [{ reportId: 'report-1', submittedAt: 1, processingStatus: 'pending', lastCheckedAt: null }],
@@ -110,13 +119,12 @@ describe('DiagnosticHistoryDialog', () => {
     render(<DiagnosticHistoryDialog open onOpenChange={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
     })
   })
 
-  it('refreshes only visible IDs once per page and supports manual refresh', async () => {
+  it('refreshes visible statuses when opening history again and changing pages', async () => {
     const user = userEvent.setup()
     const refetch = vi.fn().mockResolvedValue(undefined)
     const firstPage = {
@@ -125,7 +133,8 @@ describe('DiagnosticHistoryDialog', () => {
       total: 21
     }
     MockUseDataApiUtils.mockQueryResult('/diagnostic-reports', { data: firstPage, refetch })
-    render(<DiagnosticHistoryDialog open onOpenChange={vi.fn()} />)
+    const onOpenChange = vi.fn()
+    const { rerender } = render(<DiagnosticHistoryDialog open onOpenChange={onOpenChange} />)
 
     const refreshedIds = () =>
       mocks.request.mock.calls
@@ -134,7 +143,8 @@ describe('DiagnosticHistoryDialog', () => {
     await waitFor(() => expect(refreshedIds()).toEqual(['first-page']))
     expect(refetch).toHaveBeenCalledTimes(1)
 
-    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    rerender(<DiagnosticHistoryDialog open={false} onOpenChange={onOpenChange} />)
+    rerender(<DiagnosticHistoryDialog open onOpenChange={onOpenChange} />)
     await waitFor(() => expect(refreshedIds()).toEqual(['first-page', 'first-page']))
     MockUseDataApiUtils.mockQueryResult('/diagnostic-reports', {
       data: {

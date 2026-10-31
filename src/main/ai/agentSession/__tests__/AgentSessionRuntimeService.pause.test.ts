@@ -5,7 +5,7 @@
  * gate. Suppressed work stays represented by `runtimeState.launch`, and the final hold release
  * resumes that exact target once.
  */
-
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -53,7 +53,10 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: {
+    get: (name: string) =>
+      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mocks.applicationGet(name)
+  }
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
@@ -181,6 +184,42 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it('keeps runtime activity registered across queued turns and asynchronous connection teardown', async () => {
+    const activities = new Set<symbol>()
+    const registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+      const token = Symbol()
+      activities.add(token)
+      return {
+        dispose: vi.fn(() => {
+          activities.delete(token)
+        })
+      }
+    })
+    try {
+      const service = new AgentSessionRuntimeService()
+      const entry = seedQueuedFollowUp(service)
+      const pause = service.pause('restore')
+      expect(activities.size).toBe(1)
+      service.markTurnTerminal('session-1', 'success')
+      await flushLaunch()
+      expect(activities.size).toBe(1)
+      const gate = createDeferred<void>()
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: { close: () => gate.promise },
+        occupancy: {}
+      }
+      const closing = service.closeSession('session-1')
+      expect(activities.size).toBe(1)
+      gate.resolve()
+      await closing
+      expect(activities.size).toBe(0)
+      pause.dispose()
+    } finally {
+      registration.mockRestore()
+    }
   })
 
   it('suppresses a queued launch before consuming the queue or writing a placeholder', async () => {

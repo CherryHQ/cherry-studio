@@ -251,13 +251,17 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
           {weeks.map((week, weekIndex) => (
             <div
               key={week[0]?.key ?? weekIndex}
-              className="grid shrink-0"
+              className="grid shrink-0 grid-cols-1"
               style={{
                 width: CELL_SIZE,
                 gap: CELL_GAP,
                 gridTemplateRows: '16px auto'
               }}>
-              <div className="h-4 overflow-visible whitespace-nowrap pr-3 text-[10px] text-foreground-tertiary leading-4">
+              <div
+                className={cn(
+                  'h-4 overflow-visible whitespace-nowrap text-[10px] text-foreground-tertiary leading-4',
+                  weekIndex === weeks.length - 1 && 'justify-self-end'
+                )}>
                 {monthLabels[weekIndex]}
               </div>
 

@@ -1,3 +1,4 @@
+import type { EditorState } from '@uiw/react-codemirror'
 import {
   Camera,
   Check,
@@ -31,6 +32,7 @@ import {
   SegmentedControl,
   Tooltip
 } from '@cherrystudio/ui'
+import { codeBlockHighlightStyle } from '@cherrystudio/ui/code-block'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -38,7 +40,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { FilePngIcon } from '@renderer/components/icons/FileIcons'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -51,6 +53,7 @@ const logger = loggerService.withContext('HtmlArtifactsPopup')
 
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
+  stateRef: NonNullable<CodeEditorProps['stateRef']>
   html: string
   theme: CodeEditorProps['theme']
   fontSize: number
@@ -62,22 +65,35 @@ interface CodePanelProps {
 }
 
 const CodePanel = memo<CodePanelProps>(
-  ({ codeEditorRef, html, theme, fontSize, onSave, editable, saved, onClickSave, saveLabel }) => {
+  ({ codeEditorRef, stateRef, html, theme, fontSize, onSave, editable, saved, onClickSave, saveLabel }) => {
+    const viewer = (
+      <CodeViewer
+        value={html}
+        editorState={stateRef.current}
+        language="html"
+        fontSize={fontSize}
+        height="100%"
+        expanded={false}
+        wrapped
+        options={{ lineNumbers: true }}
+      />
+    )
     if (!editable) {
-      return (
-        <div className="grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
-          <CodeViewer value={html} language="html" fontSize={fontSize} height="100%" expanded={false} wrapped />
-        </div>
-      )
+      return <div className="grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">{viewer}</div>
     }
 
     return (
-      <div className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
+      <div
+        className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden"
+        style={{ backgroundColor: 'var(--code-background)', color: 'var(--code-foreground)' }}>
         <LazyCodeEditor
           ref={codeEditorRef}
+          stateRef={stateRef}
           value={html}
           language="html"
           theme={theme}
+          syntaxHighlightStyle={codeBlockHighlightStyle}
+          fallback={viewer}
           fontSize={fontSize}
           editable={true}
           onSave={onSave}
@@ -86,7 +102,6 @@ const CodePanel = memo<CodePanelProps>(
           wrapped
           style={{ minHeight: 0 }}
           options={{
-            stream: true, // FIXME: 避免多余空行
             lineNumbers: true,
             keymap: true
           }}
@@ -97,6 +112,7 @@ const CodePanel = memo<CodePanelProps>(
               variant="secondary"
               size="icon"
               className="border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent hover:text-accent-foreground"
+              aria-label={saveLabel}
               onClick={onClickSave}>
               {saved ? <Check size={16} className="text-success" /> : <SaveIcon size={16} />}
             </Button>
@@ -133,11 +149,27 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
-  const activeCmTheme = useCmTheme(viewMode !== 'preview')
+  const { codeBlockStyle, isCodeThemeDark } = useCodeStyle()
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const [splitSizes, setSplitSizes] = useState<[number, number]>([50, 50])
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [session, setSession] = useState(() => ({
+    accepted: html,
+    open,
+    stateRef: { current: null as EditorState | null },
+    epoch: 0
+  }))
+  if (session.accepted !== html || session.open !== open) {
+    const echoed = session.open === open && session.stateRef.current?.sliceDoc() === html
+    setSession({
+      accepted: html,
+      open,
+      stateRef: echoed ? session.stateRef : { current: null },
+      epoch: session.epoch + Number(!echoed)
+    })
+  }
+  const source = session.stateRef.current?.sliceDoc() ?? html
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const previewFrameRef = useRef<HTMLIFrameElement>(null)
 
@@ -153,10 +185,15 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     }
   }, [isFullscreen, open])
 
-  const handleSave = useCallback(() => {
-    codeEditorRef.current?.save?.()
-    setSaved(true)
-  }, [setSaved])
+  const handleSave = useCallback(
+    (source: string) => {
+      onSave?.(source)
+      setSaved(true)
+    },
+    [onSave, setSaved]
+  )
+
+  const handleClickSave = useCallback(() => codeEditorRef.current?.save?.(), [])
 
   const handleCapture = useCallback(
     async (to: 'file' | 'clipboard') => {
@@ -190,14 +227,16 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
   const renderCodePanel = () => (
     <CodePanel
+      key={session.epoch}
       codeEditorRef={codeEditorRef}
-      html={html}
-      theme={activeCmTheme}
+      stateRef={session.stateRef}
+      html={source}
+      theme={isCodeThemeDark ? 'dark' : 'light'}
       fontSize={fontSize - 1}
-      onSave={onSave}
+      onSave={handleSave}
       editable={editable}
       saved={saved}
-      onClickSave={handleSave}
+      onClickSave={handleClickSave}
       saveLabel={t('code_block.edit.save.label')}
     />
   )
@@ -311,15 +350,15 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
           <header
             className={cn(
-              'relative flex items-center justify-between gap-4 border-border border-b bg-background px-2.5',
+              'relative flex items-center justify-between gap-4 border-b border-border bg-background px-2.5',
               isFullscreen && '[-webkit-app-region:drag]'
             )}
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
             <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-20' : 'pl-3')}>
-              <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
+              <DialogTitle className="max-w-[45vw] truncate text-sm font-bold text-foreground">{title}</DialogTitle>
             </div>
 
-            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 [-webkit-app-region:no-drag]">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 [-webkit-app-region:no-drag]">
               <SegmentedControl<ViewMode>
                 size="sm"
                 value={viewMode}
@@ -402,7 +441,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             </div>
           </header>
 
-          <div className="min-h-0 overflow-hidden bg-background">{renderContent()}</div>
+          <div className="min-h-0 overflow-hidden bg-background" style={codeBlockStyle}>
+            {renderContent()}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

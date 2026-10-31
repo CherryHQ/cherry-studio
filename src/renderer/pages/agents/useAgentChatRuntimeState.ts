@@ -167,9 +167,8 @@ export function useAgentChatRuntimeState({
   const { t } = useTranslation()
   const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
   const liveSlashCommands = useAgentSessionSlashCommands(sessionId)
-  const canCompact = (liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].slashCommands : [])).some(
-    (command) => command.command === '/compact'
-  )
+  const slashCommands = liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType]?.slashCommands : [])
+  const canCompact = slashCommands?.some((command) => command.command === '/compact') ?? false
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
   const [editPending, setEditPending] = useState(false)
@@ -309,6 +308,15 @@ export function useAgentChatRuntimeState({
     liveAssistants,
     reset: resetOverlay
   } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+    onUpdate: (_executionId, event) => {
+      const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+      const turnOrigin =
+        cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
+        projected?.metadata?.turnOrigin ??
+        event.message.metadata?.turnOrigin
+      autoReadService.update({ ...event, enabled: autoReadEnabled, scope: sessionTopicId, eligible: !turnOrigin })
+    },
+    onLeave: () => autoReadService.cancelScope(sessionTopicId),
     onFinish: (executionId, event) => {
       errorToastsRef.current?.onFinish(executionId, event)
       handleExecutionFinish(executionId, event)

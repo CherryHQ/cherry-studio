@@ -14,16 +14,18 @@ import {
   MIN_SPEECH_SPEED,
   QWEN3_TTS_BUNDLE_ID,
   QWEN3_TTS_MODEL_ID,
-  VoiceModelSupport,
   VoiceResourceOperation,
   type LocalSpeechVoice
 } from '@shared/ai/localVoice'
+import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
+import type { SpeechExecution, SpeechSource, SpeechRequest } from '../executionTypes'
 import type { LocalVoiceStatus, SpeechModelDefinition } from '../voiceModelTypes'
-import type { VoiceEnvironment } from '../voicePlatform'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
-import { checkAbort, withScratch } from './nativeSupport'
+import { mlxVoiceSupport } from '../voicePlatform'
+import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
+import { withScratch } from './scratch'
+import { completeSpeechOperation } from './sdkOperations'
 
 const LANGUAGES: Record<string, string> = {
   'zh-CN': 'chinese',
@@ -48,16 +50,6 @@ const VOICES: LocalSpeechVoice[] = [
   ['ono_anna', 'Ono Anna', 'ja-JP'],
   ['sohee', 'Sohee', 'ko-KR']
 ].map(([id, name, locale]) => ({ id, name, locale, languages: Object.keys(LANGUAGES) }))
-
-export function qwen3TtsSupport(environment: VoiceEnvironment) {
-  if (environment.platform !== 'darwin') return VoiceModelSupport.UnsupportedPlatform
-  if (environment.arch !== 'arm64') return VoiceModelSupport.UnsupportedArchitecture
-  const major = environment.majorVersion ?? 0
-  const minor = environment.minorVersion ?? 0
-  if (!Number.isInteger(major) || major < 26 || (major === 26 && (!Number.isInteger(minor) || minor < 2)))
-    return VoiceModelSupport.UnsupportedVersion
-  return VoiceModelSupport.Supported
-}
 
 export function getQwen3TtsStatus(signal?: AbortSignal): LocalVoiceStatus {
   checkAbort(signal)
@@ -148,10 +140,120 @@ export function createQwen3SpeechModel(options: SpeechOptions): SpeechModelV3 {
   }
 }
 
+function startPcmSpeech(
+  input: SpeechRequest['input'],
+  options: SpeechOptions,
+  signal?: AbortSignal
+): SpeechExecution<typeof SpeechOutputKind.PcmStream> {
+  const controller = new AbortController()
+  const loadingTimeout = setTimeout(() => controller.abort(new VoiceRuntimeError('timeout')), 120_000)
+  loadingTimeout.unref()
+  const lifetime = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+  const opened = Promise.resolve().then(() => {
+    checkAbort(lifetime)
+    const voice = VOICES.find((voice) => voice.id === options.voice)
+    const language = options.language ?? voice?.locale
+    const speed = options.speed ?? DEFAULT_SPEECH_SPEED
+    if (
+      !voice ||
+      !language ||
+      !LANGUAGES[language] ||
+      !Number.isFinite(speed) ||
+      speed < MIN_SPEECH_SPEED ||
+      speed > MAX_SPEECH_SPEED
+    )
+      throw new VoiceRuntimeError('invalid_request')
+    return application.get('TtsInferenceService').stream(
+      QWEN3_TTS_BUNDLE_ID,
+      {
+        ...(input.kind === SpeechInputKind.Text && { text: input.text }),
+        voice: voice.id,
+        language: LANGUAGES[language],
+        speed
+      },
+      lifetime
+    )
+  })
+  const feeding = opened
+    .then(async (stream) => {
+      if (input.kind === SpeechInputKind.TextStream) {
+        for await (const event of input.events) {
+          checkAbort(lifetime)
+          await stream.write({ metadata: event })
+        }
+      }
+      await stream.finishInput()
+    })
+    .catch((error) => {
+      controller.abort(error)
+      throw error
+    })
+  void feeding.catch(() => undefined)
+  const closed = opened.then(
+    (stream) => stream.closed,
+    () => undefined
+  )
+  const completed = opened
+    .then(async (stream) => {
+      await Promise.all([feeding, stream.completed])
+    })
+    .then(() => undefined)
+    .catch((error) => {
+      throw lifetime.reason instanceof VoiceRuntimeError ? lifetime.reason : normalizeFailure(error, lifetime)
+    })
+  const output: Promise<Extract<SpeechSource, { kind: typeof SpeechOutputKind.PcmStream }>> = opened
+    .then(async (stream) => {
+      const iterator = stream.output[Symbol.asyncIterator]()
+      const first = await iterator.next()
+      if (first.done || first.value.metadata.type !== 'format') throw new VoiceRuntimeError('invalid_audio')
+      const { sampleRate, channels } = first.value.metadata
+      return {
+        kind: SpeechOutputKind.PcmStream,
+        format: { sampleRate, channels },
+        chunks: {
+          async *[Symbol.asyncIterator]() {
+            while (true) {
+              const item = await iterator.next()
+              if (item.done) return
+              if (item.value.metadata.type !== 'pcm' || !('payload' in item.value))
+                throw new VoiceRuntimeError('invalid_audio')
+              const bytes = item.value.payload
+              if (bytes.byteLength % 4) throw new VoiceRuntimeError('invalid_audio')
+              yield {
+                startFrame: item.value.metadata.startFrame,
+                samples: new Float32Array(bytes.slice().buffer)
+              }
+            }
+          }
+        }
+      }
+    })
+    .catch(async (error) => {
+      const failure = lifetime.reason instanceof VoiceRuntimeError ? lifetime.reason : normalizeFailure(error, lifetime)
+      controller.abort()
+      await closed
+      throw failure
+    })
+    .finally(() => clearTimeout(loadingTimeout))
+  void completed.catch(() => undefined)
+  void output.catch(() => undefined)
+  let cancellation: Promise<void> | undefined
+  return {
+    output,
+    completed,
+    closed,
+    cancel: () =>
+      (cancellation ??= (async () => {
+        controller.abort()
+        await closed
+      })())
+  }
+}
+
 export const qwen3SpeechDefinition: SpeechModelDefinition = {
   id: QWEN3_TTS_MODEL_ID,
   adapterId: 'mlx',
-  support: qwen3TtsSupport,
+  support: mlxVoiceSupport,
   describe: () => ({
     ...LOCAL_VOICE_MODELS.find((model) => model.id === QWEN3_TTS_MODEL_ID)!,
     localeSelection: null,
@@ -162,7 +264,11 @@ export const qwen3SpeechDefinition: SpeechModelDefinition = {
     ]
   }),
   status: (_options, signal) => getQwen3TtsStatus(signal),
-  createModel: createQwen3SpeechModel,
+  speechOperations: [
+    completeSpeechOperation(createQwen3SpeechModel),
+    { input: SpeechInputKind.Text, output: SpeechOutputKind.PcmStream, start: startPcmSpeech },
+    { input: SpeechInputKind.TextStream, output: SpeechOutputKind.PcmStream, start: startPcmSpeech }
+  ],
   voices: async (signal) => {
     checkAbort(signal)
     return VOICES

@@ -16,6 +16,7 @@ import {
   type ImageModelV3,
   type JSONValue,
   type LanguageModelV3,
+  type LanguageModelV3CallOptions,
   type ProviderV3,
   type RerankingModelV3,
   type SpeechModelV3,
@@ -248,6 +249,31 @@ const createAuthHeadersGetter = (options: CherryInProviderSettings): (() => Reco
   })
 }
 
+// CherryIN's Anthropic upstream rejects input_examples (#21994).
+function omitToolInputExamples(options: LanguageModelV3CallOptions): LanguageModelV3CallOptions {
+  if (!options.tools?.some((tool) => tool.type === 'function' && tool.inputExamples != null)) return options
+
+  return {
+    ...options,
+    tools: options.tools.map((tool) => {
+      if (tool.type !== 'function' || tool.inputExamples == null) return tool
+      const { inputExamples, ...rest } = tool
+      void inputExamples
+      return rest
+    })
+  }
+}
+
+class CherryInAnthropicMessagesLanguageModel extends AnthropicMessagesLanguageModel {
+  override doGenerate(options: LanguageModelV3CallOptions) {
+    return super.doGenerate(omitToolInputExamples(options))
+  }
+
+  override doStream(options: LanguageModelV3CallOptions) {
+    return super.doStream(omitToolInputExamples(options))
+  }
+}
+
 export const createCherryIn = (options: CherryInProviderSettings = {}): CherryInProvider => {
   const {
     baseURL = DEFAULT_CHERRYIN_BASE_URL,
@@ -263,7 +289,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
   const createAnthropicModel = (modelId: string) =>
-    new AnthropicMessagesLanguageModel(modelId, {
+    new CherryInAnthropicMessagesLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.anthropic`,
       baseURL: anthropicBaseURL,
       headers: () => {

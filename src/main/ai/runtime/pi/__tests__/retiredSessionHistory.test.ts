@@ -29,12 +29,12 @@ import {
 } from '@data/services/retiredAgentRuntimeMigration'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
-import { AsyncEventQueue } from '@main/ai/runtime/AsyncEventQueue'
 import { RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import { BaseService } from '@main/core/lifecycle'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
+import { AsyncEventQueue } from '@shared/utils/async'
 
 import { forkPiSession } from '../piFork'
 import { PiRuntimeConnection } from '../PiRuntimeConnection'

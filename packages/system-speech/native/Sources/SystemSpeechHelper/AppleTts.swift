@@ -45,7 +45,7 @@ enum AppleTts {
         try? FileManager.default.removeItem(at: url)
 
         do {
-            try await write(voice: voice, text: text, rate: try rate(forMultiplier: speed), to: url)
+            try await write(voice: voice, text: text, rate: try rate(forMultiplier: speed), destination: .wav(url))
             let metadata = try WavInspection.inspectFile(at: outputPath)
             return SynthesizeResult(
                 voiceId: voiceId,
@@ -62,14 +62,21 @@ enum AppleTts {
         }
     }
 
-    private static func write(voice: AVSpeechSynthesisVoice, text: String, rate: Float, to url: URL) async throws {
+    static func stream(voiceId: String, text: String, speed: Double) async throws {
+        guard let voice = AVSpeechSynthesisVoice(identifier: voiceId) else {
+            throw HelperError(code: .voiceUnavailable)
+        }
+        try await write(voice: voice, text: text, rate: try rate(forMultiplier: speed), destination: .stream)
+    }
+
+    private static func write(voice: AVSpeechSynthesisVoice, text: String, rate: Float, destination: SynthesisDestination) async throws {
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = voice
         utterance.rate = rate
         let synthesizer = AVSpeechSynthesizer()
 
         try await withCheckedThrowingContinuation { continuation in
-            let state = WavWriteState(url: url, synthesizer: synthesizer, continuation: continuation)
+            let state = SpeechWriteState(destination: destination, synthesizer: synthesizer, continuation: continuation)
             synthesizer.write(utterance) { buffer in
                 state.receive(buffer)
             }
@@ -77,19 +84,26 @@ enum AppleTts {
     }
 }
 
-private final class WavWriteState: @unchecked Sendable {
+private enum SynthesisDestination {
+    case wav(URL)
+    case stream
+}
+
+private final class SpeechWriteState: @unchecked Sendable {
     private let lock = NSLock()
-    private let url: URL
+    private let destination: SynthesisDestination
+    private let pcmWriter: PcmStreamWriter?
     private var audioFile: AVAudioFile?
     private var synthesizer: AVSpeechSynthesizer?
     private var continuation: CheckedContinuation<Void, any Error>?
 
     init(
-        url: URL,
+        destination: SynthesisDestination,
         synthesizer: AVSpeechSynthesizer,
         continuation: CheckedContinuation<Void, any Error>
     ) {
-        self.url = url
+        self.destination = destination
+        if case .stream = destination { pcmWriter = PcmStreamWriter() } else { pcmWriter = nil }
         self.synthesizer = synthesizer
         self.continuation = continuation
     }
@@ -103,16 +117,18 @@ private final class WavWriteState: @unchecked Sendable {
             return
         }
 
-        if buffer.frameLength == 0 {
-            finish(continuation, with: .success(()))
-            return
-        }
-
         do {
-            if audioFile == nil {
-                audioFile = try AVAudioFile(forWriting: url, settings: buffer.format.settings)
+            if let pcmWriter {
+                try pcmWriter.receive(buffer)
+            } else if buffer.frameLength > 0, case let .wav(url) = destination {
+                if audioFile == nil {
+                    audioFile = try AVAudioFile(forWriting: url, settings: buffer.format.settings)
+                }
+                try audioFile?.write(from: buffer)
             }
-            try audioFile?.write(from: buffer)
+            if buffer.frameLength == 0 {
+                finish(continuation, with: .success(()))
+            }
         } catch {
             finish(continuation, with: .failure(error))
         }

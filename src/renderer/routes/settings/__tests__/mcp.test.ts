@@ -14,7 +14,7 @@ function createMcpRouter(initialEntry: string) {
     search: Route.options.search
   })
   const servers = createRoute({ getParentRoute: () => mcp, path: 'servers' })
-  const detail = createRoute({ getParentRoute: () => mcp, path: 'servers/$serverId' })
+  const detail = createRoute({ getParentRoute: () => mcp, path: 'settings/$serverId' })
   return createRouter({
     routeTree: root.addChildren([mcp.addChildren([servers, detail])]),
     history: createMemoryHistory({ initialEntries: [initialEntry] })
@@ -34,7 +34,7 @@ describe('standalone MCP navigation', () => {
     expect(router.state.matches.at(-1)?.search.mcpStandalone).toBeUndefined()
     await router.navigate({ to: '/settings/mcp/servers', search: { mcpStandalone: 'true' } })
     expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: 'true' })
-    await router.navigate({ to: '/settings/mcp/servers/$serverId', params: { serverId: 'server-1' } })
+    await router.navigate({ to: '/settings/mcp/settings/$serverId', params: { serverId: 'server-1' } })
     expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: 'true' })
   })
 })

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-22-stream-replay-handoff.md
+2026-10-22-stream-replay-handoff.md: 86d9c4ca96d70bd46fae64e29e1e4a6f44cfa61f
+2026-10-22-stream-replay-handoff.zh.md: 18afb58615a5697b44de486d1a0d6608b5b143c8

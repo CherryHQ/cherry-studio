@@ -1,7 +1,8 @@
-import { groupTranslations } from '@renderer/components/resourceCatalog/catalog'
 import type { AssistantCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { AgentCatalogPreset, MarketplaceTemplate } from '@renderer/types/marketplace'
 import { localizeMarketplaceText } from '@shared/utils/cherrySkillMarketplace'
+
+import { groupTranslations } from './marketplaceGroupTranslations'
 
 function canonicalGroup(group: string): string {
   return (

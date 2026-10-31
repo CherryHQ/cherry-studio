@@ -58,4 +58,22 @@ describe('LanguageSelect', () => {
     expect(popoverContent).toHaveClass('w-[var(--radix-popover-trigger-width)]')
     expect(popoverContent).not.toHaveClass('w-72')
   })
+
+  it('shows the flag and localized name without the raw language code in the closed selector', () => {
+    render(<LanguageSelect value="zh-cn" />)
+
+    expect(screen.getByRole<HTMLInputElement>('combobox')).toHaveValue('🇨🇳 Chinese')
+  })
+
+  it('finds a language by typing its language code', () => {
+    const onChange = vi.fn()
+    render(<LanguageSelect value="en-us" onChange={onChange} />)
+
+    const trigger = screen.getByRole('combobox')
+    fireEvent.focus(trigger)
+    fireEvent.change(trigger, { target: { value: 'zh-cn' } })
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith('zh-cn')
+  })
 })
