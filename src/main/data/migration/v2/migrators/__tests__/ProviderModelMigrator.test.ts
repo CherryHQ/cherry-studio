@@ -526,9 +526,7 @@ describe('ProviderModelMigrator', () => {
       const runtime = providerService.getByProviderId('openai')
       // The user-owned Responses override shares the registry host with its Chat
       // sibling, so the sibling follows the override (#23232 host inheritance).
-      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe(
-        'https://my-proxy.com/v1'
-      )
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://my-proxy.com/v1')
       expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://my-proxy.com/v1')
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
