@@ -1547,6 +1547,26 @@ describe('edit dialogs', () => {
     expect(updateAgentMock).not.toHaveBeenCalled()
   })
 
+  it('explains Cherry Support headless shell restrictions without showing the warning for ordinary agents', () => {
+    const warning =
+      'Shell commands are unavailable to Cherry Support in scheduled tasks and headless channels, regardless of permission mode. Use another agent for headless shell execution.'
+    const supportAgent = {
+      ...AGENT,
+      configuration: {
+        ...AGENT.configuration,
+        permission_mode: 'bypassPermissions' as const,
+        builtin_role: 'support' as const
+      }
+    }
+    const { rerender } = render(<AgentEditDialog open resource={supportAgent} onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText(warning)).toBeInTheDocument()
+
+    rerender(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByText(warning)).not.toBeInTheDocument()
+  })
+
   it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
     const props = { open: true, onOpenChange: vi.fn() }
     const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
