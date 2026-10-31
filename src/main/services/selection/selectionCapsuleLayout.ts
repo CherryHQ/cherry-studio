@@ -27,12 +27,16 @@ export function orderSelectionAgentCapsules(stack: CollapsedSelectionAgent[]): S
     .map(({ capsule }) => capsule)
 }
 
-/** Anchors the capsule host to the bottom-right of the work area, which already leaves out the Dock and taskbar. */
+/**
+ * Anchors the capsule host to the bottom-right of the work area, which already leaves out the Dock and taskbar.
+ * A stack taller than the work area gets the work area's height and scrolls inside it.
+ */
 export function placeSelectionCapsuleHost(size: Size, workArea: Rectangle): Rectangle {
+  const height = Math.min(size.height, workArea.height - 2 * HOST_MARGIN)
   return {
     x: workArea.x + workArea.width - HOST_MARGIN - size.width,
-    y: workArea.y + workArea.height - HOST_MARGIN - size.height,
+    y: workArea.y + workArea.height - HOST_MARGIN - height,
     width: size.width,
-    height: size.height
+    height
   }
 }

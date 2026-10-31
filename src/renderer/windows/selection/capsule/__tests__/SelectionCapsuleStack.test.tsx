@@ -36,7 +36,7 @@ describe('SelectionCapsuleStack', () => {
     MockUseCacheUtils.resetMocks()
   })
 
-  it('shows the five nearest the corner and folds the rest into +N until it is clicked', () => {
+  it('shows the five nearest the corner and folds the rest into +N, which expands them and folds them back', () => {
     showStack(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => capsule(id)))
 
     expect(screen.getByText('Agent e')).toBeInTheDocument()
@@ -46,6 +46,11 @@ describe('SelectionCapsuleStack', () => {
 
     expect(screen.getByText('Agent g')).toBeInTheDocument()
     expect(screen.queryByText(/selection.agent.capsule.more/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('selection.agent.capsule.show_less'))
+
+    expect(screen.queryByText('Agent f')).not.toBeInTheDocument()
+    expect(screen.getByText('selection.agent.capsule.more:{"count":2}')).toBeInTheDocument()
   })
 
   it('restores the window a capsule stands for, and closes it from the close button without restoring', () => {
