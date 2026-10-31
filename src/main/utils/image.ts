@@ -2,6 +2,22 @@ import { fileTypeFromBuffer } from 'file-type'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
+
+/**
+ * Whether the bytes fully decode. Header-only checks miss truncated PNGs whose IHDR is intact.
+ * `failOn: 'error'` rejects truncation and decode errors but tolerates libvips warnings (e.g.
+ * extraneous JPEG marker bytes) that providers accept.
+ */
+export async function isDecodableImage(bytes: Uint8Array): Promise<boolean> {
+  if (bytes.byteLength === 0) return false
+  try {
+    const sharp = (await import('sharp')).default
+    await sharp(bytes, { failOn: 'error' }).stats()
+    return true
+  } catch {
+    return false
+  }
+}
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). */
 const MAX_ENTITY_INPUT_PIXELS = 100_000_000
 /** Longest edge for model-bound images. Every vision provider downscales below this on its own
@@ -42,19 +58,31 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Shrink an image so neither edge exceeds the model-bound cap, preserving its format. Only the
- * header is read to decide, so in-bounds input is never decoded or re-encoded.
+ * Shrink an image so neither edge exceeds the model-bound cap, preserving its format. Reads
+ * dimensions from the header; in-bounds input is verified with a single decode pass and not
+ * re-encoded. Oversized input is resized in one pipeline (decode included).
  * @returns resized bytes, or `null` when the image already fits. Throws on undecodable input.
  */
 export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array | null> {
   const sharp = (await import('sharp')).default
-  const image = sharp(bytes, { failOn: 'none' })
+  const image = sharp(bytes, { failOn: 'error' })
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
-  if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) return null
-  return image
-    .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
-    .toBuffer()
+  if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) {
+    try {
+      await image.stats()
+    } catch {
+      throw new Error('could not decode image')
+    }
+    return null
+  }
+  try {
+    return await image
+      .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer()
+  } catch {
+    throw new Error('could not decode image')
+  }
 }
 
 /**
