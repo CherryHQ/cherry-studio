@@ -1307,6 +1307,51 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(radeonSettings).not.toHaveProperty('request_source')
     })
 
+    it('adds AI/ML API attribution only when the endpoint used for the request is api.aimlapi.com', async () => {
+      const attribution = {
+        'X-AIMLAPI-Source': 'agent/cherry-studio',
+        'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
+      }
+      const aimlapi = makeProvider({
+        id: 'aimlapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.aimlapi.com/v1',
+            adapterFamily: 'openai-compatible'
+          },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example', adapterFamily: 'anthropic' }
+        }
+      })
+      const copiedElsewhere = makeProvider({
+        id: 'custom-aimlapi',
+        presetProviderId: 'aimlapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://relay.example/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const chatModel = makeModel({ providerId: 'aimlapi', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+      const anthropicModel = makeModel({ providerId: 'aimlapi', endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+
+      const toAimlapi = (await providerToAiSdkConfig(aimlapi, chatModel)).providerSettings as Record<string, unknown>
+      const toRelay = (await providerToAiSdkConfig(aimlapi, anthropicModel)).providerSettings as Record<string, unknown>
+      const copied = (await providerToAiSdkConfig(copiedElsewhere, chatModel)).providerSettings as Record<
+        string,
+        unknown
+      >
+
+      expect(toAimlapi.headers).toMatchObject(attribution)
+      expect(toRelay.baseURL).toContain('relay.example')
+      expect(toRelay.headers).not.toHaveProperty('X-AIMLAPI-Source')
+      expect(toRelay.headers).not.toHaveProperty('X-AIMLAPI-Partner-ID')
+      expect(copied.headers).not.toHaveProperty('X-AIMLAPI-Source')
+      expect(copied.headers).not.toHaveProperty('X-AIMLAPI-Partner-ID')
+    })
+
     it('routes DashScope openai-compatible endpoints through DashScope config and preserves stream usage support', async () => {
       const provider = makeProvider({
         id: 'dashscope',
