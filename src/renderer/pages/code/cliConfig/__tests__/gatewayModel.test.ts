@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 
-import { gatewayExpectedModel } from '../gatewayModel'
+import { type GatewayModel, gatewayModelIdFromAddress, gatewayExpectedModel } from '../gatewayModel'
 
 /**
  * The gateway addressing string is the one contract the write side and every
@@ -44,5 +44,26 @@ describe('gatewayExpectedModel', () => {
 
   it('returns undefined (rather than throwing) for a non-routable managed model', () => {
     expect(gatewayExpectedModel(`${CHERRYAI_PROVIDER_ID}::${CHERRYAI_DEFAULT_MODEL_ID}`)).toBeUndefined()
+  })
+})
+
+describe('provider alias addressing', () => {
+  it('round-trips alias and internal-ID addresses to the same stored model', () => {
+    const model = {
+      id: 'internal::local',
+      providerId: 'internal',
+      providerAlias: 'company',
+      apiModelId: 'api-model',
+      name: 'Test model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } satisfies GatewayModel
+    const models = new Map([[model.id, model]])
+    expect(gatewayExpectedModel(model.id, model.apiModelId, model.providerAlias)).toBe('company:api-model')
+    expect(gatewayModelIdFromAddress('company:api-model', models)).toBe('internal::local')
+    expect(gatewayModelIdFromAddress('internal:api-model', models)).toBe('internal::local')
+    expect(gatewayModelIdFromAddress('unknown:api-model', models)).toBeUndefined()
   })
 })

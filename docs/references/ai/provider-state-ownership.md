@@ -29,6 +29,8 @@ Model capabilities and parameter support remain model or provider-model facts
 in the model registry. They do not move onto the provider row merely because a
 request builder consumes them.
 
+The editable provider `alias` is user-owned provider configuration. It leaves internal IDs and model references unchanged; see [Provider identifiers](../provider-model/provider-identifiers.md) for validation and external-address rules.
+
 ## Endpoint dialects
 
 `EndpointConfig.dialect` describes how one hosted endpoint deviates from its

@@ -32,6 +32,7 @@ export const userProviderTable = sqliteTable(
   'user_provider',
   {
     providerId: text().primaryKey(),
+    alias: text().unique(),
 
     /** Associated preset provider ID (optional)
      * Links to catalog provider for inherited API format and defaults

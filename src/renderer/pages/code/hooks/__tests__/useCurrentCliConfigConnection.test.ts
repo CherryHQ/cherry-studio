@@ -1,3 +1,4 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,6 +41,7 @@ const providerConfig: CliProviderConfig = { modelId: null }
 describe('useCurrentCliConfigConnection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseDataApiUtils.mockQueryData('/providers', [])
     mocks.extractConnection.mockImplementation((_tool, files: Array<{ target?: string }>) =>
       files[0]?.target === 'new' ? newConnection : files[0]?.target === 'old' ? oldConnection : connection
     )

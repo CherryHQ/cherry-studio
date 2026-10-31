@@ -37,6 +37,8 @@ import { toast } from '@renderer/services/toast'
 import { checkEntityImageSize } from '@renderer/utils/image'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { ProviderAliasSchema } from '@shared/data/api/schemas/providers'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 
@@ -152,6 +154,9 @@ export default function ProviderEditorDrawer({
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const firstTextEndpointRef = useRef<HTMLInputElement | null>(null)
   const [name, setName] = useState('')
+  const [alias, setAlias] = useState('')
+  const [aliasError, setAliasError] = useState<'invalid' | 'conflict' | null>(null)
+  const aliasId = useId()
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
@@ -254,6 +259,8 @@ export default function ProviderEditorDrawer({
     }
 
     setName(editingProvider?.name ?? '')
+    setAlias(editingProvider?.alias ?? '')
+    setAliasError(null)
     setNameTouched(false)
     setBaseUrl('')
     setBaseUrlTouched(false)
@@ -369,6 +376,7 @@ export default function ProviderEditorDrawer({
       return {
         mode: 'edit',
         name: trimmedName,
+        alias: alias.trim() || null,
         defaultChatEndpoint: mode.provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         ...logoField
       }
@@ -387,6 +395,7 @@ export default function ProviderEditorDrawer({
       return {
         mode: 'create',
         name: trimmedName,
+        alias: alias.trim() || null,
         ...creationPayload,
         authConfig: { type: 'api-key' },
         apiKeys: apiKeysPayload,
@@ -400,6 +409,7 @@ export default function ProviderEditorDrawer({
       const submit: Extract<ProviderEditorSubmit, { mode: 'create' }> = {
         mode: 'create',
         name: trimmedName,
+        alias: alias.trim() || null,
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
@@ -444,6 +454,11 @@ export default function ProviderEditorDrawer({
   const handleSubmit = async () => {
     setNameTouched(true)
     setBaseUrlTouched(true)
+    if (!ProviderAliasSchema.safeParse(alias).success) {
+      setAliasError('invalid')
+      return
+    }
+    setAliasError(null)
     if (mode?.kind === 'create-custom') {
       const invalidUrl = findInvalidCustomProviderCreationUrl({
         endpointUrls,
@@ -483,7 +498,17 @@ export default function ProviderEditorDrawer({
       await onSubmit(payload)
     } catch (error) {
       logger.error('Provider editor submit failed', error as Error)
-      toast.error(t('settings.provider.save_failed'))
+      if (
+        isDataApiError(error) &&
+        error.code === ErrorCode.CONFLICT &&
+        error.details &&
+        'resource' in error.details &&
+        error.details.resource === 'Provider alias'
+      ) {
+        setAliasError('conflict')
+      } else {
+        toast.error(t('settings.provider.save_failed'))
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -571,6 +596,45 @@ export default function ProviderEditorDrawer({
     <div className="flex flex-col gap-5">
       {avatarSection}
       {nameField}
+      <Field className="gap-2">
+        <FieldLabel htmlFor={aliasId} className="text-[13px] text-foreground">
+          {t('settings.provider.alias.label')}
+        </FieldLabel>
+        <Input
+          id={aliasId}
+          value={alias}
+          placeholder={t('settings.provider.alias.placeholder')}
+          aria-invalid={Boolean(aliasError)}
+          aria-describedby={`${aliasId}-hint${aliasError ? ` ${aliasId}-error` : ''}`}
+          onChange={(event) => {
+            setAlias(event.target.value)
+            setAliasError(null)
+          }}
+          onBlur={() => setAliasError(ProviderAliasSchema.safeParse(alias).success ? null : 'invalid')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing && !isSubmitting) void handleSubmit()
+          }}
+        />
+        <p id={`${aliasId}-hint`} className="text-xs text-muted-foreground">
+          {t('settings.provider.alias.description')}
+        </p>
+        <FieldError
+          id={`${aliasId}-error`}
+          className="text-xs"
+          errors={
+            aliasError
+              ? [
+                  {
+                    message:
+                      aliasError === 'invalid'
+                        ? t('settings.provider.alias.invalid')
+                        : t('settings.provider.alias.conflict')
+                  }
+                ]
+              : undefined
+          }
+        />
+      </Field>
 
       {mode?.kind === 'create-custom' ? (
         <>

@@ -237,6 +237,7 @@
 | Document | Description |
 |----------|-------------|
 | [Provider & Model Reference](./references/provider-model/README.md) | Home for provider and model reference docs covering the preset registry and its merge with user data |
+| [Provider identifiers](./references/provider-model/provider-identifiers.md) | Editable provider aliases, stable internal identities, and external model-address compatibility |
 | [Provider & Model Registry System](./references/provider-model/provider-registry.md) | How preset provider and model registry data is loaded, normalized, seeded, and merged with user data |
 
 ### Security

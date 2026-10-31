@@ -1,6 +1,6 @@
 # Agent Note: 可编辑的提供商标识
 
-Status: proposed
+Status: implemented
 
 [English](2026-10-27-provider-alias.md) | 中文
 
@@ -8,7 +8,7 @@ Status: proposed
 
 自定义提供商使用自动生成的 ID。API Gateway 在 `providerId:apiModelId` 形式的模型地址中暴露这些 ID，其他客户端因此难以区分多个已配置的提供商。提供商名称是可编辑的显示文本，不要求唯一。现有 `user_provider.providerId` 是模型引用的内部主键，修改它会改变持久化身份。
 
-## 提案
+## 决策
 
 通过新生成的迁移，为 `user_provider` 增加一列可空的 `alias` 及唯一索引。已有行取值为 `NULL`；提供商 ID、模型 ID、预设关联和现有引用保持不变。在共享 `Provider` 类型中暴露该可选字段，并通过提供商创建和更新 API 接受它。提供商数据层负责校验和持久化；该字段不专属于 Gateway。
 
@@ -30,18 +30,19 @@ Gateway 在 `/v1/models` 中公布 `${provider.alias ?? provider.id}:${apiModelI
 - 使用 `name` 作为地址前缀：拒绝，因为显示名称既不唯一，也没有路由所需的字符约束。
 - 增加标识映射表或重定向历史：每个提供商只需一个当前标识，无需增加额外的归属和复用规则。
 
-## 验收标准
+## 结果与影响
 
-- AC1 — 含有数据的数据库可向前迁移，提供商 ID、模型 ID 和引用不变；已有提供商没有标识，保存的标识在重新加载后仍存在。(verification: main database tests)
-- AC2 — 创建和更新接受合法标识及清空操作，省略字段时保留原值，并拒绝非法字符、重复标识、两个写入方向上的标识与内部 ID 冲突以及保留预设 ID 冲突，不发生部分修改。禁用的提供商仍占用其标识。(verification: shared schema + main database tests)
-- AC3 — 提供商编辑器可创建、修改和清空标识，保存被拒绝后保留输入，复制提供商时不复制标识，显示名称修改与标识相互独立。标签和校验消息已本地化，并支持键盘访问。(verification: renderer + Electron)
-- AC4 — `/v1/models` 在设置标识后使用该标识；标识和内部 ID 请求定位同一个已配置模型。未知、禁用、不可用或受公开访问限制的目标通过任一形式仍被拒绝。OpenAI、Anthropic、Gemini 和 token 计数保留现有模型 ID 规范化行为。(verification: Gateway tests)
-- AC5 — 响应模型字段和面向用户生成的 Gateway 配置使用相应的提供商前缀；内部模型身份、提供商导出的身份字段、Gemini CLI 后缀处理和 Antigravity 路径保持有效。(verification: affected Gateway and configuration-consumer tests)
-- AC6 — 修改或清空标识更新后续列表和请求，内部 ID 地址继续有效；编辑器说明使用旧标识的外部配置需要更新。中英文参考文档说明这一兼容性边界。(verification: Gateway tests + Electron + docs gate)
+数据层统一管理内部 ID、别名和预设保留 ID 的标识命名空间。冲突检查和修改在同一事务中进行，数据库唯一索引也约束别名。无需迁移主键或引入别名映射表。
 
-## 风险
+修改或清空别名会使使用它的外部配置失效，编辑器已说明这一后果。内部 ID 地址仍然有效，释放的别名之后可属于其他服务商。已有记录迁移后别名为空，身份保持不变。
 
-- 标识命名空间与内部或预设 ID 重叠，可能将请求路由至错误的提供商。集中校验两个写入方向及保留预设 ID；不通过选择查找顺序解决冲突。
-- 标识变更会使使用旧标识的外部配置失效。编辑器须说明这一后果；保留内部 ID 兼容性，不隐式建立重定向历史。释放的标识之后可以分配给其他提供商。
-- 只修改 `/v1/models` 会公布请求解析器或配置生成器无法使用的地址。必须一起验证列表、解析、响应投影及受影响的消费者。
-- 生成迁移必须追加到已发布的迁移链。使用含有数据的数据库验证，不重写已有迁移。
+面向用户的兼容性约定见[服务商标识](../../../../docs/references/provider-model/provider-identifiers.md)。
+
+## 验证
+
+- AC1 — `src/main/data/db/__tests__/applyMigrations.populated.test.ts` 从含有数据的生产迁移基线向前迁移，验证服务商和模型身份、外键不变，并重新打开数据库确认别名持久化；`pnpm db:migrations:check` 通过。
+- AC2 — `ProviderService.alias.test.ts`、`ProviderService.create.test.ts` 及共享 `schemas/__tests__/providers.test.ts` 覆盖去除空白、省略、清空、非法字符、禁用服务商冲突、保留 ID、双向碰撞、批量回滚和数据库唯一约束。
+- AC3 — `ProviderEditorDrawer.test.tsx` 及已有 `useProviderEditor.test.ts` 通过。真实 Electron 独立数据目录验证了非法或冲突输入的保留、新增、编辑、清空和重载后的持久化；`pnpm i18n:check` 对全部语言校验通过。
+- AC4 — Gateway 模型、代理、路由和 token 计数测试通过，包含别名解析及公开 Cloud 访问限制。通过独立 Electron Gateway 的真实 HTTP 请求验证 OpenAI Chat/Responses、Anthropic、Gemini、两种 token 计数接口，以及 Claude 上下文标记和 Gemini 后缀。
+- AC5 — 别名数据库测试验证导出身份字段不变；Gateway 和 CLI 测试验证寻址、配置生成、Antigravity 路径和 Gemini CLI 哨兵后缀。真实 Gateway 响应保留请求的别名或内部 ID 前缀。
+- AC6 — 真实 Electron 编辑和 HTTP 请求验证别名修改或清空后，列表和路由立即更新、旧别名失效、内部 ID 仍可访问。中英文参考文档及 `pnpm docs:check` 通过。

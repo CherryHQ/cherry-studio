@@ -46,6 +46,13 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 describe('ProviderService.create — endpoint config overrides', () => {
   const dbh = setupTestDatabase()
 
+  it('reserves catalog identifiers before their provider rows are seeded', () => {
+    expect(() => providerService.create({ providerId: 'custom', name: 'Custom', alias: 'cherryin' })).toThrowError(
+      expect.objectContaining({ code: ErrorCode.CONFLICT })
+    )
+    expect(dbh.db.select().from(userProviderTable).all()).toEqual([])
+  })
+
   it.each([
     { providerId: 'github', presetProviderId: undefined },
     { providerId: 'github-copy', presetProviderId: 'github' },
