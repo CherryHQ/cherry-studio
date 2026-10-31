@@ -79,18 +79,21 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   async function build(config: PiSessionOptions): Promise<OperationResult<Entry>> {
     let entry: Entry | undefined
     try {
-      const owner = await createAgentRuntimeSession({
-        ...config,
-        onEvent: (event) => {
-          try {
-            config.onEvent?.(event)
-          } catch (cause) {
-            report(cause)
+      const owner = await createAgentRuntimeSession(
+        {
+          ...config,
+          onEvent: (event) => {
+            try {
+              config.onEvent?.(event)
+            } catch (cause) {
+              report(cause)
+            }
           }
+        },
+        (session) => {
+          entry = attach(session)
         }
-      }, (session) => {
-        entry = attach(session)
-      })
+      )
       entry!.owner = owner
       return { status: 'confirmed', value: entry! }
     } catch (cause) {
