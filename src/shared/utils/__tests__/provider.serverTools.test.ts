@@ -154,7 +154,7 @@ describe('server-tool model eligibility', () => {
 
     // No declaration = no factory to serve a 'server' route, so the override stays off.
     expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
-    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom' } as Provider)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom' })).toBe(false)
     // A declaration for another endpoint is not a deliverable path on this one.
     expect(
       isBuiltinWebSearchAvailable(
@@ -162,9 +162,13 @@ describe('server-tool model eligibility', () => {
         {
           id: 'custom',
           serverTools: [
-            { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+            {
+              id: SERVER_TOOL.WEB_SEARCH,
+              modelScope: 'all-chat-models',
+              endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+            }
           ]
-        } as Provider,
+        },
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
     ).toBe(false)
@@ -177,7 +181,7 @@ describe('server-tool model eligibility', () => {
     })
 
     expect(
-      resolveWebToolRoutes(custom, { id: 'custom', serverTools: [] } as Provider, {
+      resolveWebToolRoutes(custom, { id: 'custom', serverTools: [] } as unknown as Provider, {
         webSearchEnabled: true,
         clientSearchAvailable: true,
         clientFetchAvailable: true,
