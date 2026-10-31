@@ -3,6 +3,7 @@ import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
+import type { AnthropicThinkingRecoveryRecord } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -98,6 +99,11 @@ export interface AiChatRequest extends AiRequest {
    * This field is intentionally absent from renderer IPC schemas.
    */
   contextOwner?: ContextOwner
+  /** Main-only branch memory and synchronous persistence before the repaired call. */
+  anthropicThinkingRecovery?: {
+    records: AnthropicThinkingRecoveryRecord[]
+    record: (record: AnthropicThinkingRecoveryRecord) => void
+  }
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
   /** In-process caller identity used only for targeted embedded MCP authorization. */

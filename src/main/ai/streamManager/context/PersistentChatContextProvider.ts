@@ -28,6 +28,7 @@ import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink
 import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
+  type AnthropicThinkingRecoveryRecord,
   type AssistantTurnOptions,
   type Message as SharedMessage,
   type MessageRole,
@@ -469,7 +470,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        thinkingRecovery
+      } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
@@ -493,7 +498,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           turnOptions.reasoningEffort,
           turnOptions.serviceTier,
           turnOptions.fastMode === true,
-          retainedContext
+          retainedContext,
+          thinkingRecovery
         ),
         rootSpan
       }))
@@ -565,7 +571,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
 
     try {
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        thinkingRecovery
+      } = await this.resolveCompactedHistory(
         parent.id,
         req.topicId,
         [model],
@@ -583,7 +593,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         turnOptions.reasoningEffort,
         turnOptions.serviceTier,
         turnOptions.fastMode === true,
-        retainedContext
+        retainedContext,
+        thinkingRecovery
       )
       applyTurnInputAttributes(rootSpan, {
         modelId: model.id,
@@ -711,7 +722,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        thinkingRecovery
+      } = await this.resolveCompactedHistory(
         anchor.id,
         req.topicId,
         [model],
@@ -735,7 +750,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.data.turnOptions?.reasoningEffort,
               anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
-              retainedContext
+              retainedContext,
+              thinkingRecovery
             ),
             rootSpan
           }
@@ -812,7 +828,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: compactedHistory,
+        retainedContext,
+        thinkingRecovery
+      } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,
         [model],
@@ -836,7 +856,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               req.reasoningEffort,
               req.serviceTier,
               req.fastMode,
-              retainedContext
+              retainedContext,
+              thinkingRecovery
             ),
             rootSpan
           }
@@ -909,10 +930,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
     compactionSink?: CompactionSink
-  ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
+  ): Promise<{
+    messages: CherryUIMessage[]
+    retainedContext: RetainedContext
+    thinkingRecovery: AnthropicThinkingRecoveryRecord[]
+  }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
+    const thinkingRecovery = messagePath.flatMap((message) => message.data.anthropicThinkingRecovery ?? [])
     const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
     const rawMsgs = messagePath.slice(lastClearIndex + 1)
     // Capability state from the RAW path: compaction folds file parts and tool
@@ -953,14 +979,22 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantContextOverride
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
-    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    const serve = (rows_: typeof effective) => ({
+      messages: rows_.map((r) => this.toServed(r)),
+      retainedContext,
+      thinkingRecovery
+    })
     // NOT gated on `contextSettings.enabled`: that switch owns the overflow
     // policy, while this decides how much history is sent at all.
     if (contextSettings.maxMessages != null) {
       // RAW rows, no compaction state: a summary covers everything up to its
       // boundary, so serving one would carry pre-window content back in.
       const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
-      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
+      return {
+        messages: windowed.map((r) => this.toServed(r)),
+        retainedContext: retainedForWindow(windowed),
+        thinkingRecovery
+      }
     }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
@@ -1095,10 +1129,26 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
-    retainedContext?: RetainedContext
+    retainedContext?: RetainedContext,
+    thinkingRecovery: AnthropicThinkingRecoveryRecord[] = []
   ): AiStreamRequest {
     return {
       conversation: { id: topicId, topicId },
+      anthropicThinkingRecovery: {
+        records: [...thinkingRecovery, ...(messageService.getById(messageId)?.data.anthropicThinkingRecovery ?? [])],
+        record: (record) => {
+          const records = messageService.getById(messageId)?.data.anthropicThinkingRecovery ?? []
+          const existing = records.find((item) => item.endpointKey === record.endpointKey)
+          messageService.update(messageId, {
+            data: {
+              anthropicThinkingRecovery: [
+                ...records.filter((item) => item.endpointKey !== record.endpointKey),
+                { ...record, identities: [...new Set([...(existing?.identities ?? []), ...record.identities])] }
+              ]
+            }
+          })
+        }
+      },
       trigger: 'submit-message',
       assistantId,
       uniqueModelId,

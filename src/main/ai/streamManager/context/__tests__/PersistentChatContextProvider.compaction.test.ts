@@ -299,6 +299,24 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     mockFindFileEntryById.mockReturnValue({ origin: 'internal', cleanupPolicy: 'delete_when_unreferenced', ext: 'txt' })
   })
 
+  it('collects recovery records before compaction and isolates sibling branches', async () => {
+    const recovery = [{ endpointKey: 'endpoint-a', identities: ['old'] }]
+    const ancestor = fakeMsg('a1', 'assistant', 'old answer')
+    ancestor.data = { parts: [{ type: 'text', text: 'old answer' }], anthropicThinkingRecovery: recovery }
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', 'old question'),
+      ancestor,
+      fakeMsg('u2', 'user', 'new question', 'folded summary')
+    ])
+    compressionOn()
+    const recovered = await makeHistory('u2')
+    expect(recovered.messages.some((message) => message.id === 'a1')).toBe(false)
+    expect(recovered.prepared.models[0].request.anthropicThinkingRecovery?.records).toEqual(recovery)
+    mockGetPathToNode.mockReturnValue([fakeMsg('sibling', 'user', 'another branch')])
+    const sibling = await makeHistory('sibling')
+    expect(sibling.prepared.models[0].request.anthropicThinkingRecovery?.records).toEqual([])
+  })
+
   it('1. under budget, no marker → full history served, no summarization', async () => {
     // 3 tiny messages — well under 4000 * 0.8 = 3200 token trigger threshold
     const path = [

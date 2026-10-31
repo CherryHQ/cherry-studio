@@ -154,7 +154,14 @@ export interface AssistantTurnOptions {
  * parts the AI SDK produces. Readers can narrow to `CherryMessagePart[]` when
  * they need Cherry-specific data part type safety.
  */
+export interface AnthropicThinkingRecoveryRecord {
+  endpointKey: string
+  identities: string[]
+}
+
 export interface MessageData {
+  /** Replay credentials excluded after a provider-confirmed prefix-binding failure. */
+  anthropicThinkingRecovery?: AnthropicThinkingRecoveryRecord[]
   parts?: CherryMessagePart[]
   /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
   modelSelection?: 'default' | 'explicit'
