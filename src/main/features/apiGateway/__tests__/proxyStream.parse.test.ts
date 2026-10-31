@@ -35,6 +35,9 @@ const {
           listener?: StreamListener
           contextOwner?: 'cherry' | 'caller'
           callOverrides?: CallOverrides
+          reasoningEffort?: string
+          serviceTier?: string
+          fastMode?: boolean
         }
       | undefined
   }
@@ -332,5 +335,28 @@ describe('internal requests without an Agent session', () => {
     expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
     void captured.opts!.listener!.onDone({} as any)
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
+  })
+})
+
+describe('internal Agent request selections', () => {
+  it.each([true, false])('accepts Cherry selections only with internal authentication: %s', async (trusted) => {
+    mockAvailableModel('p', 'm')
+    mockIsInternalRequest.mockReturnValue(trusted)
+    const response = processMessage({
+      params: { model: 'p:m', messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({
+        'x-cherry-reasoning-effort': 'high',
+        'x-cherry-service-tier': 'flex',
+        'x-cherry-fast-mode': 'true'
+      })
+    })
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.reasoningEffort).toBe(trusted ? 'high' : undefined)
+    expect(captured.opts?.serviceTier).toBe(trusted ? 'flex' : undefined)
+    expect(captured.opts?.fastMode).toBe(trusted)
+    await captured.opts!.listener!.onDone({} as never)
+    expect((await response).status).toBe(200)
   })
 })

@@ -2,7 +2,10 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import * as htmlToImage from 'html-to-image'
+import type { ReactNode, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ScrollViewportOwnershipProvider } from '@renderer/components/ScrollViewportOwnershipProvider'
 
 import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '../../utils/image'
 import CodeViewer from '../CodeViewer'
@@ -109,7 +112,221 @@ function stubResizeObserver() {
   return { observers, restore: () => vi.stubGlobal('ResizeObserver', original) }
 }
 
+function ScrollOwner({
+  children,
+  scrollContainerRef
+}: {
+  children?: ReactNode
+  scrollContainerRef: RefObject<HTMLDivElement | null>
+}) {
+  return (
+    <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
+      <div ref={scrollContainerRef} data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        {children}
+      </div>
+    </ScrollViewportOwnershipProvider>
+  )
+}
+
+// The translated row group and measured heights determine which source line intersects the viewport.
+function firstVisibleLine(container: HTMLElement, offset: number) {
+  const rows = [...container.querySelectorAll<HTMLElement>('[data-index]')]
+  let top = Number(rows[0]?.parentElement?.style.transform.match(/translateY\((.+)px\)/)?.[1])
+  for (const row of rows) {
+    if (top + row.offsetHeight > offset) return row.querySelector('.line-content')?.textContent
+    top += row.offsetHeight
+  }
+  return null
+}
+
 describe('CodeViewer', () => {
+  it.each([0, 1650])('observes a fresh managed attachment at offset %i without another scroll event', (offset) => {
+    prefixHeight = offset === 0 ? 0 : 600
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    const { container, rerender } = render(<ScrollOwner scrollContainerRef={scrollContainerRef} />)
+    const outer = scrollContainerRef.current!
+    outer.scrollTop = offset
+    rerender(
+      <ScrollOwner scrollContainerRef={scrollContainerRef}>
+        <CodeViewer
+          value={Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')}
+          language="text"
+          expanded
+          wrapped={false}
+        />
+      </ScrollOwner>
+    )
+    expect(outer.scrollTop).toBe(offset)
+    expect(firstVisibleLine(container, offset - prefixHeight)).toBe(offset === 0 ? 'line 0' : 'line 50')
+    expect(container.querySelector('.line-content')?.textContent).toBe(offset === 0 ? 'line 0' : 'line 30')
+    expect(container.querySelectorAll('[data-index]').length).toBeLessThan(80)
+  })
+
+  it('observes the outer position on each surviving-instance reattachment, including a cached nonzero local offset', () => {
+    prefixHeight = 600
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    const value = Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')
+    const viewer = (expanded: boolean) => (
+      <ScrollOwner scrollContainerRef={scrollContainerRef}>
+        <CodeViewer value={value} language="text" expanded={expanded} wrapped={false} height={300} />
+      </ScrollOwner>
+    )
+    const { container, rerender } = render(viewer(false))
+    const outer = scrollContainerRef.current!
+    const local = container.querySelector<HTMLElement>('.shiki-scroller')!
+    local.scrollTop = 2
+    fireEvent.scroll(local)
+    outer.scrollTop = 1650
+    rerender(viewer(true))
+    expect(outer.scrollTop).toBe(1650)
+    expect(firstVisibleLine(container, 1050)).toBe('line 50')
+
+    rerender(viewer(false))
+    local.scrollTop = 210
+    fireEvent.scroll(local)
+    expect(firstVisibleLine(container, 210)).toBe('line 10')
+    outer.scrollTop = 2070
+    rerender(viewer(true))
+    expect(outer.scrollTop).toBe(2070)
+    expect(firstVisibleLine(container, 1470)).toBe('line 70')
+    expect(container.querySelector('.line-content')?.textContent).toBe('line 50')
+  })
+
+  it('observes a new parent element without transferring the previous parent offset', () => {
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    const firstRef: RefObject<HTMLDivElement | null> = { current: null }
+    const secondRef: RefObject<HTMLDivElement | null> = { current: null }
+    const value = Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')
+    const viewer = (expanded: boolean, nested: boolean) => (
+      <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
+        <div ref={firstRef} data-testid={nested ? undefined : 'outer'} style={{ overflowY: 'auto', height: 300 }}>
+          <div
+            ref={secondRef}
+            data-testid={nested ? 'outer' : undefined}
+            style={{ overflowY: nested ? 'auto' : 'visible' }}>
+            <CodeViewer value={value} language="text" expanded={expanded} wrapped={false} height={300} />
+          </div>
+        </div>
+      </ScrollViewportOwnershipProvider>
+    )
+    const { container, rerender } = render(viewer(false, false))
+    scrollContainerRef.current = firstRef.current
+    firstRef.current!.scrollTop = 1050
+    rerender(viewer(true, false))
+    expect(firstRef.current!.scrollTop).toBe(1050)
+    expect(firstVisibleLine(container, 1050)).toBe('line 50')
+
+    rerender(viewer(false, true))
+    const local = container.querySelector<HTMLElement>('.shiki-scroller')!
+    local.scrollTop = 210
+    fireEvent.scroll(local)
+    scrollContainerRef.current = secondRef.current
+    secondRef.current!.scrollTop = 1470
+    rerender(viewer(true, true))
+    expect(secondRef.current!.scrollTop).toBe(1470)
+    expect(firstRef.current!.scrollTop).toBe(1050)
+    expect(firstVisibleLine(container, 1470)).toBe('line 70')
+  })
+
+  it('does not reveal an offscreen block when expanding', () => {
+    prefixHeight = 5000
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    const value = Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')
+    const viewer = (expanded: boolean) => (
+      <ScrollOwner scrollContainerRef={scrollContainerRef}>
+        <CodeViewer value={value} language="text" expanded={expanded} wrapped={false} height={300} />
+      </ScrollOwner>
+    )
+    const { container, rerender } = render(viewer(false))
+    const local = container.querySelector<HTMLElement>('.shiki-scroller')!
+    local.scrollTop = 210
+    fireEvent.scroll(local)
+    scrollContainerRef.current!.scrollTop = 630
+    rerender(viewer(true))
+    expect(scrollContainerRef.current!.scrollTop).toBe(630)
+    expect(container.querySelectorAll('[data-index]')).toHaveLength(0)
+    expect(container.querySelector<HTMLElement>('.shiki-list')!.style.height).toBe('2520px')
+  })
+
+  it('updates managed code geometry on width remeasurement without compensating the outer position', () => {
+    const { observers, restore } = stubResizeObserver()
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    try {
+      const { container } = render(
+        <ScrollOwner scrollContainerRef={scrollContainerRef}>
+          <CodeViewer
+            value={Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')}
+            language="text"
+            expanded
+            wrapped
+          />
+        </ScrollOwner>
+      )
+      const outer = scrollContainerRef.current!
+      outer.scrollTop = 1050
+      fireEvent.scroll(outer)
+      expect(firstVisibleLine(container, 1050)).toBe('line 50')
+      const probe = container.querySelector('[data-width-probe]')!
+      const list = container.querySelector<HTMLElement>('.shiki-list')!
+      expect(list.style.height).toBe('2520px')
+      expect(container.querySelector('[data-index="40"]')).not.toBeNull()
+      measuredRowHeight = (element) => (element.dataset.index === '40' ? 63 : 21)
+      clientWidth = 610
+      act(() => {
+        for (const observer of observers.filter((observer) => observer.targets.has(probe))) {
+          observer.callback([], {} as ResizeObserver)
+        }
+        expect(list.style.height).toBe('2562px')
+      })
+      expect(outer.scrollTop).toBe(1050)
+      expect(firstVisibleLine(container, 1050)).toBe('line 48')
+      expect(list.style.height).toBe('2562px')
+    } finally {
+      restore()
+    }
+  })
+
+  it('retains local resize compensation for a nested scroller under an ownership provider', () => {
+    const { observers, restore } = stubResizeObserver()
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    try {
+      const { container, getByTestId } = render(
+        <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
+          <div ref={scrollContainerRef} style={{ overflowY: 'auto', height: 300 }}>
+            <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+              <CodeViewer
+                value={Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')}
+                language="text"
+                expanded
+                wrapped
+              />
+            </div>
+          </div>
+        </ScrollViewportOwnershipProvider>
+      )
+      const outer = scrollContainerRef.current!
+      outer.scrollTop = 999
+      const local = getByTestId('outer')
+      local.scrollTop = 1050
+      fireEvent.scroll(local)
+      expect(firstVisibleLine(container, 1050)).toBe('line 50')
+      const probe = container.querySelector('[data-width-probe]')!
+      measuredRowHeight = (element) => (element.dataset.index === '40' ? 63 : 21)
+      clientWidth = 610
+      act(() => {
+        for (const observer of observers.filter((observer) => observer.targets.has(probe))) {
+          observer.callback([], {} as ResizeObserver)
+        }
+      })
+      expect(local.scrollTop).toBe(1092)
+      expect(firstVisibleLine(container, local.scrollTop)).toBe('line 50')
+      expect(container.querySelector<HTMLElement>('.shiki-list')!.style.height).toBe('2562px')
+      expect(outer.scrollTop).toBe(999)
+    } finally {
+      restore()
+    }
+  })
+
   it.each(['data-url', 'blob', 'failure', 'offscreen-highlighted'] as const)(
     'captures every source line and restores virtualization after %s',
     async (mode) => {
