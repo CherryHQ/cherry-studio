@@ -339,6 +339,7 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMcpServerName, string> = {
   [BuiltinMcpServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
   [BuiltinMcpServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
   [BuiltinMcpServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
+  [BuiltinMcpServerNames.cloudbase]: 'settings.mcp.builtinServersDescriptions.cloudbase',
   [BuiltinMcpServerNames.didiMcp]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
   [BuiltinMcpServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser',
   [BuiltinMcpServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem',
