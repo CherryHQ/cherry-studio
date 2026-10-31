@@ -67,7 +67,7 @@ export async function signedCommit(side, branch, expected, files, headline, deta
     query: 'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',
     variables: {
       input: {
-        branch: { repositoryNameWithOwner: repositories[side], refName: branch },
+        branch: { repositoryNameWithOwner: repositories[side], branchName: branch },
         expectedHeadOid: sha(expected),
         fileChanges: files,
         message: {

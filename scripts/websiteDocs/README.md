@@ -23,7 +23,14 @@ gh workflow run sync-website-docs.yml --repo CherryHQ/cherry-studio -f bootstrap
 
 Inspect the first run's source/destination SHAs, tree IDs and proposed checkpoint before applying. The apply run creates a signed checkpoint in the `docs-sync-state` branch, not on main. After the baseline exists, run a normal dry-run and a controlled edit in each direction. Verify the resulting PR's checks, signature and diff, merge it, and verify convergence. Then set `WEBSITE_DOCS_SYNC_ENABLED=true` in both repositories. No workflow in this change configures credentials, protections, variables, or production deployments automatically.
 
-Require `Website docs content`, `Website docs plan` and `website-docs/freshness` for synchronization PRs in addition to each repository's normal checks. The first two run from ordinary read-only PR workflows. The coordinator maintains the freshness status when either repository changes. Only same-repository `docs-sync/content` PRs need the synchronization-specific requirements; do not add a status that never runs as a global requirement for unrelated PRs. Configure branch rules or a required aggregate accordingly. A cross-repository source can change between a check and merge; this is eventual synchronization, not an atomic release lock.
+Require these checks for synchronization PRs in addition to each repository's normal checks:
+
+| Repository | Content validation | Plan validation | Freshness |
+| --- | --- | --- | --- |
+| `CherryHQ/cherry-studio` | `Website docs content` | `Website docs plan` | `website-docs/freshness` |
+| `CherryHQ/cherry-studio-website` | `checks` | `Website docs plan` | `website-docs/freshness` |
+
+Content and plan validation run from ordinary read-only PR workflows. The coordinator maintains the freshness status when either repository changes. Only same-repository `docs-sync/content` PRs need the synchronization-specific requirements; do not add a status that never runs as a global requirement for unrelated PRs. Configure branch rules or a required aggregate accordingly. A cross-repository source can change between a check and merge; this is eventual synchronization, not an atomic release lock.
 
 ## Operation and recovery
 

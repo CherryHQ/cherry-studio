@@ -112,7 +112,11 @@ function githubFixture() {
     if (endpoint === 'graphql') {
       const input = data.variables.input
       const side: Side = input.branch.repositoryNameWithOwner === repositories.desktop ? 'desktop' : 'website'
-      const branch = input.branch.refName
+      expect(input.branch).toEqual({
+        repositoryNameWithOwner: repositories[side],
+        branchName: expect.any(String)
+      })
+      const branch = input.branch.branchName
       if (rejectCheckpoint && branch === stateBranch) {
         rejectCheckpoint = false
         return respond({}, 503)
