@@ -138,6 +138,14 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
   })
 
+  it('honors a user-enabled web-search capability on unrecognized models and hosts', () => {
+    const custom = model('private-model', { capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+
+    expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(true)
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(true)
+    expect(isBuiltinWebFetchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
+  })
+
   it('does not bypass endpoint restrictions for all-chat tools', () => {
     const host = {
       id: 'custom',

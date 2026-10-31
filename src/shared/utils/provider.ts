@@ -10,7 +10,7 @@ import {
   supportsServerToolFunctionMixing
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
@@ -290,6 +290,10 @@ function isBuiltinServerToolAvailable(
   toolId: ServerTool,
   endpointType?: EndpointType
 ): boolean {
+  // A user-set model capability overrides registry detection, so unrecognized models can still search.
+  if (toolId === SERVER_TOOL.WEB_SEARCH && model.capabilities?.includes(MODEL_CAPABILITY.WEB_SEARCH)) {
+    return !isNonChatModel(model)
+  }
   const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
   const declarations =
     provider.serverTools?.filter(
