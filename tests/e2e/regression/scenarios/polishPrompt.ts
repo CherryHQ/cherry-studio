@@ -129,12 +129,23 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
       .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
     await expect(polish).toBeVisible({ timeout: 70_000 })
     await expect(editor).toHaveAttribute('contenteditable', 'true')
-    const polished = (await editor.innerText()).trim()
-    expect(polished.length, 'Real model must return a nonempty rewritten prompt').toBeGreaterThan(0)
-    expect(polished).not.toBe(rough)
+    // A real model may legitimately return the prompt unchanged, so the applied-result contract is
+    // asserted against the deterministic provider below instead of against model wording.
+    const realModelResult = (await editor.innerText()).trim()
+    expect(realModelResult.length, 'Polish request must leave a nonempty prompt').toBeGreaterThan(0)
     await attachScreenshot('MP-16 real polished result')
 
+    const polished = 'You are a concise test assistant. Answer in one short sentence.'
     await page.evaluate((modelId) => window.api.preference.set('chat.default_model_id', modelId), modelIds[1])
+    await editor.fill(rough)
+    await polish.click()
+    const applied = await server.nextRequest()
+    expect(JSON.stringify(applied.body.messages)).toContain(rough)
+    applied.complete(polished)
+    await expect.poll(() => editor.innerText()).toBe(polished)
+    await expect(editor).toHaveAttribute('contenteditable', 'true')
+    await attachScreenshot('MP-16 polished result applied')
+
     const withVariable = `${polished}\n今天是 {{date}}。`
     await editor.fill(withVariable)
     await polish.click()
