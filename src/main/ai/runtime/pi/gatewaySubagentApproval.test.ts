@@ -1,5 +1,6 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { createTestSession, finish, hostStore, gatewayModel } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import type { SubagentPort, ToolApprovalEvent } from '@cherrystudio/agent-runtime-pi'
@@ -15,7 +16,6 @@ import {
   toolResultOf,
   waitFor
 } from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, gatewayModel } from './gatewaySupport'
 import { textOf } from './gatewayToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }

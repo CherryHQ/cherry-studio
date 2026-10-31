@@ -2,6 +2,7 @@ import type { LanguageModelV3CallOptions, LanguageModelV3Message, LanguageModelV
 import { Type, type ToolResultMessage } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { type AgentSession, defineTool, type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
+import { finish, textParts } from '@test-helpers/piGateway'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 
@@ -14,8 +15,6 @@ import {
   type SubagentState,
   type SubagentView
 } from '@cherrystudio/agent-runtime-pi'
-
-import { finish, textParts } from './gatewaySupport'
 
 export interface RoutedCall {
   /** Role of the last prompt message: `user` on a new request, `tool` after tool results. */

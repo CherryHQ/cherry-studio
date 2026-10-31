@@ -1,4 +1,7 @@
 import { SessionManager } from '@earendil-works/pi-coding-agent'
+import { createTestBinding } from '@test-helpers/piGateway'
+import { finish, MODEL, scriptedModel, gatewayModel, tempDir, textParts } from '@test-helpers/piGateway'
+import type { GatewayFixture } from '@test-helpers/piGateway'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import {
@@ -10,9 +13,6 @@ import {
 import { createPiRuntime, type PiSessionOptions } from '@cherrystudio/agent-runtime-pi'
 
 import { gate, reply, routedModel, storingSubagentPort, subagentCall, toolCallPart } from './gatewaySubagentSupport'
-import { createTestBinding } from './gatewaySupport'
-import { finish, MODEL, scriptedModel, gatewayModel, tempDir, textParts } from './gatewaySupport'
-import type { GatewayFixture } from './gatewaySupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')

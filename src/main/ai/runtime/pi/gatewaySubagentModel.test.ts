@@ -1,3 +1,4 @@
+import { createTestSession, finish, NATIVE_MODEL, gatewayModel } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import type { AgentRuntimeModel, SubagentModelCandidate, SubagentPort } from '@cherrystudio/agent-runtime-pi'
@@ -12,7 +13,6 @@ import {
   toolResultOf,
   waitFor
 } from './gatewaySubagentSupport'
-import { createTestSession, finish, NATIVE_MODEL, gatewayModel } from './gatewaySupport'
 import { textOf } from './gatewayToolResults'
 
 const SONNET_OR: AgentRuntimeModel = { ...NATIVE_MODEL, provider: 'openrouter', id: 'sonnet-4.5' }

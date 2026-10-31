@@ -1,4 +1,5 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import { createTestSession, finish, hostStore, plain, gatewayModel, tempDir } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import { SUBAGENT_STATUS_TYPE } from '@cherrystudio/agent-runtime-pi'
@@ -20,7 +21,6 @@ import {
   toolResults,
   waitFor
 } from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, plain, gatewayModel, tempDir } from './gatewaySupport'
 import { textOf } from './gatewayToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }

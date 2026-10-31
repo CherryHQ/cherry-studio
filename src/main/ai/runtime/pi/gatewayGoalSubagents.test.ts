@@ -1,5 +1,6 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { finish, plain, tempDir } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import type { SubagentPort, ToolApprovalEvent } from '@cherrystudio/agent-runtime-pi'
@@ -31,7 +32,6 @@ import {
   untilStopped,
   waitFor
 } from './gatewaySubagentSupport'
-import { finish, plain, tempDir } from './gatewaySupport'
 import { textOf } from './gatewayToolResults'
 
 /** A background launch; the description never holds the task marker the routes look for. */
