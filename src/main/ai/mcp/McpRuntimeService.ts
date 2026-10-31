@@ -244,11 +244,9 @@ export class McpRuntimeService extends BaseService {
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
   private readonly connectionGenerations = new Map<string, symbol>()
-  private readonly _onCatalogChanged = this.registerDisposable(
-    new Emitter<{ serverId: string; kind: 'prompts' | 'resources' }>()
-  )
+  private readonly _onCatalogChanged = new Emitter<{ serverId: string; kind: 'prompts' | 'resources' }>()
   readonly onCatalogChanged = this._onCatalogChanged.event
-  private readonly _onResourceUpdated = this.registerDisposable(new Emitter<{ serverId: string; uri: string }>())
+  private readonly _onResourceUpdated = new Emitter<{ serverId: string; uri: string }>()
   readonly onResourceUpdated = this._onResourceUpdated.event
   private readonly resourceObservers = new Map<string, () => Promise<void>>()
   private get mcpPackageService(): McpPackageService {
@@ -276,6 +274,11 @@ export class McpRuntimeService extends BaseService {
     this.connectFailures.clear()
     this.connections.clear()
     this.serverLogs.clear()
+  }
+
+  protected async onDestroy(): Promise<void> {
+    this._onCatalogChanged.dispose()
+    this._onResourceUpdated.dispose()
   }
 
   private getServerById(serverId: string): McpServer {

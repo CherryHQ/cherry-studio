@@ -2,6 +2,7 @@ import { bocha } from '@cherrystudio/web-search/providers/bocha'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 
+import { toExcludedSiteDomains } from '../../utils/blacklist'
 import type { ApiKeyRotationState } from '../../utils/provider'
 import { RemoteWebSearchProvider } from '../base/RemoteWebSearchProvider'
 
@@ -15,6 +16,11 @@ export class BochaProvider extends RemoteWebSearchProvider {
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
   ): Promise<WebSearchResponse> {
-    return this.executeRemote('searchKeywords', input, config, httpOptions)
+    return this.executeRemote(
+      'searchKeywords',
+      input,
+      { ...config, excludeDomains: toExcludedSiteDomains(config.excludeDomains) },
+      httpOptions
+    )
   }
 }

@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { agentService } from '@data/services/AgentService'
 import type { agentSessionService } from '@data/services/AgentSessionService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { KeyedMutex } from '@shared/utils/async'
 
 const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
@@ -1211,7 +1211,10 @@ describe('AgentSessionDeliveryService', () => {
       deletedIds: ['session-1', 'session-not-loaded']
     })
 
-    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', { permanent: false })
+    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', {
+      permanent: false,
+      sessionTypes: ['conversation']
+    })
     expect(mocks.closeSession).toHaveBeenCalledWith('session-1')
     expect(mocks.closeSession).toHaveBeenCalledWith('session-not-loaded')
   })

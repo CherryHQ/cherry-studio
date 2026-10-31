@@ -20,6 +20,7 @@ const kbGetOrganizationTree = vi.fn()
 const kbAddItems = vi.fn()
 const kbDeleteConcepts = vi.fn()
 const kbRefreshConcepts = vi.fn()
+const kbCreateBase = vi.fn()
 const listBasesForDiscovery = vi.fn()
 const listRootItems = vi.fn()
 const getPreference = vi.fn()
@@ -52,6 +53,7 @@ vi.mock('@application', () => ({
           addItems: kbAddItems,
           deleteConcepts: kbDeleteConcepts,
           refreshConcepts: kbRefreshConcepts,
+          createBase: kbCreateBase,
           listBasesForDiscovery,
           listRootItems
         }
@@ -127,6 +129,7 @@ describe('cherry-tools builtin tools', () => {
     kbAddItems.mockReset()
     kbDeleteConcepts.mockReset()
     kbRefreshConcepts.mockReset()
+    kbCreateBase.mockReset()
     listBasesForDiscovery.mockReset()
     listRootItems.mockReset()
     getPreference.mockReset()
@@ -327,6 +330,62 @@ describe('cherry-tools builtin tools', () => {
   it('does not serve kb_* calls on a connection opened with an empty knowledge scope', async () => {
     await expect(callCherryTool('kb_search', { query: 'topic', baseIds: ['b1'] }, [])).rejects.toThrow('kb_search')
     expect(kbSearch).not.toHaveBeenCalled()
+  })
+
+  it('elevates a session-created base into the creating connection for its lifetime', async () => {
+    kbCreateBase.mockResolvedValue({ id: 'kb-new', name: 'Research' })
+    // One connection, several calls: the elevation lives per connection, not per call.
+    const client = await connectCherryTools(restrictedTo(['b1']))
+
+    const created = await client.callTool({ name: 'kb_manage', arguments: { action: 'create', name: 'Research' } })
+    expect(kbCreateBase).toHaveBeenCalledWith({ name: 'Research' })
+    expect(JSON.parse(textOf(created))).toEqual({
+      action: 'create',
+      created: { baseId: 'kb-new', name: 'Research' }
+    })
+
+    // kb_search reaches the created base even though the binding is ['b1']…
+    kbSearch.mockResolvedValue([{ pageContent: 'hit', score: 0.9 }])
+    await client.callTool({ name: 'kb_search', arguments: { query: 'topic', baseIds: ['kb-new'] } })
+    expect(kbSearch).toHaveBeenCalledWith('kb-new', 'topic')
+
+    // …and so does kb_manage add — the agent can fill in the base it just created.
+    kbAddItems.mockResolvedValueOnce({ status: 'added' })
+    await client.callTool({
+      name: 'kb_manage',
+      arguments: { baseId: 'kb-new', action: 'add', type: 'note', content: 'insight' }
+    })
+    expect(kbAddItems).toHaveBeenCalledWith('kb-new', [
+      { type: 'note', data: { source: 'insight', content: 'insight' } }
+    ])
+  })
+
+  it('does not leak a session-created base into a fresh connection', async () => {
+    kbCreateBase.mockResolvedValue({ id: 'kb-new', name: 'Research' })
+    const first = await connectCherryTools(restrictedTo(['b1']))
+    await first.callTool({ name: 'kb_manage', arguments: { action: 'create', name: 'Research' } })
+
+    // A new connection with the same binding must not inherit the elevation: the set is
+    // connection-scoped and never persisted.
+    const second = await connectCherryTools(restrictedTo(['b1']))
+    await second.callTool({ name: 'kb_search', arguments: { query: 'topic', baseIds: ['kb-new'] } })
+    expect(kbSearch).not.toHaveBeenCalled()
+  })
+
+  it('fails closed even for session-created bases once the effective scope empties', async () => {
+    kbCreateBase.mockResolvedValue({ id: 'kb-new', name: 'Research' })
+    let baseIds: readonly string[] = ['b1']
+    const client = await connectCherryTools(() => ({ allKnowledgeBases: false, baseIds }))
+    await client.callTool({ name: 'kb_manage', arguments: { action: 'create', name: 'Research' } })
+
+    baseIds = []
+    const result = (await client.callTool({
+      name: 'kb_search',
+      arguments: { query: 'topic', baseIds: ['kb-new'] }
+    })) as Result
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('no knowledge base in scope')
   })
 
   it('clamps kb_search scores into the [0,1] contract range', async () => {

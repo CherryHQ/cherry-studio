@@ -320,10 +320,11 @@ A streaming request has two error regimes:
 
 - **Before commitment:** `processMessage` has not returned its `Response` yet.
   Adapter-generated startup frames remain buffered. A provider error rejects
-  with the original serialized error, so the route returns the provider status
-  when present, otherwise the classification described in [Error handling](#error-handling),
-  and its dialect envelope. An idle-timeout pause or recognized statusless
-  interruption rejects as HTTP 504. AI SDK `start`, step, metadata, partial
+  with the original serialized error, so the route preserves provider 4xx/5xx
+  statuses but rewrites an extracted 2xx to **502**: an error in the failure path
+  must not leave as an HTTP success. See [Error handling](#error-handling) for
+  status classification and dialect envelopes. An idle-timeout pause or recognized
+  statusless interruption rejects as HTTP 504. AI SDK `start`, step, metadata, partial
   tool-input, and tool-output chunks do not commit the response.
 - **After commitment:** once text/reasoning output, an available tool call, a
   finish chunk, or clean completion commits HTTP 200, headers can no longer
@@ -533,7 +534,14 @@ provider message. Without a status, `TimeoutError` or an exact message of
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
 `Upstream stream aborted`. These matches classify the available error shape and
-do not establish upstream provenance. Unmatched statusless errors remain 500 with
+do not establish upstream provenance. An extracted status in `[200, 300)` is
+normalized to **502** for `/v1/messages`, `/v1/chat`, `/v1/responses`, `/v1beta`,
+and their SSE error frames: the AI SDK can create an `APICallError` with
+`statusCode: response.status` when an upstream 2xx body is unusable, and returning
+that 2xx would make clients parse the error as a successful response.
+An already committed SSE response remains HTTP 200 and can report the normalized
+server-error classification only in its terminal error frame.
+Unmatched statusless errors remain 500 with
 internal messages shown only in development. JSON responses and terminal SSE error
 frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
 

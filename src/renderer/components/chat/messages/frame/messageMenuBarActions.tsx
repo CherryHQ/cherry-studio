@@ -24,6 +24,7 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE } from '@renderer/components/chat/messages/types'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
@@ -288,18 +289,25 @@ registerCommand('message.copyImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService } = await import('@renderer/services/ExportService')
     const messageContainerRef = getMessageCaptureRef(context)
-    await exportService.captureScrollableAsBlob(messageContainerRef, async (blob) => {
-      if (blob) {
-        await context.actions.copyImage?.(blob)
-      }
-    })
+    await exportService.captureScrollableAsBlob(
+      messageContainerRef,
+      async (blob) => {
+        if (blob) {
+          await context.actions.copyImage?.(blob)
+        }
+      },
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
   })
 })
 
 registerCommand('message.exportImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
-    const imageData = await exportService.captureScrollableAsDataUrl(getMessageCaptureRef(context))
+    const imageData = await exportService.captureScrollableAsDataUrl(
+      getMessageCaptureRef(context),
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
     const title = await getMessageTitle(context.messageForExport)
     if (!title || !imageData || !context.actions.saveImage) {
       context.actions.notifyError?.(context.t('message.error.unknown'))

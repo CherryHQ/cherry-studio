@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -136,9 +138,9 @@ describe('MigrationIpcHandler', () => {
 
       expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
         expect.arrayContaining([
-          migrationPaths.migrationReduxExportDir,
-          migrationPaths.migrationDexieExportDir,
-          migrationPaths.migrationLocalStorageExportDir
+          path.resolve(migrationPaths.migrationReduxExportDir),
+          path.resolve(migrationPaths.migrationDexieExportDir),
+          path.resolve(migrationPaths.migrationLocalStorageExportDir)
         ])
       )
       expect(fsMock.rm).toHaveBeenCalledTimes(3)
@@ -478,7 +480,11 @@ describe('MigrationIpcHandler', () => {
       )
 
       expect(fsMock.mkdir).toHaveBeenCalledWith(migrationPaths.migrationLocalStorageExportDir, { recursive: true })
-      expect(fsMock.writeFile).toHaveBeenCalledWith(migrationPaths.migrationLocalStorageExportFile, '[]', 'utf-8')
+      expect(fsMock.writeFile).toHaveBeenCalledWith(
+        path.join(migrationPaths.migrationLocalStorageExportDir, 'localStorage.json'),
+        '[]',
+        'utf-8'
+      )
       expect(fsMock.appendFile).not.toHaveBeenCalled()
     })
 
@@ -492,7 +498,7 @@ describe('MigrationIpcHandler', () => {
       )
 
       expect(fsMock.appendFile).toHaveBeenCalledWith(
-        `${migrationPaths.migrationDexieExportDir}/message_blocks.json`,
+        path.join(migrationPaths.migrationDexieExportDir, 'message_blocks.json'),
         '{"id":"b1"}',
         'utf-8'
       )
@@ -682,9 +688,9 @@ describe('MigrationIpcHandler', () => {
 
       expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
         expect.arrayContaining([
-          migrationPaths.migrationReduxExportDir,
-          migrationPaths.migrationDexieExportDir,
-          migrationPaths.migrationLocalStorageExportDir
+          path.resolve(migrationPaths.migrationReduxExportDir),
+          path.resolve(migrationPaths.migrationDexieExportDir),
+          path.resolve(migrationPaths.migrationLocalStorageExportDir)
         ])
       )
       expect(fsMock.rm).toHaveBeenCalledTimes(3)
@@ -788,9 +794,9 @@ describe('MigrationIpcHandler', () => {
       expect(result).toBe(true)
       expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
         expect.arrayContaining([
-          migrationPaths.migrationReduxExportDir,
-          migrationPaths.migrationDexieExportDir,
-          migrationPaths.migrationLocalStorageExportDir
+          path.resolve(migrationPaths.migrationReduxExportDir),
+          path.resolve(migrationPaths.migrationDexieExportDir),
+          path.resolve(migrationPaths.migrationLocalStorageExportDir)
         ])
       )
       expect(fsMock.rm).toHaveBeenCalledTimes(3)

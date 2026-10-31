@@ -17,6 +17,7 @@ import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageVi
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
+import { isSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 
 import MarkdownHyperlink from './MarkdownHyperlink'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
@@ -75,13 +76,17 @@ export function MarkdownLinkRenderer({
   const host = useMarkdownHost()
   const openFilePath = fileOpener ?? host.openFilePath
   const openExternalUrl = urlOpener ?? host.openExternalUrl
-  const hostname = useMemo(() => {
-    if (!props.href) return ''
+  const { hostname, protocol } = useMemo(() => {
+    const empty = { hostname: '', protocol: '' }
+    if (!props.href) return empty
     try {
       const url = new URL(props.href)
-      return url.protocol === 'http:' || url.protocol === 'https:' ? url.hostname : ''
+      return {
+        protocol: url.protocol,
+        hostname: url.protocol === 'http:' || url.protocol === 'https:' ? url.hostname : ''
+      }
     } catch {
-      return ''
+      return empty
     }
   }, [props.href])
 
@@ -147,7 +152,7 @@ export function MarkdownLinkRenderer({
           event.ctrlKey ||
           event.shiftKey ||
           event.altKey ||
-          !hostname ||
+          !isSafeExternalUrl(props.href ?? '') ||
           !openExternalUrl
         )
           return
@@ -157,6 +162,8 @@ export function MarkdownLinkRenderer({
       {linkContent}
     </a>
   )
+
+  if (protocol && protocol !== 'http:' && protocol !== 'https:') return anchor
 
   return (
     <MarkdownHyperlink href={props.href ?? ''} onOpenLink={hostname ? openExternalUrl : undefined}>

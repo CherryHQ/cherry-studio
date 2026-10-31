@@ -10,6 +10,7 @@ import {
   Button,
   CircularProgress,
   Divider,
+  IndicatorLight,
   Scrollbar,
   SegmentedControl,
   Switch,
@@ -20,7 +21,6 @@ import AppLogo from '@renderer/assets/images/logo.png'
 import { DoctorPopup } from '@renderer/components/doctor'
 import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
-import IndicatorLight from '@renderer/components/IndicatorLight'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
 import {
   SettingGroup,

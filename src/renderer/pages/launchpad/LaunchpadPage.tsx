@@ -96,8 +96,8 @@ export default function LaunchpadPage() {
     },
     [pinned, t, setPinned, miniAppFavoriteIdSet]
   )
-  const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
-    draggedItemIdRef.current = String(event.active.id)
+  const handleSortableDragStart = useCallback((event: { activeId: string | number }) => {
+    draggedItemIdRef.current = String(event.activeId)
     suppressClickUntilRef.current = Date.now() + 500
   }, [])
 
@@ -244,6 +244,7 @@ export default function LaunchpadPage() {
     <CommandContextMenu key={item.id} location="webcontents.context" extraItems={item.menuItems}>
       <button
         type="button"
+        data-dnd-row-control
         onClick={() => openLaunchpadItem(item.id)}
         className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
         <span className="relative flex size-14 items-center justify-center">

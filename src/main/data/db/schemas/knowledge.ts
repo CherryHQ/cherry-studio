@@ -111,7 +111,8 @@ export const knowledgeItemTable = sqliteTable(
     check(
       'knowledge_item_type_status_check',
       sql`
-        (${t.type} IN ('file', 'url', 'note') AND ${t.status} IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))
+        (${t.type} IN ('url', 'note') AND ${t.status} IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))
+        OR (${t.type} = 'file' AND ${t.status} IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))
         OR (${t.type} = 'directory' AND ${t.status} IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))
       `
     ),

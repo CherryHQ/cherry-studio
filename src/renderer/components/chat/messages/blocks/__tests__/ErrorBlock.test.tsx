@@ -44,7 +44,15 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('react-i18next', () => ({
   Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
   useTranslation: () => ({
-    t: (key: string) => mocks.translations.get(key) ?? key,
+    t: (key: string, options?: Record<string, string>) => {
+      let translation = mocks.translations.get(key) ?? key
+      if (options) {
+        for (const [k, v] of Object.entries(options)) {
+          translation = translation.replace(new RegExp(`{{${k}}}`, 'g'), v)
+        }
+      }
+      return translation
+    },
     i18n: {
       language: mocks.language,
       exists: (key: string) => mocks.i18nKeys.has(key)
@@ -80,6 +88,34 @@ describe('ErrorBlock', () => {
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
+  })
+
+  it('renders Groq entitlement copy and opens its provider settings', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateErrorTarget, openErrorDetail }
+    mocks.translations = new Map(Object.entries(enUS))
+    const groqBody = `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: groqBody, statusCode: 400, stack: null }}
+        message={{ ...message, model: { ...message.model!, provider: 'groq' } }}
+      />
+    )
+    expect(screen.getByText(enUS['error.diagnosis.permission'], { exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.quota'], { exact: true })).not.toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/recharge/i)
+    expect(container).not.toHaveTextContent(/quota exhausted/i)
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=groq')
+    await user.click(screen.getByText(enUS['common.detail'], { exact: true }))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: groqBody }) })
+    )
   })
 
   // Main-side copy and mapping are asserted in src/main/features/apiGateway/__tests__/bindError.test.ts.
@@ -465,5 +501,61 @@ describe('ErrorBlock', () => {
     expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
     await user.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
+  })
+
+  // #22571: the stale assistant-bound model is gone from the install, so the headline must name
+  // that layer instead of the generic "no permission" text, and detail must not fall back to a
+  // guessed provider/model.
+  it('names the model that is missing from the app and keeps provider settings recovery', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set(
+      'error.diagnosis.model_unavailable',
+      'Model {{model}} no longer exists in this app — pick a replacement'
+    )
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'DataApiError',
+          message: "Model with id 'openai/gpt-test' not found",
+          stack: null
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText('Model openai/gpt-test no longer exists in this app — pick a replacement')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.bad_request')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('shows configuration guidance without inventing a model for %s', (errorMessage) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('code.select_provider_model', enUS['code.select_provider_model'])
+    mocks.translations.set('error.diagnosis.model_unavailable', enUS['error.diagnosis.model_unavailable'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: errorMessage, stack: null }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['code.select_provider_model'])).toBeInTheDocument()
+    expect(screen.queryByText(/Model not no longer/)).toBeNull()
+    expect(screen.queryByText(errorMessage)).toBeNull()
+    expect(screen.queryByText('error.diagnosis.bad_request')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 })
