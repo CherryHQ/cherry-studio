@@ -450,7 +450,9 @@ describe('toModelMessages', () => {
       undefined,
       { '': tool({ inputSchema: z.object({}) }) }
     )
-    const parts = model.flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+    const parts = model.flatMap(
+      (message) => (Array.isArray(message.content) ? [...message.content] : []) as Array<{ type: string }>
+    )
 
     expect(parts.filter((part) => part.type === 'tool-call' || part.type === 'tool-result')).toEqual([])
     expect(parts).toContainEqual({ type: 'text', text: 'continue' })
