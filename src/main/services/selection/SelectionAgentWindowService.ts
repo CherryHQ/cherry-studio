@@ -92,9 +92,11 @@ export class SelectionAgentWindowService extends BaseService {
     )
 
     const onDisplayChange = () => this.syncCapsules()
+    screen.on('display-added', onDisplayChange)
     screen.on('display-removed', onDisplayChange)
     screen.on('display-metrics-changed', onDisplayChange)
     this.registerDisposable(() => {
+      screen.removeListener('display-added', onDisplayChange)
       screen.removeListener('display-removed', onDisplayChange)
       screen.removeListener('display-metrics-changed', onDisplayChange)
     })
@@ -230,7 +232,7 @@ export class SelectionAgentWindowService extends BaseService {
     return entry !== undefined && this.capsuleHosts.get(this.resolveDisplay(entry.displayId).id) === hostId
   }
 
-  /** A capsule whose display was removed moves to the primary display. */
+  /** A capsule whose display was removed shows on the primary display until that display returns. */
   private resolveDisplay(displayId: number): Electron.Display {
     return screen.getAllDisplays().find((display) => display.id === displayId) ?? screen.getPrimaryDisplay()
   }
