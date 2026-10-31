@@ -728,8 +728,7 @@ export async function saveNativeFileKeepingName(
   const electronPid = record.electronPid
   assertOwnedProcess(record, electronPid, 'electron')
   if (platform !== 'macos') {
-    const suggestedName = await saveNativeFileWindows(filePath, electronPid)
-    return { filePath, suggestedName }
+    return saveNativeFileWindows(filePath, electronPid, keepSuggestedName)
   }
 
   macProductMajor ??= Number.parseInt(
@@ -829,7 +828,11 @@ function newestFile(candidates: string[]): string {
     .sort((left, right) => right.modified - left.modified)[0].file
 }
 
-async function saveNativeFileWindows(filePath: string, electronPid: number): Promise<string> {
+async function saveNativeFileWindows(
+  filePath: string,
+  electronPid: number,
+  keepSuggestedName: boolean
+): Promise<NativeSaveOutcome> {
   const script = [
     '$ErrorActionPreference = "Stop"',
     'Add-Type -AssemblyName UIAutomationClient',
@@ -856,21 +859,45 @@ async function saveNativeFileWindows(filePath: string, electronPid: number): Pro
     'if (-not $filenameControl.Current.NativeWindowHandle -or -not $button -or -not $button.Current.NativeWindowHandle) { throw "Native save controls are unavailable" }',
     '$initial = [System.Text.StringBuilder]::new(32768)',
     '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$initial.Capacity, $initial)',
+    'if (-not $initial.ToString()) { throw "Native save dialog proposed no file name" }',
     `$filePath = '${escapePowerShell(filePath)}'`,
-    'if ([NativeSaveDialog]::SetText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $filePath) -eq [IntPtr]::Zero) { throw "Native save filename could not be set" }',
+    `$keepName = $${keepSuggestedName ? 'true' : 'false'}`,
+    '$directory = Split-Path -Parent $filePath',
+    '$target = if ($keepName) { Join-Path $directory ($initial.ToString()) } else { $filePath }',
+    'if ([NativeSaveDialog]::SetText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $target) -eq [IntPtr]::Zero) { throw "Native save filename could not be set" }',
     '$readback = [System.Text.StringBuilder]::new(32768)',
     '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$readback.Capacity, $readback)',
-    'if ($readback.ToString() -cne $filePath) { throw "Native save filename does not match the requested path" }',
+    'if ($readback.ToString() -cne $target) { throw "Native save filename does not match the requested path" }',
+    '$dialogHandle = $dialog.Current.NativeWindowHandle',
     '$null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-    'Write-Output $initial.ToString()'
+    // The dialog is asynchronous: confirm the file exists before reporting success, and accept a
+    // replace prompt so a rerun into the same directory does not stall on a second window.
+    '$writeDeadline = [DateTime]::UtcNow.AddSeconds(30)',
+    'while (-not (Test-Path -LiteralPath $target) -and [DateTime]::UtcNow -lt $writeDeadline) {',
+    '  $prompts = @($root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition) | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.NativeWindowHandle -ne $dialogHandle })',
+    '  foreach ($prompt in $prompts) {',
+    '    $yes = $prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "6"))',
+    '    if ($yes -and $yes.Current.NativeWindowHandle) { $null = [NativeSaveDialog]::SendMessage([IntPtr]$yes.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
+    '  }',
+    '  Start-Sleep -Milliseconds 250',
+    '}',
+    'if (-not (Test-Path -LiteralPath $target)) {',
+    '  $open = @()',
+    '  $files = @()',
+    '  try { $open = @($root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition) | ForEach-Object { $_.Current.ClassName + ":" + $_.Current.Name }) } catch { $open = @("unavailable") }',
+    '  try { $files = @(Get-ChildItem -LiteralPath $directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) } catch { $files = @("unavailable") }',
+    `  throw ("Native save dialog did not write {0}. Windows: {1}. Directory: {2}" -f $target, ($open -join " ; "), ($files -join ", "))`,
+    '}',
+    'Write-Output $target'
   ].join('\n')
   const output = await runAsyncCapture(
     'powershell.exe',
     ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
-    65_000
+    125_000
   )
-  const reported = output.trim()
-  return reported.length > 0 ? reported : basename(filePath)
+  const savedPath = output.trim()
+  const reported = savedPath.length > 0 ? savedPath : filePath
+  return { filePath: reported, suggestedName: basename(reported) }
 }
 
 function runAsyncCapture(file: string, args: string[], timeout: number): Promise<string> {

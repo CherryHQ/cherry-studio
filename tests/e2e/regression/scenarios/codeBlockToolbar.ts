@@ -10,7 +10,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile, saveNativeFileKeepingName } from '../../../../scripts/e2e/regression/systemAutomation'
+import { saveNativeFileKeepingName } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
@@ -163,15 +163,10 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     const output = join(app.paths.evidence, `MP40-code-${Date.now()}.py`)
     await block.getByRole('button', { name: 'Download Source Code', exact: true }).click()
     await mkdir(dirname(output), { recursive: true })
-    let savedPath = output
-    if (app.record.platform === 'macos') {
-      // Accept the name the product proposes: the saved file name proves it, and its content proves the source.
-      const saved = await saveNativeFileKeepingName(app.record.platform, app.paths, output, true)
-      expect(extname(saved.suggestedName)).toBe('.py')
-      savedPath = saved.filePath
-    } else {
-      await saveNativeFile(app.record.platform, app.paths, output)
-    }
+    // Accept the name the product proposes: the saved file name proves it, and its content proves the source.
+    const saved = await saveNativeFileKeepingName(app.record.platform, app.paths, output, true)
+    expect(extname(saved.suggestedName)).toBe('.py')
+    const savedPath = saved.filePath
     // The saved file holds exactly the block source; a trailing newline at EOF is not part of it.
     await expect
       .poll(() => readFile(savedPath, 'utf8').then((text) => text.replace(/\r\n/g, '\n')).catch(() => null))
