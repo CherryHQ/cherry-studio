@@ -2,16 +2,13 @@
 import '@testing-library/jest-dom/vitest'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
-import i18n from '@renderer/i18n/resolver'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
-vi.mock('@renderer/hooks/useApiGateway', () => ({ useApiGateway: () => ({ startApiGateway: vi.fn() }) }))
 
 const mocks = vi.hoisted(() => ({
   closeTab: vi.fn(),
@@ -196,20 +193,6 @@ describe('AppShell', () => {
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith('window.main.reset_minimum_size')
     })
-  })
-
-  it('hosts one gateway prompt independently of the originating session and tab lifecycle', async () => {
-    const user = userEvent.setup()
-    const view = render(<AppShell />)
-    act(() => mocks.ipcHandlers.get('api_gateway.required')?.({ sessionId: 'unmounted-session' }))
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    mocks.tabs = [{ id: 'settings', isDormant: false, title: 'Settings', type: 'route', url: '/settings/provider' }]
-    mocks.activeTabId = 'settings'
-    view.rerender(<AppShell />)
-    act(() => mocks.ipcHandlers.get('api_gateway.required')?.({ sessionId: 'dormant-session' }))
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    await user.click(screen.getByRole('button', { name: i18n.t('common.cancel') }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('opens global search from the shell-level shortcut', () => {
@@ -534,14 +517,14 @@ describe('AppShell', () => {
     expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
   })
 
-  it('closes the window from the tab-close shortcut when only the last tab remains', () => {
+  it('closes the last tab from the shortcut instead of the window, landing on the Launchpad fallback', () => {
     render(<AppShell />)
     mocks.commandHandlers.get('tab.close')?.handler()
 
-    // Closing the final tab would strand the shell in the empty Launchpad state;
-    // the shortcut must close the window instead, like the last-tab close in browsers.
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.close')
-    expect(mocks.closeTab).not.toHaveBeenCalled()
+    // TabsProvider turns a zero-tab close into the Launchpad fallback tab, so the
+    // shortcut must share the tab bar's close path instead of closing the window.
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
   it('keeps the last-tab close via the tab bar on the empty-state fallback', () => {

@@ -15,6 +15,7 @@ import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 import { forkPiSession } from './piFork'
@@ -168,6 +169,9 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   buildAgentMcpServers: mocks.buildAgentMcpServers,
   warmAgentMcpToolCatalogs: mocks.warmMcpToolCatalogs
 }))
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
+  prepareAgentSessionWorkspaceDirectory: vi.fn().mockResolvedValue(undefined)
+}))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
 vi.mock('@main/ai/agents/prompt', () => ({
@@ -185,7 +189,7 @@ vi.mock('./piMcpExtension', async (importOriginal) => ({
 vi.mock('./modelInjection', () => ({
   resolvePiProviderInjectionForSession: mocks.resolveInjection,
   usesPiGateway: mocks.usesPiGateway,
-  materializePiProviderStream: async (injection: any) => ({
+  materializePiProviderStream: async (injection: { providerConfig: unknown; suppressReasoningSummary: boolean }) => ({
     providerConfig: injection.providerConfig,
     streamSimple: mocks.providerStreamSimple
   })
@@ -211,7 +215,6 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
-const { ApiGatewayNotRunningError } = await import('../agentApiGateway')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
@@ -417,6 +420,7 @@ beforeEach(() => {
   mocks.resolveInjection.mockReturnValue({
     providerName: 'p',
     api: 'anthropic-messages',
+    suppressReasoningSummary: false,
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
     apiKey: 'real-key',
     modelId: 'm',
@@ -514,7 +518,7 @@ describe('PiRuntimeConnection', () => {
       const connection = await new PiRuntimeConnection(input).start()
       try {
         const authorize = approvalGateHandler()
-        for (const toolName of ['mcp__computer__open_app', 'mcp__computer__click', 'mcp__computer__type_text']) {
+        for (const toolName of ['mcp__automation__js', 'mcp__automation__reset']) {
           await expect(
             authorize({ type: 'tool_call', toolName, toolCallId: toolName, input: {} }, {})
           ).resolves.toBeUndefined()
@@ -526,6 +530,45 @@ describe('PiRuntimeConnection', () => {
         await connection.close()
         MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
       }
+    }
+  )
+
+  it.each<ReasoningEffortOption | undefined>(['max', 'ultra', 'default', 'auto', undefined])(
+    'forwards the turn selection %s instead of silently using the SDK default',
+    async (reasoningEffort) => {
+      const conn = await new PiRuntimeConnection({ ...input, reasoningEffort }).start()
+      expect(mocks.createOpts?.thinkingLevel).toBe(
+        reasoningEffort === 'max' || reasoningEffort === 'ultra' ? reasoningEffort : undefined
+      )
+      await conn.close()
+    }
+  )
+
+  it('uses explicit max rather than conflicting persisted high at session creation', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { reasoning_effort: 'high' } })
+    const conn = await new PiRuntimeConnection({ ...input, reasoningEffort: 'max' }).start()
+    expect(mocks.createOpts?.thinkingLevel).toBe('max')
+    await conn.close()
+  })
+
+  it.each<{
+    before: ReasoningEffortOption | undefined
+    after: ReasoningEffortOption
+    expected: 'current' | 'rebuild'
+  }>([
+    { before: 'default', after: 'max', expected: 'rebuild' },
+    { before: 'max', after: 'low', expected: 'rebuild' },
+    { before: undefined, after: 'default', expected: 'current' },
+    { before: 'auto', after: 'default', expected: 'current' },
+    { before: 'medium', after: 'medium', expected: 'current' },
+    { before: 'medium', after: 'high', expected: 'rebuild' }
+  ])(
+    'reconciles $before → $after as $expected with an unchanged Agent snapshot',
+    async ({ before, after, expected }) => {
+      const conn = await new PiRuntimeConnection({ ...input, reasoningEffort: before }).start()
+      Object.defineProperty(fakeSession, 'thinkingLevel', { configurable: true, value: 'high' })
+      await expect(conn.reconcile({ modelId: input.modelId, reasoningEffort: after })).resolves.toBe(expected)
+      await conn.close()
     }
   )
 
@@ -543,13 +586,6 @@ describe('PiRuntimeConnection', () => {
     } finally {
       await connection.close()
     }
-  })
-
-  it('prompts the current Agent session when its gateway route is disabled', async () => {
-    mocks.resolveInjection.mockRejectedValueOnce(new ApiGatewayNotRunningError())
-
-    await expect(new PiRuntimeConnection(input).start()).rejects.toBeInstanceOf(ApiGatewayNotRunningError)
-    expect(mocks.broadcast).toHaveBeenCalledWith('api_gateway.required', { sessionId: SESSION_ID })
   })
 
   it('establishes the Cloud baseline after starting the gateway', async () => {
@@ -1873,6 +1909,44 @@ describe('PiRuntimeConnection', () => {
     ).resolves.toMatchObject({ block: true })
   })
 
+  it.each(['auto', 'bypassPermissions'])(
+    'wires delegation approval to the live %s mode and interaction',
+    async (permission_mode) => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode } })
+      const conn = await new PiRuntimeConnection(input).start()
+      const authorize = approvalGateHandler()
+      for (const name of ['session_create', 'session_send']) {
+        const event = {
+          type: 'tool_call',
+          toolName: buildPiMcpToolName('cherry-tools', name),
+          toolCallId: name,
+          input: {}
+        }
+        for (let call = 0; call < 2; call++) await expect(authorize(event, {})).resolves.toBeUndefined()
+        mocks.getInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        await expect(authorize(event, {})).resolves.toMatchObject({ block: true })
+        mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+      }
+      expect(toolApprovalRegistry.size()).toBe(0)
+
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode: 'default' } })
+      await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('patched')
+      const pending = authorize(
+        {
+          type: 'tool_call',
+          toolName: buildPiMcpToolName('cherry-tools', 'session_send'),
+          toolCallId: 'after-mode-change',
+          input: {}
+        },
+        {}
+      )
+      await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+      toolApprovalRegistry.abort(SESSION_ID, 'test-cancel')
+      await expect(pending).resolves.toMatchObject({ block: true })
+      await conn.close()
+    }
+  )
+
   describe('skill installation approval', () => {
     const installSkill = {
       type: 'tool_call',
@@ -2086,7 +2160,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'automation', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -2186,7 +2260,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'automation', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,

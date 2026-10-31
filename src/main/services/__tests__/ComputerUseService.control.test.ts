@@ -34,6 +34,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
   }
   const client: ComputerUseClient = {
+    ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform: vi.fn() },
     getCapabilities: async () => ({ platform: 'darwin', capabilities: [] }),
     getPermissionStatus: async () => ({ permissions: [] }),
     requestPermissions: async () => ({ permissions: [] }),
@@ -75,6 +76,119 @@ beforeEach(() => {
 })
 
 describe('desktop control ownership and user stop', () => {
+  it.each(['com.example.editor', '/Applications/Editor.app'])(
+    'rejects a stopped app alias before launch: %s',
+    async (query) => {
+      const app = { id: 'app', name: 'Localized Editor', identity: 'com.example.editor' }
+      let running = true
+      let launches = 0
+      const native = backend({
+        listApps: async () => (running ? [app] : []),
+        openAppSession: async () => ({ id: 'control', app, status: 'active' }),
+        resolveApp: async () => {
+          launches++
+          running = true
+          return app
+        }
+      })
+      Object.assign(native.client, {
+        resolveAppIdentity: async () => ({ id: app.identity, name: 'Editor', query: '/Applications/Editor.app' })
+      })
+      vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+      const service = new TestService()
+      const task = service.createTask('owner', 'Conversation')
+      await service.resolveApp(task, app.name)
+      await service.stopApp('owner', app.id)
+      running = false
+      await expect(service.resolveApp(task, query)).rejects.toMatchObject({ code: 'USER_STOPPED', effect: 'none' })
+      expect(running).toBe(false)
+      expect(launches).toBe(0)
+      service.allowControl('owner', app.id)
+      await expect(service.resolveApp(task, query)).resolves.toMatchObject({ app, status: 'active' })
+      expect(running).toBe(true)
+      expect(launches).toBe(1)
+      await service.stop()
+    }
+  )
+
+  it('rechecks user stop after identity lookup and before launching', async () => {
+    const identity = Promise.withResolvers<{ id: string; name: string; query: string }>()
+    const entered = Promise.withResolvers<void>()
+    let launches = 0
+    const native = backend({
+      listApps: async () => [],
+      resolveApp: async () => {
+        launches++
+        return { id: 'app', name: 'Editor' }
+      }
+    })
+    Object.assign(native.client, {
+      resolveAppIdentity: () => {
+        entered.resolve()
+        return identity.promise
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    const result = service.resolveApp(task, 'Editor')
+    await entered.promise
+    await service.stopApp('owner', 'com.example.editor')
+    identity.resolve({ id: 'com.example.editor', name: 'Editor', query: '/Applications/Editor.app' })
+    await expect(result).rejects.toMatchObject({ code: 'USER_STOPPED', effect: 'none' })
+    expect(launches).toBe(0)
+    await service.stop()
+  })
+
+  it('reports possible effects if a stop arrives after launch has started', async () => {
+    const started = Promise.withResolvers<void>()
+    const complete = Promise.withResolvers<void>()
+    const app = { id: 'app', name: 'Editor', identity: 'com.example.editor' }
+    const native = backend({
+      listApps: async () => [],
+      resolveApp: async () => {
+        started.resolve()
+        await complete.promise
+        return app
+      }
+    })
+    Object.assign(native.client, {
+      resolveAppIdentity: async () => ({ id: app.identity, name: app.name, query: '/Applications/Editor.app' })
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    const result = service.resolveApp(task, 'Editor')
+    await started.promise
+    await service.stopApp('owner', app.id)
+    complete.resolve()
+    await expect(result).rejects.toMatchObject({ code: 'USER_STOPPED', effect: 'possible' })
+    expect(native.events).not.toContain('open:app')
+    await service.stop()
+  })
+
+  it('reports an unexpected unconfirmed native exit separately from user stop and keeps ownership blocked', async () => {
+    const native = backend({
+      close: async () => {
+        throw new Error('Native runtime is gone')
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    await service.openApp(task, 'app')
+    native.disconnect({ cleanup: 'unconfirmed' })
+    await expect(service.listApps(task)).rejects.toMatchObject({ code: 'CLEANUP_UNCONFIRMED' })
+    service.allowControl('owner')
+    await expect(service.listApps(service.createTask('owner', 'Conversation'))).rejects.toMatchObject({
+      code: 'CLEANUP_UNCONFIRMED'
+    })
+    await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
+      code: 'APP_BUSY'
+    })
+    await service.stop()
+  })
+
   it('restores permission queries after a service restart without reviving stopped tasks', async () => {
     const native = backend()
     vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
@@ -254,7 +368,7 @@ describe('desktop control ownership and user stop', () => {
     expect(service.getControls().filter((row) => row.appId === 'app')).toMatchObject([{ status: 'unconfirmed' }])
     service.allowControl('owner')
     await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).rejects.toMatchObject({
-      code: 'USER_STOPPED'
+      code: 'CLEANUP_UNCONFIRMED'
     })
     await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
       code: 'APP_BUSY'

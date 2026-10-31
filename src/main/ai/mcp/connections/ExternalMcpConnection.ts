@@ -57,39 +57,18 @@ function isTransportFallbackError(error: unknown): boolean {
 
 /**
  * `@modelcontextprotocol/client` verdicts every 5xx from the `server/discover`
- * probe as `EraNegotiationFailed` without reading the body, so a server that
- * rejects the unknown method with a JSON-RPC error never reaches the legacy
- * fallback. Only a body carrying a JSON-RPC protocol error is evidence of that
- * rejection: an outage page (HTML, empty, non-protocol body) must keep failing.
+ * probe as `EraNegotiationFailed` without reading the body. Gateways that
+ * reject the unknown method with a bare 5xx (empty body, HTML, or a non-
+ * protocol JSON envelope) therefore never reached the legacy fallback when we
+ * required a JSON-RPC protocol error code in the body (#21709).
+ *
+ * Treat any probe `EraNegotiationFailed` with HTTP status >= 500 as grounds
+ * for one legacy retry on URL transports. Outage safety stays intact: a real
+ * outage also fails the legacy `initialize` handshake, and the caller rethrows
+ * the original probe error (#21938).
  */
 function isLegacyProbeRejection(error: unknown): error is SdkHttpError {
-  if (!SdkHttpError.isInstance(error) || error.code !== SdkErrorCode.EraNegotiationFailed || !(error.status >= 500)) {
-    return false
-  }
-  if (typeof error.data.text !== 'string') return false
-
-  let body: unknown
-  try {
-    body = JSON.parse(error.data.text)
-  } catch {
-    return false
-  }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return false
-
-  const candidates = [
-    body,
-    ...Object.values(body).filter((value) => value && typeof value === 'object' && !Array.isArray(value))
-  ]
-  return candidates.some((candidate) => {
-    const { code, message } = candidate as Record<string, unknown>
-    return (
-      typeof code === 'number' &&
-      Number.isInteger(code) &&
-      code >= -32768 &&
-      code <= -32000 &&
-      typeof message === 'string'
-    )
-  })
+  return SdkHttpError.isInstance(error) && error.code === SdkErrorCode.EraNegotiationFailed && error.status >= 500
 }
 
 function createClient(

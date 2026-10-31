@@ -34,6 +34,7 @@ interface Branch {
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   closed: boolean
+  openedParts: Set<string>
 }
 
 function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
@@ -49,7 +50,8 @@ function createBranch(executionId: UniqueModelId, anchorMessageId: string | unde
     anchorMessageId,
     stream: undefined as never,
     controller: null,
-    closed: false
+    closed: false,
+    openedParts: new Set()
   }
   branch.stream = new ReadableStream<UIMessageChunk>({
     start(controller) {
@@ -75,6 +77,10 @@ export class TopicStreamSubscription {
   #disposed = false
   #topicOpen = false
   #terminalAttemptWatermark: number | undefined
+  #pendingEvents: Array<() => void> = []
+  #pendingCoverage = new Map<number, { first: number; last: number }>()
+  #liveReplayAttempts = new Set<number>()
+  #replayThrough: Record<number, number> = {}
 
   constructor(topicId: string) {
     this.#topicId = topicId
@@ -181,6 +187,8 @@ export class TopicStreamSubscription {
     this.#terminalListeners.clear()
     this.#branchRetirementListeners.clear()
     this.#topicStateListeners.clear()
+    this.#pendingEvents = []
+    this.#pendingCoverage.clear()
     if (this.#attached) void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
@@ -229,7 +237,7 @@ export class TopicStreamSubscription {
     }
   }
 
-  #routeChunk(payload: StreamChunkPayload): void {
+  #routeChunk(payload: StreamChunkPayload, live = false): void {
     if (payload.topicId !== this.#topicId) return
     const { executionId, attemptId } = payload
     if (!executionId || attemptId === undefined) {
@@ -240,9 +248,26 @@ export class TopicStreamSubscription {
       })
       return
     }
+    if (live && payload.sequence !== undefined && payload.sequence <= (this.#replayThrough[attemptId] ?? 0)) return
     if (this.#isBranchSettled(executionId, payload.anchorMessageId, attemptId)) return
     const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId)
-    if (!branch.closed) branch.controller?.enqueue(payload.chunk)
+    if (branch.closed) return
+    const chunk = payload.chunk
+    if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
+      branch.openedParts.add(`${chunk.type}:${chunk.id}`)
+    } else if (
+      live &&
+      this.#liveReplayAttempts.has(attemptId) &&
+      (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta')
+    ) {
+      const type = chunk.type === 'text-delta' ? 'text-start' : 'reasoning-start'
+      const key = `${type}:${chunk.id}`
+      if (!branch.openedParts.has(key)) {
+        branch.openedParts.add(key)
+        branch.controller?.enqueue({ type, id: chunk.id })
+      }
+    }
+    branch.controller?.enqueue(chunk)
   }
 
   /** Mirror PersistenceListener's stored error part into the live branch before it closes. */
@@ -375,6 +400,7 @@ export class TopicStreamSubscription {
     for (const branch of branches) {
       const key = branchKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
       if (this.#branches.get(key) !== branch) continue
+      if (this.#terminalByBranchKey.has(key)) continue
       this.#emitTerminal(branch.executionId, terminal, branch.anchorMessageId, branch.attemptId)
     }
   }
@@ -400,49 +426,91 @@ export class TopicStreamSubscription {
   #setupIpcListeners(): void {
     if (this.#ipcUnsubs.length > 0) return
     this.#ipcUnsubs.push(
-      ipcApi.on('ai.stream.chunk', (data) => this.#routeChunk(data)),
-      ipcApi.on('ai.stream.done', (data) => {
+      ipcApi.on('ai.stream.chunk', (data) => {
         if (data.topicId !== this.#topicId) return
-        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
-        const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
-          isAbort: data.status === 'paused',
-          isError: false
+        if (!this.#attached && data.attemptId !== undefined && data.sequence !== undefined) {
+          const previous = this.#pendingCoverage.get(data.attemptId)
+          this.#pendingCoverage.set(data.attemptId, {
+            first: previous?.first ?? data.firstSequence ?? data.sequence,
+            last: data.sequence
+          })
         }
-        this.#applyTerminal(
-          data.executionId,
-          terminal,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
+        if (data.executionId && data.attemptId !== undefined) {
+          this.#getOrCreateBranch(data.executionId, data.anchorMessageId, data.attemptId)
+        }
+        this.#receiveEvent(data.topicId, () => this.#routeChunk(data, true))
+      }),
+      ipcApi.on('ai.stream.done', (data) => {
+        this.#receiveEvent(
+          data.topicId,
+          () => {
+            const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
+            const terminal: ExecutionTerminal = {
+              ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
+              isAbort: data.status === 'paused',
+              isError: false
+            }
+            this.#applyTerminal(
+              data.executionId,
+              terminal,
+              data.anchorMessageId,
+              data.attemptId,
+              data.isTopicDone ? data.topicAttemptWatermark : undefined
+            )
+            if (topicStateChanged) this.#notifyTopicStateChange()
+          },
+          true
         )
-        if (topicStateChanged) this.#notifyTopicStateChange()
       }),
       ipcApi.on('ai.stream.error', (data) => {
-        if (data.topicId !== this.#topicId) return
-        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
-        this.#enqueueError(
-          data.error,
-          data.executionId,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
+        this.#receiveEvent(
+          data.topicId,
+          () => {
+            const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
+            this.#enqueueError(
+              data.error,
+              data.executionId,
+              data.anchorMessageId,
+              data.attemptId,
+              data.isTopicDone ? data.topicAttemptWatermark : undefined
+            )
+            const terminal: ExecutionTerminal = {
+              ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
+              isAbort: false,
+              isError: true
+            }
+            this.#applyTerminal(
+              data.executionId,
+              terminal,
+              data.anchorMessageId,
+              data.attemptId,
+              data.isTopicDone ? data.topicAttemptWatermark : undefined
+            )
+            if (topicStateChanged) this.#notifyTopicStateChange()
+          },
+          true
         )
-        const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
-          isAbort: false,
-          isError: true
-        }
-        this.#applyTerminal(
-          data.executionId,
-          terminal,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
-        )
-        if (topicStateChanged) this.#notifyTopicStateChange()
       })
     )
+  }
+
+  #receiveEvent(topicId: string, deliver: () => void, terminal = false): void {
+    if (topicId !== this.#topicId) return
+    // Completed turns without a reader must settle instead of retaining an unclaimed branch.
+    if (terminal && !this.#attached && !this.#attachInFlight) {
+      this.#drainPendingEvents()
+      deliver()
+      return
+    }
+    if (this.#attached) deliver()
+    else this.#pendingEvents.push(deliver)
+  }
+
+  #drainPendingEvents(): void {
+    const events = this.#pendingEvents
+    this.#pendingEvents = []
+    this.#pendingCoverage.clear()
+    for (const deliver of events) deliver()
   }
 
   async #ensureAttached(): Promise<void> {
@@ -458,17 +526,39 @@ export class TopicStreamSubscription {
         if (this.#disposed) return
         this.#attached = true
         switch (res.status) {
-          case 'attached':
-            for (const payload of res.bufferedChunks) this.#routeChunk(payload)
+          case 'attached': {
+            const liveAttempts = new Set(
+              [...this.#pendingCoverage]
+                .filter(
+                  ([attemptId, coverage]) =>
+                    coverage.first <= (res.replayFrom?.[attemptId] ?? 0) &&
+                    coverage.last >= res.replayThrough[attemptId]
+                )
+                .map(([attemptId]) => attemptId)
+            )
+            this.#replayThrough = Object.fromEntries(
+              Object.entries(res.replayThrough).filter(([attemptId]) => !liveAttempts.has(Number(attemptId)))
+            )
+            for (const payload of res.bufferedChunks) {
+              if (payload.attemptId === undefined || !liveAttempts.has(payload.attemptId)) this.#routeChunk(payload)
+            }
+            this.#liveReplayAttempts = liveAttempts
+            this.#drainPendingEvents()
+            this.#liveReplayAttempts.clear()
+            this.#replayThrough = res.replayThrough
             break
+          }
           case 'not-found':
           case 'done':
+            this.#drainPendingEvents()
             this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: false })
             break
           case 'paused':
+            this.#drainPendingEvents()
             this.#terminateBranches(branchesAtAttach, { isAbort: true, isError: false })
             break
           case 'error':
+            this.#drainPendingEvents()
             if (res.error) {
               this.#enqueueErrorToBranches({ type: 'data-error', data: { ...res.error } }, branchesAtAttach)
             }
@@ -487,6 +577,7 @@ export class TopicStreamSubscription {
         // instead of hanging forever on a stream that never attached. Recovery
         // happens through a fresh subscription on the next mount.
         if (!this.#disposed) {
+          this.#drainPendingEvents()
           this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: true })
           shouldReattach = this.hasAnyOpenBranch()
         }

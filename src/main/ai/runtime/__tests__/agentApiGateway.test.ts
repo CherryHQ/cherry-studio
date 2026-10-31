@@ -1,48 +1,57 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getCurrentConfig: vi.fn(),
-  isRunning: vi.fn()
+  ensureInternalGateway: vi.fn(),
+  getInternalGatewayOrigin: vi.fn<() => string | undefined>(),
+  getCurrentConfig: vi.fn()
 }))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'ApiGatewayService') {
-        return { getCurrentConfig: mocks.getCurrentConfig, isRunning: mocks.isRunning }
+        return {
+          ensureInternalGateway: mocks.ensureInternalGateway,
+          getInternalGatewayOrigin: mocks.getInternalGatewayOrigin,
+          getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
+          getCurrentConfig: mocks.getCurrentConfig
+        }
       }
       throw new Error(`unexpected service ${name}`)
     }
   }
 }))
 
-import { gatewayCredentialsFingerprint } from '../agentApiGateway'
+import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
 
 describe('gatewayCredentialsFingerprint', () => {
   beforeEach(() => {
-    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-1' })
-    mocks.isRunning.mockReturnValue(true)
+    mocks.getInternalGatewayOrigin.mockReturnValue('http://127.0.0.1:40001')
   })
 
-  it('changes when the gateway key rotates', () => {
+  it('changes when the internal listener restarts on another port', () => {
     const before = gatewayCredentialsFingerprint()
-    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-2' })
+    mocks.getInternalGatewayOrigin.mockReturnValue('http://127.0.0.1:40002')
     expect(gatewayCredentialsFingerprint()).not.toBe(before)
   })
 
-  it('changes when the gateway address or enabled/running state changes', () => {
+  it('does not depend on the user-facing gateway configuration', () => {
     const before = gatewayCredentialsFingerprint()
-    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 24444, apiKey: 'gw-key-1' })
-    expect(gatewayCredentialsFingerprint()).not.toBe(before)
-
-    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-1' })
-    mocks.isRunning.mockReturnValue(false)
-    expect(gatewayCredentialsFingerprint()).not.toBe(before)
+    mocks.getCurrentConfig.mockReturnValue({ enabled: false, host: '0.0.0.0', port: 1, apiKey: 'rotated' })
+    expect(gatewayCredentialsFingerprint()).toBe(before)
   })
+})
 
-  it('is stable across reads with unchanged state and never leaks the key', () => {
-    const first = gatewayCredentialsFingerprint()
-    expect(gatewayCredentialsFingerprint()).toBe(first)
-    expect(first).not.toContain('gw-key-1')
+describe('resolveApiGatewayRuntime', () => {
+  it('routes the Agent session through the internal listener with the Agent key', async () => {
+    mocks.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://127.0.0.1:40001', apiKey: 'agent-key' })
+
+    await expect(resolveApiGatewayRuntime('session-1')).resolves.toEqual({
+      baseUrl: 'http://127.0.0.1:40001',
+      apiKey: 'agent-key',
+      usageHeaders: { 'x-cherry-agent-session-id': 'session-1' }
+    })
+    expect(mocks.ensureInternalGateway).toHaveBeenCalledOnce()
+    expect(mocks.getCurrentConfig).not.toHaveBeenCalled()
   })
 })

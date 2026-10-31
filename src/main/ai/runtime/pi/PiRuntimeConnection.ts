@@ -7,6 +7,7 @@ import type {
   AgentSessionEvent,
   CompactionResult,
   ContextUsage,
+  CreateAgentSessionOptions,
   ProviderConfig,
   ToolDefinition
 } from '@earendil-works/pi-coding-agent'
@@ -20,6 +21,7 @@ import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/age
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -54,9 +56,9 @@ import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { AsyncEventQueue } from '@shared/utils/async'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -85,6 +87,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
+import { resolvePiThinkingLevel } from './piThinkingLevel'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -195,21 +198,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    const resolveInjection = async (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> => {
-      try {
-        return await resolvePiProviderInjectionForSession(
-          this.input.sessionId,
-          snapshot.provider,
-          snapshot.model,
-          snapshot.enabledApiKeys
-        )
-      } catch (error) {
-        if (error instanceof ApiGatewayNotRunningError) {
-          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-        }
-        throw error
-      }
-    }
+    const resolveInjection = (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> =>
+      resolvePiProviderInjectionForSession(
+        this.input.sessionId,
+        snapshot.provider,
+        snapshot.model,
+        snapshot.enabledApiKeys
+      )
 
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
@@ -237,6 +232,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (!session?.agentId || !workspacePath) {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
+
+    await prepareAgentSessionWorkspaceDirectory(session)
 
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
@@ -351,6 +348,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           mountedPolicies
             .filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        delegationTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'delegation')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
         )
       }
       const mcpServers = buildAgentMcpServers(
@@ -428,6 +430,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         sessionManager,
         resourceLoader,
         model,
+        // Patched pi-ai includes ultra; the SDK's transitive agent-core type still ends at max.
+        thinkingLevel: resolvePiThinkingLevel(this.input.reasoningEffort) as CreateAgentSessionOptions['thinkingLevel'],
         customTools: [managedBashTool],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
@@ -555,6 +559,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    reasoningEffort?: ReasoningEffortOption
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -567,6 +572,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    reasoningEffort?: ReasoningEffortOption
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -595,7 +601,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
 
-    if (snapshot.signature !== this.connectionSignature) {
+    if (
+      snapshot.signature !== this.connectionSignature ||
+      resolvePiThinkingLevel(input.reasoningEffort) !== resolvePiThinkingLevel(this.input.reasoningEffort)
+    ) {
       return 'rebuild'
     }
     return policyChanged ? 'patched' : 'current'
@@ -890,7 +899,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return
       }
       // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
-      this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      this.eventQueue.push({
+        type: 'compaction-error',
+        error: event.errorMessage ?? 'pi compaction aborted',
+        aborted: event.aborted
+      })
       return
     }
     // `willRetry` keeps the surrounding agent turn open; it does not defer this compaction result.

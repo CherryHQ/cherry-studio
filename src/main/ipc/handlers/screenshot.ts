@@ -40,6 +40,11 @@ export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas>
     if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return
     await service.commit(result)
   },
+  'screenshot.copy': async (result, ctx) => {
+    const service = application.get('ScreenshotOverlayService')
+    if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return
+    await service.copy(result)
+  },
   'screenshot.save': async (result, ctx) => {
     const service = application.get('ScreenshotOverlayService')
     if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return

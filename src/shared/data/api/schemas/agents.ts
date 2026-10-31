@@ -316,7 +316,7 @@ export type AgentSchemas = {
   '/agent-tasks/:taskId': {
     GET: {
       params: { taskId: string }
-      response: ScheduledTaskEntity
+      response: ScheduledTaskListItem
     }
   }
 

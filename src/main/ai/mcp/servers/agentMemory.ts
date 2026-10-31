@@ -221,7 +221,7 @@ Use only this tool to update FACT.md or read and write JOURNAL.jsonl; never bypa
     'memory',
     {
       description:
-        "Manage persistent memory in this agent's data directory across sessions and workspaces. Actions: 'update' overwrites memory/FACT.md (durable knowledge and decisions that should survive across sessions). 'append' logs to memory/JOURNAL.jsonl (one-time events, completed tasks, session notes). 'search' queries the journal. Before writing to FACT.md, ask: will this still matter in 6 months? If not, use append instead.",
+        "Persistent memory: 'update' rewrites FACT.md (durable), 'append' logs events to JOURNAL.jsonl, 'search' reads it.",
       inputSchema: MemoryInputSchema
     },
     async (args) => {

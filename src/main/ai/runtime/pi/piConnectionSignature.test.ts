@@ -157,6 +157,23 @@ describe('capturePiConnectionSnapshot', () => {
     }
   })
 
+  it('rebuilds a warm connection when only Responses summary permission changes', async () => {
+    const provider = {
+      id: 'provider',
+      updatedAt: 1,
+      endpointConfigs: { 'openai-responses': { dialect: { reasoningSummary: false } } }
+    }
+    mocks.getProvider.mockReturnValue(provider)
+    const before = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getProvider.mockReturnValue({
+      ...provider,
+      endpointConfigs: { 'openai-responses': { dialect: { reasoningSummary: true } } }
+    })
+    const after = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+
+    expect(after.signature).not.toBe(before.signature)
+  })
+
   it('returns the exact provider, model, skills, MCP, and channel facts signed by the snapshot', async () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
     mocks.listLocalSkillPaths.mockResolvedValue(['/workspace/.agents/skills/review'])

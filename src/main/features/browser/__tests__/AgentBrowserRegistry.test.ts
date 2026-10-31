@@ -73,9 +73,6 @@ describe('Agent browser authority and control lifetime', () => {
     service = new BrowserSessionService()
     await service._doInit()
     controller = new AgentBrowserController(service, service.agentBrowser, { agentId, sessionId })
-    const profile = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
-    Object.assign(profile, new EventEmitter())
-    Object.setPrototypeOf(profile, EventEmitter.prototype)
     fixture = createGuest(1)
     Object.assign(fixture.mock, {
       getType: () => 'webview',
