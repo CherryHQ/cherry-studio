@@ -1,7 +1,7 @@
 import { openaiCompatible } from './types'
 
 /**
- * Synap serves its 5 self-hosted fleet models exclusively on Linkrra-operated GPUs (refused with
+ * Synap serves its 6 self-hosted fleet models exclusively on Linkrra-operated GPUs (refused with
  * a 503 rather than routed to any third-party backend if no fleet node is online). The pricing
  * and context windows below mirror the live feed at pool.linkrra.com/v1/models.
  */
@@ -32,6 +32,16 @@ export default openaiCompatible({
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.04 },
         output: { currency: 'USD', perMillionTokens: 0.21 }
+      }
+    },
+    {
+      apiModelId: 'meta/muse-glimmer-30b',
+      inputModalities: ['text'],
+      limits: { contextWindow: 131072 },
+      modelId: 'muse-glimmer-30b',
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.28 },
+        output: { currency: 'USD', perMillionTokens: 1.1 }
       }
     },
     {
