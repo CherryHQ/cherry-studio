@@ -2,7 +2,6 @@ import * as z from 'zod'
 
 import { objectValues, REASONING_EFFORT } from '@cherrystudio/provider-registry'
 
-import type { ReasoningEffortMappingEntryUpdate } from '../../data/preference/reasoningEffortMapping'
 import { defineRoute } from '../define'
 
 // Mirrors the aiSdk.ts pattern (ReasoningEffortOptionSchema); the package index
@@ -33,7 +32,7 @@ export const preferenceRequestSchemas = {
         source: reasoningEffortSchema,
         target: reasoningEffortSchema.nullish()
       })
-    ]) as z.ZodType<ReasoningEffortMappingEntryUpdate>,
+    ]),
     output: z.void()
   })
 }
