@@ -1065,10 +1065,14 @@ function assertUsableDotHooshListings(
 /** The default Anthropic-messages base of the DotHoosh preset (`packages/provider-registry/src/providers/dothoosh.ts`). */
 const DOTHOOSH_ANTHROPIC_API_URL = `${DOTHOOSH_API_URL}/anthropic`
 
-/** The public mirror is a static, header-free listing, however the base URL led there. */
+const DOTHOOSH_MIRROR_HOSTNAME = new URL(DOTHOOSH_MIRROR_URL).hostname
+// The apex host only redirects to the mirror, so it counts as the mirror too.
+const DOTHOOSH_MIRROR_HOSTS = new Set([DOTHOOSH_MIRROR_HOSTNAME, DOTHOOSH_MIRROR_HOSTNAME.replace(/^www\./, '')])
+
+/** The public mirror (and its apex, which redirects to it) is a static, header-free listing, however the base URL led there. */
 const isDotHooshMirrorUrl = (url: string): boolean => {
   try {
-    return new URL(url).hostname === new URL(DOTHOOSH_MIRROR_URL).hostname
+    return DOTHOOSH_MIRROR_HOSTS.has(new URL(url).hostname.replace(/\.$/, ''))
   } catch {
     return false
   }
