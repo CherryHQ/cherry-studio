@@ -225,7 +225,8 @@ export default defineConfig({
         ['agent-runtime-pi-durable', 'tests'],
         ['ai-sdk-provider', 'src'],
         ['remote-protocol', 'tests'],
-        ['remote-transport', 'tests']
+        ['remote-transport', 'tests'],
+        ['sqlite-wasm-compat', 'tests']
       ].map(([name, directory]) => ({
         extends: true as const,
         test: {

@@ -1,0 +1,117 @@
+import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
+import { messageService } from '@data/services/MessageService'
+
+import { type CommandHandler, startCoreWorker, type WorkerScope } from '../src/worker/startCoreWorker'
+
+// Test-only commands next to the core ones: raw SQL, bulk seeding and integrity checks.
+const yieldToEventLoop = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+const sql: CommandHandler = ({ sql, params = [], mode = 'all' }, context) => {
+  const statement = context.database().service.sqlite.prepare(sql)
+  return mode === 'run'
+    ? statement.run(...params)
+    : mode === 'get'
+      ? statement.get(...params)
+      : statement.all(...params)
+}
+
+interface SeedOptions {
+  count: number
+  messagesPerTopic?: number
+  chunkSize?: number
+  /** Write everything in one transaction (the crash test's long synchronous task). */
+  singleTransaction?: boolean
+  prefix?: string
+}
+
+/**
+ * Inserts `count` messages as linear conversations of `messagesPerTopic`. Chunked
+ * writes yield between transactions so no Worker task runs long; the returned
+ * `maxChunkMs` is the longest task.
+ */
+const seedMessages: CommandHandler = async (options: SeedOptions, context) => {
+  const { count, messagesPerTopic = 100, chunkSize = 2000, singleTransaction = false, prefix = 'seed' } = options
+  const { sqlite } = context.database().service
+  const insertTopic = sqlite.prepare(
+    'INSERT INTO topic (id, name, order_key, last_activity_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+  )
+  const setActiveNode = sqlite.prepare('UPDATE topic SET active_node_id = ? WHERE id = ?')
+  const insertMessage = sqlite.prepare(
+    'INSERT INTO message (id, parent_id, topic_id, role, data, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  )
+  const base = Date.now()
+  let parentId: string | null = null
+  let topicId = ''
+  const writeRange = sqlite.transaction((from: number, to: number) => {
+    for (let i = from; i < to; i++) {
+      const position = i % messagesPerTopic
+      const createdAt = base + i
+      if (position === 0) {
+        const topicIndex = i / messagesPerTopic
+        topicId = `${prefix}-topic-${topicIndex}`
+        const orderKey = `${prefix}${String(topicIndex).padStart(8, '0')}`
+        insertTopic.run(topicId, `Topic ${topicIndex}`, orderKey, createdAt, createdAt, createdAt)
+        parentId = `${topicId}-root`
+        insertMessage.run(parentId, null, topicId, 'root', '{"parts":[]}', 'success', createdAt, createdAt)
+      }
+      const id = `${topicId}-m${position}`
+      const data = JSON.stringify({
+        parts: [
+          { type: 'text', text: `message ${i} about topic ${topicId} needle${i % 1000} lorem ipsum dolor sit amet` }
+        ]
+      })
+      insertMessage.run(
+        id,
+        parentId,
+        topicId,
+        position % 2 === 0 ? 'user' : 'assistant',
+        data,
+        'success',
+        createdAt,
+        createdAt
+      )
+      parentId = id
+      if (position === messagesPerTopic - 1 || i === count - 1) setActiveNode.run(id, topicId)
+    }
+  })
+
+  const started = performance.now()
+  let maxChunkMs = 0
+  const size = singleTransaction ? count : chunkSize
+  for (let from = 0; from < count; from += size) {
+    const chunkStarted = performance.now()
+    writeRange.immediate(from, Math.min(from + size, count))
+    maxChunkMs = Math.max(maxChunkMs, performance.now() - chunkStarted)
+    if (!singleTransaction) await yieldToEventLoop()
+  }
+  return { inserted: count, ms: performance.now() - started, maxChunkMs }
+}
+
+const integrity: CommandHandler = (_payload, context) => {
+  const { sqlite } = context.database().service
+  return {
+    integrity: sqlite.pragma('integrity_check', { simple: true }),
+    foreignKeyViolations: (sqlite.pragma('foreign_key_check') as unknown[]).length
+  }
+}
+
+/** Times the parts of `applyMigrations` that scan data on every boot, on an already-migrated database. */
+const bootBreakdown: CommandHandler = (_payload, context) => {
+  const { sqlite } = context.database().service
+  const time = (fn: () => unknown) => {
+    const started = performance.now()
+    fn()
+    return performance.now() - started
+  }
+  return {
+    foreignKeyCheckMs: time(() => sqlite.pragma('foreign_key_check')),
+    customSqlMs: time(() => CUSTOM_SQL_STATEMENTS.forEach((statement) => sqlite.exec(statement)))
+  }
+}
+
+const searchMessages: CommandHandler = ({ q, topicId }: { q: string; topicId?: string }, context) => {
+  context.database()
+  return messageService.search({ q, topicId, limit: 20 })
+}
+
+startCoreWorker(self as unknown as WorkerScope, { sql, seedMessages, integrity, bootBreakdown, searchMessages })
