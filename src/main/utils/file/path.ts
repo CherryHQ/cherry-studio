@@ -116,16 +116,27 @@ export async function canonicalizePathForContainment(
   target: string,
   { allowMissing }: { allowMissing: boolean }
 ): Promise<string | undefined> {
+  // TEMPORARY windows-2022 CI diagnostic (revert with the fix): log which
+  // branch returns undefined so the transient failure mode is identifiable.
+  const diag = (branch: string, detail: unknown) =>
+    console.error('[canon-diag]', JSON.stringify({ target, branch, detail: String(detail) }))
   try {
     return normalizeRealpathResult(await realpath(target))
   } catch (error) {
     if (!allowMissing) return undefined
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      diag('realpath-non-enoent', (error as NodeJS.ErrnoException).code)
+      return undefined
+    }
     try {
       await lstat(target)
+      diag('lstat-succeeded-after-enoent', 'file appeared between realpath and lstat')
       return undefined
     } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        diag('lstat-non-enoent', (statError as NodeJS.ErrnoException).code)
+        return undefined
+      }
     }
   }
 
@@ -134,12 +145,19 @@ export async function canonicalizePathForContainment(
     try {
       return normalizeRealpathResult(path.resolve(await realpath(parent), path.relative(parent, target)))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        diag('parent-realpath-non-enoent', (error as NodeJS.ErrnoException).code)
+        return undefined
+      }
       try {
         await lstat(parent)
+        diag('parent-lstat-succeeded-after-enoent', parent)
         return undefined
       } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') {
+          diag('parent-lstat-non-enoent', (statError as NodeJS.ErrnoException).code)
+          return undefined
+        }
       }
       const next = path.dirname(parent)
       if (next === parent) return undefined
