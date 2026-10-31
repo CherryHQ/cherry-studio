@@ -8,6 +8,7 @@ const webSections = new Set([
   '/settings/model',
   '/settings/general',
   '/settings/appearance',
+  '/settings/archive',
   '/settings/about'
 ])
 

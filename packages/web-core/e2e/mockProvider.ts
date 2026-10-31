@@ -2,21 +2,34 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 
 // OpenAI-compatible chat-completions endpoint for the chat tests, run by Playwright's webServer.
 // It replies `echo: <last user text>` in three stream chunks, answers 401 to "please fail" and
-// never finishes a reply to "please hang".
+// never finishes a reply to "please hang". To `call <tool> <json args>` (repeatable) it answers with
+// those tool calls, then replies `tools said: <results>` once the results come back.
 // `GET /requests` returns what it received so tests can check what the browser sent.
 export const MOCK_PROVIDER_PORT = 4319
 
 interface ChatRequest {
   model: string
   stream?: boolean
-  messages: { role: string; content: string | { type: string; text?: string }[] }[]
+  messages: { role: string; content: string | { type: string; text?: string }[] | null }[]
 }
 
 const received: { authorization?: string; body: ChatRequest }[] = []
 
+function textOf(content: ChatRequest['messages'][number]['content']): string {
+  return typeof content === 'string' ? content : (content ?? []).map((part) => part.text ?? '').join('')
+}
+
 function lastUserText(body: ChatRequest): string {
-  const content = body.messages.findLast((message) => message.role === 'user')?.content ?? ''
-  return typeof content === 'string' ? content : content.map((part) => part.text ?? '').join('')
+  return textOf(body.messages.findLast((message) => message.role === 'user')?.content ?? '')
+}
+
+/** Results of the tool calls answered since the last user message. */
+function toolResults(body: ChatRequest): string[] {
+  const lastUser = body.messages.findLastIndex((message) => message.role === 'user')
+  return body.messages
+    .slice(lastUser + 1)
+    .filter((message) => message.role === 'tool')
+    .map((message) => textOf(message.content))
 }
 
 function chunk(model: string, delta: Record<string, unknown>, finishReason: string | null = null) {
@@ -37,7 +50,22 @@ async function handleChat(request: IncomingMessage, response: ServerResponse) {
     )
     return
   }
-  const reply = `echo: ${text}`
+  const calls = [...text.matchAll(/call (\w+) (\{.*?\})(?= call |$)/gs)]
+  const results = toolResults(body)
+  if (calls.length && !results.length && body.stream) {
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+    const toolCalls = calls.map(([, name, args], index) => ({
+      index,
+      id: `call_${index}_${Date.now()}`,
+      type: 'function',
+      function: { name, arguments: args }
+    }))
+    response.write(chunk(body.model, { role: 'assistant', content: null, tool_calls: toolCalls }))
+    response.write(chunk(body.model, {}, 'tool_calls'))
+    response.end('data: [DONE]\n\n')
+    return
+  }
+  const reply = results.length ? `tools said: ${results.join(' | ')}` : `echo: ${text}`
   if (!body.stream) {
     response.writeHead(200, { 'content-type': 'application/json' })
     const message = { role: 'assistant', content: reply }

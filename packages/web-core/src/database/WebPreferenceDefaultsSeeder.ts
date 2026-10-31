@@ -5,10 +5,12 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 const desktopDefaults = DefaultPreferences.default
 
-/** First-run preferences where the Web edition differs from the desktop: the sidebar offers only chat. */
+const WEB_SIDEBAR_RESOURCES = new Set(['agents', 'assistants'])
+
+/** First-run preferences where the Web edition differs from the desktop: the sidebar offers only chat and agents. */
 const webDefaults: Partial<typeof desktopDefaults> = {
   'ui.sidebar_shortcut': desktopDefaults['ui.sidebar_shortcut'].filter(
-    ({ target }) => target.kind === 'resource' && target.locator.resourceId === 'assistants'
+    ({ target }) => target.kind === 'resource' && WEB_SIDEBAR_RESOURCES.has(target.locator.resourceId)
   )
 }
 

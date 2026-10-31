@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 
-import { composerInput, gotoApp, removeAppData } from './appPage'
+import { composerInput, gotoApp, removeAppData, sidebarApps } from './appPage'
 import { expect, test as harnessTest } from './fixtures'
 import { MOCK_PROVIDER_PORT } from './mockProvider'
 
@@ -25,9 +25,11 @@ test('runs the desktop main window with only the Web edition features', async ({
   page.on('pageerror', (error) => pageErrors.push(error.message))
   await gotoApp(page)
 
-  const sidebarApps = page.locator('[data-ui="app.sidebar"] [data-ui="ui.item"] button')
-  await expect(sidebarApps).toHaveCount(1)
-  await expect(sidebarApps).toHaveAttribute('aria-label', 'Chat')
+  await expect(sidebarApps(page)).toHaveCount(2)
+  expect(await sidebarApps(page).evaluateAll((buttons) => buttons.map((button) => button.ariaLabel))).toEqual([
+    'Work',
+    'Chat'
+  ])
 
   await page.getByRole('button', { name: 'Settings' }).click()
   await expect(page.locator('[data-ui~="part:menu-item"]')).toHaveText([
@@ -35,6 +37,7 @@ test('runs the desktop main window with only the Web edition features', async ({
     'Default Model',
     'General',
     'Appearance',
+    'Archive',
     'About & Feedback'
   ])
   expect(pageErrors).toEqual([])
@@ -88,6 +91,33 @@ test('keeps a reply cut off by a reload and says it was interrupted', async ({ p
   await expect(messages.getByText(/^This reply was interrupted because the app closed\./)).toBeVisible()
 })
 
+test('archives a chat topic from the topic list and restores it from Settings', async ({ page }) => {
+  const run = Date.now().toString(36)
+  const message = `topic to archive ${run}`
+  await gotoApp(page)
+  await useMockProvider(page, run)
+  await gotoApp(page)
+  await composerInput(page).click()
+  await page.keyboard.type(message)
+  await page.keyboard.press('Enter')
+  await expect(page.getByText(`echo: ${message}`)).toBeVisible()
+  await expect.poll(() => replyStatus(page)).toBe('success')
+
+  // "More" on the assistant lists its topics.
+  await page.getByRole('button', { name: 'More' }).first().click()
+  const row = page.getByTestId('topic-list-row').filter({ hasText: message })
+  // The row's buttons take pointer events only while it is hovered or focused.
+  await row.getByRole('button', { name: 'Archive', exact: true }).focus()
+  await page.keyboard.press('Enter')
+  await expect(row).toHaveCount(0)
+  await expect.poll(() => topicNames(page)).not.toContain(message)
+
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Archive', exact: true }).click()
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Restore' }).click()
+  await expect.poll(() => topicNames(page)).toContain(message)
+})
+
 /** Point every assistant at the mock endpoint; the trial's model source is not decided yet. */
 async function useMockProvider(page: Page, run: string): Promise<void> {
   await page.evaluate(
@@ -122,5 +152,12 @@ function replyStatus(page: Page): Promise<string | undefined> {
     const topics = (await request('/topics')).data as { items: { activeNodeId: string | null }[] }
     const tip = topics.items[0]?.activeNodeId
     return tip ? ((await request(`/messages/${tip}`)).data as { status: string }).status : undefined
+  })
+}
+
+function topicNames(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const response = await window.api.dataApi.request({ id: crypto.randomUUID(), method: 'GET', path: '/topics' })
+    return (response.data as { items: { name: string }[] }).items.map(({ name }) => name)
   })
 }

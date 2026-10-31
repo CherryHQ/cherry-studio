@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
 import { messageService } from '@data/services/MessageService'
 import type { StreamListener } from '@main/ai/streamManager/types'
@@ -148,11 +150,32 @@ const chat: CommandHandler = async ({ topicId, text, parentAnchorId }: ChatOptio
   return { admission, ...(await settled), deltas }
 }
 
+/** The Worker's `node:fs/promises` call `method(...args)`, as the agent's file tools make it; stats come back as size and kind. */
+const fsCall: CommandHandler = async ({ method, args }: { method: keyof typeof fs; args: unknown[] }) => {
+  const result = await (fs[method] as (...args: unknown[]) => Promise<unknown>)(...args)
+  if (method !== 'stat') return result
+  const stats = result as Awaited<ReturnType<typeof fs.stat>>
+  return { size: stats.size, isFile: stats.isFile(), isDirectory: stats.isDirectory() }
+}
+
+type PermissionPrototype = { queryPermission?: (descriptor: unknown) => Promise<PermissionState> }
+const handlePrototype = FileSystemHandle.prototype as PermissionPrototype
+const grantedQuery = handlePrototype.queryPermission
+
+/** Makes stored folders report a lapsed permission, as after a reload without a lasting grant, or restores them. */
+const revokeFolderPermission: CommandHandler = ({ revoked }: { revoked: boolean }) => {
+  if (revoked) handlePrototype.queryPermission = async () => 'prompt'
+  else if (grantedQuery) handlePrototype.queryPermission = grantedQuery
+  else delete handlePrototype.queryPermission
+}
+
 startCoreWorker(self as unknown as WorkerScope, {
   sql,
   seedMessages,
   integrity,
   bootBreakdown,
   searchMessages,
-  chat
+  chat,
+  fsCall,
+  revokeFolderPermission
 })

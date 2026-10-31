@@ -4,14 +4,25 @@ import type { BrowserContext, Locator, Page } from '@playwright/test'
 export const APP_PORT = 4320
 const APP_URL = `http://localhost:${APP_PORT}`
 
-/** Opens the Web app and waits for the chat composer, skipping first-run onboarding when it shows. */
-export async function gotoApp(page: Page): Promise<void> {
+/**
+ * Opens the Web app on a sidebar section and waits for its composer, skipping first-run onboarding
+ * when it shows. The app opens on its first sidebar entry, Work (the agents).
+ */
+export async function gotoApp(page: Page, section: 'Chat' | 'Work' = 'Chat'): Promise<void> {
   await page.goto(APP_URL)
   const composer = composerInput(page)
   const skipOnboarding = page.getByRole('button', { name: 'Set up later' })
   await composer.or(skipOnboarding).first().waitFor()
   if (await skipOnboarding.isVisible()) await skipOnboarding.click()
+  await sidebarApps(page)
+    .and(page.getByLabel(section, { exact: true }))
+    .click()
   await composer.waitFor()
+}
+
+/** The sidebar's app entries. */
+export function sidebarApps(page: Page): Locator {
+  return page.locator('[data-ui="app.sidebar"] [data-ui="ui.item"] button')
 }
 
 /** The chat input: a plain textarea until the rich editor loads, which WebKit defers to the first focus. */

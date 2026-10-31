@@ -8,6 +8,7 @@
   },
   "include": [
     "src/page/**/*.ts",
+    "src/page/**/*.tsx",
     "harness/bridge.ts",
     "../../src/renderer/env.d.ts",
     "../../src/renderer/types/*.d.ts",
