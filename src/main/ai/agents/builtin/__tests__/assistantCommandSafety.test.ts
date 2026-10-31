@@ -13,6 +13,18 @@ describe('detectDestructiveAssistantCommand', () => {
     ['powershell Remove-Item -Recurse C:\\temp', 'permanent Windows file deletion'],
     ['powershell rmdir C:\\temp', 'permanent Windows file deletion'],
     ['cmd /c del /s /q C:\\temp\\*', 'permanent Windows file deletion'],
+    ['cmd /c if 1==1 del /q victim.txt', 'permanent Windows file deletion'],
+    ['if defined SHOULD_DELETE del victim.txt', 'permanent Windows file deletion'],
+    ['if exist "my file.txt" del /q "my file.txt"', 'permanent Windows file deletion'],
+    ['if ERRORLEVEL 1 del victim.txt', 'permanent Windows file deletion'],
+    ['if "%X%"=="y" del victim.txt', 'permanent Windows file deletion'],
+    ['if /i not exist "a b.txt" erase "a b.txt"', 'permanent Windows file deletion'],
+    ['powershell del foo', 'permanent Windows file deletion'],
+    ['pwsh del foo', 'permanent Windows file deletion'],
+    ['powershell.exe del foo', 'permanent Windows file deletion'],
+    ['pwsh.exe del victim.txt', 'permanent Windows file deletion'],
+    ['powershell -nop -ep bypass del foo', 'permanent Windows file deletion'],
+    ['powershell.exe -NoProfile del foo', 'permanent Windows file deletion'],
     ['DEL /Q file.txt', 'permanent Windows file deletion'],
     ['echo hi && del file.txt', 'permanent Windows file deletion'],
     ['if exist a.txt del a.txt', 'permanent Windows file deletion'],
@@ -60,6 +72,34 @@ describe('detectDestructiveAssistantCommand', () => {
     'ls modelo'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it('stays linear on long adversarial input and still detects quoted long-operand conditionals', () => {
+    // Many conditional-looking starts that all fail at the end: worst case for the prefix branches.
+    const probe = `echo "${'if ' + 'a'.repeat(99) + '==b '.repeat(1)}`.repeat(2000)
+    expect(probe.length).toBeGreaterThan(200_000)
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(probe)).toBeUndefined()
+    // A quadratic pattern takes seconds here (measured ~13s at 100k chars pre-bounding); 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+
+    const longQuoted = `if "${'a'.repeat(60_000)}"=="${'b'.repeat(60_000)}" del victim.txt`
+    expect(detectDestructiveAssistantCommand(longQuoted)).toBe('permanent Windows file deletion')
+  })
+
+  it('keeps the pre-existing unbounded bare exist operand (257+ chars still blocked)', () => {
+    const longToken = 'x'.repeat(300)
+    expect(detectDestructiveAssistantCommand(`if exist ${longToken} del victim.txt`)).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand(`exist ${longToken} del victim.txt`)).toBe(
+      'permanent Windows file deletion'
+    )
+    // Stays linear on a very long bare exist token.
+    const huge = `exist ${'y'.repeat(400_000)} del victim.txt`
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(huge)).toBe('permanent Windows file deletion')
+    expect(performance.now() - start).toBeLessThan(2000)
   })
 })
 

@@ -15,8 +15,30 @@ const GITHUB_ISSUE_CREATION_PATTERN =
   /(?:^\s*|[;&|]\s*|\r?\n\s*)(?:"(?:[^"\r\n]*[\\/])?gh(?:\.exe)?"|'(?:[^'\r\n]*[\\/])?gh(?:\.exe)?'|(?:[^\s;&|]*[\\/])?gh(?:\.exe)?)\s+issue\s+create(?:\s|$)/i
 
 // `del`/`erase`/`rd` are ordinary words in prose (e.g. Spanish "del"), so only match them in command position.
-const WINDOWS_AMBIGUOUS_DELETE_PATTERN =
-  /(?:^|[;&|(){\r\n`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else|exist\s+\S+)(?=\s))\s*["']?\s*(?:del|erase|rd)(?=\s|$|["'])/i
+// Command position includes cmd.exe conditional prefixes (`if [/i] [not] exist|defined|errorlevel|
+// cmdextversion|<operand>==<operand>`, operands may be quoted) and a bare powershell/pwsh prefix
+// (with optional .exe suffix and bounded launcher flags with at most one value each, such as -nop or -ep bypass), since those still
+// execute the deletion.
+// Two deliberate limits, both acceptable for a deny-side guard:
+// - Conservative blocking: prose that contains a syntactically valid conditional (e.g.
+//   "echo if a==b then del is risky") still blocks, matching pre-existing behavior; erring toward
+//   deny is safe here.
+// - Bounded fragments: unquoted EQUALITY operands are capped at 256 chars so the pattern stays
+//   linear on adversarial input (the tool command string is unbounded and this runs on the main
+//   thread). Longer equality operands remain covered when quoted. No complete cmd parser is intended.
+// The `exist` operand is deliberately NOT capped: the pre-existing guard blocked a bare token of
+// any length after `exist`, and `\S+` / quoted scans are plain linear repetitions, so capping it
+// would only narrow coverage (a 257+ char token would stop matching and the deletion would sail through).
+const CMD_QUOTED_OR_SHORT = String.raw`(?:"[^"]*"|'[^']*'|\S{1,256})`
+const CMD_EXIST_OPERAND = String.raw`(?:"[^"]*"|'[^']*'|\S+)`
+const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\s+${CMD_EXIST_OPERAND}|defined\s+\S+|errorlevel\s+\d+|cmdextversion\s+\d+|${CMD_QUOTED_OR_SHORT}\s*==\s*${CMD_QUOTED_OR_SHORT})(?=\s)`
+const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'])[^\s]{0,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
+const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
+  String.raw`(?:^|[;&|(){\r\n` +
+    '`' +
+    String.raw`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${POWERSHELL_LAUNCHER})\s*["']?\s*(?:del|erase|rd)(?=\s|$|["'])`,
+  'i'
+)
 
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
