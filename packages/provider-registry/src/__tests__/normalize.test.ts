@@ -196,3 +196,8 @@ describe('registry-tag colon size/quant tags — size-preserving normalization',
     expect(normalizeModelId('qwen2.5:7b', { keepParameterSize: true })).toBe('qwen2-5-7b')
   })
 })
+
+it('folds a qualified Bedrock deployment revision without erasing real model versions', () => {
+  expect(normalizeModelId('global.anthropic.claude-opus-4-6-v1')).toBe('claude-opus-4-6')
+  expect(normalizeModelId('whisper-v3')).toBe('whisper-v3')
+})

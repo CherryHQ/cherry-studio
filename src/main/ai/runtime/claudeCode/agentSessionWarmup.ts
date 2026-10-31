@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
+import { supportsDynamicToolDeclarations } from '@cherrystudio/provider-registry'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -37,7 +38,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isVisionModel } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -688,7 +689,10 @@ function deriveRouteFacts(
   // primary model must parse. Sub-models are pinned to the primary whenever they differ from
   // `agent.model` (see `pinSubModelsToPrimary`), so keying on the primary never misses a
   // per-turn model override.
-  const toolSearchCompatible = supportsDynamicallyLoadedTools(primaryRef.apiModelId)
+  const toolSearchCompatible = supportsDynamicToolDeclarations(
+    primaryRef.apiModelId.replace(/\[1m\]$/i, ''),
+    primaryProvider.presetProviderId ?? primaryProvider.id
+  )
 
   // External-cli (e.g. claude-code) authenticates only through the SDK's
   // subscription login, which can serve *only* this provider's own models. A

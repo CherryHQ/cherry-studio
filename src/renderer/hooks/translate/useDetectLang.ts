@@ -3,6 +3,7 @@ import i18n from 'i18next'
 import { useCallback, useRef } from 'react'
 import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
+import { usesTranslationMessages } from '@cherrystudio/provider-registry'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -17,7 +18,7 @@ import {
 } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
-import { isQwenMTModel } from '@shared/utils/model'
+import { getRawModelId } from '@shared/utils/model'
 
 import { useLanguages } from './useTranslateLanguages'
 
@@ -54,7 +55,7 @@ export const detectLanguageByLLM = async (
     throw new Error(i18n.t('error.model.not_exists'))
   }
 
-  if (isQwenMTModel(model)) {
+  if (usesTranslationMessages(getRawModelId(model))) {
     throw new Error(i18n.t('translate.error.detect.qwen_mt'))
   }
 

@@ -11,7 +11,6 @@ export {
 } from './capabilities'
 export { isEmbeddingModel, isRerankModel } from './embedding'
 export { getModelLogoRef } from './logo'
-export { isGPT5SeriesReasoningModel } from './openai'
 // Reasoning checks are the descriptor-backed shared implementations — the
 // renderer's regex-table shadows were deleted with the #16598 migration
 // (vocabulary now comes from `@shared/ai/reasoning`).
@@ -32,6 +31,5 @@ export {
   isFixedReasoningModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  isSupportedThinkingTokenQwenModel
+  isSupportedThinkingTokenModel
 } from '@shared/utils/model'

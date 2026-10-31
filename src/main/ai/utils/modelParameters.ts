@@ -1,66 +1,83 @@
-/**
- * Sampling settings + Model/Provider capabilities → final `temperature` / `topP`
- * / `maxOutputTokens`. The settings come from an assistant, or from a feature
- * that keeps its own (translate).
- */
-
+/** Sampling policy is resolved by the registry; this module applies it to request values. */
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 
-import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { getSamplingPolicy, type SamplingContext } from '@cherrystudio/provider-registry'
 import type { SamplingSettings } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { AiSdkParam } from '@shared/types/aiSdk'
-import {
-  isClaudeFixedSamplingModel,
-  isClaudeReasoningModel,
-  isGemini3Model,
-  isGemini4Model,
-  isMaxTemperatureOneModel,
-  isQwenModel,
-  isSupportedFlexServiceTier,
-  isSupportTemperatureModel,
-  isSupportTopPModel,
-  isTemperatureTopPMutuallyExclusiveModel
-} from '@shared/utils/model'
+import { getRawModelId, isQwenModel } from '@shared/utils/model'
 
 import type { ResolvedReasoningInvocation } from './reasoningSerializers'
 
-const logger = loggerService.withContext('modelParameters')
-
-/** The two sampling fields these gates read; `maxTokens` has no gate of its own. */
 export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
-
-/** Registry support plus the existing family policies for omitting explicit sampling. */
-function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
-  if (isGemini3Model(model) || isClaudeFixedSamplingModel(model)) return false
-  return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
-}
-
+type SamplingReasoning = Pick<ResolvedReasoningInvocation, 'kind'>
 type SamplingParams = {
   standardParams: Record<string, unknown>
   providerOptions: ProviderOptions
   bodyParams: Record<string, unknown>
 }
 
-/** Sanitize model parameters after all request overrides have been merged. */
-export function stripUnsupportedModelParams(params: SamplingParams, model: Model): SamplingParams {
-  const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
-  const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
-  const gemini4 = isGemini4Model(model)
+function samplingContext(model: Model, reasoning?: SamplingReasoning): SamplingContext {
+  return {
+    modelId: getRawModelId(model),
+    providerId: model.providerId,
+    parameterSupport: model.parameterSupport,
+    reasoning: !reasoning || reasoning.kind === 'omit' ? 'default' : reasoning.kind === 'off' ? 'off' : 'on'
+  }
+}
+
+/** Read the effective wire settings after custom/body overrides, scoped to the active adapter. */
+export function resolveSamplingReasoning(
+  params: Pick<SamplingParams, 'providerOptions' | 'bodyParams'>,
+  context: { reasoning?: SamplingReasoning; providerOptionsKey?: string }
+): SamplingReasoning {
+  const options = context.providerOptionsKey ? params.providerOptions[context.providerOptionsKey] : undefined
+  const member = (value: unknown, key: string): unknown =>
+    value && typeof value === 'object' && key in value ? (value as Record<string, unknown>)[key] : undefined
+  const effort =
+    params.bodyParams.reasoning_effort ??
+    member(params.bodyParams.reasoning, 'effort') ??
+    options?.reasoningEffort ??
+    options?.reasoning_effort ??
+    member(options?.reasoning, 'effort')
+  if (typeof effort === 'string') return { kind: effort === 'none' ? 'off' : 'effort' }
+  const thinking = params.bodyParams.thinking ?? options?.thinking
+  const type = member(thinking, 'type')
+  if (type === 'disabled') return { kind: 'off' }
+  if (type === 'enabled' || type === 'adaptive' || type === 'auto') return { kind: 'auto' }
+  return context.reasoning ?? { kind: 'omit' }
+}
+
+/** Omit rejected sampling after all overrides, including passthrough body values. */
+export function stripUnsupportedModelParams(
+  params: SamplingParams,
+  model: Model,
+  context: { reasoning?: SamplingReasoning; providerOptionsKey?: string; endpointType?: EndpointType } = {}
+): SamplingParams {
+  const input = samplingContext(model, resolveSamplingReasoning(params, context))
+  const policy = getSamplingPolicy({ ...input, endpointType: context.endpointType })
   const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
-  if (acceptsTemperature && acceptsTopP && !normalizeTemperature) return params
+  if (
+    !policy.omitTemperature &&
+    !policy.omitTopP &&
+    !policy.omitTopK &&
+    !policy.omitCachedContent &&
+    !normalizeTemperature
+  )
+    return params
 
   function strip<T>(values: Record<string, T>): Record<string, T> {
     const cleaned = { ...values }
-    if (!acceptsTemperature) delete cleaned.temperature
-    if (!acceptsTopP) {
+    if (policy.omitTemperature) delete cleaned.temperature
+    if (policy.omitTopP) {
       delete cleaned.topP
       delete cleaned.top_p
     }
-    if (gemini4) {
+    if (policy.omitTopK) {
       delete cleaned.topK
       delete cleaned.top_k
+    }
+    if (policy.omitCachedContent) {
       delete cleaned.cachedContent
       delete cleaned.cached_content
     }
@@ -74,122 +91,44 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
     }
     return cleaned
   }
-
   return {
     standardParams: strip(params.standardParams),
     providerOptions: Object.fromEntries(
-      Object.entries(params.providerOptions).map(([namespace, options]) => [namespace, strip(options)])
+      Object.entries(params.providerOptions).map(([key, options]) => [key, strip(options)])
     ),
     bodyParams: strip(params.bodyParams)
   }
 }
 
-/** `undefined` falls back to the provider default. */
+/** `undefined` leaves the provider default in effect. */
 export function getTemperature(
   settings: GatedSampling,
   model: Model,
-  reasoning: Pick<ResolvedReasoningInvocation, 'kind'>
+  reasoning: SamplingReasoning
 ): number | undefined {
-  if (isGemini3Model(model)) {
-    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling temperature`)
-    return undefined
-  }
-
-  if (!settings.enableTemperature) return undefined
-
-  if (isClaudeFixedSamplingModel(model)) {
-    logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
-    return undefined
-  }
-
-  if (isClaudeReasoningModel(model) && reasoning.kind !== 'omit' && reasoning.kind !== 'off') {
-    logger.info(`Model ${model.id} does not support reasoning with temperature, disabling temperature`)
-    return undefined
-  }
-
-  if (!isSupportTemperatureModel(model)) {
-    logger.info(`Model ${model.id} does not support temperature, disabling temperature`)
-    return undefined
-  }
-
-  let temperature = settings.temperature
-
-  if (isMaxTemperatureOneModel(model) && temperature > 1) {
-    logger.info(`Model ${model.id} has max temperature of 1, clamping temperature from ${temperature} to 1`)
-    temperature = 1
-  }
-
-  if (isTemperatureTopPMutuallyExclusiveModel(model) && settings.enableTopP) {
-    logger.info(`Model ${model.id} only accepts one of temperature and topP, both enabled; keeping temperature`)
-  }
-
-  return temperature
+  const policy = getSamplingPolicy(samplingContext(model, reasoning))
+  if (!settings.enableTemperature || policy.omitTemperature) return undefined
+  return policy.temperatureMax === undefined
+    ? settings.temperature
+    : Math.min(settings.temperature, policy.temperatureMax)
 }
 
-/** Temperature wins when both are enabled on mutually-exclusive models. */
-export function getTopP(
-  settings: GatedSampling,
-  model: Model,
-  reasoning: Pick<ResolvedReasoningInvocation, 'kind'>
-): number | undefined {
-  if (isGemini3Model(model)) {
-    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling topP`)
+/** Temperature wins when both settings are enabled on mutually-exclusive models. */
+export function getTopP(settings: GatedSampling, model: Model, reasoning: SamplingReasoning): number | undefined {
+  const policy = getSamplingPolicy(samplingContext(model, reasoning))
+  if (!settings.enableTopP || policy.omitTopP || (policy.exclusiveTemperatureTopP && settings.enableTemperature))
     return undefined
-  }
-
-  if (!settings.enableTopP) return undefined
-
-  if (isClaudeFixedSamplingModel(model)) {
-    logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
-    return undefined
-  }
-
-  if (!isSupportTopPModel(model)) {
-    logger.info(`Model ${model.id} does not support topP, disabling topP.`)
-    return undefined
-  }
-
-  if (isTemperatureTopPMutuallyExclusiveModel(model) && settings.enableTemperature) {
-    logger.info(`Model ${model.id} only accepts one of temperature and topP, disabling topP.`)
-    return undefined
-  }
-
-  let topP = settings.topP
-
-  if (isClaudeReasoningModel(model) && reasoning.kind !== 'omit' && reasoning.kind !== 'off') {
-    const clampedTopP = Math.max(0.95, Math.min(topP, 1))
-    if (clampedTopP !== topP) {
-      logger.info(`Claude Model ${model.id} has reasoning enabled, clamping topP from ${topP} to ${clampedTopP}`)
-    }
-    topP = clampedTopP
-  }
-
-  return topP
+  return policy.topPMin === undefined ? settings.topP : Math.max(policy.topPMin, Math.min(settings.topP, 1))
 }
 
 export function filterStandardParams(
   standardParams: Partial<Record<AiSdkParam, any>>,
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
-  if ((isGemini3Model(model) || isGemini4Model(model)) && 'topK' in standardParams) {
-    const { topK, ...rest } = standardParams
-    logger.info(`Gemini model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
-    return rest
-  }
-
-  if (isClaudeFixedSamplingModel(model) && 'topK' in standardParams) {
-    const { topK, ...rest } = standardParams
-    logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
-    return rest
-  }
-
-  return standardParams
-}
-
-/** Provider timeout override (`flex` tier gets a longer timeout). */
-export function getTimeout(model: Model): number {
-  if (isSupportedFlexServiceTier(model)) return 15 * 1000 * 60
-  return DEFAULT_TIMEOUT
+  if (!getSamplingPolicy(samplingContext(model)).omitTopK || !('topK' in standardParams)) return standardParams
+  const filtered = { ...standardParams }
+  delete filtered.topK
+  return filtered
 }
 
 /**

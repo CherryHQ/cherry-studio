@@ -17,6 +17,7 @@
  */
 
 import { application } from '@application'
+import { usesTranslationMessages } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import type { CallOverrides } from '@main/ai/types'
 import { type GatedSampling, getTemperature, getTopP } from '@main/ai/utils/modelParameters'
@@ -33,7 +34,7 @@ import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isQwenMTModel } from '@shared/utils/model'
+import { getRawModelId } from '@shared/utils/model'
 
 import { WebContentsListener } from '../../ai/streamManager'
 
@@ -201,7 +202,7 @@ export class TranslateService {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
-    const content = isQwenMTModel(model)
+    const content = usesTranslationMessages(getRawModelId(model))
       ? text
       : preferenceService
           .get('feature.translate.model_prompt')

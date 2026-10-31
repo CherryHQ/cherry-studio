@@ -160,3 +160,16 @@ export {
 } from './patterns/reasoning-heuristics'
 export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
 export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'
+
+export type { SamplingContext, SamplingPolicy } from './patterns/samplingPolicy'
+export { getSamplingPolicy } from './patterns/samplingPolicy'
+export {
+  getAnthropicBetaPolicy,
+  requiresThoughtSignatures,
+  supportsDynamicToolDeclarations,
+  supportsThinkingPrompt,
+  usesChatSearchOptions,
+  usesDeepResearchSearchTool,
+  usesTranslationMessages
+} from './patterns/modelProtocols'
+export { modelMatchId } from './utils/modelMatchId'

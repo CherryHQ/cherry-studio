@@ -4,6 +4,18 @@ import { openaiResponsesSummaryWire } from './wires'
 const webSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 
 export default defineProvider({
+  overrides: [
+    {
+      modelId: 'gpt-5-2-chat-latest',
+      disabled: true,
+      reason: 'Retired on the official API; third-party hosting is independent.'
+    },
+    {
+      modelId: 'gpt-5-3-chat-latest',
+      disabled: true,
+      reason: 'Retired on the official API; third-party hosting is independent.'
+    }
+  ],
   id: 'openai',
   name: 'OpenAI',
   availableInEditions: ['global'],

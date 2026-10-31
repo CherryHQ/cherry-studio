@@ -180,7 +180,9 @@ export function stripHostReprefix(modelId: string, isKnownId: (id: string) => bo
  * `flux.2-pro` and versions such as `qwen3.7` are never touched.
  */
 export function stripBedrockVendorPrefix(modelId: string): string {
-  return stripBedrockDottedVendorPrefix(modelId).replace(BEDROCK_VENDOR_DASH, '')
+  const bare = stripBedrockDottedVendorPrefix(modelId)
+  // A qualified deployment may omit ':0'; an unqualified whisper-v3 remains a model version.
+  return (bare === modelId ? bare : bare.replace(/-v\d+$/, '')).replace(BEDROCK_VENDOR_DASH, '')
 }
 
 /**

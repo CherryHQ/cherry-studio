@@ -12,14 +12,7 @@
 
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import {
-  isAnthropicModel,
-  isAudioModel,
-  isGeminiModel,
-  isOpenAILLMModel,
-  isVideoModel,
-  isVisionModel
-} from '@shared/utils/model'
+import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
 import type { AppProviderId } from '../../../types'
 
@@ -137,16 +130,7 @@ function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProvid
 
 function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
   if (!isFirstPartyFileProvider(provider, aiSdkProviderId)) return false
-  if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
-    return isOpenAILLMModel(model)
-  }
-  if (aiSdkProviderId === 'anthropic' || aiSdkProviderId === 'anthropic-vertex' || aiSdkProviderId === 'bedrock') {
-    return isAnthropicModel(model)
-  }
-  if (aiSdkProviderId === 'google' || aiSdkProviderId === 'google-vertex') {
-    return isGeminiModel(model)
-  }
-  return true
+  return model.capabilities.includes('file-input')
 }
 
 export function resolveNativeFileSupport(

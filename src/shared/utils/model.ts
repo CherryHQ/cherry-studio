@@ -11,7 +11,13 @@
  *    `@cherrystudio/provider-registry` (creator-declared data).
  */
 
-import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import {
+  endpointImpliedCapability,
+  getSamplingPolicy,
+  MODALITY,
+  modelMatchId,
+  VENDOR_PATTERNS
+} from '@cherrystudio/provider-registry'
 import {
   CHERRYAI_PROVIDER_ID,
   isManagedCherryAiDefaultModel,
@@ -146,60 +152,21 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 
 /** Check if model supports temperature parameter */
 export const isSupportTemperatureModel = (model: Model): boolean =>
-  !isGemini4Model(model) && model.parameterSupport?.temperature?.supported !== false
+  !getSamplingPolicy({
+    modelId: getRawModelId(model),
+    providerId: model.providerId,
+    parameterSupport: model.parameterSupport,
+    reasoning: 'off'
+  }).omitTemperature
 
 /** Check if model supports top_p parameter */
 export const isSupportTopPModel = (model: Model): boolean =>
-  !isGemini4Model(model) && model.parameterSupport?.topP?.supported !== false
-
-/** Whether temperature and top_p are mutually exclusive for this model */
-export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
-  // Claude 4.5 reasoning models require this constraint
-  const id = getRawModelId(model)
-  return /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i.test(getLowerBaseModelName(id, '/'))
-}
-
-/** Check if model has max temperature of 1 */
-export const isMaxTemperatureOneModel = (model: Model): boolean => {
-  if (model.parameterSupport?.temperature) {
-    return model.parameterSupport.temperature.max <= 1
-  }
-  // Fallback: infer from model family
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return id.startsWith('claude') || id.includes('glm') || id.includes('kimi') || id.includes('moonshot')
-}
-
-// ---------------------------------------------------------------------------
-// Model family checks (lightweight ID-based, safe for runtime)
-// ---------------------------------------------------------------------------
-
-/**
- * Whether the model accepts dynamically-loaded tool declarations (the mechanism behind
- * Claude Code's ToolSearch: `tool_reference` blocks / `system` messages carrying a `tools`
- * array injected mid-conversation).
- *
- * Claude Code forces ToolSearch on for every non-first-party host when Cherry sets
- * `ENABLE_TOOL_SEARCH=auto` (see settingsBuilder). Most Anthropic-compatible providers
- * simply ignore unknown content blocks, but Moonshot's Anthropic endpoint rejects them on
- * every model except Kimi K3 with `400 Invalid request: tokenization failed`
- * (https://platform.kimi.com/docs/guide/use-dynamic-tool-loading). Kimi K3 ids resolve to
- * `k3`/`kimi-k3*`/... — everything else in the Kimi family is excluded.
- *
- * Input is a raw API model id (e.g. `kimi-for-coding`); namespace prefixes (`provider:id`)
- * and Claude Code's `[1m]` suffix are stripped before matching.
- */
-export const supportsDynamicallyLoadedTools = (apiModelId: string): boolean => {
-  // Strip the gateway namespace prefix (`providerId:apiModelId`) and Claude Code's `[1m]`
-  // context suffix before matching — both wrap the raw API model id this check targets.
-  const bareId =
-    apiModelId
-      .replace(/\[1m\]$/i, '')
-      .split(':')
-      .pop() ?? ''
-  const id = getLowerBaseModelName(bareId)
-  if (!VENDOR_PATTERNS.kimi.test(id)) return true
-  return /^(?:k3|kimi-k3)(?:[-_.]|$)/i.test(id)
-}
+  !getSamplingPolicy({
+    modelId: getRawModelId(model),
+    providerId: model.providerId,
+    parameterSupport: model.parameterSupport,
+    reasoning: 'off'
+  }).omitTopP
 
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —
@@ -208,163 +175,26 @@ export const supportsDynamicallyLoadedTools = (apiModelId: string): boolean => {
 
 /** Check if model is an Anthropic/Claude model */
 export const isAnthropicModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.anthropic.test(getLowerBaseModelName(getRawModelId(model)))
+  VENDOR_PATTERNS.anthropic.test(modelMatchId(getRawModelId(model)))
 
 /** Check if model is a Gemini model */
-export const isGeminiModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model)))
-
-/**
- * Check if a raw model id is Gemini 3 series. The `*-latest` aliases resolve to
- * Gemini 3, so an id-substring check alone misses them.
- */
-export const isGemini3ModelId = (modelId: string): boolean => {
-  const id = getLowerBaseModelName(modelId)
-  return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
-}
-
-/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
-export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
-
-/** Gemini 4 uses level-based thinking and ignores sampling parameters. */
-export const isGemini4Model = (model: Model): boolean =>
-  /^gemini-4(?:[.-]|$)/.test(getLowerBaseModelName(getRawModelId(model)))
+export const isGeminiModel = (model: Model): boolean => VENDOR_PATTERNS.gemini.test(modelMatchId(getRawModelId(model)))
 
 /** Check if model is a Grok model */
-export const isGrokModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.grok.test(getLowerBaseModelName(getRawModelId(model)))
+export const isGrokModel = (model: Model): boolean => VENDOR_PATTERNS.grok.test(modelMatchId(getRawModelId(model)))
 
 /** Check if model is an OpenAI model (GPT or o-series) */
-export const isOpenAIModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.openai.test(getLowerBaseModelName(getRawModelId(model)))
-
-/** Check if model is an OpenAI LLM model (excludes image-generation GPT-4o variants) */
-export const isOpenAILLMModel = (model: Model): boolean => {
-  if (!isOpenAIModel(model)) return false
-  return !getLowerBaseModelName(getRawModelId(model)).includes('gpt-4o-image')
-}
+export const isOpenAIModel = (model: Model): boolean => VENDOR_PATTERNS.openai.test(modelMatchId(getRawModelId(model)))
 
 /** Check if model is a Qwen family model (all variants, including qwq/qvq). */
-export const isQwenModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.qwen.test(getLowerBaseModelName(getRawModelId(model), '/'))
+export const isQwenModel = (model: Model): boolean => VENDOR_PATTERNS.qwen.test(modelMatchId(getRawModelId(model)))
 
 /** Check if model is a DeepSeek model. */
 export const isDeepSeekModel = (model?: Model): boolean => {
   if (!model) return false
-  if (VENDOR_PATTERNS.deepseek.test(getLowerBaseModelName(getRawModelId(model), '/'))) return true
+  if (VENDOR_PATTERNS.deepseek.test(modelMatchId(getRawModelId(model)))) return true
   if (model.providerId === 'deepseek') return true
   return model.name ? VENDOR_PATTERNS.deepseek.test(model.name.toLowerCase()) : false
-}
-
-/** Check if model supports web search in chat completion mode only */
-export const isOpenAIWebSearchChatCompletionOnlyModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return id.includes('gpt-4o-search-preview') || id.includes('gpt-4o-mini-search-preview')
-}
-
-/** Check if model is OpenAI deep research model (requires openai/openai-chat provider) */
-export const isOpenAIDeepResearchModel = (model: Model): boolean => {
-  if (model.providerId !== 'openai' && model.providerId !== 'openai-chat') return false
-  return /deep[-_]?research/.test(getLowerBaseModelName(getRawModelId(model), '/'))
-}
-
-/** GPT-5 family (gpt-5, gpt-5.1, gpt-5.2, etc.) */
-export const isGPT5FamilyModel = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('gpt-5')
-
-/** GPT-5 base series (not sub-versions like gpt-5.1) */
-export const isGPT5SeriesModel = (model: Model): boolean =>
-  /gpt-5(?!\.\d)/.test(getLowerBaseModelName(getRawModelId(model)))
-
-export const isGPT51SeriesModel = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('gpt-5.1')
-
-export const isGPT52SeriesModel = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('gpt-5.2')
-
-/** GPT-5 family models support verbosity */
-export const isSupportVerbosityModel = isGPT5FamilyModel
-
-/** Check if model supports flex service tier */
-export const isSupportFlexServiceTierModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return (id.includes('o3') && !id.includes('o3-mini')) || id.includes('o4-mini') || id.includes('gpt-5')
-}
-
-export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
-
-/**
- * Claude reasoning model = Anthropic vendor + REASONING capability. The
- * registry populates REASONING via the registry membership heuristics
- * (3.7-sonnet, 4-series), so the capability is the right source of truth.
- */
-export const isClaudeReasoningModel = (model: Model): boolean => isAnthropicModel(model) && isReasoningModel(model)
-
-/**
- * Thinking-token support for Claude = Anthropic vendor + `thinkingTokenLimits`
- * populated. `THINKING_TOKEN_MAP` covers the same 3.7 / 4-series SKUs that
- * qualify as reasoning, so the two checks coincide — but deriving each from
- * its own capability field keeps the semantics clear.
- */
-export const isSupportedThinkingTokenClaudeModel = (model: Model): boolean =>
-  isAnthropicModel(model) && isSupportedThinkingTokenModel(model)
-
-/** Check if model is Claude 4 series */
-export const isClaude4SeriesModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:[@\-:][\w\-:]+)?$/i.test(id)
-}
-
-/** Check if model is Claude 4.6 series */
-export const isClaude46SeriesModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i.test(id)
-}
-
-/** Check if model is Claude Opus 4.7. Rejects temperature/top_p/top_k and natively supports xhigh reasoning effort. */
-export const isClaude47SeriesModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
-}
-
-/** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
-export const isClaudeFixedSamplingModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+)?$/i.test(
-    id
-  )
-}
-
-/** Check if model is Claude 4.5 reasoning */
-export const isClaude45ReasoningModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i.test(id)
-}
-
-/** Check if model is Qwen MT (machine translation) */
-export const isQwenMTModel = (model: Model): boolean => getLowerBaseModelName(getRawModelId(model)).includes('qwen-mt')
-
-/** Check if model is Qwen 3.5-3.9 series */
-export const isQwen35to39Model = (model: Model): boolean =>
-  /^qwen3\.[5-9]/.test(getLowerBaseModelName(getRawModelId(model), '/'))
-
-/**
- * Qwen thinking-token knob support. Semantically distinct from
- * generic reasoning support: some Qwen SKUs (`qwen3-*-thinking`,
- * `qwen3-vl-*-thinking`) ship with "always-on" thinking that has no
- * user-controllable knob. This check returns `true` only for SKUs where the
- * thinking-token toggle is meaningful.
- *
- * Kept as ID inference because "always-on" vs "controllable" is a per-SKU
- * behaviour hint the registry does not currently encode as a capability flag.
- */
-export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
-  if (!isQwenModel(model)) return false
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  if (['coder', 'asr', 'tts', 'reranker', 'embedding', 'instruct', 'thinking'].some((f) => id.includes(f))) {
-    return false
-  }
-  return isSupportedThinkingTokenModel(model)
 }
 
 /** Check if model is a pure image generation model (no tool use) */
@@ -372,36 +202,6 @@ export const isPureGenerateImageModel = (model: Model): boolean => {
   if (!isGenerateImageModel(model) && !isTextToImageModel(model)) return false
   if (isFunctionCallingModel(model)) return false
   return true
-}
-
-// ---------------------------------------------------------------------------
-// Verbosity support
-// ---------------------------------------------------------------------------
-
-export const getModelSupportedVerbosity = (model: Model | undefined | null): (string | null | undefined)[] => {
-  if (!model || !isSupportVerbosityModel(model)) return [undefined]
-
-  const id = getLowerBaseModelName(getRawModelId(model))
-
-  // Filter out models that do not support verbosity
-  if (!isGPT5FamilyModel(model)) return [undefined]
-
-  // chat variant: only medium
-  if (id.includes('chat')) return [undefined, null, 'medium']
-
-  // codex variant: old codex only medium, newer codex all levels
-  if (id.includes('codex')) {
-    if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) {
-      return [undefined, null, 'medium']
-    }
-    return [undefined, null, 'low', 'medium', 'high']
-  }
-
-  // pro: all levels
-  if (id.includes('pro')) return [undefined, null, 'low', 'medium', 'high']
-
-  // default for GPT-5 family
-  return [undefined, null, 'low', 'medium', 'high']
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -470,8 +270,6 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
   }, {})
 }
 
-export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
-
 // ---------------------------------------------------------------------------
 // Extract the raw (wire) model ID from a Model
 // ---------------------------------------------------------------------------
@@ -484,14 +282,3 @@ export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 export function getRawModelId(model: Model): string {
   return model.apiModelId || parseUniqueModelId(model.id).modelId
 }
-
-// ---------------------------------------------------------------------------
-// Family reasoning checks
-// ---------------------------------------------------------------------------
-
-/**
- * GPT-5 series reasoning variants are identified by series membership plus
- * the REASONING capability — the `chat` SKU is carved out of the series
- * check by `isGPT5SeriesModel` already, so no extra ID filter is needed.
- */
-export const isGPT5SeriesReasoningModel = (model: Model): boolean => isGPT5SeriesModel(model) && isReasoningModel(model)

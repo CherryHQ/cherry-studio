@@ -203,7 +203,11 @@ export default defineCreator({
           }
         ]
       },
-      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }] }
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }] },
+      parameterSupport: {
+        temperature: { requiresExplicitReasoningOff: true, supported: true },
+        topP: { requiresExplicitReasoningOff: true, supported: true }
+      }
     },
     {
       id: 'gpt-6-luna',
@@ -230,7 +234,11 @@ export default defineCreator({
           }
         ]
       },
-      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }] }
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }] },
+      parameterSupport: {
+        temperature: { requiresExplicitReasoningOff: true, supported: true },
+        topP: { requiresExplicitReasoningOff: true, supported: true }
+      }
     },
     {
       id: 'gpt-6-astra',
