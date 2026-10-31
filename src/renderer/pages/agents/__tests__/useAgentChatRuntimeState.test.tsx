@@ -230,7 +230,7 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.editing).toMatchObject(draft)
   })
 
-  it('replaces the edited tail before streaming even when history refresh still returns cached rows', async () => {
+  it('reads the published branch before showing its streaming reply', async () => {
     MockUseDataApiUtils.resetMocks()
     const { useAgentSessionParts } = await vi.importActual<typeof AgentSessionPartsModule>(
       '@renderer/hooks/useAgentSessionParts'
@@ -277,7 +277,28 @@ describe('useAgentChatRuntimeState', () => {
       }
     ]
     mocks.editTarget.mockResolvedValue(draft)
-    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: reserved })
+    mocks.editResend.mockImplementation(async () => {
+      const items = [...history.slice(0, 2), ...reserved.map((message) => message.id)].toReversed().map((id) => ({
+        id,
+        sessionId: 'session-1',
+        role: id.endsWith('user') ? ('user' as const) : ('assistant' as const),
+        data: { parts: [{ type: 'text' as const, text: id }] },
+        status: 'success' as const,
+        modelId: null,
+        messageSnapshot: null,
+        stats: null,
+        searchableText: id,
+        runtimeResumeToken: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }))
+      MockUseDataApiUtils.setInfiniteQueryPages('/agent-sessions/:sessionId/messages', [{ items }], {
+        params: { sessionId: 'session-1' },
+        query: { deferToolOutputs: true },
+        limit: 50
+      })
+      return { mode: 'started', reservedMessages: reserved }
+    })
     mocks.sendTurn.mockImplementation(async (input) => {
       const { openStream, buildStreamRequest, ensureConversation, historyAdapter } =
         mocks.controllerOptions.mock.lastCall![0]

@@ -10,6 +10,7 @@ import {
   type AgentSessionMessageEntity,
   type AgentSessionMessageSchemas,
   AgentSessionMessagesListQuerySchema,
+  SelectAgentSessionBranchSchema,
   UpdateAgentSessionMessageSchema
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -27,6 +28,14 @@ function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId
 }
 
 export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas> = {
+  '/agent-sessions/:sessionId/branch': {
+    PUT: async ({ params, body }) => {
+      agentSessionService.getConversationById(params.sessionId)
+      const parsed = SelectAgentSessionBranchSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      agentSessionMessageService.selectBranch(params.sessionId, parsed.data.messageId)
+    }
+  },
   '/agent-sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
       // Message routes scope like session reads: background sessions are not addressable here.
