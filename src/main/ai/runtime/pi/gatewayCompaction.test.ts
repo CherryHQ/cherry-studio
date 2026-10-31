@@ -1,12 +1,6 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type, normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { simulateReadableStream } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
-import { describe, expect, it } from 'vitest'
-
-import type { CompactionSummarizer, CompactionSummaryRequest } from '@cherrystudio/agent-runtime-pi'
-
 import {
   createTestBinding,
   createTestSession,
@@ -20,6 +14,12 @@ import {
   tempDir,
   textParts
 } from '@test-helpers/piGateway'
+import { simulateReadableStream } from 'ai'
+import { MockLanguageModelV3 } from 'ai/test'
+import { describe, expect, it } from 'vitest'
+
+import type { CompactionSummarizer, CompactionSummaryRequest } from '@cherrystudio/agent-runtime-pi'
+
 import { loadPiApiStreamSimple } from './piSdk'
 
 const PAGE_CHARS = 9_000 // ~2.6k tokens per tool result

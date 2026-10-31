@@ -7,9 +7,16 @@ import {
   type ExtensionFactory,
   SessionManager
 } from '@earendil-works/pi-coding-agent'
+import {
+  createTestSession,
+  finish,
+  plain,
+  scriptedModel,
+  gatewayModel,
+  tempDir,
+  textParts
+} from '@test-helpers/piGateway'
 import { expect, it } from 'vitest'
-
-import { createTestSession, finish, plain, scriptedModel, gatewayModel, tempDir, textParts } from '@test-helpers/piGateway'
 
 it('reopens the native file with native reasoning, cost, custom state and edited context intact', async () => {
   const cwd = tempDir('persistent-cwd')

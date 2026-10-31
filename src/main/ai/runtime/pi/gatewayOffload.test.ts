@@ -4,12 +4,6 @@ import path from 'node:path'
 import type { LanguageModelV3CallOptions, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type, type ToolResultMessage } from '@earendil-works/pi-ai'
 import { defineTool, type SessionEntry } from '@earendil-works/pi-coding-agent'
-import { APICallError, simulateReadableStream } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
-import { describe, expect, it } from 'vitest'
-
-import type { ToolOutputStore } from '@cherrystudio/agent-runtime-pi'
-
 import {
   createTestSession,
   finish,
@@ -21,6 +15,11 @@ import {
   tempDir,
   textParts
 } from '@test-helpers/piGateway'
+import { APICallError, simulateReadableStream } from 'ai'
+import { MockLanguageModelV3 } from 'ai/test'
+import { describe, expect, it } from 'vitest'
+
+import type { ToolOutputStore } from '@cherrystudio/agent-runtime-pi'
 
 const WINDOW = 9_000
 const tokensOf = (prompt: LanguageModelV3Prompt) => Math.ceil(JSON.stringify(prompt).length / 4)

@@ -1,13 +1,12 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type SessionEntry } from '@earendil-works/pi-coding-agent'
+import { createTestSession, finish, hostStore, plain, gatewayModel, textParts } from '@test-helpers/piGateway'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
 import type { AgentRuntimeEvent } from '@cherrystudio/agent-runtime-pi'
-
-import { createTestSession, finish, hostStore, plain, gatewayModel, textParts } from '@test-helpers/piGateway'
 
 /** Agent requests follow `script`; requests without tools are Pi's own compaction summaries. */
 function respondingModel(script: (call: number) => LanguageModelV3StreamPart[]) {
