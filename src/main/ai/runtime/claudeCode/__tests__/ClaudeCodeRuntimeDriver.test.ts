@@ -272,13 +272,26 @@ vi.mock('../streamAdapter', async (importActual) => {
         return this.turnHasActivity
       }
 
-      beginTurn() {
+      hostUserMessageUuid?: string
+      hostInputQueued = true
+
+      beginTurn(attribution?: { userMessageUuid?: string }) {
+        this.hostUserMessageUuid = attribution?.userMessageUuid
+        this.hostInputQueued = attribution?.userMessageUuid == null
         this.turnHasActivity = false
         this.turnActive = true
         if (this.pendingInit) {
           this.pendingInit = undefined
           this.emitInitMetadata()
         }
+      }
+
+      markHostInputQueued() {
+        this.hostInputQueued = true
+      }
+
+      shouldOmitFromHostTurn() {
+        return false
       }
 
       private enqueue(chunk: any) {
@@ -713,6 +726,29 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
+    void connection.close()
+  })
+
+  it('stamps the SDK user message with the id the host turn uses for result correlation', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken: 'resume-1'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({ message: userMessage() })
+
+    const written = await nextInput
+    const adapter = mocks.adapterInstances[0]
+    expect(written.value.uuid).toEqual(expect.any(String))
+    expect(written.value.uuid).toBe(adapter.hostUserMessageUuid)
+    expect(adapter.hostInputQueued).toBe(true)
     void connection.close()
   })
 
