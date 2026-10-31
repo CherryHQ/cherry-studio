@@ -1912,10 +1912,11 @@ describe('AgentComposer', () => {
       await act(async () => mocks.speedControlProps?.onReasoningEffortChange('high'))
       fireEvent.click(screen.getByText('select model 2'))
 
-      expect(mocks.updateModel).toHaveBeenCalledWith(
-        { agentId: 'agent-1', modelId: 'anthropic::claude-opus-4' },
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
         { showSuccessToast: false }
       )
+      expect(mocks.updateModel).not.toHaveBeenCalled()
     })
 
     it('keeps a newer edit when an older one fails', async () => {
@@ -1933,10 +1934,11 @@ describe('AgentComposer', () => {
 
       expect(mocks.speedControlProps?.reasoningEffort).toBe('medium')
       fireEvent.click(screen.getByText('select model 2'))
-      expect(mocks.updateModel).toHaveBeenCalledWith(
-        { agentId: 'agent-1', modelId: 'anthropic::claude-opus-4', reasoningEffort: 'medium' },
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
         { showSuccessToast: false }
       )
+      expect(mocks.updateModel).not.toHaveBeenCalled()
     })
 
     it('does not restore the failed effort when an overlapping model update fails afterwards', async () => {
