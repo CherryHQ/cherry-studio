@@ -92,10 +92,10 @@ export function SidebarIcon({
         {...props}
         fill="currentColor"
         iconNode={[
-          ['rect', { x: 3, y: 4, width: 18, height: 18, rx: 2, key: 'calendar' }],
+          ['rect', { x: '3', y: '4', width: '18', height: '18', rx: '2', key: 'calendar' }],
           ['path', { d: 'M8 2v4M16 2v4', fill: 'none', key: 'binding' }],
           ['path', { d: 'M3 10h18', stroke: 'var(--background)', key: 'divider' }],
-          ['circle', { cx: 16, cy: 16, r: 6, stroke: 'var(--background)', key: 'clock' }],
+          ['circle', { cx: '16', cy: '16', r: '6', stroke: 'var(--background)', key: 'clock' }],
           ['path', { d: 'M16 13v3l2 1', fill: 'none', stroke: 'var(--background)', key: 'hands' }]
         ]}
       />
