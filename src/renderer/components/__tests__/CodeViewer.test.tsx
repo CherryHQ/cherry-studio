@@ -5,8 +5,9 @@ import * as htmlToImage from 'html-to-image'
 import type { ReactNode, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ScrollViewportOwnershipProvider } from '@renderer/components/ScrollViewportOwnershipProvider'
+
 import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '../../utils/image'
-import { ScrollOwnershipProvider } from '../chat/messages/list/ScrollOwnershipContext'
 import CodeViewer from '../CodeViewer'
 
 vi.mock('html-to-image', () => ({ toCanvas: vi.fn() }))
@@ -119,11 +120,11 @@ function ScrollOwner({
   scrollContainerRef: RefObject<HTMLDivElement | null>
 }) {
   return (
-    <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef}>
+    <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
       <div ref={scrollContainerRef} data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
         {children}
       </div>
-    </ScrollOwnershipProvider>
+    </ScrollViewportOwnershipProvider>
   )
 }
 
@@ -197,7 +198,7 @@ describe('CodeViewer', () => {
     const secondRef: RefObject<HTMLDivElement | null> = { current: null }
     const value = Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')
     const viewer = (expanded: boolean, nested: boolean) => (
-      <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef}>
+      <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
         <div ref={firstRef} data-testid={nested ? undefined : 'outer'} style={{ overflowY: 'auto', height: 300 }}>
           <div
             ref={secondRef}
@@ -206,7 +207,7 @@ describe('CodeViewer', () => {
             <CodeViewer value={value} language="text" expanded={expanded} wrapped={false} height={300} />
           </div>
         </div>
-      </ScrollOwnershipProvider>
+      </ScrollViewportOwnershipProvider>
     )
     const { container, rerender } = render(viewer(false, false))
     scrollContainerRef.current = firstRef.current
@@ -290,7 +291,7 @@ describe('CodeViewer', () => {
     const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
     try {
       const { container, getByTestId } = render(
-        <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef}>
+        <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
           <div ref={scrollContainerRef} style={{ overflowY: 'auto', height: 300 }}>
             <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
               <CodeViewer
@@ -301,7 +302,7 @@ describe('CodeViewer', () => {
               />
             </div>
           </div>
-        </ScrollOwnershipProvider>
+        </ScrollViewportOwnershipProvider>
       )
       const outer = scrollContainerRef.current!
       outer.scrollTop = 999
