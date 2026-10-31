@@ -8,7 +8,7 @@ import { fetchRevision, git, overlayContent, repositories, sha } from './content
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const renderer = path.join(root, '.context/website-docs-renderer')
-const source = path.join(root, 'website-docs')
+const source = path.join(root, 'docs/website')
 
 function pnpm(args) {
   execFileSync('pnpm', args, { cwd: renderer, stdio: 'inherit' })

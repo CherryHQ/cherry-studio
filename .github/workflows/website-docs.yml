@@ -3,14 +3,14 @@ name: Website documentation
 on:
   pull_request:
     paths:
-      - "website-docs/**"
+      - "docs/website/**"
       - "scripts/websiteDocs/**"
       - ".github/website-docs-sync-plan.json"
       - ".github/workflows/website-docs.yml"
   push:
     branches: [main]
     paths:
-      - "website-docs/**"
+      - "docs/website/**"
       - "scripts/websiteDocs/**"
       - ".github/website-docs-sync-plan.json"
       - ".github/workflows/website-docs.yml"

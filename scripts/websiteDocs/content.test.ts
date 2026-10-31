@@ -144,8 +144,9 @@ describe('documentation reconciliation', () => {
   it('maps only shared content, including optional legacy configuration', () => {
     const f = fixture()
     const desktop = f.tree({
-      ...Object.fromEntries(Object.entries(source).map(([name, value]) => [`website-docs/${name}`, value])),
-      'website-docs/README.md': 'local editing instructions',
+      ...Object.fromEntries(Object.entries(source).map(([name, value]) => [`docs/website/${name}`, value])),
+      'docs/website/README.md': 'local editing instructions',
+      'docs/dev/README.md': 'development documentation',
       'src/app.ts': 'desktop'
     })
     const website = f.tree({
@@ -155,7 +156,7 @@ describe('documentation reconciliation', () => {
     })
     expect(contentTree(f.repo, desktop, 'desktop')).toBe(contentTree(f.repo, website, 'website'))
     expect(contentTree(f.repo, desktop, 'desktop')).toBe(f.tree(source))
-    expect(() => contentTree(f.repo, f.tree({ 'website-docs/README.md': 'not imported' }), 'desktop')).toThrow(
+    expect(() => contentTree(f.repo, f.tree({ 'docs/website/README.md': 'not imported' }), 'desktop')).toThrow(
       'Missing documentation source'
     )
   })
@@ -163,7 +164,7 @@ describe('documentation reconciliation', () => {
   it('does not accept a corrupt or one-sided checkpoint as the shared baseline', () => {
     const f = fixture()
     const desktop = f.tree(
-      Object.fromEntries(Object.entries(source).map(([name, value]) => [`website-docs/${name}`, value]))
+      Object.fromEntries(Object.entries(source).map(([name, value]) => [`docs/website/${name}`, value]))
     )
     const website = f.tree(
       Object.fromEntries(Object.entries(source).map(([name, value]) => [`docs-site/${name}`, value]))

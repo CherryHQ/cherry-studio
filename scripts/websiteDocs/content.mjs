@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 export const repositories = { desktop: 'CherryHQ/cherry-studio', website: 'CherryHQ/cherry-studio-website' }
-export const roots = { desktop: 'website-docs', website: 'docs-site' }
+export const roots = { desktop: 'docs/website', website: 'docs-site' }
 export const contentNames = ['content', 'locales.json', 'page-aliases.json', 'shadowed-baseline.json']
 export const planPath = '.github/website-docs-sync-plan.json'
 

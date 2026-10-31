@@ -302,7 +302,7 @@ describe('coordinator against Git repositories and the GitHub API contract', () 
     await reconcile({ apply: true })
     expect(f.prs.desktop).toHaveLength(1)
     expect(
-      git(f.dirs.desktop.repo, ['show', `${f.prs.desktop[0].head.sha}:website-docs/content/reference.md`]).toString()
+      git(f.dirs.desktop.repo, ['show', `${f.prs.desktop[0].head.sha}:docs/website/content/reference.md`]).toString()
     ).toBe('new reference snapshot')
   })
 
@@ -329,8 +329,8 @@ describe('coordinator against Git repositories and the GitHub API contract', () 
     expect(f.prs.desktop).toHaveLength(1)
     const updated = f.revision('desktop', syncBranch)!
     expect(updated).not.toBe(first)
-    expect(git(f.dirs.desktop.repo, ['show', `${updated}:website-docs/content/first.md`]).toString()).toBe('first')
-    expect(git(f.dirs.desktop.repo, ['show', `${updated}:website-docs/content/second.md`]).toString()).toBe('second')
+    expect(git(f.dirs.desktop.repo, ['show', `${updated}:docs/website/content/first.md`]).toString()).toBe('first')
+    expect(git(f.dirs.desktop.repo, ['show', `${updated}:docs/website/content/second.md`]).toString()).toBe('second')
     f.prs.desktop[0].state = 'closed'
     expect((await reconcile({ apply: true })).actions).toContainEqual(expect.objectContaining({ action: 'paused' }))
     await reconcile({ apply: true, resume: 'desktop' })
@@ -348,7 +348,7 @@ describe('coordinator against Git repositories and the GitHub API contract', () 
     f.raceNextPublish('desktop')
     await expect(reconcile({ apply: true })).rejects.toThrow('stale info')
     const preserved = f.revision('desktop', syncBranch)!
-    expect(git(f.dirs.desktop.repo, ['show', `${preserved}:website-docs/content/manual.md`]).toString()).toBe(
+    expect(git(f.dirs.desktop.repo, ['show', `${preserved}:docs/website/content/manual.md`]).toString()).toBe(
       'concurrent human edit'
     )
     expect(f.revision('desktop', stateBranch)).toBe(checkpoint)
