@@ -6,6 +6,7 @@ import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@renderer/data/CacheService'
+import { AgentBrowserView } from '@renderer/pages/agents/components/AgentRightPane/AgentBrowserView'
 import {
   agentBrowserRuntimeService as runtime,
   topicBrowserRuntimeService as topicRuntime
@@ -14,6 +15,8 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { BrowserCursorState } from '@shared/types/browserCursor'
 
 import { AgentBrowserRuntimeHost } from '../AgentBrowserRuntimeHost'
+
+vi.unmock('@cherrystudio/ui')
 
 const bridge = vi.hoisted(() => ({
   listeners: new Map<string, (input: unknown) => void>(),
@@ -118,6 +121,32 @@ describe('AgentBrowserRuntimeHost', () => {
     vi.unstubAllGlobals()
   })
 
+  it('clears the guest when the host unmounts', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    expect(runtime.get('session-a')?.guest).not.toBeNull()
+    const dispose = vi.spyOn(runtime, 'dispose').mockImplementation(() => {})
+    view.unmount()
+    dispose.mockRestore()
+    expect(runtime.get('session-a')?.guest).toBeNull()
+    expect(runtime.get('session-a')?.ready).toBe(false)
+  })
+
+  it('retains the crash reason when the host unmounts', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    act(() => {
+      view.getByTestId('webview-browser-guest').dispatchEvent(new Event('render-process-gone'))
+    })
+    expect(runtime.get('session-a')?.recoveryReason).toBe('render-process-gone')
+    const dispose = vi.spyOn(runtime, 'dispose').mockImplementation(() => {})
+    view.unmount()
+    dispose.mockRestore()
+    expect(runtime.get('session-a')?.recoveryReason).toBe('render-process-gone')
+  })
+
   it('preserves the session and presentation when resetting a healthy guest', () => {
     runtime.ensure('session-a', 'https://example.com/original', 'agent-dev-preview')
     const guest = document.createElement('webview')
@@ -201,6 +230,49 @@ describe('AgentBrowserRuntimeHost', () => {
       runtime.reportGuestHealth('session-a', old as Electron.WebviewTag, 'unresponsive')
     })
     expect(runtime.get('session-a')).toBe(successor)
+  })
+
+  it('clears the crash alert when an HTML artifact installs a new guest', async () => {
+    Object.assign(HTMLElement.prototype, {
+      canGoBack: () => false,
+      canGoForward: () => false,
+      stopFindInPage: () => {}
+    })
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(
+      <>
+        <AgentBrowserView
+          sessionId="session-a"
+          securityProfile="agent-browser"
+          onNavigate={vi.fn()}
+          target={{ id: 'agent-browser:session-a', label: 'Browser' }}
+          isHostActive
+        />
+        <AgentBrowserRuntimeHost />
+      </>
+    )
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const old = view.getByTestId('webview-browser-guest')
+    act(() => {
+      old.dispatchEvent(new Event('render-process-gone'))
+    })
+    expect(view.getByRole('alert')).toBeInTheDocument()
+    act(() => runtime.ensure('session-a', 'file:///workspace/artifact.html'))
+    const next = view.getByTestId('webview-browser-guest')
+    expect(next).not.toBe(old)
+    act(() => {
+      next.dispatchEvent(new Event('dom-ready'))
+    })
+    expect(runtime.get('session-a')).toMatchObject({ recoveryReason: undefined, ready: true, failed: false })
+    expect(view.queryByRole('alert')).not.toBeInTheDocument()
+    const state = runtime.get('session-a')
+    act(() => {
+      old.dispatchEvent(new Event('did-finish-load'))
+    })
+    expect(runtime.get('session-a')).toBe(state)
+    expect(runtime.get('session-a')?.recoveryReason).toBeUndefined()
+    for (const key of ['canGoBack', 'canGoForward', 'stopFindInPage'])
+      Reflect.deleteProperty(HTMLElement.prototype, key)
   })
 
   it('handles health notifications only for the current guest without ensuring a resource', async () => {

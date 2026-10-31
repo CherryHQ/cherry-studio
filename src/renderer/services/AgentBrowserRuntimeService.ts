@@ -93,6 +93,19 @@ export class AgentBrowserRuntimeService {
     this.emit()
   }
 
+  installGuest(sessionId: string, guest: WebviewTag | null): void {
+    const resource = this.get(sessionId)
+    if (!resource) return
+    if (guest === null) {
+      // Unmounting leaves no guest; retain the crash reason for the old guest.
+      this.update(sessionId, { guest: null, ready: false, loading: false, title: '' })
+      return
+    }
+    if (resource.guest === guest) return
+    // A new guest replaces the old one, so its crash reason no longer applies.
+    this.update(sessionId, { guest, ready: false, loading: true, failed: false, title: '', recoveryReason: undefined })
+  }
+
   updateGuest(
     sessionId: string,
     guest: WebviewTag,

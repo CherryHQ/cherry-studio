@@ -36,8 +36,9 @@ guest 死亡后，只有在用户按下提示上的动作或 `Reset page` 时才
 
 ## 验证
 
-- AC1 — `node node_modules/vitest/vitest.mjs run --project renderer src/renderer/components/__tests__/WebviewHost.test.tsx src/renderer/components/__tests__/AgentBrowserRuntimeHost.test.tsx src/renderer/components/__tests__/WebviewNavigation.test.tsx src/renderer/hooks/agent/__tests__/useAgentBrowserGuest.test.ts src/renderer/pages/agents/components/AgentRightPane/__tests__/AgentBrowserView.test.tsx`：47 通过；断言了崩溃提示、恢复动作可用，以及重置控件完成替换（新 revision、新原生 id、URL 不变）。
-- AC2 — `node node_modules/vitest/vitest.mjs run --project main src/main/features/browser/__tests__/GuestSession.test.ts src/main/features/browser/__tests__/BrowserSessionService.test.ts src/main/features/browser/__tests__/AgentBrowserRegistry.test.ts`：125 通过；死掉的渲染进程会作废文档、拒绝挂起命令，且无法被重新 acquire。
+- AC1 — `node node_modules/vitest/vitest.mjs run --project renderer src/renderer/components/__tests__/WebviewHost.test.tsx src/renderer/components/__tests__/AgentBrowserRuntimeHost.test.tsx src/renderer/components/__tests__/WebviewNavigation.test.tsx src/renderer/hooks/agent/__tests__/useAgentBrowserGuest.test.ts src/renderer/pages/agents/components/AgentRightPane/__tests__/AgentBrowserView.test.tsx`：50 通过；断言了崩溃提示、恢复动作可用，重置控件完成替换（新 revision、新原生 id、URL 不变），以及装上新的 guest 后崩溃提示消失、卸载时提示保留。
+- AC2 — `node node_modules/vitest/vitest.mjs run --project main src/main/features/browser/__tests__/GuestSession.test.ts src/main/features/browser/__tests__/BrowserSessionService.test.ts src/main/features/browser/__tests__/AgentBrowserRegistry.test.ts`：74 通过；死掉的渲染进程会作废文档、拒绝挂起命令，且无法被重新 acquire。
+- Rework round — 同样三个文件加上 managed MCP controller 覆盖重新武装：崩溃的 guest 先拒绝工作，随后同一个 `WebContents` 经自身重载恢复、工具调用重新成功。
 - AC3 — `node node_modules/@playwright/test/cli.js test tests/e2e/smoke/agentBrowserRecovery.test.ts --project=electron`：真实 Electron 运行——崩溃后 guest id 不变且会话仍绑定（不自动替换），提示上的动作原地替换（新原生 id、旧 `WebContents` 消失、URL 与分区不变、页面恢复），被阻塞的页面经 `Reset page` 恢复，隐藏后重新打开保持同一个 guest。
 - AC4 — 同一次真实运行在恢复后经地址栏导航、经工具栏 `Reload` 重新加载，断言标记仍渲染且 guest id 不变；既有 `WebviewNavigation` 与 `WebviewBrowser` 套件仍通过。
 - Regression — `probe/probe2.json`：真实应用中崩溃后经提示恢复，原生 id 由 3 变为 4，`webContents.fromId(3)` 为 undefined，分区与 URL 不变，页面 54 ms 内恢复。

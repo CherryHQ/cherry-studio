@@ -206,6 +206,22 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it('restores managed tool calls after the same webContents recovers', async () => {
+    const c = controller()
+    const { tabId, view } = await c.createTab()
+    const guest = view.webContents as unknown as ReturnType<typeof createGuest>['mock']
+    const id = guest.id
+    await handleExecute(c, { code: 'document.title', tabId })
+    guest.crash()
+    expect(await handleExecute(c, { code: 'document.title', tabId })).toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'debugger_unavailable' }]
+    })
+    guest.recover()
+    expect((await handleExecute(c, { code: 'document.title', tabId })).isError).not.toBe(true)
+    expect(view.webContents.id).toBe(id)
+  })
+
   it('does not create a replacement page when execute cannot resolve its explicit target', async () => {
     const c = controller()
     const { tabId } = await c.createTab()

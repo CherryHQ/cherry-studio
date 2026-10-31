@@ -33,6 +33,7 @@ export interface BrowserGuestTarget extends BrowserGuestContext {
 }
 
 export class BrowserGuestRegistry implements Disposable {
+  private readonly dead = new Map<string, string>()
   private readonly targets = new Map<string, BrowserGuestTarget>()
   private readonly changed = new Emitter<void>()
   private readonly pendingFocus = new Map<string, { target: BrowserGuestTarget; finish: (error?: unknown) => void }>()
@@ -112,6 +113,8 @@ export class BrowserGuestRegistry implements Disposable {
       const target = this.targets.get(sessionId)
       if (target?.tabId !== tabId || target.abort.signal.aborted) return
       sendHealth('render-process-gone')
+      // The renderer still holds a dead guest until a replacement attaches and clears this record.
+      this.dead.set(sessionId, tabId)
       dispose()
     }
     guest.on('unresponsive', onUnresponsive)
@@ -176,6 +179,7 @@ export class BrowserGuestRegistry implements Disposable {
       beginExecution,
       dispose
     })
+    this.dead.delete(sessionId)
     this.claims.set(guest, this.targets.get(sessionId)!)
     guest.once('destroyed', dispose)
     this.changed.fire()
@@ -264,6 +268,7 @@ export class BrowserGuestRegistry implements Disposable {
   }
 
   detach(sessionId: string, tabId: string, senderId: WindowId | null): void {
+    if (this.dead.get(sessionId) === tabId) this.dead.delete(sessionId)
     const target = this.targets.get(sessionId)
     if (!target || target.tabId !== tabId) return
     if (target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
@@ -292,6 +297,7 @@ export class BrowserGuestRegistry implements Disposable {
   async ensureGuest(context: BrowserGuestContext, signal: AbortSignal, url?: string): Promise<BrowserGuestTarget> {
     signal.throwIfAborted()
     const existing = this.get(context)
+    if (!existing && this.dead.has(context.sessionId)) throw new BrowserSessionError('debugger_unavailable')
     const isFile = url?.startsWith('file:')
     const expectedSession = session.fromPartition(
       getWebviewPartition(isFile ? WebviewSecurityProfile.AgentHtmlArtifact : WebviewSecurityProfile.AgentBrowser)
@@ -340,6 +346,7 @@ export class BrowserGuestRegistry implements Disposable {
   }
 
   dispose(): void {
+    this.dead.clear()
     for (const target of this.targets.values()) target.dispose()
     this.changed.dispose()
   }

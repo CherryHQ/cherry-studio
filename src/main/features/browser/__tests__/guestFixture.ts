@@ -34,6 +34,10 @@ export function createGuest(id = 1) {
       crashed = true
       events.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
     },
+    recover: () => {
+      crashed = false
+      events.emit('dom-ready')
+    },
     setWindowOpenHandler: vi.fn(),
     getType: vi.fn(() => 'window'),
     getBackgroundThrottling: vi.fn(() => backgroundThrottling),

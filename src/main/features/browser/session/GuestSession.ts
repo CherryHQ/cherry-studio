@@ -81,6 +81,7 @@ export class GuestSession implements Disposable {
     this.electronDebugger.on('detach', this.onDetach)
     guest.once('destroyed', this.onDestroyed)
     guest.on('render-process-gone', this.onRenderProcessGone)
+    guest.on('dom-ready', this.onDomReady)
     if (ownership === 'managed') this.electronSession.on('will-download', this.onDownload)
   }
 
@@ -229,6 +230,22 @@ export class GuestSession implements Disposable {
     this.rejectPending(error)
     this.actionMutex.cancel()
     this.snapshotMutex.cancel()
+  }
+
+  private readonly onDomReady = () => {
+    if (!this.processGone || this.disposed) return
+    this.processGone = false
+    this.attached = false
+    this.invalidateDocument()
+    this.inspection.clear()
+    this.clearDialog()
+    this.dismissedDialog = undefined
+    // An attached debugger would make the next on-demand attach fail.
+    if (this.electronDebugger.isAttached()) {
+      try {
+        this.electronDebugger.detach()
+      } catch {}
+    }
   }
 
   private readonly onDestroyed = () => this.dispose()
@@ -711,6 +728,7 @@ export class GuestSession implements Disposable {
     this.electronDebugger.removeListener('message', this.onMessage)
     this.guest.removeListener('destroyed', this.onDestroyed)
     this.guest.removeListener('render-process-gone', this.onRenderProcessGone)
+    this.guest.removeListener('dom-ready', this.onDomReady)
     void this.settleWebTools()
   }
 }

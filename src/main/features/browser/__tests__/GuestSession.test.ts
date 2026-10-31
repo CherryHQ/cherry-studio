@@ -50,6 +50,24 @@ describe('GuestSession command lifetime', () => {
     expect(mock.close).not.toHaveBeenCalled()
   })
 
+  it('rearms a crashed session on dom-ready without reviving old refs', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) => {
+      if (method === 'DOM.getDocument') return Promise.resolve({ root: { backendNodeId: 1 } })
+      if (method === 'Accessibility.queryAXTree')
+        return Promise.resolve({ nodes: [{ backendDOMNodeId: 2, role: { value: 'button' }, name: { value: 'Go' } }] })
+      return fallback(method, params)
+    })
+    const { matches } = await session.find({ role: 'button' })
+    mock.crash()
+    await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    mock.recover()
+    await expect(session.send('Runtime.enable')).resolves.toBeDefined()
+    expect(mock.debugger.attach).toHaveBeenCalledTimes(2)
+    expect(() => session.resolveRef(matches[0].ref)).toThrow(expect.objectContaining({ code: 'stale_ref' }))
+  })
+
   it('cancels queued actions on death and prevents an active action from succeeding', async () => {
     const { session, mock } = setup()
     const started = new Signal<void>()

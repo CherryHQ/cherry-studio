@@ -132,7 +132,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
         authorization
     )
       return
-    runtime.update(sessionId, { guest: webview, ready: false, title: '' })
+    runtime.installGuest(sessionId, webview)
   }
   return (
     <WebviewSurface

@@ -126,6 +126,31 @@ describe('Agent browser authority and control lifetime', () => {
     expect(fixture.mock.close).not.toHaveBeenCalled()
   })
 
+  it('fails promptly when a pane retains a crashed guest', async () => {
+    service.agentBrowser.attach(sessionId, 1, windowId)
+    fixture.mock.crash()
+    const start = Date.now()
+    await expect(
+      service.agentBrowser.ensureGuest({ agentId, sessionId }, new AbortController().signal)
+    ).rejects.toMatchObject({
+      code: 'debugger_unavailable'
+    })
+    expect(Date.now() - start).toBeLessThan(1000)
+  }, 15000)
+
+  it('allows ensure after a replacement guest attaches following a crash', async () => {
+    service.agentBrowser.attach(sessionId, 1, windowId)
+    fixture.mock.crash()
+    const next = createGuest(2)
+    Object.assign(next.mock, { getType: () => 'webview', hostWebContents: host, session: fixture.mock.session })
+    vi.mocked(webContents.fromId).mockReturnValue(next.guest)
+    const { tabId } = service.agentBrowser.attach(sessionId, 2, windowId)
+    expect(await service.agentBrowser.ensureGuest({ agentId, sessionId }, new AbortController().signal)).toMatchObject({
+      tabId,
+      guest: next.guest
+    })
+  })
+
   it.each(['detach', 'destroy', 'dispose', 'replace'] as const)('removes health listeners on %s', (reason) => {
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
     const stale = fixture.mock.listeners('render-process-gone')[0] as () => void
