@@ -525,6 +525,7 @@ describe('useRichEditor notes relocation paste drain', () => {
     })
     try {
       const editor = result.current.editor
+      if (!editor) throw new Error('Editor did not initialize')
       Object.defineProperty(editor, 'isFocused', { configurable: true, get: () => false })
       await act(async () => {
         pasteImage(editor)

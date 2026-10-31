@@ -27,7 +27,7 @@ const { ipc, ipcHandlers } = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: ipc,
-  useIpcOn: (event: string, handler: (payload: never) => void) => {
+  useIpcOn: (event: string, handler: (payload: unknown) => unknown) => {
     ipcHandlers.set(event, handler)
   }
 }))
@@ -76,7 +76,7 @@ beforeEach(() => {
     if (route === 'app.notes_relocation.flush_edits_unregister') return undefined
     if (route === 'app.notes_relocation.flush_edits_pending') {
       pendingCallCount += 1
-      if (pendingCallCount >= pendingFailuresFromCall) throw new IpcError('IPC_GONE' as never, 'ipc gone')
+      if (pendingCallCount >= pendingFailuresFromCall) throw new IpcError('IPC_GONE', 'ipc gone')
       return { pending: pendingFlag }
     }
     if (route === 'app.notes_relocation.flush_edits_ack') {

@@ -24,7 +24,7 @@ describe('notesFileEditFlush adversarial ordering', () => {
 
     let pasteFinished = false
     registerNotesEditPreFlush(() => {
-      trackPendingNotesImagePaste(
+      void trackPendingNotesImagePaste(
         new Promise<void>((resolve) => {
           setTimeout(() => {
             pasteFinished = true

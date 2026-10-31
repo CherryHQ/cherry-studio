@@ -18,6 +18,7 @@ vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
     return <div />
   }
 }))
+vi.mock('@renderer/components/Selector', () => ({ default: () => <div /> }))
 import NotesEditor from '../NotesEditor'
 describe('NotesEditor relocation callback safety', () => {
   it('blocks fresh edits while locked but accepts final pending-paste content and blocks read-only content', async () => {
@@ -32,10 +33,10 @@ describe('NotesEditor relocation callback safety', () => {
     }
     const view = render(<NotesEditor {...props} />)
     await waitFor(() => expect(m.props).toBeTruthy())
-    act(() => m.props.onMarkdownChange('normal'))
+    await act(() => m.props.onMarkdownChange('normal'))
     expect(change).toHaveBeenLastCalledWith('normal')
     view.rerender(<NotesEditor {...props} editsLocked />)
-    act(() => m.props.onMarkdownChange('blocked'))
+    await act(() => m.props.onMarkdownChange('blocked'))
     expect(change).toHaveBeenCalledTimes(1)
     expect(m.props.editable).toBe(false)
     let done!: () => void
@@ -44,20 +45,20 @@ describe('NotesEditor relocation callback safety', () => {
         done = r
       })
     )
-    act(() => m.props.onMarkdownChange('pasted final'))
+    await act(() => m.props.onMarkdownChange('pasted final'))
     expect(change).toHaveBeenLastCalledWith('pasted final')
     view.rerender(<NotesEditor {...props} editsLocked readOnly />)
-    act(() => m.props.onMarkdownChange('readonly'))
+    await act(() => m.props.onMarkdownChange('readonly'))
     expect(change).toHaveBeenCalledTimes(2)
     await act(async () => {
       done()
       await pending
     })
     view.rerender(<NotesEditor {...props} editsLocked />)
-    act(() => m.props.onMarkdownChange('after paste'))
+    await act(() => m.props.onMarkdownChange('after paste'))
     expect(change).toHaveBeenCalledTimes(2)
     view.rerender(<NotesEditor {...props} />)
-    act(() => m.props.onMarkdownChange('resumed'))
+    await act(() => m.props.onMarkdownChange('resumed'))
     expect(change).toHaveBeenLastCalledWith('resumed')
   })
 })
