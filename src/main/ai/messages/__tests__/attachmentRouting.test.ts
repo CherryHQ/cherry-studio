@@ -2,6 +2,7 @@ import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import { AnthropicMessageConverter } from '@main/features/apiGateway/adapters/converters/AnthropicMessageConverter'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
@@ -369,6 +370,31 @@ describe('prepareChatMessages — routing', () => {
     })
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(out.parts).toEqual([{ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' }])
+  })
+
+  // Uppercase gateway image MIME types must become omission notes instead of reaching non-vision providers.
+  it('omits a converted uppercase image data URL for a non-vision model', async () => {
+    const messages = new AnthropicMessageConverter().toUIMessages({
+      model: 'anthropic:claude',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'image', source: { type: 'url', url: 'data:IMAGE/PNG;base64,AAAA' } }]
+        }
+      ]
+    })
+    resolveMock.mockImplementation(async (part) => part)
+
+    const [out] = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true
+    })
+
+    expect(out.parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: this model does not accept image input]' }
+    ])
   })
 
   it.each([

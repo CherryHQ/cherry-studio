@@ -114,6 +114,10 @@ export function gateToolResultMedia(messages: ModelMessage[], caps: MediaCapabil
       if (part.type !== 'tool-result' || part.output.type !== 'content') return part
       let changed = false
       const value = part.output.value.map((item) => {
+        if (item.type === 'image-data' && !item.data.trim()) {
+          changed = true
+          return { type: 'text' as const, text: '[image attachment omitted: empty image payload]' }
+        }
         const modality = itemModality(item)
         if (!modality || caps[modality]) return item
         changed = true
@@ -164,6 +168,10 @@ export function routeToolResultMedia(
       const value = part.output.value.map((item) => {
         if (item.type !== 'image-data') return item
         const anchor = `[tool-result attachment call_id=${JSON.stringify(part.toolCallId)} image=${++imageIndex}]`
+        if (!item.data.trim()) {
+          partChanged = true
+          return { type: 'text' as const, text: `${anchor} [image attachment omitted: empty image payload]` }
+        }
         pendingParts.push(
           { type: 'text', text: anchor },
           {
