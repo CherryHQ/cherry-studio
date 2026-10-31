@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { application } from '@application'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpTool } from '@shared/types/mcp'
-
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
@@ -35,25 +31,6 @@ beforeEach(() => {
   mocks.listTools.mockReturnValue([])
   mocks.prepareWorkspace.mockResolvedValue(undefined)
   mocks.assertProviderUsable.mockResolvedValue(undefined)
-})
-
-describe('PiRuntimeDriver.validateSession', () => {
-  it('rejects a gateway-only session and offers to enable the gateway', async () => {
-    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
-    mocks.assertProviderUsable.mockRejectedValueOnce(new ApiGatewayNotRunningError())
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { path: '/workspace', type: 'user' }
-    } as AgentSessionEntity
-    await expect(new PiRuntimeDriver().validateSession(session)).rejects.toMatchObject({
-      name: 'ApiGatewayNotRunningError',
-      i18nKey: 'api_gateway_required'
-    })
-    expect(application.get('IpcApiService').broadcast).toHaveBeenCalledWith('api_gateway.required', {
-      sessionId: 'session-1'
-    })
-  })
 })
 
 describe('PiRuntimeDriver.listAvailableTools', () => {

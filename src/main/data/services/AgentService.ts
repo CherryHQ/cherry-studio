@@ -310,15 +310,14 @@ export class AgentService {
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
-    // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
-    // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    // orderKey is omitted — `insertWithOrderKey` computes the fractional key for the requested position.
+    // Omit undefined fields so DB defaults apply; instructions is required and has no DB default.
+    // `insertWithOrderKey` computes the omitted orderKey for the requested position.
     const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
-      instructions: req.instructions || 'You are a helpful assistant.',
+      instructions: req.instructions ?? '',
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,

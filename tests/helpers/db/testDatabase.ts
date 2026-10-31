@@ -8,6 +8,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
+import { registerKnowledgeFunctions } from '@data/db/knowledgeFunctions'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType, ISeeder } from '@data/db/types'
 
@@ -81,6 +82,7 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     tempDir = mkdtempSync(join(tmpdir(), 'cs-test-db-'))
     const dbPath = join(tempDir, 'test.db')
     sqlite = new Database(dbPath)
+    registerKnowledgeFunctions(sqlite)
     db = drizzle({ client: sqlite, casing: 'snake_case' })
 
     // Per-connection PRAGMAs — better-sqlite3 keeps one connection, so set once.

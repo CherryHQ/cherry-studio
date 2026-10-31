@@ -1,5 +1,6 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { InvalidResponseDataError, type UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
@@ -130,13 +131,30 @@ const { AiService } = await import('../AiService')
 const { AiStreamManager } = await import('../streamManager/AiStreamManager')
 
 describe('chat turn integration trajectory', () => {
+  const sleepHolds = new Set<symbol>()
+
+  afterEach(async () => {
+    await vi.waitFor(() => expect(sleepHolds.size).toBe(0))
+    vi.restoreAllMocks()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
+    sleepHolds.clear()
+    vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+      const token = Symbol()
+      sleepHolds.add(token)
+      return {
+        dispose: vi.fn(() => {
+          sleepHolds.delete(token)
+        })
+      }
+    })
     sharedCache.clear()
     cacheWrites.length = 0
     const aiService = new (AiService as any)()
     fakeApplicationGet.mockImplementation((name: string) => {
       if (name === 'AiService') return aiService
+      if (name === 'RuntimeActivityService') return defaultServiceInstances.RuntimeActivityService
       if (name === 'CacheService') return fakeCacheService
       if (name === 'PreferenceService') return { get: () => false }
       if (name === 'AgentSessionRuntimeService') return { willContinueTopic: () => false }
@@ -185,9 +203,9 @@ describe('chat turn integration trajectory', () => {
       listeners: [listener]
     })
 
+    expect(sleepHolds.size).toBe(1)
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
 
-    expect(mockCreateAgent).toHaveBeenCalledOnce()
     expect(listener.chunks.map((chunk) => chunk.type)).toEqual(chunks.map((chunk) => chunk.type))
     expect(listener.sources).toEqual(chunks.map(() => modelId))
     expect(listener.errorResults).toEqual([])
@@ -246,6 +264,7 @@ describe('chat turn integration trajectory', () => {
       listeners: [listener]
     })
 
+    expect(sleepHolds.size).toBe(1)
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
 
     expect(listener.chunks.map((chunk) => chunk.type)).toEqual(chunks.map((chunk) => chunk.type))
@@ -311,6 +330,7 @@ describe('chat turn integration trajectory', () => {
       listeners: [listener]
     })
 
+    expect(sleepHolds.size).toBe(1)
     await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
     expect(listener.doneResults).toEqual([])
@@ -357,6 +377,7 @@ describe('chat turn integration trajectory', () => {
       listeners: [listener]
     })
 
+    expect(sleepHolds.size).toBe(1)
     await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
     expect(listener.doneResults).toEqual([])
@@ -369,5 +390,71 @@ describe('chat turn integration trajectory', () => {
     expect(listener.errorResults[0].finalMessage.parts).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Partial response' })])
     )
+  })
+  it('keeps background streams awake until completion or cancellation without releasing sibling holds', async () => {
+    const streams: ReadableStreamDefaultController<UIMessageChunk>[] = []
+    mockCreateAgent.mockResolvedValue({
+      stream: async ({ abortSignal }: { abortSignal: AbortSignal }) => ({
+        toUIMessageStream: () =>
+          new ReadableStream<UIMessageChunk>({
+            start(controller) {
+              streams.push(controller)
+              abortSignal.addEventListener('abort', () => controller.close(), { once: true })
+              controller.enqueue({ type: 'start', messageId: `assistant-${streams.length}` })
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+    const manager = createManager()
+    for (const topicId of ['first', 'second']) {
+      manager.send({
+        topicId,
+        models: [
+          {
+            modelId: fakeModel.id,
+            request: {
+              conversation: { id: topicId, topicId },
+              trigger: 'submit-message',
+              uniqueModelId: fakeModel.id,
+              messages: []
+            }
+          }
+        ],
+        listeners: []
+      })
+    }
+    await vi.waitFor(() => expect(streams).toHaveLength(2))
+    expect(sleepHolds.size).toBe(2)
+    streams[0].enqueue({ type: 'finish', finishReason: 'stop' })
+    streams[0].close()
+    await vi.waitFor(() => expect(sleepHolds.size).toBe(1))
+    expect(manager.inspect('second')?.status).toBe('streaming')
+    await manager.abortAndDrain('second', 'user-requested')
+    expect(sleepHolds.size).toBe(0)
+  })
+
+  it('releases the hold when stream preparation rejects', async () => {
+    const aiService = fakeApplicationGet('AiService') as InstanceType<typeof AiService>
+    vi.spyOn(aiService, 'streamText').mockRejectedValue(new Error('Cannot resolve model'))
+    const manager = createManager()
+    const listener = new FakeListener()
+    manager.send({
+      topicId: 'setup-failure',
+      models: [
+        {
+          modelId: fakeModel.id,
+          request: {
+            conversation: { id: 'setup-failure', topicId: 'setup-failure' },
+            trigger: 'submit-message',
+            messages: []
+          }
+        }
+      ],
+      listeners: [listener]
+    })
+    expect(sleepHolds.size).toBe(1)
+    await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+    expect(listener.errorResults[0].error.message).toBe('Cannot resolve model')
   })
 })

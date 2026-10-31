@@ -7,6 +7,7 @@ import type { WebviewTag } from 'electron'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useSidebarActivationGateway } from '@renderer/components/app/sidebarShortcuts'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { cacheService } from '@renderer/data/CacheService'
 import { createMiniApp } from '@renderer/hooks/__tests__/fixtures/miniApp'
@@ -47,6 +48,7 @@ const getGuest = (appId: string) => {
 
 function Controls() {
   const tabs = useTabs()
+  const gateway = useSidebarActivationGateway()
   const [poolVersion, setPoolVersion] = useState(0)
   const popup = useMiniAppPopup()
   const runtime = useMiniAppRuntime()
@@ -58,6 +60,14 @@ function Controls() {
       <button type="button" onClick={() => tabs.openTab('/app/mini-app/b', { id: 'b' })}>
         Open B
       </button>
+      {['a', 'b', 'c'].map((appId) => (
+        <button
+          key={appId}
+          type="button"
+          onClick={() => gateway.openWorkspace({ url: `/app/mini-app/${appId}`, title: appId })}>
+          Switch to {appId.toUpperCase()}
+        </button>
+      ))}
       <button type="button" onClick={() => popup.openMiniAppInSplit(createMiniApp('b'))}>
         Split B
       </button>
@@ -79,6 +89,11 @@ function Controls() {
       <button type="button" onClick={() => tabs.setActiveTab('a')}>
         Show A
       </button>
+      <button
+        type="button"
+        onClick={() => gateway.openWorkspace({ url: '/app/translate', title: 'Translate', matchesTab: () => false })}>
+        Open Translate
+      </button>
       <button type="button" onClick={() => tabs.updateTab('b', { isDormant: true })}>
         Sleep B
       </button>
@@ -96,6 +111,7 @@ function Controls() {
       </button>
       <output aria-label="tabs">{tabs.tabs.map((tab) => tab.id).join(',')}</output>
       <output aria-label="primary">{tabs.activeTabId}</output>
+      <output aria-label="route">{tabs.activeTab?.url}</output>
       <output aria-label="secondary">{runtime.splitMiniAppId}</output>
       <button type="button" onClick={() => setPoolVersion((version) => version + 1)}>
         Remount pool
@@ -207,6 +223,36 @@ describe('MiniApp guest ownership', () => {
     expect(queryGuest('a')).toBeNull()
   })
 
+  it('keeps a guest alive when sidebar navigation replaces its last route and reuses it on return', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByRole('button', { name: 'Open A' }))
+    const guest = getGuest('a')
+    await user.click(screen.getByRole('button', { name: 'Duplicate A' }))
+    const tabsBefore = screen.getByLabelText('tabs').textContent
+
+    await user.click(screen.getByRole('button', { name: 'Open Translate' }))
+
+    expect(screen.getByLabelText('primary')).toHaveTextContent('duplicate')
+    expect(screen.getByLabelText('route')).toHaveTextContent('/app/translate')
+    expect(screen.getByLabelText('tabs').textContent).toBe(tabsBefore)
+    expect(getGuest('a')).toBe(guest)
+
+    await user.click(screen.getByRole('button', { name: 'Show A' }))
+    await user.click(screen.getByRole('button', { name: 'Open Translate' }))
+
+    expect(screen.getByLabelText('primary').textContent).toBe('a')
+    expect(screen.getByLabelText('route')).toHaveTextContent('/app/translate')
+    expect(screen.getByLabelText('tabs').textContent).toBe(tabsBefore)
+    expect(getGuest('a')).toBe(guest)
+    expect(guest.closest('[data-mini-app-tabs-pool]')).toHaveStyle({ visibility: 'hidden' })
+
+    await user.click(screen.getByRole('button', { name: 'Open A' }))
+
+    expect(getGuest('a')).toBe(guest)
+    expect(guest.closest('[data-mini-app-tabs-pool]')).toHaveStyle({ visibility: 'visible' })
+  })
+
   it('removes every matching owner on main-process eviction', async () => {
     const user = userEvent.setup()
     mount()
@@ -215,6 +261,50 @@ describe('MiniApp guest ownership', () => {
     act(() => ipc.events.get('mini_app.runtime.evicted')?.({ appId: 'a' }))
     expect(queryGuest('a')).toBeNull()
     expect(screen.getByLabelText('tabs')).not.toHaveTextContent('duplicate')
+  })
+
+  it('releases a retained guest on main-process eviction without closing its replacement route', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByRole('button', { name: 'Open A' }))
+    await user.click(screen.getByRole('button', { name: 'Open Translate' }))
+    expect(getGuest('a')).toBeInTheDocument()
+
+    act(() => ipc.events.get('mini_app.runtime.evicted')?.({ appId: 'a' }))
+
+    expect(queryGuest('a')).toBeNull()
+    expect(screen.getByLabelText('route')).toHaveTextContent('/app/translate')
+    expect(screen.getByLabelText('primary').textContent).toBe('a')
+  })
+
+  it('evicts the least recently used retained guest when the keep-alive limit is reached', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 2)
+    MockUseDataApiUtils.mockQueryData(
+      '/mini-apps',
+      ['a', 'b', 'c'].map((id) => createMiniApp(id))
+    )
+    const user = userEvent.setup()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      mount()
+      await user.click(screen.getByRole('button', { name: 'Open A' }))
+      const a = getGuest('a')
+      await user.click(screen.getByRole('button', { name: 'Open Translate' }))
+      now.mockReturnValue(2000)
+      await user.click(screen.getByRole('button', { name: 'Switch to B' }))
+      await user.click(screen.getByRole('button', { name: 'Open Translate' }))
+      now.mockReturnValue(3000)
+      await user.click(screen.getByRole('button', { name: 'Switch to A' }))
+      await user.click(screen.getByRole('button', { name: 'Open Translate' }))
+      now.mockReturnValue(4000)
+      await user.click(screen.getByRole('button', { name: 'Switch to C' }))
+
+      expect(getGuest('a')).toBe(a)
+      expect(queryGuest('b')).toBeNull()
+      expect(getGuest('c')).toBeInTheDocument()
+    } finally {
+      now.mockRestore()
+    }
   })
   it('keeps a guest independent of its dormant route page and restores split presentation', async () => {
     const user = userEvent.setup()

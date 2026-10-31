@@ -1,6 +1,6 @@
 # Utility Process
 
-Runs trusted but crash-prone work in an Electron utility process — a crash and native-library isolation boundary, not a security sandbox: registration, typed clients, wire protocol, and the child-side runtime. One live process per definition, spawned on the first request.
+Runs trusted but crash-prone work in an Electron utility process — a crash and native-library isolation boundary, not a security sandbox: registration, typed clients, wire protocol, and the child-side runtime. Cached clients share one live process per definition. `createInstance(definition)` returns an independently owned process client with `dispose()`; both spawn on the first request.
 
 **For the full guide, see [docs/references/utility-process/](../../../../docs/references/utility-process/).**
 
@@ -11,6 +11,10 @@ Quick jumps:
 - [Testing](../../../../docs/references/utility-process/utility-process-testing.md) — unit layers and the real-Electron smoke harness
 - [Future Work](../../../../docs/references/utility-process/utility-process-future.md) — what V1 leaves out, and the consumer order
 - [Architecture](../../../../docs/references/architecture/utility-process.md) — ownership, rationale, alternatives, historical experiment evidence
+
+For bounded input/output, declare contract `streams` and call `openStream`; [the consumer guide](../../../../docs/references/utility-process/README.md#bounded-request-streams) defines frame limits, EOF, cancellation, and closure. `StreamChannel` is per-request shared host/child state, not a lifecycle service.
+
+Host capabilities are request-scoped: a trusted child handler calls `context.callHost(method, input)`, and the caller supplies `request(..., { onHostCall })`. Without that callback, host calls fail closed. Core validates identity and request/call IDs, aborts host calls on cancellation or stop, and drops late replies. Consumers must validate payloads and enforce their own capability allow-list; the transport does not grant filesystem or application access.
 
 This directory has **no barrel**: main-side and child-side code are bundled into different processes, so a root `index.ts` would seal `runtime/` behind a boundary the child build has to cross. Import the sanctioned paths directly:
 

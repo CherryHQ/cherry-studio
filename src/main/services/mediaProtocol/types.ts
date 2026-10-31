@@ -7,7 +7,8 @@ export const CHERRY_MEDIA_SCHEME = 'cherry-media'
  * `protocol.registerSchemesAsPrivileged` may only be called once per process.
  */
 export const MediaKind = {
-  Image: 'image'
+  Image: 'image',
+  Audio: 'audio'
 } as const
 
 export type MediaKind = (typeof MediaKind)[keyof typeof MediaKind]
@@ -18,4 +19,5 @@ export const MEDIA_KINDS = new Set<string>(Object.values(MediaKind))
 export interface MediaEntry {
   data: Buffer
   mimeType: string
+  access?: { webContentsId: number }
 }

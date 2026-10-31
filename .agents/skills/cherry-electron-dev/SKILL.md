@@ -1,18 +1,25 @@
 ---
 name: cherry-electron-dev
-description: Develop, fix, and profile Cherry Studio in a tracked Electron instance. Use for everyday implementation, UI and interaction work, bug fixing, runtime debugging, DevTools inspection, lag or jank investigation, CPU and memory monitoring, leak checks, and startup-performance analysis; reuse a verified workspace instance across instructions and launch or replace one only when required.
+description: Develop, fix, profile, and test PRs in a tracked Cherry Studio Electron instance. Use for implementation, UI and interaction work, runtime debugging, DevTools inspection, performance analysis, and interactive PR verification with a test report. Reuse a verified workspace instance and manage its lifetime according to the selected workflow.
 ---
 
 # Cherry Studio Development
 
-Use this skill for ongoing work in the current checkout. Do not use it to check
-out or report on PRs; use `cherry-pr-test` for that workflow.
+## Choose the workflow
+
+- For ongoing implementation, debugging, or profiling in the current checkout,
+  follow the development loop below with the `persistent` runtime policy.
+- For a bounded PR test, read [PR Testing](references/pr-testing.md) and follow
+  that workflow with the `ephemeral` runtime policy. It covers PR checkout,
+  interactive tests, reporting, cleanup, and restoration of the original branch.
+- For code review without interactive app testing, use `gh-pr-review`.
 
 ## Required runtime workflow
 
 Before reading or controlling Electron UI, read
-[Electron Instance Management](references/electron-instance.md) and use its
-`persistent` policy.
+[Electron Instance Management](references/electron-instance.md) and select the
+policy for the chosen workflow. Preserve a borrowed instance's existing policy
+and ownership.
 
 That reference is the only authority for instance discovery, `instance.json`,
 CDP target selection, launching, replacement, shutdown, and troubleshooting.
@@ -53,7 +60,7 @@ Store temporary logs, screenshots, and profiles under
 scenario before and after a fix. Detach profiling sessions afterward; do not
 close the CDP browser, page, or Electron process.
 
-## Handoff
+## Development handoff
 
 Leave reused user-owned and healthy agent-launched instances running after the
 instruction. Stop one only when the user asks, a required restart is part of
