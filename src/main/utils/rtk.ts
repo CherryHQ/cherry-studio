@@ -1,30 +1,17 @@
 import path from 'node:path'
 
-import { gte as semverGte } from 'semver'
+import { gte as semverGte, valid as semverValid } from 'semver'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { isWin } from '@main/core/platform'
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
-import { getRawShellEnv } from '@main/utils/shellEnv'
 const logger = loggerService.withContext('Utils:Rtk')
 
 const RTK_MIN_VERSION = '0.23.0'
-// A slow wrapper — e.g. `rtk` resolving to a mise shim — can cost 5-10s per
-// exec (measured 4.9-9.6s for `rtk --version` through one, #21599), so the
-// probe and rewrite budgets have to cover wrapper startup, not just binary
-// startup.
 const REWRITE_TIMEOUT_MS = 10_000
-// Bound the availability probe. getToolSnapshots may run `mise ls` and `mise which`,
-// each under BinaryManager's own multi-minute timeout, so a stalled mise backend
-// could otherwise hold up the Bash PreToolUse hook that awaits rtkRewrite for
-// minutes. On timeout rtk is treated as unavailable for this TTL cycle instead.
 const PROBE_TIMEOUT_MS = 10_000
-// The `--version` exec inside the probe goes through the same wrapper and needs
-// the same budget as the snapshot query.
 const PROBE_EXEC_TIMEOUT_MS = 10_000
-// Re-probe rtk availability periodically so that installing or uninstalling rtk
-// via BinaryManager takes effect without restarting the app.
 const RTK_PROBE_TTL_MS = 60_000
 // A transient probe failure (timeout) is cached for this shorter TTL instead of
 // the full one: a one-off hiccup must not disable the feature for a minute
@@ -46,86 +33,81 @@ interface ProbeOutcome {
 let cachedProbe: { checkedAt: number; ttl: number; execution: RtkExecution | null } | null = null
 let probePromise: Promise<RtkExecution | null> | null = null
 
-/** Resolve `promise`, or `null` if it does not settle within `ms`. */
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout>
-  const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), ms)
-  })
-  try {
-    return await Promise.race([promise, timeout])
-  } finally {
-    clearTimeout(timer!)
-  }
-}
-
 async function probeRtk(): Promise<ProbeOutcome> {
-  const startedAt = Date.now()
-  // A single guard keeps the probe from ever rejecting: rtkRewrite and its Bash
-  // PreToolUse hook await this inline, so a thrown snapshot query must degrade to
-  // "no rewrite", never propagate out and fail the tool call.
+  let phase = 'shim_check'
+  let startedAt = performance.now()
   try {
-    const snapshot = await withTimeout(
-      application
-        .get('BinaryManager')
-        .getToolSnapshots(['rtk'])
-        .then((snapshots) => snapshots.rtk),
-      PROBE_TIMEOUT_MS
-    )
-    if (snapshot === null) {
-      // The snapshot query outlived the budget — typically a slow wrapper or a
-      // stalled mise backend. Transient: retry on the short failure TTL rather
-      // than declaring rtk absent for a full minute (#21599).
-      logger.warn(
-        `rtk snapshot probe timed out after ${Date.now() - startedAt}ms (slow wrapper?); command rewrite disabled this cycle, retrying soon`
-      )
+    const controller = new AbortController()
+    const resolution = await application.get('BinaryManager').resolveToolExecution('rtk', {
+      signal: controller.signal,
+      deadline: startedAt + PROBE_TIMEOUT_MS
+    })
+    if (resolution.status === 'failed') {
+      logger.warn(`rtk probe failed at ${resolution.phase}`, {
+        tool: 'rtk',
+        phase: resolution.phase,
+        reason: resolution.reason,
+        elapsedMs: resolution.elapsedMs,
+        stepElapsedMs: resolution.stepElapsedMs,
+        stepBudgetMs: resolution.stepBudgetMs,
+        budgetMs: PROBE_TIMEOUT_MS,
+        transient: true,
+        error: 'Tool execution resolution failed'
+      })
       return { execution: null, transient: true }
     }
-    if (snapshot.availability.source === 'none') {
+    if (resolution.status === 'unavailable') {
       logger.warn('rtk binary not found; command rewrite disabled until RTK is installed from Settings → Plugins')
       return { execution: null, transient: false }
     }
 
-    // A Windows batch wrapper (.cmd/.bat) forces argument passing through
-    // cmd.exe's parser, where the model-generated shell command handed to
-    // `rtk rewrite` is not reliably escapable (cross-spawn only hardens
-    // node_modules/.bin shims). The rewrite is an optimization, so refuse the
-    // unsafe boundary instead of trying to escape across it.
-    if (['.cmd', '.bat'].includes(path.extname(snapshot.availability.path).toLowerCase())) {
-      logger.warn('rtk resolves to a batch wrapper; command rewrite disabled', {
-        path: snapshot.availability.path
+    phase = 'version'
+    startedAt = performance.now()
+    const rejectVersion = (reason: string): ProbeOutcome => {
+      logger.warn('rtk probe failed at version', {
+        tool: 'rtk',
+        phase,
+        reason,
+        elapsedMs: performance.now() - startedAt,
+        budgetMs: PROBE_EXEC_TIMEOUT_MS,
+        transient: false,
+        error: 'RTK version validation failed'
       })
       return { execution: null, transient: false }
     }
+    const pathApi = isWin ? path.win32 : path.posix
+    if (
+      [resolution.path, resolution.resolvedPath].some((candidate) =>
+        ['.cmd', '.bat'].includes(pathApi.extname(candidate).toLowerCase())
+      )
+    )
+      return rejectVersion('batch_wrapper')
 
-    const execution: RtkExecution = {
-      path: snapshot.availability.path,
-      env:
-        snapshot.availability.source === 'system'
-          ? await getRawShellEnv()
-          : { ...process.env, ...getBinaryExecutionEnv() }
-    }
-
+    const execution: RtkExecution = { path: resolution.path, env: resolution.env }
     const stdout = await executeCommand(execution.path, ['--version'], {
       capture: true,
       env: execution.env,
       timeout: PROBE_EXEC_TIMEOUT_MS
     })
-    const match = stdout.match(/(\d+\.\d+\.\d+)/)
-    if (match) {
-      const version = match[1]
-      if (!semverGte(version, RTK_MIN_VERSION)) {
-        logger.warn(`rtk version too old (need >= ${RTK_MIN_VERSION})`, { version })
-        return { execution: null, transient: false }
-      }
-      logger.info('rtk available', { version, path: execution.path })
-    }
+    const token = stdout.trim().replace(/^rtk\s+/, '')
+    const version = semverValid(token)
+    if (!version) return rejectVersion('malformed_version')
+    if (!semverGte(version, RTK_MIN_VERSION)) return rejectVersion('unsupported_version')
+    logger.info('rtk available', { version, path: execution.path })
     return { execution, transient: false }
-  } catch (error) {
-    // A version exec through a slow wrapper can outlive shorter budgets — same
-    // transient class as a snapshot-query timeout.
-    logger.warn('Failed to probe rtk', {
-      error: error instanceof Error ? error.message : String(error)
+  } catch {
+    const elapsedMs = performance.now() - startedAt
+    const budgetMs = phase === 'version' ? PROBE_EXEC_TIMEOUT_MS : PROBE_TIMEOUT_MS
+    logger.warn(`rtk probe failed at ${phase}`, {
+      tool: 'rtk',
+      phase,
+      reason: elapsedMs >= budgetMs ? 'timeout' : 'query_failed',
+      elapsedMs,
+      stepElapsedMs: elapsedMs,
+      stepBudgetMs: budgetMs,
+      budgetMs,
+      transient: true,
+      error: 'RTK probe execution failed'
     })
     return { execution: null, transient: true }
   }
