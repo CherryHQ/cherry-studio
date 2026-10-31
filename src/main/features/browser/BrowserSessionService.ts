@@ -250,7 +250,13 @@ export class BrowserSessionService extends BaseService {
 
   async acquire(guest: Electron.WebContents, owner: string, ownership: SessionOwnership): Promise<GuestSession> {
     while (true) {
-      if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed || guest.isDestroyed())
+      if (
+        this.state === LifecycleState.Stopping ||
+        this.isStopped ||
+        this.isDestroyed ||
+        guest.isDestroyed() ||
+        guest.isCrashed()
+      )
         throw new BrowserSessionError('debugger_unavailable')
       const cleanup = this.guestCleanup.get(guest.id)
       if (!cleanup) break

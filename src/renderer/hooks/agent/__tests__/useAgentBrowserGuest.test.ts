@@ -108,3 +108,24 @@ it.each(['focused', 'background', 'unavailable'] as const)(
     }
   }
 )
+
+it('retries attachment on did-attach when the native ID was unavailable initially', async () => {
+  let id = 0
+  vi.spyOn(ipcApi, 'request').mockImplementation(async (route) =>
+    route === 'browser.pane.attach' ? { tabId: 'attached' } : undefined
+  )
+  const guest = Object.assign(document.createElement('webview'), {
+    getWebContentsId: () => id
+  })
+  const hook = renderHook(() => useAgentBrowserGuest('session-a', guest, 0))
+  await act(async () => {
+    await Promise.resolve()
+  })
+  expect(hook.result.current).toBeUndefined()
+  id = 42
+  act(() => {
+    guest.dispatchEvent(new Event('did-attach'))
+  })
+  await waitFor(() => expect(hook.result.current).toBe('attached'))
+  hook.unmount()
+})

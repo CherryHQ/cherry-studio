@@ -137,6 +137,7 @@ interface MockContents extends EventEmitter {
   getTitle: ReturnType<typeof vi.fn>
   getType: ReturnType<typeof vi.fn>
   getURL: ReturnType<typeof vi.fn>
+  isCrashed: ReturnType<typeof vi.fn>
   isDestroyed: ReturnType<typeof vi.fn>
   isDevToolsOpened: ReturnType<typeof vi.fn>
   isLoadingMainFrame: ReturnType<typeof vi.fn>
@@ -154,6 +155,7 @@ function createContents(
     url?: string
     type?: string
     session?: object
+    crashed?: boolean
     devToolsOpened?: boolean
     loadingMainFrame?: boolean
     sendCommand?: (method: string, params?: Record<string, unknown>) => Promise<unknown>
@@ -167,6 +169,7 @@ function createContents(
   contents.getTitle = vi.fn(() => options.title ?? 'Example')
   contents.getType = vi.fn(() => options.type ?? 'webview')
   contents.getURL = vi.fn(() => options.url ?? 'https://example.com/page')
+  contents.isCrashed = vi.fn(() => options.crashed ?? false)
   contents.isDestroyed = vi.fn(() => false)
   contents.isDevToolsOpened = vi.fn(() => options.devToolsOpened ?? false)
   contents.isLoadingMainFrame = vi.fn(() => options.loadingMainFrame ?? false)

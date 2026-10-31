@@ -93,6 +93,58 @@ describe('Agent browser authority and control lifetime', () => {
     vi.restoreAllMocks()
   })
 
+  it('reports health without a lease and revokes a crashed binding', () => {
+    const send = vi.mocked(application.get('IpcApiService').send)
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    const target = service.agentBrowser.get({ agentId, sessionId })!
+    fixture.mock.emit('unresponsive')
+    fixture.mock.emit('responsive')
+    for (const status of ['unresponsive', 'responsive']) {
+      expect(send).toHaveBeenCalledWith(windowId, 'browser.guest.ensure_requested', {
+        kind: 'health',
+        sessionId,
+        scope: 'agent',
+        webviewId: 1,
+        status
+      })
+    }
+    fixture.mock.crash()
+    expect(send).toHaveBeenCalledWith(windowId, 'browser.guest.ensure_requested', {
+      kind: 'health',
+      sessionId,
+      scope: 'agent',
+      webviewId: 1,
+      status: 'render-process-gone'
+    })
+    expect(target.abort.signal.reason).toMatchObject({ code: 'not_found' })
+    expect(service.agentBrowser.get({ agentId, sessionId })).toBeUndefined()
+    expect(() => service.agentBrowser.attach(sessionId, 1, windowId)).toThrow('not_allowed')
+    expect(service.agentBrowser.getCursor(sessionId, tabId, windowId)).toBeUndefined()
+    expect(fixture.mock.listenerCount('unresponsive')).toBe(0)
+    expect(fixture.mock.listenerCount('responsive')).toBe(0)
+    expect(fixture.mock.listenerCount('render-process-gone')).toBe(0)
+    expect(fixture.mock.close).not.toHaveBeenCalled()
+  })
+
+  it.each(['detach', 'destroy', 'dispose', 'replace'] as const)('removes health listeners on %s', (reason) => {
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    const stale = fixture.mock.listeners('render-process-gone')[0] as () => void
+    if (reason === 'detach') service.agentBrowser.detach(sessionId, tabId, windowId)
+    if (reason === 'destroy') fixture.mock.close()
+    if (reason === 'dispose') service.agentBrowser.dispose()
+    if (reason === 'replace') {
+      const next = createGuest(2)
+      Object.assign(next.mock, { getType: () => 'webview', hostWebContents: host, session: fixture.mock.session })
+      vi.mocked(webContents.fromId).mockReturnValue(next.guest)
+      const successor = service.agentBrowser.attach(sessionId, 2, windowId)
+      stale()
+      expect(service.agentBrowser.get({ agentId, sessionId })?.tabId).toBe(successor.tabId)
+    }
+    for (const event of ['unresponsive', 'responsive', 'render-process-gone']) {
+      expect(fixture.mock.listenerCount(event)).toBe(0)
+    }
+  })
+
   it('rejects cursor acknowledgements from a different owner window', () => {
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
     expect(() => service.agentBrowser.getCursor(sessionId, tabId, 'other')).toThrow(

@@ -7,6 +7,7 @@ export function createGuest(id = 1) {
   let capturing = false
   let attached = false
   let destroyed = false
+  let crashed = false
   const debuggerEvents = new EventEmitter()
   const debuggerSession = Object.assign(debuggerEvents, {
     attach: vi.fn(() => {
@@ -28,6 +29,11 @@ export function createGuest(id = 1) {
     session: new EventEmitter(),
     debugger: debuggerSession,
     isDestroyed: vi.fn(() => destroyed),
+    isCrashed: vi.fn(() => crashed),
+    crash: () => {
+      crashed = true
+      events.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+    },
     setWindowOpenHandler: vi.fn(),
     getType: vi.fn(() => 'window'),
     getBackgroundThrottling: vi.fn(() => backgroundThrottling),

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-31-agent-browser-pane-recovery.md
+2026-10-31-agent-browser-pane-recovery.md: e3d6ea2133b8ea5cc4e76f9612bdad8c4c17e048
+2026-10-31-agent-browser-pane-recovery.zh.md: 1c8fc26003577ae8861543c33e4c33b3f694068e

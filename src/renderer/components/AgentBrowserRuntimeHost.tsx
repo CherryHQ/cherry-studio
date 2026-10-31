@@ -37,9 +37,20 @@ function clearMessageSelection(): void {
 
 /** Window composition mounts this outside page Activity; the runtime owns its instances. */
 export function AgentBrowserRuntimeHost() {
-  useIpcOn('browser.guest.ensure_requested', ({ sessionId, url, scope }) => {
-    const runtime = scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
-    runtime.ensure(sessionId, url)
+  useIpcOn('browser.guest.ensure_requested', (request) => {
+    const runtime = request.scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
+    if (request.kind !== 'health') {
+      runtime.ensure(request.sessionId, request.url)
+      return
+    }
+    const guest = runtime.get(request.sessionId)?.guest
+    if (!guest) return
+    try {
+      if (guest.getWebContentsId() === request.webviewId)
+        runtime.reportGuestHealth(request.sessionId, guest, request.status)
+    } catch {
+      // The native guest may have already been destroyed.
+    }
   })
   return (
     <>
@@ -106,17 +117,23 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
   const resource = useSyncExternalStore(runtime.subscribe, () => runtime.get(sessionId))
   const guest = resource?.guest ?? null
   const tabId = useAgentBrowserGuest(sessionId, guest, 0, scope)
-  const onWebviewChange = useCallback(
-    (webview: WebviewTag | null) => runtime.update(sessionId, { guest: webview, ready: false, title: '' }),
-    [runtime, sessionId]
-  )
   const onOverlaysChange = useCallback(
     (overlays: HTMLDivElement | null) => runtime.update(sessionId, { overlays }),
     [runtime, sessionId]
   )
   if (!resource) return null
   const { sourceUrl, securityProfile, anchor } = resource
-  const authorization = getGuestAuthorizationKey(securityProfile, sourceUrl)
+  const authorization = `${getGuestAuthorizationKey(securityProfile, sourceUrl)}:${resource.guestRevision}`
+  const onWebviewChange = (webview: WebviewTag | null) => {
+    const current = runtime.get(sessionId)
+    if (
+      !current ||
+      `${getGuestAuthorizationKey(current.securityProfile, current.sourceUrl)}:${current.guestRevision}` !==
+        authorization
+    )
+      return
+    runtime.update(sessionId, { guest: webview, ready: false, title: '' })
+  }
   return (
     <WebviewSurface
       anchor={anchor}
@@ -132,17 +149,27 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
           testId="webview-browser-guest"
           onWebviewChange={onWebviewChange}
           onDomReady={(webview) =>
-            runtime.update(sessionId, { ready: true, url: webview.getURL(), title: webview.getTitle() })
+            runtime.updateGuest(sessionId, webview, { ready: true, url: webview.getURL(), title: webview.getTitle() })
           }
-          onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false })}
-          onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false })}
+          onDidStartLoading={(webview) => runtime.updateGuest(sessionId, webview, { loading: true, failed: false })}
+          onDidFinishLoad={(webview) => runtime.updateGuest(sessionId, webview, { ready: true, loading: false })}
+          onRenderProcessGone={(event) =>
+            runtime.reportGuestHealth(sessionId, event.currentTarget as WebviewTag, 'render-process-gone')
+          }
           onDidNavigate={(event) => {
-            if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url })
+            if (!('isMainFrame' in event) || event.isMainFrame)
+              runtime.updateGuest(sessionId, event.currentTarget as WebviewTag, { url: event.url })
           }}
-          onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title })}
+          onPageTitleUpdated={(event) =>
+            runtime.updateGuest(sessionId, event.currentTarget as WebviewTag, { title: event.title })
+          }
           onDidFailLoad={(event) => {
             if (event.isMainFrame && event.errorCode !== -3)
-              runtime.update(sessionId, { failed: true, ready: true, loading: false })
+              runtime.updateGuest(sessionId, event.currentTarget as WebviewTag, {
+                failed: true,
+                ready: true,
+                loading: false
+              })
           }}
         />
       }
@@ -155,7 +182,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
               sessionId={sessionId}
               tabId={tabId}
               guest={guest}
-              active={!!anchor && resource.ready && !resource.failed}
+              active={!!anchor && resource.ready && !resource.failed && !resource.recoveryReason}
               onPressed={clearMessageSelection}
             />
           )}

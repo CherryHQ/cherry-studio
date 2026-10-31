@@ -18,6 +18,8 @@ export interface AgentBrowserResource {
   ready: boolean
   loading: boolean
   failed: boolean
+  recoveryReason?: 'render-process-gone' | 'unresponsive'
+  guestRevision: number
 }
 
 /** Browser instances outlive presentation subscriptions and retain active Agent turns without a tab. */
@@ -73,7 +75,8 @@ export class AgentBrowserRuntimeService {
       guest: null,
       ready: false,
       loading: true,
-      failed: false
+      failed: false,
+      guestRevision: 0
     })
     this.ids = [...this.resources.keys()]
     this.emit()
@@ -88,6 +91,48 @@ export class AgentBrowserRuntimeService {
       return
     this.resources.set(sessionId, { ...existing, ...patch })
     this.emit()
+  }
+
+  updateGuest(
+    sessionId: string,
+    guest: WebviewTag,
+    patch: Partial<Pick<AgentBrowserResource, 'ready' | 'loading' | 'failed' | 'url' | 'title'>>
+  ): void {
+    const resource = this.get(sessionId)
+    if (!resource || resource.guest !== guest) return
+    this.update(
+      sessionId,
+      resource.recoveryReason === 'render-process-gone' ? { ...patch, ready: false, loading: false } : patch
+    )
+  }
+
+  reportGuestHealth(
+    sessionId: string,
+    guest: WebviewTag,
+    status: 'render-process-gone' | 'unresponsive' | 'responsive'
+  ): void {
+    const resource = this.get(sessionId)
+    if (!resource || resource.guest !== guest) return
+    if (status === 'render-process-gone')
+      this.update(sessionId, { recoveryReason: status, ready: false, loading: false })
+    else if (status === 'unresponsive' && resource.recoveryReason !== 'render-process-gone')
+      this.update(sessionId, { recoveryReason: status })
+    else if (status === 'responsive' && resource.recoveryReason === 'unresponsive')
+      this.update(sessionId, { recoveryReason: undefined })
+  }
+
+  async recover(sessionId: string): Promise<void> {
+    const resource = this.get(sessionId)
+    if (!resource?.guest) return
+    this.update(sessionId, {
+      sourceUrl: resource.url || resource.sourceUrl,
+      guest: null,
+      failed: false,
+      ready: false,
+      loading: true,
+      recoveryReason: undefined,
+      guestRevision: resource.guestRevision + 1
+    })
   }
 
   reconcileOwners(tabIds: ReadonlySet<string>): void {

@@ -21,6 +21,59 @@ afterEach(() => {
 })
 
 describe('GuestSession command lifetime', () => {
+  it('invalidates refs and rejects work when the renderer dies without detach or destruction', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) => {
+      if (method === 'DOM.getDocument') return Promise.resolve({ root: { backendNodeId: 1 } })
+      if (method === 'Accessibility.queryAXTree')
+        return Promise.resolve({ nodes: [{ backendDOMNodeId: 2, role: { value: 'button' }, name: { value: 'Go' } }] })
+      return fallback(method, params)
+    })
+    const { matches } = await session.find({ role: 'button' })
+    expect(session.resolveRef(matches[0].ref)).toBe(2)
+    const started = new Signal<void>()
+    mock.debugger.sendCommand.mockImplementation(async () => {
+      started.resolve()
+      return new Promise(() => undefined)
+    })
+    const pending = expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    await started
+    mock.crash()
+    expect(() => session.resolveRef(matches[0].ref)).toThrow(expect.objectContaining({ code: 'stale_ref' }))
+    await pending
+    const count = mock.debugger.sendCommand.mock.calls.length
+    await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    expect(mock.debugger.sendCommand.mock.calls).toHaveLength(count)
+    expect(mock.debugger.isAttached()).toBe(true)
+    expect(mock.isDestroyed()).toBe(false)
+    expect(mock.close).not.toHaveBeenCalled()
+  })
+
+  it('cancels queued actions on death and prevents an active action from succeeding', async () => {
+    const { session, mock } = setup()
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    const active = session.run(async () => {
+      started.resolve()
+      await resume
+      return 'stale'
+    })
+    const rejected = expect(active).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    await started
+    let executed = false
+    const queued = expect(
+      session.run(async () => {
+        executed = true
+      })
+    ).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    mock.crash()
+    await queued
+    resume.resolve()
+    await rejected
+    expect(executed).toBe(false)
+  })
+
   it('captures an occluded webview and stops producing frames after the result', async () => {
     const { session, mock } = setup()
     mock.getType.mockReturnValue('webview')

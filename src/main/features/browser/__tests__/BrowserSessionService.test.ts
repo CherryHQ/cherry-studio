@@ -36,6 +36,34 @@ afterEach(async () => {
 })
 
 describe('Browser session ownership', () => {
+  it('rejects acquisition of a crashed guest', async () => {
+    const { guest, mock } = createGuest()
+    mock.crash()
+    await expect(service.acquire(guest, 'agent', { ownership: 'borrowed' })).rejects.toMatchObject({
+      code: 'debugger_unavailable'
+    })
+    expect(mock.isDestroyed()).toBe(false)
+  })
+
+  it('rechecks for a crash after pending cleanup', async () => {
+    const { guest, mock } = createGuest()
+    const previous = await service.acquire(guest, 'old', { ownership: 'borrowed' })
+    await previous.send('Runtime.enable')
+    const cancellation = new Signal<void>()
+    mock.debugger.sendCommand.mockImplementation(async (method) => {
+      if (method === 'WebMCP.cancelInvocation') await cancellation
+      return {}
+    })
+    void previous.cancelWebTool('pending')
+    service.release(guest, 'old')
+    const acquisition = expect(service.acquire(guest, 'new', { ownership: 'borrowed' })).rejects.toMatchObject({
+      code: 'debugger_unavailable'
+    })
+    mock.crash()
+    cancellation.resolve()
+    await acquisition
+  })
+
   it('releases a borrowed debugger only after the last consumer and never closes the page', async () => {
     const { guest, mock } = createGuest()
     const session = await service.acquire(guest, 'annotation', { ownership: 'borrowed' })
