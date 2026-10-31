@@ -1,4 +1,5 @@
-import { escapeCode as escape, plainTokens, type SnapshotExecutor } from '@cherrystudio/ui/code-highlight'
+import { plainCodeBlockTokens } from '@cherrystudio/ui/code-block'
+import { escapeCode as escape, type SnapshotExecutor } from '@cherrystudio/ui/code-highlight'
 import { loggerService } from '@logger'
 import type {
   HighlightRange,
@@ -165,7 +166,7 @@ class CodeHighlightService {
             current.code = code
             current.revision++
           }
-          if (language !== current.language || theme !== current.theme) {
+          if (language !== current.language) {
             await this.request({
               type: 'configure',
               sessionId: current.id,
@@ -191,7 +192,7 @@ class CodeHighlightService {
       return await task
     } catch (error) {
       logger.warn('Code highlighting unavailable; displaying plain text', error as Error)
-      return { start: range.start, lines: plainTokens(code).tokens.slice(range.start, range.end) }
+      return plainCodeBlockTokens(code, range)
     }
   }
 

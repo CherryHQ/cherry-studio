@@ -264,25 +264,55 @@ export class KnowledgeItemService {
 
   getOutermostSelectedItemIds(baseId: string, itemIds: string[]): string[] {
     const selectedIds = [...new Set(itemIds)]
+    if (selectedIds.length === 0) {
+      return []
+    }
+
+    const baseIdByItemId = new Map(
+      this.db
+        .select({ id: knowledgeItemTable.id, baseId: knowledgeItemTable.baseId })
+        .from(knowledgeItemTable)
+        .where(inArray(knowledgeItemTable.id, selectedIds))
+        .all()
+        .map((row) => [row.id, row.baseId])
+    )
+    const missingItemId = selectedIds.find((itemId) => !baseIdByItemId.has(itemId))
+    if (missingItemId) {
+      throw DataApiErrorFactory.notFound('KnowledgeItem', missingItemId)
+    }
+
+    const invalidItemId = selectedIds.find((itemId) => baseIdByItemId.get(itemId) !== baseId)
+    if (invalidItemId) {
+      throw new Error(`Knowledge item '${invalidItemId}' does not belong to base '${baseId}'`)
+    }
+
+    // CROSS JOIN keeps the walk on primary-key lookups; adding a base_id / group_id
+    // predicate here lets SQLite without ANALYZE stats switch to a group-index range scan.
+    const ancestorRows = this.db.all<{ selectedId: string; ancestorId: string }>(sql`
+      WITH RECURSIVE ancestor(selected_id, id) AS (
+        SELECT id, group_id
+        FROM knowledge_item
+        WHERE id IN (${sql.join(
+          selectedIds.map((id) => sql`${id}`),
+          sql`, `
+        )})
+
+        UNION
+
+        SELECT ancestor.selected_id, parent.group_id
+        FROM ancestor
+        CROSS JOIN knowledge_item parent ON parent.id = ancestor.id
+      )
+      SELECT selected_id AS "selectedId", id AS "ancestorId"
+      FROM ancestor
+      WHERE id IS NOT NULL
+    `)
     const selectedIdSet = new Set(selectedIds)
-    const selectedItems = selectedIds.map((itemId) => this.getById(itemId))
-    const invalidItem = selectedItems.find((item) => item.baseId !== baseId)
+    const nestedIdSet = new Set(
+      ancestorRows.filter((row) => selectedIdSet.has(row.ancestorId)).map((row) => row.selectedId)
+    )
 
-    if (invalidItem) {
-      throw new Error(`Knowledge item '${invalidItem.id}' does not belong to base '${baseId}'`)
-    }
-
-    const descendantSelectedIds = new Set<string>()
-    for (const itemId of selectedIds) {
-      const descendants = this.getSubtreeItems(baseId, [itemId])
-      for (const descendant of descendants) {
-        if (selectedIdSet.has(descendant.id)) {
-          descendantSelectedIds.add(descendant.id)
-        }
-      }
-    }
-
-    return selectedIds.filter((itemId) => !descendantSelectedIds.has(itemId))
+    return selectedIds.filter((itemId) => !nestedIdSet.has(itemId))
   }
 
   getDeletingRootGroups(): DeletingKnowledgeItemRootGroup[] {
@@ -538,6 +568,8 @@ export class KnowledgeItemService {
       return []
     }
 
+    // CROSS JOIN keeps each recursive step on the (base_id, group_id) index instead of a
+    // whole-base scan, which SQLite picks without ANALYZE stats.
     const updatedRows = tx.all<{ id: string; groupId: string | null }>(sql`
         WITH RECURSIVE subtree AS (
           SELECT id
@@ -551,9 +583,8 @@ export class KnowledgeItemService {
           UNION ALL
 
           SELECT child.id
-          FROM knowledge_item child
-          INNER JOIN subtree parent ON child.group_id = parent.id
-          WHERE child.base_id = ${baseId}
+          FROM subtree parent
+          CROSS JOIN knowledge_item child ON child.base_id = ${baseId} AND child.group_id = parent.id
         )
         UPDATE knowledge_item
         SET status = ${status},
@@ -620,6 +651,8 @@ export class KnowledgeItemService {
             sql`, `
           )})`
 
+    // CROSS JOIN pins both joins to subtree-first index lookups; without ANALYZE stats
+    // SQLite otherwise scans the whole base per recursive step.
     const rows = this.db.all<KnowledgeItemRowLike>(sql`
       WITH RECURSIVE subtree AS (
         SELECT id, type
@@ -633,9 +666,8 @@ export class KnowledgeItemService {
         UNION ALL
 
         SELECT child.id, child.type
-        FROM knowledge_item child
-        INNER JOIN subtree parent ON child.group_id = parent.id
-          WHERE child.base_id = ${baseId}
+        FROM subtree parent
+        CROSS JOIN knowledge_item child ON child.base_id = ${baseId} AND child.group_id = parent.id
       )
       SELECT DISTINCT
         item.id AS id,
@@ -648,7 +680,7 @@ export class KnowledgeItemService {
         item.created_at AS "createdAt",
         item.updated_at AS "updatedAt"
       FROM subtree
-      INNER JOIN knowledge_item item
+      CROSS JOIN knowledge_item item
         ON item.id = subtree.id
         AND item.base_id = ${baseId}
       WHERE 1 = 1

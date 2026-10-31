@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type * as LucideReact from 'lucide-react'
 import { Activity, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,11 +44,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('lucide-react', () => {
-  return {
-    ArrowDown: () => <svg data-testid="scroll-arrow-icon" />
-  }
-})
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
+  ArrowDown: () => <svg data-testid="scroll-arrow-icon" />
+}))
 
 vi.mock('react-i18next', () => {
   return {

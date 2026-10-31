@@ -33,6 +33,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
     officialWebsite: 'https://crawl4ai.com'
   },
+  desearch: {
+    descriptionKey: 'settings.tool.websearch.provider_description.desearch',
+    iconRef: providerIconRef('desearch'),
+    officialWebsite: 'https://desearch.ai',
+    apiKeyWebsite: 'https://console.desearch.ai/api-keys'
+  },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
     iconRef: providerIconRef('bocha'),
@@ -104,7 +110,7 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.yuanbao',
     iconRef: providerIconRef('yuanbao'),
     officialWebsite: 'https://cloud.tencent.com/document/product/1806/130615',
-    apiKeyWebsite: 'https://console.cloud.tencent.com/wsa'
+    apiKeyWebsite: 'https://console.cloud.tencent.com/wsapi/index?tab=apikey'
   },
   zhipu: {
     descriptionKey: 'settings.tool.websearch.provider_description.zhipu',

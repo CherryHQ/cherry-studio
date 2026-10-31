@@ -42,11 +42,10 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * resuming would submit a second time and bill the user twice. So non-terminal jobs
  * are cancelled at startup (`recovery: 'abandon'`) instead of resumed.
  *
- * To make results survive a restart, do what `file-processing.remote-poll` does:
- * carry a durable destination in the payload (for paintings, the already-persisted
- * `painting.id` — the row exists before enqueue) and have this handler write the
- * result there, which registers `painting_file_ref` rows and makes GC correct for
- * free. Then switch `recovery` back to `'retry'` and restore the resume branch from
+ * To make results survive a restart, carry a durable destination in the payload
+ * (for paintings, the already-persisted `painting.id` — the row exists before
+ * enqueue) and have this handler write the result there, which registers
+ * `painting_file_ref` rows and makes GC correct for free. Then switch `recovery` back to `'retry'` and restore the resume branch from
  * the recipe in `docs/references/job-and-scheduler/handler-authoring.md`.
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as LucideReact from 'lucide-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -31,7 +32,8 @@ vi.mock('@renderer/components/icons/DeleteIcon', () => ({
   default: () => <span data-testid="delete-icon" />
 }))
 
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
   Save: () => <span data-testid="save-icon" />,
   Upload: () => <span data-testid="upload-icon" />,
   X: () => <span data-testid="close-icon" />

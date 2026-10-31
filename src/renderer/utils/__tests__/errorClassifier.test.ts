@@ -53,6 +53,28 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  const groqBody = `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`
+  it.each([
+    makeError({ message: groqBody, statusCode: 400 }),
+    makeError({
+      message: 'Bad Request',
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { message: groqBody } }),
+      data: { error: { message: groqBody } }
+    }),
+    makeCopiedRetry(groqBody, [
+      makeApiCallAttempt({ statusCode: 400, responseBody: JSON.stringify({ error: { message: groqBody } }) })
+    ])
+  ])('routes a Groq tier refusal to permission recovery: %s', (error) => {
+    expect(classifyError(error, 'groq')).toMatchObject({
+      category: 'permission',
+      i18nKey: 'error.diagnosis.permission',
+      navTarget: '/settings/provider?id=groq'
+    })
+  })
+
   it('uses the parse diagnosis for a serialized unresolved tool call', () => {
     expect(
       classifyError(
@@ -542,6 +564,25 @@ describe('classifyError', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
     expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('offers network recovery for the embedded runtime connection code', () => {
+    expect(classifyError(makeError({ message: 'API Error: Unable to connect to API (ConnectionRefused)' }))).toEqual({
+      category: 'network',
+      i18nKey: 'error.diagnosis.network',
+      navTarget: '/settings/general'
+    })
+  })
+
+  it('does not infer a network failure from explanatory connection prose in provider data', () => {
+    const result = classifyError(
+      makeError({
+        responseBody: 'The provider explains how to open a connection.',
+        data: { detail: 'The guide discusses connection refused errors.' }
+      })
+    )
+
+    expect(result.category).toBe('unknown')
   })
 
   it('classifies timeout as network', () => {

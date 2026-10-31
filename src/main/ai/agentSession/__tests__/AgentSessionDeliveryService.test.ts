@@ -1306,7 +1306,10 @@ describe('AgentSessionDeliveryService', () => {
       deletedIds: ['session-1', 'session-not-loaded']
     })
 
-    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', { permanent: false })
+    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', {
+      permanent: false,
+      sessionTypes: ['conversation']
+    })
     expect(mocks.closeSession).toHaveBeenCalledWith('session-1')
     expect(mocks.closeSession).toHaveBeenCalledWith('session-not-loaded')
   })

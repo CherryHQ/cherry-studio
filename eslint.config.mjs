@@ -599,7 +599,7 @@ export default defineConfig([
   ...oxlint.configs['flat/typescript'],
   ...oxlint.configs['flat/unicorn'],
   // Custom rules should be after oxlint to overwrite
-  // LoggerService Custom Rules - only apply to src directory
+  // LoggerService and lifecycle Emitter Custom Rules - only apply to src directory
   {
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
@@ -609,6 +609,11 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message: '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
+        },
+        {
+          selector: 'CallExpression[callee.property.name="registerDisposable"] > NewExpression[callee.name="Emitter"]',
+          message:
+            '❗Do not registerDisposable() an Emitter the service owns: stop would dispose it for good. Dispose it in onDestroy(): 📖 docs/references/lifecycle/lifecycle-usage.md\n\n'
         }
       ]
     }
@@ -1408,7 +1413,12 @@ export default defineConfig([
   },
   {
     files: ['src/renderer/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
-    ignores: ['packages/ui/src/lib/code-highlight/**', 'packages/ui/src/code-highlight.ts'],
+    ignores: [
+      'packages/ui/src/lib/code-highlight/**',
+      'packages/ui/src/code-highlight.ts',
+      'packages/ui/src/lib/code-block/**',
+      'packages/ui/src/code-block.ts'
+    ],
     plugins: {
       'highlight-boundary': {
         rules: {
@@ -1416,12 +1426,18 @@ export default defineConfig([
             meta: {
               type: 'problem',
               schema: [],
-              messages: { private: 'Import the headless highlighting API through @cherrystudio/ui/code-highlight.' }
+              messages: {
+                private:
+                  'Import highlighting APIs through @cherrystudio/ui/code-highlight or @cherrystudio/ui/code-block.'
+              }
             },
             create(context) {
               return {
                 ImportDeclaration(node) {
-                  if (typeof node.source.value === 'string' && node.source.value.includes('lib/code-highlight'))
+                  if (
+                    typeof node.source.value === 'string' &&
+                    /lib\/(code-highlight|code-block)/.test(node.source.value)
+                  )
                     context.report({ node, messageId: 'private' })
                 }
               }

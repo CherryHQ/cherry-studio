@@ -311,6 +311,65 @@ describe('KnowledgeItemService', () => {
       expect(result).toEqual([DIR_A_ID, NOTE_ROOT_ID])
     })
 
+    it('drops a selected item whose selected ancestor is more than one level up', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
+      await seedItem({ id: DIR_CHILD_ID, type: 'directory', groupId: DIR_ROOT_ID, data: { source: '/root/child' } })
+      await seedItem({
+        id: NOTE_GRANDCHILD_ID,
+        groupId: DIR_CHILD_ID,
+        data: { source: 'grandchild', content: 'grandchild' }
+      })
+
+      const result = service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_GRANDCHILD_ID, DIR_ROOT_ID])
+
+      expect(result).toEqual([DIR_ROOT_ID])
+    })
+
+    it('throws NotFound when a selected item does not exist', async () => {
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+
+      expect(() => service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_ROOT_ID, 'missing'])).toThrow(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND, status: 404 })
+      )
+    })
+
+    it('rejects a selected item that belongs to another base', async () => {
+      await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a1',
+        id: 'kb-2',
+        name: 'KB 2',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+        status: 'completed',
+        error: null,
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+      await seedItem({ id: OTHER_ITEM_ID, baseId: 'kb-2', data: { source: 'other', content: 'other' } })
+
+      expect(() => service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_ROOT_ID, OTHER_ITEM_ID])).toThrow(
+        `Knowledge item '${OTHER_ITEM_ID}' does not belong to base '${KNOWLEDGE_BASE_ID}'`
+      )
+    })
+
+    it('handles a selection larger than half the SQLite bound-variable limit', async () => {
+      const selectedIds = Array.from({ length: 17_000 }, (_, index) => `bulk-note-${index}`)
+      for (let start = 0; start < selectedIds.length; start += 500) {
+        await dbh.db.insert(knowledgeItemTable).values(
+          selectedIds.slice(start, start + 500).map((id) => ({
+            id,
+            baseId: KNOWLEDGE_BASE_ID,
+            type: 'note' as const,
+            data: { source: id, content: id },
+            status: 'completed' as const
+          }))
+        )
+      }
+
+      expect(service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, selectedIds)).toEqual(selectedIds)
+    })
+
     it('filters items by group id', async () => {
       await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })

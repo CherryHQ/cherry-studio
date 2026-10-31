@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "重設應用程式資料",
   "dialog.diagnostic_bundle.title": "儲存診斷包",
   "dialog.diagnostic_bundle.zip_filter": "ZIP 壓縮檔",
+  "dialog.external_link.message": "是否在外部應用程式中開啟此連結？",
+  "dialog.external_link.open": "開啟應用程式",
   "dialog.html_files": "HTML 檔案",
   "dialog.migration_database_unavailable.detail": "請檢查資料儲存位置是否可用且可寫入，並確保磁碟有足夠的可用空間，然後再試一次。",
   "dialog.migration_database_unavailable.message": "Cherry Studio 無法存取本機資料庫。",

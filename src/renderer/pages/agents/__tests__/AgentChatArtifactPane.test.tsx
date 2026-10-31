@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -181,9 +181,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
           const next = new Set(ids)
           next.delete(workspaceRootId)
           onExpandedIdsChange(next)
-        },
-        reloadExpandedDirectories: () => {},
-        refresh: () => {}
+        }
       }
     }
   }
@@ -218,13 +216,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     const resolvedFileSearchKeyword = fileTreeSearchKeyword ?? internalFileSearchKeyword
     const overlaySelection =
       previewFileSelection ?? (selectedFile && workspacePath ? { workspacePath, filePath: selectedFile } : null)
-    const previousWorkspacePathRef = useRef(workspacePath)
-
-    useEffect(() => {
-      if (previousWorkspacePathRef.current === workspacePath) return
-      previousWorkspacePathRef.current = workspacePath
-      setViewMode('preview')
-    }, [workspacePath])
 
     return (
       <div
@@ -363,11 +354,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
 })
 
 vi.mock('@renderer/components/OpenTarget', () => ({
-  OpenTargetButton: ({ targetPath }: { targetPath: string }) => (
-    <button type="button" onClick={() => window.api.file.openPath(targetPath)}>
-      open external preview
-    </button>
-  ),
+  OpenTargetButton: () => <button type="button">open external preview</button>,
   loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
@@ -767,9 +754,6 @@ describe('AgentChat artifact pane', () => {
           toolApproval: {
             respond: vi.fn()
           }
-        },
-        file: {
-          openPath: vi.fn()
         }
       }
     })
@@ -1008,7 +992,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
   })
 
-  it('resets the artifact view mode when the workspace changes', () => {
+  it('closes a changed workspace and resets artifact state when explicitly reopened', () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -1025,6 +1009,12 @@ describe('AgentChat artifact pane', () => {
     }
     rerenderAgentChat(rerender, { pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('artifact-pane')).not.toBeInTheDocument()
+
+    openFilesPane()
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/other-workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
   })
@@ -1068,7 +1058,7 @@ describe('AgentChat artifact pane', () => {
     expect(onMissingAgentSelectionAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('destroys an unavailable artifact capability without unmounting the stable viewport', () => {
+  it('keeps a recovered artifact capability closed until explicitly opened without replacing the viewport', () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -1102,6 +1092,11 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeEnabled()
     expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(rightPane).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('artifact-pane')).not.toBeInTheDocument()
+
+    openFilesPane()
+
     expect(rightPane).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).not.toBe(artifactPane)
   })
