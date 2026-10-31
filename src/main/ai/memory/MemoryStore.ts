@@ -115,9 +115,11 @@ export class MemoryStore {
 
   async initialize(): Promise<void> {
     await this.lock.runExclusive(async () => {
+      await mkdir(this.root, { recursive: true, mode: 0o700 })
+      await assertMemoryPath(this.root, '')
       await mkdir(this.backupRoot, { recursive: true, mode: 0o700 })
       await assertMemoryPath(this.backupRoot, '')
-      const latest = await latestMemoryBackup(this.backupRoot)
+      const latest = await this.latestRecoverableBatch()
       const deletedEntry = latest?.steps.some(
         (step) => step.path === MEMORY_ENTRY && step.afterHash === null && step.outcome !== 'unchanged'
       )
@@ -281,12 +283,7 @@ export class MemoryStore {
       const epoch = this.accessEpochs.get(access) ?? 0
       const generation = this.generation
       access.assertAuthorized()
-      let batch = await latestMemoryBackup(this.backupRoot)
-      while (batch) {
-        batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
-        if (batch.steps.some((step) => step.outcome !== 'unchanged')) break
-        batch = await latestMemoryBackup(this.backupRoot)
-      }
+      const batch = await this.latestRecoverableBatch()
       if (!batch) return undefined
       const hashes = new Map<string, string | null>()
       const files: MemoryRecoveryPreview['files'] = []
@@ -439,6 +436,16 @@ export class MemoryStore {
       result.error = error instanceof Error ? error.message : String(error)
     }
     return result
+  }
+
+  private async latestRecoverableBatch(): Promise<MemoryBatch | undefined> {
+    let batch = await latestMemoryBackup(this.backupRoot)
+    while (batch) {
+      batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
+      if (batch.steps.some((step) => step.outcome !== 'unchanged')) return batch
+      batch = await latestMemoryBackup(this.backupRoot)
+    }
+    return undefined
   }
 
   private async assertDistinctTargets(changes: readonly MemoryFileChange[]): Promise<void> {

@@ -373,10 +373,17 @@ describe('limits, access, and recovery', () => {
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
   })
 
-  it('preserves a deleted entry across restart so its backup remains recoverable', async () => {
+  it.each([false, true])('preserves entry deletion across restart (later pending write=%s)', async (pending) => {
     await save('MEMORY.md', 'Keep this original')
     const original = await store.read(caller, 'MEMORY.md')
     const deleted = await store.commit(caller, [{ kind: 'delete', receipt: original.receipt }], 'controlled', approve)
+    if (pending) {
+      await createMemoryBackup(
+        backups,
+        [{ path: 'MEMORY.md', before: null, after: Buffer.from('Unapplied') }],
+        'controlled'
+      )
+    }
     store = new MemoryStore(root, backups)
     await store.initialize()
     expect((await store.read(caller, 'MEMORY.md')).content).toBeNull()
