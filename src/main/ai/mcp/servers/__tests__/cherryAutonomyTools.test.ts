@@ -41,6 +41,7 @@ const mockAcceptSessionDelivery = vi.fn()
 const mockCreateSessionWithDelivery = vi.fn()
 const mockListSessionDeliveries = vi.fn()
 const mockGetInteractionState = vi.fn()
+const mockGetAcceptedTurnAgentId = vi.fn()
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
@@ -99,7 +100,8 @@ vi.mock('@application', async () => {
       deleteTask: mockDeleteTask
     },
     AgentSessionRuntimeService: {
-      getInteractionState: mockGetInteractionState
+      getInteractionState: mockGetInteractionState,
+      getAcceptedTurnAgentId: mockGetAcceptedTurnAgentId
     },
     AgentSessionDeliveryService: {
       accept: mockAcceptSessionDelivery,
@@ -153,7 +155,8 @@ async function createServer(
   agentId = 'agent_test',
   workspacePath = WORKSPACE_PATH,
   notifyChannelIds: string | string[] | null = 'ch1',
-  workspaceSource: AgentSessionWorkspaceSource = WORKSPACE_SOURCE
+  workspaceSource: AgentSessionWorkspaceSource = WORKSPACE_SOURCE,
+  servesAcceptedTurn = false
 ): Promise<Client> {
   const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
     (id) => (id ? [{ id, type: 'telegram' as const }] : [])
@@ -166,7 +169,8 @@ async function createServer(
       workspaceSource,
       workspacePath,
       trustedNotifyChannels,
-      allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string'
+      allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string',
+      ...(servesAcceptedTurn ? { servesAcceptedTurn: true } : {})
     })
     return server
   })
@@ -200,6 +204,8 @@ describe('cherry-tools autonomy tools', () => {
     mockSearchSessionMessages.mockReturnValue([])
     mockListSessionDeliveries.mockReturnValue([])
     mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    // No accepted turn outliving the session row unless a test stages one.
+    mockGetAcceptedTurnAgentId.mockReturnValue(undefined)
   })
 
   afterEach(async () => {
@@ -454,6 +460,40 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockReadConversation).not.toHaveBeenCalled()
     })
 
+    it('keeps a turn whose session was re-pointed authorized for its own session tools', async () => {
+      // A top-bar switch re-points the row at a turn boundary, but this turn was already accepted
+      // and still streams on the connection spawned for its own agent — whose MCP context carries
+      // that agent. The row alone would reject the turn's own calls mid-flight.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent_test')
+      mockReadConversation.mockReturnValue({
+        source: 'agent',
+        sessionId: 'session-a',
+        message: { id: 'message-1', role: 'assistant', data: { parts: [] } }
+      })
+
+      const result = await callTool(createServer('agent_test'), { session_id: 'session-a' }, 'session_read')
+
+      expect(result.isError).toBeFalsy()
+      expect(mockReadConversation).toHaveBeenCalled()
+    })
+
+    it('still rejects a turn whose connection serves a third agent', async () => {
+      // The accepted-turn escape only covers the agent the connection actually serves: a context
+      // for neither the row's agent nor the connection owner is orphaned and must fail closed.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent-c')
+
+      const result = await callTool(createServer('agent_test'), { session_id: 'session-a' }, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'SENDER_FORBIDDEN' }
+      })
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
+
     it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
       const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')
 
@@ -538,6 +578,82 @@ describe('cherry-tools autonomy tools', () => {
       )
 
       expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(expect.objectContaining({ replyPolicy: 'completion' }))
+    })
+
+    it('carries the executing turn owner into delivery admission after a reassignment', async () => {
+      // Delivery admission re-reads the sender row, which the switch already moved off this turn's
+      // agent — so the context has to hand it the ownership it was validated against. This context
+      // was mounted on a connection PRIMED while the Session was idle, so its baked flag is false:
+      // the owner has to be resolved at invocation time.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent_test')
+      mockAcceptSessionDelivery.mockReturnValue({
+        id: 'request-1',
+        sessionId: 'session_b',
+        delivery: { status: 'accepted' }
+      })
+
+      const result = await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Continue' },
+        'session_send'
+      )
+
+      expect(result.isError).toBeFalsy()
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ senderExecutionOwnerId: 'agent_test' })
+      )
+    })
+
+    it('carries the executing turn owner into a Session created by a primed connection', async () => {
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent_test')
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session_new', agentId: 'agent_test' },
+        message: { id: 'request-1', delivery: { status: 'accepted' } }
+      })
+
+      const result = await callTool(createServer('agent_test'), { message: 'Start here' }, 'session_create')
+
+      expect(result.isError).toBeFalsy()
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ senderExecutionOwnerId: 'agent_test' })
+      )
+    })
+
+    it('drops a retained-owner claim the runtime no longer validates', async () => {
+      // The context was mounted while this agent owned the turn, but the runtime now serves another
+      // agent — the stale claim must not reach delivery admission.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent-c')
+
+      const result = await callTool(
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', WORKSPACE_SOURCE, true),
+        { target_session_id: 'session_b', message: 'Continue' },
+        'session_send'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ ok: false, error: { code: 'SENDER_FORBIDDEN' } })
+      expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
+    })
+
+    it('leaves delivery admission on the row when the context is not a retained owner', async () => {
+      mockAcceptSessionDelivery.mockReturnValue({
+        id: 'request-1',
+        sessionId: 'session_b',
+        delivery: { status: 'accepted' }
+      })
+
+      await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Ordinary' },
+        'session_send'
+      )
+
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(
+        expect.not.objectContaining({ senderExecutionOwnerId: expect.anything() })
+      )
     })
 
     it('returns message evidence for session search candidates', async () => {

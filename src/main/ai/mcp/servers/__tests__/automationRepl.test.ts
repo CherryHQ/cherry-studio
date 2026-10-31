@@ -2,6 +2,7 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { serveStdio, type StdioServerHandle } from '@modelcontextprotocol/server/stdio'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -20,6 +21,8 @@ describe.each(['modern', 'legacy'] as const)('Automation MCP output (%s)', (era)
   let output: CallToolResult
   let terminal: Emitter<never>
   let idle: Emitter<never>
+  /** Agent whose turn the connection serves when it differs from the session row. */
+  let acceptedTurnAgentId: string | undefined
 
   beforeEach(async () => {
     dbh.db
@@ -44,7 +47,12 @@ describe.each(['modern', 'legacy'] as const)('Automation MCP output (%s)', (era)
           close: async () => {}
         }
       if (name === 'AgentSessionRuntimeService')
-        return { getLiveAssistantMessageId: () => 'message', onTurnTerminal: terminal.event, onRuntimeIdle: idle.event }
+        return {
+          getLiveAssistantMessageId: () => 'message',
+          getAcceptedTurnAgentId: () => acceptedTurnAgentId,
+          onTurnTerminal: terminal.event,
+          onRuntimeIdle: idle.event
+        }
       return get(name as Parameters<typeof get>[0])
     }) as typeof application.get)
     server = createAutomationReplServer('session', 'agent')
@@ -101,6 +109,22 @@ describe.each(['modern', 'legacy'] as const)('Automation MCP output (%s)', (era)
 
     expect(result.content).toEqual(output.content)
     expect(result.structuredContent).toBeUndefined()
+    expect(result.isError).not.toBe(true)
+  })
+
+  it('keeps the mounted automation available while the session is re-pointed mid-turn', async () => {
+    // A top-bar switch re-points the row at a turn boundary, but this server was mounted for the
+    // agent whose turn is still streaming on this connection — the session-owner check must accept
+    // that owner, or the accepted turn's own Automation calls fail mid-flight.
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'other-agent', type: 'claude-code', name: 'Other', instructions: '', orderKey: 'a1' })
+      .run()
+    dbh.db.update(agentSessionTable).set({ agentId: 'other-agent' }).where(eq(agentSessionTable.id, 'session')).run()
+    acceptedTurnAgentId = 'agent'
+
+    const result = await client.callTool({ name: 'js', arguments: { code: '1' } })
+
     expect(result.isError).not.toBe(true)
   })
 })

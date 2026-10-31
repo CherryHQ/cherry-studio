@@ -418,11 +418,18 @@ export class AgentLifecycleService extends BaseService {
     targetState: 'active' | 'trashed' = 'trashed'
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
+    // A top-bar switch re-points a Session's row while its live turn keeps executing under the
+    // agent that started it; membership alone would skip that Session's busy check and cleanup.
+    const readSessionIds = () => {
+      const executing = application.get('AgentSessionRuntimeService').listSessionIdsByExecutingAgent(agentId)
+      return [...new Set([...agentSessionService.listIdsByAgent(agentId), ...executing])].sort()
+    }
     const deleteAgent = async () => {
-      const workspaces = agentSessionService.listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
+      const sessionIds = readSessionIds()
+      const workspaces = agentSessionService.listSystemWorkspaceSessions(sessionIds)
       const tokensBySession =
         permanent && targetState === 'active' && deleteSessions
-          ? agentSessionMessageService.listRuntimeResumeTokensBySession(agentSessionService.listIdsByAgent(agentId))
+          ? agentSessionMessageService.listRuntimeResumeTokensBySession(sessionIds)
           : new Map<string, Set<string>>()
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
         const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })
@@ -435,14 +442,17 @@ export class AgentLifecycleService extends BaseService {
       agentService.notifyDeleted(agentId, result)
       this.syncSchedules(scheduleIds)
       application.get('ChannelManager').reconcileAgent(agentId, true)
+      // A no-op transition owns no runtime; otherwise the executing-agent sessions close with the
+      // agent's own ones so a switched-away Session cannot keep the archived agent's connection.
+      const cleanupSessionIds = result.deleted ? [...new Set([...result.affectedSessionIds, ...sessionIds])] : []
       const manager = application.get('AiStreamManager')
-      result.affectedSessionIds.forEach((sessionId) =>
+      cleanupSessionIds.forEach((sessionId) =>
         manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
       )
       // Sessions that outlive the agent (trashed or permanently deleted) keep
       // their queue — kick it so pending deliveries re-evaluate against the gone agent.
       await this.finishDeletion(
-        result.affectedSessionIds,
+        cleanupSessionIds,
         result.deliveryResults,
         deleteSessions ? [] : result.affectedSessionIds
       )
@@ -460,11 +470,7 @@ export class AgentLifecycleService extends BaseService {
       }
     }
 
-    return this.withStableSessions(
-      () => agentSessionService.listIdsByAgent(agentId),
-      deleteAgent,
-      permanent && targetState === 'trashed'
-    )
+    return this.withStableSessions(readSessionIds, deleteAgent, permanent && targetState === 'trashed')
   }
 
   private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<void> {

@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   hasTerminalPersistenceInFlight: vi.fn(),
   whenTerminalDispatchSettled: vi.fn(),
   runtimeBusy: vi.fn(),
+  listSessionIdsByExecutingAgent: vi.fn(),
   closeSession: vi.fn(),
   getPath: vi.fn(),
   purgeSystemWorkspace: vi.fn(),
@@ -149,6 +150,7 @@ const runtime = {
   drainInFlight: async () => ({ stragglerIds: [] }),
   isSessionBusy: mocks.runtimeBusy,
   isSessionBusyForArchive: mocks.runtimeBusy,
+  listSessionIdsByExecutingAgent: mocks.listSessionIdsByExecutingAgent,
   closeSession: mocks.closeSession,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
@@ -248,6 +250,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
+    mocks.listSessionIdsByExecutingAgent.mockReturnValue([])
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
     mocks.purgeSystemWorkspace.mockResolvedValue(undefined)

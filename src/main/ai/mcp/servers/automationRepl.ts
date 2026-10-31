@@ -31,10 +31,15 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
   let closed = false
   const access = () => {
     const agent = agentService.getAgent(agentId)
+    // This server was mounted for the agent whose turn the connection serves, so the session row is
+    // authoritative only once that turn is gone — a top-bar switch re-points the row while the turn
+    // still runs on this very connection. Accepting the connection's owner keeps the mounted
+    // session-owner check satisfied for the turn it was mounted for.
+    const acceptedTurnAgentId = runtime.getAcceptedTurnAgentId(sessionId)
     if (
       closed ||
       !agent ||
-      agentSessionService.getById(sessionId).agentId !== agentId ||
+      (agentSessionService.getById(sessionId).agentId !== agentId && acceptedTurnAgentId !== agentId) ||
       !runtime.getLiveAssistantMessageId(sessionId) ||
       resolveAgentCapabilities(agent).environment !== 'open' ||
       agentChannelService.findBySessionId(sessionId)
