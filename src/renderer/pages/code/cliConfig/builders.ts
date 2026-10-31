@@ -208,15 +208,20 @@ export function buildOpenCodeConfig(
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   // The models map key is the addressing id sent to the API; `name` is only what
   // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
-  const modelConfig: Record<string, any> = { name: resolved.modelLabel ?? resolved.model }
+  const modelConfig: Record<string, any> = { modelID: resolved.model, name: resolved.modelLabel ?? resolved.model }
   const limit = openCodeModelLimit(options)
   if (limit) modelConfig.limit = limit
   buildOpenCodeModelOptions(modelConfig, npmInfo, {
     reasoning: options.reasoning === true,
     supportsReasoningEffort: options.supportsReasoningEffort === true
   })
-  const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
+  const preservedProviders = omitKeysByPrefix(asRecord(existing.providers), CHERRY_PROVIDER_PREFIX)
   const cleaned: Record<string, any> = { ...existing }
+  // Drop our stale entries from the deprecated V1 `provider` key; the user's own stay.
+  if (cleaned.provider && typeof cleaned.provider === 'object') {
+    cleaned.provider = omitKeysByPrefix(cleaned.provider, CHERRY_PROVIDER_PREFIX)
+    if (Object.keys(cleaned.provider).length === 0) delete cleaned.provider
+  }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
   const compaction = { ...asRecord(existing.compaction) }
   delete cleaned.compaction
@@ -229,12 +234,12 @@ export function buildOpenCodeConfig(
     // itself contain "/" (gateway ids do) but providerKey must not — cliProviderKeyName
     // strips it. Without this field OpenCode falls back to its own last-used model.
     model: `${providerKey}/${resolved.model}`,
-    provider: {
+    providers: {
       ...preservedProviders,
       [providerKey]: {
-        npm: npmInfo.npm,
+        package: npmInfo.package,
         name: providerKey,
-        options: {
+        settings: {
           apiKey: resolved.apiKey,
           baseURL: resolved.baseUrl,
           ...openCodeProviderRequestOptions(options)
