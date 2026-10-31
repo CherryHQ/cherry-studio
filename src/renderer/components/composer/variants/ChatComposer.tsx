@@ -49,6 +49,7 @@ import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useUserReasoningEffortMap } from '@renderer/hooks/useUserReasoningEffortMap'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -791,6 +792,7 @@ const ChatComposerInner = ({
         : effectiveSubmittedModel,
     [effectiveSubmittedModel, selectedAssistantId]
   )
+  const userEffortMap = useUserReasoningEffortMap(speedControlModel)
 
   useEffect(() => {
     if (speedControlModel?.supportsFastMode !== true) setFastMode(false)
@@ -1779,6 +1781,7 @@ const ChatComposerInner = ({
           onReasoningSummaryChange={handleReasoningSummaryChange}
           onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
+          userEffortMap={userEffortMap}
         />
       ) : null}
       <ChatComposerContextUsage usage={contextUsage} />

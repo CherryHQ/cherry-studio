@@ -27,6 +27,7 @@ import {
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { clearSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -812,6 +813,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.approvalEmitter?.dispose?.()
     this.steerHolder?.dispose()
     disposeToolPolicySnapshot(this.input.sessionId)
+    // Session-keyed like the policy snapshot: the once-only guard above is
+    // what lets a successor connection (e.g. after a model edit reconnect)
+    // keep its freshly registered destination when our late teardown lands.
+    clearSessionCanonicalEffort(this.input.sessionId)
   }
 
   private updateResumeToken(resumeToken: string): void {

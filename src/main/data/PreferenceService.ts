@@ -25,6 +25,10 @@ import {
   isPublicBootConfigKey,
   toBootConfigKey
 } from '@shared/data/preference/preferenceUtils'
+import {
+  applyReasoningEffortMappingEntry,
+  type ReasoningEffortMappingEntryUpdate
+} from '@shared/data/preference/reasoningEffortMapping'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { preferenceTable } from './db/schemas/preference'
@@ -416,6 +420,27 @@ export class PreferenceService extends BaseService {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
     }
+  }
+
+  /**
+   * Atomically apply a single reasoning-effort mapping entry (set or clear).
+   *
+   * The whole-value set channel forces every renderer to read-modify-write the
+   * entire overrides object from its own snapshot, so two windows editing
+   * different entries before the broadcast lands overwrite each other (#21087
+   * cross-window review finding). Here the read-modify-write stays in main:
+   * get() reads the authoritative cache and the mutation inside set() (DB +
+   * cache) runs synchronously before its first await, so this method never
+   * yields between read and write — independent entry updates from any window
+   * merge instead of clobbering.
+   */
+  public async setReasoningEffortMappingEntry(update: ReasoningEffortMappingEntryUpdate): Promise<void> {
+    const key = 'feature.reasoning.effort_mappings' as const
+    // No awaits between this read and the synchronous write inside set() — that
+    // run-to-completion stretch is what makes the read-modify-write atomic
+    // across windows on the main-process event loop.
+    const next = applyReasoningEffortMappingEntry(this.get(key), update)
+    await this.set(key, next)
   }
 
   /**

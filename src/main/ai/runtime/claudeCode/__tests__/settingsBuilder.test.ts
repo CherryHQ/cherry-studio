@@ -495,6 +495,26 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ cleanupPeriodDays: 365_000 })
   })
 
+  it('emits the resolved thinking effort into the SDK-bound settings verbatim', async () => {
+    // The warmup boundary resolves the SDK-supported tier (GPT-5 minimal ->
+    // low on the gateway route; SDK 0.3.284 rejects a verbatim minimal and
+    // silently defaults to High — cherry-pr-review inv_ab2d93e990367ead).
+    // This asserts the real settings construction carries that resolved tier
+    // into the emitted settings object handed to the SDK query, not just into
+    // a mocked builder's arguments.
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { thinkingOptions: { effort: 'low' } }
+    )
+
+    expect(settings.effort).toBe('low')
+  })
+
   it('only overrides commit attribution when the preference explicitly turns it off', async () => {
     const session = {
       id: 'session-1',

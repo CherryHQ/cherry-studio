@@ -22,6 +22,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import {
   type Assistant,
@@ -70,6 +71,7 @@ import {
   resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
+import { getUserReasoningEffortMap } from '../../../utils/reasoningEffortPreferences'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
@@ -170,6 +172,25 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     !request.disableTools && canModelConsumeTools(model)
       ? await resolveRequestToolSignals(request, assistant)
       : undefined
+  const reasoningEndpointType =
+    sdkConfig.providerId === 'google-vertex-maas'
+      ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      : resolvedEndpoint.endpointType
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const invocationModel = reasoningProfile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+    : model
+  // The effective (user-mapped) selection drives routing AND serialization
+  // alike: routing on the raw selection while serializing the mapped one lets
+  // a `high -> minimal` map keep a native-search route the outgoing Minimal
+  // effort forbids (cherry-pr-review).
+  const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
+  const userEffortMap = getUserReasoningEffortMap(provider, invocationModel)
+  const userAdjustedSelection = applyUserReasoningEffortTranslation(requestedReasoningSelection, userEffortMap)
+  const reasoningSelection =
+    userAdjustedSelection !== requestedReasoningSelection
+      ? userAdjustedSelection
+      : normalizeRequestedSelection(userAdjustedSelection, invocationModel)
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
@@ -187,7 +208,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
         assistant?.settings.enableGenerateImage === true
       : false,
-    reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
+    reasoningEffort: reasoningSelection
   })
   const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
@@ -222,13 +243,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
   const runtimeProviderId = sdkConfig.providerId
-  const reasoningEndpointType =
-    runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
-  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
   const serviceTierControl = providerRegistryService.resolveServiceTierControl(provider, model, endpointType)
-  const invocationModel = reasoningProfile.support
-    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
-    : model
   const customParameters = extractAiSdkStandardParams(assistant ? getCustomParameters(assistant) : {})
   customParameters.standardParams = filterStandardParams(customParameters.standardParams, model)
   const requestedMaxOutputTokens = resolveRequestedMaxOutputTokens(
@@ -238,8 +253,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model,
     endpointType
   )
-  const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
-  const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
   const reasoning = resolveReasoningInvocation({
     selection: reasoningSelection,
     model: invocationModel,

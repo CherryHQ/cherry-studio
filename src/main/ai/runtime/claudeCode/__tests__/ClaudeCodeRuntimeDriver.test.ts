@@ -9,6 +9,11 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import {
+  clearSessionCanonicalEffort,
+  registerSessionCanonicalEffort,
+  resolveSessionCanonicalEffort
+} from '@main/ai/utils/sessionCanonicalEffort'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
@@ -528,6 +533,48 @@ describe('ClaudeCodeRuntimeDriver', () => {
         live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
       }
     })
+  })
+
+  it('clears the session canonical effort destination on teardown, once only', async () => {
+    // A healthy warm connection keeps the query loop parked until close(), so
+    // teardown runs exactly at the close boundary.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const warmQuery = { query: vi.fn(() => query), close: vi.fn() }
+    mocks.consumeWarmQuery.mockResolvedValue({
+      warmQuery,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'warm-key', masked: 'war-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    registerSessionCanonicalEffort('session-1', 'minimal')
+    await connection.close()
+    expect(resolveSessionCanonicalEffort('session-1')).toBeUndefined()
+    // A successor connection for the same session (e.g. after a model edit
+    // reconnect) may have registered a fresh destination by the time a second
+    // close lands: the once-only teardown must not destroy it.
+    registerSessionCanonicalEffort('session-1', 'high')
+    await connection.close()
+    expect(resolveSessionCanonicalEffort('session-1')).toBe('high')
+    clearSessionCanonicalEffort('session-1')
   })
 
   it('uses the serving receipt retained by a consumed warm process', async () => {
