@@ -28,6 +28,10 @@ const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(
   './native/darwin/build'
 )
 
+const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
+  './native/external-app/build.cjs'
+)
+
 type ElectronBuilderConfig = {
   releaseInfo?: {
     releaseNotes?: unknown
@@ -190,6 +194,14 @@ export default defineConfig({
         buildStart() {
           this.addWatchFile(selectionPanelSource)
           buildSelectionPanel()
+        }
+      },
+      {
+        name: 'cherry-external-app',
+        apply: 'build',
+        buildStart() {
+          for (const file of externalAppSources) this.addWatchFile(file)
+          buildExternalApp()
         }
       },
       chunkExportGuardPlugin(),

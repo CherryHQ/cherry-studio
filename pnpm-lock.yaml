@@ -227,7 +227,7 @@ patchedDependencies:
   '@ai-sdk/google@3.0.132': 0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821
   '@ai-sdk/open-responses@1.0.34': 83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366
   '@ai-sdk/openai-compatible@2.0.72': c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771
-  '@ai-sdk/openai@3.0.109': 5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6
+  '@ai-sdk/openai@3.0.109': d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
   '@earendil-works/pi-ai@1.4.0': d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77
@@ -467,7 +467,7 @@ importers:
         version: 1.0.34(patch_hash=83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
@@ -621,9 +621,6 @@ importers:
       '@google/genai':
         specifier: ^1.46.0
         version: 1.52.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)
-      '@hello-pangea/dnd':
-        specifier: ^18.0.1
-        version: 18.0.1(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@hookform/resolvers':
         specifier: ^5.0.1
         version: 5.2.2(react-hook-form@7.75.0(react@19.2.3))
@@ -1201,8 +1198,8 @@ importers:
         specifier: ^11.1.0
         version: 11.2.4
       lucide-react:
-        specifier: ^0.525.0
-        version: 0.525.0(react@19.2.3)
+        specifier: ^0.545.0
+        version: 0.545.0(react@19.2.3)
       macos-release:
         specifier: ^3.4.0
         version: 3.4.0
@@ -1233,9 +1230,15 @@ importers:
       nanoid:
         specifier: 3.3.11
         version: 3.3.11
+      node-addon-api:
+        specifier: 8.5.0
+        version: 8.5.0
       node-api-headers:
         specifier: 1.9.0
         version: 1.9.0
+      node-gyp:
+        specifier: 12.4.0
+        version: 12.4.0
       notion-helper:
         specifier: ^1.3.22
         version: 1.3.29
@@ -1641,7 +1644,7 @@ importers:
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
@@ -1678,7 +1681,7 @@ importers:
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
@@ -1955,21 +1958,33 @@ importers:
       '@codemirror/state':
         specifier: 6.5.4
         version: 6.5.4
+      '@dnd-kit/abstract':
+        specifier: 0.5.1
+        version: 0.5.1
+      '@dnd-kit/collision':
+        specifier: 0.5.1
+        version: 0.5.1
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@dnd-kit/dom':
+        specifier: 0.5.1
+        version: 0.5.1
+      '@dnd-kit/helpers':
+        specifier: 0.5.1
+        version: 0.5.1
       '@dnd-kit/modifiers':
         specifier: ^9.0.0
         version: 9.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+      '@dnd-kit/react':
+        specifier: 0.5.1
+        version: 0.5.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@dnd-kit/sortable':
         specifier: ^10.0.0
         version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.3)
-      '@hello-pangea/dnd':
-        specifier: ^18.0.1
-        version: 18.0.1(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@hookform/resolvers':
         specifier: ^5.0.0
         version: 5.2.2(react-hook-form@7.75.0(react@19.2.3))
@@ -2106,8 +2121,8 @@ importers:
         specifier: ^2.5.0
         version: 2.5.0(patch_hash=ffcb53da69f07309f6f7d09dfd3ecfb56b258d57818cd5db25a2b28f116d1867)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)
       tailwind-merge:
-        specifier: ^2.5.5
-        version: 2.6.1
+        specifier: ^3.4.0
+        version: 3.4.0
       tailwindcss:
         specifier: ^4.1.13
         version: 4.3.3
@@ -3179,10 +3194,16 @@ packages:
     resolution: {integrity: sha512-4B4OijXeVNOPZlYA2oEwWOTkzyltLao+xbotHQeqN++Rv27Y6s818+n2Qkp8q+Fxhn0t/5lA5X1Mxktud8eayQ==}
     engines: {node: '>=14.17.0'}
 
+  '@dnd-kit/abstract@0.5.1':
+    resolution: {integrity: sha512-XI13sUYRvRgggMocjHlQhLRgENm/2GF94KF7mk+c0uxse7sbn75r0BgxoNPDlzLTDPWx6PkS0YHoeXN9JWhnOA==}
+
   '@dnd-kit/accessibility@3.1.1':
     resolution: {integrity: sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw==}
     peerDependencies:
       react: '>=16.8.0'
+
+  '@dnd-kit/collision@0.5.1':
+    resolution: {integrity: sha512-exQmBlWWQ6calIup4KNQudiEF8Do61Lpzw/F0M3UOhqdKi9dx0ZXGf+qfdfmew8rJzPMj3MzKeGqNMEbCKA22g==}
 
   '@dnd-kit/core@6.3.1':
     resolution: {integrity: sha512-xkGBRQQab4RLwgXxoqETICr6S5JlogafbhNsidmrkVv2YRs5MLwpjoF2qpiGjQt8S9AoxtIV603s0GIUpY5eYQ==}
@@ -3190,17 +3211,35 @@ packages:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
+  '@dnd-kit/dom@0.5.1':
+    resolution: {integrity: sha512-r7/l4D+nsH1mFXWkplXCkZC9JlY7UjxsVuTu4yCqzC00XgX+SXiK3Oazp42KKG3mshfBNVtm15BI9rKNlkw2fA==}
+
+  '@dnd-kit/geometry@0.5.1':
+    resolution: {integrity: sha512-7X/Ro2U5qW96SihIukMitnc3pYc5n/PmHmJ28oApLBIJRfLxPLgrL6X0ZbQT7qUEfdUIqXnehobJ3jXAc4hdAA==}
+
+  '@dnd-kit/helpers@0.5.1':
+    resolution: {integrity: sha512-/nH5fpWuQmmc2FlwNAlxgZVQfAiMHeh+riGUZS69vj1Oq/MPc98APHgvjsVy7rN9MFd1XCgGYVcmb2pKvfYzNA==}
+
   '@dnd-kit/modifiers@9.0.0':
     resolution: {integrity: sha512-ybiLc66qRGuZoC20wdSSG6pDXFikui/dCNGthxv4Ndy8ylErY0N3KVxY2bgo7AWwIbxDmXDg3ylAFmnrjcbVvw==}
     peerDependencies:
       '@dnd-kit/core': ^6.3.0
       react: '>=16.8.0'
 
+  '@dnd-kit/react@0.5.1':
+    resolution: {integrity: sha512-WL8LvALUL9PqUUVun4xu4e8HO3x6rPwTxnnNwovj/VOUVyWpTmIaAK5Yj8jkzqNK01W74sQbwtffpLep1Ckj/Q==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+
   '@dnd-kit/sortable@10.0.0':
     resolution: {integrity: sha512-+xqhmIIzvAYMGfBYYnbKuNicfSsk4RksY2XdmJhT+HAC01nix6fHCztU68jooFiMUB01Ky3F0FyOvhG/BZrWkg==}
     peerDependencies:
       '@dnd-kit/core': ^6.3.0
       react: '>=16.8.0'
+
+  '@dnd-kit/state@0.5.1':
+    resolution: {integrity: sha512-SN0BZ0d/ob9dK8sTqk/0z3eNBWV6xPSrLbHUBbiCo9Sj3xfhPFk6ej2oZpDcqk7LWaujT57ocgdtznY7wQ2yFw==}
 
   '@dnd-kit/utilities@3.2.2':
     resolution: {integrity: sha512-+MKAJEOfaBe5SmV6t34p80MMKhjvUz0vRrvVJbPT0WElzaOJ/1xs+D+KDv+tD/NE5ujfrChEcshd4fLn0wpiqg==}
@@ -3711,12 +3750,6 @@ packages:
 
   '@grammyjs/types@3.25.0':
     resolution: {integrity: sha512-iN9i5p+8ZOu9OMxWNcguojQfz4K/PDyMPOnL7PPCON+SoA/F8OKMH3uR7CVUkYfdNe0GCz8QOzAWrnqusQYFOg==}
-
-  '@hello-pangea/dnd@18.0.1':
-    resolution: {integrity: sha512-xojVWG8s/TGrKT1fC8K2tIWeejJYTAeJuj36zM//yEm/ZrnZUSFGS15BpO+jGZT1ybWvyXmeDJwPYb4dhWlbZQ==}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-      react-dom: ^18.0.0 || ^19.0.0
 
   '@hono/node-server@1.19.10':
     resolution: {integrity: sha512-hZ7nOssGqRgyV3FVVQdfi+U4q02uB23bpnYpdvNXkYTRRyWx84b7yf1ans+dnJ/7h41sGL3CeQTfO+ZGxuO+Iw==}
@@ -5533,6 +5566,9 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@preact/signals-core@1.14.5':
+    resolution: {integrity: sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg==}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -9641,9 +9677,6 @@ packages:
   crypt@0.0.2:
     resolution: {integrity: sha512-mCxBlsHFYh9C+HVpiEacem8FEBnMXgU9gy4zmNC+SXAZNB/1idgp/aulFJ4FgCi7GPEVbfyng092GqL2k2rmow==}
 
-  css-box-model@1.2.1:
-    resolution: {integrity: sha512-a7Vr4Q/kd/aw96bnJG332W9V9LkJO69JRcaCYDUqjp6/z0w6VcZjgAcTbgFxEPfBgdnAwlh3iwu+hLopa+flJw==}
-
   css-select@5.2.2:
     resolution: {integrity: sha512-TizTzUddG/xYLA3NXodFM0fSbNizXjOKhqiQQwvhlspadZokn1KDy0NZFS0wuEubIYAV5/c1/lAr0TaaFXEXzw==}
 
@@ -12182,11 +12215,6 @@ packages:
   lru_map@0.4.1:
     resolution: {integrity: sha512-I+lBvqMMFfqaV8CJCISjI3wbjmwVu/VyOoU7+qtu9d7ioW5klMgsTTiUOUp+DJvfTTzKXoPbyC6YfgkNcyPSOg==}
 
-  lucide-react@0.525.0:
-    resolution: {integrity: sha512-Tm1txJ2OkymCGkvwoHt33Y2JpN5xucVq1slHcgE6Lk0WjDfjgKWor5CdVER8U6DvcfMwh4M8XxmpTiyzfmfDYQ==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
   lucide-react@0.545.0:
     resolution: {integrity: sha512-7r1/yUuflQDSt4f1bpn5ZAocyIxcTyVyBBChSVtBKn5M+392cPmI5YJMWOJKk/HUWGm5wg83chlAZtCcGbEZtw==}
     peerDependencies:
@@ -13059,18 +13087,6 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@6.15.0:
-    resolution: {integrity: sha512-F1Lvs5BoVvmZtzkUEVyh8mDQPPFolq4F+xdsx/DO8Hee8YF3IGAlZqUIsF+DVGhqf4aU0a3bTghsxB6OIsRy1g==}
-    hasBin: true
-    peerDependencies:
-      ws: ^8.18.0
-      zod: ^3.25 || ^4.0
-    peerDependenciesMeta:
-      ws:
-        optional: true
-      zod:
-        optional: true
-
   openapi-types@12.1.3:
     resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
 
@@ -13635,9 +13651,6 @@ packages:
   race-signal@2.0.2:
     resolution: {integrity: sha512-IuNNNY5NLriMFEGl3BVei2xq9NIcpkuAklhPWamhu5tRJrJz0w9sloUMz73YXpmUluE2EZocmJm9rpQqXmCPiA==}
 
-  raf-schd@4.0.3:
-    resolution: {integrity: sha512-tQkJl2GRWh83ui2DiPTJz9wEiMN20syf+5oKfB03yYP7ioZcJwsIK8FjrtLwH1m7C7e+Tt2yYBlrOpdT+dyeIQ==}
-
   random-int@3.1.0:
     resolution: {integrity: sha512-h8CRz8cpvzj0hC/iH/1Gapgcl2TQ6xtnCpyOI5WvWfXf/yrDx2DOU+tD9rX23j36IF11xg1KqB9W11Z18JPMdw==}
     engines: {node: '>=12'}
@@ -13787,18 +13800,6 @@ packages:
       react: ^17.0.2 || ^18 || ^19
       react-dom: ^17.0.2 || ^18 || ^19
 
-  react-redux@9.2.0:
-    resolution: {integrity: sha512-ROY9fvHhwOD9ySfrF0wmvu//bKCQ6AeZZq1nJNtbDC+kk5DuSuNX/n6YWYF/SYy7bSba4D4FSz8DJeKY/S/r+g==}
-    peerDependencies:
-      '@types/react': ^18.2.25 || ^19
-      react: ^18.0 || ^19
-      redux: ^5.0.0
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      redux:
-        optional: true
-
   react-remove-scroll-bar@2.3.8:
     resolution: {integrity: sha512-9r+yi9+mgU33AKcj6IbT9oRCO78WriSj6t/cF8DWBZJ9aOGPOTEDvdUDz1FwKim7QXWwmHqtdHnRJfhAxEG46Q==}
     engines: {node: '>=10'}
@@ -13896,9 +13897,6 @@ packages:
   redent@3.0.0:
     resolution: {integrity: sha512-6tDA8g98We0zd0GvVeMT9arEOnTw9qM03L9cJXaCjrip1OO764RDBLBfrB4cwzNGDj5OA5ioymC9GkizgWJDUg==}
     engines: {node: '>=8'}
-
-  redux@5.0.1:
-    resolution: {integrity: sha512-M9/ELqF6fy8FwmkpnF0S3YKOqMyoWJ4+CS5Efg2ct3oY9daQvd/Pc71FpGZsVsbl3Cpb+IIcjBDUnnyBdQbq4w==}
 
   reflect-metadata@0.2.2:
     resolution: {integrity: sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==}
@@ -14675,9 +14673,6 @@ packages:
   tagged-tag@1.0.0:
     resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
     engines: {node: '>=20'}
-
-  tailwind-merge@2.6.1:
-    resolution: {integrity: sha512-Oo6tHdpZsGpkKG88HJ8RR1rg/RdnEkQEfMoEk2x1XRI3F1AxeU+ijRXpiVUF4UbLfcxxRGw6TbUINKYdWVsQTQ==}
 
   tailwind-merge@3.4.0:
     resolution: {integrity: sha512-uSaO4gnW+b3Y2aWoWfFpX62vn2sR3skfhbjsEnaBI81WD1wBLlHZe5sWf0AqjksNdYTbGBEd0UasQMT3SNV15g==}
@@ -15820,7 +15815,7 @@ snapshots:
   '@ai-sdk/azure@3.0.116(zod@4.4.3)':
     dependencies:
       '@ai-sdk/deepseek': 2.0.62(zod@4.4.3)
-      '@ai-sdk/openai': 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
+      '@ai-sdk/openai': 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
@@ -15912,7 +15907,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)':
+  '@ai-sdk/openai@3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
@@ -17348,9 +17343,21 @@ snapshots:
 
   '@discoveryjs/json-ext@0.6.3': {}
 
+  '@dnd-kit/abstract@0.5.1':
+    dependencies:
+      '@dnd-kit/geometry': 0.5.1
+      '@dnd-kit/state': 0.5.1
+      tslib: 2.8.1
+
   '@dnd-kit/accessibility@3.1.1(react@19.2.3)':
     dependencies:
       react: 19.2.3
+      tslib: 2.8.1
+
+  '@dnd-kit/collision@0.5.1':
+    dependencies:
+      '@dnd-kit/abstract': 0.5.1
+      '@dnd-kit/geometry': 0.5.1
       tslib: 2.8.1
 
   '@dnd-kit/core@6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
@@ -17361,6 +17368,24 @@ snapshots:
       react-dom: 19.2.3(react@19.2.3)
       tslib: 2.8.1
 
+  '@dnd-kit/dom@0.5.1':
+    dependencies:
+      '@dnd-kit/abstract': 0.5.1
+      '@dnd-kit/collision': 0.5.1
+      '@dnd-kit/geometry': 0.5.1
+      '@dnd-kit/state': 0.5.1
+      tslib: 2.8.1
+
+  '@dnd-kit/geometry@0.5.1':
+    dependencies:
+      '@dnd-kit/state': 0.5.1
+      tslib: 2.8.1
+
+  '@dnd-kit/helpers@0.5.1':
+    dependencies:
+      '@dnd-kit/abstract': 0.5.1
+      tslib: 2.8.1
+
   '@dnd-kit/modifiers@9.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@dnd-kit/core': 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -17368,11 +17393,25 @@ snapshots:
       react: 19.2.3
       tslib: 2.8.1
 
+  '@dnd-kit/react@0.5.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      '@dnd-kit/abstract': 0.5.1
+      '@dnd-kit/dom': 0.5.1
+      '@dnd-kit/state': 0.5.1
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+      tslib: 2.8.1
+
   '@dnd-kit/sortable@10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@dnd-kit/core': 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@dnd-kit/utilities': 3.2.2(react@19.2.3)
       react: 19.2.3
+      tslib: 2.8.1
+
+  '@dnd-kit/state@0.5.1':
+    dependencies:
+      '@preact/signals-core': 1.14.5
       tslib: 2.8.1
 
   '@dnd-kit/utilities@3.2.2(react@19.2.3)':
@@ -18001,18 +18040,6 @@ snapshots:
       - utf-8-validate
 
   '@grammyjs/types@3.25.0': {}
-
-  '@hello-pangea/dnd@18.0.1(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
-    dependencies:
-      '@babel/runtime': 7.29.7
-      css-box-model: 1.2.1
-      raf-schd: 4.0.3
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
-      react-redux: 9.2.0(@types/react@19.2.7)(react@19.2.3)(redux@5.0.1)
-      redux: 5.0.1
-    transitivePeerDependencies:
-      - '@types/react'
 
   '@hono/node-server@1.19.10(hono@4.12.25)':
     dependencies:
@@ -19586,6 +19613,8 @@ snapshots:
   '@pnpm/deps.graph-sequencer@1100.0.1': {}
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@preact/signals-core@1.14.5': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -24097,10 +24126,6 @@ snapshots:
 
   crypt@0.0.2: {}
 
-  css-box-model@1.2.1:
-    dependencies:
-      tiny-invariant: 1.3.3
-
   css-select@5.2.2:
     dependencies:
       boolbase: 1.0.0
@@ -26961,10 +26986,6 @@ snapshots:
 
   lru_map@0.4.1: {}
 
-  lucide-react@0.525.0(react@19.2.3):
-    dependencies:
-      react: 19.2.3
-
   lucide-react@0.545.0(react@19.2.3):
     dependencies:
       react: 19.2.3
@@ -28156,11 +28177,6 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@6.15.0(ws@8.21.3)(zod@4.4.3):
-    optionalDependencies:
-      ws: 8.21.3
-      zod: 4.4.3
-
   openapi-types@12.1.3: {}
 
   opencollective-postinstall@2.0.3: {}
@@ -28838,8 +28854,6 @@ snapshots:
 
   race-signal@2.0.2: {}
 
-  raf-schd@4.0.3: {}
-
   random-int@3.1.0: {}
 
   range-parser@1.2.1: {}
@@ -29017,15 +29031,6 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react-dom'
 
-  react-redux@9.2.0(@types/react@19.2.7)(react@19.2.3)(redux@5.0.1):
-    dependencies:
-      '@types/use-sync-external-store': 0.0.6
-      react: 19.2.3
-      use-sync-external-store: 1.6.0(react@19.2.3)
-    optionalDependencies:
-      '@types/react': 19.2.7
-      redux: 5.0.1
-
   react-remove-scroll-bar@2.3.8(@types/react@19.2.7)(react@19.2.3):
     dependencies:
       react: 19.2.3
@@ -29136,8 +29141,6 @@ snapshots:
     dependencies:
       indent-string: 4.0.0
       strip-indent: 3.0.0
-
-  redux@5.0.1: {}
 
   reflect-metadata@0.2.2: {}
 
@@ -30085,8 +30088,6 @@ snapshots:
   systeminformation@5.33.8: {}
 
   tagged-tag@1.0.0: {}
-
-  tailwind-merge@2.6.1: {}
 
   tailwind-merge@3.4.0: {}
 

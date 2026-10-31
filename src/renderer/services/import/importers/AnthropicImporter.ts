@@ -368,8 +368,15 @@ export class AnthropicImporter implements ConversationImporter {
     const modelId = typeof conversation.model === 'string' ? conversation.model.trim() : ''
     const model = modelId ? this.toModelSnapshot(modelId) : DEFAULT_MODEL
 
-    const messages = usableMessages.map((message) =>
-      this.createMessage(message, model, resolveUsableSourceId(message.parent_message_uuid))
+    // Only flat exports imply ordering; explicit roots and branches remain authoritative,
+    // including parent metadata on messages filtered out of the import.
+    const hasParentPointers = conversation.chat_messages.some((message) => 'parent_message_uuid' in message)
+    const messages = usableMessages.map((message, index) =>
+      this.createMessage(
+        message,
+        model,
+        hasParentPointers ? resolveUsableSourceId(message.parent_message_uuid) : usableMessages[index - 1]?.uuid
+      )
     )
 
     return {

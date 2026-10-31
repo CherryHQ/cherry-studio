@@ -1,14 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Orchestration-layer tests for FileProcessingService.
  *
  * Verifies (1) handler registration on onInit, (2) mode + runtime → JobRegistry
- * type routing on startJob, (3) fresh job creation, and (4) listAvailableProcessors
+ * type routing on startTask, (3) fresh task creation, and (4) listAvailableProcessors
  * delegates to the processor registry. The JobManager itself is stubbed — its
  * idempotency / cancellation behavior is covered by JobManager's own
  * test suite; this layer just verifies we hand it the right arguments.
  */
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
@@ -79,7 +80,7 @@ vi.mock('../processors/registry', () => ({
 
 // Pre-populate the mocked processorRegistry before SUT import. `runtime` mirrors
 // the real registry: tesseract/system run on this machine, doc2x/mistral over a
-// socket — startJob routes background jobs by exactly this field.
+// socket — startTask routes background jobs by exactly this field.
 const tesseractHandler = { mode: 'background', prepare: vi.fn() }
 const doc2xHandler = { mode: 'remote-poll', prepare: vi.fn() }
 processorRegistryMock.tesseract = {
@@ -190,6 +191,9 @@ beforeEach(() => {
     if (name === 'JobManager') {
       return { enqueue: enqueueMock, registerHandler: registerHandlerMock }
     }
+    if (name === 'CacheService') {
+      return MockMainCacheServiceExport.cacheService
+    }
     if (name === 'FileManager') {
       return {
         getById: fileManagerGetByIdMock,
@@ -225,19 +229,11 @@ describe('FileProcessingService.onInit', () => {
   })
 })
 
-describe('FileProcessingService.startJob — routing', () => {
+describe('FileProcessingService.startTask — routing', () => {
   function makeSvc() {
     const svc = new FileProcessingService()
     ;(svc as unknown as { onInit(): void }).onInit()
-    enqueueMock.mockReturnValue({
-      id: 'job-test-1',
-      snapshot: {
-        id: 'job-test-1',
-        type: 'file-processing.background',
-        status: 'pending',
-        input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
-      }
-    })
+    enqueueMock.mockReturnValue({ id: 'job-test-1', finished: new Promise(() => {}) })
     return svc
   }
 
@@ -248,7 +244,7 @@ describe('FileProcessingService.startJob — routing', () => {
     })
     const svc = makeSvc()
 
-    await svc.startJob({
+    await svc.startTask({
       feature: 'image_to_text',
       file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
       processorId: 'tesseract'
@@ -256,8 +252,7 @@ describe('FileProcessingService.startJob — routing', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background-local',
-      entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
-      {}
+      entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
     )
   })
 
@@ -268,7 +263,7 @@ describe('FileProcessingService.startJob — routing', () => {
     })
     const svc = makeSvc()
 
-    await svc.startJob({
+    await svc.startTask({
       feature: 'document_to_markdown',
       file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
       processorId: 'mistral',
@@ -277,8 +272,7 @@ describe('FileProcessingService.startJob — routing', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background',
-      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'mistral', MARKDOWN_OUTPUT),
-      {}
+      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'mistral', MARKDOWN_OUTPUT)
     )
   })
 
@@ -289,7 +283,7 @@ describe('FileProcessingService.startJob — routing', () => {
     })
     const svc = makeSvc()
 
-    await svc.startJob({
+    await svc.startTask({
       feature: 'document_to_markdown',
       file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
       processorId: 'doc2x',
@@ -298,54 +292,30 @@ describe('FileProcessingService.startJob — routing', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.remote-poll',
-      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'doc2x', MARKDOWN_OUTPUT),
-      {}
+      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'doc2x', MARKDOWN_OUTPUT)
     )
   })
 
-  it('passes parent job linkage and restart recovery to JobManager enqueue options', async () => {
+  it('starts a fresh task for each call', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
     })
     const svc = makeSvc()
 
-    await svc.startJob(
-      {
-        feature: 'image_to_text',
-        file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
-        processorId: 'tesseract'
-      },
-      { parentId: 'parent-job-1', recovery: 'abandon' }
-    )
-
-    expect(enqueueMock).toHaveBeenCalledWith(
-      'file-processing.background-local',
-      entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
-      { parentId: 'parent-job-1', recovery: 'abandon' }
-    )
-  })
-
-  it('starts a fresh processing job for each call', async () => {
-    resolveProcessorConfigByFeatureMock.mockReturnValue({
-      id: 'tesseract',
-      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
-    })
-    const svc = makeSvc()
-
-    await svc.startJob({
+    await svc.startTask({
       feature: 'image_to_text',
       file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
       processorId: 'tesseract'
     })
-    await svc.startJob({
+    await svc.startTask({
       feature: 'image_to_text',
       file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
       processorId: 'tesseract'
     })
 
     expect(enqueueMock).toHaveBeenCalledTimes(2)
-    expect(enqueueMock.mock.calls.map((call) => call[2])).toEqual([{}, {}])
+    for (const call of enqueueMock.mock.calls) expect(call[2]?.idempotencyKey).toBeUndefined()
   })
 
   it('rejects when file type is not in the processor capability inputs', async () => {
@@ -356,7 +326,7 @@ describe('FileProcessingService.startJob — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startJob({
+      svc.startTask({
         feature: 'document_to_markdown',
         file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
         processorId: 'doc2x',
@@ -374,7 +344,7 @@ describe('FileProcessingService.startJob — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startJob({
+      svc.startTask({
         feature: 'document_to_markdown',
         file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
         processorId: 'doc2x'
@@ -397,7 +367,7 @@ describe('FileProcessingService.startJob — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startJob({
+      svc.startTask({
         feature: 'image_to_text',
         file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
         processorId: 'tesseract'
@@ -416,7 +386,7 @@ describe('FileProcessingService.startJob — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startJob({
+      svc.startTask({
         feature: 'document_to_markdown',
         file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
         processorId: 'tesseract',

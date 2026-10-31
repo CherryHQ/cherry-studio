@@ -1,6 +1,7 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
 import { KeyedMutex } from '@shared/utils/async'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
@@ -802,7 +803,7 @@ describe('reindex-subtree job handler', () => {
         input: {
           baseId: 'kb-1',
           itemId: FILE_ITEM_ID,
-          fileProcessingJobId: 'fp-job-1',
+          fileProcessingTaskId: 'fp-task-1',
           processedRelativePath: 'source.md'
         }
       })
@@ -827,7 +828,7 @@ describe('reindex-subtree job handler', () => {
   it('onSettled leaves a root that is still waiting on file processing', async () => {
     // A root scheduled before a later root's scheduling failed has no knowledge job yet.
     const fileProcessingWaits = new FileProcessingWaitManager()
-    fileProcessingWaits.add('kb-1', FILE_ITEM_ID, 'fp-job-1')
+    fileProcessingWaits.add('kb-1', FILE_ITEM_ID, 'fp-task-1' as FileProcessingTaskId)
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService, fileProcessingWaits)
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([
       createFileItem(FILE_ITEM_ID, 'processing'),

@@ -14,8 +14,9 @@ import { useMiniAppRuntime } from '@renderer/hooks/useMiniAppRuntime'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 import { getAppEdition } from '@renderer/utils/appEdition'
-import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
+import { miniAppIdFromTabUrl, miniAppResourceKey } from '@renderer/utils/miniAppKeepAlive'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -294,6 +295,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     if (cacheService.get('mini_app.split')?.appId === appId) cacheService.set('mini_app.split', null)
     const context = tabsContextRef.current
     context?.closeTabs(context.tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId).map((tab) => tab.id))
+    webviewRuntimeService.release(miniAppResourceKey(appId))
   }, [])
 
   const hideMiniApp = useCallback(
