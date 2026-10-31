@@ -117,6 +117,8 @@ export interface UseModelSelectorDataResult {
   getModelDescription: (model: Model) => string | undefined
   isModelUnavailable: (model: Model) => boolean
   isLoading: boolean
+  modelsError?: Error
+  providersError?: Error
   isPinActionDisabled: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]
