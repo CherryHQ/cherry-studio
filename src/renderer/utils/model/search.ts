@@ -1,3 +1,5 @@
+import { matchesPinyinInitials } from '@renderer/utils/pinyin'
+
 export type ModelSearchField = {
   value?: string | null
   /**
@@ -13,6 +15,8 @@ export type ModelSearchField = {
    */
   weight: number
   allowAbbreviation?: boolean
+  /** Chinese initials fallback; defaults to allowAbbreviation for model names and identifiers. */
+  allowPinyin?: boolean
 }
 
 function normalizeSearchSegment(value: string) {
@@ -104,6 +108,15 @@ function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
         const score = 2000 + field.weight * 100 + abbreviationSpan
         bestScore = bestScore === null ? score : Math.min(bestScore, score)
       }
+    }
+  }
+
+  if (bestScore !== null) return bestScore
+
+  for (const field of fields) {
+    if (field.value && (field.allowPinyin ?? field.allowAbbreviation) && matchesPinyinInitials(field.value, keyword)) {
+      const score = 2500 + field.weight * 100
+      bestScore = bestScore === null ? score : Math.min(bestScore, score)
     }
   }
 

@@ -14,6 +14,31 @@ import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 import { makeModel } from '../../__tests__/fixtures'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
 
+describe('Claude Opus 5.5 reasoning requests', () => {
+  const controls = inferReasoningControls('claude-opus-5-5')
+  const model = makeModel({
+    id: 'anthropic::claude-opus-5-5',
+    reasoning: {
+      controls,
+      selectableEfforts: controls?.flatMap((control) => (control.kind === 'effort' ? control.values : [])) ?? []
+    }
+  })
+  const profile = REASONING_FORMAT_PROFILES.anthropic.wire
+
+  it('sends xhigh adaptive thinking with visible summaries', () => {
+    const invocation = resolveReasoningInvocation({ selection: 'xhigh', model, profile })
+    expect(encodeReasoningInvocation(invocation)).toEqual({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      effort: 'xhigh'
+    })
+  })
+
+  it('does not send disabled thinking for a saved none selection', () => {
+    const invocation = resolveReasoningInvocation({ selection: 'none', model, profile })
+    expect(encodeReasoningInvocation(invocation)).toEqual({})
+  })
+})
+
 const budgetProfile: ReasoningWireProfile = {
   effort: {
     operations: [{ target: 'thinking.budgetTokens', value: { source: 'budget' } }],

@@ -253,7 +253,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined} className="sm:max-w-md">
+      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{t(isEditing ? 'settings.miniApps.custom.edit_title' : 'miniApp.add.title')}</DialogTitle>
         </DialogHeader>
@@ -261,7 +261,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         {isEditing ? (
           siteForm
         ) : (
-          <Tabs value={tab} onValueChange={(value) => setTab(value as AddTab)}>
+          <Tabs value={tab} onValueChange={(value) => setTab(value as AddTab)} className="min-w-0">
             <TabsList className="w-full">
               <TabsTrigger value="site" className="flex-1">
                 <Globe className="size-4" />

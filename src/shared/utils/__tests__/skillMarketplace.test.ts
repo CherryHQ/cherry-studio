@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildGithubSkillResult, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
+import { buildGithubSkillResult, parseGithubSkillUrl, parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
 
 describe('parseGithubSkillUrl', () => {
   it('reads owner, repo and the undivided ref-and-path from a blob URL', () => {
@@ -107,4 +107,39 @@ describe('buildGithubSkillResult', () => {
       expect(parseGithubSkillUrl(result!.installSource.slice('github:'.length))).toEqual(parseGithubSkillUrl(url))
     }
   )
+})
+
+describe('parseSkillSourceUrl', () => {
+  it.each([
+    [
+      'https://skills.sh/owner/repo/writer',
+      { sourceRegistry: 'skills.sh', installSource: 'skills.sh:owner/repo/writer' }
+    ],
+    ['https://clawhub.ai/owner/skills/writer', { sourceRegistry: 'clawhub.ai', installSource: 'clawhub:owner/writer' }],
+    [
+      'https://github.com/owner/repo/tree/main/skills/writer',
+      {
+        sourceRegistry: 'claude-plugins.dev',
+        installSource: 'claude-plugins:owner/repo/skills/writer'
+      }
+    ],
+    [
+      'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/writer/SKILL.md',
+      {
+        sourceRegistry: 'github',
+        installSource: 'github:https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/writer/SKILL.md'
+      }
+    ]
+  ])('restores an exact install source from %s', (sourceUrl, expected) => {
+    expect(parseSkillSourceUrl(sourceUrl)).toEqual(expected)
+  })
+
+  it.each([
+    'https://github.com/owner/repo',
+    'https://skills.sh/owner/repo',
+    'https://github.com/owner/repo/tree/main',
+    'https://github.com/owner/repo/tree/feature/skills/writer'
+  ])('rejects a source URL that does not identify one exact Skill (%s)', (sourceUrl) => {
+    expect(parseSkillSourceUrl(sourceUrl)).toBeNull()
+  })
 })

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
+import type OpenAI from '@cherrystudio/openai'
+
 import {
   OpenAiResponsesMessageConverter,
   type ResponsesCreateParams
 } from '../converters/OpenAiResponsesMessageConverter'
+import { AiSdkToOpenAiResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
 
 const converter = new OpenAiResponsesMessageConverter()
 
@@ -41,6 +44,92 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
       { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
     ])
   })
+
+  it.each(['streaming', 'non-streaming'] as const)(
+    'preserves the assistant answer when replaying %s gateway output with reasoning and a tool result',
+    (mode) => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      adapter.transformChunk({
+        type: 'reasoning-delta',
+        id: 'r1',
+        delta: 'Remember the token before looking up weather.'
+      })
+      adapter.transformChunk({ type: 'reasoning-end', id: 'r1' })
+      adapter.transformChunk({ type: 'text-delta', id: 't1', delta: 'The token is BLUE-739.' })
+      adapter.transformChunk({
+        type: 'tool-input-available',
+        toolCallId: 'c1',
+        toolName: 'get_weather',
+        input: { city: 'SF' }
+      })
+      adapter.transformChunk({ type: 'finish', finishReason: 'tool-calls' })
+      const completed = adapter.finalizeEvents().find((event) => event.type === 'response.completed')
+      expect(completed).toBeDefined()
+      const response = mode === 'streaming' ? completed!.response : adapter.buildNonStreamingResponse()
+
+      const msgs = converter.toUIMessages(
+        params({
+          input: [
+            { role: 'user', content: 'Choose a token, then check the weather.' },
+            ...response.output,
+            { type: 'function_call_output', call_id: 'c1', output: '72F' },
+            { role: 'user', content: 'What was the token you chose?' }
+          ]
+        })
+      )
+
+      expect(msgs.map(({ role, parts }) => ({ role, parts }))).toEqual([
+        { role: 'user', parts: [{ type: 'text', text: 'Choose a token, then check the weather.' }] },
+        { role: 'assistant', parts: [{ type: 'reasoning', text: 'Remember the token before looking up weather.' }] },
+        { role: 'assistant', parts: [{ type: 'text', text: 'The token is BLUE-739.' }] },
+        {
+          role: 'assistant',
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: 'get_weather',
+              toolCallId: 'c1',
+              state: 'output-available',
+              input: { city: 'SF' },
+              output: '72F'
+            }
+          ]
+        },
+        { role: 'user', parts: [{ type: 'text', text: 'What was the token you chose?' }] }
+      ])
+    }
+  )
+
+  it('preserves every output_text part in order when replaying an output message', () => {
+    const message: OpenAI.Responses.ResponseOutputMessage = {
+      type: 'message',
+      id: 'msg_1',
+      role: 'assistant',
+      status: 'completed',
+      content: [
+        { type: 'output_text', text: 'First paragraph.', annotations: [] },
+        { type: 'output_text', text: 'Second paragraph.', annotations: [] }
+      ]
+    }
+    expect(converter.toUIMessages(params({ input: [message] }))).toMatchObject([
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'text', text: 'First paragraph.' },
+          { type: 'text', text: 'Second paragraph.' }
+        ]
+      }
+    ])
+  })
+
+  it.each(['The token is BLUE-739.', [{ type: 'input_text' as const, text: 'The token is BLUE-739.' }]])(
+    'continues to accept assistant EasyInputMessage content: %j',
+    (content) => {
+      expect(converter.toUIMessages(params({ input: [{ role: 'assistant', content }] }))).toMatchObject([
+        { role: 'assistant', parts: [{ type: 'text', text: 'The token is BLUE-739.' }] }
+      ])
+    }
+  )
 
   it('pairs a function_call with its function_call_output into an output-available part', () => {
     const msgs = converter.toUIMessages(

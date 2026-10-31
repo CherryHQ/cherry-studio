@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 
-import Scrollbar from '@renderer/components/Scrollbar'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
@@ -30,12 +29,7 @@ export function ProviderSettingsContainer({
   className?: string
   children: ReactNode
 }) {
-  return (
-    <Scrollbar
-      className={cn('flex min-w-0 flex-1 flex-col [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}>
-      {children}
-    </Scrollbar>
-  )
+  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', className)}>{children}</div>
 }
 
 export function ProviderSettingsSubtitle({ children, className }: { children: ReactNode; className?: string }) {
@@ -48,7 +42,7 @@ export function ProviderSettingsSubtitle({ children, className }: { children: Re
 }
 
 export function ProviderHelpText({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('text-foreground opacity-40', providerSettingsTypography.label, className)}>{children}</div>
+  return <div className={cn('text-muted-foreground', providerSettingsTypography.label, className)}>{children}</div>
 }
 
 export function ProviderHelpTextRow({ children, className }: { children: ReactNode; className?: string }) {

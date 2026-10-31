@@ -1,6 +1,6 @@
 ---
 name: code-mate-gemini
-description: Runs Gemini CLI headlessly for repository analysis and coding tasks. Use when the user asks to delegate work to Gemini CLI or compare its result with another coding agent.
+description: Run Gemini CLI non-interactively for coding tasks. Use when the user asks to delegate work to Gemini.
 ---
 
 # Gemini CLI

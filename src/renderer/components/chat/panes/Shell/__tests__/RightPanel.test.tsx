@@ -4,6 +4,8 @@ import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } fr
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Tooltip } from '@cherrystudio/ui'
+
 import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
 import {
   RightPanel,
@@ -25,16 +27,28 @@ const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => (
-    <div
-      data-testid="tooltip-trigger"
-      data-content={typeof content === 'string' ? content : undefined}
-      data-disabled={isDisabled ? 'true' : undefined}>
-      {children}
-    </div>
-  )
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const { createContext, use } = await import('react')
+
+  const TooltipSurfaceContext = createContext(true)
+
+  return {
+    Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => {
+      const surfaceActive = use(TooltipSurfaceContext)
+      return (
+        <div
+          data-testid="tooltip-trigger"
+          data-content={typeof content === 'string' ? content : undefined}
+          data-disabled={isDisabled || !surfaceActive ? 'true' : undefined}>
+          {children}
+        </div>
+      )
+    },
+    TooltipSurface: ({ active = true, children }: PropsWithChildren<{ active?: boolean }>) => (
+      <TooltipSurfaceContext value={active}>{children}</TooltipSurfaceContext>
+    )
+  }
+})
 
 vi.mock('@renderer/components/ErrorBoundary', async () => {
   const { Component } = await import('react')
@@ -148,12 +162,17 @@ function StatefulPanel({ panelId, scope }: RightPanelComponentProps<TestScope>) 
   const [count, setCount] = useState(0)
   if (panelId === 'first' && scope.firstShouldThrow) throw new Error('render failed')
 
+  const counter = (
+    <button type="button" onClick={() => setCount((current) => current + 1)}>
+      {panelId}:{count}
+    </button>
+  )
+
   return (
     <>
       {panelId === 'first' && scope.firstHeaderMode === 'content' ? <RightPanelHeaderControls canMaximize /> : null}
-      <button type="button" onClick={() => setCount((current) => current + 1)}>
-        {panelId}:{count}
-      </button>
+      {/* Stands in for content like ClickableFilePath whose tooltip outlives the panel. */}
+      {panelId === 'second' ? <Tooltip content="second-tip">{counter}</Tooltip> : counter}
     </>
   )
 }
@@ -449,6 +468,26 @@ describe('RightPanel', () => {
     // tooltip wrapper may remount on state change, which would make an
     // assertion against the stale reference flaky even when behavior is right.
     expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
+  })
+
+  it('drops tooltips anchored in a panel hidden by switching to another panel', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    const findSecondTip = () =>
+      screen.getAllByTestId('tooltip-trigger').find((node) => node.getAttribute('data-content') === 'second-tip')
+    expect(findSecondTip()).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('first')
+    // The second panel's subtree stays mounted but Activity-hidden (display:none). A tooltip
+    // open over it never sees the leave events that would close it and Radix parks its content
+    // at the viewport origin, so the deactivated surface must disable it at once.
+    expect(findSecondTip()).toHaveAttribute('data-disabled', 'true')
   })
 
   it('keeps shell controls available when a content-composed panel fails to render', () => {

@@ -68,7 +68,7 @@ export interface HeadlessOverride {
   /** Which interaction facts make this turn "headless" for this rule — the three differ observably. */
   predicate: HeadlessPredicate
   reason: string
-  /** Only skill-install: its headless deny is lifted by an explicit bypassPermissions opt-out. */
+  /** The headless deny is lifted by bypassPermissions, the user's explicit unattended opt-in. */
   skipHeadlessDenyInBypass?: true
 }
 

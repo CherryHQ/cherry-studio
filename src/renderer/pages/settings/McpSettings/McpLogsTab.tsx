@@ -74,7 +74,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
               </Badge>
               <LogMessage>{log.message}</LogMessage>
             </LogHeader>
-            {log.data && <PreBlock>{formatMcpLogData(log.data)}</PreBlock>}
+            {log.data !== undefined && <PreBlock>{formatMcpLogData(log.data)}</PreBlock>}
           </LogItem>
         ))}
       </LogList>

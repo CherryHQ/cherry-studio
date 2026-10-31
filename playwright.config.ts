@@ -5,8 +5,8 @@ import { defineConfig } from '@playwright/test'
  * See https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  // Look for test files in the specs directory
-  testDir: './tests/e2e/specs',
+  // Look for test files in the smoke directory
+  testDir: './tests/e2e/smoke',
 
   // Global timeout for each test
   timeout: 60000,
@@ -30,8 +30,8 @@ export default defineConfig({
   reporter: [['html', { outputFolder: 'playwright-report' }], ['list']],
 
   // Global setup and teardown
-  globalSetup: './tests/e2e/global-setup.ts',
-  globalTeardown: './tests/e2e/global-teardown.ts',
+  globalSetup: './tests/e2e/smoke/globalSetup.ts',
+  globalTeardown: './tests/e2e/smoke/globalTeardown.ts',
 
   // Output directory for test artifacts
   outputDir: './test-results',
@@ -58,7 +58,7 @@ export default defineConfig({
   projects: [
     {
       name: 'electron',
-      testMatch: '**/*.spec.ts'
+      testMatch: '**/*.test.ts'
     }
   ]
 })

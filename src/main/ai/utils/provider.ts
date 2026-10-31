@@ -50,6 +50,8 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
   const isTokenDance = matchesPreset(provider, SystemProviderIds.tokendance)
   const isRadeonCloud = matchesPreset(provider, SystemProviderIds['radeon-cloud'])
+  const isPerplexity = matchesPreset(provider, SystemProviderIds.perplexity)
+  const hasPerplexityIntegration = Object.keys(headers).some((name) => name.toLowerCase() === 'x-pplx-integration')
 
   for (const name of Object.keys(headers)) {
     const normalizedName = name.toLowerCase()
@@ -58,6 +60,7 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
     }
   }
   return {
+    ...(isPerplexity && !hasPerplexityIntegration ? { 'X-Pplx-Integration': 'cherry-studio' } : {}),
     ...headers,
     ...(isTokenDance ? { 'X-App-URL': TOKEN_DANCE_APP_URL } : {}),
     ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {})
@@ -86,6 +89,15 @@ export function defaultHeaders(provider: Provider): Record<string, string> {
     apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : undefined,
     getExtraHeaders(provider)
   )
+}
+
+/**
+ * App defaults plus the user's extra headers, never the stored API key: for a
+ * provider that authenticates with nothing, where sending the key would hand a
+ * credential to whatever host the base URL points at.
+ */
+export function headersWithoutCredentials(provider: Provider): Record<string, string> {
+  return mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
 }
 
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {

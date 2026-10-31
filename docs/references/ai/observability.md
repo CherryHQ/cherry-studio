@@ -103,10 +103,7 @@ agent-session trace context supplied by the host and flow through the existing
 `NodeTraceService` and `TraceStorageService`; parallel tool calls are tracked by
 tool-call id and unfinished spans are closed when the connection ends.
 
-DSH likewise uses Cherry-owned spans instead of an external OTLP adapter.
-`DshTraceRecorder` records `dsh.generate_content`, tool, compaction, and child
-runtime spans under the agent-session trace root, refreshes its trace context
-between turns, and closes unfinished spans when the connection ends.
+Historical DSH trace spans remain readable; no DSH runtime produces new spans.
 
 ## Sensitive data capture & redaction
 

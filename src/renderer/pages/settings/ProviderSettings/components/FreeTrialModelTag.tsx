@@ -2,7 +2,7 @@ import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import IndicatorLight from '@renderer/components/IndicatorLight'
+import { IndicatorLight } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/tags/CustomTag'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'

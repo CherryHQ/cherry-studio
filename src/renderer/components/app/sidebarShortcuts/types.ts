@@ -18,7 +18,15 @@ export interface SidebarActivationGateway {
       title: string
       icon?: string
       conversation?: ConversationNavigationTarget
+      /** Whether the active view already renders this destination, so activation can no-op. */
       matchesCurrent?: (url: string) => boolean
+      /**
+       * Whether a tab IS this destination, used to focus it instead of repurposing the active tab.
+       * Defaults to exact URL equality; view-only destinations (apps) opt out with `() => false`.
+       */
+      matchesTab?: (url: string) => boolean
+      /** Pending activation request, independent of conversation identity. */
+      metadata?: { agentPinPending?: boolean }
     },
     options?: { inNewTab?: boolean }
   ): void

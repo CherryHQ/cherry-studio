@@ -1,0 +1,182 @@
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
+
+import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
+
+import type { BuiltinAssistantAgentIdentity } from '../../../scripts/e2e/regression/builtinAgents'
+import { resolveBuiltinAssistantAgent } from '../../../scripts/e2e/regression/builtinAgents'
+import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
+import type { OffsetPaginationResponse } from '../../../src/shared/data/api/types'
+import { selectVisibleModel } from './models'
+import { selectSidebarApp } from './navigation'
+import type { RegressionApp } from './RegressionApp'
+
+export async function startBuiltinAssistantTask(page: Page): Promise<void> {
+  const { status, data } = await page.evaluate(async () => {
+    const { status, data } = await window.api.dataApi.request({
+      id: `regression-builtin-assistant-${crypto.randomUUID()}`,
+      method: 'GET',
+      path: '/agents',
+      params: { page: 1, limit: 500 }
+    })
+    return { status, data }
+  })
+  if (status !== 200) throw new Error(`GET /agents failed (status ${status})`)
+  if (!data) throw new Error('GET /agents returned no data')
+
+  const list = data as unknown as OffsetPaginationResponse<BuiltinAssistantAgentIdentity>
+  const resolved = resolveBuiltinAssistantAgent(list)
+  const sameNameCount = list.items.filter((agent) => agent.name === resolved.name).length
+  if (sameNameCount > 1) {
+    throw new Error(
+      `Cannot locate built-in assistant agent ID: display name ${resolved.name} is shared by ${sameNameCount} agents`
+    )
+  }
+
+  await selectSidebarApp(page, 'Work')
+
+  const view = page.locator('[data-ui~="agent.view"]:visible')
+  await expect(view).toHaveCount(1, { timeout: 30_000 })
+  await expect(view).toBeVisible({ timeout: 30_000 })
+
+  const entry = view
+    .locator('div[class~="group/resource-list-group"]')
+    .filter({
+      has: page.getByRole('button', {
+        name: resolved.name,
+        exact: true
+      })
+    })
+    .filter({
+      has: page.getByRole('button', {
+        name: 'New task',
+        exact: true,
+        includeHidden: true
+      })
+    })
+
+  await expect(entry).toHaveCount(1)
+
+  const header = entry.getByRole('button', {
+    name: resolved.name,
+    exact: true
+  })
+  await expect(header).toHaveCount(1)
+  await header.click({ noWaitAfter: true })
+  await header.hover()
+
+  const newTask = entry.getByRole('button', {
+    name: 'New task',
+    exact: true
+  })
+  await expect(newTask).toHaveCount(1)
+  await expect(newTask).toBeVisible()
+  await newTask.click()
+
+  await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
+}
+
+export async function createAgent(
+  page: Page,
+  options: { name: string; runtime: string; model: string; permission?: string }
+): Promise<void> {
+  await selectSidebarApp(page, 'Work')
+  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  await expect(agentView).toBeVisible({ timeout: 30_000 })
+  if (
+    await agentView
+      .getByText(options.name, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
+    await agentView.getByText(options.name, { exact: true }).first().click({ noWaitAfter: true })
+    return
+  }
+
+  await agentView.getByRole('button', { name: 'Add Agent', exact: true }).click()
+  const dialog = page.getByRole('dialog').last()
+  await dialog.getByPlaceholder('Enter a name', { exact: true }).fill(options.name)
+  await dialog.getByLabel('Runtime mode').getByText(options.runtime, { exact: true }).click()
+  if (options.permission) {
+    const permission = dialog.getByRole('combobox', { name: 'Permission mode', exact: true })
+    await permission.click()
+    await dialog.getByText(options.permission, { exact: true }).last().click()
+  }
+  await dialog.getByRole('button', { name: 'Model', exact: true }).click()
+  await selectVisibleModel(page, options.model)
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(agentView.getByText(options.name, { exact: true }).first()).toBeVisible()
+}
+
+export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {
+  const agentView = page.locator('[data-ui~="agent.view"]:visible')
+  const current = agentView.getByRole('button', {
+    name: new RegExp(`^(?:Select work directory|No work directory|${app.workspaceName})$`)
+  })
+  if ((await current.textContent())?.includes(app.workspaceName)) return
+  await current.click()
+  const existing = page.getByText(app.workspaceName, { exact: true })
+  if (await existing.isVisible().catch(() => false)) {
+    await existing.click()
+  } else {
+    await page.getByText('Add new work directory', { exact: true }).click()
+    chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
+  }
+  await expect(agentView.getByRole('button', { name: app.workspaceName, exact: true })).toBeVisible({ timeout: 30_000 })
+}
+
+export async function runAgentFileTask(
+  app: RegressionApp,
+  page: Page,
+  fileName: string,
+  approve: boolean,
+  timeout = 5 * 60_000
+): Promise<void> {
+  const output = join(app.paths.workspace, fileName)
+  rmSync(output, { force: true })
+  const promptPath = output.replaceAll('\\', '/')
+  const prompt = `Create the file at the exact absolute path ${JSON.stringify(promptPath)} containing only AGENT_FILE_TASK_PASS, with no extra text or trailing newline.`
+  const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
+  const messages = page.locator('[data-ui~="chat.message"]:visible')
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const retryPrefix = attempt === 0 ? '' : 'The previous task completed without creating the required file. '
+    await composer.fill(`${retryPrefix}${prompt}`)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+
+    let created = false
+    await expect
+      .poll(
+        async () => {
+          if (approve) {
+            const allow = page.getByRole('button', { name: /Allow/ }).first()
+            if (await allow.isVisible().catch(() => false)) await allow.click()
+          }
+          try {
+            const { validateFileEvidence } = await import('../../../scripts/e2e/regression/fileEvidence')
+            await validateFileEvidence(output, { exactText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+            created = true
+          } catch {
+            created = false
+          }
+          return await messages
+            .last()
+            .getByTestId('completed-process-trigger')
+            .isVisible()
+            .catch(() => false)
+        },
+        { timeout }
+      )
+      .toBe(true)
+    if (created) {
+      return
+    }
+  }
+
+  const { validateFileEvidence } = await import('../../../scripts/e2e/regression/fileEvidence')
+  await validateFileEvidence(output, { exactText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+}

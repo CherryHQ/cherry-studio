@@ -1,3 +1,4 @@
+import { normalizeContext } from '@earendil-works/pi-ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { normalizeCherryInThinkingReplay, withCherryInThinkingReplay } from './piThinkingReplay'
@@ -26,7 +27,7 @@ describe('CherryIN thinking replay', () => {
     }
     const context = { messages: [message] }
 
-    expect(normalizeCherryInThinkingReplay(context)).toEqual({
+    expect(normalizeCherryInThinkingReplay(normalizeContext(context))).toEqual({
       messages: [
         {
           ...message,
@@ -60,7 +61,7 @@ describe('CherryIN thinking replay', () => {
       ]
     }
 
-    expect(normalizeCherryInThinkingReplay(context)).toBe(context)
+    expect(normalizeCherryInThinkingReplay(normalizeContext(context))).toEqual(normalizeContext(context))
   })
 
   it('normalizes context before delegating to the Anthropic stream', () => {
@@ -86,7 +87,7 @@ describe('CherryIN thinking replay', () => {
       ]
     }
 
-    expect(config.streamSimple!({} as never, context, {})).toBe(stream)
+    expect(config.streamSimple!({} as never, normalizeContext(context), {})).toBe(stream)
     const delegatedContext = (delegate.mock.calls as unknown as [unknown, typeof context][])[0]?.[1]
     expect(delegatedContext?.messages[0].content[0]).toEqual({
       type: 'thinking',

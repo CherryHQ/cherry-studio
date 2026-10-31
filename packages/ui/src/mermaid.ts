@@ -1,0 +1,5 @@
+export type { FontFaceSource } from './lib/mermaid/fonts'
+export { loadMermaidRuntime, renderMermaidSvg } from './lib/mermaid/runtime'
+export type { RenderMermaidOptions } from './lib/mermaid/runtime'
+export { resolveMermaidTheme } from './lib/mermaid/theme'
+export type { MermaidTheme } from './lib/mermaid/theme'

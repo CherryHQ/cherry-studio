@@ -139,6 +139,15 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     packageName: 'hermes-agent',
     install: 'pipx',
     pipxExtras: ['web']
+  }),
+  defineCodeCliTool({
+    id: CodeCli.MINIMAX_CODE,
+    executable: 'mcode',
+    skillFolderName: 'code-mate-minimax-code',
+    packageName: '@minimax-ai/code',
+    install: 'npm',
+    // The optional better-sqlite3 dependency builds from source via lifecycle scripts.
+    npmAllowBuilds: ['@minimax-ai/code', 'better-sqlite3']
   })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 
@@ -150,7 +159,8 @@ export const CODE_CLI_TOOL_PRESET_MAP = Object.freeze(
 )
 
 export const CODE_CLI_TOOL_PRESET_BY_EXECUTABLE = Object.freeze(
-  Object.fromEntries(CODE_CLI_TOOL_PRESETS.map((preset) => [preset.executable, preset])) as Readonly<
-    Record<string, (typeof CODE_CLI_TOOL_PRESETS)[number] | undefined>
-  >
+  Object.assign(
+    Object.create(null),
+    Object.fromEntries(CODE_CLI_TOOL_PRESETS.map((preset) => [preset.executable, preset]))
+  ) as Readonly<Record<string, (typeof CODE_CLI_TOOL_PRESETS)[number] | undefined>>
 )

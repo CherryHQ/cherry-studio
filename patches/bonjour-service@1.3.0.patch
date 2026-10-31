@@ -1,0 +1,33 @@
+diff --git a/dist/lib/service.d.ts b/dist/lib/service.d.ts
+index 40de8073ff0782aa171debd7f3bc56f91fb93a92..2578f53bd6dac64c9afe13f55cb72b2a8fbd6203 100644
+--- a/dist/lib/service.d.ts
++++ b/dist/lib/service.d.ts
+@@ -11,6 +11,7 @@ export interface ServiceConfig {
+     txt?: KeyValue;
+     probe?: boolean;
+     disableIPv6?: boolean;
++    addresses?: Array<string>;
+ }
+ export interface ServiceRecord {
+     name: string;
+diff --git a/dist/lib/service.js b/dist/lib/service.js
+index 41da95a46fe1bc58cee6f1ba1fd4ef24a773a3e6..056eea49d17bfac637aab39ac5a464a88e9cfb96 100644
+--- a/dist/lib/service.js
++++ b/dist/lib/service.js
+@@ -32,6 +32,7 @@ class Service extends events_1.EventEmitter {
+         this.txt = config.txt;
+         this.subtypes = config.subtypes;
+         this.disableIPv6 = !!config.disableIPv6;
++        this.addresses = config.addresses;
+     }
+     records() {
+         var records = [this.RecordPTR(this), this.RecordSRV(this), this.RecordTXT(this)];
+@@ -42,7 +43,7 @@ class Service extends events_1.EventEmitter {
+         for (let iface of ifaces) {
+             let addrs = iface;
+             for (let addr of addrs) {
+-                if (addr.internal || addr.mac === '00:00:00:00:00:00')
++                if ((this.addresses && !this.addresses.includes(addr.address)) || addr.internal || addr.mac === '00:00:00:00:00:00')
+                     continue;
+                 switch (addr.family) {
+                     case 'IPv4':
