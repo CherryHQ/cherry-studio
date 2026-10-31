@@ -276,7 +276,11 @@ export class PiProjection {
   }
 
   private async event(event: AgentSessionEvent): Promise<void> {
-    if (event.type === 'compaction_end' && event.result) this.reset(this.session)
+    if (
+      (event.type === 'compaction_end' && event.result) ||
+      (event.type === 'entry_appended' && event.entry.type === 'compaction')
+    )
+      this.reset(this.session)
     if (event.type === 'entry_appended' && event.entry.type === 'custom_message') {
       for (const message of sessionEntryToContextMessages(event.entry)) this.write(message, event.entry.id, 'complete')
     }
