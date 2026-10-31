@@ -14,7 +14,7 @@ import {
 import type { ComposerDraftToken, ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { createQuoteToken } from '@renderer/components/composer/variants/shared/composerQuote'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
-import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useSelectionAgents } from '@renderer/hooks/useSelectionAgents'
 import { ClaudeCodeDownloadStatus } from '@renderer/pages/agents/ClaudeCodeDownloadStatus'
 import { useClaudeCodeBinary } from '@renderer/pages/agents/useClaudeCodeBinary'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -83,12 +83,12 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
     actions.focus('end')
   }, [])
 
-  const { agents, isLoading: agentsLoading } = useAgents()
+  const agents = useSelectionAgents([target.agentId])
   const agent = target.agentId
-    ? agents.find((candidate) => candidate.id === target.agentId)
-    : agents.find((candidate) => candidate.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT)
+    ? agents?.find((candidate) => candidate.id === target.agentId)
+    : agents?.find((candidate) => candidate.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT)
   // A missing Cherry Assistant is recreated on send, so only a bound agent can be unavailable here.
-  const issue = agentsLoading || (!target.agentId && !agent) ? null : getSelectionAgentIssue(agent)
+  const issue = !agents || (!target.agentId && !agent) ? null : getSelectionAgentIssue(agent)
   const binary = useClaudeCodeBinary(agent?.type === 'claude-code')
   const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
   useDataChange('/agent-workspaces', () => void refetchWorkspaces())

@@ -1,9 +1,10 @@
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { AGENTS_DEFAULT_LIMIT, type AgentEntity, type ListAgentsQueryParams } from '@shared/data/api/schemas/agents'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import SelectionToolbar from '../SelectionToolbar'
 
@@ -93,12 +94,26 @@ function pushSelection(text: string, isFullscreen = false, programName = '') {
 }
 
 const agentPage = (items: AgentEntity[]) => ({ items, total: items.length, page: 1 })
+const ACTION_ITEMS = mocks.actionItems
+
+/** Answers `/agents` the way the endpoint does: filter by `ids` and `builtinRole`, then take one page. */
+function serveAgents(library: AgentEntity[]) {
+  mockUseQuery.mockImplementation((_path: string, options?: { query?: ListAgentsQueryParams; enabled?: boolean }) => {
+    const { ids, builtinRole, limit = AGENTS_DEFAULT_LIMIT } = options?.query ?? {}
+    const matches = library.filter(
+      (agent) => (!ids || ids.includes(agent.id)) && (!builtinRole || agent.configuration?.builtin_role === builtinRole)
+    )
+    const data = options?.enabled === false ? undefined : agentPage(matches.slice(0, limit))
+    return { data, isLoading: false, isRefreshing: false, refetch: vi.fn(), mutate: vi.fn() }
+  })
+}
 
 describe('SelectionToolbar actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/agents', agentPage([]))
+    mocks.actionItems = ACTION_ITEMS
     mocks.handlers.clear()
     mocks.ipcRequest.mockResolvedValue(true)
     Object.assign(window, {
@@ -181,5 +196,38 @@ describe('SelectionToolbar actions', () => {
       'selection.action.agent_issue.agent_unavailable'
     )
     expect(screen.getByRole('button', { name: 'Summary' })).not.toHaveAttribute('aria-description')
+  })
+
+  it('judges bound agents and Cherry Assistant even when they sit past the first page of the library', () => {
+    const library = Array.from(
+      { length: 600 },
+      (_, index) =>
+        ({
+          id: `agent-${index}`,
+          name: `Agent ${index}`,
+          model: createUniqueModelId('openai', 'gpt-5'),
+          modelName: 'GPT-5',
+          configuration: {}
+        }) as AgentEntity
+    )
+    library[599] = {
+      ...library[599],
+      id: 'cherry',
+      model: null,
+      modelName: null,
+      configuration: { builtin_role: 'assistant' }
+    }
+    serveAgents(library)
+    mocks.actionItems = ACTION_ITEMS.map((item) =>
+      item.id === 'user-agent' ? { ...item, agentId: 'agent-550' } : item
+    )
+
+    render(<SelectionToolbar />)
+
+    expect(screen.getByRole('button', { name: 'Research' })).not.toHaveAttribute('aria-description')
+    expect(screen.getByRole('button', { name: 'Ask Agent' })).toHaveAttribute(
+      'aria-description',
+      'selection.action.agent_issue.no_model'
+    )
   })
 })

@@ -35,7 +35,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
     return <div>{props.renderLeftControls?.()}</div>
   }
 }))
-vi.mock('@renderer/hooks/agent/useAgent', () => ({ useAgents: () => ({ agents: mocks.agents, isLoading: false }) }))
+vi.mock('@renderer/hooks/useSelectionAgents', () => ({ useSelectionAgents: () => mocks.agents }))
 vi.mock('@renderer/pages/agents/useClaudeCodeBinary', () => ({
   useClaudeCodeBinary: () => ({ status: { phase: 'ready' }, blocked: false, retry: () => undefined })
 }))
