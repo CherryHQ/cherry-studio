@@ -48,8 +48,9 @@ remain shared. Pi retains text/path input, including prompt, steer, and history
 reconstruction. Both preserve delivery trust boundaries. This ordering does
 not add media support to a runtime or prove how a model interprets references.
 
-Display does not hoist marked files. Editing restores file tokens from part
-positions; copy and Markdown export traverse that order without adding numbers.
+Message bubbles retain their existing attachment layout; visual order need not
+match Composer order. Editing restores file tokens from part positions; copy and
+Markdown export traverse that order without adding numbers.
 Unmarked messages keep legacy conversion rules. Explicitly editing an old
 message upgrades the new submission, preserving known identities and appending
 unmatched legacy attachments at the end of the draft.

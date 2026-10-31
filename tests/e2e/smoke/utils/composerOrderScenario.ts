@@ -166,9 +166,6 @@ export async function verifyComposerOrder(page: Page, selectFile: (file: string)
     await expect(sent).toContainText('ORDER_AFTER')
     await expect(uiLocator(sent, 'chat.image-block')).toHaveCount(1)
     await expect(sent.getByRole('button', { name: 'order', exact: true })).toHaveCount(1)
-    const text = await sent.innerText()
-    expect(text.indexOf('ORDER_BETWEEN')).toBeLessThan(text.indexOf('order\n'))
-    expect(text.indexOf('order\n')).toBeLessThan(text.indexOf('ORDER_AFTER'))
     await sent.screenshot({ path: path.join(output, 'sent-after-reload.png'), timeout: 10000 })
     const persisted = await page.evaluate(
       (topicId) =>

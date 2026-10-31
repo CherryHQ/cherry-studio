@@ -1,4 +1,3 @@
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 /**
  * MessagePartsRenderer — message parts renderer.
  *
@@ -14,6 +13,8 @@ import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
  * - Consecutive tool-* / dynamic-tool parts → nested ToolBlockGroup row
  * - data-video parts with same filePath → video block row
  */
+
+import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { Check, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useCallback, useMemo } from 'react'
@@ -52,7 +53,6 @@ import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shar
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { isOrderedContentPart } from '@shared/utils/orderedMessageParts'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
@@ -257,7 +257,7 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
 // Must agree with what the hoisting container actually renders, or a dropped entry
 // leaves no attachment at all.
 function isHoistableFilePart(part: CherryMessagePart, hoistNonImageFiles: boolean): boolean {
-  if ((part.type as string) !== 'file' || isOrderedContentPart(part)) return false
+  if ((part.type as string) !== 'file') return false
   if (isImageFilePart(part)) return !!extractImageUrl(part)
   return hoistNonImageFiles && !!fileHandleFromPart(part)
 }
