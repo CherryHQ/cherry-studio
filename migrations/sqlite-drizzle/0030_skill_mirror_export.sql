@@ -1,0 +1,1 @@
+ALTER TABLE `agent_global_skill` ADD `mirror_enabled` integer DEFAULT true NOT NULL;

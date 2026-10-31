@@ -143,6 +143,7 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
       sourceTags: [],
       contentHash: 'hash',
       isGlobalEnabled: true,
+      mirrorEnabled: true,
       isEnabled: false,
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z'
