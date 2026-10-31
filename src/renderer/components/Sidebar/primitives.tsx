@@ -3,22 +3,6 @@ import { isEmoji } from '@renderer/utils/naming'
 
 import type { SidebarUser } from './types'
 
-export function ActiveIndicator({ className, glow = false }: { className?: string; glow?: boolean }) {
-  return (
-    <>
-      <div
-        className={`pointer-events-none absolute inset-0 border border-[var(--sidebar-active-border)] ${className ?? ''}`}
-      />
-      {glow && (
-        <div className="pointer-events-none absolute top-1/2 right-0 flex -translate-y-1/2 items-center">
-          <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-[var(--sidebar-glow-bg)] blur-[6px]" />
-          <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-[var(--sidebar-glow-line)] blur-[2px]" />
-        </div>
-      )}
-    </>
-  )
-}
-
 export function DefaultLogo({ title }: { title: string }) {
   return (
     <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
@@ -47,19 +31,11 @@ function getUserAvatarFallback(user?: SidebarUser) {
   return user?.name ? user.name.slice(0, 1).toUpperCase() : ''
 }
 
-export function UserAvatar({
-  user,
-  className,
-  ring = true
-}: {
-  user: SidebarUser
-  className?: string
-  ring?: boolean
-}) {
+export function UserAvatar({ user, className }: { user: SidebarUser; className?: string }) {
   const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
 
   return (
-    <div className={`overflow-hidden rounded-full ${ring ? 'ring-1 ring-border' : ''} ${className ?? ''}`}>
+    <div className={`overflow-hidden rounded-full ${className ?? ''}`}>
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
       ) : isEmojiAvatar ? (

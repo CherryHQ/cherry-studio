@@ -2,11 +2,12 @@ import { EventEmitter } from 'events'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 
+import { UnauthorizedError } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CallBackServer } from '../callback'
 
-describe('CallBackServer.waitForAuthCode', () => {
+describe('CallBackServer.waitForAuthCallback', () => {
   let events: EventEmitter
   let server: CallBackServer
 
@@ -23,33 +24,51 @@ describe('CallBackServer.waitForAuthCode', () => {
     await server.close()
   })
 
-  it('resolves with the code when auth-code-received fires before the timeout', async () => {
-    const promise = server.waitForAuthCode(1000)
-
-    events.emit('auth-code-received', 'the-auth-code')
-
-    await expect(promise).resolves.toBe('the-auth-code')
+  it('cancels authorization immediately and removes the callback waiter', async () => {
+    const controller = new AbortController()
+    const waiting = server.waitForAuthCallback(300_000, controller.signal)
+    controller.abort(new Error('request cancelled'))
+    await expect(waiting).rejects.toThrow('request cancelled')
+    expect(events.listenerCount('auth-callback-received')).toBe(0)
   })
 
-  it('rejects when no auth-code-received fires within the timeout', async () => {
-    const promise = server.waitForAuthCode(1000)
-    const assertion = expect(promise).rejects.toThrow(/Timed out waiting for OAuth authorization code/)
+  it('resolves with all callback parameters before the timeout', async () => {
+    const promise = server.waitForAuthCallback(1000)
 
-    await vi.advanceTimersByTimeAsync(1000)
+    events.emit('auth-callback-received', new URLSearchParams('code=the-auth-code&iss=https%3A%2F%2Fissuer&state=s'))
 
-    await assertion
+    const params = await promise
+    expect(Object.fromEntries(params)).toEqual({
+      code: 'the-auth-code',
+      iss: 'https://issuer',
+      state: 's'
+    })
   })
+
+  it.each(['own timer', 'connect deadline'])(
+    'reports an abandoned consent page as unauthorized when the %s expires',
+    async (source) => {
+      const controller = new AbortController()
+      const promise = server.waitForAuthCallback(1000, controller.signal)
+      const assertion = expect(promise).rejects.toBeInstanceOf(UnauthorizedError)
+
+      if (source === 'own timer') await vi.advanceTimersByTimeAsync(1000)
+      else controller.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))
+
+      await assertion
+    }
+  )
 
   it('does not reject after resolving (timer is cleared on success)', async () => {
-    const promise = server.waitForAuthCode(1000)
-    events.emit('auth-code-received', 'first-code')
+    const promise = server.waitForAuthCallback(1000)
+    events.emit('auth-callback-received', new URLSearchParams('code=first-code'))
 
-    await expect(promise).resolves.toBe('first-code')
+    await expect(promise).resolves.toBeInstanceOf(URLSearchParams)
 
     // Advancing past the original timeout must not trigger any late rejection,
     // and the listener must have been removed (no leak for a second emit).
     await vi.advanceTimersByTimeAsync(2000)
-    expect(events.listenerCount('auth-code-received')).toBe(0)
+    expect(events.listenerCount('auth-callback-received')).toBe(0)
   })
 
   it('retains a callback received before the authorization-code waiter is attached', async () => {
@@ -66,7 +85,7 @@ describe('CallBackServer.waitForAuthCode', () => {
     })
 
     expect(status).toBe(200)
-    await expect(server.waitForAuthCode(100)).resolves.toBe('early-code')
+    expect((await server.waitForAuthCallback(100)).get('code')).toBe('early-code')
   })
 
   it('close resolves when listen failed so a bind failure can reject first', async () => {

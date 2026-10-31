@@ -1,5 +1,8 @@
 import '@data/services/AgentSessionMessageService'
+import type { Client } from '@modelcontextprotocol/client'
+import { McpServer } from '@modelcontextprotocol/server'
 import { setupTestDatabase } from '@test-helpers/db'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -15,7 +18,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 
-import { CherryAutonomyTools } from '../cherryAutonomyTools'
+import { registerAutonomyTools } from '../cherryAutonomyTools'
 
 vi.mock('@main/ai/agents/runAgentTask', () => ({ runAgentTask: vi.fn(async () => ({})) }))
 
@@ -24,19 +27,32 @@ const OTHER_AGENT_ID = 'cron-other'
 const CHANNEL_ID = 'cron-channel'
 const FUTURE_TIME = Date.now() + 3_600_000
 
-function createTools(agentId = AGENT_ID, channelIds: string[] = []) {
-  return new CherryAutonomyTools({
-    agentId,
-    sessionId: 'cron-session',
-    workspaceSource: { type: 'system' },
-    workspacePath: '/tmp/cherry-cron-test',
-    trustedNotifyChannels: channelIds.map((id) => ({ id, type: 'telegram' })),
-    getKnowledgeBaseIds: () => []
+type Result = { isError?: boolean; content: Array<{ type: string; text?: string }> }
+const clients: Client[] = []
+
+async function createTools(agentId = AGENT_ID, channelIds: string[] = []) {
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerAutonomyTools(server, {
+      agentId,
+      sessionId: 'cron-session',
+      workspaceSource: { type: 'system' },
+      workspacePath: '/tmp/cherry-cron-test',
+      trustedNotifyChannels: channelIds.map((id) => ({ id, type: 'telegram' })),
+      allowAnyOwnedNotifyChannel: false
+    })
+    return server
   })
+  clients.push(client)
+  return {
+    call: (name: string, args: Record<string, unknown>) =>
+      client.callTool({ name, arguments: args }) as Promise<Result>,
+    listTools: () => client.listTools()
+  }
 }
 
-function resultText(result: Awaited<ReturnType<CherryAutonomyTools['call']>>): string {
-  return result.content.flatMap((item) => (item.type === 'text' ? [item.text] : [])).join('\n')
+function resultText(result: Result): string {
+  return result.content.flatMap((item) => (item.type === 'text' ? [item.text ?? ''] : [])).join('\n')
 }
 
 describe('cron tool persisted task contract', () => {
@@ -86,6 +102,7 @@ describe('cron tool persisted task contract', () => {
   })
 
   afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
     await jobs._doStop()
     await scheduler._doStop()
     BaseService.resetInstances()
@@ -104,10 +121,9 @@ describe('cron tool persisted task contract', () => {
     })
   }
 
-  it('advertises update and reuse_session to the Agent', () => {
-    const schema = createTools()
-      .tools()
-      .find((tool) => tool.name === 'cron')!.inputSchema
+  it('advertises update and reuse_session to the Agent', async () => {
+    const { tools } = await (await createTools()).listTools()
+    const schema = tools.find((tool) => tool.name === 'cron')!.inputSchema
     expect(schema.properties?.action).toMatchObject({ enum: ['add', 'update', 'list', 'remove'] })
     expect(schema.properties?.reuse_session).toMatchObject({ type: 'boolean' })
   })
@@ -127,7 +143,9 @@ describe('cron tool persisted task contract', () => {
       })
     ).toBe(true)
     const before = jobScheduleService.getById(task.id)!
-    const result = await createTools().call('cron', { action: 'update', id: task.id, message: 'New instructions' })
+    const result = await (
+      await createTools()
+    ).call('cron', { action: 'update', id: task.id, message: 'New instructions' })
     expect(result.isError, resultText(result)).not.toBe(true)
     expect(resultText(result)).toContain('Job updated:')
     expect(agentTaskService.getTask(AGENT_ID, task.id)).toMatchObject({
@@ -151,7 +169,9 @@ describe('cron tool persisted task contract', () => {
   })
 
   it.each([true, false, undefined])('persists reuse_session=%s on add', async (reuseSession) => {
-    const result = await createTools().call('cron', {
+    const result = await (
+      await createTools()
+    ).call('cron', {
       action: 'add',
       name: 'reuse-option',
       message: 'Run report',
@@ -167,7 +187,7 @@ describe('cron tool persisted task contract', () => {
   it('can toggle reuse without replacing the task or changing its prompt', async () => {
     const task = createTask()
     for (const enabled of [false, true]) {
-      const result = await createTools().call('cron', { action: 'update', id: task.id, reuse_session: enabled })
+      const result = await (await createTools()).call('cron', { action: 'update', id: task.id, reuse_session: enabled })
       expect(result.isError, resultText(result)).not.toBe(true)
       expect(agentTaskService.getTask(AGENT_ID, task.id)).toMatchObject({
         id: task.id,
@@ -183,7 +203,9 @@ describe('cron tool persisted task contract', () => {
     { at: new Date(FUTURE_TIME).toISOString(), trigger: { kind: 'once', at: FUTURE_TIME } }
   ])('updates a schedule using $trigger.kind', async ({ trigger, ...schedule }) => {
     const task = createTask()
-    const result = await createTools().call('cron', {
+    const result = await (
+      await createTools()
+    ).call('cron', {
       action: 'update',
       id: task.id,
       name: 'renamed',
@@ -196,7 +218,7 @@ describe('cron tool persisted task contract', () => {
 
   it('clears notification subscriptions only when an empty array is supplied', async () => {
     const task = createTask()
-    const tools = createTools(AGENT_ID, [CHANNEL_ID])
+    const tools = await createTools(AGENT_ID, [CHANNEL_ID])
     const result = await tools.call('cron', { action: 'update', id: task.id, channel_ids: [] })
     expect(result.isError, resultText(result)).not.toBe(true)
     expect(agentTaskService.getTask(AGENT_ID, task.id)?.channelIds).toEqual([])
@@ -207,14 +229,16 @@ describe('cron tool persisted task contract', () => {
 
   it('supports an explicit unlimited timeout', async () => {
     const task = createTask()
-    const result = await createTools().call('cron', { action: 'update', id: task.id, timeout_minutes: null })
+    const result = await (await createTools()).call('cron', { action: 'update', id: task.id, timeout_minutes: null })
     expect(result.isError, resultText(result)).not.toBe(true)
     expect(agentTaskService.getTask(AGENT_ID, task.id)?.timeoutMinutes).toBe(0)
   })
 
   it('rejects foreign task ids without changing the task', async () => {
     const task = createTask()
-    const result = await createTools(OTHER_AGENT_ID).call('cron', {
+    const result = await (
+      await createTools(OTHER_AGENT_ID)
+    ).call('cron', {
       action: 'update',
       id: task.id,
       message: 'Hijacked'
@@ -237,7 +261,7 @@ describe('cron tool persisted task contract', () => {
   ])('rejects invalid or unauthorized updates atomically: %j', async (patch) => {
     const task = createTask()
     const before = jobScheduleService.getById(task.id)
-    const result = await createTools().call('cron', { action: 'update', id: task.id, ...patch })
+    const result = await (await createTools()).call('cron', { action: 'update', id: task.id, ...patch })
     expect(result.isError).toBe(true)
     expect(jobScheduleService.getById(task.id)).toEqual(before)
     expect(agentTaskService.getTask(AGENT_ID, task.id)?.channelIds).toEqual([CHANNEL_ID])
@@ -254,7 +278,7 @@ describe('cron tool persisted task contract', () => {
         trigger: { kind: 'interval', ms: 3_600_000 },
         workspace: { type: 'system' }
       })
-      const tools = createTools(OTHER_AGENT_ID)
+      const tools = await createTools(OTHER_AGENT_ID)
       const listed = resultText(await tools.call('cron', { action: 'list' }))
       expect(listed).not.toContain(occupied.id)
       const result = await tools.call('cron', {

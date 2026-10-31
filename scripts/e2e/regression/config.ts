@@ -74,11 +74,11 @@ export function loadTestConfig(environment: Environment = process.env): Regressi
   }
 }
 
-export function getSensitiveConfigValues(config: RegressionTestConfig): string[] {
+export function getSensitiveConfigValues(environment: Environment = process.env): string[] {
   return [
-    config.customProvider.apiKey,
-    config.customEmbeddingProvider.apiKey,
-    config.cherryIn.account,
-    config.cherryIn.password
-  ]
+    environment.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY,
+    environment.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY,
+    environment.CHERRY_TEST_CHERRYIN_ACCOUNT,
+    environment.CHERRY_TEST_CHERRYIN_PASSWORD
+  ].flatMap((value) => (value?.trim() ? [value.trim()] : []))
 }

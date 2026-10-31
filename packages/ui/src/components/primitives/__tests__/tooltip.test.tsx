@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { Root as RadixTooltipRoot } from '@radix-ui/react-tooltip'
+import type * as RadixTooltipModule from '@radix-ui/react-tooltip'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { Activity } from 'react'
@@ -15,6 +16,21 @@ import {
   TooltipSurface,
   TooltipTrigger
 } from '../tooltip'
+
+// Radix 定位发生在真实布局层，jsdom 无法从 DOM 观察到 sideOffset；透传包装捕获最后渲染的
+// props，把「默认悬浮间隙」契约钉在 RadixContent 收到的 prop 上。
+const sideOffsetCapture = vi.hoisted(() => ({ lastProps: null as Record<string, unknown> | null }))
+vi.mock('@radix-ui/react-tooltip', async (importOriginal) => {
+  const actual = await importOriginal<typeof RadixTooltipModule>()
+  // factory 执行早于顶层 import 求值，react 与 jsx-runtime 都必须动态引入
+  const { createElement } = await import('react')
+  const ActualContent = actual.Content as (props: Record<string, unknown>) => ReactNode
+  const WrappedContent = (props: Record<string, unknown>) => {
+    sideOffsetCapture.lastProps = props
+    return createElement(ActualContent, props)
+  }
+  return { ...actual, Content: WrappedContent }
+})
 
 // 时序契约（独立字面量，刻意不复用生产常量）：缩短契约必须改这里并让测试显式失败
 const EXIT_WINDOW_MS = 150
@@ -31,6 +47,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
+  sideOffsetCapture.lastProps = null
 })
 
 function getTooltipContentElement(text: string) {
@@ -361,6 +378,47 @@ describe('Tooltip', () => {
 
       const content = getTooltipContentElement('compound tip')
       expect(content.querySelector('svg')).not.toBeInTheDocument()
+    })
+  })
+
+  // Tooltip 内容默认贴着 trigger 弹出（sideOffset = 0）会与触发器重叠：光标落在 tooltip 上时
+  // 行失去 :hover、行内操作区收起、锚点移位，tooltip 又在 skipDelay 窗口内即时重开，形成悬停死循环。
+  // 默认 sideOffset 必须把内容抬离触发器命中区（可被调用方显式覆盖），从根上打断该循环。
+  describe('default side offset', () => {
+    it('offsets simple Tooltip content away from its trigger by default', () => {
+      render(
+        <Tooltip content="offset-tip" isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(8)
+    })
+
+    it('offsets compound TooltipContent away from its trigger by default', () => {
+      renderOpenTooltipContent('compound-offset-tip')
+
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(8)
+    })
+
+    it('offsets NormalTooltip content away from its trigger by default', () => {
+      render(
+        <NormalTooltip content="normal-offset-tip" open>
+          <button type="button">Trigger</button>
+        </NormalTooltip>
+      )
+
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(8)
+    })
+
+    it('lets callers override the default side offset explicitly', () => {
+      render(
+        <Tooltip content="override-tip" isOpen sideOffset={0}>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(0)
     })
   })
 

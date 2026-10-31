@@ -5,12 +5,15 @@ import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 
 /** Both fields are what a `SelectionReference.fileStamp` is made of, so a plugin can build one. */
 export type FilePreviewFileMetadata = Pick<Extract<PhysicalFileMetadata, { kind: 'file' }>, 'size' | 'modifiedAt'>
+export type FilePreviewMetadataRequest = () => Promise<PhysicalFileMetadata | null>
 export type FilePreviewType = 'artifact' | 'file'
 
 export interface FilePreviewPluginProps {
   filePath: AbsoluteFilePath
   fileName: string
   metadata: FilePreviewFileMetadata
+  /** Shares the host's current metadata request, including while an earlier preview is retained. */
+  metadataRequest?: FilePreviewMetadataRequest
   refreshKey: number
   type?: FilePreviewType
   /**

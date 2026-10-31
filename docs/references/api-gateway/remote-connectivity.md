@@ -3,7 +3,6 @@ description: Identity-based remote connectivity design and first implementation 
 sources:
   - src/main/features/apiGateway
   - src/main/services/remoteAccess
-  - src/main/services/lanTransfer
   - packages/remote-protocol
   - packages/remote-transport
 ---
@@ -22,7 +21,7 @@ sources:
 ## 首期实施边界
 
 - 桌面 `RemoteAdvertisement` 使用现有 Bonjour 库发布 `_cherry-remote._tcp`；TXT 仅公开身份与发现版本，
-  SRV 使用 Gateway 的实际共享端口，仅发布当前 IPv4 listener 能接入的地址。Gateway 将真实入口状态推给远程 owner，没有反向 lifecycle 依赖。
+  SRV 使用 Gateway 的实际共享端口，仅发布当前 IPv4 / IPv6 listeners 能接入的地址。Gateway 将真实入口状态推给远程 owner，没有反向 lifecycle 依赖。
 - 局域网访问统一控制连接入口与发现发布，不提供独立的发现开关。仅本机临时 API 租约不会
   打开发现。发布组件检查网卡变化，并在恢复唤醒时刷新；停机撤销异步发布意图。发现失败只显示状态提示。
 - 移动端使用单个 Expo 原生发现模块和内存 Resolver；Manager 串行尝试候选，每轮最多 15 秒，socket
@@ -145,6 +144,11 @@ flowchart TD
 用户配置的域名保留域名本身，其 DNS 解析结果不作为永久 IP 保存。
 扫描或自动发现不得隐式创建用户配置；若用户需要固定地址，必须通过明确的保存配置操作表达。
 relay 凭据由未来方案按其安全存储规则管理，不混入端点缓存。
+
+桌面侧提供给客户端的自定义地址/端口、实际监听端口及二维码更新规则见
+[自定义连接地址与端口](./remote-agent-access.md#custom-connection-addresses-and-ports)。
+桌面自定义端点使用 v3 邀请，自动地址保留 v2 邀请；移动端显式配置继续沿用本节的持久化边界。
+反向代理的外部端口可以不同于 Gateway 监听端口，不能用监听端口覆盖用户配置，也不能把外部端点发布为本地 DNS-SD 记录。
 
 ### 4.3 既有安装迁移
 

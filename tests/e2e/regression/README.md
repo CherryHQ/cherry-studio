@@ -44,6 +44,45 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
 
 The run's task selection controls which cases execute. To run only Notes, initialize with `--task notes`; do not narrow an all-task run manually and then treat it as a full pass.
 
+## Local streaming failure regression
+
+`chat-stream-failure` (`C-03`, phase `03-models-and-assistants`) needs no external
+provider credentials. It uses the [shared mock chat HTTP server](../../helpers/http/README.md),
+seeds a case-owned provider and assistant through DataApi, and sends a message in
+the real UI. After partial text becomes visible, it destroys the HTTP connection
+without a finish chunk. The case checks that the text remains visible, the stored
+message has status `error` with text state `done`, and the same message survives
+an Electron restart. A follow-up message must then complete successfully. The case
+restores topic naming and removes its test resources.
+
+Run from the repository root, with CDP port 9222 and inspector port 9229 free:
+
+```sh
+pnpm install
+pnpm rebuild:electron
+pnpm run build:utility-process
+TEST_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cherry-stream-failure.XXXXXX")"
+pnpm exec tsx scripts/e2e/regression/cli.ts preflight --task chat-stream-failure
+pnpm exec tsx scripts/e2e/regression/cli.ts initialize \
+  --run-dir "$TEST_RUN_DIR" --mode branch --platform macos \
+  --task chat-stream-failure --ref "$(git branch --show-current)" \
+  --sha "$(git rev-parse HEAD)" --runner local
+pnpm exec tsx scripts/e2e/regression/cli.ts launch \
+  --run-dir "$TEST_RUN_DIR" --target-root "$PWD" --run-key "$(basename "$TEST_RUN_DIR")"
+pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
+  --run-dir "$TEST_RUN_DIR" --phase 03-models-and-assistants
+pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$TEST_RUN_DIR"
+pnpm exec tsx scripts/e2e/regression/cli.ts gate --run-dir "$TEST_RUN_DIR"
+pnpm exec tsx scripts/e2e/regression/cli.ts cleanup --run-dir "$TEST_RUN_DIR"
+```
+
+Always run `cleanup`, including after a failure. The controller stops only its
+recorded process. The run directory contains the report and failure evidence;
+boot configuration and application data are isolated under the run directory. Keep
+local runs outside the source checkout so generated extension code is not scanned
+by repository lint. Do not run Node SQLite tests
+while Electron is running, since native dependency rebuilds switch its ABI.
+
 ## Configuration and evidence
 
 The repository variables/secrets are listed in `scripts/e2e/regression/config.ts`; the image model variable is `CHERRY_TEST_CHERRYIN_IMAGE_MODEL`.

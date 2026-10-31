@@ -1,5 +1,11 @@
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { packWorkspaceDirectory, unpackWorkspaceArchive } from '@main/ai/agents/agentWorkspaceStorage'
 import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
@@ -478,6 +484,91 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await Promise.resolve()
 
     expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it.each(['session', 'all'] as const)(
+    '%s close drains delayed workspace preparation before archiving',
+    async (scope) => {
+      const manager = new ClaudeCodeWarmQueryManager()
+      const root = await mkdtemp(path.join(os.tmpdir(), 'warm-archive-'))
+      const workspace = path.join(root, 'session-1')
+      const entered = createDeferred<void>()
+      const resume = createDeferred<void>()
+      buildWarmRequestMock.mockImplementationOnce(async () => {
+        entered.resolve()
+        await resume.promise
+        await mkdir(workspace, { recursive: true })
+        await writeFile(path.join(workspace, 'settings.txt'), 'prepared before archive')
+        return { key: 'session-1', options: { model: 'sonnet' } }
+      })
+      startupMock.mockResolvedValueOnce(warmQuery())
+      const preparing = manager.prewarmAgentSession('session-1')
+      await entered.promise
+      let closed = false
+      const closing = (scope === 'all' ? manager.closeAll() : manager.close('session-1')).then(() => {
+        closed = true
+      })
+      try {
+        await Promise.resolve()
+        expect(closed).toBe(false)
+        resume.resolve()
+        await preparing
+        await closing
+        expect(await manager.consume({ key: 'session-1', options: { model: 'sonnet' } })).toBeUndefined()
+        await packWorkspaceDirectory(workspace, `${workspace}.tar.gz`)
+        await rm(workspace, { recursive: true })
+        expect(existsSync(workspace)).toBe(false)
+        await mkdir(workspace)
+        await unpackWorkspaceArchive(`${workspace}.tar.gz`, workspace)
+        expect(await readFile(path.join(workspace, 'settings.txt'), 'utf8')).toBe('prepared before archive')
+      } finally {
+        resume.resolve()
+        await preparing
+        await closing
+        await manager.closeAll()
+        await rm(root, { recursive: true, force: true })
+      }
+    }
+  )
+
+  it.each(['idle', 'replacement', 'mismatch', 'manual'] as const)(
+    'drains %s disposal after the warm entry has been detached',
+    async (reason) => {
+      const manager = new ClaudeCodeWarmQueryManager()
+      const disposal = createDeferred<void>()
+      const warm = warmQuery(disposal.promise)
+      startupMock.mockResolvedValueOnce(warm)
+      if (reason === 'replacement') startupMock.mockResolvedValueOnce(warmQuery())
+      await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+      let initialClose: Promise<void> | undefined
+      if (reason === 'idle') vi.advanceTimersByTime(5 * 60 * 1000)
+      else if (reason === 'replacement') await manager.prewarm({ key: 'session-1', options: { model: 'opus' } })
+      else if (reason === 'mismatch') await manager.consume({ key: 'session-1', options: { model: 'opus' } })
+      else initialClose = manager.close('session-1')
+      let drained = false
+      const closing = manager.close('session-1').then(() => {
+        drained = true
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(drained).toBe(false)
+      disposal.resolve()
+      await closing
+      await initialClose
+      expect(drained).toBe(true)
+      expect(await manager.consume({ key: 'session-1', options: { model: 'sonnet' } })).toBeUndefined()
+    }
+  )
+
+  it('blocks storage shutdown after failed disposal and retries the same resource', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    warm[Symbol.asyncDispose].mockRejectedValueOnce(new Error('process still alive'))
+    startupMock.mockResolvedValueOnce(warm)
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await expect(manager.close('session-1')).rejects.toThrow('process still alive')
+    await expect(manager.close('session-1')).resolves.toBeUndefined()
+    expect(warm[Symbol.asyncDispose]).toHaveBeenCalledTimes(2)
   })
 
   it('prewarms an agent session from the session request builder', async () => {

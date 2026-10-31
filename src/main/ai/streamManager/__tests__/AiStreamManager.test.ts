@@ -3,7 +3,7 @@ import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -12,6 +12,7 @@ import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
+import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -110,6 +111,7 @@ function controlledStream(): {
   stream: ReadableStream<UIMessageChunk>
   enqueue: (chunk: UIMessageChunk) => void
   close: () => void
+  error: (reason: unknown) => void
 } {
   let controller!: ReadableStreamDefaultController<UIMessageChunk>
   const stream = new ReadableStream<UIMessageChunk>({
@@ -120,7 +122,8 @@ function controlledStream(): {
   return {
     stream,
     enqueue: (chunk) => controller.enqueue(chunk),
-    close: () => controller.close()
+    close: () => controller.close(),
+    error: (reason) => controller.error(reason)
   }
 }
 
@@ -164,11 +167,29 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
+const replayIpc = vi.hoisted(
+  (): { request(route: string, input: unknown): Promise<unknown>; chunk(payload: StreamChunkPayload): void } => ({
+    request: () => Promise.resolve(undefined),
+    chunk: () => {}
+  })
+)
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => replayIpc.request(route, input),
+    on: (event: string, callback: (payload: StreamChunkPayload) => void) => {
+      if (event === 'ai.stream.chunk') replayIpc.chunk = callback
+      return () => {}
+    }
+  }
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
-const { TerminalPersistenceError } = await import('../listeners/PersistenceListener')
+const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
+const { WebContentsListener } = await import('../listeners/WebContentsListener')
+const { TopicStreamSubscription } = await import('@renderer/services/aiTransport/TopicStreamSubscription')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -549,6 +570,52 @@ describe('AiStreamManager', () => {
       expect(s2.status).toBe('pending')
       expect(s2.executions).toHaveLength(1)
     })
+
+    it.each(['success', 'error', 'paused'] as const)(
+      'correlates a queued Agent turn with its submitted user on %s',
+      async (outcome) => {
+        const topicId = 'agent-session:s1'
+        const modelId = 'provider-a::model-a'
+        const wc = { id: 1, isDestroyed: () => false, send: vi.fn() }
+        const old = mgr.startRuntimeTurn({
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [new WebContentsListener(wc as unknown as Electron.WebContents, topicId)]
+        })
+        const current = mgr.startRuntimeTurn({
+          topicId,
+          modelId,
+          request: {
+            ...req(topicId),
+            messageId: 'queued-assistant',
+            runtime: { kind: 'agent-session', sessionId: 's1', turnId: 'queued-turn' },
+            messages: [
+              { id: 'queued-user', role: 'user', parts: [] },
+              { id: 'queued-assistant', role: 'assistant', parts: [] }
+            ]
+          },
+          listeners: []
+        })
+        expect(current.activeExecutions[0].attemptId).not.toBe(old.activeExecutions[0].attemptId)
+        if (outcome === 'error') await mgr.onExecutionError(topicId, modelId, error('context window exceeded'))
+        else if (outcome === 'paused') {
+          mgr.abort(topicId, 'user-requested')
+          await mgr.onExecutionPaused(topicId, modelId)
+        } else await mgr.onExecutionDone(topicId, modelId)
+        expect(wc.send).toHaveBeenCalledWith(
+          expect.anything(),
+          outcome === 'error' ? 'ai.stream.error' : 'ai.stream.done',
+          expect.objectContaining({
+            topicId,
+            executionId: modelId,
+            attemptId: current.activeExecutions[0].attemptId,
+            anchorMessageId: 'queued-assistant',
+            userMessageId: 'queued-user'
+          })
+        )
+      }
+    )
 
     it('ignores chunks and terminal callbacks from a replaced runtime execution', async () => {
       vi.useRealTimers()
@@ -1986,27 +2053,126 @@ describe('AiStreamManager', () => {
 
       expect(response).toEqual({
         status: 'attached',
+        replayThrough: { [attemptId!]: 4 },
+        replayFrom: { [attemptId!]: 1 },
         bufferedChunks: [
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            sequence: 1,
             chunk: { type: 'text-start', id: 'p1' }
           },
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            sequence: 3,
+            firstSequence: 2,
             chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
           },
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            sequence: 4,
             chunk: { type: 'text-end', id: 'p1' }
           }
         ]
       })
+    })
+
+    it('renders a complete coalesced live answer after its replay prefix and opening were evicted', async () => {
+      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
+      const sender = {
+        id: 1,
+        isDestroyed: () => false,
+        send: (_channel: string, event: string, payload: StreamChunkPayload) => {
+          if (event === 'ai.stream.chunk') replayIpc.chunk(payload)
+        }
+      }
+      const wc = sender as unknown as Electron.WebContents
+      const {
+        executions: [{ attemptId }]
+      } = startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new WebContentsListener(wc, 'a')]
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
+      const subscription = new TopicStreamSubscription('a')
+      subscription.listen()
+      for (const delta of ['AA', 'BB', 'CC', 'DD', 'EE'])
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta })
+      replayIpc.request = async (route) =>
+        route === 'ai.stream.attach' ? ringMgr.attach(wc, { topicId: 'a' }) : undefined
+      const stream = subscription.register('provider-a::model-a', undefined, attemptId)
+      await Promise.resolve()
+      await Promise.resolve()
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p' })
+      subscription.dispose()
+      let message
+      for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
+      expect(message?.parts).toEqual([{ type: 'text', text: 'AABBCCDDEE', state: 'done' }])
+    })
+
+    it('reports the start of retained source coverage after evicting a merged or split prefix', () => {
+      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
+      const {
+        executions: [{ attemptId }]
+      } = startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ab' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'cd' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ef' })
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const attach = () => ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(attach()).toMatchObject({ replayFrom: { [attemptId]: 2 }, replayThrough: { [attemptId]: 4 } })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ghijklmnopqr' })
+      expect(attach()).toMatchObject({ replayFrom: { [attemptId]: 5 }, replayThrough: { [attemptId]: 5 } })
+    })
+
+    it('cuts replay between coalesced deltas without dropping output for an existing consumer', () => {
+      const sent: StreamChunkPayload[] = []
+      const sender = {
+        id: 1,
+        isDestroyed: () => false,
+        send: (_channel: string, event: string, payload: StreamChunkPayload) => {
+          if (event === 'ai.stream.chunk') sent.push(payload)
+        }
+      }
+      const wc = sender as unknown as Electron.WebContents
+      const {
+        executions: [{ attemptId }]
+      } = startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new WebContentsListener(wc, 'a')]
+      })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' })
+      const first = mgr.attach(wc, { topicId: 'a' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hello' })
+      const second = mgr.attach(wc, { topicId: 'a' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: '!' })
+      vi.advanceTimersByTime(16)
+
+      expect(first).toMatchObject({ status: 'attached', replayThrough: { [attemptId]: 3 } })
+      expect(second).toMatchObject({ status: 'attached', replayThrough: { [attemptId]: 4 } })
+      expect(sent.map(({ sequence, chunk }) => ({ sequence, chunk }))).toEqual([
+        { sequence: 1, chunk: { type: 'text-start', id: 'p1' } },
+        { sequence: 3, chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
+        { sequence: 4, chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
+        { sequence: 5, chunk: { type: 'text-delta', id: 'p1', delta: '!' } }
+      ])
     })
 
     it('ring buffer merges a same-part delta flood on ingest instead of evicting its opener', () => {
@@ -2879,6 +3045,93 @@ describe('AiStreamManager', () => {
   // mis-classification bug.
 
   describe('idle timeout', () => {
+    it('keeps a default chat turn live past 30 minutes and pauses at 120 minutes without a parsed chunk', async () => {
+      useWatchdogTimers()
+
+      const controlled = controlledStream()
+      let signal!: AbortSignal
+      mockStreamText.mockImplementationOnce(async (request) => {
+        signal = (request.requestOptions as { signal: AbortSignal }).signal
+        signal.addEventListener('abort', () => controlled.close(), { once: true })
+        return controlled.stream
+      })
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      controlled.enqueue({ type: 'start' })
+      await flushUntil(() => listener.chunks.length >= 1)
+
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      expect(signal.aborted).toBe(false)
+      expect(mgr.inspect('a')!.status).not.toBe('aborted')
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(90 * 60 * 1000 - 1)
+      expect(signal.aborted).toBe(false)
+      expect(mgr.inspect('a')!.status).not.toBe('aborted')
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(1)
+      await flushUntil(() => listener.pausedResults.length > 0)
+      expect(signal.aborted).toBe(true)
+      expect(signal.reason).toBeInstanceOf(DOMException)
+      expect(signal.reason.name).toBe('TimeoutError')
+      expect(signal.reason.message).toBe('Stream idle timeout exceeded')
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(mgr.inspect('a')!.status).toBe('aborted')
+    })
+
+    it('inherits the 120-minute chat idle bound for a prompt stream without an override', async () => {
+      useWatchdogTimers()
+
+      const controlled = controlledStream()
+      let signal!: AbortSignal
+      mockStreamText.mockImplementationOnce(async (request) => {
+        signal = (request.requestOptions as { signal: AbortSignal }).signal
+        signal.addEventListener('abort', () => controlled.close(), { once: true })
+        return controlled.stream
+      })
+
+      const listener = new FakeListener('l:prompt')
+      mgr.streamPrompt({
+        streamId: 'prompt',
+        uniqueModelId: 'provider-a::model-a',
+        prompt: 'hello',
+        listener
+      })
+      controlled.enqueue({ type: 'start' })
+      await flushUntil(() => listener.chunks.length >= 1)
+
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      expect(signal.aborted).toBe(false)
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(90 * 60 * 1000 + 1)
+      await flushUntil(() => listener.pausedResults.length > 0)
+      expect(signal.aborted).toBe(true)
+      expect(signal.reason).toBeInstanceOf(DOMException)
+      expect(signal.reason.name).toBe('TimeoutError')
+      expect(signal.reason.message).toBe('Stream idle timeout exceeded')
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.errorResults).toHaveLength(0)
+    })
+
     it('settles a timed-out execution as paused, not done', async () => {
       useWatchdogTimers()
 
@@ -2979,6 +3232,79 @@ describe('AiStreamManager', () => {
   // ── live finalMessage accumulation ──────────────────────────────
 
   describe('live finalMessage accumulation', () => {
+    it.each(['topic-1', 'agent-session:session-1'])(
+      'reports the final message text after accumulation for %s',
+      async (topicId) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockImplementationOnce(async () => controlled.stream)
+        startSingle(mgr, {
+          topicId,
+          modelId: 'provider-a::model-a',
+          request: req(topicId),
+          listeners: [new FakeListener(`l:${topicId}`)],
+          isPersistentConversation: true
+        })
+
+        controlled.enqueue({ type: 'start' })
+        for (const [id, text] of [
+          ['intro', 'I will investigate.'],
+          ['answer', '  The fix is ready.  '],
+          ['empty', '  ']
+        ]) {
+          controlled.enqueue({ type: 'text-start', id })
+          controlled.enqueue({ type: 'text-delta', id, delta: text })
+          controlled.enqueue({ type: 'text-end', id })
+        }
+        controlled.enqueue({ type: 'reasoning-start', id: 'reasoning' })
+        controlled.enqueue({ type: 'reasoning-delta', id: 'reasoning', delta: 'Private reasoning' })
+        controlled.enqueue({ type: 'reasoning-end', id: 'reasoning' })
+        controlled.enqueue({ type: 'finish' })
+        controlled.close()
+
+        await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+        expect(conversationCompletedEvents[0]).toMatchObject({
+          topicId,
+          responseText: 'I will investigate.\n  The fix is ready.'
+        })
+      }
+    )
+
+    it('uses the last finished model reply for a multi-model completion', async () => {
+      vi.useRealTimers()
+      const first = controlledStream()
+      const second = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => first.stream).mockImplementationOnce(async () => second.stream)
+      mgr.send({
+        topicId: 'multi-reply',
+        models: [
+          { modelId: 'p::first', request: req('multi-reply') },
+          { modelId: 'p::second', request: req('multi-reply') }
+        ],
+        listeners: [new FakeListener('l:multi-reply')],
+        isPersistentConversation: true
+      })
+
+      for (const [stream, text] of [
+        [second, 'Earlier reply'],
+        [first, 'Last reply']
+      ] as const) {
+        stream.enqueue({ type: 'start' })
+        stream.enqueue({ type: 'text-start', id: 'text' })
+        stream.enqueue({ type: 'text-delta', id: 'text', delta: text })
+        stream.enqueue({ type: 'text-end', id: 'text' })
+        stream.enqueue({ type: 'finish' })
+        stream.close()
+        if (stream === second) {
+          await vi.waitFor(() => expect(mgr.inspect('multi-reply')?.executions[1].status).toBe('done'))
+          expect(conversationCompletedEvents).toHaveLength(0)
+        }
+      }
+
+      await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+      expect(conversationCompletedEvents[0].responseText).toBe('Last reply')
+    })
+
     it('writes exec.finalMessage via the accumulator before the terminal event fires', async () => {
       // readUIMessageStream relies on real microtask / timer scheduling
       // internally; fake timers starve its reader loop. Use real timers
@@ -3049,6 +3375,84 @@ describe('AiStreamManager', () => {
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
   describe('stream errors', () => {
+    it.each(['clean', 'provider-error', 'source-error', 'abort'] as const)(
+      'retains partial content after an accumulation failure and selects the correct terminal outcome (%s)',
+      async (ending) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockResolvedValueOnce(controlled.stream)
+        const listener = new FakeListener('l:a')
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId: 'a',
+          backend: {
+            kind: 'test',
+            persistAssistant: (input) => {
+              writes.push(input)
+            }
+          },
+          onPersistFailed: (error) => {
+            throw new Error(error.message ?? 'Persistence failed')
+          }
+        })
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener, persistence]
+        })
+        const chunks: UIMessageChunk[] = [
+          { type: 'start', messageId: 'reply' },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'Preserved content' },
+          { type: 'reasoning-end', id: 'missing' },
+          ...Array.from({ length: 32 }, (): UIMessageChunk => ({ type: 'text-delta', id: 't1', delta: ' later' }))
+        ]
+        for (const chunk of chunks) controlled.enqueue(chunk)
+        if (ending === 'provider-error') controlled.enqueue({ type: 'error', errorText: 'Provider unavailable' })
+        if (ending === 'abort' || ending === 'source-error') {
+          await flushUntil(() => listener.chunks.length === chunks.length)
+          if (ending === 'abort') mgr.abort('a', 'user-stop')
+          else controlled.error(new Error('Source disconnected'))
+        } else controlled.close()
+
+        await flushUntil(() => listener.errorResults.length + listener.pausedResults.length === 1)
+
+        expect(listener.chunks.slice(0, chunks.length)).toEqual(chunks)
+        expect(listener.doneResults).toEqual([])
+        const terminal = listener.errorResults[0] ?? listener.pausedResults[0]
+        expect(terminal.finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Preserved content' })
+        )
+        expect(writes).toHaveLength(1)
+        expect(writes[0].status).toBe(ending === 'abort' ? 'paused' : 'error')
+        expect(writes[0].finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Preserved content', state: 'done' })
+        )
+        if (ending === 'abort') {
+          expect(listener.errorResults).toEqual([])
+          expect(terminal.status).toBe('paused')
+          expect(mgr.inspect('a')!.status).toBe('aborted')
+        } else if (ending === 'provider-error') {
+          expect(listener.errorResults[0].error).toMatchObject({ name: 'StreamError', message: 'Provider unavailable' })
+        } else if (ending === 'source-error') {
+          expect(listener.errorResults[0].error).toMatchObject({ message: 'Source disconnected' })
+        } else {
+          expect(listener.errorResults[0].error.executionFailure).toMatchObject({
+            retryable: false,
+            failure: { reasonCode: 'internal', source: { layer: 'host' } }
+          })
+          expect(writes[0].finalMessage?.parts).toContainEqual(
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ executionFailure: listener.errorResults[0].error.executionFailure })
+            })
+          )
+          expect(mgr.inspect('a')!.status).toBe('error')
+        }
+      }
+    )
+
     it.each([
       { statusCode: 400, isRetryable: false, message: 'Maximum context length exceeded' },
       { statusCode: 503, isRetryable: true, message: 'Upstream unavailable' }

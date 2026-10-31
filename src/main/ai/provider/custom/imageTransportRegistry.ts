@@ -47,6 +47,17 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
       return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
     }
   },
+  // QwenCloud shares the DashScope AIGC transport; its regional origin comes
+  // from the provider config builder’s `imageBaseURL`.
+  qwencloud: {
+    supports: () => true,
+    poll: true,
+    cancel: true,
+    load: async (settings) => {
+      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+      return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
+    }
+  },
   modelscope: {
     supports: () => true,
     poll: true,
@@ -60,6 +71,18 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
     load: async (settings) => {
       const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
       return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
+    }
+  },
+  // ComfyUI owns the whole generation lifecycle: `/prompt` returns a task id, the job
+  // polls `/history/{id}` until the graph reports outputs, and cancel is id-scoped.
+  // Declaring `poll` + `cancel` here is what lets a running generation be aborted.
+  comfyui: {
+    supports: () => true,
+    poll: true,
+    cancel: true,
+    load: async (settings) => {
+      const { createComfyuiTransport } = await import('./comfyui/comfyuiTransport')
+      return createComfyuiTransport(settings as Parameters<typeof createComfyuiTransport>[0])
     }
   },
   tokenhub: {

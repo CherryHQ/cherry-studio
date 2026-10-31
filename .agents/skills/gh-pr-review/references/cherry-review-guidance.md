@@ -19,7 +19,7 @@ Classify each reviewed module before looking for issues:
 | Shared layer | `src/shared/` | Actual cross-process demand, immutable/stateless surface, closed top level, API contracts |
 | Renderer data hooks | `src/renderer/data/`, hooks using `useQuery`, `useMutation`, cache/preference hooks | SWR keys, invalidation, optimistic updates, external store snapshots |
 | React UI | `src/renderer/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
-| Network downloads | Package-manager configuration, lockfiles, install/download code, model or binary manifests | Global and China-accelerated sources, artifact parity, source selection, integrity checks |
+| Network downloads | Package-manager configuration, lockfiles, install/download code, model or binary manifests | Distribution mechanism, regional availability, applicable mirrors, artifact parity, source selection, integrity checks |
 | Naming / module shape | Added, renamed, or moved files/directories; new classes and barrels | Path casing, export-role naming, Service/Manager roles, promotion, barrel boundaries |
 
 ## Architecture-First Review
@@ -132,6 +132,37 @@ invading an existing generic surface; do not demand new layers, registries, or
 extension points where the code is already domain-local (see
 Anti-Fragmentation principle 3).
 
+## Existing Module Reuse
+
+For added or materially changed logic, explicitly search the reviewed checkout
+for existing capabilities before accepting a local implementation. This check
+is not limited to `utils/async`: include utilities, owning services, hooks,
+components, and package APIs relevant to the change, even when the diff adds
+no imports or shared surface.
+
+- Search by behavior as well as symbol name; read candidate implementations,
+  their README/API contracts, and representative callers. Similar names alone
+  do not establish that a module can replace the new code.
+- For async coordination, inspect `src/shared/utils/async/README.md` and the
+  public exports of `@shared/utils/async`. Compare ordering, result sharing,
+  coalescing, failure, cancellation, and resource ownership before recommending
+  a primitive. Do not treat different coordination contracts as interchangeable.
+- Recommend reuse only when the existing API fits the required behavior and
+  permits the dependency direction. If it lacks a required capability, name
+  the upstream limitation for a decision; do not force an incompatible import
+  or invent a new shared abstraction solely for hypothetical reuse.
+- A reuse finding must name the duplicated behavior, the existing module and
+  exported API, and why its contract fits. State the concrete maintenance or
+  correctness cost; do not stop at "reuse a utility".
+
+For PR/diff reviews, pre-existing `delay`/sleep calls whose semantics the change
+leaves intact are allowed; do not demand their removal or migration merely
+because they appear in a touched file. For added or changed waits, assess their
+purpose and available APIs rather than banning delays outright. A delay that
+the change introduces or makes unsafe as a substitute for completion/readiness
+signaling is a separate correctness finding, even if it uses a shared helper.
+Do not assume `@shared/utils/async` exports `delay`; verify the reviewed head.
+
 ## Fix Recommendation Policy (Fix Altitude)
 
 "Minimal fix" versus "thorough fix" is the wrong axis. The right axis is the
@@ -206,24 +237,31 @@ Report these as:
 
 ## Network Download Source Gate
 
-Every component fetched over the network during development, build,
-installation, or runtime must have both a usable global source and a usable
-China-accelerated source. This includes package-manager dependencies such as
-npm packages, runtime and toolchain binaries, offline models, and other
-downloaded assets.
+First identify the distribution mechanism and the project's control over it.
+The goal is a usable acquisition path in supported regions, not two URLs for
+every network link. Apply source requirements to the actual platform and
+accepted distribution channel.
 
 - For registry packages, the supported install path must work with both the
   default global registry and a China mirror; dependency declarations do not
   need duplicate URLs.
-- For models, binaries, and URL-addressed assets, both sources must resolve to
-  the same version and content and use the same integrity validation when one
-  is available.
-- A hard-coded single source, or a second source that no supported code or
-  configuration path can select, does not satisfy this requirement.
+- For mirrorable models, binaries, and directly downloaded assets, check global
+  and China acquisition paths. Required mirrors must be selectable through
+  supported code or configuration, resolve to the same version and content,
+  and use the same integrity validation when one is available.
+- Publisher-managed distribution, such as TestFlight invitations and App Store
+  listings, is not an interchangeable artifact mirror. Both editions may use
+  the same official entry point when that is the supported channel. Do not
+  require an invented mirror, proxy, or alternate installer merely to produce
+  a second URL; check any concrete availability or eligibility problem on its
+  own evidence.
 
-Treat any new or changed network download that lacks either usable source as a
-**Blocker**. Do not approve or recommend merging the change until both sources
-are provided.
+Use **Blocker** for an evidenced failure of a required acquisition path, broken
+source selection or integrity, or a violation of an applicable distribution
+requirement. State the affected platform/edition, requirement, and evidence.
+A single official URL alone is not sufficient evidence. Unverified regional
+concerns or optional mirror improvements must not become automatic blockers;
+report uncertainty or a non-blocking follow-up when warranted.
 
 ## Reference Routing
 
@@ -278,6 +316,8 @@ violation is migration residue, not precedent.
 | SQLite services, handlers, seeders, migrations | `docs/references/testing/database-testing.md`, `tests/__mocks__/README.md` |
 | UI and shared components | `DESIGN.md`, `packages/ui/`, component usage near the diff |
 | Repository skills | `.agents/skills/README.md`, `.agents/skills/create-skill/SKILL.md`, `.agents/skills/gh-pr-review/SKILL.md` |
+| Agent Notes, Specs, lifecycle transitions, or supersession | `.agents/notes/README.md`, `.agents/skills/agent-notes/SKILL.md` |
+| Repository documentation, bilingual pairs, or `sources` impact | `docs/AGENTS.md`, `.agents/skills/docs-governance/SKILL.md`, `docs/i18n/README.md` |
 
 Treat the listed architecture documents as the authority for their scopes.
 Read the relevant sections before judging placement or dependency direction;
@@ -298,8 +338,8 @@ Use these skills when they are available in the current runtime:
   metadata, references, and validation.
 - `gh-create-pr`: PR template compliance when reviewing PR workflow or PR
   documentation changes.
-- `cherry-pr-test`: Electron UI test workflow when review findings need local
-  app reproduction.
+- `cherry-electron-dev`: PR testing mode for Electron UI tests when review
+  findings need local app reproduction.
 
 ### External Skills And Websites
 

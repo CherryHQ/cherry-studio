@@ -33,3 +33,17 @@ export interface MessageExportView {
 // fixtures; all live producers now yield `MessageExportView`. Dropping the arm
 // is gated on migrating `export.test.ts` / `copy.test.ts` off the v1 block model.
 export type ExportableMessage = Message | MessageExportView
+
+export type MessageExportTarget =
+  | 'markdown'
+  | 'markdown-reason'
+  | 'word'
+  | 'notion'
+  | 'yuque'
+  | 'obsidian'
+  | 'joplin'
+  | 'siyuan'
+
+export type ExportMessages = (messages: MessageExportView[], target: MessageExportTarget) => Promise<boolean>
+
+export type ExportMessagesToObsidian = (title: string, messages: MessageExportView[]) => Promise<boolean>

@@ -175,13 +175,15 @@ function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
  * Encode an absolute filesystem path into a `file://` URL.
  *
  * - Unix:    `/foo/bar baz.pdf`         → `file:///foo/bar%20baz.pdf`
+ * - POSIX:   `/foo/a\b.txt`             → `file:///foo/a%5Cb.txt`
  * - Windows: `C:\foo\bar baz.pdf`       → `file:///C:/foo/bar%20baz.pdf`
  * - UNC:     `\\server\share\baz.pdf`   → `file://server/share/baz.pdf`
  *
- * Backslashes are normalized to forward slashes; each path segment is URL-encoded
- * (special chars like space, `#`, `?` become `%20` / `%23` / `%3F`). The Windows
- * drive letter segment (`C:`) is preserved unencoded because `%3A` would break
- * UNC / drive resolution in `<img src>` contexts.
+ * `\` is a separator only for a Windows drive or UNC path, classified from the
+ * string before any slash folding. On every other absolute path it is a filename
+ * character and `encodeURIComponent` emits `%5C`. Space, `#`, and `?` become
+ * `%20`, `%23`, and `%3F`. The drive segment (`C:`) stays unencoded because
+ * `%3A` would break drive resolution in `<img src>` contexts.
  *
  * **UNC carries its server in the URL authority, not in the path.** After
  * separator normalization a UNC path is `//server/share/…`, whose leading `//`
@@ -200,7 +202,9 @@ function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
  * @returns `file://` URL suitable for `<img src>` / `<video src>` / `<embed>`.
  */
 export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
-  let normalized: string = absolutePath.replace(/\\/g, '/')
+  const foldWindowsSeparators =
+    absolutePath.startsWith('\\\\') || absolutePath.startsWith('//') || /^[A-Za-z]:[/\\]/.test(absolutePath)
+  let normalized = foldWindowsSeparators ? absolutePath.replace(/\\/g, '/') : absolutePath
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = '/' + normalized
   }

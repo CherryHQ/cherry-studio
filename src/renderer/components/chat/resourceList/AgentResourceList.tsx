@@ -6,6 +6,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { archiveAgentSessionsPopup } from '@renderer/components/chat/archiveAgentSessionsPopup'
 import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
@@ -30,7 +31,11 @@ import {
 import { toast } from '@renderer/services/toast'
 import { SESSION_UNKNOWN_AGENT_GROUP_ID } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import {
+  createSidebarShortcutTarget,
+  getSidebarShortcutResourceIds,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
+} from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -51,6 +56,7 @@ const logger = loggerService.withContext('AgentResourceList')
 const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
+const AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID = 'agent-group.archive-sessions'
 const AGENT_ENTITY_ARCHIVE_ACTION_ID = 'agent-entity.archive'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
@@ -136,14 +142,7 @@ export function AgentResourceList({
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
   const sidebarAgentFavoriteIdSet = useMemo(
-    () =>
-      new Set(
-        sidebarShortcuts.flatMap((shortcut) =>
-          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT
-            ? [shortcut.target.locator.resourceId]
-            : []
-        )
-      ),
+    () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT),
     [sidebarShortcuts]
   )
   const getAgentEntityId = useCallback(
@@ -297,12 +296,9 @@ export function AgentResourceList({
   }, [refetchAgents, reload])
 
   const handleDeleteAgent = useCallback(
-    async (agentId: string) => {
+    async (agentId: string, deleteSessionsOnly = false) => {
       if (deletingAgentId) return
 
-      const deleteSessionsOnly = isProtectedBuiltinAgentRole(
-        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
-      )
       const agentName = agents.find((agent) => agent.id === agentId)?.name ?? t('common.unnamed')
 
       const performDelete = async (deleteSessions: boolean) => {
@@ -391,15 +387,19 @@ export function AgentResourceList({
           }
         } catch (err) {
           logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
-          if (!deleteSessionsOnly) throw err
-          toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
+          throw err
         } finally {
           setDeletingAgentId(null)
         }
       }
 
       if (deleteSessionsOnly) {
-        await performDelete(true)
+        await archiveAgentSessionsPopup.show({
+          agentName,
+          sessionCount: isFullyLoaded ? sessions.filter((session) => session.agentId === agentId).length : undefined,
+          t,
+          action: () => performDelete(true)
+        })
         return
       }
 
@@ -411,15 +411,19 @@ export function AgentResourceList({
       closeConversationTabs,
       deletingAgentId,
       invalidate,
+      isFullyLoaded,
       onActiveAgentDeleted,
       refreshAfterRestore,
       refetchAgents,
       reload,
       restoreAgent,
       restoreSession,
+      sessions,
       t
     ]
   )
+
+  const handleArchiveSessions = useCallback((agentId: string) => handleDeleteAgent(agentId, true), [handleDeleteAgent])
 
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
@@ -460,13 +464,26 @@ export function AgentResourceList({
           t
         ),
         buildResolvedResourceEntityMenuAction({
-          id: AGENT_ENTITY_ARCHIVE_ACTION_ID,
-          label: t(deleteSessionsOnly ? 'agent.session.agent.delete.trigger' : 'common.archive'),
+          id: AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID,
+          commandId: AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID,
+          label: t('agent.session.archive.trigger'),
           icon: <Archive size={14} />,
           group: 'danger',
-          order: 30,
+          order: 29,
           availability: { visible: true, enabled: deletingAgentId === null }
-        })
+        }),
+        ...(deleteSessionsOnly
+          ? []
+          : [
+              buildResolvedResourceEntityMenuAction({
+                id: AGENT_ENTITY_ARCHIVE_ACTION_ID,
+                label: t('common.archive'),
+                icon: <Archive size={14} />,
+                group: 'danger',
+                order: 30,
+                availability: { visible: true, enabled: deletingAgentId === null }
+              })
+            ])
       ]
     },
     [
@@ -500,11 +517,16 @@ export function AgentResourceList({
         void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
         return
       }
+      if (action.id === AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID) {
+        void handleArchiveSessions(item.id)
+        return
+      }
       if (action.id === AGENT_ENTITY_ARCHIVE_ACTION_ID) {
         void handleDeleteAgent(item.id)
       }
     },
     [
+      handleArchiveSessions,
       handleDeleteAgent,
       handleToggleAgentPin,
       openAgentEditor,

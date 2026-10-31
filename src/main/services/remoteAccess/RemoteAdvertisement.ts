@@ -17,13 +17,23 @@ export class RemoteAdvertisement {
 
   constructor(private readonly status: (status: 'starting' | 'available' | 'unavailable') => void) {}
 
-  update(identity: string, port: number): void {
+  update(identity: string, port: number, ipv6 = false): void {
     const addresses = Object.values(networkInterfaces())
       .flatMap((entries) =>
-        (entries ?? []).filter((entry) => !entry.internal && entry.family === 'IPv4').map((entry) => entry.address)
+        (entries ?? [])
+          .filter(
+            (entry) =>
+              !entry.internal &&
+              (entry.family === 'IPv4' ||
+                (ipv6 &&
+                  entry.family === 'IPv6' &&
+                  !/^fe[89ab][0-9a-f]:/i.test(entry.address) &&
+                  !entry.address.includes('%')))
+          )
+          .map((entry) => entry.address)
       )
       .sort()
-    const snapshot = JSON.stringify([identity, port, addresses])
+    const snapshot = JSON.stringify([identity, port, ipv6, addresses])
     if (snapshot === this.snapshot) return
     this.stop()
     this.snapshot = snapshot
@@ -41,7 +51,8 @@ export class RemoteAdvertisement {
         host: `${this.name}.local`,
         type: remoteDiscoveryType,
         protocol: 'tcp',
-        disableIPv6: true,
+        disableIPv6: !ipv6,
+        addresses,
         port,
         txt: { v: '1', identity }
       })

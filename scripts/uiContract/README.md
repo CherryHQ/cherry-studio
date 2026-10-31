@@ -8,7 +8,7 @@ The normative consumer contract, stability tiers, maintained anchors, and Custom
 - `transform.ts` parses TypeScript/TSX with Oxc ESTree and performs source-mapped AST/HTML transformations without
   using display text or line numbers.
 - `semanticId.ts` derives best-effort roles from source domain, component name, element role, and stable attributes.
-- `scan.ts` discovers semantic boundaries in current renderer and `packages/ui` source.
+- `scan.ts` discovers semantic boundaries in current renderer, `packages/ui`, and `packages/file-preview` source.
 - `query.ts` resolves a semantic prefix to source metadata for developers and AI tooling.
 - `runtime.ts` composes caller-owned semantics with implementation-owned structural parts.
 

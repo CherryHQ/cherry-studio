@@ -501,6 +501,51 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(messageService.getChildrenByParentId(userMessageId)[0].modelId).toBe(selectedModelId)
   })
 
+  it('keeps a composer single-model snapshot on the default regeneration policy', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID],
+        userMessageParts: [{ type: 'text', text: 'ordinary single-model question' }]
+      },
+      { hasLiveStream: false }
+    )
+    const reserved = prepared.reservedMessages!.find((message) => message.role === 'assistant')!
+    expect(messageService.getById(reserved.id).data.modelSelection).toBe('default')
+  })
+
+  it.each(['default', 'explicit'] as const)(
+    'retains %s model selection through reservation and stream completion',
+    async (modelSelection) => {
+      const request = { trigger: 'regenerate-message' as const, topicId: 'topic-1', parentAnchorId: 'u1' }
+      const prepared = await provider.prepareDispatch(
+        makeSubscriber(),
+        modelSelection === 'explicit'
+          ? { ...request, mentionedModelIds: [MODEL_ID], appendToLiveGroupMessageId: 'a1' }
+          : request,
+        { hasLiveStream: false }
+      )
+      const reserved = prepared.reservedMessages!.find((message) => message.role === 'assistant')!
+      expect(reserved.metadata?.modelSelection).toBe(modelSelection)
+      expect(messageService.getById(reserved.id).data.modelSelection).toBe(modelSelection)
+
+      const listener = prepared.listeners.find((entry) => entry instanceof PersistenceListener)!
+      await listener.onDone({
+        status: 'success',
+        modelId: MODEL_ID,
+        finalMessage: { id: reserved.id, role: 'assistant', parts: [{ type: 'text', text: 'completed answer' }] }
+      })
+
+      expect(messageService.getById(reserved.id)).toMatchObject({
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'completed answer' }], modelSelection }
+      })
+    }
+  )
+
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
     // All placeholders share the container traceId now; assert the per-model row and span
@@ -566,6 +611,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(phB?.modelId).toBe(MODEL_B)
     expect(phA?.siblingsGroupId).toBe(42)
     expect(phB?.siblingsGroupId).toBe(42)
+    expect(phA?.data.modelSelection).toBe('explicit')
+    expect(phB?.data.modelSelection).toBe('explicit')
     expect(prepared.models[0].request.messageId).toBe(phA?.id)
     expect(prepared.models[1].request.messageId).toBe(phB?.id)
 

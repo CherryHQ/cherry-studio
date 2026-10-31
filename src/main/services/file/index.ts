@@ -39,6 +39,7 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
+export { FileEditService } from './FileEditService'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
 
@@ -68,7 +69,8 @@ export { createDirectoryWatcher } from './watcher'
 // Projection helper: managed FileEntry → live on-disk FileInfo descriptor.
 export { toFileInfo } from './toFileInfo'
 
-// Path-level system helpers. `safeOpen` is the public default-open primitive;
+// Path-level system helpers. `safeOpen` is the public default-open primitive and
+// `openRequestPath` is the only sanctioned door for renderer-supplied path text;
 // raw Electron shell access remains internal to the file module.
 export { safeOpen, showInFolder } from './system'
 
@@ -84,7 +86,10 @@ export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/con
 // IPC batch-metadata handler.
 export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
+export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'
+
+export { FileIntakeService, FileIntakeError, type FileIntakeOwner } from './FileIntakeService'

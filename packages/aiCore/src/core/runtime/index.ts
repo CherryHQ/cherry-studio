@@ -5,6 +5,8 @@
 
 // 主要的运行时执行器
 export { RuntimeExecutor } from './executor'
+export { generateSpeech, transcribe } from './voice'
+export type { SpeechOptions, SpeechResult, TranscriptionOptions, TranscriptionResult } from './voice'
 
 // 导出类型
 export type {

@@ -85,6 +85,7 @@ function createTrackedService(): InstanceType<typeof KnowledgeVectorStoreService
 
 function createBase(id = 'kb-1'): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id,
     name: 'KB',
     groupId: null,

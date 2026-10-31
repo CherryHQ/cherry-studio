@@ -64,6 +64,7 @@ describe('KnowledgeItemService', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: KNOWLEDGE_BASE_ID,
       name: 'KB',
       dimensions: 1024,
@@ -310,6 +311,65 @@ describe('KnowledgeItemService', () => {
       expect(result).toEqual([DIR_A_ID, NOTE_ROOT_ID])
     })
 
+    it('drops a selected item whose selected ancestor is more than one level up', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
+      await seedItem({ id: DIR_CHILD_ID, type: 'directory', groupId: DIR_ROOT_ID, data: { source: '/root/child' } })
+      await seedItem({
+        id: NOTE_GRANDCHILD_ID,
+        groupId: DIR_CHILD_ID,
+        data: { source: 'grandchild', content: 'grandchild' }
+      })
+
+      const result = service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_GRANDCHILD_ID, DIR_ROOT_ID])
+
+      expect(result).toEqual([DIR_ROOT_ID])
+    })
+
+    it('throws NotFound when a selected item does not exist', async () => {
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+
+      expect(() => service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_ROOT_ID, 'missing'])).toThrow(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND, status: 404 })
+      )
+    })
+
+    it('rejects a selected item that belongs to another base', async () => {
+      await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a1',
+        id: 'kb-2',
+        name: 'KB 2',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+        status: 'completed',
+        error: null,
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+      await seedItem({ id: OTHER_ITEM_ID, baseId: 'kb-2', data: { source: 'other', content: 'other' } })
+
+      expect(() => service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_ROOT_ID, OTHER_ITEM_ID])).toThrow(
+        `Knowledge item '${OTHER_ITEM_ID}' does not belong to base '${KNOWLEDGE_BASE_ID}'`
+      )
+    })
+
+    it('handles a selection larger than half the SQLite bound-variable limit', async () => {
+      const selectedIds = Array.from({ length: 17_000 }, (_, index) => `bulk-note-${index}`)
+      for (let start = 0; start < selectedIds.length; start += 500) {
+        await dbh.db.insert(knowledgeItemTable).values(
+          selectedIds.slice(start, start + 500).map((id) => ({
+            id,
+            baseId: KNOWLEDGE_BASE_ID,
+            type: 'note' as const,
+            data: { source: id, content: id },
+            status: 'completed' as const
+          }))
+        )
+      }
+
+      expect(service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, selectedIds)).toEqual(selectedIds)
+    })
+
     it('filters items by group id', async () => {
       await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
@@ -327,6 +387,15 @@ describe('KnowledgeItemService', () => {
       const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID)
 
       expect(result.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
+    })
+
+    it('includes deleting items when asked', async () => {
+      await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { includeDeleting: true })
+
+      expect(result.map((item) => item.id).sort()).toEqual([DELETING_NOTE_ID, VISIBLE_NOTE_ID].sort())
     })
 
     it('throws NotFound when listing items for a missing base', () => {
@@ -372,6 +441,7 @@ describe('KnowledgeItemService', () => {
       })
 
       await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a0',
         id: 'kb-2',
         name: 'KB 2',
         dimensions: 1024,
@@ -449,6 +519,19 @@ describe('KnowledgeItemService', () => {
       expect(service.getById(DELETING_LEAF).status).toBe('deleting')
     })
 
+    it('marks a file still waiting for its copy failed, so an interrupted copy is reindexable', async () => {
+      const COPYING_FILE = itemId('7e09')
+      await seedItem({
+        id: COPYING_FILE,
+        type: 'file',
+        data: { source: '/docs/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath },
+        status: 'preparing'
+      })
+
+      expect(service.failInterruptedItems(INTERRUPTED)).toBe(1)
+      expect(service.getById(COPYING_FILE)).toMatchObject({ status: 'failed', error: INTERRUPTED })
+    })
+
     it('returns 0 when nothing is in flight', async () => {
       await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
       expect(service.failInterruptedItems(INTERRUPTED)).toBe(0)
@@ -478,6 +561,27 @@ describe('KnowledgeItemService', () => {
         error: null,
         data: item.data
       })
+    })
+
+    it('creates a file whose bytes are still owed as preparing, then lets it move on to processing', async () => {
+      const item: CreateKnowledgeItemDto = {
+        type: 'file',
+        data: { source: '/docs/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath }
+      }
+
+      const created = service.createActive(KNOWLEDGE_BASE_ID, item, { awaitingCopy: true })
+
+      expect(created).toMatchObject({ type: 'file', status: 'preparing', error: null })
+      expect(service.updateStatus(created.id, 'processing').status).toBe('processing')
+    })
+
+    it('still rejects preparing for a note, so only files and directories can wait in it', async () => {
+      const item: CreateKnowledgeItemDto = { type: 'note', data: { source: 'note', content: 'note' } }
+
+      expect(() => service.createActive(KNOWLEDGE_BASE_ID, item, { awaitingCopy: true })).toThrow(
+        expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+      )
+      expect(service.getItemsByBaseId(KNOWLEDGE_BASE_ID)).toEqual([])
     })
 
     it('creates a leaf item as processing', async () => {

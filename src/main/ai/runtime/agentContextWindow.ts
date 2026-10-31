@@ -1,5 +1,5 @@
 /**
- * Runtime-neutral context-window fallback for agent runtimes (pi, dsh), which
+ * Runtime-neutral context-window fallback for agent runtimes, which
  * need a compaction boundary even when Cherry's model row declares none. Model
  * filtering no longer gates on the window, so this stays main-side.
  */

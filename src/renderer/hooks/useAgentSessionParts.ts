@@ -294,6 +294,29 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [mutate, sessionId]
   )
 
+  const replaceMessageTail = useCallback(
+    async (messageId: string, replacements: CherryUIMessage[]): Promise<void> => {
+      const replacementRows = replacements.map((message) => reservedUIMessageToAgentSessionMessage(sessionId, message))
+      await writeSessionMessagesCache((pages) => {
+        const currentPages = pages?.length ? pages : [{ items: [], nextCursor: undefined }]
+        const targetPageIndex = currentPages.findIndex((page) => page.items.some((row) => row.id === messageId))
+        const retainedPages = targetPageIndex < 0 ? currentPages : currentPages.slice(targetPageIndex)
+        const firstPage = retainedPages[0]
+        const targetIndex = firstPage.items.findIndex((row) => row.id === messageId)
+        const retainedItems = targetIndex < 0 ? firstPage.items : firstPage.items.slice(targetIndex + 1)
+        const existingIds = new Set([
+          ...retainedItems.map((row) => row.id),
+          ...retainedPages.slice(1).flatMap((page) => page.items.map((row) => row.id))
+        ])
+        const newRows = replacementRows
+          .filter((row) => !existingIds.has(row.id))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+        return [{ ...firstPage, items: [...newRows, ...retainedItems] }, ...retainedPages.slice(1)]
+      })
+    },
+    [sessionId, writeSessionMessagesCache]
+  )
+
   // Errors that predate the load-all are baseline; only a NEW error while paging
   // abandons it. A retained error would otherwise deadlock a retried select-all
   // behind the !error gate, so starting also revalidates it away.
@@ -366,6 +389,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     selectAllPagination,
     refresh: refreshMessages,
     seedReservedMessages,
+    replaceMessageTail,
     deleteMessage
   }
 }
