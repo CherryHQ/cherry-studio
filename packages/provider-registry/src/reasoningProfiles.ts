@@ -92,6 +92,43 @@ const anthropicAlwaysOnWire = {
   default: anthropicAdaptiveWire.auto
 }
 
+/**
+ * Self-hosted (vLLM / SGLang) reasoning wire. Chat-template servers gate
+ * thinking through `chat_template_kwargs.enable_thinking` only; different
+ * templates accept different budget fields, so a shared `thinking_budget`
+ * with a 4096 fallback would send invalid or truncating params. Only the
+ * toggle is generic — budget caps belong to a narrower format when needed.
+ */
+const selfHostedWire: ReasoningWireProfile = {
+  off: {
+    operations: [
+      {
+        target: 'chat_template_kwargs.enable_thinking',
+        value: { source: 'literal', value: false },
+        delivery: 'request-body'
+      }
+    ]
+  },
+  auto: {
+    operations: [
+      {
+        target: 'chat_template_kwargs.enable_thinking',
+        value: { source: 'literal', value: true },
+        delivery: 'request-body'
+      }
+    ]
+  },
+  effort: {
+    operations: [
+      {
+        target: 'chat_template_kwargs.enable_thinking',
+        value: { source: 'literal', value: true },
+        delivery: 'request-body'
+      }
+    ]
+  }
+}
+
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {
   const suffix = summaryTarget ? [summary(summaryTarget)] : []
   return {
@@ -175,6 +212,9 @@ const formatProfiles = {
       auto: mode([literal('think', true)]),
       effort: mode([effort('think')])
     }
+  },
+  'self-hosted': {
+    wire: selfHostedWire
   },
   none: {
     wire: { disabled: true }

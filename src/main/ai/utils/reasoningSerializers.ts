@@ -7,6 +7,7 @@
  */
 import type {
   ReasoningEffort,
+  ReasoningWireDelivery,
   ReasoningWireMode,
   ReasoningWireProfile,
   ReasoningWireTarget
@@ -26,6 +27,7 @@ export type ResolvedReasoningKind = 'omit' | 'off' | 'auto' | 'effort' | 'budget
 export interface ResolvedReasoningEmission {
   target: ReasoningWireTarget
   value: string | number | boolean
+  delivery: ReasoningWireDelivery
 }
 
 export interface ResolvedReasoningInvocation {
@@ -202,7 +204,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
     return omit("the request's output cap cannot satisfy the wire's budget contract", input.model, selection)
   }
 
-  if ('budget' in mode && mode.budget.missing.type === 'omit-mode' && budgetTokens === undefined) {
+  if ('budget' in mode && mode.budget?.missing.type === 'omit-mode' && budgetTokens === undefined) {
     return omit('the wire requires a thinking budget and none could be derived', input.model, selection)
   }
 
@@ -223,7 +225,8 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
         value = input.assistantSummary ?? undefined
         break
     }
-    if (value !== undefined) emissions.push({ target: operation.target, value })
+    if (value !== undefined)
+      emissions.push({ target: operation.target, value, delivery: operation.delivery ?? 'provider-option' })
   }
 
   if (emissions.length === 0) return omit('the mode produced no wire values', input.model, selection)
@@ -260,4 +263,38 @@ function encodeEmissions(invocation: ResolvedReasoningInvocation): Record<string
 /** Materialize the profile's closed emission operations into a provider-options object. */
 export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
   return encodeEmissions(invocation)
+}
+
+/** Whether a wire emission is delivered via raw request body rather than providerOptions. */
+function isBodyEmission(emission: ResolvedReasoningEmission): boolean {
+  return emission.delivery === 'request-body'
+}
+
+/** Return a reasoning invocation with body-routed emissions removed (for providerOptions-only paths). */
+export function filterReasoningForProviderOptions(
+  invocation: ResolvedReasoningInvocation
+): ResolvedReasoningInvocation {
+  const kept = invocation.emissions.filter((emission) => !isBodyEmission(emission))
+  return { ...invocation, emissions: kept }
+}
+
+/** Extract body-routed reasoning params as a nested object for fetch injection. */
+export function extractReasoningBodyParams(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
+  return encodeEmissions({ ...invocation, emissions: invocation.emissions.filter(isBodyEmission) })
+}
+
+/** All wire targets the resolved profile may deliver through the raw HTTP body. */
+export function collectBodyRoutedTargets(profile: ReasoningWireProfile | undefined): ReadonlySet<string> {
+  const targets = new Set<string>()
+  if (!profile) return targets
+
+  for (const mode of Object.values(profile)) {
+    if (!mode || typeof mode !== 'object' || !('operations' in mode)) continue
+    for (const operation of mode.operations) {
+      if ((operation.delivery ?? 'provider-option') === 'request-body') {
+        targets.add(operation.target)
+      }
+    }
+  }
+  return targets
 }

@@ -18,7 +18,15 @@ describe('REASONING_EFFORT_ORDER', () => {
 
 describe('REASONING_FORMAT_TYPES', () => {
   it('derives every discriminator from the format union', () => {
-    expect(REASONING_FORMAT_TYPES).toEqual(['openai-chat', 'openai-responses', 'anthropic', 'gemini', 'ollama', 'none'])
+    expect(REASONING_FORMAT_TYPES).toEqual([
+      'openai-chat',
+      'openai-responses',
+      'anthropic',
+      'gemini',
+      'ollama',
+      'self-hosted',
+      'none'
+    ])
   })
 })
 

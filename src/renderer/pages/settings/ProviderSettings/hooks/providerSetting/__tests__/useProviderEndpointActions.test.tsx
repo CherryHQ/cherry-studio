@@ -5,7 +5,12 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
-import { useProviderEndpointActions } from '../useProviderEndpointActions'
+import {
+  commitCommittedEndpointConfigs,
+  resetCommittedEndpointConfigsForTests,
+  useProviderEndpointActions,
+  withEndpointConfigWriteLock
+} from '../useProviderEndpointActions'
 
 const patchProviderMock = vi.fn().mockResolvedValue(undefined)
 const setApiHostMock = vi.fn()
@@ -27,6 +32,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('useProviderEndpointActions', () => {
+  beforeEach(() => {
+    resetCommittedEndpointConfigsForTests()
+  })
+
   const provider = {
     id: 'openai',
     name: 'OpenAI',
@@ -245,6 +254,290 @@ describe('useProviderEndpointActions', () => {
     expect(patchProviderMock).toHaveBeenCalledWith({
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
+      }
+    })
+  })
+
+  it('preserves reasoning format saved while a host write is queued when resetting the API host', async () => {
+    let releaseHostWrite: (() => void) | undefined
+    patchProviderMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseHostWrite = () => resolve()
+        })
+    )
+
+    const providerWithOverride = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com'
+        }
+      }
+    }
+
+    const providerWithReasoningFormat = {
+      ...providerWithOverride,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    }
+
+    const { result, rerender } = renderHook(
+      (props) =>
+        useProviderEndpointActions({
+          provider: props.provider,
+          primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          apiHost: props.apiHost,
+          setApiHost: setApiHostMock,
+          providerApiHost: 'https://api.openai.com',
+          anthropicApiHost: '',
+          setAnthropicApiHost: setAnthropicApiHostMock,
+          defaultApiHost: 'https://api.openai.com',
+          apiVersion: '',
+          patchProvider: patchProviderMock
+        }),
+      {
+        initialProps: {
+          provider: providerWithOverride,
+          apiHost: 'https://proxy.example.com'
+        }
+      }
+    )
+
+    await act(async () => {
+      vi.advanceTimersByTime(150)
+    })
+
+    const drawerSavePromise = withEndpointConfigWriteLock(providerWithOverride.id, async () => {
+      await patchProviderMock({
+        endpointConfigs: providerWithReasoningFormat.endpointConfigs
+      })
+      commitCommittedEndpointConfigs(providerWithOverride.id, providerWithReasoningFormat.endpointConfigs)
+    })
+
+    await act(async () => {
+      releaseHostWrite?.()
+      await drawerSavePromise
+    })
+
+    await act(async () => {
+      rerender({
+        provider: providerWithReasoningFormat,
+        apiHost: 'https://proxy.example.com'
+      })
+    })
+
+    await act(async () => {
+      await result.current.resetApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenLastCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+  })
+
+  it('keeps newer refreshed endpoint settings over an older retained snapshot on sequential host saves', async () => {
+    const { result, rerender } = renderHook(
+      ({ provider: currentProvider }) =>
+        useProviderEndpointActions({
+          provider: currentProvider,
+          primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          apiHost: 'https://api.openai.com',
+          setApiHost: setApiHostMock,
+          providerApiHost: 'https://api.openai.com',
+          anthropicApiHost: '',
+          setAnthropicApiHost: setAnthropicApiHostMock,
+          defaultApiHost: 'https://api.openai.com',
+          apiVersion: '',
+          patchProvider: patchProviderMock
+        }),
+      { initialProps: { provider } }
+    )
+
+    await act(async () => {
+      await result.current.commitApiHost('https://first.example.com')
+      await flushEndpointAction()
+    })
+
+    // A whole-map writer (custom headers drawer) retained a snapshot taken before the next edit.
+    commitCommittedEndpointConfigs(provider.id, {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://first.example.com' }
+    })
+
+    // API Options disables streamOptions through a writer that records no snapshot; the refresh delivers it.
+    const refreshed = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://first.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    }
+    await act(async () => {
+      rerender({ provider: refreshed })
+    })
+
+    await act(async () => {
+      await result.current.commitApiHost('https://second.example.com')
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenLastCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://second.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    })
+  })
+
+  it('preserves reasoning format when resetting the API host', async () => {
+    const providerWithOverride = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    }
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: providerWithOverride,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://proxy.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://proxy.example.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.resetApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+  })
+
+  it('preserves reasoning format when committing a host change after drawer save without revalidation', async () => {
+    const providerWithOverride = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com'
+        }
+      }
+    }
+
+    const providerWithReasoningFormat = {
+      ...providerWithOverride,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    }
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: providerWithOverride,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://proxy.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await withEndpointConfigWriteLock(providerWithOverride.id, async () => {
+        await patchProviderMock({ endpointConfigs: providerWithReasoningFormat.endpointConfigs })
+        commitCommittedEndpointConfigs(providerWithOverride.id, providerWithReasoningFormat.endpointConfigs)
+      })
+    })
+
+    await act(async () => {
+      await result.current.commitApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenLastCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+  })
+
+  it('preserves reasoning format when committing a host change', async () => {
+    const providerWithOverride = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    }
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: providerWithOverride,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://proxy.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.commitApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
       }
     })
   })
