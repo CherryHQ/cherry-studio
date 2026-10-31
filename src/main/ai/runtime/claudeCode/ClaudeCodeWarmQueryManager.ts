@@ -16,6 +16,7 @@ import {
   createSpawnClaudeCodeProcess,
   spawnClaudeCodeProcess
 } from './ClaudeCodeProcessManager'
+import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -230,7 +231,23 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     })
   }
 
+  /**
+   * Close one parked warm query so a live turn can spawn when the global CLI cap is reached.
+   * Returns false when nothing was evicted.
+   */
+  evictOldestWarmQuery(): boolean {
+    const oldestKey = this.entries.keys().next().value
+    if (oldestKey === undefined) return false
+    const entry = this.entries.get(oldestKey)
+    if (!entry) return false
+    this.entries.delete(oldestKey)
+    if (entry.idleTimer) clearTimeout(entry.idleTimer)
+    this.releaseWarmQueryCapAndClose(oldestKey, entry)
+    return true
+  }
+
   async prewarm(request: WarmQueryRequest): Promise<void> {
+    if (isClaudeCodeSpawnMemoryPressured()) return
     // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
     // single await sits before any `entries` access, so the body below still runs without gaps.
     const { startup } = await import('@anthropic-ai/claude-agent-sdk')
@@ -250,17 +267,18 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     if (existing) {
-      this.closeDetached(request.key, existing)
+      this.releaseWarmQueryCapAndClose(request.key, existing)
     }
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
     const promise = startup({
-      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics, 'warm') },
       initializeTimeoutMs: request.initializeTimeoutMs
     }).catch((error) => {
       if (this.entries.get(request.key)?.promise === promise) {
         this.entries.delete(request.key)
       }
+      application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(processDiagnostics.reference)
       logger.warn('Claude warm query startup failed', { key: request.key, error })
       return undefined
     })
@@ -286,7 +304,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
-      this.closeDetached(request.key, entry)
+      this.releaseWarmQueryCapAndClose(request.key, entry)
       return undefined
     }
 
@@ -301,9 +319,13 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
     const entry = this.entries.get(key)
     this.entries.delete(key)
+    if (entry?.idleTimer) clearTimeout(entry.idleTimer)
     const retries = [...(this.failedClosures.get(key) ?? [])]
     const closures = retries.map((failed) => this.closeEntry(key, failed))
-    if (entry) closures.push(this.closeEntry(key, entry))
+    if (entry) {
+      application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(entry.processDiagnostics.reference)
+      closures.push(this.closeEntry(key, entry))
+    }
     closures.push(...(this.closingQueries.get(key) ?? []))
     await Promise.all(closures)
   }
@@ -331,9 +353,14 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     entry.idleTimer = setTimeout(() => {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
-      this.closeDetached(key, entry)
+      this.releaseWarmQueryCapAndClose(key, entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
+  }
+
+  private releaseWarmQueryCapAndClose(key: string, entry: WarmQueryEntry): void {
+    application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(entry.processDiagnostics.reference)
+    this.closeDetached(key, entry)
   }
 
   private closeDetached(key: string, entry: WarmQueryEntry): void {
