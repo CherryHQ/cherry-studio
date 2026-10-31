@@ -9,6 +9,7 @@ const pathnameOf = (url: string) => parseAppRouteUrl(url)?.pathname ?? ''
 const routeTitleKeys: Record<string, string> = {
   '/app/chat': 'agent.session.group.conversation',
   '/app/agents': 'title.work',
+  '/app/scheduled-tasks': 'settings.scheduledTasks.title',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
   '/app/launchpad': 'title.launchpad',
