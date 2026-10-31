@@ -102,16 +102,20 @@ export function createPiMemoryTools(pi: Awaited<ReturnType<typeof loadPiSdk>>, c
               }
             },
       execute: async (toolCallId, params, signal, onUpdate, ctx) => {
-        const args = params as Record<string, unknown>
+        const args: Record<string, unknown> & { path: string } = {
+          ...(params as Record<string, unknown>),
+          path: resolve((params as Record<string, unknown>).path)
+        }
         signal?.throwIfAborted()
         if (context.isDisabled(original.name)) throw new Error(`Tool "${original.name}" is disabled for this Agent`)
-        const target = await memoryTarget(resolve(args.path))
+        const target = await memoryTarget(args.path)
         if (target && original.name === 'read') sessionFor(target, signal)
         if (!target || original.name === 'read') {
           const decision = await authorize({ toolName: original.name, toolCallId, input: args, signal })
           if (decision?.block) throw new Error(decision.reason)
-          const approvedTarget = await memoryTarget(resolve(args.path))
-          if (!approvedTarget) return original.execute(toolCallId, params, signal, onUpdate, ctx)
+          args.path = resolve(args.path)
+          const approvedTarget = await memoryTarget(args.path)
+          if (!approvedTarget) return original.execute(toolCallId, args, signal, onUpdate, ctx)
           if (original.name !== 'read')
             throw new Error('Read this memory file completely before requesting a controlled edit')
           if (args.offset !== undefined || args.limit !== undefined)
