@@ -17,6 +17,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { TimeOfDayInput } from '@renderer/components/TimeOfDayInput'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
@@ -32,6 +33,7 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupMaxBackups, setLocalBackupMaxBackups] = usePreference('data.backup.local.max_backups')
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = usePreference('data.backup.local.skip_backup_file')
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
+  const [localBackupSyncStart, setLocalBackupSyncStart] = usePreference('data.backup.local.sync_start')
 
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
   const [localBackupDirDraft, setLocalBackupDirDraft] = useState(localBackupDir)
@@ -245,6 +247,19 @@ const LocalBackupSettings: React.FC = () => {
             { label: t('settings.data.local.hour_interval', { count: 24 }), value: 1440 }
           ]}
         />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.backup.syncStart.label')}</SettingRowTitle>
+        <TimeOfDayInput
+          value={localBackupSyncStart}
+          onChange={(minutes) => void setLocalBackupSyncStart(minutes)}
+          disabled={!localBackupDir || localBackupSyncInterval === 0}
+          aria-label={t('settings.data.backup.syncStart.label')}
+        />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.backup.syncStart.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

@@ -16,6 +16,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { TimeOfDayInput } from '@renderer/components/TimeOfDayInput'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
@@ -47,6 +48,7 @@ const NutstoreSettings: FC = () => {
   const [nutstorePath, setNutstorePath] = usePreference('data.backup.nutstore.path')
   const [nutstoreSkipBackupFile, setNutstoreSkipBackupFile] = usePreference('data.backup.nutstore.skip_backup_file')
   const [nutstoreSyncInterval, setNutstoreSyncInterval] = usePreference('data.backup.nutstore.sync_interval')
+  const [nutstoreSyncStart, setNutstoreSyncStart] = usePreference('data.backup.nutstore.sync_start')
   const [nutstoreToken, setNutstoreToken] = usePreference('data.backup.nutstore.token')
 
   const [nutstoreUsername, setNutstoreUsername] = useState<string | undefined>(undefined)
@@ -303,6 +305,19 @@ const NutstoreSettings: FC = () => {
                 { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
               ]}
             />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.backup.syncStart.label')}</SettingRowTitle>
+            <TimeOfDayInput
+              value={nutstoreSyncStart}
+              onChange={(minutes) => void setNutstoreSyncStart(minutes)}
+              disabled={!nutstoreToken || nutstoreSyncInterval === 0}
+              aria-label={t('settings.data.backup.syncStart.label')}
+            />
+          </SettingRow>
+          <SettingRow>
+            <SettingHelpText>{t('settings.data.backup.syncStart.help')}</SettingHelpText>
           </SettingRow>
           {nutstoreAutoSync && nutstoreSyncInterval > 0 && (
             <>
