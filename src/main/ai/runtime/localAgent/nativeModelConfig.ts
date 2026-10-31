@@ -1,0 +1,130 @@
+import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser'
+import * as toml from 'smol-toml'
+import { parseDocument } from 'yaml'
+
+import { t } from '@main/i18n'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
+import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
+
+function parseToml(content: string) {
+  try {
+    return toml.parse(content)
+  } catch {
+    throw new Error(t('code_cli.model.invalid_config', { format: 'TOML' }))
+  }
+}
+
+/** Changes only the native default, preserving credentials and unrelated settings. */
+export function updateNativeModelConfig(target: CliConfigTarget, content: string | null, model?: string): string {
+  if (target === 'poolside-settings') {
+    const config = parseDocument(content ?? '{}')
+    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+    config.setIn(['pool', 'default_agent_server'], 'Poolside')
+    if (!config.hasIn(['agent_servers', 'Poolside']))
+      config.setIn(['agent_servers', 'Poolside'], config.createNode({ type: 'custom', command: 'pool', args: ['acp'] }))
+    const key = ['agent_servers', 'Poolside', 'default_config_options', 'model']
+    if (model === undefined) config.deleteIn(key)
+    else config.setIn(key, model)
+    return config.toString()
+  }
+  if (target === 'codex-config' || target === 'kimi-config' || target === 'vibe-config') {
+    const config = parseToml(content ?? '')
+    const key = target === 'codex-config' ? 'model' : target === 'vibe-config' ? 'active_model' : 'default_model'
+    if (model === undefined) delete config[key]
+    else config[key] = model
+    return toml.stringify(config)
+  }
+  if (target === 'hermes-config' || target === 'minimax-config') {
+    const config = parseDocument(content ?? '{}')
+    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+    const key = target === 'hermes-config' ? ['model', 'default'] : ['defaultModel']
+    if (model === undefined) config.deleteIn(key)
+    else config.setIn(key, model)
+    return config.toString()
+  }
+  const errors: ParseError[] = []
+  const config = parse(content ?? '{}', errors, { allowTrailingComma: true })
+  if (errors.length || !config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error(t('code_cli.model.invalid_config', { format: 'JSON' }))
+  }
+  let updates: [string[], string | undefined][]
+  switch (target) {
+    case 'claude-settings':
+      updates = [
+        [['model'], model],
+        [['env', 'ANTHROPIC_MODEL'], model]
+      ]
+      break
+    case 'codebuddy-settings':
+    case 'opencode-config':
+    case 'kilo-config':
+    case 'copilot-settings':
+      updates = [[['model'], model]]
+      break
+    case 'factory-settings':
+      updates = [[['sessionDefaultSettings', 'model'], model]]
+      break
+    case 'qwen-settings':
+      updates = [[['model', 'name'], model]]
+      break
+    case 'pi-settings': {
+      const slash = model?.indexOf('/') ?? -1
+      if (model && (slash < 1 || slash === model.length - 1)) throw new Error(t('code_cli.model.pi_model_invalid'))
+      updates = [
+        [['defaultProvider'], model?.slice(0, slash)],
+        [['defaultModel'], model?.slice(slash + 1)]
+      ]
+      break
+    }
+    default:
+      throw new Error(t('code_cli.model.unsupported'))
+  }
+  return updates.reduce(
+    (text, [key, value]) =>
+      applyEdits(
+        text,
+        modify(text, key, value, {
+          formattingOptions: { insertSpaces: true, tabSize: 2 }
+        })
+      ),
+    content ?? '{}'
+  )
+}
+
+export function readNativeModelConfig(target: CliConfigTarget, content: string): string | undefined {
+  if (target === 'poolside-settings') {
+    const config = parseDocument(content)
+    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+    const server =
+      config.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER ? POOLSIDE_GATEWAY_SERVER : 'Poolside'
+    const model = config.getIn(['agent_servers', server, 'default_config_options', 'model'])
+    return typeof model === 'string' ? model : undefined
+  }
+  if (target === 'codex-config' || target === 'kimi-config' || target === 'vibe-config') {
+    const config = parseToml(content)
+    const value =
+      config[target === 'codex-config' ? 'model' : target === 'vibe-config' ? 'active_model' : 'default_model']
+    return typeof value === 'string' ? value : undefined
+  }
+  if (target === 'hermes-config' || target === 'minimax-config') {
+    const config = parseDocument(content)
+    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+    const value = config.getIn(target === 'hermes-config' ? ['model', 'default'] : ['defaultModel'])
+    return typeof value === 'string' ? value : undefined
+  }
+  const errors: ParseError[] = []
+  const config = parse(content, errors, { allowTrailingComma: true })
+  if (errors.length || !config || typeof config !== 'object' || Array.isArray(config))
+    throw new Error(t('code_cli.model.invalid_config', { format: 'JSON' }))
+  const value =
+    target === 'factory-settings'
+      ? config.sessionDefaultSettings?.model
+      : target === 'pi-settings'
+        ? config.defaultProvider && config.defaultModel && `${config.defaultProvider}/${config.defaultModel}`
+        : target === 'qwen-settings'
+          ? config.model?.name
+          : target === 'claude-settings'
+            ? config.env?.ANTHROPIC_MODEL || config.model
+            : config.model
+  return typeof value === 'string' ? value : undefined
+}

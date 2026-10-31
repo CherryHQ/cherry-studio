@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -12,7 +12,9 @@ import type { Provider } from '@shared/data/types/provider'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => ({
-  failSettingsWrite: false
+  failSettingsWrite: false,
+  failProfileWrite: false,
+  failHeadlessWrite: false
 }))
 
 vi.mock('@main/utils/file', async () => {
@@ -28,6 +30,14 @@ vi.mock('@main/utils/file', async () => {
       ) {
         mocks.failSettingsWrite = false
         throw new Error('injected settings write failure')
+      }
+      if (mocks.failHeadlessWrite && String(args[0]).includes('profiles/headless')) {
+        mocks.failHeadlessWrite = false
+        throw new Error('injected headless write failure')
+      }
+      if (mocks.failProfileWrite && nodePath.default.basename(args[0]) === 'cordis.patch.yml') {
+        mocks.failProfileWrite = false
+        throw new Error('injected profile write failure')
       }
       return actual.atomicWriteFile(...args)
     }
@@ -88,6 +98,8 @@ describe('DeepSeek Harness config transaction', () => {
 
   beforeEach(async () => {
     mocks.failSettingsWrite = false
+    mocks.failProfileWrite = false
+    mocks.failHeadlessWrite = false
     dir = (await mkdtemp(path.join(tmpdir(), 'deepseek-harness-config-'))) as AbsoluteFilePath
   })
 
@@ -214,7 +226,11 @@ describe('DeepSeek Harness config transaction', () => {
       input: ['text', 'image'],
       reasoningEfforts: { off: null, low: 'low', high: 'high' }
     })
-    expect(settings['agent-default-model']).toEqual({ provider: identity.route, model: 'claude-sonnet' })
+    expect(settings['agent-default-model']).toBeUndefined()
+    expect(parse(await readFile(path.join(dir, 'cordis.patch.yml'), 'utf8'))).toContainEqual({
+      id: 'agent-default-model',
+      config: { provider: identity.route, model: 'claude-sonnet' }
+    })
     expect(settings['agent-presets']).toEqual({ default: 'code' })
   })
 
@@ -228,6 +244,14 @@ describe('DeepSeek Harness config transaction', () => {
       'external-key': 'value',
       count: 5,
       [identity.credentialRef]: 'sk-sensitive'
+    })
+  })
+
+  it('creates a versioned credentials store for a fresh Harness installation', async () => {
+    await writeDeepSeekHarnessConfig(dir, projection())
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 1,
+      refs: { [projection().credentialRef]: 'sk-sensitive' }
     })
   })
 
@@ -269,8 +293,10 @@ describe('DeepSeek Harness config transaction', () => {
   it('keeps the flat layout pre-0.1.1 DSH reads, including a credential named version', async () => {
     const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
 
+    await writeFile(path.join(dir, '.credentials.yaml'), 'EXISTING_KEY: existing\n', { mode: 0o600 })
     await writeDeepSeekHarnessConfig(dir, projection())
     expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      EXISTING_KEY: 'existing',
       [identity.credentialRef]: 'sk-sensitive'
     })
 
@@ -350,11 +376,84 @@ describe('DeepSeek Harness config transaction', () => {
     expect(await readFile(settingsPath, 'utf8')).toBe('unrelated: original\n')
   })
 
-  it('rolls back a completed write only while both files still match its bytes', async () => {
+  it('updates only the final matching default-model override and preserves unrelated profile patches', async () => {
+    const profilePath = path.join(dir, 'cordis.patch.yml')
+    await writeFile(
+      profilePath,
+      '# profile note\n- id: other-plugin\n  config:\n    keep: true\n- id: agent-default-model\n  config:\n    provider: old\n    model: old\n    reasoningEffort: high\n'
+    )
+    await writeDeepSeekHarnessConfig(dir, projection())
+    const once = await readFile(profilePath, 'utf8')
+    expect(once).toContain('# profile note')
+    expect(parse(once)).toEqual([
+      { id: 'other-plugin', config: { keep: true } },
+      { id: 'agent-default-model', config: { provider: projection().route, model: 'claude-sonnet' } }
+    ])
+    await writeDeepSeekHarnessConfig(dir, projection())
+    expect(await readFile(profilePath, 'utf8')).toBe(once)
+  })
+
+  it('enables the official headless credential readers without changing other profile overrides', async () => {
+    const headlessDir = path.join(dir, 'profiles', 'headless')
+    await mkdir(headlessDir, { recursive: true })
+    const target = path.join(headlessDir, 'cordis.patch.yml')
+    await writeFile(
+      target,
+      '# headless note\n- id: credentials\n  disabled: true\n  config:\n    watch: false\n- id: hmr\n  disabled: true\n'
+    )
+    await writeDeepSeekHarnessConfig(dir, projection())
+    const text = await readFile(target, 'utf8')
+    expect(text).toContain('# headless note')
+    expect(parse(text)).toEqual([
+      { id: 'credentials', disabled: false, config: { watch: false } },
+      { id: 'hmr', disabled: true },
+      { id: 'authorization', disabled: false },
+      { id: 'deepseek-account', disabled: false }
+    ])
+    const receipt = await writeDeepSeekHarnessConfig(dir, projection())
+    await writeFile(target, receipt.headless.written + '# user edit\n')
+    expect(await rollbackDeepSeekHarnessConfig(receipt)).toBe(false)
+    expect(await readFile(target, 'utf8')).toContain('# user edit')
+  })
+
+  it('rolls back every config file if the headless profile write fails', async () => {
+    mocks.failHeadlessWrite = true
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow('injected headless write failure')
+    for (const name of ['settings.yaml', '.credentials.yaml', 'cordis.patch.yml', 'profiles/headless/cordis.patch.yml'])
+      await expect(readFile(path.join(dir, name), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('restores all three files if the final profile write fails', async () => {
+    const originals = {
+      'settings.yaml': 'unrelated: original\n',
+      '.credentials.yaml': 'ORIGINAL: secret\n',
+      'cordis.patch.yml': '- id: custom\n  disabled: true\n'
+    }
+    for (const [name, content] of Object.entries(originals)) await writeFile(path.join(dir, name), content)
+    mocks.failProfileWrite = true
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow('injected profile write failure')
+    for (const [name, content] of Object.entries(originals))
+      expect(await readFile(path.join(dir, name), 'utf8')).toBe(content)
+  })
+
+  it('refuses to overwrite malformed profile patches or undo a subsequent user profile edit', async () => {
+    const profilePath = path.join(dir, 'cordis.patch.yml')
+    await writeFile(profilePath, 'not: a sequence\n')
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow('must contain a YAML sequence')
+    await expect(readFile(path.join(dir, 'settings.yaml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    await unlink(profilePath)
+    const receipt = await writeDeepSeekHarnessConfig(dir, projection())
+    await writeFile(profilePath, receipt.profile.written + '# user edit\n')
+    expect(await rollbackDeepSeekHarnessConfig(receipt)).toBe(false)
+    expect(await readFile(profilePath, 'utf8')).toContain('# user edit')
+  })
+
+  it('rolls back a completed write only while all files still match its bytes', async () => {
     const settingsPath = path.join(dir, 'settings.yaml')
     const receipt = await writeDeepSeekHarnessConfig(dir, projection())
     expect(await rollbackDeepSeekHarnessConfig(receipt)).toBe(true)
     await expect(readFile(settingsPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(readFile(path.join(dir, 'cordis.patch.yml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
 
     const concurrentReceipt = await writeDeepSeekHarnessConfig(dir, projection())
     await writeFile(settingsPath, `${concurrentReceipt.settings.written}# user edit\n`, { mode: 0o600 })
@@ -362,15 +461,19 @@ describe('DeepSeek Harness config transaction', () => {
     expect(await readFile(settingsPath, 'utf8')).toContain('# user edit')
   })
 
-  it('waits for a sibling lock without deleting it', async () => {
-    const lockPath = path.join(dir, '.credentials.yaml.lock')
-    await writeFile(lockPath, 'external owner', { mode: 0o600 })
-    const pendingWrite = writeDeepSeekHarnessConfig(dir, projection())
-    await new Promise((resolve) => setTimeout(resolve, 60))
-    expect(await readFile(lockPath, 'utf8')).toBe('external owner')
-    await unlink(lockPath)
-    await expect(pendingWrite).resolves.toBeDefined()
-  })
+  it.each(['.credentials.yaml.lock', 'profiles/headless/package.json.lock'])(
+    'waits for the native writer lock %s without deleting it',
+    async (lockFile) => {
+      const lockPath = path.join(dir, lockFile)
+      await mkdir(path.dirname(lockPath), { recursive: true })
+      await writeFile(lockPath, 'external owner', { mode: 0o600 })
+      const pendingWrite = writeDeepSeekHarnessConfig(dir, projection())
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      expect(await readFile(lockPath, 'utf8')).toBe('external owner')
+      await unlink(lockPath)
+      await expect(pendingWrite).resolves.toBeDefined()
+    }
+  )
 
   it('reclaims a managed lock after its owner process has exited', async () => {
     const lockPath = path.join(dir, '.credentials.yaml.lock')

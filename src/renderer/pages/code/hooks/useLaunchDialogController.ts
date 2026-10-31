@@ -2,15 +2,10 @@ import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { AgentTerminalDialog } from '@renderer/components/localAgent/AgentTerminalDialog'
+import { useAvailableTerminals } from '@renderer/hooks/agent/useAvailableTerminals'
+import type { ApiGatewayProviderBundle } from '@renderer/hooks/useApiGatewayProvider'
 import { ipcApi } from '@renderer/ipc'
-import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
-import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { isFileConfiguredCli } from '@shared/utils/cliConfig'
-
 import {
   type CliConfigFileDraft,
   extractConfigFromCliConfigDraft,
@@ -20,11 +15,16 @@ import {
   readCliConfigFiles,
   resolveCliConfigApplyContext,
   writeCliConfigDraft
-} from '../cliConfig'
-import type { LaunchDialog } from '../components/LaunchDialog'
+} from '@renderer/services/codeCliConfig'
+import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
+import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { isModelConfiguredCli } from '@shared/utils/cliConfig'
+
 import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
-import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
-import { useAvailableTerminals } from './useAvailableTerminals'
 
 const logger = loggerService.withContext('useLaunchDialogController')
 
@@ -54,7 +54,7 @@ interface UseLaunchDialogControllerOptions {
 }
 
 interface LaunchDialogController {
-  launchDialogProps: ComponentProps<typeof LaunchDialog>
+  launchDialogProps: ComponentProps<typeof AgentTerminalDialog>
   launching: boolean
   openLaunchDialog: () => void
 }
@@ -82,7 +82,7 @@ export function useLaunchDialogController({
   const [launching, setLaunching] = useState(false)
 
   // The picker displays a fallback terminal before the user has ever chosen one
-  // (see LaunchDialog/CurrentConfigPanel); resolve that same fallback here so the
+  // (see AgentTerminalDialog/TerminalConfigPanel); resolve that same fallback here so the
   // launch payload matches what's on screen instead of sending `undefined`.
   const effectiveTerminal = selectedTerminal ?? availableTerminals[0]?.id
 
@@ -174,7 +174,7 @@ export function useLaunchDialogController({
       if (isGatewayProvider && apiGatewayProvider) {
         await apiGatewayProvider.ensureRunning()
       }
-      if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+      if (isGatewayProvider && apiGatewayProvider && isModelConfiguredCli(selectedCliTool)) {
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {

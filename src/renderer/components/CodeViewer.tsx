@@ -11,6 +11,7 @@ import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useIsScrollViewportOwned } from '@renderer/hooks/useScrollViewportOwnership'
 import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -34,6 +35,7 @@ interface CodeViewerProps {
   editorState?: EditorState | null
   /** Code string value. */
   value: string
+  sourceLocation?: FileSourceLocation
   /**
    * Code language string.
    * - Case-insensitive.
@@ -94,6 +96,7 @@ interface CodeViewerProps {
 const CodeViewer = ({
   editorState,
   value,
+  sourceLocation,
   language,
   height,
   maxHeight,
@@ -141,6 +144,9 @@ const CodeViewer = ({
   const highlight = options?.highlight ?? true
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.split('\n') : []), [value])
+
+  const [highlightedLine, setHighlightedLine] = useState<number | null>(null)
+  const revealedLocationRef = useRef<FileSourceLocation | undefined>(undefined)
 
   useLayoutEffect(() => {
     const root = shikiThemeRef.current
@@ -578,6 +584,30 @@ const CodeViewer = ({
   const lastIndex = virtualItems.at(-1)?.index
   const totalSize = virtualizer.getTotalSize()
 
+  useLayoutEffect(() => {
+    if (!sourceLocation || sourceLocation === revealedLocationRef.current) return
+    const index = sourceLocation.line - 1
+    if (!Number.isInteger(index) || index < 0 || index >= rawLines.length) return
+    const frame = requestAnimationFrame(() => {
+      const row = expanded ? scrollerRef.current?.querySelector<HTMLElement>(`[data-index="${index}"]`) : null
+      if (row) row.scrollIntoView({ block: 'center' })
+      else virtualizer.scrollToIndex(index, { align: 'center' })
+      revealedLocationRef.current = sourceLocation
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [sourceLocation, expanded, rawLines.length, virtualizer])
+
+  useEffect(() => {
+    const index = sourceLocation ? sourceLocation.line - 1 : -1
+    if (!Number.isInteger(index) || index < 0 || index >= rawLines.length) {
+      setHighlightedLine(null)
+      return
+    }
+    setHighlightedLine(index)
+    const timer = setTimeout(() => setHighlightedLine(null), 2000)
+    return () => clearTimeout(timer)
+  }, [sourceLocation, rawLines.length])
+
   // 使用代码高亮 Hook
   const { tokens, highlightLines, resetHighlight } = useCodeHighlight({
     value,
@@ -774,6 +804,8 @@ const CodeViewer = ({
               <div
                 key={virtualItem.key}
                 data-index={virtualItem.index}
+                aria-current={highlightedLine === virtualItem.index ? 'location' : undefined}
+                className={highlightedLine === virtualItem.index ? 'bg-accent' : undefined}
                 ref={capture ? undefined : virtualizer.measureElement}>
                 <VirtualizedRow
                   rawLine={renderedLines[virtualItem.index]}
@@ -817,7 +849,7 @@ const VirtualizedRow = memo(
 
     return (
       <div
-        className="line flex min-h-[var(--line-height)] w-full items-start leading-[var(--line-height)]"
+        className="line flex min-h-(--line-height) w-full items-start leading-[var(--line-height)]"
         style={{
           contain: wrapped ? 'content' : 'none',
           willChange: !wrapped && !expanded ? 'transform' : 'auto'

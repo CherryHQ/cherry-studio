@@ -148,7 +148,10 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
   try {
     process.kill(-child.pid, force ? 'SIGKILL' : 'SIGTERM')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ESRCH') return
+    if (code === 'EPERM' && (await waitForProcessExit(child, 1000))) return
+    throw error
   }
 }
 

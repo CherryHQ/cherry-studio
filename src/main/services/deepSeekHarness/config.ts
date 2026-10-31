@@ -35,6 +35,8 @@ interface FileSnapshot {
 export interface DeepSeekHarnessConfigReceipt {
   credentials: FileSnapshot & { written: string }
   settings: FileSnapshot & { written: string }
+  profile: FileSnapshot & { written: string }
+  headless: FileSnapshot & { written: string }
 }
 
 interface HeldLock {
@@ -50,6 +52,7 @@ interface LockOwner {
 
 const SETTINGS_FILE = 'settings.yaml'
 const CREDENTIALS_FILE = '.credentials.yaml'
+const PROFILE_FILE = 'cordis.patch.yml'
 const FILE_MODE = 0o600
 const LOCK_TIMEOUT_MS = 2000
 const LOCK_INITIAL_DELAY_MS = 20
@@ -164,11 +167,10 @@ async function acquireLock(filePath: string): Promise<HeldLock> {
   }
 }
 
-async function acquireConfigLocks(credentialsPath: string, settingsPath: string): Promise<HeldLock[]> {
+async function acquireConfigLocks(...paths: string[]): Promise<HeldLock[]> {
   const locks: HeldLock[] = []
   try {
-    locks.push(await acquireLock(credentialsPath))
-    locks.push(await acquireLock(settingsPath))
+    for (const file of paths) locks.push(await acquireLock(file))
     return locks
   } catch (error) {
     await releaseLocks(locks)
@@ -283,17 +285,65 @@ function renderSettings(snapshot: FileSnapshot, projection: DeepSeekHarnessProje
   document.setIn([...routePath, 'baseURL'], projection.baseUrl)
   document.deleteIn([...routePath, 'headers'])
   updateManagedModel(document, projection)
-  document.setIn(['agent-default-model', 'provider'], projection.route)
-  document.setIn(['agent-default-model', 'model'], projection.modelId)
-  document.deleteIn(['agent-default-model', 'reasoningEffort'])
+  document.delete('agent-default-model')
   if (projection.agentPreset !== 'inherit') {
     document.setIn(['agent-presets', 'default'], projection.agentPreset)
   }
   return document.toString()
 }
 
+function parseProfileDocument(snapshot: FileSnapshot) {
+  const document =
+    snapshot.content === undefined
+      ? new Document([])
+      : parseDocument(snapshot.content, {
+          customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value) => value }]
+        })
+  if (document.errors.length)
+    throw new Error(
+      `Invalid DeepSeek Harness YAML in ${path.basename(snapshot.path)}: ${describeYamlError(document.errors[0])}`
+    )
+  if (document.contents === null) document.contents = document.createNode([])
+  if (!isSeq(document.contents))
+    throw new Error(`DeepSeek Harness ${path.basename(snapshot.path)} must contain a YAML sequence`)
+  return { document, entries: document.contents }
+}
+
+function renderProfile(snapshot: FileSnapshot, projection: DeepSeekHarnessProjection): string {
+  const { document, entries } = parseProfileDocument(snapshot)
+  let index = entries.items.findLastIndex(
+    (item) =>
+      isMap(item) &&
+      item.get('id') === 'agent-default-model' &&
+      !item.has('insert') &&
+      (!item.has('name') || item.get('name') === '@deepseek-ai/dsh-agent-default-model')
+  )
+  if (index < 0) {
+    index = entries.items.length
+    entries.add(document.createNode({ id: 'agent-default-model', config: {} }))
+  }
+  document.setIn([index, 'config', 'provider'], projection.route)
+  document.setIn([index, 'config', 'model'], projection.modelId)
+  document.deleteIn([index, 'config', 'reasoningEffort'])
+  return document.toString()
+}
+
+function renderHeadlessProfile(snapshot: FileSnapshot): string {
+  const { document, entries } = parseProfileDocument(snapshot)
+  for (const id of ['credentials', 'authorization', 'deepseek-account']) {
+    const entry = entries.items.findLast((item) => isMap(item) && item.get('id') === id && !item.has('insert'))
+    if (isMap(entry)) entry.set('disabled', false)
+    else document.add(document.createNode({ id, disabled: false }))
+  }
+  return document.toString()
+}
+
 function renderCredentials(snapshot: FileSnapshot, credentialRef: string, credentialValue: string): string {
   const document = parseMappingDocument(snapshot)
+  if (snapshot.content === undefined) {
+    document.set('version', 1)
+    document.set('refs', document.createNode({}))
+  }
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(credentialRef)) {
     throw new Error(`DeepSeek Harness credential reference ${JSON.stringify(credentialRef)} is invalid`)
   }
@@ -330,9 +380,9 @@ async function restoreSnapshot(snapshot: FileSnapshot): Promise<void> {
   }
 }
 
-async function restoreSnapshots(settings: FileSnapshot, credentials: FileSnapshot): Promise<void> {
+async function restoreSnapshots(...snapshots: FileSnapshot[]): Promise<void> {
   const failures: unknown[] = []
-  for (const snapshot of [settings, credentials]) {
+  for (const snapshot of snapshots) {
     await restoreSnapshot(snapshot).catch((error) => failures.push(error))
   }
   if (failures.length > 0) throw new AggregateError(failures, 'Failed to restore DeepSeek Harness config files')
@@ -387,20 +437,34 @@ export async function writeDeepSeekHarnessConfig(
   await fs.mkdir(configDir, { recursive: true, mode: 0o700 })
   const credentialsPath = AbsoluteFilePathSchema.parse(path.join(configDir, CREDENTIALS_FILE))
   const settingsPath = AbsoluteFilePathSchema.parse(path.join(configDir, SETTINGS_FILE))
-  const locks = await acquireConfigLocks(credentialsPath, settingsPath)
+  const profilePath = AbsoluteFilePathSchema.parse(path.join(configDir, PROFILE_FILE))
+  const headlessPath = AbsoluteFilePathSchema.parse(path.join(configDir, 'profiles', 'headless', PROFILE_FILE))
+  await fs.mkdir(path.dirname(headlessPath), { recursive: true, mode: 0o700 })
+  const locks = await acquireConfigLocks(
+    credentialsPath,
+    settingsPath,
+    profilePath,
+    path.join(path.dirname(headlessPath), 'package.json')
+  )
 
   try {
     const credentials = await readSnapshot(credentialsPath)
     const settings = await readSnapshot(settingsPath)
+    const profile = await readSnapshot(profilePath)
+    const headless = await readSnapshot(headlessPath)
     const writtenCredentials = renderCredentials(credentials, projection.credentialRef, projection.credentialValue)
     const writtenSettings = renderSettings(settings, projection)
+    const writtenProfile = renderProfile(profile, projection)
+    const writtenHeadless = renderHeadlessProfile(headless)
 
     try {
       await atomicWriteFile(credentialsPath, writtenCredentials, { mode: FILE_MODE })
       await atomicWriteFile(settingsPath, writtenSettings, { mode: FILE_MODE })
+      await atomicWriteFile(profilePath, writtenProfile, { mode: FILE_MODE })
+      await atomicWriteFile(headlessPath, writtenHeadless, { mode: FILE_MODE })
     } catch (error) {
       try {
-        await restoreSnapshots(settings, credentials)
+        await restoreSnapshots(headless, profile, settings, credentials)
       } catch (rollbackError) {
         throw new AggregateError([error, rollbackError], 'Failed to roll back DeepSeek Harness config transaction')
       }
@@ -409,7 +473,9 @@ export async function writeDeepSeekHarnessConfig(
 
     return {
       credentials: { ...credentials, written: writtenCredentials },
-      settings: { ...settings, written: writtenSettings }
+      settings: { ...settings, written: writtenSettings },
+      profile: { ...profile, written: writtenProfile },
+      headless: { ...headless, written: writtenHeadless }
     }
   } finally {
     await releaseLocks(locks)
@@ -417,17 +483,17 @@ export async function writeDeepSeekHarnessConfig(
 }
 
 export async function rollbackDeepSeekHarnessConfig(receipt: DeepSeekHarnessConfigReceipt): Promise<boolean> {
-  const locks = await acquireConfigLocks(receipt.credentials.path, receipt.settings.path)
+  const snapshots = [receipt.credentials, receipt.settings, receipt.profile, receipt.headless]
+  const locks = await acquireConfigLocks(
+    ...snapshots.map((snapshot) =>
+      snapshot === receipt.headless ? path.join(path.dirname(snapshot.path), 'package.json') : snapshot.path
+    )
+  )
   try {
-    const currentCredentials = await readSnapshot(receipt.credentials.path)
-    const currentSettings = await readSnapshot(receipt.settings.path)
-    if (
-      !sameSnapshotContent(currentCredentials, receipt.credentials.written) ||
-      !sameSnapshotContent(currentSettings, receipt.settings.written)
-    ) {
-      return false
+    for (const snapshot of snapshots) {
+      if (!sameSnapshotContent(await readSnapshot(snapshot.path), snapshot.written)) return false
     }
-    await restoreSnapshots(receipt.settings, receipt.credentials)
+    await restoreSnapshots(...snapshots.toReversed())
     return true
   } finally {
     await releaseLocks(locks)

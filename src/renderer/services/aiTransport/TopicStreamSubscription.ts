@@ -2,9 +2,9 @@ import type { UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
@@ -16,11 +16,11 @@ export interface ExecutionTerminal {
   isError: boolean
 }
 
-type TerminalListener = (executionId: UniqueModelId, terminal: ExecutionTerminal) => void
+type TerminalListener = (executionId: ExecutionId, terminal: ExecutionTerminal) => void
 type TopicStateListener = () => void
 
 interface RetiredExecutionBranch {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   attemptId: number
   anchorMessageId?: string
 }
@@ -28,7 +28,7 @@ interface RetiredExecutionBranch {
 type BranchRetirementListener = (branches: readonly RetiredExecutionBranch[]) => void
 
 interface Branch {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   attemptId: number
   anchorMessageId?: string
   stream: ReadableStream<UIMessageChunk>
@@ -37,13 +37,13 @@ interface Branch {
   openedParts: Set<string>
 }
 
-function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
+function branchKey(executionId: ExecutionId, anchorMessageId?: string, attemptId?: number): string {
   // One model execution can roll into another assistant row during steer continuation.
   // The branch identity must include the row anchor, not only the model id.
   return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
 }
 
-function createBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): Branch {
+function createBranch(executionId: ExecutionId, anchorMessageId: string | undefined, attemptId: number): Branch {
   const branch: Branch = {
     executionId,
     attemptId,
@@ -67,7 +67,7 @@ function createBranch(executionId: UniqueModelId, anchorMessageId: string | unde
 export class TopicStreamSubscription {
   readonly #topicId: string
   readonly #branches = new Map<string, Branch>()
-  readonly #terminalByBranchKey = new Map<string, { executionId: UniqueModelId; terminal: ExecutionTerminal }>()
+  readonly #terminalByBranchKey = new Map<string, { executionId: ExecutionId; terminal: ExecutionTerminal }>()
   readonly #terminalListeners = new Set<TerminalListener>()
   readonly #branchRetirementListeners = new Set<BranchRetirementListener>()
   readonly #topicStateListeners = new Set<TopicStateListener>()
@@ -92,7 +92,7 @@ export class TopicStreamSubscription {
   }
 
   register(
-    executionId: UniqueModelId,
+    executionId: ExecutionId,
     anchorMessageId: string | undefined,
     attemptId: number
   ): ReadableStream<UIMessageChunk> {
@@ -107,7 +107,7 @@ export class TopicStreamSubscription {
   /** True when the branch for this exact key exists and is still open —
    *  i.e. a stream (typically a new turn's auto-created branch) has produced
    *  chunks that no reader has claimed yet. */
-  hasOpenBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): boolean {
+  hasOpenBranch(executionId: ExecutionId, anchorMessageId: string | undefined, attemptId: number): boolean {
     const branch = this.#branches.get(branchKey(executionId, anchorMessageId, attemptId))
     return branch !== undefined && !branch.closed
   }
@@ -128,7 +128,7 @@ export class TopicStreamSubscription {
     return this.#topicOpen
   }
 
-  unregister(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): void {
+  unregister(executionId: ExecutionId, anchorMessageId: string | undefined, attemptId: number): void {
     const key = branchKey(executionId, anchorMessageId, attemptId)
     const branch = this.#branches.get(key)
     if (branch) {
@@ -145,7 +145,7 @@ export class TopicStreamSubscription {
     }
   }
 
-  cancelBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): void {
+  cancelBranch(executionId: ExecutionId, anchorMessageId: string | undefined, attemptId: number): void {
     const branch = this.#branches.get(branchKey(executionId, anchorMessageId, attemptId))
     if (!branch || branch.closed) return
     branch.closed = true
@@ -198,7 +198,7 @@ export class TopicStreamSubscription {
 
   // ── internals ──────────────────────────────────────────────────────
 
-  #getOrCreateBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): Branch {
+  #getOrCreateBranch(executionId: ExecutionId, anchorMessageId: string | undefined, attemptId: number): Branch {
     const key = branchKey(executionId, anchorMessageId, attemptId)
     let branch = this.#branches.get(key)
     if (!branch) {
@@ -213,14 +213,14 @@ export class TopicStreamSubscription {
   }
 
   #terminalFor(
-    executionId: UniqueModelId,
+    executionId: ExecutionId,
     anchorMessageId: string | undefined,
     attemptId: number
   ): ExecutionTerminal | undefined {
     return this.#terminalByBranchKey.get(branchKey(executionId, anchorMessageId, attemptId))?.terminal
   }
 
-  #isBranchSettled(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): boolean {
+  #isBranchSettled(executionId: ExecutionId, anchorMessageId: string | undefined, attemptId: number): boolean {
     return (
       this.#terminalFor(executionId, anchorMessageId, attemptId) !== undefined ||
       (this.#terminalAttemptWatermark !== undefined && attemptId <= this.#terminalAttemptWatermark)
@@ -273,7 +273,7 @@ export class TopicStreamSubscription {
   /** Mirror PersistenceListener's stored error part into the live branch before it closes. */
   #enqueueError(
     error: SerializedError,
-    executionId?: UniqueModelId,
+    executionId?: ExecutionId,
     anchorMessageId?: string,
     attemptId?: number,
     topicAttemptWatermark?: number
@@ -306,7 +306,7 @@ export class TopicStreamSubscription {
   }
 
   #emitTerminal(
-    executionId: UniqueModelId,
+    executionId: ExecutionId,
     terminal: ExecutionTerminal,
     anchorMessageId?: string,
     attemptId?: number
@@ -344,7 +344,7 @@ export class TopicStreamSubscription {
   }
 
   #applyTerminal(
-    executionId: UniqueModelId | undefined,
+    executionId: ExecutionId | undefined,
     terminal: ExecutionTerminal,
     anchorMessageId?: string,
     attemptId?: number,

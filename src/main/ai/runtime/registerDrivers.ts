@@ -8,6 +8,7 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { claudeWorkspaceRelocation, createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
+import { LocalRuntimeDriver } from './localAgent/LocalRuntimeDriver'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
@@ -146,6 +147,7 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 
 /** Register every built-in runtime at the AgentSessionRuntimeService lifecycle boundary. */
 export function registerRuntimeDrivers(): void {
+  runtimeDriverRegistry.register(new LocalRuntimeDriver())
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
 }

@@ -23,6 +23,7 @@ import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+import { LocalAgentConfigurationSchema, type LocalAgentConfiguration, LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -63,7 +64,8 @@ export type AgentLifecycleState = 'active' | 'trashed' | 'missing'
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
-type AgentCreateInput = AgentBase & {
+type AgentCreateInput = Omit<AgentBase, 'model'> & {
+  model: UniqueModelId | null
   type: AgentType
   skillIds?: string[]
 }
@@ -141,13 +143,13 @@ function removeUntrustedSupportRole(id: string, configuration: unknown): Record<
 /**
  * Apply the public first-level configuration PATCH to the persisted JSON.
  *
- * Object-valued keys (for example `env_vars`) remain whole-value replacements.
+ * `localRuntime` fields merge independently; other objects (for example `env_vars`) replace as a whole.
  * `builtin_role` is deliberately skipped because it is owned by Main; callers
  * are validated separately before this helper runs.
  */
 function applyAgentConfigurationPatch(
   persisted: unknown,
-  patch: AgentConfiguration | undefined
+  patch: UpdateAgentDto['configuration']
 ): Record<string, unknown> {
   const next =
     persisted && typeof persisted === 'object' && !Array.isArray(persisted)
@@ -158,6 +160,11 @@ function applyAgentConfigurationPatch(
     if (key === 'builtin_role') continue
     if (value === undefined) {
       delete next[key]
+    } else if (key === 'localRuntime') {
+      next.localRuntime = LocalAgentConfigurationSchema.parse({
+        ...(next.localRuntime as LocalAgentConfiguration | undefined),
+        ...(value as Partial<LocalAgentConfiguration>)
+      })
     } else {
       next[key] = value
     }
@@ -305,6 +312,25 @@ export class AgentService {
         'configuration.builtin_role is reserved for system agents'
       )
     }
+    if (req.type === 'local') {
+      const config = LocalAgentConfigurationSchema.parse(req.configuration?.localRuntime)
+      if (
+        req.planModel ||
+        req.smallModel ||
+        req.configuration?.heartbeat_enabled ||
+        req.configuration?.scheduler_enabled ||
+        req.model !== null ||
+        req.mcps?.length ||
+        req.knowledgeBaseIds?.length ||
+        req.skillIds?.length
+      )
+        throw DataApiErrorFactory.invalidOperation('create local agent', 'Local agents own their model and resources')
+      if (
+        config.presetId &&
+        !LOCAL_AGENT_PRESETS.some((p) => p.id === config.presetId && p.protocol === config.protocol)
+      )
+        throw DataApiErrorFactory.invalidOperation('create local agent', 'Invalid preset')
+    } else if (!req.model) throw DataApiErrorFactory.invalidOperation('create agent', 'A provider model is required')
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
@@ -317,7 +343,7 @@ export class AgentService {
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
-      instructions: req.instructions ?? '',
+      instructions: req.type === 'local' ? '' : (req.instructions ?? ''),
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
@@ -740,6 +766,32 @@ export class AgentService {
             .limit(1)
             .all()
           if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+          if (current.type === 'local') {
+            const previous = LocalAgentConfigurationSchema.parse(current.configuration.localRuntime)
+            const next = LocalAgentConfigurationSchema.parse(
+              updates.configuration && Object.hasOwn(updates.configuration, 'localRuntime')
+                ? updates.configuration.localRuntime === undefined
+                  ? undefined
+                  : { ...previous, ...updates.configuration.localRuntime }
+                : previous
+            )
+            if (next.protocol !== previous.protocol || next.presetId !== previous.presetId)
+              throw DataApiErrorFactory.invalidOperation('update local agent', 'Protocol and preset cannot change')
+            if (
+              updates.planModel ||
+              updates.smallModel ||
+              updates.configuration?.heartbeat_enabled ||
+              updates.configuration?.scheduler_enabled ||
+              updates.model ||
+              updates.mcps?.length ||
+              updates.knowledgeBaseIds?.length ||
+              updates.skillUpdates?.length
+            )
+              throw DataApiErrorFactory.invalidOperation(
+                'update local agent',
+                'Local agents own their model and resources'
+              )
+          }
 
           const updateData: Partial<AgentRow> = {
             updatedAt: Date.now()
@@ -748,7 +800,7 @@ export class AgentService {
           // Several mutable fields map to NOT NULL columns with DB defaults
           // (description, instructions, disabledTools, configuration). Writing
           // literal NULL when the DTO omits a field would violate the constraint.
-          // Configuration is handled separately as a first-level JSON PATCH.
+          // Configuration is handled separately as a JSON PATCH.
           for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
             if (field === 'mcps' || field === 'knowledgeBaseIds' || field === 'configuration') continue
             if (!Object.prototype.hasOwnProperty.call(updates, field)) continue

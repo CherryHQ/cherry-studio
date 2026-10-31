@@ -279,11 +279,11 @@ const fakePi = {
   createBashToolDefinition: mocks.createBashToolDefinition
 }
 
-const input: AgentRuntimeConnectInput = {
+const input = {
   sessionId: 'sess-1',
   agentId: 'agent-1',
   modelId: 'p::m'
-}
+} satisfies AgentRuntimeConnectInput
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void

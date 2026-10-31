@@ -2,16 +2,16 @@ import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
 
 /** Single execution terminated while other executions on the topic are still streaming. */
-export function isPerExecutionOnly(data: { executionId?: UniqueModelId; isTopicDone?: boolean }): boolean {
+export function isPerExecutionOnly(data: { executionId?: ExecutionId; isTopicDone?: boolean }): boolean {
   return !!data.executionId && !data.isTopicDone
 }
 
@@ -91,7 +91,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     topicId: string,
     initialChunks?: StreamChunkPayload[],
     abortSignal?: AbortSignal,
-    executionId?: UniqueModelId
+    executionId?: ExecutionId
   ): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
@@ -157,7 +157,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           controller.error(err)
         }
 
-        function matchesStream(data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean }) {
+        function matchesStream(data: { topicId: string; executionId?: ExecutionId; isTopicDone?: boolean }) {
           if (data.topicId !== topicId) return false
           if (executionId) return data.executionId === executionId || !!data.isTopicDone
           return !data.executionId || !!data.isTopicDone

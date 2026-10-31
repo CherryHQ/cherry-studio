@@ -1,5 +1,5 @@
 import type { FileContents, FileOptions, LineAnnotation, SelectedLineRange } from '@pierre/diffs'
-import { Virtualizer } from '@pierre/diffs'
+import { VirtualizedFile, Virtualizer } from '@pierre/diffs'
 import type * as PierreEdit from '@pierre/diffs/edit'
 import type { EditorFactory, EditorOptions } from '@pierre/diffs/edit'
 import { EditProvider, File, useWorkerPool, VirtualizerContext, WorkerPoolContextProvider } from '@pierre/diffs/react'
@@ -11,6 +11,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import FileCommentBox from '@renderer/components/FileCommentBox'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import { CHERRY_EDITOR_CSS } from '@renderer/utils/pierreCodeTheme'
 import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import { cn } from '@renderer/utils/style'
@@ -91,6 +92,7 @@ interface Props {
   fileName: string
   value: string
   sessionKey?: string
+  sourceLocation?: FileSourceLocation
   onChange?: (value: string) => void
   readOnly?: boolean
   wrapLines?: boolean
@@ -112,6 +114,7 @@ export default function FileEditor({
   fileName,
   value,
   sessionKey,
+  sourceLocation,
   onChange,
   readOnly = false,
   wrapLines = false,
@@ -170,6 +173,53 @@ export default function FileEditor({
     () => editorModule && ((type, options, key) => new editorModule.Editor(type, options, key)),
     [editorModule]
   )
+  const revealedSource = useRef<{
+    file: FileContents
+    location: FileSourceLocation | undefined
+    timer?: ReturnType<typeof setTimeout>
+    highlighted: boolean
+  } | null>(null)
+  useEffect(() => () => clearTimeout(revealedSource.current?.timer), [])
+  const revealSource = useCallback<NonNullable<FileOptions<undefined, undefined>['onPostRender']>>(
+    (node, instance, phase) => {
+      if (phase === 'unmount') {
+        clearTimeout(revealedSource.current?.timer)
+        revealedSource.current = null
+        return
+      }
+      if (!(instance instanceof VirtualizedFile)) return
+      const previous = revealedSource.current
+      const sameRequest = previous?.file === input.file && previous.location === sourceLocation
+      if (sameRequest && previous.highlighted) return
+      const line = sourceLocation?.line ?? 0
+      const validLine = Number.isInteger(line) && line >= 1 && line <= input.value.split('\n').length
+      const position = validLine ? instance.getLinePosition(line) : undefined
+      const root = virtualizer.getRoot()
+      if (validLine && (!root || !position)) return
+      const revealed: NonNullable<typeof revealedSource.current> = sameRequest
+        ? previous
+        : { file: input.file, location: sourceLocation, highlighted: !validLine }
+      if (!sameRequest) {
+        clearTimeout(previous?.timer)
+        revealedSource.current = revealed
+        instance.setSelectedLines(null)
+        if (position) {
+          const viewportHeight = root instanceof HTMLElement ? root.clientHeight : window.innerHeight
+          virtualizer.scrollTo({
+            top: Math.max(
+              0,
+              virtualizer.getOffsetInScrollContainer(node) + position.top - (viewportHeight - position.height) / 2
+            )
+          })
+        }
+      }
+      if (!position || !node.shadowRoot?.querySelector(`[data-line="${line}"]`)) return
+      revealed.highlighted = true
+      instance.setSelectedLines({ start: line, end: line })
+      revealed.timer = setTimeout(() => instance.setSelectedLines(null), 2000)
+    },
+    [input.file, input.value, sourceLocation, virtualizer]
+  )
   const openCommentDraft = useCallback((range: SelectedLineRange) => {
     setCommentDraft({ start: Math.min(range.start, range.end), end: Math.max(range.start, range.end) })
   }, [])
@@ -178,6 +228,7 @@ export default function FileEditor({
   const options = useMemo<FileOptions<undefined, undefined>>(
     () => ({
       disableFileHeader: true,
+      onPostRender: revealSource,
       preferredHighlighter: 'highlights',
       useTokenTransformer: true,
       theme,
@@ -196,6 +247,7 @@ export default function FileEditor({
       showLineNumbers,
       wrapLines,
       canWrap,
+      revealSource,
       indentGuides,
       showWhitespace,
       commentable,

@@ -67,6 +67,7 @@ interface ComposerToolbarShortcutsProps {
   /** True when the pinned list already equals the default — disables the reset control. */
   isDefault: boolean
   customTools?: readonly ComposerToolbarCustomTool[]
+  hiddenIds?: readonly string[]
   customizeOpen: boolean
   onCustomizeOpenChange: (open: boolean) => void
   /** True only after model resolution has completed without an available model. */
@@ -129,6 +130,7 @@ export const ComposerToolbarShortcuts = ({
   onResetPinnedIds,
   isDefault,
   customTools,
+  hiddenIds,
   customizeOpen,
   onCustomizeOpenChange,
   isModelUnavailable,
@@ -230,9 +232,10 @@ export const ComposerToolbarShortcuts = ({
       if (!candidateById.has(candidate.id)) candidateOrder.push(candidate.id)
       candidateById.set(candidate.id, candidate)
     }
-    return candidateOrder.map((id) => candidateById.get(id)!)
+    return candidateOrder.filter((id) => !hiddenIds?.includes(id)).map((id) => candidateById.get(id)!)
   }, [
     customTools,
+    hiddenIds,
     dispatchLauncher,
     inputAdapter,
     panelUnavailable,

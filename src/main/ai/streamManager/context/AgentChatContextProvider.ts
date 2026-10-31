@@ -1,25 +1,30 @@
+import type { UIMessage } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
 /**
  * Owns `agent-session:{id}` topics. Reads state from sessions /
  * agents, persists through `agentSessionMessageService`, single-model
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
-import type { UIMessage } from 'ai'
-import { v7 as uuidv7 } from 'uuid'
-
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import {
+  AgentSessionDeliveryRoutingError,
+  agentSessionMessageService,
+  type ExpectedAgent
+} from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { getProviderModelId } from '@shared/ai/executionIdentity'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
@@ -54,7 +59,7 @@ export type ValidatedAgentDispatch = {
   agentUpdatedAt: string
   agentType: string
   agentName: string
-  uniqueModelId: UniqueModelId
+  uniqueModelId: ExecutionId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode?: boolean
@@ -119,7 +124,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
     }
-    if (!agent.model) {
+    if (!agent.model && agent.type !== 'local') {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
     }
 
@@ -137,8 +142,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const uniqueModelId = agent.model
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const uniqueModelId: ExecutionId = agent.model ?? `runtime:${agent.id}`
+    const providerModel = agent.model ? parseUniqueModelId(agent.model) : undefined
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
@@ -162,7 +167,15 @@ export class AgentChatContextProvider implements ChatContextProvider {
         name: agent.name,
         // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
         emoji: agent.configuration?.avatar?.trim() || '🤖',
-        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+        ...(providerModel
+          ? {
+              model: {
+                id: providerModel.modelId,
+                name: agent.modelName ?? providerModel.modelId,
+                provider: providerModel.providerId
+              }
+            }
+          : { nativeModel: { runtime: agent.configuration?.localRuntime?.protocol ?? 'local' } })
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
@@ -174,7 +187,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: ExpectedAgent
   ): PersistedAgentDispatch {
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
@@ -193,7 +206,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             role: 'assistant',
             status: 'pending',
             data: { parts: [] },
-            modelId: validated.uniqueModelId,
+            modelId: getProviderModelId(validated.uniqueModelId),
             messageSnapshot: validated.messageSnapshot
           }
         ]
@@ -227,7 +240,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           'cs.session_id': validated.sessionId
         }
       },
-      { topicId: validated.topicId, modelName: parseUniqueModelId(validated.uniqueModelId).modelId },
+      { topicId: validated.topicId, modelName: validated.messageSnapshot.model?.name ?? validated.agentName },
       traceId
     )
 
@@ -272,7 +285,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             conversation: { id: validated.topicId, topicId: validated.topicId },
             trigger: 'submit-message',
             assistantId: validated.agentId,
-            uniqueModelId: validated.uniqueModelId,
+            uniqueModelId: getProviderModelId(validated.uniqueModelId),
             messages: [
               { id: validated.userMessageId, role: 'user', parts: validated.userMessageParts },
               { id: assistantMessageId, role: 'assistant', parts: [] }
@@ -319,7 +332,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         const result = this.persistDispatchTx(tx, validated, {
           id: validated.agentId,
           updatedAt: validated.agentUpdatedAt,
-          model: validated.uniqueModelId,
+          model: getProviderModelId(validated.uniqueModelId) ?? null,
           type: validated.agentType
         })
         agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)

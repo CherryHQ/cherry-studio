@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { AgentConfigurationSchema } from '@shared/data/api/schemas/agents'
 
 import {
   type AgentFormState,
@@ -139,7 +140,9 @@ describe('diffAgentUpdate', () => {
     const next = applyAgentFormPatch(baseline, { heartbeatTimeoutMinutes: 10 })
     const update = diffAgentUpdate(baseline, next)
     expect(update?.dto).toEqual({ configuration: { heartbeat_timeout_minutes: 10 } })
-    const saved = buildInitialAgentFormState(createAgent({ configuration: update?.dto.configuration }))
+    const saved = buildInitialAgentFormState(
+      createAgent({ configuration: AgentConfigurationSchema.parse(update?.dto.configuration) })
+    )
     expect(saved.heartbeatTimeoutMinutes).toBe(10)
   })
 

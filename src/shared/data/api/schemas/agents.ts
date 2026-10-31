@@ -1,3 +1,4 @@
+import * as z from 'zod'
 /**
  * Agents domain API Schema definitions
  *
@@ -6,10 +7,9 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
-import * as z from 'zod'
-
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -42,13 +42,14 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi'] as const
+export const AGENT_TYPES = ['claude-code', 'pi', 'local'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
   .object({
+    localRuntime: LocalAgentConfigurationSchema.optional(),
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
@@ -222,23 +223,36 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  *
  * `configuration` is itself a partial: callers send only the first-level keys
  * they intend to change, and AgentService shallow-merges them onto the latest
- * persisted configuration inside the write transaction. Nested values such as
- * `env_vars` still replace as a whole. An explicitly present `undefined` value
- * removes that configuration key; omission preserves it.
+ * persisted configuration inside the write transaction. `localRuntime` also merges
+ * individual fields; other nested values such as `env_vars` replace as a whole.
+ * An explicitly present `undefined` removes a key; omission preserves it.
  */
-export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
-  // Nullable overrides of the picked columns: `null` clears the tier so the
-  // runtime falls back to the main model (unset is the default state).
-  planModel: UniqueModelIdSchema.nullable().optional(),
-  smallModel: UniqueModelIdSchema.nullable().optional(),
-  configuration: AgentConfigurationSchema.partial().optional(),
-  /**
-   * Per-skill enablement changes for this agent. Omitted means "leave skills
-   * unchanged"; an empty array is a no-op. The server applies each update
-   * without replacing unrelated skill rows.
-   */
-  skillUpdates: AgentSkillUpdateListSchema.optional()
-})
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
+  .partial()
+  .extend({
+    // Nullable overrides of the picked columns: `null` clears the tier so the
+    // runtime falls back to the main model (unset is the default state).
+    planModel: UniqueModelIdSchema.nullable().optional(),
+    smallModel: UniqueModelIdSchema.nullable().optional(),
+    configuration: AgentConfigurationSchema.partial()
+      .extend({
+        localRuntime: LocalAgentConfigurationSchema.partial()
+          // PATCH must not apply creation defaults to omitted fields.
+          .extend({
+            enabled: LocalAgentConfigurationSchema.shape.enabled.removeDefault().optional(),
+            args: LocalAgentConfigurationSchema.shape.args.removeDefault().optional(),
+            env: LocalAgentConfigurationSchema.shape.env.removeDefault().optional()
+          })
+          .optional()
+      })
+      .optional(),
+    /**
+     * Per-skill enablement changes for this agent. Omitted means "leave skills
+     * unchanged"; an empty array is a no-op. The server applies each update
+     * without replacing unrelated skill rows.
+     */
+    skillUpdates: AgentSkillUpdateListSchema.optional()
+  })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // Agent creation and task command schemas live on IpcApi (`ai.agent.*` in

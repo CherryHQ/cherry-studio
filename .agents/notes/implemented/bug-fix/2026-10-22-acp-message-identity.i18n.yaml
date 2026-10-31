@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-22-acp-message-identity.md
+2026-10-22-acp-message-identity.md: ea55077887b0a1cf9062a523daf42c57fdc49a64
+2026-10-22-acp-message-identity.zh.md: 1c0e79a4f4142b5e361dbb3af2103f37a3c013fc

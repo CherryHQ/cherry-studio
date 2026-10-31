@@ -88,6 +88,73 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('stores the latest cumulative native-session snapshot without changing message content, activity or invocation costs', async () => {
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    agentSessionMessageService.saveSessionCost(SESSION_ID, {
+      nativeSessionId: 'native',
+      reportedAt: 1,
+      cost: { amount: 1, currency: 'EUR' }
+    })
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'Hello' }] }
+      }
+    })
+    const before = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    const activity = agentSessionService.getById(SESSION_ID).lastActivityAt
+    for (const amount of [1, 1, 0.5, 0]) {
+      const snapshot = { nativeSessionId: 'native', reportedAt: Date.now(), cost: { amount, currency: 'EUR' } }
+      agentSessionMessageService.saveSessionCost(SESSION_ID, snapshot)
+      expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    }
+    const after = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(after.data.parts).toEqual(before.data.parts)
+    expect(after.stats).toEqual(before.stats)
+    expect(agentSessionService.getById(SESSION_ID).lastActivityAt).toBe(activity)
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+    await seedSession({ id: 'other', name: 'Other', orderKey: 'a1' })
+    expect(agentSessionMessageService.getSessionCost('other')).toBeNull()
+  })
+
+  it('protects Main-authored cost snapshots on message writes and isolates forked sessions', async () => {
+    const snapshot = { nativeSessionId: 'native', reportedAt: 10, cost: { amount: 0.12, currency: 'USD' } }
+    const forged = { ...snapshot, cost: { amount: 999, currency: 'USD' } }
+    const message = {
+      id: ASSISTANT_MESSAGE_ID,
+      role: 'assistant' as const,
+      data: { parts: [], localSessionCost: forged }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    agentSessionMessageService.saveSessionCost(SESSION_ID, snapshot)
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'Edited' }], localSessionCost: forged }
+    })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    const reset = { nativeSessionId: 'new-native', reportedAt: 11, cost: null }
+    agentSessionMessageService.saveSessionCost(SESSION_ID, reset)
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(reset)
+    await seedSession({ id: 'fork', name: 'Fork', orderKey: 'a1' })
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+      .get()!
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.insertForkMessagesTx(tx, 'fork', [{ ...source, id: USER_MESSAGE_ID }])
+      )
+    expect(agentSessionMessageService.getSessionCost('fork')).toBeNull()
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(reset)
+  })
+
   it('reports message existence per session', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)

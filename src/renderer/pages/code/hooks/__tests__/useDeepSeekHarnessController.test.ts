@@ -78,7 +78,7 @@ describe('useDeepSeekHarnessController', () => {
     expect(descriptor).toMatchObject({
       appId: 'deepseek-harness-web',
       name: 'DeepSeek Harness',
-      logo: 'deepseek'
+      logo: 'cli:deepseek-harness'
     })
     expect(new URL(descriptor.url).searchParams.get('cherry_navigation_revision')).toBe('1776000000000')
     // Running state is no longer written locally — it arrives as a main-pushed event.

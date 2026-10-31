@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { useCurrentTab } from '@renderer/hooks/tab'
-import { getFilePreviewRefreshKey } from '@renderer/utils/filePreview'
+import { getFilePreviewRefreshKey, getFilePreviewSourceLocation } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 interface FilePreviewPageProps {
@@ -16,7 +16,14 @@ export function FilePreviewPage({ filePath }: FilePreviewPageProps) {
   const currentTab = useCurrentTab()
   const refreshKey = getFilePreviewRefreshKey(currentTab?.metadata)
 
-  if (filePath) return <FilePreview filePath={filePath} refreshKey={refreshKey} />
+  if (filePath)
+    return (
+      <FilePreview
+        filePath={filePath}
+        refreshKey={refreshKey}
+        sourceLocation={getFilePreviewSourceLocation(currentTab?.metadata)}
+      />
+    )
 
   return (
     <div className="flex h-full min-h-0 w-full bg-background text-foreground">

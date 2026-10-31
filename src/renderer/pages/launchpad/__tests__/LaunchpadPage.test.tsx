@@ -15,6 +15,7 @@ import type { SiteMiniApp } from '@shared/data/types/miniApp'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  openSettingsTab: vi.fn(),
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
@@ -120,6 +121,8 @@ vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
     }
   })
 }))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
 
 vi.mock('@renderer/services/toast', () => ({
   toast: {
@@ -291,6 +294,16 @@ describe('LaunchpadPage', () => {
     expect(persisted.slice(0, 3)).toEqual(['assistants', 'agents', 'translate'])
     expect(persisted).toHaveLength(systemSortable.items.length)
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
+  })
+
+  it('opens Agent Services settings from CodeMate without replacing the launchpad tab', async () => {
+    const user = userEvent.setup()
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Code' }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledExactlyOnceWith('/settings/local-agents')
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it('navigates apps inside the current launchpad tab', async () => {

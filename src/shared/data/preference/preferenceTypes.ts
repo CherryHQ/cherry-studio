@@ -337,7 +337,8 @@ export interface WebSearchProvider {
 
 import { CodeCli } from '@shared/types/codeCli'
 
-export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
+// Retain retired CLI configuration keys when reading and updating stored preferences.
+export const CODE_CLI_IDS = [...Object.values(CodeCli), 'gemini-cli'] as unknown as readonly [
   'claude-code',
   'openai-codex',
   'opencode',
@@ -379,10 +380,12 @@ export interface CodeCliToolState {
   terminal?: string
   /** Working directory for this CLI tool (shared across all its providers). */
   directory?: string
+  /** Recently launched directories, most recent first. */
+  directoryHistory?: string[]
 }
 
-/** Preference value for `feature.code_cli.configs`. */
-export type CodeCliConfigs = Partial<Record<CodeCliId, CodeCliToolState>>
+/** Code Mate state keyed by CLI id, or by preset id for ACP-only agents. */
+export type CodeCliConfigs = Partial<Record<string, CodeCliToolState>>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)

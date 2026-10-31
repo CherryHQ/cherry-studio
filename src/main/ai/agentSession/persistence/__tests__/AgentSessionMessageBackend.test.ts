@@ -30,6 +30,20 @@ describe('AgentSessionMessageBackend', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
+  it('persists a cost reported before messages existed when the first assistant reply settles', async () => {
+    const snapshot = { nativeSessionId: 'native-session', reportedAt: 1, cost: { amount: 0, currency: 'JPY' } }
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, localSessionCost: () => snapshot })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: { id: assistantMessageId, role: 'assistant', parts: [{ type: 'text', text: 'Answer' }] }
+    })
+    expect(agentSessionMessageService.getSessionCost(sessionId)).toEqual(snapshot)
+    expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId).data.parts).toEqual([
+      { type: 'text', text: 'Answer' }
+    ])
+  })
+
   it('terminalizes its placeholder when the persistence listener catches a write failure', async () => {
     vi.spyOn(agentSessionMessageService, 'saveMessage').mockImplementationOnce(() => {
       throw new Error('write failed')

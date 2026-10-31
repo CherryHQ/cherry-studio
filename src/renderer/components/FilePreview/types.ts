@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 
 import type { LineComment } from '@renderer/components/FileEditor'
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 
@@ -16,6 +17,7 @@ export interface FilePreviewPluginProps {
   /** Shares the host's current metadata request, including while an earlier preview is retained. */
   metadataRequest?: FilePreviewMetadataRequest
   refreshKey: number
+  sourceLocation?: FileSourceLocation
   type?: FilePreviewType
   /**
    * Reports the user's current selection as a structural document anchor

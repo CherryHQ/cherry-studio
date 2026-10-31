@@ -25,6 +25,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'ai.max_tokens': 2000,
 
   // Feature flags
+  'feature.code_cli.agent_order': [],
   'feature.web_search': true,
   'feature.reasoning': false,
   'feature.tool_calling': true,

@@ -204,6 +204,26 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it.each([
+    ['/settings/provider', '/settings/local-agents?id=poolside', '/settings/local-agents?id=poolside'],
+    ['/settings/provider?id=openai', '/settings/local-agents?id=poolside', '/settings/local-agents?id=poolside'],
+    ['/settings/general', '/settings/local-agents?id=poolside', '/settings/general'],
+    ['/settings/provider?id=anthropic', undefined, '/settings/provider?id=anthropic']
+  ])('routes recovery from %s to the owning settings page', (target, providerErrorSettingsPath, expected) => {
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic: { id: 'agent-session:source', assistantId: 'agent-1', name: 'Source', messages: [] } as unknown as Topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor',
+        providerErrorSettingsPath
+      })
+    )
+    void result.current.actions.navigateErrorTarget?.(target)
+    expect(errorActionsMock.navigateErrorTarget).toHaveBeenCalledWith(expected)
+  })
+
   it('delivers sent attachment activation to the current pane callback after rerender', async () => {
     const opened: InputFilePreview[] = []
     const input = { displayName: 'report.md', previewPath: '/managed/report.md' as AbsoluteFilePath }

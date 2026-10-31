@@ -1,4 +1,4 @@
-import { Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
+import { Folder, FolderOpen, Monitor, MoreHorizontal, Plus } from 'lucide-react'
 import { lazy, memo, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -174,6 +174,7 @@ type CreateSessionSeed = {
 
 function AgentGroupMoreMenu({
   agentId,
+  isLocalAgent,
   assistantIconType,
   deleteAgentDisabled,
   deleteSessionsOnly,
@@ -188,6 +189,7 @@ function AgentGroupMoreMenu({
   sidebarPinned
 }: {
   agentId: string
+  isLocalAgent: boolean
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
   deleteSessionsOnly?: boolean
@@ -204,6 +206,7 @@ function AgentGroupMoreMenu({
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
     agentId,
+    isLocalAgent,
     assistantIconType,
     deleteAgentDisabled,
     deleteSessionsOnly,
@@ -421,7 +424,12 @@ const Sessions = ({
     restoreSession,
     togglePin
   } = agentSessionsSource
-  const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
+  const {
+    agents,
+    error: agentsError,
+    isLoading: isAgentsLoading,
+    refetch: refetchAgents
+  } = useAgents({ includeDisabledLocal: true })
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
@@ -749,7 +757,11 @@ const Sessions = ({
   const sessionGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
     if (displayMode === 'agent') {
       const section = { id: SESSION_AGENT_SECTION_ID, label: t(SESSION_DISPLAY_LABEL_KEYS.agent) }
-      return agentsForDisplay.map((agent) => ({ id: getSessionAgentGroupId(agent.id), label: agent.name, section }))
+      return agentsForDisplay.map((agent) => ({
+        id: getSessionAgentGroupId(agent.id),
+        label: agent.name,
+        section
+      }))
     }
 
     if (displayMode === 'workdir') {
@@ -1790,6 +1802,7 @@ const Sessions = ({
             <Tooltip title={t('common.more')} delay={500}>
               <AgentGroupMoreMenu
                 agentId={agentGroupId}
+                isLocalAgent={!!agentById.get(agentGroupId)?.configuration?.localRuntime}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
                 deleteSessionsOnly={isProtectedBuiltinAgentRole(
@@ -1895,6 +1908,23 @@ const Sessions = ({
     [agentById, createSessionSeedIndex, creatingSession, requestCreateSessionFromSeed, t]
   )
 
+  const getGroupHeaderLabelSuffix = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent') return null
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || agentById.get(agentId)?.type !== 'local') return null
+      return (
+        <Monitor
+          size={12}
+          className="shrink-0 text-foreground-tertiary"
+          role="img"
+          aria-label={t('local_agents.badge')}
+        />
+      )
+    },
+    [agentById, displayMode, t]
+  )
+
   const getGroupHeaderIcon = useCallback(
     (group: ResourceListGroup, context: { collapsed: boolean }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return undefined
@@ -1963,6 +1993,7 @@ const Sessions = ({
 
         const actionContext: AgentGroupActionContext = {
           agentId,
+          isLocalAgent: !!agentById.get(agentId)?.configuration?.localRuntime,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
           deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
@@ -2112,6 +2143,7 @@ const Sessions = ({
       getSectionHeaderAction={getSectionHeaderAction}
       getGroupHeaderAction={getGroupHeaderAction}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
+      getGroupHeaderLabelSuffix={getGroupHeaderLabelSuffix}
       getGroupHeaderIcon={getGroupHeaderIcon}
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}

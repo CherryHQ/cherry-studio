@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-22-acp-session-cost.md
+2026-10-22-acp-session-cost.md: 5e201aba593d4467f6be22d155ef09bbcd0a8b11
+2026-10-22-acp-session-cost.zh.md: cc7607aaa104d0e50462aa38c8d43df56e545d6d

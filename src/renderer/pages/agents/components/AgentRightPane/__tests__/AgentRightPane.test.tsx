@@ -274,7 +274,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onSelectedFileChange: (file: string | null) => void
     paneActions?: ReactNode
     paneTitle?: ReactNode
-    previewFileSelection?: { workspacePath: string; filePath: string } | null
+    previewFileSelection?: ArtifactPanePath.ArtifactPaneFileSelection | null
     selectedFile: string | null
   }) => {
     const navigation = useOptionalFilePreviewNavigation()
@@ -326,7 +326,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
           preview
         </button>
         {previewFileSelection && (
-          <div data-testid="artifact-file-preview-overlay">
+          <div data-testid="artifact-file-preview-overlay" data-source-line={previewFileSelection.sourceLocation?.line}>
             {previewFileSelection.filePath}
             <button type="button" onClick={() => navigation?.openFile('/workspace/DESIGN.md' as AbsoluteFilePath)}>
               open Markdown file link
@@ -581,11 +581,19 @@ function ArtifactCapabilityProbe() {
   return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
 }
 
-function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
+function OpenArtifactButton({
+  path = 'report.md',
+  line,
+  label = 'open artifact'
+}: {
+  path?: string
+  line?: number
+  label?: string
+}) {
   const { openArtifactFile } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openArtifactFile(path)}>
-      open artifact
+    <button type="button" onClick={() => openArtifactFile(path, line === undefined ? undefined : { line })}>
+      {label}
     </button>
   )
 }
@@ -1086,6 +1094,33 @@ describe('AgentRightPane', () => {
     } finally {
       unsubscribe()
     }
+  })
+
+  it('refreshes a repeated source location and retains it when switching file tabs', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    render(
+      <TestAgentRightPane sessionId="session-source" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton line={4} label="first location" />
+        <OpenArtifactButton line={12} label="second location" />
+        <OpenArtifactButton path="other.md" label="other file" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'first location' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveAttribute('data-source-line', '4')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'second location' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveAttribute('data-source-line', '12')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'other file' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('other.md'))
+    fireEvent.click(screen.getByRole('button', { name: 'report.md' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveAttribute('data-source-line', '12')
   })
 
   it('opens an HTML artifact in the browser instead of the file preview', () => {

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
-import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
+import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/services/codeCliConfig'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 

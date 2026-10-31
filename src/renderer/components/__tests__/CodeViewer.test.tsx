@@ -550,6 +550,58 @@ describe('CodeViewer', () => {
     expect(copied).toBe('line 2')
   })
 
+  it('reveals one-based source lines, including trailing blank lines, and permits repeated navigation', () => {
+    const scrollIntoView = vi.fn()
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      const props = { value: 'first\nsecond\n\n', language: 'text' }
+      const { container, rerender } = render(<CodeViewer {...props} sourceLocation={{ line: 4 }} />)
+      expect(container.querySelector('[aria-current="location"]')).toHaveAttribute('data-index', '3')
+      act(() => {
+        vi.advanceTimersByTime(20)
+      })
+      expect(scrollIntoView.mock.instances.at(-1)).toBe(container.querySelector('[data-index="3"]'))
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
+      expect(container.querySelector('[aria-current="location"]')).toBeNull()
+      rerender(<CodeViewer {...props} sourceLocation={{ line: 4 }} />)
+      act(() => {
+        vi.advanceTimersByTime(20)
+      })
+      expect(scrollIntoView).toHaveBeenCalledTimes(2)
+      expect(container.querySelector('[aria-current="location"]')).toHaveAttribute('data-index', '3')
+      rerender(<CodeViewer {...props} sourceLocation={{ line: 2 }} />)
+      expect(container.querySelector('[aria-current="location"]')).toHaveAttribute('data-index', '1')
+      act(() => {
+        vi.advanceTimersByTime(20)
+      })
+      rerender(<CodeViewer {...props} sourceLocation={{ line: 99 }} />)
+      expect(container.querySelector('[aria-current="location"]')).toBeNull()
+      expect(scrollIntoView).toHaveBeenCalledTimes(3)
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollIntoView
+    }
+  })
+
+  it('reveals source lines outside the expanded virtual viewport', async () => {
+    const lines = Array.from({ length: 1000 }, (_, index) => `line ${index}`)
+    scrollHeight = lines.length * 21
+    const { container, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} sourceLocation={{ line: 250 }} />
+      </div>
+    )
+    const outer = getByTestId('outer')
+    await waitFor(() => expect(outer.scrollTop).toBeGreaterThan(4000))
+    fireEvent.scroll(outer)
+    await waitFor(() =>
+      expect(container.querySelector('[aria-current="location"]')).toHaveAttribute('data-index', '249')
+    )
+  })
+
   it('retains the source range when virtualization removes a selection endpoint', async () => {
     const lines = Array.from({ length: 100 }, (_, index) => `line ${index}`)
     const { container, getByText, queryByText } = render(

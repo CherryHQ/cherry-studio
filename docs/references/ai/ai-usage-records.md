@@ -61,7 +61,9 @@ invoices remain authoritative.
 
 ## Invariants and ownership
 
-- Usage and cost have one fact source: `ai_usage_record`.
+- Per-invocation usage and cost have one fact source: `ai_usage_record`.
+  ACP cumulative session costs are separate diagnostic snapshots, never billing
+  records or message cost projections; see [Local Agent Runtime](./local-agent-runtime.md#protocol-behavior).
 - Records are insert-only. A duplicate `requestId` is ignored; a different
   payload for the same id logs an integrity warning and does not mutate the
   first row.

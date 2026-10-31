@@ -4,6 +4,7 @@ import type * as NodeFsPromises from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import type * as ProcessRunner from '@main/utils/processRunner'
 
 const mocks = vi.hoisted(() => ({
@@ -22,7 +23,13 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
   realpath: mocks.realpath
 }))
 
-vi.mock('@application', () => ({ application: { get: mocks.appGet } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mock = mockApplicationFactory()
+  const get = mock.application.get.bind(mock.application)
+  mock.application.get = vi.fn((name) => (name === 'PreferenceService' ? get(name) : mocks.appGet(name)))
+  return mock
+})
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
@@ -134,7 +141,7 @@ describe('HermesDashboardService', () => {
     await service.start()
     const write = vi.fn(async () => undefined)
 
-    await expect(service.writeConfigFiles(write)).rejects.toThrow('Hermes Agent web UI is running')
+    await expect(service.writeConfigFiles(write)).rejects.toThrow(t('code_cli.config.hermes_running'))
     expect(write).not.toHaveBeenCalled()
   })
 

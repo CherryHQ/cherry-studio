@@ -4,6 +4,7 @@
 
 import * as z from 'zod'
 
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import {
   ContentMessageRoleSchema,
@@ -89,6 +90,13 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 // ============================================================================
 
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/cost': {
+    GET: {
+      params: { sessionId: string }
+      response: AgentSessionCostSnapshot | null
+    }
+  }
+
   '/agent-sessions/:sessionId/messages': {
     GET: {
       params: { sessionId: string }

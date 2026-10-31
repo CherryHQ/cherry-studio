@@ -172,7 +172,9 @@ describe('DeepSeekHarnessService', () => {
     mocks.modelGet.mockReturnValue(model)
     mocks.writeConfig.mockResolvedValue({
       credentials: { path: '/mock/home/.dsh/.credentials.yaml', written: 'written credentials' },
-      settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' }
+      settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' },
+      profile: { path: '/mock/home/.dsh/cordis.patch.yml', written: 'written profile' },
+      headless: { path: '/mock/home/.dsh/profiles/headless/cordis.patch.yml', written: 'written headless profile' }
     })
     mocks.rollbackConfig.mockResolvedValue(true)
     mocks.gatewayStart.mockResolvedValue(undefined)

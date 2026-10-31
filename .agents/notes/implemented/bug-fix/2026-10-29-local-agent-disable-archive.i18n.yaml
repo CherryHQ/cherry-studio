@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-29-local-agent-disable-archive.md
+2026-10-29-local-agent-disable-archive.md: b8ab4123abedc532a6a2db5f1f02000e0c243f40
+2026-10-29-local-agent-disable-archive.zh.md: 5c64e64148dfe8d9743ce88938e362d5cbf848e9

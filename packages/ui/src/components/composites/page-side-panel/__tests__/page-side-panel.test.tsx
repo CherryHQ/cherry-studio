@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
 
-import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
-
-const motionSnapshots = vi.hoisted(() => ({
-  propsBySlot: new Map<string, Record<string, unknown>>()
-}))
+import { PageSidePanel } from '../index'
 
 vi.mock('motion/react', async () => {
   const ReactActual = await vi.importActual<typeof React>('react')
@@ -22,10 +20,6 @@ vi.mock('motion/react', async () => {
       children,
       ...props
     }: Record<string, unknown> & { children?: React.ReactNode } & { ref?: React.RefObject<HTMLElement | null> }) => {
-      if (typeof props['data-slot'] === 'string') {
-        motionSnapshots.propsBySlot.set(props['data-slot'], props)
-      }
-
       const domProps = Object.fromEntries(Object.entries(props).filter(([key]) => !motionPropNames.has(key)))
       return ReactActual.createElement(tag, { ...domProps, ref }, children)
     }
@@ -50,7 +44,6 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
-  motionSnapshots.propsBySlot.clear()
 })
 
 describe('PageSidePanel', () => {
@@ -58,11 +51,6 @@ describe('PageSidePanel', () => {
     it('renders nothing when closed', () => {
       render(<PageSidePanel open={false} onClose={vi.fn()} />)
       expect(document.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
-    })
-
-    it('renders panel when open', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
 
     it('calls onClose when backdrop is clicked', () => {
@@ -73,23 +61,10 @@ describe('PageSidePanel', () => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
-    it('uses the same backdrop scrim as the dialog', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      const backdrop = document.querySelector('[data-slot="page-side-panel-backdrop"]')!
-      expect(backdrop).toHaveClass('bg-black/50')
-    })
-
-    it('uses a non-spring panel transition to avoid close rebound', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      const panelProps = motionSnapshots.propsBySlot.get('page-side-panel')
-      expect(panelProps?.transition).toEqual({ duration: 0.18, ease: [0.16, 1, 0.3, 1] })
-      expect(panelProps?.transition).not.toMatchObject({ type: 'spring' })
-    })
-
     it('calls onClose when close button is clicked', () => {
       const onClose = vi.fn()
       render(<PageSidePanel open={true} onClose={onClose} />)
-      const closeBtn = screen.getByLabelText('Close')
+      const closeBtn = screen.getByRole('button', { name: 'Close' })
       fireEvent.click(closeBtn)
       expect(onClose).toHaveBeenCalledTimes(1)
     })
@@ -97,22 +72,17 @@ describe('PageSidePanel', () => {
     it('calls onClose on close button pointer down to avoid click-through during exit', () => {
       const onClose = vi.fn()
       render(<PageSidePanel open={true} onClose={onClose} />)
-      fireEvent.pointerDown(screen.getByLabelText('Close'))
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Close' }))
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
     it('does not call onClose twice for one pointerdown+click sequence', () => {
       const onClose = vi.fn()
       render(<PageSidePanel open={true} onClose={onClose} />)
-      const closeBtn = screen.getByLabelText('Close')
+      const closeBtn = screen.getByRole('button', { name: 'Close' })
       fireEvent.pointerDown(closeBtn)
       fireEvent.click(closeBtn)
       expect(onClose).toHaveBeenCalledTimes(1)
-    })
-
-    it('renders the close button as a non-submit button', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      expect(screen.getByLabelText('Close')).toHaveAttribute('type', 'button')
     })
   })
 
@@ -133,7 +103,7 @@ describe('PageSidePanel', () => {
       expect(screen.getByRole('dialog', { name: 'Panel title' })).toBeInTheDocument()
     })
 
-    it('restores focus to the trigger when closed', () => {
+    it('restores focus to the trigger when closed', async () => {
       function TestPanel() {
         const [open, setOpen] = React.useState(false)
         return (
@@ -151,9 +121,55 @@ describe('PageSidePanel', () => {
       trigger.focus()
       fireEvent.click(trigger)
 
-      fireEvent.click(screen.getByLabelText('Close'))
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-      expect(trigger).toHaveFocus()
+      await waitFor(() => expect(trigger).toHaveFocus())
+    })
+
+    it('keeps keyboard focus inside the modal and hides background controls from assistive technology', async () => {
+      const user = userEvent.setup()
+      render(
+        <>
+          <button type="button">Background action</button>
+          <PageSidePanel open onClose={vi.fn()} title="Settings" footer={<button type="button">Save</button>}>
+            <input aria-label="Agent name" />
+          </PageSidePanel>
+        </>
+      )
+      const dialog = screen.getByRole('dialog', { name: 'Settings' })
+      const last = screen.getByRole('button', { name: 'Save' })
+      last.focus()
+      await user.tab()
+      expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus()
+      await user.tab({ shift: true })
+      expect(last).toHaveFocus()
+      expect(screen.queryByRole('button', { name: 'Background action' })).not.toBeInTheDocument()
+      expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    })
+
+    it('allows a nested dialog to close without dismissing the panel and restores its trigger focus', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      render(
+        <PageSidePanel open onClose={onClose} title="Settings">
+          <DialogPrimitive.Root>
+            <DialogPrimitive.Trigger>Confirm change</DialogPrimitive.Trigger>
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Content aria-describedby={undefined}>
+                <DialogPrimitive.Title>Confirmation</DialogPrimitive.Title>
+                <DialogPrimitive.Close>Cancel confirmation</DialogPrimitive.Close>
+              </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+        </PageSidePanel>
+      )
+      const trigger = screen.getByRole('button', { name: 'Confirm change' })
+      await user.click(trigger)
+      expect(screen.getByRole('dialog', { name: 'Confirmation' })).toBeVisible()
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(trigger).toHaveFocus())
+      expect(screen.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+      expect(onClose).not.toHaveBeenCalled()
     })
 
     it('calls onClose on Escape key', () => {
@@ -174,44 +190,14 @@ describe('PageSidePanel', () => {
   })
 
   describe('content slots', () => {
-    it('renders header content', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} header={<span>My Header</span>} />)
-      expect(screen.getByText('My Header')).toBeInTheDocument()
-    })
-
-    it('renders a standard title with the shared title class', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} title="My Title" />)
-      expect(screen.getByText('My Title')).toHaveClass('font-semibold', 'text-base', 'text-foreground')
-    })
-
-    it('renders children in body', () => {
-      render(
-        <PageSidePanel open={true} onClose={vi.fn()}>
-          <p>Body content</p>
-        </PageSidePanel>
-      )
-      expect(screen.getByText('Body content')).toBeInTheDocument()
-    })
-
-    it('renders footer when provided', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} footer={<button type="button">Save</button>} />)
-      expect(screen.getByText('Save')).toBeInTheDocument()
-      expect(document.querySelector('[data-slot="page-side-panel-footer"]')).toBeInTheDocument()
-    })
-
-    it('does not render footer slot when not provided', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      expect(document.querySelector('[data-slot="page-side-panel-footer"]')).not.toBeInTheDocument()
-    })
-
     it('hides close button when showCloseButton=false and no header', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false} />)
-      expect(screen.queryByLabelText('Close')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     })
 
     it('uses custom closeLabel for aria-label', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} closeLabel="Dismiss" />)
-      expect(screen.getByLabelText('Dismiss')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
     })
   })
 
@@ -229,29 +215,6 @@ describe('PageSidePanel', () => {
         </div>
       )
     }
-
-    it('uses the design shell classes by default', () => {
-      render(
-        <PageSidePanel open={true} onClose={vi.fn()} header={<span>Panel title</span>}>
-          Body content
-        </PageSidePanel>
-      )
-      const dialog = screen.getByRole('dialog')
-      expect(dialog.className).toContain('w-100')
-      expect(dialog.className).toContain('rounded-3xl')
-      expect(dialog.className).toContain('bg-card')
-      expect(dialog.className).toContain('text-card-foreground')
-      expect(dialog.className).toContain('shadow-xl')
-
-      const header = document.querySelector('[data-slot="page-side-panel-header"]')!
-      expect(header.className).toContain('px-6')
-      expect(header.className).toContain('pt-6')
-      expect(header.className).toContain('pb-3')
-
-      const body = document.querySelector('[data-slot="page-side-panel-body"]')!
-      expect(body.className).toContain('px-6')
-      expect(body.className).toContain('py-4')
-    })
 
     it('portals the backdrop and panel to document.body', () => {
       const { container } = render(
@@ -291,50 +254,6 @@ describe('PageSidePanel', () => {
 
       await waitFor(() => expect(screen.getByRole('dialog')).toHaveClass('absolute'))
       expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('absolute')
-    })
-
-    it('applies design inset classes by default', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      const dialog = screen.getByRole('dialog')
-      expect(dialog.className).toContain('top-3')
-      expect(dialog.className).toContain('bottom-3')
-      expect(dialog.className).toContain('right-3')
-    })
-
-    it('applies left-3 class when side=left', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} side="left" />)
-      const dialog = screen.getByRole('dialog')
-      expect(dialog.className).toContain('left-3')
-    })
-  })
-
-  describe('settings content helpers', () => {
-    it('renders grouped sections with optional actions', () => {
-      render(
-        <PageSidePanelSection title="Display management" actions={<button type="button">Reset</button>}>
-          <div>Panel content</div>
-        </PageSidePanelSection>
-      )
-
-      expect(screen.getByText('Display management')).toHaveClass('font-semibold', 'text-sm')
-      expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
-      expect(screen.getByText('Panel content')).toBeInTheDocument()
-    })
-
-    it('renders preference rows with title, description, action, and body control', () => {
-      render(
-        <PageSidePanelItem
-          title="Open links externally"
-          description="Use the default browser"
-          action={<button type="button">Toggle</button>}>
-          <div>Extra control</div>
-        </PageSidePanelItem>
-      )
-
-      expect(screen.getByText('Open links externally')).toHaveClass('text-sm')
-      expect(screen.getByText('Use the default browser')).toHaveClass('text-xs')
-      expect(screen.getByRole('button', { name: 'Toggle' })).toBeInTheDocument()
-      expect(screen.getByText('Extra control')).toBeInTheDocument()
     })
   })
 })

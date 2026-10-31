@@ -144,6 +144,7 @@ vi.stubGlobal('electron', {
 })
 vi.stubGlobal('api', {
   file: {
+    selectFolder: vi.fn().mockResolvedValue(null),
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
   },
@@ -367,6 +368,11 @@ vi.mock('@cherrystudio/ui', async () => {
     },
     DropdownMenuContent: ({ children }) => React.createElement('div', null, children),
     DropdownMenuSeparator: () => React.createElement('hr'),
+    DropdownMenuLabel: ({ children }) => React.createElement('div', null, children),
+    DropdownMenuPortal: ({ children }) => React.createElement(React.Fragment, null, children),
+    DropdownMenuRadioGroup: ({ children }) => React.createElement('div', { role: 'group' }, children),
+    DropdownMenuRadioItem: ({ children, disabled, value }) =>
+      React.createElement('button', { type: 'button', role: 'menuitemradio', disabled, value }, children),
     DropdownMenuSub: ({ children }) => React.createElement('div', null, children),
     DropdownMenuSubContent: ({ children }) => React.createElement('div', null, children),
     DropdownMenuSubTrigger: ({ children }) => React.createElement('div', null, children),

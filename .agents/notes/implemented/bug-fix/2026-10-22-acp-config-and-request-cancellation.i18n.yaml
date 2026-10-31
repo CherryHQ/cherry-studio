@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-22-acp-config-and-request-cancellation.md
+2026-10-22-acp-config-and-request-cancellation.md: ec4a2d47137cfd415eaa9af7f6e978796e0069bb
+2026-10-22-acp-config-and-request-cancellation.zh.md: 983dd82cafe2f571a46eb2599bcb79c28ae65ab1

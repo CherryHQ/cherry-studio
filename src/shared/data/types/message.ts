@@ -13,6 +13,7 @@ import type {
 import * as z from 'zod'
 
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
+import { AgentSessionCostSnapshotSchema, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
@@ -160,6 +161,8 @@ export interface MessageData {
   modelSelection?: 'default' | 'explicit'
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
+  /** Main-authored cumulative native-session cost, independent of per-message usage statistics. */
+  localSessionCost?: AgentSessionCostSnapshot
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -412,6 +415,8 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.localSessionCost !== undefined && !AgentSessionCostSnapshotSchema.safeParse(v.localSessionCost).success)
+    return false
   if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
@@ -459,7 +464,8 @@ export const MessageSnapshotSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   emoji: z.string().optional(),
-  model: ModelSnapshotSchema
+  model: ModelSnapshotSchema.optional(),
+  nativeModel: z.object({ runtime: z.string(), id: z.string().optional(), name: z.string().optional() }).optional()
 })
 export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
 

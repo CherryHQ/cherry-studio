@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { t } from '@main/i18n'
 import { getHermesHome } from '@main/services/codeCli'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -72,7 +73,7 @@ export class HermesDashboardService extends BaseService {
   async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
     return this.operationMutex.runExclusive(async () => {
       if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
-        throw new Error('Hermes Agent web UI is running, so its configuration cannot be changed')
+        throw new Error(t('code_cli.config.hermes_running'))
       }
       return write()
     })

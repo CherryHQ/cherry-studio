@@ -1,0 +1,351 @@
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import type * as Platform from '@main/core/platform'
+import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch } from '../launch'
+
+const inventory = vi.hoisted(() => ({
+  openTerminal: vi.fn(),
+  readConfigFiles: vi.fn(),
+  isWin: process.platform === 'win32',
+  snapshots: {} as Record<string, BinaryToolSnapshot>,
+  bundledGitDir: null as string | null
+}))
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  get isWin() {
+    return inventory.isWin
+  }
+}))
+vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => inventory.bundledGitDir }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    BinaryManager: { getToolSnapshots: async () => inventory.snapshots },
+    CodeCliService: { openTerminal: inventory.openTerminal, readConfigFiles: inventory.readConfigFiles }
+  })
+})
+vi.mock('@main/utils/shellEnv', () => ({
+  getRawShellEnv: async () => ({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home' })
+}))
+
+const config: LocalAgentConfiguration = { presetId: 'codex', protocol: 'codex', enabled: true, args: [], env: {} }
+
+describe('local agent installation resolution', () => {
+  let directory: string
+  beforeEach(async () => {
+    directory = await mkdtemp(path.join(tmpdir(), 'local launch '))
+    vi.mocked(application.getPath).mockImplementation((key) => path.join(directory, key))
+    inventory.openTerminal.mockReset()
+    inventory.readConfigFiles.mockReset().mockResolvedValue([{ content: null }])
+    inventory.isWin = process.platform === 'win32'
+    inventory.openTerminal.mockResolvedValue({ success: true })
+    inventory.snapshots = {}
+    inventory.bundledGitDir = null
+  })
+  afterEach(async () => {
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it('uses the saved Poolside profile for ACP while leaving native terminal account handling to the CLI', async () => {
+    inventory.snapshots.pool = { name: 'pool', availability: { source: 'system', path: '/user/bin/pool' } }
+    inventory.readConfigFiles.mockResolvedValue([
+      {
+        content: `pool:
+  default_agent_server: cherry-poolside
+agent_servers:
+  Poolside:
+    default_config_options:
+      model: poolside/native-model
+  cherry-poolside:
+    default_config_options:
+      model: gateway/model
+    env:
+      POOLSIDE_API_KEY: gateway-key
+      POOLSIDE_STANDALONE_BASE_URL: http://127.0.0.1:1234/v1
+      POOLSIDE_STANDALONE_MODEL: gateway/model
+`
+      }
+    ])
+    const selected = { ...config, presetId: 'poolside', protocol: 'acp' as const }
+    const launch = await resolveLocalAgentLaunch(selected)
+    expect(launch.nativeModel).toBe('gateway/model')
+    expect(launch.env).toMatchObject({
+      POOLSIDE_API_KEY: 'gateway-key',
+      POOLSIDE_STANDALONE_BASE_URL: 'http://127.0.0.1:1234/v1'
+    })
+    const catalog = await resolveLocalAgentLaunch(selected, undefined, 'models')
+    expect(catalog.nativeModel).toBe('poolside/native-model')
+    expect(catalog.env).not.toHaveProperty('POOLSIDE_API_KEY')
+    await openLocalAgentTerminal(selected)
+    expect(inventory.openTerminal.mock.lastCall?.[0].env).not.toHaveProperty('POOLSIDE_API_KEY')
+  })
+
+  it('opens the installed CLI with native terminal arguments and the selected execution environment', async () => {
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    await expect(
+      openLocalAgentTerminal({
+        ...config,
+        args: ['app-server'],
+        env: { CUSTOM: 'explicit' },
+        directory: AbsoluteFilePathSchema.parse('/user/my project'),
+        terminal: 'iTerm2'
+      })
+    ).resolves.toEqual({ success: true })
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith({
+      executable: '/user/bin/codex',
+      args: [],
+      usesCherryExecutionEnv: false,
+      directory: AbsoluteFilePathSchema.parse('/user/my project'),
+      terminal: 'iTerm2',
+      env: { PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', CUSTOM: 'explicit' }
+    })
+    inventory.snapshots.codex.availability = { source: 'mise', path: '/managed/new/codex' }
+    await openLocalAgentTerminal(config)
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        executable: '/managed/new/codex',
+        usesCherryExecutionEnv: true,
+        env: expect.objectContaining({ MISE_DATA_DIR: path.join(directory, 'feature.binary.data') })
+      })
+    )
+  })
+
+  it('passes mixed-case Windows overrides to the terminal with the same values as protocol launches', async () => {
+    inventory.isWin = true
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    const selected = { ...config, env: { Codex_Home: '/selected/codex', foo: 'explicit' } }
+    const launch = await resolveLocalAgentLaunch(selected)
+    await openLocalAgentTerminal(selected)
+    expect(launch.env.CODEX_HOME).toBe('/selected/codex')
+    expect(launch.env.FOO).toBe('explicit')
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith({
+      executable: launch.executable,
+      args: [],
+      usesCherryExecutionEnv: false,
+      env: { PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', CODEX_HOME: launch.env.CODEX_HOME, FOO: launch.env.FOO }
+    })
+  })
+
+  it.each([
+    ['goose', 'goose', ['session']],
+    ['kiro', 'kiro-cli', ['chat']],
+    ['cline', 'cline', []],
+    ['omp', 'omp', []],
+    ['snow', 'snow', []],
+    ['zcode', 'zcode-acp', []]
+  ] as const)('opens %s interactively without ACP or custom protocol arguments', async (presetId, executable, args) => {
+    inventory.snapshots[executable] = {
+      name: executable,
+      availability: { source: 'system', path: `/user/bin/${executable}` }
+    }
+    await openLocalAgentTerminal({ ...config, protocol: 'acp', presetId, enabled: false, args: ['--acp'] })
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        executable: `/user/bin/${executable}`,
+        args
+      })
+    )
+  })
+
+  it.each([
+    ['omp', 'omp', ['acp']],
+    ['snow', 'snow', ['--acp']],
+    ['zcode', 'zcode-acp', ['server']]
+  ] as const)('launches %s in protocol mode rather than its interactive UI', async (presetId, executable, args) => {
+    inventory.snapshots[executable] = {
+      name: executable,
+      availability: { source: 'system', path: `/user/bin/${executable}` }
+    }
+    const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId })
+    expect(launch).toMatchObject({ executable: `/user/bin/${executable}`, args: [...args] })
+    if (presetId === 'zcode') expect(launch.env.ZCODE_ACP_MODE).toBe('build')
+  })
+
+  it('opens the native Pi binary rather than the ACP wrapper', async () => {
+    inventory.snapshots.pi = { name: 'pi', availability: { source: 'system', path: '/user/bin/pi' } }
+    await openLocalAgentTerminal({
+      ...config,
+      presetId: 'pi-acp',
+      protocol: 'acp',
+      executableOverride: '/wrapper/pi-acp'
+    })
+    expect(inventory.openTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ executable: '/user/bin/pi', args: [] })
+    )
+  })
+
+  it('launches the fixed Poolside login command and rejects unsupported native login requests', async () => {
+    inventory.snapshots.pool = { name: 'pool', availability: { source: 'system', path: '/user/bin/pool' } }
+    await openLocalAgentTerminal({ ...config, presetId: 'poolside', protocol: 'acp', login: true })
+    expect(inventory.openTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ executable: '/user/bin/pool', args: ['login'] })
+    )
+    inventory.openTerminal.mockClear()
+    await expect(openLocalAgentTerminal({ ...config, login: true })).rejects.toThrow('supported terminal login')
+    expect(inventory.openTerminal).not.toHaveBeenCalled()
+  })
+
+  it('does not open unsupported ACP adapters or silently replace a missing explicit program', async () => {
+    await expect(openLocalAgentTerminal({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })).rejects.toThrow(
+      'supported interactive CLI'
+    )
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    await expect(
+      openLocalAgentTerminal({ ...config, executableOverride: path.join(directory, 'missing') })
+    ).rejects.toThrow()
+    expect(inventory.openTerminal).not.toHaveBeenCalled()
+  })
+
+  it('blocks new connections while the CLI is being removed', async () => {
+    const guard = vi.mocked(application.get('LocalAgentInstallService').isUninstalling)
+    guard.mockReturnValue(true)
+    try {
+      await expect(resolveLocalAgentLaunch(config)).rejects.toThrow('being uninstalled')
+    } finally {
+      guard.mockReturnValue(false)
+    }
+  })
+
+  it('refreshes managed paths after upgrades and uses its isolated execution environment', async () => {
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'mise', path: '/managed/v1/codex' } }
+    const first = await resolveLocalAgentLaunch(config)
+    expect(first.executable).toBe('/managed/v1/codex')
+    expect(first.env.MISE_DATA_DIR).toBe(path.join(directory, 'feature.binary.data'))
+    expect(first.env.HOME).toBe('/user/home')
+    inventory.snapshots.codex.availability = { source: 'mise', path: '/managed/v2/codex' }
+    expect((await resolveLocalAgentLaunch(config)).executable).toBe('/managed/v2/codex')
+    inventory.snapshots.codex.availability = { source: 'none' }
+    await expect(resolveLocalAgentLaunch(config)).rejects.toMatchObject({ code: 'LOCAL_AGENT_NOT_INSTALLED' })
+  })
+
+  it('preserves the system environment and applies only explicit overrides', async () => {
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    const result = await resolveLocalAgentLaunch({ ...config, env: { CUSTOM: 'value' } })
+    expect(result.env).toEqual({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home', CUSTOM: 'value' })
+    expect(result.args).toEqual(['app-server'])
+  })
+
+  it('provides bundled Git as a last fallback without injecting managed state into system CLIs', async () => {
+    inventory.bundledGitDir = 'C:\\Cherry\\MinGit\\cmd'
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    const result = await resolveLocalAgentLaunch(config)
+    expect(result.env.PATH.split(';')).toEqual(['/user/bin', inventory.bundledGitDir])
+    expect(result.env.MISE_DATA_DIR).toBe('/user/mise')
+    expect(result.env.HOME).toBe('/user/home')
+    expect((await resolveLocalAgentLaunch({ ...config, env: { PATH: '/explicit/bin' } })).env.PATH).toBe(
+      '/explicit/bin'
+    )
+  })
+
+  it('honors a path containing spaces and never falls back when an explicit path disappears', async () => {
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'mise', path: '/managed/codex' } }
+    const executable = path.join(directory, 'my agent')
+    await writeFile(executable, '#!/bin/sh\n')
+    await chmod(executable, 0o755)
+    const selected = { ...config, executableOverride: executable, args: ['argument with spaces'] }
+    expect((await resolveLocalAgentLaunch(selected)).executable).toBe(executable)
+    expect((await resolveLocalAgentLaunch(selected)).args).toEqual(['argument with spaces'])
+    await rm(executable)
+    await expect(resolveLocalAgentLaunch(selected)).rejects.toThrow()
+  })
+
+  it('resolves a custom command in its configured PATH before launching it', async () => {
+    const executable = path.join(directory, `audit-custom${process.platform === 'win32' ? '.cmd' : ''}`)
+    await writeFile(executable, '#!/bin/sh\n')
+    await chmod(executable, 0o755)
+    const launch = await resolveLocalAgentLaunch({
+      protocol: 'acp',
+      enabled: false,
+      args: [],
+      executableOverride: 'audit-custom',
+      env: { PATH: directory }
+    })
+    expect(launch.executable).toBe(executable)
+    expect(launch.env.PATH).toBe(directory)
+  })
+
+  it.each([
+    ['copilot', 'copilot', ['--acp']],
+    ['minimax', 'mcode', ['acp']],
+    ['cursor', 'agent', ['acp']],
+    ['cline', 'cline', ['--acp']],
+    ['kilo', 'kilo', ['acp']],
+    ['goose', 'goose', ['acp']],
+    ['codebuddy-code', 'codebuddy', ['--acp']],
+    ['auggie', 'auggie', ['--acp']],
+    ['junie', 'junie', ['--acp=true']],
+    ['factory-droid', 'droid', ['exec', '--output-format', 'acp-daemon']],
+    ['devin', 'devin', ['acp']],
+    ['antigravity-acp', 'agy_acp_server.par', []],
+    ['mistral-vibe', 'vibe-acp', []],
+    ['amp-acp', 'amp-acp', []],
+    ['pi-acp', 'pi-acp', []],
+    ['deepagents', 'deepagents-acp', []],
+    ['glm-acp-agent', 'glm-acp-agent', []],
+    ['grok-build', 'grok', ['agent', 'stdio']],
+    ['cortex-code', 'cortex', ['acp', 'serve']],
+    ['poolside', 'pool', ['acp']]
+  ] as const)('launches %s through ACP using the installed binary', async (presetId, executable, args) => {
+    inventory.snapshots[executable] = {
+      name: executable,
+      availability: { source: 'system', path: `/user/bin/${executable}` }
+    }
+    const launch = await resolveLocalAgentLaunch({ ...config, presetId, protocol: 'acp' })
+    expect(launch.executable).toBe(`/user/bin/${executable}`)
+    expect(launch.args).toEqual(presetId === 'antigravity-acp' && process.platform === 'linux' ? ['--uid='] : args)
+    expect(launch.env.MISE_DATA_DIR).toBe('/user/mise')
+  })
+
+  it('applies required protocol environment without overriding explicit user choices', async () => {
+    inventory.snapshots.droid = { name: 'droid', availability: { source: 'system', path: '/user/bin/droid' } }
+    const launch = await resolveLocalAgentLaunch({
+      ...config,
+      presetId: 'factory-droid',
+      protocol: 'acp',
+      env: { DROID_DISABLE_AUTO_UPDATE: 'false' }
+    })
+    expect(launch.env.FACTORY_DROID_AUTO_UPDATE_ENABLED).toBe('false')
+    expect(launch.env.DROID_DISABLE_AUTO_UPDATE).toBe('false')
+  })
+
+  it('does not mistake the base CLI for a separately installed ACP adapter', async () => {
+    inventory.snapshots.pi = { name: 'pi', availability: { source: 'system', path: '/user/bin/pi' } }
+    await expect(
+      resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })
+    ).rejects.toMatchObject({
+      code: 'LOCAL_AGENT_NOT_INSTALLED'
+    })
+  })
+
+  it('prefers managed aliases and leaves missing presets visible during passive discovery', async () => {
+    inventory.snapshots.qoderclicn = { name: 'qoderclicn', availability: { source: 'system', path: '/system/qoder' } }
+    inventory.snapshots.qoder = { name: 'qoder', availability: { source: 'mise', path: '/managed/qoder' } }
+    const found = await detectLocalAgents()
+    expect(found.find((entry) => entry.presetId === 'qoder')).toMatchObject({ source: 'mise', path: '/managed/qoder' })
+    expect(found.find((entry) => entry.presetId === 'codex')).toMatchObject({ source: 'none' })
+  })
+
+  it('detects the Antigravity adapter and interactive CLI independently', async () => {
+    inventory.snapshots['agy_acp_server.par'] = {
+      name: 'agy_acp_server.par',
+      availability: { source: 'system', path: '/user/bin/agy_acp_server.par' }
+    }
+    const findAntigravity = async () =>
+      (await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')
+    expect(await findAntigravity()).toMatchObject({ path: '/user/bin/agy_acp_server.par', terminalPath: undefined })
+    inventory.snapshots.agy = { name: 'agy', availability: { source: 'system', path: '/user/bin/agy' } }
+    expect(await findAntigravity()).toMatchObject({
+      path: '/user/bin/agy_acp_server.par',
+      terminalPath: '/user/bin/agy'
+    })
+  })
+})

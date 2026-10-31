@@ -2,17 +2,17 @@ import type { ReactNode } from 'react'
 
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
+import type { ModelConfiguredCli } from '@shared/utils/cliConfig'
 
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
 import { DeepSeekHarnessConfigFields } from './tools/DeepSeekHarnessConfigFields'
-import { GeminiConfigFields } from './tools/GeminiConfigFields'
 import { KimiConfigFields } from './tools/KimiConfigFields'
 import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
 import { QwenConfigFields } from './tools/QwenConfigFields'
 
 interface ToolFieldRenderOptions {
-  cliTool: CodeCli
+  cliTool: CodeCli | ModelConfiguredCli
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
   section: 'basic' | 'advanced'
@@ -43,9 +43,8 @@ export function renderToolFields({
     case CodeCli.OPENAI_CODEX:
       return <CodexConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.OPEN_CODE:
+    case 'kilo':
       return <OpenCodeConfigFields config={config} onChange={onChange} section={section} />
-    case CodeCli.GEMINI_CLI:
-      return <GeminiConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.QWEN_CODE:
       return <QwenConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.KIMI_CODE:

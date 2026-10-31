@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { EmojiIcon } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -77,6 +78,9 @@ export function renderAgentEntityIcon(
   size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
+
+  if (agent?.configuration?.localRuntime)
+    return <LocalAgentIcon presetId={agent.configuration.localRuntime.presetId} size={size} />
 
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />

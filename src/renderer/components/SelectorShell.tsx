@@ -39,6 +39,7 @@ const SELECTOR_PANEL_ANIMATION_CLASS = 'animation-selector-shell-panel'
 export type SelectorShellLayout = {
   availableListHeight?: number
   portalContainer?: PopoverContentProps['portalContainer'] | null
+  contentElement?: HTMLDivElement | null
 }
 
 export type SelectorShellSearch = {
@@ -209,6 +210,7 @@ export function SelectorShell({
     ...restContentProps
   } = contentProps ?? {}
   const contentRef = useRef<HTMLDivElement | null>(null)
+  const [contentElement, setContentElementState] = useState<HTMLDivElement | null>(null)
   const searchRef = useRef<HTMLDivElement | null>(null)
   const filterRef = useRef<HTMLDivElement | null>(null)
   const multiSelectRef = useRef<HTMLDivElement | null>(null)
@@ -277,6 +279,7 @@ export function SelectorShell({
   const setContentElement = useCallback(
     (element: HTMLDivElement | null) => {
       contentRef.current = element
+      setContentElementState(element)
       scheduleMeasureAvailableListHeight()
     },
     [scheduleMeasureAvailableListHeight]
@@ -421,8 +424,8 @@ export function SelectorShell({
   const shouldForceMount = mountStrategy === 'lazy-keep' || forceMount ? true : undefined
   const resolvedPortalContainer = portalContainer ?? pagePortalContainer ?? localPortalContainer ?? undefined
   const layout = useMemo(
-    () => ({ availableListHeight, portalContainer: resolvedPortalContainer ?? null }),
-    [availableListHeight, resolvedPortalContainer]
+    () => ({ availableListHeight, portalContainer: resolvedPortalContainer ?? null, contentElement }),
+    [availableListHeight, resolvedPortalContainer, contentElement]
   )
   const canRenderContent = shouldRenderContent && resolvedPortalContainer !== undefined
   const body = canRenderContent ? (typeof children === 'function' ? children(layout) : children) : null
