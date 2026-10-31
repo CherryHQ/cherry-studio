@@ -472,7 +472,11 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => ({ statuses: versionStatusesMock(), resolved: versionStatusesResolvedState.value })
+  useCliVersionStatuses: () => ({
+    statuses: versionStatusesMock(),
+    resolved: versionStatusesResolvedState.value,
+    versionsResolved: true
+  })
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({

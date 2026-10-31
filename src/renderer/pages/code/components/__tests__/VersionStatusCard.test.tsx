@@ -13,6 +13,87 @@ vi.mock('@renderer/components/icons/CliIcon', () => ({
 }))
 
 describe('VersionStatusCard', () => {
+  it('shows no actions before installation status is known', () => {
+    render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{ source: 'none', installed: false, canUpgrade: false }}
+        statusPending
+        onInstall={vi.fn()}
+        onRemove={vi.fn()}
+        onLaunch={vi.fn()}
+        installError="previous failure"
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.launch.label' })).not.toBeInTheDocument()
+    expect(screen.queryByText('code.up_to_date')).not.toBeInTheDocument()
+  })
+
+  it('shows installed version without update claims while latest lookup is pending', () => {
+    const { rerender } = render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{
+          source: 'mise',
+          installed: true,
+          applicationStatus: 'applied',
+          current: '1.0.0',
+          latest: '1.0.0',
+          canUpgrade: false
+        }}
+        updatesPending
+        onInstall={vi.fn()}
+        onUpgrade={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('v1.0.0')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.upgrade' })).not.toBeInTheDocument()
+    expect(screen.queryByText('code.up_to_date')).not.toBeInTheDocument()
+
+    rerender(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{
+          source: 'mise',
+          installed: true,
+          applicationStatus: 'applied',
+          current: '1.0.0',
+          latest: '1.1.0',
+          canUpgrade: true
+        }}
+        updatesPending
+        onUpgrade={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'code.upgrade' })).not.toBeInTheDocument()
+  })
+
+  it('does not claim an applied tool is up to date when latest lookup failed', () => {
+    render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{ source: 'mise', installed: true, applicationStatus: 'applied', current: '1.0.0', canUpgrade: false }}
+        onInstall={vi.fn()}
+        onUpgrade={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('v1.0.0')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.upgrade' })).not.toBeInTheDocument()
+    expect(screen.queryByText('code.up_to_date')).not.toBeInTheDocument()
+  })
+
   it('keeps the install action but omits the not-installed title badge', () => {
     render(
       <VersionStatusCard
@@ -388,7 +469,14 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="openclaw"
         toolName="OpenClaw"
-        status={{ installed: true, source: 'mise', applicationStatus: 'applied', current: '1.0.0', canUpgrade: false }}
+        status={{
+          installed: true,
+          source: 'mise',
+          applicationStatus: 'applied',
+          current: '1.0.0',
+          latest: '1.0.0',
+          canUpgrade: false
+        }}
         onRemove={vi.fn()}
         onLaunch={vi.fn()}
         canLaunch
