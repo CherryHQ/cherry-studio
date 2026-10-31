@@ -1,4 +1,15 @@
-import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import {
+  Blocks,
+  Boxes,
+  FileText,
+  Folder,
+  Link2,
+  MessageSquareText,
+  MessagesSquare,
+  TextQuote,
+  ToolCase,
+  X
+} from 'lucide-react'
 import { MousePointer2 } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
@@ -46,8 +57,8 @@ const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 const composerChipClassName = cn(
   'group/composer-token mx-0.5 inline-flex max-w-[calc(100%_-_0.25rem)] items-baseline gap-1',
   'rounded-xs bg-muted px-1.5',
-  'text-foreground font-medium select-none transition-colors',
-  'group-focus-visible:ring-1 group-focus-visible:ring-inset group-focus-visible:ring-ring'
+  'font-medium text-foreground transition-colors select-none',
+  'group-focus-visible:ring-1 group-focus-visible:ring-ring group-focus-visible:ring-inset'
 )
 
 // `translate-y` (/not `vertical-align`) nudges the glyph optically below the baseline: inside the
@@ -90,6 +101,12 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   webviewAnnotation: <MousePointer2 className={tokenIconClassName} />,
   promptVariable: <BracesVariableIcon className={tokenIconClassName} />,
   messagePart: <Blocks className={tokenIconClassName} />
+}
+
+/** Glyphs a producer can name in a token's persisted `icon`; any other value (an emoji) renders as text. */
+const namedTokenIcons: Record<string, ReactNode> = {
+  comment: <MessageSquareText className={tokenIconClassName} />,
+  quote: <TextQuote className={tokenIconClassName} />
 }
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
@@ -168,9 +185,9 @@ function InlineTokenRemoveButton({
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 size-auto min-h-0 border-0 bg-transparent p-0 text-[length:inherit] text-current leading-none opacity-0 transition-opacity dark:text-current',
+        'pointer-events-none absolute inset-0 size-auto min-h-0 border-0 bg-transparent p-0 text-[length:inherit] leading-none text-current opacity-0 transition-opacity dark:text-current',
         'hover:bg-transparent hover:text-current focus-visible:bg-transparent focus-visible:text-current',
-        'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
+        'focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -245,7 +262,7 @@ function renderActiveComposerTokenElement({
   return (
     <Element
       className={cn(
-        'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
+        'group/composer-token mx-0.5 inline-flex items-baseline gap-1 align-baseline leading-[inherit] select-none',
         maxWidthClassName,
         colorClassName,
         readOnly && 'focus-visible:underline focus-visible:underline-offset-2 focus-visible:outline-none',
@@ -256,9 +273,9 @@ function renderActiveComposerTokenElement({
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}
       {...interactionProps}>
-      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
+      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline leading-[inherit] text-current">
         <InlineTokenIconSlot
-          icon={token.icon ? token.icon : icon}
+          icon={token.icon ? (typeof token.icon === 'string' && namedTokenIcons[token.icon]) || token.icon : icon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           removeButtonClassName="size-[1em] rounded-[4px]"
@@ -445,12 +462,12 @@ function PastedTextTokenPreviewCard({
   return (
     <div className="w-80 overflow-hidden text-left">
       <Scrollbar className="max-h-44 min-h-24 overflow-x-hidden bg-muted/50" data-file-token-text-scrollbar="">
-        <pre className="m-0 whitespace-pre-wrap break-words p-3 font-[inherit] text-popover-foreground text-xs leading-5">
+        <pre className="m-0 p-3 font-[inherit] text-xs leading-5 break-words whitespace-pre-wrap text-popover-foreground">
           {previewText}
         </pre>
       </Scrollbar>
       {secondaryAction && (
-        <div className="flex justify-end border-border-subtle border-t p-2" data-file-token-actions="">
+        <div className="flex justify-end border-t border-border-subtle p-2" data-file-token-actions="">
           {secondaryAction}
         </div>
       )}
@@ -504,7 +521,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
+        className="bg-muted px-5 py-4 text-center text-sm text-muted-foreground"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
@@ -514,7 +531,7 @@ function FileTokenPreviewCard({
   return (
     <div className="w-72 overflow-hidden text-left">
       <div className={tokenPreviewHeaderClassName}>
-        <span className="text-muted-foreground inline-flex size-12 items-center justify-center rounded-xl bg-background">
+        <span className="inline-flex size-12 items-center justify-center rounded-xl bg-background text-muted-foreground">
           {presentation.previewIcon}
         </span>
       </div>
@@ -523,9 +540,9 @@ function FileTokenPreviewCard({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1"
           data-file-token-actions={hasActions ? '' : undefined}>
           <div className="flex h-6 min-w-0 items-center">
-            <span className="truncate font-semibold text-popover-foreground text-sm leading-5">{label}</span>
+            <span className="truncate text-sm leading-5 font-semibold text-popover-foreground">{label}</span>
           </div>
-          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground">
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
@@ -900,7 +917,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
         composerChipClassName,
         'rounded-md font-normal',
         (readOnly || canOpenFilePreview) &&
-          'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none',
+          'focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
         (canOpenFilePreview || readOnlyFilePreviewActivation) && 'cursor-pointer',
         props.selected && 'ring-1 ring-border-selected ring-inset',
         props.className
@@ -1002,7 +1019,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
       className={cn(
         composerChipClassName,
         props.readOnly &&
-          'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none',
+          'focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
         props.selected && 'ring-1 ring-border-selected ring-inset',
         props.className
       )}
