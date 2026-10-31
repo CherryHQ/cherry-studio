@@ -132,6 +132,142 @@ describe('filesystem mutations with mac case folding', () => {
     expect((invalidError as Error).message).toContain('outside the configured workspace root')
   })
 
+  it('serializes rather than rejects an unrelated mutation while a pending path is inaccessible', async () => {
+    const workspaceRoot = await createTempDir('mutation-inaccessible-pending-')
+    const otherWorkspaceRoot = await createTempDir('mutation-inaccessible-pending-other-')
+    const blockedPath = path.join(workspaceRoot, 'a.txt')
+    await fs.writeFile(blockedPath, 'first')
+
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let started!: () => void
+    const start = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const pending = filesystemMutationService.runExclusive('a.txt', workspaceRoot, async () => {
+      started()
+      await gate
+      await fs.writeFile(blockedPath, 'updated')
+    })
+    await start
+
+    // Spy installed after the pending mutation registered with a valid identity, so
+    // only the later admission's refresh observes the failure.
+    const originalStat = fs.stat.bind(fs)
+    vi.spyOn(fs, 'stat').mockImplementation(async (...args: Parameters<typeof fs.stat>) => {
+      if (String(args[0]) === blockedPath) {
+        const error = new Error(`EACCES: permission denied, stat '${blockedPath}'`) as NodeJS.ErrnoException
+        error.code = 'EACCES'
+        throw error
+      }
+      return (originalStat as (...statArgs: Parameters<typeof fs.stat>) => ReturnType<typeof fs.stat>)(...args)
+    })
+
+    // The unrelated mutation is admitted (not rejected), but conservatively waits:
+    // with A's identity unverifiable, aliasing cannot be ruled out.
+    let bSettledWhileAGated = false
+    const b = handleWriteTool({ file_path: 'b.txt', content: 'second' }, otherWorkspaceRoot).then(() => {
+      bSettledWhileAGated = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(bSettledWhileAGated).toBe(false)
+    release()
+    await Promise.all([pending, b])
+    expect(await fs.readFile(blockedPath, 'utf-8')).toBe('updated')
+    expect(await fs.readFile(path.join(otherWorkspaceRoot, 'b.txt'), 'utf-8')).toBe('second')
+  })
+
+  it('never loses a hard-link alias update when a pending identity probe fails', async () => {
+    const workspaceRoot = await createTempDir('mutation-inaccessible-alias-')
+    const primaryPath = path.join(workspaceRoot, 'primary.txt')
+    const aliasPath = path.join(workspaceRoot, 'alias.txt')
+
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let started!: () => void
+    const start = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    // The file does not exist at admission, so the pending mutation holds no inode
+    // identity: a later refresh failure must not let an alias write race it.
+    const first = filesystemMutationService.runExclusive('primary.txt', workspaceRoot, async () => {
+      await fs.writeFile(primaryPath, '0')
+      started()
+      await gate
+      const content = await fs.readFile(primaryPath, 'utf-8')
+      await fs.writeFile(primaryPath, `${content}A`)
+    })
+    await start
+
+    // The file now exists; alias it and make only its stat probe fail. Reads and
+    // writes through both paths keep working.
+    await fs.link(primaryPath, aliasPath)
+    const originalStat = fs.stat.bind(fs)
+    vi.spyOn(fs, 'stat').mockImplementation(async (...args: Parameters<typeof fs.stat>) => {
+      if (String(args[0]) === primaryPath) {
+        const error = new Error(`EACCES: permission denied, stat '${primaryPath}'`) as NodeJS.ErrnoException
+        error.code = 'EACCES'
+        throw error
+      }
+      return (originalStat as (...statArgs: Parameters<typeof fs.stat>) => ReturnType<typeof fs.stat>)(...args)
+    })
+
+    let bSettledWhileAGated = false
+    const second = filesystemMutationService
+      .runExclusive('alias.txt', workspaceRoot, async () => {
+        const content = await fs.readFile(aliasPath, 'utf-8')
+        await fs.writeFile(aliasPath, `${content}B`)
+      })
+      .then(() => {
+        bSettledWhileAGated = true
+      })
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(bSettledWhileAGated).toBe(false)
+    release()
+    await Promise.all([first, second])
+    expect(await fs.readFile(primaryPath, 'utf-8')).toBe('0AB')
+  })
+
+  it('propagates non-filesystem probe errors instead of downgrading them', async () => {
+    const workspaceRoot = await createTempDir('mutation-programmer-error-')
+    const blockedPath = path.join(workspaceRoot, 'a.txt')
+    await fs.writeFile(blockedPath, 'first')
+
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let started!: () => void
+    const start = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const pending = filesystemMutationService.runExclusive('a.txt', workspaceRoot, async () => {
+      started()
+      await gate
+      await fs.writeFile(blockedPath, 'updated')
+    })
+    await start
+
+    const originalStat = fs.stat.bind(fs)
+    vi.spyOn(fs, 'stat').mockImplementation(async (...args: Parameters<typeof fs.stat>) => {
+      if (String(args[0]) === blockedPath) {
+        throw new TypeError('not an fs error')
+      }
+      return (originalStat as (...statArgs: Parameters<typeof fs.stat>) => ReturnType<typeof fs.stat>)(...args)
+    })
+
+    await expect(handleWriteTool({ file_path: 'b.txt', content: 'second' }, workspaceRoot)).rejects.toBeInstanceOf(
+      TypeError
+    )
+    release()
+    await pending
+    expect(await fs.readFile(blockedPath, 'utf-8')).toBe('updated')
+  })
+
   it('serializes hard-link alias edits with an in-flight create that lacked inode identity', async () => {
     const workspaceRoot = await createTempDir('mutation-hardlink-create-race-')
     const primaryPath = path.join(workspaceRoot, 'primary.txt')

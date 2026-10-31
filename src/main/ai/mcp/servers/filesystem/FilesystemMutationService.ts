@@ -3,12 +3,14 @@ import { Mutex } from 'async-mutex'
 import { getFileIdentity, isSameOrInside, normalizePathForComparison } from '@main/utils/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { validatePath } from './types'
+import { logger, validatePath } from './types'
 
 interface PendingMutation {
   path: string
   probePath: AbsoluteFilePath
   identity: string | undefined
+  /** False when the last identity probe failed (non-ENOENT): aliasing cannot be ruled out. */
+  identityVerifiable: boolean
   subtreeRoot: boolean
   done: Promise<void>
 }
@@ -29,13 +31,40 @@ class FilesystemMutationService {
       const canonicalPath = await validatePath(requestedPath, baseDir)
       const path = normalizePathForComparison(canonicalPath)
       const subtreeRoot = opts?.subtreeRoot ?? false
+      // Identity-probe failures must neither reject unrelated admissions nor fail
+      // open: a hard link can alias any path on the same device, even across
+      // workspace roots. When an identity is unverifiable the mutation is admitted
+      // but serialized behind every pending entry it cannot be proven independent
+      // of; freshly verified non-matching identities proceed concurrently.
       for (const other of this.pending) {
-        other.identity = await getFileIdentity(other.probePath)
+        try {
+          other.identity = await getFileIdentity(other.probePath)
+          other.identityVerifiable = true
+        } catch (error) {
+          if (typeof (error as NodeJS.ErrnoException)?.code !== 'string') throw error
+          logger.warn('pending mutation identity refresh failed; treating as unverifiable', {
+            code: (error as NodeJS.ErrnoException).code
+          })
+          other.identityVerifiable = false
+        }
       }
-      const identity = await getFileIdentity(canonicalPath)
+      let identity: string | undefined
+      let identityVerifiable = true
+      try {
+        identity = await getFileIdentity(canonicalPath)
+      } catch (error) {
+        if (typeof (error as NodeJS.ErrnoException)?.code !== 'string') throw error
+        logger.warn('mutation target identity probe failed; treating as unverifiable', {
+          code: (error as NodeJS.ErrnoException).code
+        })
+        identity = undefined
+        identityVerifiable = false
+      }
       const predecessors = [...this.pending].filter(
         (other) =>
           path === other.path ||
+          !identityVerifiable ||
+          !other.identityVerifiable ||
           (identity !== undefined && other.identity !== undefined && identity === other.identity) ||
           (other.subtreeRoot && isSameOrInside(path, other.path)) ||
           (subtreeRoot && isSameOrInside(other.path, path))
@@ -45,6 +74,7 @@ class FilesystemMutationService {
         path,
         probePath: canonicalPath,
         identity,
+        identityVerifiable,
         subtreeRoot,
         done: result.then(
           () => undefined,
