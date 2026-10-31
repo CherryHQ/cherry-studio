@@ -156,6 +156,8 @@ class FileStorage {
     return null
   }
 
+  private lastSelectedDir: string | undefined
+
   public selectFile = async (
     _: Electron.IpcMainInvokeEvent,
     options?: OpenDialogOptions
@@ -165,12 +167,17 @@ class FileStorage {
     }
 
     const dialogOptions = { ...defaultOptions, ...options }
+    if (!dialogOptions.defaultPath && this.lastSelectedDir) {
+      dialogOptions.defaultPath = this.lastSelectedDir
+    }
 
     const result = await dialog.showOpenDialog(dialogOptions)
 
     if (result.canceled || result.filePaths.length === 0) {
       return null
     }
+
+    this.lastSelectedDir = path.dirname(result.filePaths[0])
 
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
