@@ -134,7 +134,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       if (!['grep', 'find', 'ls'].includes(toolName)) return
       const target =
         typeof input.path === 'string' || input.path === undefined
-          ? resolveToolPath((input.path as string | undefined) || '.', ctx.workspacePath)
+          ? resolveToolPath(input.path || '.', ctx.workspacePath)
           : undefined
       if (!target || (await memorySearchTarget(target)))
         return {

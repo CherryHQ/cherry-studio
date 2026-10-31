@@ -100,7 +100,7 @@ const uncontrolledMemoryFile = async (ctx: ToolGuardContext): Promise<GuardHit |
     if (!search) return null
     if (ctx.toolName === 'Glob' && typeof ctx.input?.pattern === 'string') {
       const pattern = expand(ctx.input.pattern)
-      const prefix = pattern.split(/[*?\[\]{}]/, 1)[0]
+      const prefix = pattern.split(/[*?[\]{}]/, 1)[0]
       const suffix = pattern.slice(prefix.length)
       if (suffix.split(/[\\/]/).includes('..')) return {}
       const anchor = suffix.length === 0 || /[\\/]$/.test(prefix) ? prefix : path.dirname(prefix)

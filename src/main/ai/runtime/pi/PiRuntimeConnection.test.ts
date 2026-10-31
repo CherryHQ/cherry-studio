@@ -1778,7 +1778,7 @@ describe('PiRuntimeConnection', () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
-    expect((mocks.createOpts?.customTools as Array<{ name: string }>).map((tool) => tool.name)).toEqual([
+    expect((mocks.createOpts?.customTools as Array<{ name: string }> | undefined)?.map((tool) => tool.name)).toEqual([
       'bash',
       'read',
       'write',
