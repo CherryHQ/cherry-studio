@@ -409,6 +409,7 @@ async function deriveConnectionConfigFromSnapshot(
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
+    boundedMcpToolNames: routeFacts.branch === 'direct' && !isAnthropicOfficialHost(routeFacts.baseUrl),
     cwd,
     // Rebuild fact: language change invalidates the warm connection so the new
     // language instruction is baked into the next prompt and prompt cache. This
@@ -553,6 +554,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       session,
       provider,
       {
+        boundedMcpToolNames: route.branch === 'direct' && !isAnthropicOfficialHost(route.baseUrl),
         contextWindow,
         maxOutputTokens,
         lastAgentSessionId: resumeSessionId,

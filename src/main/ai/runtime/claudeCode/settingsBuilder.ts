@@ -112,14 +112,16 @@ export function registerMcpSessionCatalogSync(
   sessionId: string,
   agentId: string,
   mcpIds: readonly string[],
-  metadata: Record<string, McpToolDisplayMetadata> | undefined
+  metadata: Record<string, McpToolDisplayMetadata> | undefined,
+  boundedMcpToolNames = false
 ): void {
-  sessionState().registerMcpSessionCatalogSync(sessionId, agentId, mcpIds, metadata)
+  sessionState().registerMcpSessionCatalogSync(sessionId, agentId, mcpIds, metadata, boundedMcpToolNames)
 }
 
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
+  boundedMcpToolNames?: boolean
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
@@ -226,7 +228,8 @@ export async function buildClaudeCodeSessionSettings(
     mountedServers,
     agentDataPath,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    options?.boundedMcpToolNames ?? false
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -251,9 +254,10 @@ export async function buildClaudeCodeSessionSettings(
     linkedChannelSnapshot,
     agentDataPath,
     options?.knowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    options?.boundedMcpToolNames
   )
-  let mcpToolMetadata = await buildMcpToolMetadata(agent)
+  let mcpToolMetadata = await buildMcpToolMetadata(agent, options?.boundedMcpToolNames)
   if (agent.mcps?.length) mcpToolMetadata ??= {}
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
@@ -270,7 +274,7 @@ export async function buildClaudeCodeSessionSettings(
         const liveAgent = agentService.getAgent(agent.id)
         if (!liveAgent) return
         await sessionState().getToolPolicySnapshot(session.id)?.update(liveAgent)
-        const freshMetadata = await buildMcpToolMetadata(liveAgent)
+        const freshMetadata = await buildMcpToolMetadata(liveAgent, options?.boundedMcpToolNames)
         if (!metadataRef || !freshMetadata) return
         for (const key of Object.keys(metadataRef)) delete metadataRef[key]
         Object.assign(metadataRef, freshMetadata)
@@ -362,6 +366,7 @@ export async function buildClaudeCodeSessionSettings(
     approvalEmitter,
     steerHolder,
     toolPolicySnapshot,
+    boundedMcpToolNames: options?.boundedMcpToolNames ?? false,
     warmQueryKey: session.id,
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
@@ -481,7 +486,8 @@ async function buildToolPermissions(
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  boundedMcpToolNames: boolean
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -507,7 +513,8 @@ async function buildToolPermissions(
     autoAllowRuntimeNames: listBuiltinToolPolicies({ approval: 'auto', mountedServers }).map(toMcpRuntimeName),
     // Side-effecting and local-data-reading built-in tools must still prompt for approval.
     autoAllowRuntimeNameExceptions: approvalRequiredTools,
-    conditionContext
+    conditionContext,
+    boundedMcpToolNames
   })
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
@@ -640,7 +647,7 @@ async function buildToolPermissions(
   return {
     canUseTool,
     hooks,
-    disallowedTools: resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
+    disallowedTools: resolveDisallowedTools(agent, conditionContext, boundedMcpToolNames),
     toolPolicySnapshot
   }
 }
