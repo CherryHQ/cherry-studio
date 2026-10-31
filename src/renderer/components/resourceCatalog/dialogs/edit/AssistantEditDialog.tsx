@@ -34,9 +34,12 @@ import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -44,6 +47,8 @@ import {
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { Assistant } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
 import {
   MAX_COMPRESS_THRESHOLD_PERCENT,
@@ -51,6 +56,7 @@ import {
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Prompt } from '@shared/data/types/prompt'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -81,6 +87,51 @@ export type AssistantEditDialogResource = Parameters<typeof initialAssistantForm
 
 export type AssistantEditDialogProps = EditDialogBaseProps & {
   resource: AssistantEditDialogResource | null
+  onCreate?: (values: CreateAssistantDto) => Promise<void>
+  isSubmitting?: boolean
+  requireConfirmation?: boolean
+}
+
+export function AssistantCreateDialog({
+  onCreate,
+  isSubmitting,
+  ...props
+}: EditDialogBaseProps & {
+  onCreate: (values: CreateAssistantDto) => Promise<void>
+  isSubmitting?: boolean
+}) {
+  const { defaultModel } = useDefaultModel({ enabled: props.open })
+  const { provider } = useProviderById(props.open ? defaultModel?.providerId : undefined)
+  const [draftId] = useState(() => crypto.randomUUID())
+  const model =
+    defaultModel?.isEnabled &&
+    provider?.isEnabled &&
+    !isNonChatModel(defaultModel) &&
+    (!props.modelFilter || props.modelFilter(defaultModel, provider)) &&
+    (!props.isModelDisabled || !props.isModelDisabled(defaultModel, provider))
+      ? defaultModel
+      : null
+  // This baseline stays in memory; only the explicit Create action writes an Assistant.
+  const draft = useMemo<Assistant>(
+    () => ({
+      id: draftId,
+      name: '',
+      emoji: '💬',
+      description: '',
+      prompt: '',
+      modelId: model?.id ?? null,
+      modelName: model?.name ?? null,
+      settings: DEFAULT_ASSISTANT_SETTINGS,
+      groupId: null,
+      knowledgeBaseIds: [],
+      mcpServerIds: [],
+      orderKey: '',
+      createdAt: '',
+      updatedAt: ''
+    }),
+    [draftId, model?.id, model?.name]
+  )
+  return <AssistantEditDialog {...props} resource={draft} onCreate={onCreate} isSubmitting={isSubmitting} />
 }
 
 type AssistantEditFormValues = {
@@ -202,18 +253,25 @@ export function AssistantEditDialog({
   onOpenChange,
   modelFilter,
   isModelDisabled,
-  initialTab
+  initialTab,
+  onCreate,
+  isSubmitting,
+  requireConfirmation
 }: AssistantEditDialogProps) {
   if (!resource) return null
 
   return (
     <AssistantEditDialogContent
+      key={resource.id}
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
       isModelDisabled={isModelDisabled}
       initialTab={initialTab}
+      onCreate={onCreate}
+      isSubmitting={isSubmitting}
+      requireConfirmation={requireConfirmation}
     />
   )
 }
@@ -224,10 +282,14 @@ function AssistantEditDialogContent({
   onOpenChange,
   modelFilter,
   isModelDisabled,
-  initialTab
-}: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
+  initialTab,
+  onCreate,
+  isSubmitting = false,
+  requireConfirmation = false
+}: Omit<AssistantEditDialogProps, 'resource'> & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
+  const [bindingDraft, setBindingDraft] = useState<{ prompts: Prompt[]; expectedIds: string[] } | null>(null)
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -237,6 +299,8 @@ function AssistantEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
+  const creating = Boolean(onCreate)
+  const createPending = useRef(false)
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
@@ -248,7 +312,7 @@ function AssistantEditDialogContent({
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'advanced', label: t('library.config.agent.model_config') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
-      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
+      ...(!creating ? [{ id: 'prompts', label: t('settings.prompts.binding.tabTitle') }] : []),
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -259,7 +323,7 @@ function AssistantEditDialogContent({
         ]
       }
     ],
-    [t]
+    [creating, t]
   )
 
   // Tracks the exact form snapshot that failed so it cannot be retried until
@@ -279,6 +343,7 @@ function AssistantEditDialogContent({
     form.reset(defaultValues)
     formBaselineRef.current = initialAssistantFormState(resource)
     setFormBaseline(formBaselineRef.current)
+    setBindingDraft(null)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
@@ -290,6 +355,12 @@ function AssistantEditDialogContent({
     // coincidentally-identical edit as if it were a repeated close.
     failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, resource])
+
+  useEffect(() => {
+    if (!creating || !open || form.getFieldState('modelId').isDirty) return
+    form.setValue('modelId', resource.modelId)
+    setModelLabels((current) => ({ ...current, modelId: resource.modelName ?? null }))
+  }, [creating, form, open, resource.modelId, resource.modelName])
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
@@ -304,6 +375,7 @@ function AssistantEditDialogContent({
     )
 
   const persist = async () => {
+    if (creating || requireConfirmation) return
     const submittedValues = structuredClone(form.getValues())
     if (!submittedValues.name.trim()) return
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
@@ -333,13 +405,19 @@ function AssistantEditDialogContent({
   }
 
   const { flush, getPendingSave } = useDebouncedAutoSave({
-    enabled: open,
+    enabled: open && !creating && !requireConfirmation,
     changeKey,
     onSave: persist
   })
 
   // Keep failed saves visible and gate settings navigation on successful closure.
   const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
+    if (creating || requireConfirmation) {
+      if (createPending.current || isSubmitting) return false
+      if (!allowDiscard && (saveIntent || bindingDraft)) return false
+      onOpenChange(next)
+      return true
+    }
     if (next) {
       onOpenChange(next)
       return true
@@ -374,6 +452,60 @@ function AssistantEditDialogContent({
   }
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
 
+  const handleCreate = form.handleSubmit(async (values) => {
+    if (!onCreate || createPending.current || !values.name.trim() || !values.modelId) return
+    createPending.current = true
+    form.clearErrors('root')
+    try {
+      const baseline = initialAssistantFormState(resource)
+      const changes = diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, resource)
+      await onCreate({
+        name: values.name.trim(),
+        emoji: values.avatar,
+        description: values.description,
+        prompt: values.prompt,
+        modelId: values.modelId,
+        groupId: values.groupId,
+        knowledgeBaseIds: values.knowledgeBaseIds,
+        mcpServerIds: values.mcpServerIds,
+        settings: { ...resource.settings, ...changes?.payload.settings }
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('library.config.dialogs.create.submit_failed')
+      form.setError('root', { message })
+      toast.error(message)
+    } finally {
+      createPending.current = false
+    }
+  })
+  const createBusy = isSubmitting || form.formState.isSubmitting
+
+  const handleSave = form.handleSubmit(async () => {
+    if (createPending.current || !values.name.trim()) return
+    createPending.current = true
+    form.clearErrors('root')
+    try {
+      const ids = bindingDraft?.prompts.map((prompt) => prompt.id)
+      const promptBindings =
+        bindingDraft &&
+        ids &&
+        (ids.length !== bindingDraft.expectedIds.length ||
+          ids.some((id, index) => id !== bindingDraft.expectedIds[index]))
+          ? { ids, expectedIds: bindingDraft.expectedIds }
+          : undefined
+      if (saveIntent || promptBindings)
+        await updateAssistant({ ...saveIntent?.payload, ...(promptBindings ? { promptBindings } : {}) })
+      onOpenChange(false)
+    } catch (error) {
+      logger.error('Failed to save assistant edit dialog', error as Error, { assistantId: resource.id })
+      const message = formatErrorMessageWithPrefix(error, saveFailedMessage)
+      form.setError('root', { message })
+      toast.error(message)
+    } finally {
+      createPending.current = false
+    }
+  })
+
   const handleCreateGroup = async (name: string) => {
     try {
       const group = await createGroup(name)
@@ -402,7 +534,27 @@ function AssistantEditDialogContent({
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
       tabs={tabs}
-      title={t('library.config.dialogs.edit.assistant_title')}>
+      title={t(
+        creating ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.edit.assistant_title'
+      )}
+      busy={(creating || requireConfirmation) && createBusy}
+      preventOutsideClose={!creating}
+      footer={
+        creating || requireConfirmation ? (
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border-subtle px-6 py-3">
+            <Button type="button" variant="ghost" disabled={createBusy} onClick={() => handleOpenChange(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              loading={createBusy}
+              disabled={!values.name.trim() || (creating && !values.modelId)}
+              onClick={() => void (creating ? handleCreate() : handleSave())}>
+              {t(creating ? 'library.config.dialogs.create.submit' : 'common.save')}
+            </Button>
+          </div>
+        ) : undefined
+      }>
       <>
         <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
           <AssistantBasicFields
@@ -433,14 +585,28 @@ function AssistantEditDialogContent({
             portalContainer={dialogContentElement}
           />
         </TabsContent>
-        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
-          <PromptBindingTab
-            enabled={open && activeTab === 'prompts'}
-            target={{ type: 'assistant', id: resource.id }}
-            onManageGlobal={() => closeBeforeAction(() => openSettingsTab('/settings/prompts'))}
-            portalContainer={dialogContentElement}
-          />
-        </TabsContent>
+        {!creating ? (
+          <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
+            <PromptBindingTab
+              enabled={open && activeTab === 'prompts'}
+              target={{ type: 'assistant', id: resource.id }}
+              onManageGlobal={() => closeBeforeAction(() => openSettingsTab('/settings/prompts'))}
+              portalContainer={dialogContentElement}
+              draft={
+                requireConfirmation
+                  ? {
+                      prompts: bindingDraft?.prompts,
+                      onChange: (prompts, original) =>
+                        setBindingDraft((current) => ({
+                          prompts: typeof prompts === 'function' ? prompts(current?.prompts ?? original) : prompts,
+                          expectedIds: current?.expectedIds ?? original.map((prompt) => prompt.id)
+                        }))
+                    }
+                  : undefined
+              }
+            />
+          </TabsContent>
+        ) : null}
         {isAssistantToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
             {activeTab === 'tools.builtin' ? (

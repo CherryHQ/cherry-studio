@@ -17,6 +17,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
+import { getLibraryTagResourceIds } from '@data/services/utils/libraryTags'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -585,7 +586,7 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean } = {}): {
+  listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean; libraryTagIds?: string[] } = {}): {
     agents: AgentEntity[]
     total: number
   } {
@@ -598,6 +599,9 @@ export class AgentService {
       notDoctorAgent
     ]
     if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
+    if (options.libraryTagIds?.length) {
+      conditions.push(inArray(agentsTable.id, getLibraryTagResourceIds('agent', options.libraryTagIds)))
+    }
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }
