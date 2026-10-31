@@ -131,6 +131,62 @@ describe('buildFallbackModels', () => {
     expect(fallback?.repairToolCall).toBe(repairToolCall)
   })
 
+  it('shapes each fallback from its actual provider and model', async () => {
+    const provider = makeProvider({ id: 'anthropic' })
+    const model = makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' })
+    const resolveFallback = vi.fn().mockReturnValue({
+      callOverrides: { temperature: 0.7 },
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'fallback prompt' }] }]
+    })
+    getByProviderId.mockReturnValue(provider)
+    getByKey.mockReturnValue(model)
+    stubBuildAgentParams('claude-x')
+
+    const [resolve] = buildFallbackModels({
+      ...baseArgs,
+      request: { messages: [], modelAttempt: { resolveFallback } } as never,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy(['anthropic::claude'])
+    })
+    const fallback = await resolve()
+
+    expect(resolveFallback).toHaveBeenCalledWith({ provider, model })
+    expect(buildAgentParams).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({ callOverrides: { temperature: 0.7 } }),
+        provider,
+        model
+      })
+    )
+    expect(fallback).toMatchObject({
+      sourceModel: model,
+      options: {
+        temperature: 0.2,
+        maxOutputTokens: 128,
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'fallback prompt' }] }]
+      }
+    })
+  })
+
+  it('skips a fallback rejected by the request contract', async () => {
+    const provider = makeProvider({ id: 'anthropic' })
+    const model = makeModel({ id: 'anthropic::claude', providerId: 'anthropic' })
+    const resolveFallback = vi.fn().mockReturnValue(null)
+    getByProviderId.mockReturnValue(provider)
+    getByKey.mockReturnValue(model)
+
+    const [resolve] = buildFallbackModels({
+      ...baseArgs,
+      request: { messages: [], modelAttempt: { resolveFallback } } as never,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy(['anthropic::claude'])
+    })
+
+    expect(await resolve()).toBeNull()
+    expect(resolveFallback).toHaveBeenCalledWith({ provider, model })
+    expect(buildAgentParams).not.toHaveBeenCalled()
+  })
+
   it('skips the active model (by stored UniqueModelId) — no resolver created, even when apiModelId differs', () => {
     expect(
       buildFallbackModels({

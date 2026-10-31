@@ -28,6 +28,7 @@ import {
 import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 
 import { loggerService } from '@logger'
+import type { Model } from '@shared/data/types/model'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import type { RetryPolicy } from './retryPolicy'
@@ -47,6 +48,8 @@ export interface RetryFallback {
   model: LanguageModelV3
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
+  /** Stored model selected for this fallback, used by request-scoped attempt hooks. */
+  sourceModel?: Model
 }
 
 /**
