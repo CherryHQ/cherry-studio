@@ -3,5 +3,6 @@ export type {
   PiDurableRuntime,
   PiDurableRuntimeOptions,
   PiDurableThreadHandle,
+  PiDurableThreadInput,
   PiDurableSessionOptions
 } from './runtime'

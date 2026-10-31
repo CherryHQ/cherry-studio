@@ -129,6 +129,9 @@ patchedDependencies:
 
   "@earendil-works/pi-agent-core@1.4.0": patches/@earendil-works__pi-agent-core@1.4.0.patch
 
+  # Carry native input correlation until an upstream release provides the same placement events.
+  "@earendil-works/pi-coding-agent@1.4.0": patches/@earendil-works__pi-coding-agent@1.4.0.patch
+
 allowBuilds:
   "@google/genai": false
   "@j178/prek": true
