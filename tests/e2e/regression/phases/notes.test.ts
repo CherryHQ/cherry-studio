@@ -438,7 +438,11 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
       expect(pdfText).toContain(expected)
     }
     execFileSync('open', ['-a', 'Preview', pdfPath])
-    expect(appleScript('tell application "Preview" to get name of every document')).toContain('MP-77.pdf')
+    // Preview's own scripting interface stops answering on macOS 27, so the opened document is read
+    // from its window title through System Events, the interface this fixture already automates.
+    await expect
+      .poll(() => appleScript('tell application "System Events" to tell process "Preview" to get name of windows'))
+      .toContain('MP-77.pdf')
     await testInfo.attach('Exported PDF', { path: pdfPath, contentType: 'application/pdf' })
 
     const wordPath = join(directory, 'MP-77.docx')
