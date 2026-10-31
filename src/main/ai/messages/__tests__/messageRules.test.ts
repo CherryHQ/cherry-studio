@@ -444,6 +444,20 @@ describe('toModelMessages', () => {
     expect(search).not.toBe(fetch)
   })
 
+  it('drops a dynamic tool part with an empty name even when it is declared', async () => {
+    const model = await toModelMessages(
+      [ui('assistant', [legacyTool('', 'call_00_empty'), { type: 'text', text: 'continue' }])],
+      undefined,
+      { '': tool({ inputSchema: z.object({}) }) }
+    )
+    const parts = model.flatMap(
+      (message) => (Array.isArray(message.content) ? [...message.content] : []) as Array<{ type: string }>
+    )
+
+    expect(parts.filter((part) => part.type === 'tool-call' || part.type === 'tool-result')).toEqual([])
+    expect(parts).toContainEqual({ type: 'text', text: 'continue' })
+  })
+
   // The API Gateway shares this path and keys its ToolSet by the client's own function name.
   it('leaves a declared tool name untouched even when it holds provider-specific characters', async () => {
     const declared = 'maps.lookup'
