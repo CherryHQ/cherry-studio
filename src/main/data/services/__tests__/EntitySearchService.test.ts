@@ -90,6 +90,7 @@ describe('EntitySearchService', () => {
       orderKey: 'a0'
     })
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: '55555555-5555-4555-8555-555555555555',
       name: 'Needle Knowledge',
       dimensions: 1536,

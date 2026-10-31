@@ -10,7 +10,12 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
-import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
+import {
+  classifyError,
+  getClaudeCodeExitCategory,
+  getClaudeCodeExitInfo,
+  getLocalModelResolutionFailure
+} from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -44,6 +49,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
+  const localModelFailure = getLocalModelResolutionFailure(error)
   const errorStatus =
     error && ('status' in error || 'statusCode' in error)
       ? ((error as Record<string, unknown>).status as number | undefined) ||
@@ -64,12 +70,32 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         />
       )
     }
+    // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
+    // its values may embed a verbatim provider diagnostic.
+    const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+    if (typeof detailKey === 'string' && detailKey) {
+      const detailFullKey = `error.${detailKey}`
+      if (i18n.exists(detailFullKey)) {
+        const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
+          | Record<string, string>
+          | undefined
+        return (
+          <span>
+            {t(i18nKey)} {t(detailFullKey, detailValues)}
+          </span>
+        )
+      }
+    }
     return t(i18nKey)
   }
 
   if (i18n.exists(errorKey)) {
     return t(errorKey)
   }
+
+  // The headline supplies either the missing model or configuration guidance; the raw local
+  // resolution message adds no useful recovery detail.
+  if (localModelFailure) return null
 
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
@@ -97,14 +123,28 @@ const MessageErrorInfo: React.FC<{
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
-  const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
+  const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
+  const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
-  const localizedErrorMessage = useMemo(
-    () => t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
-    [classification.i18nKey, providerId, t]
-  )
+  const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
+  // An app-owned i18nKey is the throwing code's own display text — prefer it over a
+  // pattern-matched category heading, which can name the wrong subsystem entirely (an
+  // OCR-fallback failure must not present as a chat-provider auth error). Keys that
+  // interpolate <provider> still go through the classification branch: plain `t()`
+  // would render the raw tags, and the provider branch needs the <Trans> link form.
+  const localizedErrorMessage = useMemo(() => {
+    if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    if (localModelFailure) {
+      const { providerId: failedProviderId, modelId } = localModelFailure
+      if (!modelId) return t('code.select_provider_model')
+      return t('error.diagnosis.model_unavailable', {
+        model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
+      })
+    }
+    return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
+  }, [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, localModelFailure, providerId, t])
 
   useEffect(() => {
     if (

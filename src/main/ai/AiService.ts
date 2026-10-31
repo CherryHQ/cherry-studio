@@ -191,19 +191,35 @@ function createCaptureContext(input: {
   credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
-}): AiUsageCaptureContext {
-  return createAiUsageCaptureContext({
-    providerId: input.provider.id,
-    providerName: input.provider.name,
-    modelId: input.sdkModelId,
-    modelName: input.model.name,
-    pricing: input.model.pricing,
-    trustProviderReportedCost: input.provider.reportsActualCost,
-    reportedCostCurrency: input.provider.reportedCostCurrency,
-    credentialReceipt: input.credentialReceipt,
-    source: input.source,
-    messageRef: input.messageRef
-  })
+}): () => AiUsageCaptureContext {
+  return () => {
+    const modelId = parseUniqueModelId(input.model.id).modelId
+    let pricingSnapshot: AiUsageCaptureContext['pricingSnapshot'] = null
+    try {
+      const provider = providerService.getByProviderId(input.provider.id)
+      const model = modelService.getByKey(input.provider.id, modelId)
+      pricingSnapshot = createAiUsageCaptureContext({
+        providerId: provider.id,
+        modelId,
+        pricing: model.pricing,
+        billing: provider.settings.billing
+      }).pricingSnapshot
+    } catch (error) {
+      logger.warn('Could not capture invocation pricing', { error })
+    }
+    return createAiUsageCaptureContext({
+      providerId: input.provider.id,
+      providerName: input.provider.name,
+      modelId: input.sdkModelId,
+      modelName: input.model.name,
+      pricingSnapshot,
+      trustProviderReportedCost: input.provider.reportsActualCost,
+      reportedCostCurrency: input.provider.reportedCostCurrency,
+      credentialReceipt: input.credentialReceipt,
+      source: input.source,
+      messageRef: input.messageRef
+    })
+  }
 }
 
 function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
@@ -313,6 +329,8 @@ export interface AiImageRequest extends AiRequest {
    * `splitParamValues`.
    */
   paramValues: ParamValues
+  /** Per-attempt provider submit timeout (ms); omitted uses the transport default. */
+  requestTimeoutMs?: number
   /**
    * Cleanup policy stamped on the generated **output** FileEntries. AiService is
    * infrastructure — the calling business feature decides the policy
@@ -395,7 +413,14 @@ export interface AiRerankResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
+@DependsOn([
+  'McpRuntimeService',
+  'McpCatalogService',
+  'AiStreamManager',
+  'JobManager',
+  'AutomationReplService',
+  'RuntimeActivityService'
+])
 export class AiService extends BaseService {
   // Per-request AbortControllers for the cancellable one-shot routes (`ai.image.generate`,
   // `ai.text.generate`), paired with their `*.abort` routes. Key is the renderer-generated
@@ -667,7 +692,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(() =>
+            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
@@ -698,8 +725,8 @@ export class AiService extends BaseService {
                 model,
                 sdkModelId,
                 credentialReceipt,
-                source: usageContext.source,
-                messageRef: usageContext.messageRef
+                source: usageContext().source,
+                messageRef: usageContext().messageRef
               })
             )
         }),
@@ -748,6 +775,15 @@ export class AiService extends BaseService {
     agentRef.current = agent
 
     return agent.stream(preparedMessages, signal)
+  }
+
+  private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {
+    const hold = application.get('RuntimeActivityService').begin(reason)
+    try {
+      return await operation()
+    } finally {
+      hold.dispose()
+    }
   }
 
   private analyticsHookPart(model: Model, source: TokenUsageSource = 'chat'): Partial<AgentLoopHooks> {
@@ -832,7 +868,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(() =>
+            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
@@ -859,8 +897,8 @@ export class AiService extends BaseService {
                 model,
                 sdkModelId,
                 credentialReceipt,
-                source: usageContext.source,
-                messageRef: usageContext.messageRef
+                source: usageContext().source,
+                messageRef: usageContext().messageRef
               })
             )
         }),
@@ -895,7 +933,9 @@ export class AiService extends BaseService {
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
-    return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
+    return this.withRuntimeActivity('ai:generate-text', () =>
+      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
+    )
   }
 
   /**
@@ -994,8 +1034,18 @@ export class AiService extends BaseService {
     // not `provider.id`: a user-added instance carries a UUID id and would fall
     // through to the direct image model, which never passes `modelDescriptor`.
     const transportProviderId = provider.presetProviderId ?? provider.id
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-      return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
+    // Assistant-bound models resolve here without the caller spelling out
+    // `uniqueModelId` — fall back to the assistant's model so transport providers
+    // keep their native routing instead of dropping to the generic image path.
+    const effectiveUniqueModelId = request.uniqueModelId ?? assistant?.modelId
+    if (effectiveUniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+      return await this.generateImageViaJob(
+        { ...request, uniqueModelId: effectiveUniqueModelId, inputImages },
+        structured,
+        vendorBag,
+        signal,
+        source
+      )
     }
 
     const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
@@ -1053,38 +1103,44 @@ export class AiService extends BaseService {
       source,
       messageRef: null
     })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
-    })
+    return this.withRuntimeActivity('ai:generate-image', async () => {
+      const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
+        sdkConfig.providerId,
+        sdkConfig.providerSettings,
+        {
+          ...imageParams,
+          onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
+        }
+      )
 
-    const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
+      const dataUrls: Base64String[] = []
+      let filteredCount = 0
+      for (const image of result.images ?? []) {
+        if (image.base64) {
+          dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+          continue
+        }
+
+        filteredCount += 1
       }
 
-      filteredCount += 1
-    }
-
-    if (filteredCount > 0) {
-      logger.warn('Filtered invalid generated images', {
-        uniqueModelId: request.uniqueModelId,
-        providerId: sdkConfig.providerId,
-        modelId: sdkConfig.modelId,
-        filteredCount
-      })
-    }
-    const fileManager = application.get('FileManager')
-    const files = await Promise.all(
-      dataUrls.map((data) =>
-        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+      if (filteredCount > 0) {
+        logger.warn('Filtered invalid generated images', {
+          uniqueModelId: request.uniqueModelId,
+          providerId: sdkConfig.providerId,
+          modelId: sdkConfig.modelId,
+          filteredCount
+        })
+      }
+      const fileManager = application.get('FileManager')
+      const files = await Promise.all(
+        dataUrls.map((data) =>
+          fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+        )
       )
-    )
 
-    return { files }
+      return { files }
+    })
   }
 
   /**
@@ -1151,6 +1207,7 @@ export class AiService extends BaseService {
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
+        ...(request.requestTimeoutMs && { requestTimeoutMs: request.requestTimeoutMs }),
         ...(source && { source }),
         providerParams,
         cleanupPolicy: request.cleanupPolicy
@@ -1220,19 +1277,18 @@ export class AiService extends BaseService {
     })
 
     const retryPolicy = readRetryPolicy()
-    const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      model: sdkConfig.modelId,
-      values: request.values,
-      // A long document splits into many batches and embedMany defaults to
-      // unbounded parallelism — firing them all at once is the main rate-limit
-      // trigger. Keep the pre-feature default when retry is disabled.
-      ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
-      // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
-      // its prior transient-error resilience (this PR only adds, never removes).
-      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
-      onProviderCall: createProviderCallHandler(usageContext),
-      ...(signal ? { abortSignal: signal } : {})
-    })
+    const result = await this.withRuntimeActivity('ai:embed-many', () =>
+      aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+        model: sdkConfig.modelId,
+        values: request.values,
+        // Bound batch fan-out to avoid embedding rate limits when retries are enabled.
+        ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
+        // Preserve the SDK's default retry count when the global retry policy is disabled.
+        maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
+        onProviderCallStart: () => createProviderCallHandler(usageContext()),
+        ...(signal ? { abortSignal: signal } : {})
+      })
+    )
 
     return { embeddings: result.embeddings, usage: result.usage }
   }
@@ -1271,14 +1327,12 @@ export class AiService extends BaseService {
       // exponential-backoff retry, defaulted from the retry preference. Rerank
       // already defaulted to 0 retries pre-feature, so keep that when disabled.
       maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 0),
-      onProviderCall: createProviderCallHandler(usageContext),
+      onProviderCallStart: () => createProviderCallHandler(usageContext()),
       ...(signal ? { abortSignal: signal } : {})
     }
 
-    const result = await aiCoreRerank<AppProviderSettingsMap>(
-      sdkConfig.providerId,
-      sdkConfig.providerSettings,
-      rerankParams
+    const result = await this.withRuntimeActivity('ai:rerank', () =>
+      aiCoreRerank<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, rerankParams)
     )
 
     return {

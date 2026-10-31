@@ -263,6 +263,31 @@ const renderRuntime = (tools: any[], node: ReactNode) => {
 }
 
 describe('ComposerToolRuntimeHost', () => {
+  it('mounts only explicitly model-independent tools when no chat model is available', () => {
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'model-dependent',
+        label: 'Model dependent',
+        composer: { runtime: () => <div data-testid="model-dependent-runtime" /> }
+      },
+      {
+        key: 'model-independent',
+        label: 'Model independent',
+        availableWithoutModel: true,
+        composer: { runtime: () => <div data-testid="model-independent-runtime" /> }
+      }
+    ])
+
+    render(
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} />
+      </ComposerToolRuntimeProvider>
+    )
+
+    expect(screen.getByTestId('model-independent-runtime')).toBeInTheDocument()
+    expect(screen.queryByTestId('model-dependent-runtime')).not.toBeInTheDocument()
+  })
+
   it('normalizes initial composer files with file token source ids', async () => {
     const onSnapshot = vi.fn()
 

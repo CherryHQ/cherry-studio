@@ -3,7 +3,6 @@ description: Identity-based remote connectivity design and first implementation 
 sources:
   - src/main/features/apiGateway
   - src/main/services/remoteAccess
-  - src/main/services/lanTransfer
   - packages/remote-protocol
   - packages/remote-transport
 ---
@@ -145,6 +144,11 @@ flowchart TD
 用户配置的域名保留域名本身，其 DNS 解析结果不作为永久 IP 保存。
 扫描或自动发现不得隐式创建用户配置；若用户需要固定地址，必须通过明确的保存配置操作表达。
 relay 凭据由未来方案按其安全存储规则管理，不混入端点缓存。
+
+桌面侧提供给客户端的自定义地址/端口、实际监听端口及二维码更新规则见
+[自定义连接地址与端口](./remote-agent-access.md#custom-connection-addresses-and-ports)。
+桌面自定义端点使用 v3 邀请，自动地址保留 v2 邀请；移动端显式配置继续沿用本节的持久化边界。
+反向代理的外部端口可以不同于 Gateway 监听端口，不能用监听端口覆盖用户配置，也不能把外部端点发布为本地 DNS-SD 记录。
 
 ### 4.3 既有安装迁移
 

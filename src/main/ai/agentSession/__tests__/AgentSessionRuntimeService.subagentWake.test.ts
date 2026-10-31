@@ -1,8 +1,9 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Incident repro (2026-08-15): a dsh subagent settlement wake opened a
+ * Incident repro (2026-08-15): a runtime subagent settlement wake opened a
  * receive-only turn whose persisted row ended up with ZERO parts while the
  * runtime streamed a full report. Drive the real service with the incident's
  * event order and assert the receive-only stream actually carries the chunks.
@@ -64,7 +65,12 @@ vi.mock('@main/ai/utils/usageCapture', () => ({
 vi.mock('@main/services/TopicNamingService', () => ({
   topicNamingService: { maybeRenameAgentSession: mocks.maybeRenameAgentSession }
 }))
-vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) =>
+      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mocks.applicationGet(name)
+  }
+}))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')

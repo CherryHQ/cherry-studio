@@ -1,47 +1,56 @@
+/** Covers table-cell escaping in the generated documentation index. */
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { generateIndex } from '../gen-doc-index'
+import { generateIndex } from '../docsGovernance/gen-doc-index'
 
-const tempDirs: string[] = []
-const makeRepo = (files: Record<string, string>): string => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-index-'))
-  tempDirs.push(root)
-  for (const [rel, content] of Object.entries(files)) {
-    const full = path.join(root, rel)
-    fs.mkdirSync(path.dirname(full), { recursive: true })
-    fs.writeFileSync(full, content)
+const scaffold = (root: string): void => {
+  for (const dir of ['contrib', 'i18n', 'references']) {
+    fs.mkdirSync(path.join(root, 'docs', dir), { recursive: true })
   }
-  return root
 }
 
-afterEach(() => {
-  while (tempDirs.length > 0) fs.rmSync(tempDirs.pop()!, { recursive: true, force: true })
-})
+const writeContribDoc = (root: string, name: string, content: string): void => {
+  fs.writeFileSync(path.join(root, 'docs', 'contrib', name), content)
+}
 
-describe('generateIndex', () => {
-  it('lists every doc under its domain with title from H1 and description from frontmatter', () => {
-    const root = makeRepo({
-      'docs/contrib/dev.md': '---\ndescription: Set up the environment\n---\n\n# Development Setup\n',
-      'docs/references/ai/README.md': '---\ndescription: The AI pipeline\nsources:\n  - src\n---\n\n# AI Reference\n',
-      'docs/references/ai/tools.md': '---\ndescription: Tool registry\nsources:\n  - src\n---\n\n# Tool Registry\n',
-      src: ''
+const withTempRoot = (run: (root: string) => void): void => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-index-'))
+  try {
+    run(root)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+}
+
+describe('generateIndex escapes table cells', () => {
+  it('keeps a pipe in a description from splitting the table row', () => {
+    withTempRoot((root) => {
+      scaffold(root)
+      writeContribDoc(root, 'import.md', '---\ndescription: Import from URL | clipboard\n---\n\n# Import\n')
+      const output = generateIndex(root)
+      expect(output).toContain('| [Import](./contrib/import.md) | Import from URL \\| clipboard |')
     })
-    const index = generateIndex(root)
-    expect(index).toContain('| [Development Setup](./contrib/dev.md) | Set up the environment |')
-    expect(index).toContain('### AI')
-    expect(index).toContain('| [AI Reference](./references/ai/README.md) | The AI pipeline |')
-    expect(index.indexOf('AI Reference')).toBeLessThan(index.indexOf('Tool Registry'))
   })
 
-  it('is deterministic for the same tree', () => {
-    const files = {
-      'docs/contrib/a.md': '---\ndescription: A\n---\n\n# A\n',
-      'docs/references/data/README.md': '---\ndescription: Data\n---\n\n# Data\n'
-    }
-    expect(generateIndex(makeRepo(files))).toBe(generateIndex(makeRepo(files)))
+  it('keeps a pipe in an H1 title from splitting the table row', () => {
+    withTempRoot((root) => {
+      scaffold(root)
+      writeContribDoc(root, 'faq.md', '---\ndescription: Frequently asked questions\n---\n\n# FAQ | Troubleshooting\n')
+      const output = generateIndex(root)
+      expect(output).toContain('| [FAQ \\| Troubleshooting](./contrib/faq.md) | Frequently asked questions |')
+    })
+  })
+
+  it('leaves ordinary titles and descriptions untouched', () => {
+    withTempRoot((root) => {
+      scaffold(root)
+      writeContribDoc(root, 'plain.md', '---\ndescription: How to contribute code\n---\n\n# Contributing\n')
+      const output = generateIndex(root)
+      expect(output).toContain('| [Contributing](./contrib/plain.md) | How to contribute code |')
+    })
   })
 })

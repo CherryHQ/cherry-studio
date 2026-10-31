@@ -62,7 +62,7 @@ export const ComposerToolRuntimeProvider = ({ children, initialState, actions }:
 interface ComposerToolRuntimeBootstrapProps {
   scope: ComposerToolScope
   assistant?: Assistant
-  model: Model
+  model?: Model
   session?: ToolContext['session']
 }
 
@@ -164,7 +164,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session })
+    return getToolsForScope(scope, { assistant, model, session }).filter((tool) => model || tool.availableWithoutModel)
   }, [assistant, model, scope, session])
 
   const getLauncherApiForTool = useCallback(
@@ -432,10 +432,10 @@ export const ComposerToolMenu = ({ unifiedPanelControl }: ComposerToolMenuProps)
   return (
     <button
       type="button"
-      className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-foreground"
       aria-label={t('settings.quickPanel.title')}
       onClick={() => unifiedPanelControl.open()}>
-      <Plus size={18} />
+      <Plus size={18} className="dark:text-current!" />
     </button>
   )
 }

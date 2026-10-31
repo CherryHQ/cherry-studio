@@ -82,10 +82,12 @@ const unnamedTranslations = [
   'locales/el-gr',
   'locales/es-es',
   'locales/fr-fr',
+  'locales/it-it',
   'locales/ja-jp',
   'locales/pt-pt',
   'locales/ro-ro',
   'locales/ru-ru',
+  'locales/th-th',
   'locales/tr-tr',
   'locales/vi-vn',
   'locales/zh-tw'

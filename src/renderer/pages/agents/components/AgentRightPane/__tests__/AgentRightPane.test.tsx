@@ -1,4 +1,4 @@
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
@@ -9,7 +9,7 @@ import type {
   ReactElement,
   ReactNode
 } from 'react'
-import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
+import { cloneElement, isValidElement, useEffect, useState, useSyncExternalStore } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
@@ -26,6 +26,7 @@ import type { WebviewAnnotationSavedPayload } from '@renderer/components/Webview
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { EventPayload } from '@shared/ipc/types'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot } from '@shared/utils/file'
 
@@ -39,7 +40,6 @@ const {
   fileSessionState,
   fileTreeModelState,
   fileTreeModelStore,
-  openPathMock,
   resolveArtifactPaneFileSelectionMock,
   systemFileTreeState,
   tracePaneModuleLoadMock,
@@ -70,7 +70,6 @@ const {
     listeners: new Set<() => void>(),
     revision: 0
   },
-  openPathMock: vi.fn().mockResolvedValue(undefined),
   resolveArtifactPaneFileSelectionMock: vi.fn(),
   systemFileTreeState: {
     root: null as TreeDirRoot | null,
@@ -235,8 +234,8 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   )
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  useIpcOn: vi.fn(),
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal()),
   ipcApi: { request: ipcRequestMock }
 }))
 
@@ -251,6 +250,10 @@ vi.mock('@renderer/utils/filePath', () => ({
 vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   ArtifactPaneView: ({
     editMode,
+    fileTabs,
+    onActivateFileTab,
+    onCloseFileTab,
+    onRetainFileTab,
     onEditModeChange,
     headerVariant,
     onPreviewClose,
@@ -261,6 +264,10 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     selectedFile
   }: {
     editMode?: 'preview' | 'edit'
+    fileTabs?: Array<{ workspacePath: string; filePath: string }>
+    onActivateFileTab?: (tab: { workspacePath: string; filePath: string }) => void
+    onCloseFileTab?: (tab: { workspacePath: string; filePath: string }) => void
+    onRetainFileTab?: (tab: { workspacePath: string; filePath: string } | null) => void
     onEditModeChange?: (mode: 'preview' | 'edit') => void
     headerVariant?: 'overlay' | 'pane'
     onPreviewClose?: () => void
@@ -282,6 +289,27 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
               </button>
             ) : null}
             <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
+            <div role="tablist">
+              {fileTabs?.map((tab) => (
+                <span key={tab.filePath} role="tab" aria-selected={tab.filePath === previewFileSelection?.filePath}>
+                  <button type="button" onClick={() => onActivateFileTab?.(tab)}>
+                    {tab.filePath}
+                  </button>
+                  <button type="button" aria-label={`close ${tab.filePath}`} onClick={() => onCloseFileTab?.(tab)}>
+                    x
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`close others ${tab.filePath}`}
+                    onClick={() => onRetainFileTab?.(tab)}>
+                    o
+                  </button>
+                </span>
+              ))}
+              <button type="button" aria-label="close all" onClick={() => onRetainFileTab?.(null)}>
+                a
+              </button>
+            </div>
             {paneActions}
           </div>
         ) : null}
@@ -476,6 +504,9 @@ vi.mock('react-i18next', () => ({
 
 import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
 
+const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
+let browserOpenListener: (payload: EventPayload<'browser.pane.open_requested'>) => void
+
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
 
 function createTaskPart(sequence: number, subject: string, activeForm?: string): CherryMessagePart {
@@ -559,6 +590,22 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   )
 }
 
+function PreviewInputButton({ path = '/workspace/README.md' }: { path?: string }) {
+  const { previewInputFileInRightPane } = useAgentRightPaneActions()
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        previewInputFileInRightPane({
+          displayName: 'README.md',
+          previewPath: path as AbsoluteFilePath
+        })
+      }>
+      Preview attachment
+    </button>
+  )
+}
+
 function OpenWebsiteButton({ url, inBrowser = false }: { url: string; inBrowser?: boolean }) {
   const { openExternalUrl, openBrowserUrl } = useAgentRightPaneActions()
   return (
@@ -571,6 +618,11 @@ function OpenWebsiteButton({ url, inBrowser = false }: { url: string; inBrowser?
 function UserOpenSeqProbe() {
   const { userOpenSeq } = useRightPanelState()
   return <output data-testid="user-open-seq">{userOpenSeq}</output>
+}
+
+function ActivePanelProbe() {
+  const { activePanelId } = useRightPanelState()
+  return <output data-testid="active-panel">{activePanelId ?? ''}</output>
 }
 
 type StatusTaskFixture = {
@@ -628,6 +680,16 @@ function createPreviewMessage(id: string, parts: CherryMessagePart[], createdAt?
   return { id, role: 'assistant', parts, metadata: { status: 'success', createdAt } } as unknown as CherryUIMessage
 }
 
+/** Wait until a repeated preview of the same attachment has been accepted. The overlay text does not change. */
+async function previewSameAttachmentAgain(user: ReturnType<typeof userEvent.setup>) {
+  const seen = ipcRequestMock.mock.calls.length
+  await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+  await waitFor(() => expect(ipcRequestMock.mock.calls.length).toBeGreaterThan(seen))
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
 function createDeferredPromise<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -650,10 +712,24 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUsePreference.mockImplementation(defaultPreferenceImplementation)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
+    vi.spyOn(window.api.ipcApi, 'on').mockImplementation((event, listener) => {
+      if (event === 'browser.pane.open_requested') browserOpenListener = listener
+      return vi.fn()
+    })
+    // Leaving a dirty file saves first; the leave-dialog flows below need that save to fail, synchronously.
+    fileSessionFlushMock.mockImplementation(() => {
+      const failed = {
+        then: (_: unknown, onRejected?: (error: Error) => void) => onRejected?.(new Error('save failed')),
+        catch: (onRejected: (error: Error) => void) => failed.then(undefined, onRejected)
+      }
+      return failed as never
+    })
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
-    window.api.file.openPath = openPathMock
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', true)
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
@@ -684,7 +760,57 @@ describe('AgentRightPane', () => {
     }))
   })
 
+  it('activates the first attachment preview after metadata resolves in an empty system workspace', async () => {
+    const user = userEvent.setup()
+    const metadata = Promise.withResolvers<PhysicalFileMetadata>()
+    ipcRequestMock.mockReturnValueOnce(metadata.promise)
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}
+        resourcePane={{ node: <div>Resources</div>, label: 'Resources' }}>
+        <PreviewInputButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    await act(async () => metadata.resolve({ kind: 'file', type: 'text', size: 1 } as PhysicalFileMetadata))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+  })
+
+  it('opens a read-only attachment without discarding the same-path dirty artifact', async () => {
+    const user = userEvent.setup()
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(pane())
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+  })
+
   it('explicitly opens the session browser pane even when normal links prefer an external browser', async () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
     try {
@@ -730,6 +856,7 @@ describe('AgentRightPane', () => {
     [false, 'https://example.com/path?q=hello#section', false],
     [true, 'mailto:test@example.com', false]
   ] as const)('opens message URLs according to the browser setting (%s, %s)', async (enabled, url, inPane) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', enabled)
     const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
     try {
@@ -882,6 +1009,7 @@ describe('AgentRightPane', () => {
   })
 
   it('opens a blank browser when no preview URL has been reported', () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     render(
       <TestAgentRightPane sessionId="session-a" sessionName="Frontend task" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
@@ -961,6 +1089,7 @@ describe('AgentRightPane', () => {
   })
 
   it('opens an HTML artifact in the browser instead of the file preview', () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'index.html'
@@ -1938,6 +2067,103 @@ describe('AgentRightPane', () => {
     await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('DESIGN.md'))
   })
 
+  it('opens each new file in a tab after the active one and reactivates an open file', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.getAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    expect(tabNames()).toEqual(['README.md', 'src/deep.ts'])
+
+    // A new file lands right after the active tab, wherever that is.
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await waitFor(() => expect(tabNames()).toEqual(['README.md', 'DESIGN.md', 'src/deep.ts']))
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('DESIGN.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('src/deep.ts')
+    expect(tabNames()).toEqual(['README.md', 'DESIGN.md', 'src/deep.ts'])
+  })
+
+  it('closes the other tabs or all tabs from the tab menu', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.queryAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    expect(tabNames()).toEqual(['README.md', 'src/deep.ts'])
+
+    // Keeping an inactive tab also makes it the open file.
+    fireEvent.click(screen.getByRole('button', { name: 'close others README.md' }))
+    expect(tabNames()).toEqual(['README.md'])
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'close all' }))
+    expect(tabNames()).toEqual([])
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it('activates the neighbouring tab when the active tab closes and shows no file after the last one', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('DESIGN.md'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'close README.md' }))
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('DESIGN.md')
+    expect(screen.getAllByRole('tab')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'close DESIGN.md' }))
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'close README.md' }))
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
   it('does not expose artifact opening without a workspace path', () => {
     const { rerender } = render(
       <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
@@ -2358,7 +2584,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
   })
 
-  it('opens Markdown preview directory links in the system file manager and clears the current preview', async () => {
+  it('opens Markdown preview directory links in the system file manager and keeps the current file open', async () => {
     const user = userEvent.setup()
     ipcRequestMock.mockResolvedValue({
       kind: 'directory',
@@ -2385,9 +2611,9 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'select README.md' }))
     await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
 
-    await waitFor(() => expect(openPathMock).toHaveBeenCalledWith('/workspace/DESIGN.md'))
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
-    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('system.shell.open_path', '/workspace/DESIGN.md'))
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(screen.getAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)).toEqual(['README.md'])
   })
 
   it('replaces the retained flow when another flow is opened', () => {
@@ -2909,110 +3135,64 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
   })
 
-  it('registers the dirty-navigation guard for navigation owned outside the pane', () => {
-    const onFileNavigationRequestChange = vi.fn()
-    const renderPane = () => (
-      <TestAgentRightPane
-        defaultOpen
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[]}
-        partsByMessageId={{}}
-        onFileNavigationRequestChange={onFileNavigationRequestChange}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-    const { rerender } = render(renderPane())
-    fileSessionState.isDirty = true
-    rerender(renderPane())
-    const requestNavigation = onFileNavigationRequestChange.mock.calls
-      .map(([request]) => request)
-      .filter(Boolean)
-      .at(-1) as ((transition: () => void) => void) | undefined
-    const transition = vi.fn()
+  // A same-workspace session choice must never be replaced by an earlier delayed save.
+  it.each(['resolve', 'reject'] as const)(
+    'keeps session C after A saves with %s following a request for B',
+    async (outcome) => {
+      const user = userEvent.setup()
+      const saving = Promise.withResolvers<void>()
+      void saving.promise.catch(() => {})
+      fileSessionFlushMock.mockReturnValue(saving.promise)
+      let requestNavigation: ((transition: () => void) => void) | null = null
+      function Sessions() {
+        const [session, setSession] = useState('A')
+        return (
+          <>
+            <output aria-label="active session">{session}</output>
+            <button onClick={() => requestNavigation?.(() => setSession('B'))}>Session B</button>
+            <button onClick={() => setSession('C')}>Session C</button>
+            <TestAgentRightPane
+              defaultOpen
+              sessionId={session}
+              workspacePath={session === 'B' ? '/other' : '/workspace'}
+              messages={[]}
+              partsByMessageId={{}}
+              onFileNavigationRequestChange={(request) => {
+                requestNavigation = request
+              }}>
+              <AgentRightPane.Viewport />
+            </TestAgentRightPane>
+          </>
+        )
+      }
+      const { rerender } = render(<Sessions />)
+      await user.click(screen.getByRole('button', { name: 'select README.md' }))
+      await user.click(screen.getByRole('button', { name: 'edit' }))
+      fileSessionState.isDirty = true
+      rerender(<Sessions />)
+      await user.click(screen.getByRole('button', { name: 'Session B' }))
+      expect(screen.getByRole('status', { name: 'active session' })).toHaveTextContent('B')
+      await user.click(screen.getByRole('button', { name: 'Session C' }))
+      await act(async () => {
+        if (outcome === 'resolve') saving.resolve()
+        else saving.reject(new Error('disk full'))
+      })
+      expect(screen.getByRole('status', { name: 'active session' })).toHaveTextContent('C')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+    }
+  )
 
-    act(() => requestNavigation?.(transition))
-
-    expect(transition).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
-  })
-
-  it('keeps the current dirty file when navigation is cancelled', () => {
+  // Navigation must remain available while the old session saves or retains a failed draft.
+  it.each(['pending', 'failed'] as const)('switches a dirty file immediately when its save is %s', async (status) => {
+    const user = userEvent.setup()
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
       ['README.md', { kind: 'file' }],
       ['src/deep.ts', { kind: 'file' }]
     ])
-    const renderPane = () => (
-      <TestAgentRightPane
-        defaultOpen
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-    const { rerender } = render(renderPane())
-
-    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
-    fileSessionState.isDirty = true
-    rerender(renderPane())
-
-    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
-
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
-
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'edit')
-    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
-  })
-
-  it('discards the dirty draft before confirming navigation', () => {
-    fileTreeModelState.hasLoaded = true
-    fileTreeModelState.nodeById = new Map([
-      ['README.md', { kind: 'file' }],
-      ['src/deep.ts', { kind: 'file' }]
-    ])
-    const renderPane = () => (
-      <TestAgentRightPane
-        defaultOpen
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-    const { rerender } = render(renderPane())
-
-    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
-    fileSessionState.isDirty = true
-    rerender(renderPane())
-    fileSessionDiscardMock.mockImplementationOnce(() => {
-      expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
-    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
-    expect(fileSessionFlushMock).not.toHaveBeenCalled()
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
-  })
-
-  it('keeps the dirty file bound to its original workspace until the workspace transition is confirmed', () => {
-    fileTreeModelState.hasLoaded = true
-    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
-    const renderPane = (workspacePath: string) => (
+    fileSessionFlushMock.mockReturnValue(new Promise(() => {}))
+    const pane = (workspacePath = '/workspace') => (
       <TestAgentRightPane
         defaultOpen
         sessionId="session-a"
@@ -3022,30 +3202,37 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
-    const { rerender } = render(renderPane('/workspace-a'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    const { rerender } = render(pane())
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
     fileSessionState.isDirty = true
-    rerender(renderPane('/workspace-b'))
+    fileSessionState.isSaving = status === 'pending'
+    fileSessionState.saveError = status === 'failed' ? new Error('disk full') : undefined
+    rerender(pane())
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-a' })
+    await user.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
-    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
-    expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-b' })
-    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    rerender(pane('/other-workspace'))
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
   })
 
-  it('waits for an in-flight save before allowing discard and navigation', () => {
+  it('asks before leaving a dirty file when autosave is off, then keeps editing or discards', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
       ['README.md', { kind: 'file' }],
       ['src/deep.ts', { kind: 'file' }]
     ])
-    const renderPane = () => (
+    fileSessionDiscardMock.mockResolvedValue(undefined)
+    const pane = () => (
       <TestAgentRightPane
         defaultOpen
         sessionId="session-a"
@@ -3055,25 +3242,51 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
-    const { rerender } = render(renderPane())
-
-    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    const { rerender } = render(pane())
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
     fileSessionState.isDirty = true
-    fileSessionState.isSaving = true
-    rerender(renderPane())
-    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    rerender(pane())
 
-    const confirm = screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' })
-    expect(confirm).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    await user.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.keep_editing' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
     expect(fileSessionDiscardMock).not.toHaveBeenCalled()
 
-    fileSessionState.isSaving = false
-    rerender(renderPane())
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    await user.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    await user.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard' }))
+    expect(fileSessionDiscardMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts'))
+  })
 
-    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+  it('saves pending edits when the pane closes, even with autosave off', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    fileSessionFlushMock.mockResolvedValue(undefined)
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(pane())
+    expect(fileSessionFlushMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+
+    expect(fileSessionFlushMock).toHaveBeenCalledTimes(1)
   })
 
   it('closes a clean preview directly without a leave prompt', () => {
@@ -3096,5 +3309,462 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('keeps a newer artifact when a pending attachment metadata response arrives later', async () => {
+    const attachmentMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const artifactMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const fileMetadata = {
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    } as PhysicalFileMetadata
+    ipcRequestMock.mockImplementation((route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') return fileMetadata
+      if (handle?.path === '/workspace/notes.md') return attachmentMetadata.promise
+      if (handle?.path === '/workspace/report.md') return artifactMetadata.promise
+      return fileMetadata
+    })
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'report.md' })
+
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <OpenArtifactButton path="report.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    await act(async () => artifactMetadata.resolve(fileMetadata))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md')
+
+    await act(async () => attachmentMetadata.resolve(fileMetadata))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+  })
+
+  it('keeps a newer attachment when a pending artifact metadata response arrives later', async () => {
+    const attachmentMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const artifactMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const fileMetadata = {
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    } as PhysicalFileMetadata
+    ipcRequestMock.mockImplementation((route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') return fileMetadata
+      if (handle?.path === '/workspace/notes.md') return attachmentMetadata.promise
+      if (handle?.path === '/workspace/report.md') return artifactMetadata.promise
+      return fileMetadata
+    })
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'report.md' })
+
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <OpenArtifactButton path="report.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    await act(async () => attachmentMetadata.resolve(fileMetadata))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await act(async () => artifactMetadata.resolve(fileMetadata))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('notes.md')
+  })
+
+  it('returns to the attachment from a dirty file without discarding its draft', async () => {
+    const user = userEvent.setup()
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('DESIGN.md'))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(pane())
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+  })
+
+  it('drops a closed attachment tab while returning to the file it was opened from', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.queryAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(tabNames()).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(tabNames()).toEqual(['README.md'])
+  })
+
+  it('closes a file opened from an attachment link to its neighbour, not to the attachment history', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.queryAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('DESIGN.md'))
+
+    await user.click(screen.getByRole('button', { name: 'close DESIGN.md' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(tabNames()).toEqual(['README.md', 'notes.md'])
+
+    // Closing the attachment itself still returns to the file it was opened from.
+    await user.click(screen.getByRole('button', { name: 'close notes.md' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+  })
+
+  it('drops every attachment tab when the session changes and keeps workspace files open', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    const pane = (sessionId: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <PreviewInputButton path="/workspace/report.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const tabNames = () => screen.queryAllByRole('tab').map((tab) => tab.firstElementChild?.textContent)
+    const { rerender } = render(pane('session-a'))
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    const [previewNotes, previewReport] = screen.getAllByRole('button', { name: 'Preview attachment' })
+    await user.click(previewNotes)
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await user.click(previewReport)
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md'))
+    expect(tabNames()).toHaveLength(3)
+
+    rerender(pane('session-b'))
+
+    expect(tabNames()).toEqual(['README.md'])
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+  })
+
+  it('does not reopen a tab the user closed when the attachment it led to closes', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await user.click(screen.getByRole('button', { name: 'close README.md' }))
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryAllByRole('tab')).toEqual([])
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+  })
+
+  it('shows the prior file after one Back when the same attachment is previewed again', async () => {
+    // Bug: previewing the attachment already on screen consumes the first Back and leaves that attachment visible.
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await previewSameAttachmentAgain(user)
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+  })
+
+  it('returns to the status pane after one Back when the same attachment is previewed again', async () => {
+    // Bug: repeating an attachment from another pane makes the first Back stay on the file instead of restoring that pane.
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <ActivePanelProbe />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+    await previewSameAttachmentAgain(user)
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('restores the status pane with one Back after the already selected attachment is opened again', async () => {
+    // Bug: skipping return-target refresh sends Back to the old files pane after the same attachment is opened from status.
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <ActivePanelProbe />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('restores the closed pane with one Back after the already selected attachment is opened again', async () => {
+    // Bug: skipping return-target refresh leaves the pane open on Back after it was closed and the same attachment reopened.
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    await user.click(document.querySelector('[data-shell-tab-shortcut="files"]') as HTMLElement)
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it.each([true, false])('respects tool-driven browser opening (auto-open=%s)', (autoOpen) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', autoOpen)
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    act(() => browserOpenListener({ sessionId: 'session-a', scope: 'topic' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', String(autoOpen))
+    if (autoOpen) expect(screen.getByTestId('webview-browser')).toBeVisible()
+  })
+
+  it.each([true, false])('ignores another session without changing the URL (auto-open=%s)', async (autoOpen) => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', autoOpen)
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    act(() => browserOpenListener({ sessionId: 'session-b', url: 'https://other.example/' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    expect(screen.getByTestId('webview-browser')).not.toHaveAttribute('data-url')
+  })
+
+  it('records a matching URL without opening the panel when auto-open is off', async () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    act(() => browserOpenListener({ sessionId: 'session-a', url: 'https://example.com/browsed' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'https://example.com/browsed')
+  })
+
+  it('preserves the selected files pane while auto-open is off', async () => {
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+    act(() => browserOpenListener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBeVisible()
+  })
+
+  it('uses committed preference changes through the original IPC listener', async () => {
+    const user = userEvent.setup()
+    const pane = () => (
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const view = render(pane())
+    const listener = browserOpenListener
+    act(() => listener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', false)
+    view.rerender(pane())
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    act(() => listener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    MockUsePreferenceUtils.mockPreferenceReturn('app.browser.auto_open_panel', true)
+    view.rerender(pane())
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    act(() => listener({ sessionId: 'session-a' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('webview-browser')).toBeVisible()
   })
 })

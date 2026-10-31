@@ -410,6 +410,30 @@ describe('heartbeatSchedule', () => {
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
   })
 
+  it('keeps a configured heartbeat timeout through startup repair and repeated synchronization', async () => {
+    seedAgent(AGENT_ID, { heartbeat_timeout_minutes: 10 })
+    await repairHeartbeatSchedules()
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+
+    await repairHeartbeatSchedules()
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+  })
+
+  it('updates the timeout when only that agent configuration field changes', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row.jobInputTemplate).toMatchObject({ timeoutMinutes: 2 })
+
+    agentService.updateAgent(AGENT_ID, { configuration: { heartbeat_timeout_minutes: 10 } })
+    await service.waitForHeartbeat(AGENT_ID)
+
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+  })
+
   it('applies a custom interval from the agent configuration', async () => {
     seedAgent(AGENT_ID, { heartbeat_interval: 45 })
 
@@ -522,16 +546,6 @@ describe('heartbeatSchedule', () => {
     expect(updated?.enabled).toBe(true)
     expect(updated?.trigger).toEqual({ kind: 'interval', ms: 15 * 60_000 })
     expect(scheduler.has(`schedule:${row.id}`)).toBe(true)
-  })
-
-  it('skips runtimes without heartbeat capability', async () => {
-    seedAgent(AGENT_ID, {}, 'dsh')
-
-    const outcome = await syncHeartbeatSchedule(AGENT_ID)
-
-    expect(outcome).toBe('skipped-capability')
-    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
-    await expect(readFile(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('returns skipped-missing-agent without throwing', async () => {
@@ -861,22 +875,6 @@ describe('heartbeatSchedule', () => {
     rmSync(outside, { recursive: true, force: true })
   })
 
-  it('pauses a previously-armed row when the runtime loses the heartbeat capability', async () => {
-    seedAgent(AGENT_ID)
-    await syncHeartbeatSchedule(AGENT_ID)
-    const [row] = heartbeatRows(AGENT_ID)
-    expect(row.enabled).toBe(true)
-
-    // The agent's type is migrated to a runtime without heartbeat support
-    // (or the capability is revoked) while a schedule row exists.
-    dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, AGENT_ID)).run()
-
-    const outcome = await syncHeartbeatSchedule(AGENT_ID)
-
-    expect(outcome).toBe('skipped-capability')
-    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
-  })
-
   it('keeps archived heartbeat schedules during explicit sync and ownership reconciliation', async () => {
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)
@@ -1172,7 +1170,7 @@ describe('heartbeatSchedule', () => {
   it('repairs a circuit-breaker-paused row without re-enabling it', async () => {
     // The breaker pause is a stop signal (3 consecutive failed runs), not
     // drift — re-arming it on every sync would defeat the cost protection.
-    seedAgent(AGENT_ID, { heartbeat_interval: 45 })
+    seedAgent(AGENT_ID, { heartbeat_interval: 45, heartbeat_timeout_minutes: 10 })
     const { id } = jobManager.registerJobSchedule({
       type: 'agent.task',
       name: `heartbeat_${AGENT_ID}`,
@@ -1200,44 +1198,13 @@ describe('heartbeatSchedule', () => {
     expect(row?.enabled).toBe(false)
     expect(row?.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
     expect(row?.jobInputTemplate).not.toHaveProperty('workspace')
+    expect(row?.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+    expect(row?.metadata).toMatchObject({ circuitBreakerPaused: true })
     // The trigger drift is persisted but the timer is NOT re-armed — the row
     // stays stopped until the user resets via the heartbeat toggle off/on.
     // (The breaker's own pause disposed the timer; sync must not revive it.)
     expect(spy).not.toHaveBeenCalled()
     spy.mockRestore()
-  })
-
-  it('keeps the circuit-breaker marker when a capability gate pauses the row', async () => {
-    // Only the user's toggle-off resets a breaker stop; a capability-gated
-    // pause (runtime lost heartbeat support) must preserve the marker, or
-    // restoring the capability would silently re-arm a stopped schedule.
-    seedAgent(AGENT_ID)
-    const { id } = jobManager.registerJobSchedule({
-      type: 'agent.task',
-      name: `heartbeat_${AGENT_ID}`,
-      trigger: { kind: 'interval', ms: 3_600_000 },
-      jobInputTemplate: {
-        agentId: AGENT_ID,
-        prompt: '__heartbeat__',
-        timeoutMinutes: 2,
-        workspace: { type: 'system' },
-        reuseRevision: 0
-      },
-      catchUpPolicy: { kind: 'skip-missed' }
-    })
-    dbh.db
-      .update(jobScheduleTable)
-      .set({ metadata: { circuitBreakerPaused: true } })
-      .where(eq(jobScheduleTable.id, id))
-      .run()
-    dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, AGENT_ID)).run()
-
-    const outcome = await syncHeartbeatSchedule(AGENT_ID)
-
-    expect(outcome).toBe('skipped-capability')
-    const row = jobScheduleService.getById(id)
-    expect(row?.enabled).toBe(false)
-    expect(row?.metadata).toMatchObject({ circuitBreakerPaused: true })
   })
 
   it('resets a circuit-breaker pause through the heartbeat toggle off/on', async () => {

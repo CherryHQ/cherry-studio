@@ -12,6 +12,8 @@
   "file_preview.pdf.page_number": "Αριθμός σελίδας",
   "file_preview.pdf.too_large.description": "Μέρος αυτού του PDF είναι πολύ μεγάλο για ασφαλή προεπισκόπηση στην εφαρμογή.",
   "file_preview.pdf.too_large.title": "Δεν είναι δυνατή η προεπισκόπηση αυτού του PDF",
+  "file_preview.powerpoint.zip_limit.description": "Αυτό το αρχείο PowerPoint υπερβαίνει τα όρια ασφαλούς προεπισκόπησης της εφαρμογής.",
+  "file_preview.powerpoint.zip_limit.title": "Δεν είναι δυνατή η προεπισκόπηση αυτού του αρχείου PowerPoint",
   "file_preview.too_large.action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
   "file_preview.too_large.description": "Το μέγεθος αρχείου {{size}} υπερβαίνει το όριο προεπισκόπησης {{limit}}.",
   "file_preview.too_large.title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση",

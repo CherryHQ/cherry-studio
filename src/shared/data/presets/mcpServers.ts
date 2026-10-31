@@ -9,6 +9,7 @@
  * - It's designed for LLM code mode, not direct user interaction
  * - It should be auto-enabled internally when needed, not manually installed
  */
+import { buildMcpWireWildcard } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -71,11 +72,13 @@ export const PRESET_MCP_SERVERS = freezePresets([
     shouldConfig: true,
     provider: 'ZoneFoundry',
     installSource: 'builtin',
-    isTrusted: true
+    // Do not claim user trust before this third-party relay is configured.
+    isTrusted: false,
+    disabledAutoApproveTools: [buildMcpWireWildcard(BuiltinMcpServerNames.zonefoundry)]
   },
   {
     name: BuiltinMcpServerNames.mcpAutoInstall,
-    reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
+    reference: 'https://docs.cherry-ai.com/advanced-basic/extensions/mcp',
     type: 'stdio',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
@@ -128,7 +131,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   {
     name: BuiltinMcpServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop'],
+    // An unconfigured server uses <userData>/Workspace; a platform-shaped path would bypass that fallback.
     disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,

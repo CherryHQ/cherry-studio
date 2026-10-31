@@ -22,17 +22,7 @@ export const GrepToolSchema = z.object({
 
 // Tool definition with detailed description
 export const grepToolDefinition = {
-  description: `Fast content search tool that works with any codebase size.
-
-- Searches file contents using regular expressions
-- Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
-- Filter files by pattern with include (e.g., "*.js", "*.{ts,tsx}")
-- Returns absolute file paths and line numbers with matching content
-- Results are limited to 100 matches
-- Binary files are automatically skipped
-- Common directories (node_modules, .git, dist) are excluded
-- The path parameter must resolve within the configured workspace root if specified
-- If path is not specified, defaults to the base directory`,
+  description: `Search file contents by regex, returning paths and line numbers, max 100. Narrow with include and path.`,
   inputSchema: GrepToolSchema
 }
 

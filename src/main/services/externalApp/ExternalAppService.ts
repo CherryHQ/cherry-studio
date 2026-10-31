@@ -13,7 +13,12 @@ import type { ExternalOpenTarget, ExternalOpenTargetResult } from '@shared/types
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { isDangerExt, normalizeExt } from '@shared/utils/file'
 
-import { resolveDefaultApplication } from './defaultApplication'
+import {
+  listNativeApplications,
+  nativeApplicationIcon,
+  nativeTargetId,
+  openNativeApplication
+} from './nativeApplication'
 
 const SYSTEM_DEFAULT_TARGET_ID = 'system_default'
 const FILE_MANAGER_TARGET_ID = 'file_manager'
@@ -89,6 +94,29 @@ export class ExternalAppService {
 
   async openTarget(inputPath: string, targetId: string, pathKindHint?: ExternalOpenTargetPathKind): Promise<void> {
     const targetPath = this.resolveTargetPath(inputPath)
+    if (targetId.startsWith(KNOWN_TARGET_PREFIX)) {
+      const pathKind = this.getPathKind(targetPath, pathKindHint)
+      const apps = await this.detectInstalledApps()
+      const app = apps.find(
+        (item) => item.id === targetId.slice(KNOWN_TARGET_PREFIX.length) && item.pathKinds.includes(pathKind)
+      )
+      if (!app) throw new Error(`Open target "${targetId}" is not available for this path`)
+      await this.openKnownApplication(app.id, targetPath, pathKind)
+      return
+    }
+    if (targetId.startsWith('native:')) {
+      if (
+        this.getPathKind(targetPath, pathKindHint) !== 'file' ||
+        isDangerExt(normalizeExt(path.extname(targetPath)))
+      ) {
+        throw new Error(`Open target "${targetId}" is not available for this path`)
+      }
+      const { applications } = await listNativeApplications(targetPath)
+      const selected = applications.find((item) => nativeTargetId(item.id) === targetId)
+      if (!selected) throw new Error(`Open target "${targetId}" is not available for this path`)
+      await openNativeApplication(targetPath, selected.id)
+      return
+    }
     const result = await this.listOpenTargets(targetPath, pathKindHint)
     const target = result.targets.find((item) => item.id === targetId)
     if (!target) throw new Error(`Open target "${targetId}" is not available for this path`)
@@ -100,14 +128,6 @@ export class ExternalAppService {
     if (target.id === FILE_MANAGER_TARGET_ID) {
       if (result.pathKind === 'file') await showInFolder(targetPath)
       else await safeOpen(targetPath)
-      return
-    }
-    if (target.id.startsWith(KNOWN_TARGET_PREFIX)) {
-      await this.openKnownApplication(
-        target.id.slice(KNOWN_TARGET_PREFIX.length) as KnownExternalAppId,
-        targetPath,
-        result.pathKind
-      )
       return
     }
     throw new Error(`Open target "${targetId}" cannot be launched on this platform`)
@@ -130,35 +150,47 @@ export class ExternalAppService {
   }
 
   private async listFileTargets(targetPath: AbsoluteFilePath): Promise<ExternalOpenTargetResult> {
-    const extension = path.extname(targetPath)
-    const normalizedExtension = normalizeExt(extension)
-    const dangerous = isDangerExt(normalizedExtension)
-    const [installedApps, defaultApplication] = await Promise.all([
-      this.detectInstalledApps(),
-      dangerous ? Promise.resolve(null) : resolveDefaultApplication(targetPath)
-    ])
-    const applicationTargets = installedApps
-      .filter((item) => item.kind === 'application' && item.pathKinds.includes('file'))
-      .map((item) => this.toKnownTarget(item))
-    const targets: ExternalOpenTarget[] = [
-      ...(dangerous
-        ? []
-        : [
-            {
-              id: SYSTEM_DEFAULT_TARGET_ID,
-              kind: 'system_default' as const,
-              ...defaultApplication
-            }
-          ]),
-      { id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' },
-      ...applicationTargets
-    ]
-
-    return {
-      pathKind: 'file',
-      recommendedTargetId: dangerous ? (applicationTargets[0]?.id ?? FILE_MANAGER_TARGET_ID) : SYSTEM_DEFAULT_TARGET_ID,
-      targets
+    if (isDangerExt(normalizeExt(path.extname(targetPath)))) {
+      const apps = await this.detectInstalledApps()
+      const editors = apps
+        .filter((item) => item.kind === 'application' && item.pathKinds.includes('file'))
+        .map((item) => this.toKnownTarget(item))
+      return {
+        pathKind: 'file',
+        recommendedTargetId: editors[0]?.id ?? FILE_MANAGER_TARGET_ID,
+        targets: [{ id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' }, ...editors]
+      }
     }
+
+    const targets: ExternalOpenTarget[] = [
+      { id: SYSTEM_DEFAULT_TARGET_ID, kind: 'system_default' },
+      { id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' }
+    ]
+    try {
+      const { applications, defaultApplication } = await listNativeApplications(targetPath)
+      if (defaultApplication) {
+        targets[0] = {
+          id: SYSTEM_DEFAULT_TARGET_ID,
+          kind: 'system_default',
+          name: defaultApplication.name,
+          iconDataUrl: await nativeApplicationIcon(defaultApplication)
+        }
+      }
+      const seen = new Set(defaultApplication?.id ? [defaultApplication.id] : [])
+      for (const item of applications) {
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        targets.push({
+          id: nativeTargetId(item.id),
+          kind: 'application',
+          name: item.name,
+          iconDataUrl: await nativeApplicationIcon(item)
+        })
+      }
+    } catch (error) {
+      logger.warn('Failed to discover file associations', error as Error)
+    }
+    return { pathKind: 'file', recommendedTargetId: SYSTEM_DEFAULT_TARGET_ID, targets }
   }
 
   private async detectInstalledApps(): Promise<InstalledKnownExternalApp[]> {
@@ -215,7 +247,7 @@ export class ExternalAppService {
   }
 
   private getCacheKey(targetPath: AbsoluteFilePath, pathKind: 'file' | 'directory'): string {
-    return pathKind === 'directory' ? pathKind : `file:${normalizeExt(path.extname(targetPath)) ?? 'no_extension'}`
+    return pathKind === 'directory' ? pathKind : `file:${targetPath}`
   }
 
   private detectExecutableApp(config: KnownExternalAppConfig): InstalledKnownExternalApp | null {

@@ -3,11 +3,11 @@
  * Safe to import from browser/renderer contexts.
  */
 
+import { ModelIndex, ProviderModelIndex } from './registry-index'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
 import type { EndpointDialect, ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
-import { normalizeModelId } from './utils/normalize'
 
 export interface ModelLookupResult {
   presetModel: ModelConfig | null
@@ -24,20 +24,8 @@ export function lookupRegistryModel(
   providerId: string,
   modelId: string
 ): ModelLookupResult {
-  // Exact match first, then normalized fallback
-  let presetModel = models.find((m) => m.id === modelId) ?? null
-  if (!presetModel) {
-    const normalizedId = normalizeModelId(modelId)
-    presetModel = models.find((m) => normalizeModelId(m.id) === normalizedId) ?? null
-  }
-
-  let registryOverride = providerModels.find((pm) => pm.providerId === providerId && pm.modelId === modelId) ?? null
-  if (!registryOverride) {
-    const normalizedId = normalizeModelId(modelId)
-    registryOverride =
-      providerModels.find((pm) => pm.providerId === providerId && normalizeModelId(pm.modelId) === normalizedId) ?? null
-  }
-
+  const registryOverride = new ProviderModelIndex(providerModels).findOverride(providerId, modelId)
+  const presetModel = new ModelIndex(models).findModel(registryOverride?.modelId ?? modelId)
   return { presetModel, registryOverride }
 }
 

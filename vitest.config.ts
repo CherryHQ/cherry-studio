@@ -30,8 +30,9 @@ export default defineConfig({
       {
         extends: true,
         plugins: mainConfig.plugins,
+        define: { __CLAUDE_CODE_BINARY_MANIFEST__: mainConfig.define.__CLAUDE_CODE_BINARY_MANIFEST__ },
         resolve: {
-          alias: mainConfig.resolve.alias
+          alias: [...mainConfig.resolve.alias, { find: '@renderer', replacement: resolve('src/renderer') }]
         },
         test: {
           name: 'main',
@@ -129,7 +130,9 @@ export default defineConfig({
           alias: {
             '@shared': resolve('src/shared'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -146,7 +149,9 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('src/shared')
+            '@shared': resolve('src/shared'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -166,7 +171,9 @@ export default defineConfig({
           alias: {
             '@shared': resolve('src/shared'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -176,6 +183,14 @@ export default defineConfig({
             'packages/provider-registry/**/*.{test,spec}.{ts,tsx}',
             'packages/provider-registry/**/__tests__/**/*.{test,spec}.{ts,tsx}'
           ]
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'system-speech',
+          environment: 'node',
+          include: ['packages/system-speech/tests/**/*.test.ts']
         }
       },
       // packages/ui 单元测试配置
@@ -196,9 +211,16 @@ export default defineConfig({
           ]
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'web-search',
+          environment: 'node',
+          include: ['packages/web-search/src/**/__tests__/**/*.test.ts']
+        }
+      },
       ...[
         ['ai-sdk-provider', 'src'],
-        ['dsh-bridge', '__tests__'],
         ['remote-protocol', 'tests'],
         ['remote-transport', 'tests']
       ].map(([name, directory]) => ({

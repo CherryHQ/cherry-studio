@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
+import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 const preset = (name: string) => PRESET_MCP_SERVERS.find((server) => server.name === name)
 
 describe('PRESET_MCP_SERVERS', () => {
+  it('ships the filesystem server with no platform-shaped baseDir default', () => {
+    expect(preset(BuiltinMcpServerNames.filesystem)?.args ?? []).toEqual([])
+  })
+
   it('models flomo and nowledge-mem as the HTTP endpoints they are', () => {
     // The seeder writes these URLs onto installed rows, so the exact endpoint is the contract.
     expect(preset(BuiltinMcpServerNames.flomo)).toEqual(
@@ -44,6 +49,18 @@ describe('PRESET_MCP_SERVERS', () => {
         isActive: false
       })
     )
+  })
+
+  it('requires approval for third-party ZoneFoundry tools and resources, including new tool names', () => {
+    const relay = { id: 'relay', ...preset(BuiltinMcpServerNames.zonefoundry) }
+    expect(relay.isTrusted).toBe(false)
+    for (const name of ['play_music', 'set_volume', 'future_tool', 'resources/read']) {
+      expect(resolveMcpSourceToolAccess(relay, { name })).toEqual({ enabled: true, approval: 'prompt' })
+    }
+    expect(resolveMcpSourceToolAccess({ ...relay, name: 'different-relay' }, { name: 'play_music' })).toEqual({
+      enabled: true,
+      approval: 'auto'
+    })
   })
 
   it('gives every non in-memory preset what it needs to connect', () => {

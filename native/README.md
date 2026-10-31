@@ -1,4 +1,8 @@
-# Selection Assistant native panel
+# Native integrations
+
+[File associations](external-app/README.md) use a cross-platform Node-API addon.
+
+## Selection Assistant native panel
 
 `darwin/selectionPanel.mm` is a macOS Node-API addon for the action result window. The
 toolbar and other panels keep Electron's default behavior. `SelectionService`
@@ -17,7 +21,7 @@ references and a per-request token so closing or rapidly reusing a window is saf
 This relies on Electron's internal panel class. Revalidate on Electron upgrades;
 Node-API ABI stability does not guarantee AppKit/Electron behavior compatibility.
 
-## Build and validation
+### Build and validation
 
 Electron Vite builds the host addon automatically on macOS; `scripts/packaging/before-pack.js`
 rebuilds for the packaging target (`arm64` or `x64`). Xcode Command Line Tools

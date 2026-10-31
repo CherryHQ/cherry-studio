@@ -94,6 +94,27 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\User\\Bin', 'C:\\Windows', 'C:\\DATA\\BIN'])
   })
 
+  it('folds trailing-separator spellings of the same directory', () => {
+    // win32.normalize keeps a trailing separator, so `C:\Tools\` and `C:\Tools`
+    // canonicalize differently although they name one directory. The first
+    // spelling wins verbatim (same contract as the slash-folding case above).
+    const shims = 'C:\\data\\binary-manager\\shims'
+    const { Path } = mergeBinaryExecutionEnv({
+      Path: 'C:\\Tools;C:\\Tools\\;c:\\tools;C:\\DATA\\BIN\\'
+    })
+
+    expect(Path.split(';')).toEqual([shims, 'C:\\Tools', 'C:\\DATA\\BIN\\'])
+  })
+
+  it('keeps a bare drive root distinct from a drive-relative entry', () => {
+    // Stripping the trailing separator must not turn the drive root `C:\` into
+    // the drive-relative `C:` — they are different directories.
+    const merged = mergePathSuffixes({ Path: 'C:\\Tools' }, ['C:\\', 'C:'])
+
+    const pathKeys = Object.keys(merged).filter((key) => key.toLowerCase() === 'path')
+    expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\Tools', 'C:\\', 'C:'])
+  })
+
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {
     // aqua/Sigstore/TUF resolves its cache/config from %LOCALAPPDATA%/%APPDATA%;
     // the install subprocess strips the user's real values, so the isolated home

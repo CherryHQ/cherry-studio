@@ -1,4 +1,3 @@
-import type { DraggableProvided } from '@hello-pangea/dnd'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type React from 'react'
@@ -11,44 +10,35 @@ import type { SelectionActionItem } from '@shared/data/preference/preferenceType
 
 interface ActionItemProps {
   item: SelectionActionItem
-  provided: DraggableProvided
-  listType: 'enabled' | 'disabled'
   isLastEnabledItem: boolean
   onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
   getSearchEngineInfo: (engine: string) => { icon: any; name: string } | null
 }
 
-const ActionsListItem = memo(
-  ({ item, provided, listType, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo }: ActionItemProps) => {
-    const { t } = useTranslation()
-    const isEnabled = listType === 'enabled'
+const ActionsListItem = memo(({ item, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo }: ActionItemProps) => {
+  const { t } = useTranslation()
+  const isEnabled = item.enabled
 
-    return (
-      <Item
-        ref={provided.innerRef}
-        {...provided.draggableProps}
-        {...(isLastEnabledItem ? {} : provided.dragHandleProps)}
-        disabled={!isEnabled}
-        className={isLastEnabledItem ? 'non-draggable' : ''}>
-        <ItemLeft>
-          <ItemIcon disabled={!isEnabled}>
-            <DynamicIcon name={item.icon as any} size={16} fallback={() => <div style={{ width: 16, height: 16 }} />} />
-          </ItemIcon>
-          <ItemName disabled={!isEnabled}>{item.isBuiltIn ? t(item.name) : item.name}</ItemName>
-          {item.id === 'search' && item.searchEngine && (
-            <ItemDescription>
-              {getSearchEngineInfo(item.searchEngine)?.icon}
-              <span>{getSearchEngineInfo(item.searchEngine)?.name}</span>
-            </ItemDescription>
-          )}
-        </ItemLeft>
+  return (
+    <Item disabled={!isEnabled} className={isLastEnabledItem ? 'non-draggable' : ''}>
+      <ItemLeft>
+        <ItemIcon disabled={!isEnabled}>
+          <DynamicIcon name={item.icon as any} size={16} fallback={() => <div style={{ width: 16, height: 16 }} />} />
+        </ItemIcon>
+        <ItemName disabled={!isEnabled}>{item.isBuiltIn ? t(item.name) : item.name}</ItemName>
+        {item.id === 'search' && item.searchEngine && (
+          <ItemDescription>
+            {getSearchEngineInfo(item.searchEngine)?.icon}
+            <span>{getSearchEngineInfo(item.searchEngine)?.name}</span>
+          </ItemDescription>
+        )}
+      </ItemLeft>
 
-        <ActionOperations item={item} onEdit={onEdit} onDelete={onDelete} />
-      </Item>
-    )
-  }
-)
+      <ActionOperations item={item} onEdit={onEdit} onDelete={onDelete} />
+    </Item>
+  )
+})
 
 interface ActionOperationsProps {
   item: SelectionActionItem
@@ -83,16 +73,10 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   return null
 })
 
-const Item = ({
-  ref,
-  className,
-  disabled,
-  ...props
-}: React.ComponentPropsWithoutRef<'div'> & { disabled: boolean; ref?: React.Ref<HTMLElement> }) => (
+const Item = ({ className, disabled, ...props }: React.ComponentPropsWithoutRef<'div'> & { disabled: boolean }) => (
   <div
-    ref={ref as React.Ref<HTMLDivElement>}
     className={cn(
-      'group/action-item mb-2 flex min-h-11 cursor-move items-center justify-between rounded-md border border-border-subtle bg-transparent px-4 py-2 transition-colors last:mb-0 hover:border-border hover:bg-muted/50',
+      'group/action-item flex min-h-11 cursor-move items-center justify-between rounded-md border border-border-subtle bg-transparent px-4 py-2 transition-colors hover:border-border hover:bg-muted/50',
       disabled && 'opacity-70 hover:bg-muted/30',
       className === 'non-draggable' && 'relative cursor-default border-border bg-muted/50 hover:bg-muted/50',
       className

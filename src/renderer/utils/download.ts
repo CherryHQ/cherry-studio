@@ -39,27 +39,41 @@ export const download = (url: string, filename?: string) => {
   // 处理普通 URL
   return fetch(url)
     .then((response) => {
+      // Without this, a 404 or 500 body is saved as if it were the file.
+      if (!response.ok) {
+        throw new Error(`Download failed: HTTP ${response.status} for ${url}`)
+      }
       let finalFilename = filename || 'download'
 
       if (!filename) {
         // 尝试从Content-Disposition头获取文件名
         const contentDisposition = response.headers.get('Content-Disposition')
         if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i)
-          if (filenameMatch) {
-            finalFilename = filenameMatch[1]
+          // A quoted filename may hold escaped quotes (\"), so capture up to the
+          // first *unescaped* delimiter and unescape afterwards.
+          const quotedName = contentDisposition.match(/filename="((?:[^"\\]|\\.)*)"/i)
+          const bareName = contentDisposition.match(/filename=([^";\r\n]+)/i)
+          const parsedName = quotedName ? quotedName[1] : bareName?.[1]
+          if (parsedName) {
+            finalFilename = parsedName.replace(/\\(.)/g, '$1')
           }
         }
 
         // 如果URL中有文件名，使用URL中的文件名
-        const urlFilename = url.split('/').pop()
+        // Use the pathname: splitting the raw URL keeps a query string in the name.
+        let urlFilename: string | undefined
+        try {
+          urlFilename = decodeURIComponent(new URL(url, window.location.href).pathname.split('/').pop() ?? '')
+        } catch {
+          urlFilename = url.split('/').pop()?.split('?')[0]
+        }
         if (urlFilename && urlFilename.includes('.')) {
           finalFilename = urlFilename
         }
 
         // 如果文件名没有后缀，根据Content-Type添加后缀
         if (!finalFilename.includes('.')) {
-          const contentType = response.headers.get('Content-Type')
+          const contentType = response.headers.get('Content-Type')?.split(';')[0]?.trim() ?? null
           const extension = getExtensionFromMimeType(contentType)
           finalFilename += extension
         }

@@ -251,6 +251,18 @@ describe('utils/image', () => {
   })
 
   describe('captureScrollable', () => {
+    it('uses the selected solid conversation backdrop when rasterizing a canvas', async () => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: rgba(25, 25, 25, 0.55); --chat-message-well-solid: #141414'
+
+      await captureScrollable({ current: root }, '--chat-message-well-solid')
+
+      expect(htmlToImage.toCanvas).toHaveBeenLastCalledWith(
+        root,
+        expect.objectContaining({ backgroundColor: '#141414' })
+      )
+    })
+
     it('should return canvas when elRef.current exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })

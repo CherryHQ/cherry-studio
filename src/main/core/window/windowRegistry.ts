@@ -77,9 +77,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           titleBarOverlay: { height: 42 }
         },
         win: {
-          // Frameless + renderer-drawn WindowControls (mirrors SubWindow). Windows is
-          // always frameless; backgroundMaterial stays runtime-computed → args.options.
-          frame: false
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: 44 }
         }
         // linux: WCO vs system frame honors `app.use_system_title_bar`, icon is nativeImage
         //        → both injected via args.options
@@ -174,19 +173,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
-  // Detached tab window — multi-instance, one per user-detached Tab.
-  // Placed adjacent to Main because a SubWindow is logically a Main spin-off
-  // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back
-  // to the Main tab bar re-attaches).
-  // Managed by SubWindowService: dynamic options (per-tab title, theme-driven
-  // backgroundColor / darkTheme, Linux-only icon nativeImage,
-  // optional initial x/y) are injected via wm.open({ options }). showMode
-  // 'manual' lets SubWindowService decide show timing based on whether an
-  // initial position was provided at Tab_Detach time (drop-at-cursor detach
-  // wants the window at that position before show; no-position detach uses a
-  // ready-to-show auto-show fallback). Init payload (tabId, url, title, type,
-  // isPinned) flows via initData and useWindowInitData<SubWindowInitData>() in
-  // the renderer.
+  // One window per detached tab. SubWindowService supplies init data, positions it, then shows it.
+  // Manual showing also works for pooled standbys whose ready-to-show event has already fired.
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,
     lifecycle: 'pooled',
@@ -230,7 +218,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           titleBarOverlay: { height: 42 }
         },
         win: {
-          frame: false
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: SUB_WINDOW_TITLE_BAR_HEIGHT }
           // backgroundColor is theme-dependent → injected via args.options (non-mac only)
         },
         linux: {

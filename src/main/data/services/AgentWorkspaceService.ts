@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, exists, ne, notExists, or, sql } from 'drizz
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -59,6 +60,15 @@ function normalizeWorkspaceName(rawName: string): string {
 }
 
 export class AgentWorkspaceService {
+  listStorageClaims(): { path: string; type: string }[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ path: agentWorkspaceTable.path, type: agentWorkspaceTable.type })
+      .from(agentWorkspaceTable)
+      .all()
+  }
+
   buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
     if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
       throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
@@ -205,6 +215,8 @@ export class AgentWorkspaceService {
         unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
       }
     )
+    if (result.created)
+      notifyDataApiDataChange([{ endpoint: '/agent-workspaces', kind: 'membership', entityIds: [result.row.id] }])
     return { workspace: rowToAgentWorkspace(result.row), created: result.created }
   }
 

@@ -2,7 +2,7 @@ import * as z from 'zod'
 
 /**
  * Why a runtime opened a turn on its own, with no host-admitted user message. Closed set — each
- * member has a runtime that produces it today (`goal-round`: dsh's goal-round-driver;
+ * member names a current runtime event or historical metadata (`goal-round`: retired runtime;
  * `background-work`: Claude Code waking the main agent).
  */
 export const AutonomousTurnOriginSchema = z.discriminatedUnion('kind', [

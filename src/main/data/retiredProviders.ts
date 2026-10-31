@@ -1,4 +1,4 @@
-const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'github', 'tokenflux', 'yi'])
+const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'github', 'hunyuan', 'tencent-cloud-ti', 'tokenflux', 'yi'])
 
 /** Providers whose upstream services are no longer available. */
 export function isRetiredProvider(providerId: string | null | undefined, presetProviderId?: string | null): boolean {

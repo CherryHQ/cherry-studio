@@ -9,17 +9,18 @@ function overlaps(a: string, b: string): boolean {
 }
 
 async function nearestExistingRealPath(candidate: string): Promise<string> {
-  const resolved = path.resolve(candidate)
-  let probe = resolved
+  let probe = candidate
+  const missing: string[] = []
   for (;;) {
     try {
       const physical = await realpath(probe)
-      return path.resolve(physical, path.relative(probe, resolved))
+      return path.resolve(physical, ...missing)
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
-      if (code !== 'ENOENT' && code !== 'ENOTDIR') throw error
+      if (code !== 'ENOENT') throw error
       const parent = path.dirname(probe)
-      if (parent === probe) return resolved
+      if (parent === probe) throw error
+      missing.unshift(path.basename(probe))
       probe = parent
     }
   }
@@ -38,7 +39,7 @@ export async function assertOutsideManagedStorageMutation(...candidates: string[
 
   for (const candidate of candidates) {
     const lexical = path.resolve(candidate)
-    const physical = await nearestExistingRealPath(lexical)
+    const physical = await nearestExistingRealPath(candidate)
     if (overlaps(lexical, managedRoot) || overlaps(physical, managedRealRoot)) {
       throw new Error(`Raw path mutation overlaps FileManager-owned storage: ${candidate}`)
     }

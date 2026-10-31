@@ -13,6 +13,8 @@ sources:
 2. **Host and manager, no Electron** — the `ProcessHost.*.test.ts` files drive the real engine through an in-memory adapter: lifecycle, cancellation and protocol violations, the breaker, and the stop/`withStopped` barriers. `UtilityProcessManager.test.ts` checks registration, stable clients, and maintenance exclusion across stop/restart, including queued callbacks and callback failure. Timers are faked, so the 10 s ready timeout and the 4 s stop budget cost nothing.
 3. **Real Electron, manual** — `pnpm smoke:utility-process` builds a throwaway app and runs it twice on real processes.
 
+`ProcessHost.stream.test.ts` and `utilityProcessStream.test.ts` additionally cover stream capacity, EOF ordering, cancellation before iteration, cleanup acknowledgement, protocol failures, and stop/exit ownership.
+
 Layers 1 and 2 run in CI as ordinary Vitest tests:
 
 ```bash
@@ -37,10 +39,15 @@ The harness drives `ProcessHost` with the real Electron adapter but does **not**
 
 `resolveEntry` in the harness is deliberately the same join as the `app.utility_process` path key, so the asar run also proves the production path composition works inside an archive.
 
-The harness covers **only what a real process can prove**. Request correlation, cancellation policy, the breaker, and the stop barriers are unit tests against the in-memory adapter and are deliberately not repeated here — running them twice costs maintenance and proves nothing new.
+The harness covers transport and process behavior. Stream checks exercise real MessagePort scheduling, structured cloning, cleanup acknowledgement, and process termination; the in-memory tests cover detailed state transitions and failure injection.
 
 | Check | What only a real process proves |
 | --- | --- |
+| `stream-duplex-slow-consumer` | Ordered bidirectional data and EOF under delayed consumption; measured outstanding byte/frame peaks in each direction |
+| `stream-cooperative-cancel` | A blocked producer cleans up and acknowledges cancellation over the real port |
+| `stream-terminate-cancel` | Native-style termination closes the stream only after process exit |
+| `stream-crash-restart` | A real crash settles an active stream and allows a new generation |
+| `stream-stop-barrier` | Maintenance waits for a real exit when a stream handler ignores cancellation |
 | `entry-isolation` | Each definition resolves and forks its own bundle, and the connect handshake accepts it — including from inside the asar |
 | `typed-array-4mib` | A 4 MiB `Uint8Array` survives real cross-process cloning with its checksum |
 | `stop-stuck-kill` | A real `kill()` terminates a handler that ignores its abort signal |
@@ -48,6 +55,8 @@ The harness covers **only what a real process can prove**. Request correlation, 
 | `crash-recovery` | `process.abort()` kills only the child; a replacement process serves the next request |
 | `stdio-log-relay` | Child stdout and stderr really reach the host through the pipe, alongside `log` frames |
 | `net-proxy` | `electron.net.fetch()` in the child honours `app.setProxy()` |
+
+`stream-capacity` evidence records measure unconsumed metadata/payload bytes and frame counts, including the current iterator frame. They are queue measurements, not process RSS. Audio-model production and renderer playback require separate consumer integration evidence.
 
 The build assertions matter as much as the checks: the runner rejects any `require()` in an entry bundle that is not relative, `electron`, or a Node builtin, and greps both trees for `LoggerService` / `winston` / `ServiceContainer`.
 
