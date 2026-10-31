@@ -91,6 +91,9 @@ import { resolvePiThinkingLevel } from './piThinkingLevel'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
+const PI_TOOL_CALL_LIMIT = 20
+const PI_TOOL_CALL_LIMIT_MESSAGE =
+  'The Pi agent reached its tool-call limit before producing a final answer. Try again or reduce the task scope.'
 
 function quoteShellWord(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`
@@ -179,6 +182,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private traceContext?: AgentRuntimeTraceContext
   private _usageCapture?: AgentSessionUsageCapture
   private promptRunActive = false
+  private toolCallsThisTurn = 0
+  private toolCallLimitReached = false
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -355,7 +360,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           mountedPolicies
             .filter(({ approval }) => approval === 'delegation')
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
-        )
+        ),
+        admitToolCall: () => this.admitToolCall()
       }
       const mcpServers = buildAgentMcpServers(
         session,
@@ -523,7 +529,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
-    if (!options) this.awaitingPromptStart = true
+    if (!options) {
+      this.awaitingPromptStart = true
+      this.toolCallsThisTurn = 0
+      this.toolCallLimitReached = false
+    }
     this.promptRunActive = true
     void session.prompt(content, options).then(
       () => this.finishPromptRun(),
@@ -673,7 +683,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     this.adapter.handleEvent(event)
 
-    if (event.type === 'tool_execution_end') this.endToolSpan(event)
+    if (event.type === 'tool_execution_end') {
+      this.endToolSpan(event)
+      if (this.toolCallsThisTurn >= PI_TOOL_CALL_LIMIT) this.stopAtToolCallLimit()
+    }
 
     if (event.type === 'turn_end') {
       const stopReason = (event.message as { stopReason?: string }).stopReason
@@ -719,9 +732,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.session?.clearQueue()
       this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
     }
-    if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
+    if (this.toolCallLimitReached || error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
       let failure: Error
-      if (error instanceof Error) {
+      if (this.toolCallLimitReached) {
+        failure = new Error(PI_TOOL_CALL_LIMIT_MESSAGE)
+      } else if (error instanceof Error) {
         failure = error
       } else if (this.lastStopReason === 'length') {
         failure = new Error(
@@ -749,6 +764,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     this.lastStopReason = undefined
     this.lastAgentError = undefined
+  }
+
+  private admitToolCall(): boolean {
+    if (this.toolCallLimitReached || this.toolCallsThisTurn >= PI_TOOL_CALL_LIMIT) {
+      this.stopAtToolCallLimit()
+      return false
+    }
+    this.toolCallsThisTurn += 1
+    return true
+  }
+
+  private stopAtToolCallLimit(): void {
+    if (this.toolCallLimitReached) return
+    this.toolCallLimitReached = true
+    void Promise.resolve(this.session?.abort()).catch((error) => {
+      logger.warn('Failed to abort Pi agent after reaching the tool-call limit', { error })
+    })
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */

@@ -95,17 +95,23 @@ export interface PiApprovalContext {
   nonBypassableApprovalTools: ReadonlySet<string>
   /** Cross-Session tools that cannot initiate an unattended delegation hop. */
   delegationTools: ReadonlySet<string>
+  /** Admit an approved tool call only while this turn is below its call limit. */
+  admitToolCall: () => boolean
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
   return (pi: ExtensionAPI) => {
     pi.on('tool_call', async (event: ToolCallEvent, extCtx: ExtensionContext) => {
-      return createPiToolAuthorizer(ctx)({
+      const decision = await createPiToolAuthorizer(ctx)({
         toolName: event.toolName,
         toolCallId: event.toolCallId,
         input: event.input,
         signal: extCtx.signal
       })
+      if (decision) return decision
+      return ctx.admitToolCall()
+        ? undefined
+        : { block: true, reason: 'The Pi agent reached its tool-call limit for this turn.' }
     })
   }
 }
