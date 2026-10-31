@@ -58,7 +58,7 @@ beforeAll(() => {
       width: 320,
       height,
       toJSON: () => ({})
-    } as DOMRect
+    }
   }
 })
 
