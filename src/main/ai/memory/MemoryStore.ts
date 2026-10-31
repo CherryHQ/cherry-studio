@@ -243,8 +243,18 @@ export class MemoryStore {
         await this.readMatching({ path: change.path, hash: memoryHash(change.before), generation })
       await this.assertDistinctTargets(changes)
       await assertLegacy()
-      if (source === 'clear' || source === 'recovery') this.invalidate()
-      return this.apply(access, changes, source, validateApproval, epoch, legacy)
+      this.assertGeneration(generation)
+      const advanceGeneration = source === 'clear' || source === 'recovery'
+      if (advanceGeneration) this.invalidate()
+      return this.apply(
+        access,
+        changes,
+        source,
+        validateApproval,
+        epoch,
+        generation + Number(advanceGeneration),
+        legacy
+      )
     })
   }
 
@@ -340,6 +350,7 @@ export class MemoryStore {
       for (const [target, hash] of preview.hashes) {
         await this.readMatching({ path: target, hash, generation: preview.generation })
       }
+      this.assertGeneration(preview.generation)
       this.recoveries.delete(access)
       this.invalidate()
       const previousStatus = preview.batch.status
@@ -347,7 +358,7 @@ export class MemoryStore {
       await saveMemoryBackup(this.backupRoot, preview.batch)
       let result: MemoryCommitResult
       try {
-        result = await this.apply(access, changes, 'recovery', validateApproval, epoch)
+        result = await this.apply(access, changes, 'recovery', validateApproval, epoch, preview.generation + 1)
       } catch (error) {
         preview.batch.status = previousStatus
         await saveMemoryBackup(this.backupRoot, preview.batch).catch(() => undefined)
@@ -376,8 +387,10 @@ export class MemoryStore {
     source: MemoryMutationSource,
     approval: () => undefined,
     epoch: number,
+    generation: number,
     legacy?: MemoryLegacyOriginal
   ): Promise<MemoryCommitResult> {
+    this.assertGeneration(generation)
     const changes = proposed.filter((change) => memoryHash(change.before) !== memoryHash(change.after))
     if (!changes.length && !legacy) {
       return {
@@ -385,7 +398,6 @@ export class MemoryStore {
         files: proposed.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'unchanged' }))
       }
     }
-    const generation = this.generation
     const batch = await createMemoryBackup(this.backupRoot, changes, source, legacy)
     const result: MemoryCommitResult = {
       batchId: batch.id,

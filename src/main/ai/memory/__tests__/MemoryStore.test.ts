@@ -1,12 +1,19 @@
 import { link, mkdtemp, readFile, readdir, rmdir, symlink, unlink, writeFile } from 'node:fs/promises'
+import * as fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createMemoryBackup, MEMORY_BACKUP_BYTES } from '../memoryBackups'
+import * as memoryBackups from '../memoryBackups'
 import * as memoryFiles from '../memoryFiles'
 import { type MemoryAccess, type MemoryApproval, MemoryStore } from '../MemoryStore'
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>()
+  return { ...actual, lstat: vi.fn(actual.lstat) }
+})
 
 const approve: MemoryApproval = async () => () => undefined
 const access = (): MemoryAccess => ({ assertAuthorized: () => undefined })
@@ -37,6 +44,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks()
+  vi.mocked(fs.lstat).mockReset()
   await removeFixtureFiles(fixture)
 })
 
@@ -46,6 +54,84 @@ async function save(target: string, content: string, owner = caller) {
 }
 
 describe('memory save contract', () => {
+  it.each(['write', 'noop', 'clear'] as const)(
+    'rejects %s invalidated during the final target identity check',
+    async (operation) => {
+      await save('MEMORY.md', 'Original')
+      const read = await store.read(caller, 'MEMORY.md')
+      const preview = await store.previewClear(caller)
+      const previousBackups = await readdir(backups)
+      let approved = false
+      let invalidated = false
+      const original = (await vi.importActual<typeof fs>('node:fs/promises')).lstat
+      vi.mocked(fs.lstat).mockImplementation(async (...args) => {
+        const result = await original(...args)
+        if (approved && typeof args[1] === 'object' && args[1]?.bigint && !invalidated) {
+          invalidated = true
+          store.invalidate()
+        }
+        return result
+      })
+      const approval: MemoryApproval = async () => {
+        approved = true
+        return () => undefined
+      }
+      const pending =
+        operation === 'clear'
+          ? store.clear(caller, preview.token, approval)
+          : store.commit(
+              caller,
+              [{ kind: 'write', receipt: read.receipt, content: operation === 'noop' ? 'Original' : 'Stale' }],
+              'controlled',
+              approval
+            )
+      await expect(pending).rejects.toMatchObject({ code: 'invalid-receipt' })
+      expect(invalidated).toBe(true)
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Original')
+      expect(await readdir(backups)).toEqual(previousBackups)
+    }
+  )
+
+  it.each(['validation', 'backup'] as const)(
+    'rejects recovery invalidated during %s without replacing current content',
+    async (stage) => {
+      await save('MEMORY.md', 'Before')
+      await save('MEMORY.md', 'After')
+      const preview = await store.previewRecovery(caller)
+      let approved = false
+      let invalidated = false
+      const invalidate = () => {
+        if (approved && !invalidated) {
+          invalidated = true
+          store.invalidate()
+        }
+      }
+      if (stage === 'validation') {
+        const original = memoryFiles.readMemoryBytes
+        vi.spyOn(memoryFiles, 'readMemoryBytes').mockImplementation(async (...args) => {
+          const result = await original(...args)
+          if (args[0] === root) invalidate()
+          return result
+        })
+      } else {
+        const original = memoryBackups.saveMemoryBackup
+        vi.spyOn(memoryBackups, 'saveMemoryBackup').mockImplementation(async (...args) => {
+          await original(...args)
+          invalidate()
+        })
+      }
+      await expect(
+        store.recover(caller, preview!.token, async () => {
+          approved = true
+          return () => undefined
+        })
+      ).rejects.toMatchObject({ code: 'invalid-receipt' })
+      expect(invalidated).toBe(true)
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('After')
+      expect((await store.previewRecovery(caller))?.batchId).toBe(preview!.batchId)
+    }
+  )
+
   it('initializes missing files without replacing existing facts', async () => {
     await writeFile(path.join(root, 'MEMORY.md'), 'Speak Chinese.\n')
     await store.initialize()
