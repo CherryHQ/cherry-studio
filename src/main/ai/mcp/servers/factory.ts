@@ -44,6 +44,14 @@ export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
         headers: { ...server.headers, Authorization: `Bearer ${apiKey}` }
       }
     }
+    case BuiltinMcpServerNames.zonefoundry: {
+      const apiKey = server.env?.ZONEFOUNDRY_API_KEY?.trim()
+      return {
+        ...server,
+        type: 'streamableHttp',
+        headers: apiKey ? { ...server.headers, Authorization: `Bearer ${apiKey}` } : { ...server.headers }
+      }
+    }
     default:
       return server
   }

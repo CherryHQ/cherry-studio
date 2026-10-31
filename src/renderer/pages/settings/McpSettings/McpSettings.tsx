@@ -22,6 +22,7 @@ import type { AppRouter } from '@renderer/types/router'
 import type { McpTool } from '@renderer/types/tool'
 import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import { isMcpAutoApprovalEnforcedBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpResourceTemplate } from '@shared/types/mcp'
@@ -447,7 +448,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   // Handle toggling auto-approve for a tool
   const handleToggleAutoApprove = useCallback(
     async (tool: McpTool, autoApprove: boolean) => {
-      if (!server) return
+      if (!server || isMcpAutoApprovalEnforcedBySource(server)) return
       let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
 
       if (autoApprove) {
