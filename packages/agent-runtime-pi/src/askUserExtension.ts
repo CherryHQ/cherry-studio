@@ -50,6 +50,8 @@ export interface AskUserQuestionDetails {
   questions: AskUserQuestionItem[]
   answers: Record<string, string>
   annotations?: AskUserAnnotations
+  /** How the call ended; `declined` means the user dismissed it. */
+  outcome: 'answered' | 'declined' | 'unavailable' | 'aborted'
 }
 
 const DESCRIPTION = [
@@ -113,29 +115,30 @@ function toToolResult(
   questions: AskUserQuestionItem[],
   response: AskUserResponse | undefined
 ): AgentToolResult<AskUserQuestionDetails> {
-  const unanswered = (text: string) => ({
+  const unanswered = (text: string, outcome: AskUserQuestionDetails['outcome']) => ({
     content: [{ type: 'text' as const, text }],
-    details: { questions, answers: {} },
+    details: { questions, answers: {}, outcome },
     isError: true
   })
   switch (response?.status) {
     case undefined:
-      return unanswered(CANCELLED)
+      return unanswered(CANCELLED, 'aborted')
     case 'unavailable':
-      return unanswered(UNAVAILABLE)
+      return unanswered(UNAVAILABLE, 'unavailable')
     case 'declined': {
       const feedback = response.feedback?.trim()
       return unanswered(
         feedback
           ? `${DECLINED} They said:\n${feedback}`
-          : `${DECLINED} Wait for the user's instructions instead of asking again.`
+          : `${DECLINED} Wait for the user's instructions instead of asking again.`,
+        'declined'
       )
     }
     case 'answered': {
       const { answers, annotations } = response
       return {
         content: [{ type: 'text', text: answeredText(questions, response) }],
-        details: { questions, answers, ...(annotations === undefined ? {} : { annotations }) }
+        details: { questions, answers, outcome: 'answered', ...(annotations === undefined ? {} : { annotations }) }
       }
     }
   }
