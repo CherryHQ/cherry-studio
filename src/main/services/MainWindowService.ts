@@ -398,8 +398,8 @@ export class MainWindowService extends BaseService {
     const handleWillDownload = (event: Electron.Event) => event.preventDefault()
     const userAgent = restrictedSession
       .getUserAgent()
-      .replace(/CherryStudio\/\S+\s/, '')
-      .replace(/Electron\/\S+\s/, '')
+      .replace(/CherryStudio\/\S+\s*/g, '')
+      .replace(/Electron\/\S+\s*/g, '')
 
     restrictedSession.setUserAgent(userAgent)
     restrictedSession.setPermissionCheckHandler(() => false)
@@ -481,7 +481,10 @@ export class MainWindowService extends BaseService {
       webPreferences.webSecurity = true
       webPreferences.allowRunningInsecureContent = false
       webPreferences.safeDialogs = true
-      if (securityProfile === WebviewSecurityProfile.AgentBrowser) webPreferences.enableBlinkFeatures = 'WebMCP'
+      if (securityProfile === WebviewSecurityProfile.AgentBrowser) {
+        webPreferences.enableBlinkFeatures = 'WebMCP'
+        webPreferences.disableBlinkFeatures = 'AutomationControlled'
+      }
     })
 
     mainWindow.webContents.on('did-attach-webview', (_, webContents) => {

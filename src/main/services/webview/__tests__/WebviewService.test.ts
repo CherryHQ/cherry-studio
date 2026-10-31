@@ -223,10 +223,10 @@ const input = (documentSessionId: string, annotations: WebviewAnnotation[] = [an
 
 describe('WebviewService request identity', () => {
   it.each([
-    ['https://accounts.google.com/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
-    ['https://accounts.google.com/v3/signin/identifier', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
-    ['https://accounts.google.com/o/oauth2/v2/auth', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
-    ['https://ACCOUNTS.GOOGLE.COM/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+    ['https://accounts.google.com/', 'Browser/1.0'],
+    ['https://accounts.google.com/v3/signin/identifier', 'Browser/1.0'],
+    ['https://accounts.google.com/o/oauth2/v2/auth', 'Browser/1.0'],
+    ['https://ACCOUNTS.GOOGLE.COM/', 'Browser/1.0'],
     ['https://google.com/', 'Browser/1.0'],
     ['https://aistudio.google.com/', 'Browser/1.0'],
     [
@@ -260,6 +260,23 @@ describe('WebviewService request identity', () => {
       'User-Agent': userAgent,
       'Accept-Language': 'en-US, en;q=0.9, *;q=0.5'
     })
+  })
+
+  it('overrides incoming Accept-Language with app language preference case-insensitively', () => {
+    const service = new WebviewService()
+    ;(service as unknown as { initSessionUserAgent: () => void }).initSessionUserAgent()
+    const handleRequest = siteSession.webRequest.onBeforeSendHeaders.mock.calls.at(-1)![0]
+    let headers: Record<string, string> = {}
+    handleRequest(
+      {
+        url: 'https://example.com/',
+        requestHeaders: { 'accept-language': 'zh-CN,zh;q=0.9', 'User-Agent': 'Browser/1.0' }
+      },
+      (response: { requestHeaders: Record<string, string> }) => {
+        headers = response.requestHeaders
+      }
+    )
+    expect(headers['accept-language']).toBe('en-US, en;q=0.9, *;q=0.5')
   })
 })
 

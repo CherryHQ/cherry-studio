@@ -5,13 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotationHostCommand } from '@shared/types/webviewAnnotation'
 import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
-const sendToHost = vi.fn()
+const { executeJavaScriptInIsolatedWorld, sendToHost } = vi.hoisted(() => ({
+  executeJavaScriptInIsolatedWorld: vi.fn().mockReturnValue(Promise.resolve()),
+  sendToHost: vi.fn()
+}))
 const ipcListeners = new Map<string, (event: unknown, value: unknown) => void>()
 
 vi.mock('electron', () => ({
   ipcRenderer: {
     on: (channel: string, listener: (event: unknown, value: unknown) => void) => ipcListeners.set(channel, listener),
     sendToHost
+  },
+  webFrame: {
+    executeJavaScriptInIsolatedWorld
   }
 }))
 
@@ -175,5 +181,108 @@ describe('combined webview preload keyboard relay', () => {
       WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
       expect.objectContaining({ type: 'state_changed', enabled: false })
     )
+  })
+})
+
+describe('stealth evasions and client hints delegation in webview preload', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    await import('../webview')
+  })
+
+  it('delegates to native getHighEntropyValues and preserves supported hints such as formFactors', async () => {
+    expect(executeJavaScriptInIsolatedWorld).toHaveBeenCalledWith(
+      0,
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: expect.stringContaining('userAgentData')
+        })
+      ])
+    )
+
+    const injectedCode = executeJavaScriptInIsolatedWorld.mock.calls[0][1][0].code
+
+    const nativeGetHighEntropyValues = vi.fn().mockImplementation(async (hints: string[]) => {
+      const result: Record<string, unknown> = {
+        brands: [
+          { brand: 'Chromium', version: '132' },
+          { brand: 'Electron', version: '44' }
+        ],
+        mobile: false,
+        platform: 'Windows'
+      }
+      if (hints.includes('formFactors')) {
+        result.formFactors = ['Desktop']
+      }
+      if (hints.includes('platformVersion')) {
+        result.platformVersion = '15.0.0'
+      }
+      if (hints.includes('architecture')) {
+        result.architecture = 'x86'
+      }
+      return result
+    })
+
+    const nativeTarget = Object.create({
+      get mobile() {
+        if (this !== nativeTarget) throw new TypeError('Illegal invocation')
+        return false
+      },
+      get platform() {
+        if (this !== nativeTarget) throw new TypeError('Illegal invocation')
+        return 'Windows'
+      }
+    })
+    Object.assign(nativeTarget, {
+      brands: [
+        { brand: 'Chromium', version: '132' },
+        { brand: 'Electron', version: '44' }
+      ],
+      getHighEntropyValues: nativeGetHighEntropyValues,
+      toJSON: () => ({ brands: [{ brand: 'Chromium', version: '132' }], mobile: false, platform: 'Windows' })
+    })
+
+    const testNav: { userAgentData?: Record<string, unknown> } = {
+      userAgentData: nativeTarget
+    }
+
+    const runner = new Function('navigator', 'window', injectedCode)
+    const testWin = { navigator: testNav }
+    runner(testNav, testWin)
+
+    expect(testNav.userAgentData?.brands).toEqual([
+      { brand: 'Chromium', version: expect.any(String) },
+      { brand: 'Google Chrome', version: expect.any(String) },
+      { brand: 'Not A(Brand', version: '24' }
+    ])
+
+    // Verify reading native WebIDL getters preserves the target receiver (no TypeError: Illegal invocation)
+    expect(testNav.userAgentData?.mobile).toBe(false)
+    expect(testNav.userAgentData?.platform).toBe('Windows')
+    const userAgentData = testNav.userAgentData!
+    const toJSON = userAgentData.toJSON as () => Record<string, unknown>
+    const json = toJSON()
+    expect(json.platform).toBe('Windows')
+    expect(json.mobile).toBe(false)
+
+    const getHighEntropyValues = userAgentData.getHighEntropyValues as (
+      hints: string[]
+    ) => Promise<Record<string, unknown>>
+
+    // Supported hint outside the fixed dictionary (e.g. formFactors)
+    const values = await getHighEntropyValues(['formFactors'])
+    expect(nativeGetHighEntropyValues).toHaveBeenCalledWith(['formFactors'])
+    expect(Array.isArray(values.formFactors)).toBe(true)
+    expect((values.formFactors as string[]).includes('Desktop')).toBe(true)
+    expect(values.brands).toEqual([
+      { brand: 'Chromium', version: expect.any(String) },
+      { brand: 'Google Chrome', version: expect.any(String) },
+      { brand: 'Not A(Brand', version: '24' }
+    ])
+
+    // Preserves native host metadata such as Windows 11 platformVersion
+    const metaValues = await getHighEntropyValues(['platformVersion', 'architecture'])
+    expect(metaValues.platformVersion).toBe('15.0.0')
+    expect(metaValues.architecture).toBe('x86')
   })
 })
