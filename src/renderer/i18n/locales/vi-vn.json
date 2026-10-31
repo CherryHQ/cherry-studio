@@ -3735,7 +3735,7 @@
   "settings.about.releases.title": "Ghi chú phát hành",
   "settings.about.repository": "Kho lưu trữ GitHub",
   "settings.about.repository.button": "Ủng hộ",
-  "settings.about.repository.hint": "Tặng Star, ủng hộ mã nguồn mở",
+  "settings.about.repository.hint": "Tặng một Star để ủng hộ chúng tôi",
   "settings.about.repository.title": "Dự án mã nguồn mở",
   "settings.about.updateAvailable": "Đã tìm thấy phiên bản mới {{version}}",
   "settings.about.updateError": "Lỗi cập nhật",

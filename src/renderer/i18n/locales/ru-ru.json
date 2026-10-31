@@ -3735,7 +3735,7 @@
   "settings.about.releases.title": "Заметки о релизах",
   "settings.about.repository": "Репозиторий GitHub",
   "settings.about.repository.button": "Поддержать",
-  "settings.about.repository.hint": "Поддержите открытый код звездой",
+  "settings.about.repository.hint": "Поддержите нас звездой",
   "settings.about.repository.title": "Проект с открытым исходным кодом",
   "settings.about.updateAvailable": "Найдено новое обновление {{version}}",
   "settings.about.updateError": "Ошибка обновления",

@@ -3735,7 +3735,7 @@
   "settings.about.releases.title": "Journal des mises à jour",
   "settings.about.repository": "Dépôt GitHub",
   "settings.about.repository.button": "Soutenir",
-  "settings.about.repository.hint": "Soutenez l’open source avec une étoile",
+  "settings.about.repository.hint": "Soutenez-nous avec une étoile",
   "settings.about.repository.title": "Projet open source",
   "settings.about.updateAvailable": "Nouvelle version disponible {{version}}",
   "settings.about.updateError": "Erreur lors de la mise à jour",

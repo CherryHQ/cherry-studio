@@ -3735,7 +3735,7 @@
   "settings.about.releases.title": "Registo de alterações",
   "settings.about.repository": "Repositório do GitHub",
   "settings.about.repository.button": "Apoiar",
-  "settings.about.repository.hint": "Apoie o código aberto com uma estrela",
+  "settings.about.repository.hint": "Apoie-nos com uma estrela",
   "settings.about.repository.title": "Projeto de código aberto",
   "settings.about.updateAvailable": "Nova versão disponível {{version}}",
   "settings.about.updateError": "Erro ao atualizar",

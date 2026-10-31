@@ -3735,7 +3735,7 @@
   "settings.about.releases.title": "更新日誌",
   "settings.about.repository": "GitHub 儲存庫",
   "settings.about.repository.button": "支持",
-  "settings.about.repository.hint": "點亮 Star，支持開源",
+  "settings.about.repository.hint": "點亮 Star 支持我們",
   "settings.about.repository.title": "開源專案",
   "settings.about.updateAvailable": "發現新版本 {{version}}",
   "settings.about.updateError": "更新錯誤",

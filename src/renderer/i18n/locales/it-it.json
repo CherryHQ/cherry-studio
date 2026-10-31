@@ -3735,7 +3735,7 @@
   "settings.about.releases.title": "Note di rilascio",
   "settings.about.repository": "Repository GitHub",
   "settings.about.repository.button": "Sostieni",
-  "settings.about.repository.hint": "Sostieni l’open source con una stella",
+  "settings.about.repository.hint": "Sostienici con una stella",
   "settings.about.repository.title": "Progetto open source",
   "settings.about.updateAvailable": "Trovata nuova versione {{version}}",
   "settings.about.updateError": "Errore di aggiornamento",

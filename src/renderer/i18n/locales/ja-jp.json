@@ -3735,7 +3735,7 @@
   "settings.about.releases.title": "リリースノート",
   "settings.about.repository": "GitHubリポジトリ",
   "settings.about.repository.button": "支援",
-  "settings.about.repository.hint": "Star でオープンソースを応援",
+  "settings.about.repository.hint": "Star を付けて応援してください",
   "settings.about.repository.title": "オープンソースプロジェクト",
   "settings.about.updateAvailable": "新しいバージョン {{version}} が見つかりました",
   "settings.about.updateError": "更新エラー",
