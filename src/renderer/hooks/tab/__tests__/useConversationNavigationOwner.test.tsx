@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@renderer/data/CacheService'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useConversationNavigationOwner } from '../useConversationNavigationOwner'
@@ -30,6 +31,26 @@ describe('useConversationNavigationOwner', () => {
   beforeEach(() => {
     mocks.handlers.clear()
     vi.clearAllMocks()
+  })
+
+  it('focuses a validated task tab and drops its ownership when the tab closes', () => {
+    const owner = {
+      tabs: [{ id: 'task-tab', type: 'route', url: '/app/scheduled-tasks?taskId=task', title: 'Task' }] as Tab[],
+      openTab: vi.fn(),
+      setActiveTab: vi.fn()
+    }
+    cacheService.setCasual('scheduled-task.conversation.task-tab', { taskId: 'task', sessionId: 'session-1' })
+    const view = renderHook(({ value }) => useConversationNavigationOwner(value), { initialProps: { value: owner } })
+    emit('navigation.conversation_focus_or_open_requested', { requestId: 'task-focus', target, title: 'Task' })
+    expect(owner.setActiveTab).toHaveBeenCalledWith('task-tab')
+    expect(owner.openTab).not.toHaveBeenCalled()
+    view.rerender({ value: { ...owner, tabs: [] } })
+    expect(cacheService.getCasual('scheduled-task.conversation.task-tab')).toBeUndefined()
+    emit('navigation.conversation_ownership_requested', { requestId: 'closed-task', target })
+    expect(mocks.request).toHaveBeenCalledWith('navigation.report_conversation_ownership', {
+      requestId: 'closed-task',
+      ownsTarget: false
+    })
   })
 
   it('answers ownership on demand from the latest tab state', () => {
