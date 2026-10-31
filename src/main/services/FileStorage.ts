@@ -799,7 +799,7 @@ class FileStorage {
   public save = async (
     event: Electron.IpcMainInvokeEvent,
     fileName: string,
-    content: string,
+    content: string | NodeJS.ArrayBufferView,
     options?: SaveDialogOptions
   ): Promise<string | null> => {
     try {
