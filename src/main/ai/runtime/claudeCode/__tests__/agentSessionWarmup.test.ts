@@ -656,6 +656,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('pins adaptive thinking for an adaptive-dialect Claude model on the default selection', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'anthropic/claude-haiku-5.5',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['none', 'low', 'medium', 'high'], defaultEffort: 'medium' }
+    })
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire,
+      wireDialect: 'effort'
+    })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings.mock.calls[0][2].thinkingOptions.thinking).toEqual({
+      type: 'adaptive',
+      display: 'summarized'
+    })
+  })
+
   it.each(['', 'sonnet', 'provider:model'])('preserves the direct-route sub-agent pin %j', async (pin) => {
     mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: pin } })
 
