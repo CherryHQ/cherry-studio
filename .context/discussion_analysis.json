@@ -1,17 +1,30 @@
 {
-  "generated_at": "2026-10-28T00:00:00Z",
-  "date": "2026-10-28",
-  "note": "GitHub Discussions API not available via MCP tools in this session. Analysis based on issue tracker data.",
+  "generated_at": "2026-10-31T18:00:00Z",
+  "date": "2026-10-31",
+  "note": "GitHub Discussions GraphQL API not available via MCP tools. Analysis derived from issue tracker engagement signals.",
   "issue_discussion_proxy": {
     "high_engagement_issues_today": [
-      {"number": 22909, "title": "[Bug]: Work conversation 413 request body limit", "comments": 7},
-      {"number": 22852, "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay", "comments": 8},
-      {"number": 22971, "title": "[Feature]: Allow knowledge-app URI schemes in Markdown links", "comments": 3},
-      {"number": 22775, "title": "[Bug]: DeepSeek Harness crashes on work-conversation requests", "comments": 31}
+      {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error (P1)", "comments": 135, "updated_at": "2026-10-31"},
+      {"number": 20940, "title": "[Bug]: Responses API stream events fail TypeValidation (P1)", "comments": 120, "updated_at": "2026-10-31"},
+      {"number": 22121, "title": "[Bug]: Responses reasoning delta without initialized reasoning part (P1)", "comments": 29, "updated_at": "2026-10-31"},
+      {"number": 22726, "title": "[Bug]: Normal chat sends unsupported max reasoning effort to GPT-5.6 Luna", "comments": 20, "updated_at": "2026-10-31"},
+      {"number": 22909, "title": "[Bug]: Work conversation 413 body length limit exceeded", "comments": 18, "updated_at": "2026-10-31"},
+      {"number": 22852, "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay", "comments": 15, "updated_at": "2026-10-31"},
+      {"number": 19793, "title": "Chat fails when response stream ends without finish reason (P1)", "comments": 85, "updated_at": "2026-10-31"}
     ],
     "feature_requests_high_interest": [
-      {"number": 19441, "title": "[Feature]: Video generation feature urgently needed", "comments": 9},
-      {"number": 17801, "title": "[Feature]: Add prominent status indicator for agent thinking", "comments": 6}
+      {"number": 18319, "title": "[Feature]: Make auto-compact trigger percentage configurable", "comments": 2},
+      {"number": 18271, "title": "[Feature]: Transparency and manual control over context compression", "comments": 2},
+      {"number": 22265, "title": "[Bug/Feature]: Qwen conversation reaches tool-call limit before final answer", "comments": 57},
+      {"number": 14897, "title": "[Feature]: Web Search — Auto Mode, Native Provider Coverage", "comments": 1}
+    ],
+    "new_today_highlights": [
+      "23256: User-manageable local ASR catalog for non-en/zh languages",
+      "23255: Copilot Claude Opus 5.5 thinking process not shown (P2)",
+      "23250: Archived conversation regression — cannot be re-opened",
+      "23249: Tool call density setting (summary vs full detail)",
+      "23244: Agent browser pane recovery controls (planned, P3)"
     ]
-  }
+  },
+  "trend_observation": "Agent stability (autocompact thrashing, empty no-response, context overflow) remains the dominant theme with 3 P1 bugs and 5+ P2 bugs. Windows-specific agent startup failures (#22850, #21898) also prominent. Provider compatibility issues (Bedrock, GPT reasoning, DeepSeek) have high comment counts indicating widespread impact."
 }

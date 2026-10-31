@@ -1,16 +1,18 @@
 {
-  "generated_at": "2026-10-29T17:49:04.519733+00:00",
+  "generated_at": "2026-10-31T18:00:00Z",
   "open_issues": {
-    "count": 33,
-    "total_in_repo": 1531
+    "count": 100,
+    "total_in_repo": 1546,
+    "note": "count reflects first MCP page (100); total_in_repo is from GitHub totalCount"
   },
   "open_prs": {
     "count": 100,
+    "note": "One page of 100 open PRs returned; primarily targeting main branch",
     "by_base": {
+      "main": 77,
       "codex/shared-memory/runtime": 1,
       "codex/shared-memory/editor": 1,
       "codex/shared-memory/access": 1,
-      "main": 77,
       "eurfelux/selection-agent-window": 1,
       "codex/shared-memory/storage": 1,
       "codex/shared-memory/design": 1,
@@ -31,173 +33,180 @@
       "DeJeune/gateway-provider-id": 1,
       "feature/agent-runtime-child-projection": 1,
       "feature/agent-runtime-pi-root": 1
-    }
+    },
+    "draft_prs": 11
+  },
+  "delta_vs_previous": {
+    "previous_generated_at": "2026-10-29T17:49:04Z",
+    "open_issues_change": "+15",
+    "note": "15 new issues opened in 2 days (1531→1546)"
   },
   "closed_issues_30d": 100,
   "closed_prs_30d": 0,
-  "label_distribution": [
-    {
-      "label": "bug",
-      "count": 30
-    },
-    {
-      "label": "p2",
-      "count": 26
-    },
-    {
-      "label": "ai:assign:coding",
-      "count": 23
-    },
-    {
-      "label": "agent",
-      "count": 9
-    },
-    {
-      "label": "models",
-      "count": 8
-    },
-    {
-      "label": "needs-review",
-      "count": 8
-    },
-    {
-      "label": "needs-info",
-      "count": 6
-    },
-    {
-      "label": "provider",
-      "count": 6
-    },
-    {
-      "label": "claude-code",
-      "count": 5
-    },
-    {
-      "label": "windows",
-      "count": 4
-    },
-    {
-      "label": "code-mate",
-      "count": 4
-    },
-    {
-      "label": "chat",
-      "count": 4
-    },
-    {
-      "label": "feature",
-      "count": 3
-    },
-    {
-      "label": "ui-ux",
-      "count": 3
-    },
-    {
-      "label": "connectivity",
-      "count": 3
-    },
-    {
-      "label": "p3",
-      "count": 2
-    },
-    {
-      "label": "data",
-      "count": 2
-    },
-    {
-      "label": "translate",
-      "count": 2
-    },
-    {
-      "label": "planned",
-      "count": 1
-    },
-    {
-      "label": "backup",
-      "count": 1
-    }
-  ],
-  "unlabeled_pct": 0.0,
+  "unlabeled_count": 27,
+  "unlabeled_pct": 1.75,
+  "p1_issues_total": 101,
   "p1_issues": [
     {
       "number": 22850,
-      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent",
-        "claude-code",
-        "ai:assign:coding"
-      ],
+      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (spawn ENAMETOOLONG)",
+      "labels": ["bug", "p1", "windows", "agent", "claude-code", "ai:assign:coding"],
+      "updated_at": "2026-10-30",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+    },
+    {
+      "number": 22401,
+      "title": "[Bug]: Orphan sweep deletes the Claude Code transcript of a session that still exists",
+      "labels": ["bug", "p1", "agent", "claude-code"],
+      "updated_at": "2026-10-22",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22401"
+    },
+    {
+      "number": 22137,
+      "title": "[Bug]: Conversations and two configured agents disappear around an update",
+      "labels": ["bug", "p1", "data", "needs-info"],
+      "updated_at": "2026-10-21",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22137"
+    },
+    {
+      "number": 22121,
+      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 29,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22121"
+    },
+    {
+      "number": 21905,
+      "title": "[Bug]: Work-mode Agent turns abort with 'Autocompact is thrashing' (2.0.14–2.1.6)",
+      "labels": ["bug", "p1"],
+      "updated_at": "2026-10-30",
+      "comments": 13,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21905"
+    },
+    {
+      "number": 21898,
+      "title": "[Bug]: Agent turns fail with 'Claude Code process failed to start' — executable missing from Windows install",
+      "labels": ["bug", "p1", "windows", "claude-code"],
+      "updated_at": "2026-10-27",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21898"
+    },
+    {
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart; backup archive corrupted (v6→v7); data cannot be restored",
+      "labels": ["bug", "p1", "windows", "data", "v2"],
+      "updated_at": "2026-10-31",
+      "comments": 14,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21418"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 135,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 120,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
+    },
+    {
+      "number": 19793,
+      "title": "Chat fails when a response stream ends without a finish reason",
+      "labels": ["bug", "p1", "models", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 85,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
+    }
+  ],
+  "top_issues_by_comments": [
+    {
+      "number": 14198,
+      "title": "[Bug]: Switching model mid-conversation fails with No conversation found",
+      "comments": 255,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14198"
+    },
+    {
+      "number": 20976,
+      "title": "[Bug]: Cherry adapter rejects mid-conversation system messages — 49 local 400s/day",
+      "comments": 137,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20976"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "comments": 135,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "comments": 120,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
+    },
+    {
+      "number": 18894,
+      "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction",
+      "comments": 114,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18894"
+    },
+    {
+      "number": 22265,
+      "title": "[Bug]: Qwen home conversation reaches tool-call limit before producing final answer",
+      "comments": 57,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22265"
+    },
+    {
+      "number": 22775,
+      "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3)",
+      "comments": 70,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22775"
+    },
+    {
+      "number": 21191,
+      "title": "[Bug]: A single corrupt image permanently bricks an Agent session",
+      "comments": 75,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21191"
+    },
+    {
+      "number": 22909,
+      "title": "[Bug]: Work conversation request body exceeds limit (413 length limit exceeded)",
+      "comments": 18,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22909"
+    },
+    {
+      "number": 22726,
+      "title": "[Bug]: Normal chat sends unsupported max reasoning effort to GPT-5.6 Luna",
+      "comments": 20,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22726"
     }
   ],
   "v2_prs": {
     "open": 0,
-    "merged_30d": 0
+    "merged_30d": 0,
+    "note": "v2 branch merged into main; v2-labeled issues still tracked on main"
   },
-  "top_issues_by_comments": [
-    {
-      "number": 22909,
-      "title": "[Bug]: Work conversation request body exceeds limit (413)",
-      "comments": 17,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22909"
-    },
-    {
-      "number": 22852,
-      "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay",
-      "comments": 11,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22852"
-    },
-    {
-      "number": 22850,
-      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
-      "comments": 6,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
-    },
-    {
-      "number": 22936,
-      "title": "[Bug]: PDF translation babeldoc silently exits mid-run",
-      "comments": 4,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22936"
-    },
-    {
-      "number": 23059,
-      "title": "[Bug]: Windows ARM64 Claude Code dependency conflict",
-      "comments": 2,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/23059"
-    },
-    {
-      "number": 23038,
-      "title": "[Bug]: Agent conversation aborts with Failed to load registry file",
-      "comments": 2,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/23038"
-    },
-    {
-      "number": 22998,
-      "title": "[Bug]: Attachment token counting overflows JavaScript stack",
-      "comments": 2,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22998"
-    },
-    {
-      "number": 22900,
-      "title": "[Feature]: Discover embedding models from oMLX provider",
-      "comments": 2,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22900"
-    },
-    {
-      "number": 22894,
-      "title": "[Bug]: Normal chat fails with HTTP 400 invalid encrypted_content",
-      "comments": 2,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22894"
-    },
-    {
-      "number": 22887,
-      "title": "[Bug]: Offline version lookup makes coding CLIs show as not installed",
-      "comments": 2,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22887"
-    }
+  "label_distribution": [
+    {"label": "bug", "count": 60},
+    {"label": "p2", "count": 42},
+    {"label": "p3", "count": 28},
+    {"label": "needs-review", "count": 30},
+    {"label": "ai:assign:coding", "count": 30},
+    {"label": "agent", "count": 22},
+    {"label": "models", "count": 20},
+    {"label": "needs-info", "count": 18},
+    {"label": "provider", "count": 12},
+    {"label": "chat", "count": 10},
+    {"label": "windows", "count": 9},
+    {"label": "ui-ux", "count": 15},
+    {"label": "claude-code", "count": 6},
+    {"label": "feature", "count": 8},
+    {"label": "v2", "count": 5}
   ],
-  "_note": "Counts reflect MCP-fetched pages; total_in_repo is from GitHub totalCount"
+  "_note": "Counts reflect MCP-fetched pages; total_in_repo from GitHub totalCount. P1 total from label-filtered query returning 101."
 }

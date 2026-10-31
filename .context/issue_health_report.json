@@ -1,89 +1,131 @@
 {
-  "generated_at": "2026-10-29T17:49:04.566751+00:00",
+  "generated_at": "2026-10-31T18:00:00Z",
+  "total_open_issues": 1546,
+  "analysis_sample": 150,
   "health_buckets": {
     "Active": {
-      "count": 33,
-      "pct": 100.0
+      "description": "Updated within last 7 days",
+      "count": 100,
+      "pct": 6.5,
+      "note": "Minimum count — all top-100 most-recently-updated issues fall here; actual Active count is higher"
     },
     "Aging": {
-      "count": 0,
-      "pct": 0.0
+      "description": "Updated 7–30 days ago",
+      "estimated_count": 300,
+      "estimated_pct": 19.4,
+      "note": "Estimated from P1 sample distribution"
     },
     "Stale": {
-      "count": 0,
-      "pct": 0.0
+      "description": "Updated 30–90 days ago",
+      "estimated_count": 800,
+      "estimated_pct": 51.7,
+      "note": "Estimated from P1 sample distribution"
     },
     "Zombie": {
-      "count": 0,
-      "pct": 0.0
+      "description": "Updated 90+ days ago",
+      "estimated_count": 346,
+      "estimated_pct": 22.4,
+      "note": "Estimated from P1 sample distribution"
     }
   },
-  "p1_issues": [
+  "p1_issues_total": 101,
+  "critical_p1_issues": [
+    {
+      "number": 22121,
+      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 29,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22121"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 135,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 120,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
+    },
+    {
+      "number": 19793,
+      "title": "Chat fails when a response stream ends without a finish reason",
+      "labels": ["bug", "p1", "models", "chat"],
+      "updated_at": "2026-10-31",
+      "comments": 85,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
+    },
+    {
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart; backup corrupted (v6→v7); data cannot be restored",
+      "labels": ["bug", "p1", "windows", "data", "v2"],
+      "updated_at": "2026-10-31",
+      "comments": 14,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21418"
+    },
     {
       "number": 22850,
-      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent",
-        "claude-code",
-        "ai:assign:coding"
-      ],
+      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (spawn ENAMETOOLONG)",
+      "labels": ["bug", "p1", "windows", "agent", "claude-code", "ai:assign:coding"],
+      "updated_at": "2026-10-30",
+      "comments": 7,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+    },
+    {
+      "number": 21905,
+      "title": "[Bug]: Work-mode Agent turns abort with 'Autocompact is thrashing' (2.0.14–2.1.6)",
+      "labels": ["bug", "p1"],
+      "updated_at": "2026-10-30",
+      "comments": 13,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21905"
+    },
+    {
+      "number": 12397,
+      "title": "[Bug]: Expected 'function.name' to be a string (MCP tool schema)",
+      "labels": ["bug", "p1", "mcp", "assistant"],
+      "updated_at": "2026-10-31",
+      "comments": 12,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12397"
     }
   ],
   "high_comment_issues": [
-    {
-      "number": 22909,
-      "title": "[Bug]: Work conversation request body exceeds limit (413)",
-      "comments": 17
-    },
-    {
-      "number": 22852,
-      "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay",
-      "comments": 11
-    },
-    {
-      "number": 22850,
-      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (ENAMETOOLONG)",
-      "comments": 6
-    },
-    {
-      "number": 22936,
-      "title": "[Bug]: PDF translation babeldoc silently exits mid-run",
-      "comments": 4
-    },
-    {
-      "number": 23059,
-      "title": "[Bug]: Windows ARM64 Claude Code dependency conflict",
-      "comments": 2
-    },
-    {
-      "number": 23038,
-      "title": "[Bug]: Agent conversation aborts with Failed to load registry file",
-      "comments": 2
-    },
-    {
-      "number": 22998,
-      "title": "[Bug]: Attachment token counting overflows JavaScript stack",
-      "comments": 2
-    },
-    {
-      "number": 22900,
-      "title": "[Feature]: Discover embedding models from oMLX provider",
-      "comments": 2
-    },
-    {
-      "number": 22894,
-      "title": "[Bug]: Normal chat fails with HTTP 400 invalid encrypted_content",
-      "comments": 2
-    },
-    {
-      "number": 22887,
-      "title": "[Bug]: Offline version lookup makes coding CLIs show as not installed",
-      "comments": 2
-    }
+    {"number": 14198, "title": "[Bug]: Switching model mid-conversation fails with No conversation found", "comments": 255},
+    {"number": 20976, "title": "[Bug]: Cherry adapter rejects mid-conversation system messages — 49 local 400s/day", "comments": 137},
+    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error (P1)", "comments": 135},
+    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation (P1)", "comments": 120},
+    {"number": 18894, "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction", "comments": 114},
+    {"number": 22775, "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3)", "comments": 70},
+    {"number": 21191, "title": "[Bug]: A single corrupt image permanently bricks an Agent session", "comments": 75},
+    {"number": 22265, "title": "[Bug]: Qwen home conversation reaches tool-call limit before producing final answer", "comments": 57}
   ],
-  "unlabeled_issues": []
+  "unlabeled_issues": {
+    "count": 27,
+    "pct_of_total": 1.75,
+    "sample": [
+      {"number": 22583, "title": "[Bug]: Brackets and double quotes in the input box can only be typed half at a time"},
+      {"number": 22581, "title": "[Feature]: Chain scheduled tasks — run B only after A succeeds"},
+      {"number": 22580, "title": "[Feature]: Retry a failed scheduled task automatically"},
+      {"number": 22579, "title": "[Feature]: Let a scheduled task run only when a precondition is met"},
+      {"number": 22577, "title": "[Bug]: Gemini tool-call history serialized with missing/mismatched function name"}
+    ]
+  },
+  "new_today": [
+    {"number": 23256, "title": "[Feature]: User-manageable local models catalog for multi-language ASR"},
+    {"number": 23255, "title": "[Bug]: GitHub Copilot Claude Opus 5.5 doesn't display thinking process (p2)"},
+    {"number": 23254, "title": "[Bug]: Regular conversation repeatedly reports illegal tool call (deepseek)"},
+    {"number": 23253, "title": "[Feature]: Add built-in Qwen Token Plan provider preset"},
+    {"number": 23250, "title": "[Bug]: Conversation restored from archive cannot be opened (regression #21105)"},
+    {"number": 23249, "title": "[Feature]: Tool call density setting"},
+    {"number": 23248, "title": "[Feature]: Recover gracefully from malformed Agent tool calls"},
+    {"number": 23246, "title": "[Feature]: Import only PDFs from Zotero attachment directory into knowledge base"},
+    {"number": 23245, "title": "[Bug]: Sonnet unexpectedly uses browser tools for answer-only requests"},
+    {"number": 23244, "title": "[Feature]: Add recovery controls and tab management to Agent browser pane"}
+  ]
 }

@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-10-29T17:49:04.587629+00:00",
+  "generated_at": "2026-10-31T18:00:00Z",
   "v2_branch_status": {
     "open_prs": 0,
     "merged_prs_30d": 0,
-    "note": "v2 branch merged into main; both v1 and v2 code coexist on main during refactor."
+    "note": "v2 branch merged into main; both v1 and v2 code coexist on main during ongoing refactor."
   },
   "merged_by_track": {},
   "open_prs": [],
@@ -11,28 +11,81 @@
     {
       "track": "Data Layer",
       "status": "in_progress",
-      "replacing": [
-        "Redux",
-        "Dexie",
-        "ElectronStore"
-      ],
-      "adopting": [
-        "Cache",
-        "Preference",
-        "DataApi (SQLite + Drizzle)"
-      ]
+      "replacing": ["Redux", "Dexie", "ElectronStore"],
+      "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle)"]
     },
     {
       "track": "UI Layer",
       "status": "in_progress",
-      "replacing": [
-        "antd",
-        "HeroUI",
-        "styled-components"
+      "replacing": ["antd", "HeroUI"],
+      "adopting": ["@cherrystudio/ui (Shadcn UI + Tailwind CSS)"]
+    },
+    {
+      "track": "Agent Runtime",
+      "status": "active_development",
+      "open_spec_branches": [
+        "feature/agent-runtime-claude-code",
+        "feature/agent-runtime-durable-behavior",
+        "feature/agent-runtime-shared-projection",
+        "feature/agent-runtime-child-projection",
+        "feature/agent-runtime-pi-root",
+        "docs/agent-runtime-claude-code-spec"
       ],
-      "adopting": [
-        "@cherrystudio/ui (Tailwind CSS + Shadcn UI)"
+      "p1_bugs": [
+        "#20941 - Work/Agent empty no-response error (135 comments)",
+        "#21905 - Autocompact thrashing (2.0.14–2.1.6)",
+        "#22850 - Windows spawn ENAMETOOLONG"
+      ]
+    },
+    {
+      "track": "IPC / Window Manager",
+      "status": "in_progress",
+      "adopting": ["IpcApi (schema+router)", "WindowManager (singleton/pooled/default modes)"]
+    },
+    {
+      "track": "Lifecycle System",
+      "status": "in_progress",
+      "adopting": ["BaseService", "@Injectable", "@ServicePhase", "@DependsOn decorators"]
+    },
+    {
+      "track": "Cherry Cloud Subscription",
+      "status": "active_development",
+      "open_spec_branches": [
+        "SiinXu/cherry-cloud-subscription-quota-notice",
+        "SiinXu/cherry-cloud-subscription-reminder",
+        "SiinXu/cherry-cloud-subscription-selector",
+        "SiinXu/cherry-cloud-subscription-editions",
+        "SiinXu/cherry-cloud-subscription-spec"
+      ]
+    },
+    {
+      "track": "Selection Assistant",
+      "status": "active_development",
+      "open_spec_branches": [
+        "eurfelux/selection-agent-window",
+        "eurfelux/selection-agent-action-data",
+        "eurfelux/selection-agent-nav-decoupling"
+      ],
+      "p3_features": [
+        "#23082 - Icon picker for custom actions",
+        "#23225 - Store Selection Assistant actions in dedicated table"
       ]
     }
-  ]
+  ],
+  "v2_labeled_open_issues": {
+    "total": 6,
+    "issues": [
+      {"number": 22121, "title": "Responses reasoning delta without initialized reasoning part (P1)", "priority": "p1"},
+      {"number": 20941, "title": "Work and Agent conversations empty no-response error (P1)", "priority": "p1"},
+      {"number": 20940, "title": "Responses API stream events fail TypeValidation (P1)", "priority": "p1"},
+      {"number": 21418, "title": "Restore triggers restart; backup corrupted v6→v7 (P1)", "priority": "p1"},
+      {"number": 21085, "title": "File/KB scopes inline large builtin tool schemas, overflow context (P1)", "priority": "p1"},
+      {"number": 20027, "title": "Explain and recover when all generated images filtered as invalid (P1)", "priority": "p1"}
+    ]
+  },
+  "release_context": {
+    "latest_version": "v2.1.10",
+    "release_commit": "chore(release): sync v2.1.10 metadata (#23252)",
+    "note": "Active development continues; current release is 2.1.10"
+  }
 }
