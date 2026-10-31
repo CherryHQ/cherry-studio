@@ -3507,6 +3507,7 @@
   "selection.agent.capsule.needs_approval": "等你批准",
   "selection.agent.capsule.needs_input": "需要你输入",
   "selection.agent.capsule.running": "运行中",
+  "selection.agent.capsule.show_less": "收起",
   "selection.agent.capsule.step": "第 {{n}} 步",
   "selection.agent.change_in_settings": "在划词助手设置中更换",
   "selection.agent.char_count": "{{length}} 字",

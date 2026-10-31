@@ -3507,6 +3507,7 @@
   "selection.agent.capsule.needs_approval": "Approvazione richiesta",
   "selection.agent.capsule.needs_input": "Serve un tuo input",
   "selection.agent.capsule.running": "In corso",
+  "selection.agent.capsule.show_less": "Mostra meno",
   "selection.agent.capsule.step": "Passo {{n}}",
   "selection.agent.change_in_settings": "Modifica nelle impostazioni dell'Assistente di selezione",
   "selection.agent.char_count": "{{length}} caratteri",

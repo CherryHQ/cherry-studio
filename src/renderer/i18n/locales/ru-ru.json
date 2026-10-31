@@ -3507,6 +3507,7 @@
   "selection.agent.capsule.needs_approval": "Нужно одобрение",
   "selection.agent.capsule.needs_input": "Нужен ваш ответ",
   "selection.agent.capsule.running": "Выполняется",
+  "selection.agent.capsule.show_less": "Свернуть",
   "selection.agent.capsule.step": "Шаг {{n}}",
   "selection.agent.change_in_settings": "Изменить в настройках помощника выбора",
   "selection.agent.char_count": "{{length}} симв.",

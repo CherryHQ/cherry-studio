@@ -9,7 +9,7 @@ import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { SelectionAgentCapsule } from '@shared/types/selection'
 
-/** Beyond this many capsules, the rest fold into "+N" until it is clicked. */
+/** Beyond this many capsules, the rest fold into "+N", which expands them and folds them back. */
 const MAX_VISIBLE = 5
 
 /** One display's stack of collapsed agent windows; main sizes the window to whatever this measures. */
@@ -36,22 +36,28 @@ const CapsuleStack: FC<{ displayId: number }> = ({ displayId }) => {
   }, [])
 
   const visible = expanded ? capsules : capsules.slice(0, MAX_VISIBLE)
-  const folded = capsules.length - visible.length
+  const foldable = capsules.length > MAX_VISIBLE
 
   return (
-    // Column-reverse puts the first capsule nearest the corner; the padding leaves room for the shadows.
-    <div ref={stackRef} className="inline-flex flex-col-reverse items-end gap-2 p-2">
-      {visible.map((capsule) => (
-        <Capsule key={capsule.windowId} capsule={capsule} />
-      ))}
-      {folded > 0 && (
-        <button
-          type="button"
-          className="h-9 rounded-full border border-border bg-popover px-3 text-muted-foreground text-xs shadow-md"
-          onClick={() => setExpanded(true)}>
-          {t('selection.agent.capsule.more', { count: folded })}
-        </button>
-      )}
+    // Main caps the host at the work area; a taller stack scrolls, starting from the corner end.
+    <div className="flex max-h-screen flex-col-reverse overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Column-reverse puts the first capsule nearest the corner; the padding leaves room for the shadows. */}
+      <div ref={stackRef} className="flex shrink-0 flex-col-reverse items-end gap-2 p-2">
+        {visible.map((capsule) => (
+          <Capsule key={capsule.windowId} capsule={capsule} />
+        ))}
+        {/* Sticky, so Show less stays reachable while a tall stack is scrolled to the corner. */}
+        {foldable && (
+          <button
+            type="button"
+            className="sticky top-2 h-9 rounded-full border border-border bg-popover px-3 text-muted-foreground text-xs shadow-md"
+            onClick={() => setExpanded(!expanded)}>
+            {expanded
+              ? t('selection.agent.capsule.show_less')
+              : t('selection.agent.capsule.more', { count: capsules.length - MAX_VISIBLE })}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

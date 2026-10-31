@@ -3507,6 +3507,7 @@
   "selection.agent.capsule.needs_approval": "Cần phê duyệt",
   "selection.agent.capsule.needs_input": "Cần bạn trả lời",
   "selection.agent.capsule.running": "Đang chạy",
+  "selection.agent.capsule.show_less": "Thu gọn",
   "selection.agent.capsule.step": "Bước {{n}}",
   "selection.agent.change_in_settings": "Thay đổi trong cài đặt Trợ lý lựa chọn",
   "selection.agent.char_count": "{{length}} ký tự",

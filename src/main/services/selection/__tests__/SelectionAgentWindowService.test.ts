@@ -317,6 +317,15 @@ describe('SelectionAgentWindowService', () => {
       expect(windows['host-1'].visible).toBe(true)
     })
 
+    it('fits a stack taller than the work area inside it, so every capsule stays on screen', () => {
+      openStarted('w1')
+      svc.collapse('w1')
+
+      svc.fitCapsuleHost('host-1', { width: 200, height: 1108 })
+
+      expect(windows['host-1'].getBounds()).toEqual({ x: 1440 - 4 - 200, y: 4, width: 200, height: 900 - 8 })
+    })
+
     it('closes a window from its capsule, leaving no capsule behind', () => {
       openStarted('w1')
       svc.collapse('w1')

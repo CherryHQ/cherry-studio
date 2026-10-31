@@ -3507,6 +3507,7 @@
   "selection.agent.capsule.needs_approval": "Necesită aprobare",
   "selection.agent.capsule.needs_input": "Necesită răspunsul tău",
   "selection.agent.capsule.running": "În desfășurare",
+  "selection.agent.capsule.show_less": "Afișează mai puțin",
   "selection.agent.capsule.step": "Pasul {{n}}",
   "selection.agent.change_in_settings": "Modifică în setările Asistentului de selecție",
   "selection.agent.char_count": "{{length}} caractere",
