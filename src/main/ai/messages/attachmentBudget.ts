@@ -106,7 +106,7 @@ export function allocateAttachmentBudget(sizes: readonly number[], total: number
 }
 
 /**
- * Largest prefix of `body` that really costs at most `tokenCap`.
+ * A verified fitting prefix of `body`, not necessarily the largest one.
  *
  * Measured, not scaled: token density varies WITHIN one attachment (a CJK head
  * over an ASCII tail, prose over a code block), so converting by the whole
@@ -125,8 +125,11 @@ function charCapFor(body: string, tokens: number, tokenCap: number, tokenizer: T
     if (tokenizer.count(body.slice(0, mid)) <= tokenCap) lo = mid
     else hi = mid - 1
   }
-  // Backing off a surrogate pair only removes a character, never adds tokens.
-  return surrogateSafeEnd(body, lo)
+  for (let end = lo; end > 0; end = Math.floor(end / 2)) {
+    while (surrogateSafeEnd(body, end) !== end) end = surrogateSafeEnd(body, end)
+    if (tokenizer.count(body.slice(0, end)) <= tokenCap) return end
+  }
+  return 0
 }
 
 /**
