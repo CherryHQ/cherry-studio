@@ -227,7 +227,10 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     await block.getByRole('button', { name: 'Preview', exact: true }).click()
     await expect(viewer).toBeVisible()
     expect(await viewer.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
-    await viewer.hover()
+    // Wheel input goes to whatever sits under the pointer, so aim at the measured centre of the preview.
+    const previewBox = await viewer.boundingBox()
+    if (!previewBox) throw new Error('MP-40 could not measure the code preview viewport')
+    await page.mouse.move(previewBox.x + previewBox.width / 2, previewBox.y + previewBox.height / 2)
     await page.mouse.wheel(0, 600)
     await expect.poll(() => viewer.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
     await attachScreenshot('MP-40 scrollable Python preview')
