@@ -2190,6 +2190,77 @@ describe('listModels — DotHoosh live catalog', () => {
     }
   })
 
+  const tenantProvider = (openaiBase: string, anthropicBase: string) =>
+    makeProvider({
+      id: 'dothoosh',
+      presetProviderId: 'dothoosh',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      settings: { extraHeaders: { 'X-Tenant': 'acme' } },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: openaiBase },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: anthropicBase }
+      }
+    })
+
+  it('reads the mirror through a www base on the keyless OpenAI route without provider headers', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(tenantProvider('https://www.dothoosh.com/gateway', 'https://gateway.dothoosh.com/anthropic'))
+
+    const openaiCall = aiSdkGetFromApiMock.mock.calls.find(([arg]) => !arg.url.includes('/anthropic/'))![0]
+    expect(openaiCall.url).toBe('https://www.dothoosh.com/gateway/v1/models')
+    for (const [arg] of aiSdkGetFromApiMock.mock.calls) {
+      expect(Object.keys(arg.headers ?? {})).toEqual([])
+    }
+  })
+
+  it.each([
+    [
+      'the keyless Anthropic route typed as the mirror URL',
+      'https://gateway.dothoosh.com',
+      'https://www.dothoosh.com/gateway/anthropic'
+    ],
+    [
+      'an upper-case mirror URL on the keyless OpenAI route',
+      'HTTPS://WWW.DOTHOOSH.COM/gateway',
+      'https://gateway.dothoosh.com/anthropic'
+    ]
+  ])('sends no provider headers to the mirror when %s', async (_label, openaiBase, anthropicBase) => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(tenantProvider(openaiBase, anthropicBase))
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(2)
+    for (const [arg] of aiSdkGetFromApiMock.mock.calls) {
+      expect(Object.keys(arg.headers ?? {})).toEqual([])
+    }
+  })
+
+  it('sends no provider headers to a mirror-host OpenAI route when a key is set, and still sends the key', async () => {
+    getRotatedApiKeyMock.mockReturnValue('dh-key')
+    answerByUrl()
+
+    await listModels(tenantProvider('https://www.dothoosh.com/gateway', 'https://gateway.dothoosh.com/anthropic'))
+
+    const openaiCall = aiSdkGetFromApiMock.mock.calls.find(([arg]) => !arg.url.includes('/anthropic/'))![0]
+    expect(openaiCall.headers).toMatchObject({ authorization: 'Bearer dh-key' })
+    expect(Object.keys(openaiCall.headers ?? {}).filter((key) => key !== 'authorization')).toEqual([])
+  })
+
+  it('keeps provider headers on a keyless custom relay for both routes', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(tenantProvider('https://relay.example', 'https://relay.example/anthropic'))
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(2)
+    for (const [arg] of aiSdkGetFromApiMock.mock.calls) {
+      expect(arg.headers).toMatchObject({ 'x-tenant': 'acme' })
+    }
+  })
+
   it('follows has_more on the Anthropic listing and lists every page', async () => {
     getRotatedApiKeyMock.mockReturnValue('dh-key')
     aiSdkGetFromApiMock.mockImplementation(async ({ url }: { url: string }) => {
