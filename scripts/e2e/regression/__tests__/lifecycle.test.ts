@@ -14,13 +14,24 @@ vi.mock('node:child_process', async (importOriginal) => ({
   execFileSync: execFileSyncMock
 }))
 
-import { type AppRecord, ensureProfile, stopOwnedApp } from '../lifecycle'
+import { type AppRecord, ensureProfile, stopOwnedApp, windowsShellDirectories } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 afterEach(() => {
   vi.useRealTimers()
   execFileSyncMock.mockReset()
   vi.restoreAllMocks()
+})
+
+describe('isolated profile environment', () => {
+  it('creates the Windows shell folders the native save dialog opens by default', () => {
+    const homeDirectory = join(tmpdir(), 'cherry-regression-home')
+    expect(windowsShellDirectories(homeDirectory)).toEqual([
+      join(homeDirectory, 'Desktop'),
+      join(homeDirectory, 'Documents'),
+      join(homeDirectory, 'Downloads')
+    ])
+  })
 })
 
 describe('owned application lifecycle', () => {

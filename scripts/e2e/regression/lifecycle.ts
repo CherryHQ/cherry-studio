@@ -106,6 +106,14 @@ async function waitForCdp(
   throw new Error(`Timed out waiting for Cherry Studio CDP: ${lastError}`)
 }
 
+/**
+ * Shell known folders Windows resolves from USERPROFILE. The native save dialog opens Desktop by
+ * default, so an isolated home without it reports "Location is not available" and writes nothing.
+ */
+export function windowsShellDirectories(homeDirectory: string): string[] {
+  return ['Desktop', 'Documents', 'Downloads'].map((name) => join(homeDirectory, name))
+}
+
 export function createProfileEnvironment(paths: RunPaths, profile: TestProfile): NodeJS.ProcessEnv {
   const homeDirectory = join(paths.profiles, profile, 'home')
   const tempDirectory = join(homeDirectory, 'temp')
@@ -118,6 +126,9 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
         }
       : {}
   for (const directory of Object.values(windowsDirectories)) mkdirSync(directory, { recursive: true })
+  if (process.platform === 'win32') {
+    for (const directory of windowsShellDirectories(homeDirectory)) mkdirSync(directory, { recursive: true })
+  }
   return {
     ...process.env,
     ...windowsDirectories,
