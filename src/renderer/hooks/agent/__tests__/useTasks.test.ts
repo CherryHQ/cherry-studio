@@ -10,6 +10,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import {
   TASKS_PAGE_LIMIT,
   useAllTasks,
+  useApproveTaskGuard,
   useCreateTask,
   useDeleteTask,
   useRunTask,
@@ -223,6 +224,51 @@ describe('useUpdateTask', () => {
     expect(updated).toBeUndefined()
     expect(toast.error).toHaveBeenCalled()
     expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('useApproveTaskGuard', () => {
+  it('sends the approve_guard command with the displayed command and returns the entity', async () => {
+    requestMock.mockResolvedValue(taskEntity)
+
+    const { result } = renderHook(() => useApproveTaskGuard())
+    const approved = await act(async () => result.current.approveTaskGuard('agent-1', 't-1', 'test -f /tmp/ok'))
+
+    expect(requestMock).toHaveBeenCalledWith('ai.agent.task.approve_guard', {
+      agentId: 'agent-1',
+      taskId: 't-1',
+      expectedCommand: 'test -f /tmp/ok'
+    })
+    expect(approved).toEqual(taskEntity)
+    expect(toast.success).toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledWith(TASK_READ_KEYS)
+  })
+
+  // Stale dialog: the main process rejects when the displayed command no longer
+  // matches. The hook must still refresh the task reads so a reopened dialog
+  // renders the command that is actually current.
+  it('toasts error, still invalidates, and returns undefined on stale expectedCommand', async () => {
+    requestMock.mockRejectedValue(
+      new Error('The command guard changed since it was displayed; review the new command before approving')
+    )
+
+    const { result } = renderHook(() => useApproveTaskGuard())
+    const approved = await act(async () => result.current.approveTaskGuard('agent-1', 't-1', 'old command'))
+
+    expect(approved).toBeUndefined()
+    expect(toast.error).toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledWith(TASK_READ_KEYS)
+  })
+
+  it('swallows a rejection from the failure-path invalidation', async () => {
+    requestMock.mockRejectedValue(new Error('stale'))
+    invalidateSpy.mockRejectedValueOnce(new Error('cache down'))
+
+    const { result } = renderHook(() => useApproveTaskGuard())
+    const approved = await act(async () => result.current.approveTaskGuard('agent-1', 't-1', 'old command'))
+
+    expect(approved).toBeUndefined()
+    expect(toast.error).toHaveBeenCalled()
   })
 })
 

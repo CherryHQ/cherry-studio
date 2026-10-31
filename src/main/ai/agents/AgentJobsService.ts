@@ -3,12 +3,18 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  clearTaskAdmission,
+  writeLastExecutedRunStartedAt,
+  writeTaskAdmission,
   agentTaskService,
   clearMissedTask,
   HEARTBEAT_PROMPT_SENTINEL,
   isMissedTask,
   normalizeTaskSessionReuseRevision,
+  readLastExecutedRunStartedAt,
+  readTaskGuard,
   readTaskSessionReuse,
+  writeTaskGuardApproval,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -17,7 +23,7 @@ import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
-import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
+import type { ScheduledTaskEntity, TaskGuard } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -56,7 +62,12 @@ type AgentTaskJobInputTemplate = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  guard: TaskGuard
   reuseRevision: number
+}
+
+function guardsEqual(a: TaskGuard, b: TaskGuard): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
@@ -82,6 +93,7 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
     timeoutMinutes:
       typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace,
+    guard: readTaskGuard(template.guard),
     reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
   }
 }
@@ -242,7 +254,7 @@ export class AgentJobsService extends BaseService {
     if (!settled) logger.warn('Stopped with schedule work still in flight past the drain deadline')
   }
 
-  createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
+  createTask(agentId: string, form: AgentTaskForm, options?: { guardApprovedByUser?: boolean }): ScheduledTaskEntity {
     this.assertAgentIsActive(agentId)
     this.assertPromptNotReserved(form.prompt)
     this.assertNameNotReserved(form.name)
@@ -251,6 +263,22 @@ export class AgentJobsService extends BaseService {
 
     const jobManager = application.get('JobManager')
     const { id } = application.get('DbService').withWriteTx((tx) => {
+      // Reuse configuration lives in metadata; the sticky session itself is
+      // a constrained relation owned by AgentSessionService.
+      let metadata = writeTaskSessionReuse(undefined, {
+        enabled: form.reuseSession === true,
+        revision: 0
+      })
+      if (options?.guardApprovedByUser === true && form.guard?.type === 'command') {
+        // The settings form IS the approval surface: the user typed the exact
+        // command themselves, so persisting it records their approval. Agent
+        // paths (MCP cron) never pass this flag — their command guards stay
+        // pending until the user approves them in Settings.
+        metadata = writeTaskGuardApproval(metadata, {
+          command: form.guard.command,
+          approvedAt: new Date().toISOString()
+        })
+      }
       const created = jobManager.registerJobScheduleTx(tx, {
         type: AGENT_TASK_TYPE,
         name: form.name,
@@ -261,14 +289,10 @@ export class AgentJobsService extends BaseService {
           timeoutMinutes:
             form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_AGENT_TASK_TIMEOUT_MINUTES),
           workspace: form.workspace,
+          guard: form.guard ?? { type: 'always' },
           reuseRevision: 0
         },
-        // Reuse configuration lives in metadata; the sticky session itself is
-        // a constrained relation owned by AgentSessionService.
-        metadata: writeTaskSessionReuse(undefined, {
-          enabled: form.reuseSession === true,
-          revision: 0
-        }),
+        metadata,
         catchUpPolicy: { kind: 'skip-missed' }
       })
       if (channelIds.length > 0) {
@@ -285,7 +309,12 @@ export class AgentJobsService extends BaseService {
     return entity
   }
 
-  updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
+  updateTask(
+    agentId: string,
+    taskId: string,
+    patch: AgentTaskPatch,
+    options?: { guardApprovedByUser?: boolean }
+  ): ScheduledTaskEntity | null {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
     this.assertPromptNotReserved(patch.prompt)
@@ -302,10 +331,12 @@ export class AgentJobsService extends BaseService {
       schedulePatch.trigger = patch.trigger
     }
     const nextTimeoutMinutes = patch.timeoutMinutes === null ? 0 : (patch.timeoutMinutes ?? existing.timeoutMinutes)
+    const guardChanged = patch.guard !== undefined && !guardsEqual(patch.guard, existing.guard)
     const templateChanged =
       (patch.prompt !== undefined && patch.prompt !== existing.prompt) ||
       (patch.timeoutMinutes !== undefined && nextTimeoutMinutes !== existing.timeoutMinutes) ||
-      patch.workspace !== undefined
+      patch.workspace !== undefined ||
+      guardChanged
 
     const nextReuseEnabled = patch.reuseSession ?? existing.reuseSession
     const reuseChanged = patch.reuseSession !== undefined && patch.reuseSession !== existing.reuseSession
@@ -340,6 +371,20 @@ export class AgentJobsService extends BaseService {
         schedulePatch.metadata = clearMissedTask(schedulePatch.metadata ?? snapshot.metadata)
         schedulePatch.enabled = false
       }
+      if (guardChanged) {
+        // A guard edit invalidates any approval bound to the previous exact
+        // command. A user-origin save approves the new command in the same
+        // write (the form is the approval surface); an agent-origin edit drops
+        // the record and the new command stays pending until the user approves
+        // it. Same merge discipline as the reuse write above.
+        const nextGuard = patch.guard ?? existing.guard
+        schedulePatch.metadata = writeTaskGuardApproval(
+          schedulePatch.metadata ?? snapshot?.metadata,
+          options?.guardApprovedByUser === true && nextGuard.type === 'command'
+            ? { command: nextGuard.command, approvedAt: new Date().toISOString() }
+            : null
+        )
+      }
       if (templateChanged || reuseConfigChanged) {
         // The armed callback re-reads the row before each fire, so a template
         // write takes effect next fire without touching the timer.
@@ -348,6 +393,7 @@ export class AgentJobsService extends BaseService {
           prompt: patch.prompt ?? existing.prompt,
           timeoutMinutes: nextTimeoutMinutes,
           workspace: patch.workspace ?? existing.workspace,
+          guard: patch.guard ?? existing.guard,
           reuseRevision
         }
       }
@@ -538,6 +584,92 @@ export class AgentJobsService extends BaseService {
     })
     if (bound) agentTaskService.notifyReadModelChange([params.scheduleId])
     return bound
+  }
+
+  /**
+   * Persist the guard watermark when a scheduled run reaches the agent. Not
+   * part of the read model: the value only feeds fire-time guard evaluation.
+   */
+  // Admission semantics: the watermark advances when a run is ADMITTED, not when it
+  // completes. A post-admission failure that is never retried therefore consumes the
+  // change that admitted it - the F6 history filter narrows fallback evidence but does
+  // not change that; do not claim no unprocessed change can be consumed.
+  recordTaskExecutionStart(params: { scheduleId: string; startedAtMs: number; jobId: string }): void {
+    // Read-modify-write inside one write transaction: overlapping admissions
+    // (per-agent queue, concurrency three) and the recovered-baseline persist
+    // below serialize here, so neither can clobber the other's watermark or
+    // admission membership.
+    application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
+      if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+      application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
+        metadata: writeTaskAdmission(snapshot.metadata, params.startedAtMs, params.jobId)
+      })
+    })
+  }
+
+  /**
+   * Persist a guard baseline recovered from job history (legacy schedules
+   * predating the durable watermark). Job rows are pruned by hourly GC; once
+   * the newest executed row disappears, the recovered baseline reads null and
+   * the guard reruns an unchanged file. Never lowers or replaces a watermark
+   * a concurrent admission already advanced past the candidate.
+   */
+  persistRecoveredTaskBaseline(params: { scheduleId: string; baselineMs: number }): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
+      if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+      const current = readLastExecutedRunStartedAt(snapshot.metadata)
+      if (current !== null && current >= params.baselineMs) return
+      application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
+        metadata: writeLastExecutedRunStartedAt(snapshot.metadata, params.baselineMs)
+      })
+    })
+  }
+
+  /**
+   * Drop a job from the admitted set once its terminal status is durable
+   * (handler `onSettled`). A job the runtime could still replay keeps its
+   * membership, or its replay would re-face the guard against its own
+   * watermark and be converted into a completed skip.
+   */
+  clearTaskAdmission(params: { scheduleId: string; jobId: string }): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
+      if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+      application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
+        metadata: clearTaskAdmission(snapshot.metadata, params.jobId)
+      })
+    })
+  }
+
+  /**
+   * Record the user's approval of a `command` guard (`ai.agent.task.approve_guard`).
+   * `expectedCommand` is the exact string the user saw and approved; a mismatch
+   * means the guard changed under the open dialog, so nothing is approved.
+   */
+  approveTaskGuardCommand(agentId: string, taskId: string, expectedCommand: string): ScheduledTaskEntity | null {
+    const existing = this.getActiveTask(agentId, taskId)
+    if (!existing) return null
+    if (existing.guard.type !== 'command') {
+      throw new Error(`Task ${taskId} has no command guard to approve`)
+    }
+    if (existing.guard.command !== expectedCommand) {
+      throw new Error('The command guard changed since it was displayed; review the new command before approving')
+    }
+    const jobManager = application.get('JobManager')
+    application.get('DbService').withWriteTx((tx) => {
+      const snapshot = jobScheduleService.getByIdTx(tx, taskId)
+      jobManager.updateJobScheduleTx(tx, taskId, {
+        metadata: writeTaskGuardApproval(snapshot?.metadata, {
+          command: expectedCommand,
+          approvedAt: new Date().toISOString()
+        })
+      })
+    })
+    agentTaskService.notifyReadModelChange([taskId])
+    logger.info('Command guard approved', { taskId, agentId })
+    return this.getActiveTask(agentId, taskId)
   }
 
   // Plain Errors on purpose: no renderer branch consumes an agent/channel

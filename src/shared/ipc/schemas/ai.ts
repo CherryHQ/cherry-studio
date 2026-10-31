@@ -19,6 +19,7 @@ import {
   AgentEntitySchema,
   AgentSkillIdSetSchema,
   ScheduledTaskEntitySchema,
+  TaskGuardSchema,
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
 import {
@@ -98,6 +99,8 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /** Fire-time precondition; omitted means `always` (on update, omitted keeps the current guard). */
+  guard: TaskGuardSchema.optional(),
   /**
    * Continue one sticky session across fires instead of creating a fresh one.
    * Defaults to off. To start a clean conversation, disable and save, then
@@ -507,6 +510,13 @@ export const aiRequestSchemas = {
     // No caller reads the trigger result, so the route is void (see ipc-migration-guide.md).
     input: agentTaskRefSchema,
     output: z.void()
+  }),
+  'ai.agent.task.approve_guard': defineRoute({
+    input: agentTaskRefSchema.extend({
+      /** Exact command string the user saw and approved; a stale dialog approves nothing. */
+      expectedCommand: z.string().min(1)
+    }),
+    output: ScheduledTaskEntitySchema
   })
 }
 

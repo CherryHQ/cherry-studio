@@ -78,6 +78,7 @@ import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import {
   useAllTasks,
+  useApproveTaskGuard,
   useCreateTask,
   useDeleteTask,
   useRunTask,
@@ -227,7 +228,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
             completed: t('agent.tasks.logs.completed'),
             running: t('agent.tasks.logs.running'),
             failed: t('agent.tasks.logs.failed'),
-            cancelled: t('agent.tasks.logs.cancelled')
+            cancelled: t('agent.tasks.logs.cancelled'),
+            skipped: t('agent.tasks.logs.skipped')
           }
           return (
             <Badge variant={value === 'failed' ? 'destructive' : value === 'running' ? 'secondary' : 'outline'}>
@@ -316,6 +318,7 @@ const TaskDetail: FC<{
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
 }> = ({ task, agents, onBack, onUpdate, onDelete, onRun, onToggleStatus }) => {
+  const guardCommand = task.guard.type === 'command' ? task.guard.command : null
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
@@ -336,6 +339,8 @@ const TaskDetail: FC<{
   const hasUndeliverableChannel = selectedChannels.some((channel) => !channel.hasActiveChatIds)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [guardApproveOpen, setGuardApproveOpen] = useState(false)
+  const { approveTaskGuard } = useApproveTaskGuard()
   const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
   useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
@@ -398,6 +403,33 @@ const TaskDetail: FC<{
       label: t('agent.tasks.channels.label'),
       value: selectedChannels.length > 0 ? selectedChannels.map((channel) => channel.name).join(', ') : t('common.none')
     },
+    ...(task.guard.type === 'command'
+      ? [
+          {
+            label: t('agent.tasks.guard.label'),
+            value: (
+              <RowFlex className="items-center gap-2">
+                <code className="line-clamp-2 break-all text-xs">{task.guard.command}</code>
+                {task.guardApproval === null ? (
+                  <>
+                    <Badge variant="secondary">{t('agent.tasks.guard.pendingApproval')}</Badge>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0"
+                      onClick={() => setGuardApproveOpen(true)}>
+                      {t('agent.tasks.guard.approve')}
+                    </Button>
+                  </>
+                ) : (
+                  <Badge variant="outline">{t('agent.tasks.guard.approved')}</Badge>
+                )}
+              </RowFlex>
+            )
+          }
+        ]
+      : []),
     { label: t('agent.tasks.lastRun'), value: formatDateTime(task.lastRun) },
     { label: t('agent.tasks.nextRun'), value: formatDateTime(task.nextRun) }
   ]
@@ -535,6 +567,23 @@ const TaskDetail: FC<{
         destructive
         onConfirm={() => onDelete(task.id)}
       />
+
+      {guardCommand !== null && (
+        <ConfirmDialog
+          open={guardApproveOpen}
+          onOpenChange={setGuardApproveOpen}
+          title={t('agent.tasks.guard.approveConfirmTitle')}
+          description={t('agent.tasks.guard.approveConfirmBody')}
+          content={
+            <code className="block max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-xs">
+              {guardCommand}
+            </code>
+          }
+          confirmText={t('agent.tasks.guard.approve')}
+          cancelText={t('agent.tasks.cancel')}
+          onConfirm={() => void approveTaskGuard(task.agentId, task.id, guardCommand)}
+        />
+      )}
     </SettingsContentColumn>
   )
 }

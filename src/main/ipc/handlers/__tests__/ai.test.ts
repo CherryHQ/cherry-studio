@@ -96,6 +96,7 @@ const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
   updateTask: vi.fn(),
+  approveTaskGuardCommand: vi.fn(),
   pauseTask: vi.fn(),
   resumeTask: vi.fn(),
   deleteTask: vi.fn(),
@@ -783,7 +784,7 @@ describe('aiHandlers — agent task commands', () => {
     const result = await aiHandlers['ai.agent.task.create']({ agentId: 'agent-1', ...(form as object) } as never, ctx)
 
     expect(agentJobsService.createTask).toHaveBeenCalledTimes(1)
-    expect(agentJobsService.createTask).toHaveBeenCalledWith('agent-1', form)
+    expect(agentJobsService.createTask).toHaveBeenCalledWith('agent-1', form, { guardApprovedByUser: true })
     expect(result).toBe(taskEntity)
   })
 
@@ -812,7 +813,7 @@ describe('aiHandlers — agent task commands', () => {
     const patch = { name: 'renamed' }
 
     const result = await aiHandlers['ai.agent.task.update']({ agentId: 'agent-1', taskId: 'task-1', patch }, ctx)
-    expect(agentJobsService.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', patch)
+    expect(agentJobsService.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', patch, { guardApprovedByUser: true })
     expect(result).toBe(taskEntity)
 
     agentJobsService.updateTask.mockReturnValueOnce(null)
@@ -835,6 +836,47 @@ describe('aiHandlers — agent task commands', () => {
 
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_TRIGGER_INVALID)
+  })
+
+  it('approve_guard delegates with the displayed command and returns the entity', async () => {
+    agentJobsService.approveTaskGuardCommand.mockReturnValue(taskEntity)
+
+    const result = await aiHandlers['ai.agent.task.approve_guard'](
+      { agentId: 'agent-1', taskId: 'task-1', expectedCommand: 'test -f /tmp/ok' },
+      ctx
+    )
+
+    expect(agentJobsService.approveTaskGuardCommand).toHaveBeenCalledWith('agent-1', 'task-1', 'test -f /tmp/ok')
+    expect(result).toBe(taskEntity)
+  })
+
+  it('approve_guard maps a missing task to AI_AGENT_TASK_NOT_FOUND', async () => {
+    agentJobsService.approveTaskGuardCommand.mockReturnValue(null)
+
+    const error = await aiHandlers['ai.agent.task.approve_guard'](
+      { agentId: 'agent-1', taskId: 'gone', expectedCommand: 'true' },
+      ctx
+    ).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+
+  // Stale-dialog guard: the plain stale-command Error must reach the renderer
+  // unflattened enough for the toast to show its message; it is deliberately
+  // NOT translated to a domain code (no renderer branch consumes one).
+  it('approve_guard propagates a stale expectedCommand rejection', async () => {
+    agentJobsService.approveTaskGuardCommand.mockImplementation(() => {
+      throw new Error('The command guard changed since it was displayed; review the new command before approving')
+    })
+
+    const error = await aiHandlers['ai.agent.task.approve_guard'](
+      { agentId: 'agent-1', taskId: 'task-1', expectedCommand: 'old command' },
+      ctx
+    ).catch((e) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toContain('command guard changed since it was displayed')
   })
 
   it('pause / resume delegate and map null to AI_AGENT_TASK_NOT_FOUND', async () => {

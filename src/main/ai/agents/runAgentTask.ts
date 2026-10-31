@@ -29,6 +29,10 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  readAdmittedRunJobIds,
+  readLastExecutedRunJobId,
+  readLastExecutedRunStartedAt,
+  readTaskGuardApproval,
   HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
@@ -40,11 +44,13 @@ import { loggerService } from '@logger'
 import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
+import { evaluateTaskGuard } from '@main/ai/agents/taskGuard'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { TaskGuard } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -54,6 +60,8 @@ export type AgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace?: AgentSessionWorkspaceSource
+  /** Fire-time precondition; absent on rows written before guards existed. */
+  guard?: TaskGuard
   /** Reuse-config epoch captured when this job was enqueued. */
   reuseRevision: number
 }
@@ -61,6 +69,8 @@ export type AgentTaskInput = {
 export type AgentTaskOutput = {
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
+  /** Set when a guard stopped the run before any agent turn; the run log shows `skipped`. */
+  skipped?: true
 }
 
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
@@ -135,6 +145,31 @@ function resolveTaskSession(params: {
     })
   }
   return session
+}
+
+/**
+ * Start time of the newest earlier run of this schedule that actually reached
+ * the agent. Job history is disposable (hourly GC prunes terminal rows by TTL
+ * and count), so the durable watermark lives in schedule metadata; the history
+ * scan remains as a fallback for schedules that predate it.
+ */
+function findLastExecutedRunStart(scheduleId: string, currentJobId: string): number | null {
+  for (const job of jobService.list({ scheduleId })) {
+    if (job.id === currentJobId || !job.startedAt) continue
+    // Positive execution evidence only: a completed run whose result is not a
+    // skip marker actually reached the agent. `startedAt` alone is not proof —
+    // a first attempt whose session creation fails before admission would
+    // otherwise become the baseline and skip the unprocessed file after repair.
+    if (job.status !== 'completed') continue
+    const output = job.output as { skipped?: boolean; result?: string } | null
+    if (output?.skipped === true) continue
+    // Legacy rows predate `output.skipped`: their busy/guard skips survive only
+    // as a `Skipped (…)` result marker, which is likewise not execution evidence.
+    if (typeof output?.result === 'string' && output.result.startsWith('Skipped (')) continue
+    const startedMs = Date.parse(job.startedAt)
+    if (Number.isFinite(startedMs)) return startedMs
+  }
+  return null
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -221,6 +256,65 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       '---',
       content
     ].join('\n')
+  }
+
+  if (!isHeartbeat && ctx.input.guard && ctx.input.guard.type !== 'always') {
+    // Shell authorization gate: a command guard reaches main-process `exec`, so
+    // it runs only after the user approved that exact command string. Agent
+    // paths (MCP cron) can persist the guard but can never write the approval
+    // record — without this check an agent with Bash disabled could still
+    // execute host commands by scheduling a guard. Fail closed: the fire skips
+    // (visibly, in the run log) until approval lands.
+    if (ctx.input.guard.type === 'command') {
+      const approval = readTaskGuardApproval(scheduleSnapshot?.metadata)
+      if (approval?.command !== ctx.input.guard.command) {
+        logger.debug('Task skipped: command guard pending user approval', { agentId, scheduleId })
+        return {
+          result:
+            'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.',
+          skipped: true
+        }
+      }
+    }
+    // Crash recovery replays the same job under `recovery: 'retry'`. Admission
+    // was already persisted for that job (watermark + jobId are written when a
+    // run reaches the agent), so the replay must not re-face the guard against
+    // its own watermark — an unchanged file would otherwise convert recovery
+    // into a completed skip and drop the unfinished work. New scheduled fires
+    // (different jobId) still evaluate the guard normally.
+    // Membership covers overlapping admissions: with B admitted while A was
+    // unfinished, the single slot names B, but A's replay is still a replay.
+    // The slot equality remains for schedules admitted before the set existed.
+    const isRecoveryReplay =
+      scheduleId !== null &&
+      (readAdmittedRunJobIds(scheduleSnapshot?.metadata).includes(ctx.jobId) ||
+        readLastExecutedRunJobId(scheduleSnapshot?.metadata) === ctx.jobId)
+    if (!isRecoveryReplay) {
+      const metadataBaseline = scheduleId ? readLastExecutedRunStartedAt(scheduleSnapshot?.metadata) : null
+      const recoveredBaseline =
+        scheduleId && metadataBaseline === null ? findLastExecutedRunStart(scheduleId, ctx.jobId) : null
+      const lastRunStartedAt = metadataBaseline ?? recoveredBaseline
+      const outcome = await evaluateTaskGuard(ctx.input.guard, { lastRunStartedAt, signal: ctx.signal })
+      if (!outcome.proceed) {
+        // A history-derived baseline disappears with the row when job GC
+        // prunes it; persist it so the unchanged file stays skipped instead of
+        // starting an agent turn after pruning.
+        if (scheduleId && recoveredBaseline !== null) {
+          try {
+            application
+              .get('AgentJobsService')
+              .persistRecoveredTaskBaseline({ scheduleId, baselineMs: recoveredBaseline })
+          } catch (error) {
+            logger.warn('Failed to persist the recovered guard baseline', {
+              scheduleId,
+              error: (error as Error).message
+            })
+          }
+        }
+        logger.debug('Task skipped by guard', { agentId, scheduleId, reason: outcome.reason })
+        return { result: `Skipped (guard: ${outcome.reason})`, skipped: true }
+      }
+    }
   }
 
   const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)
@@ -338,7 +432,44 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         trustedNotifyChannels,
         requireIdle: { expectedAgentId: agentId }
       })
-      if (started.mode === 'started') break
+      if (started.mode === 'started') {
+        // The run reached the agent: advance the durable guard watermark.
+        if (scheduleId) {
+          const startedMs = jobSnapshot?.startedAt ? Date.parse(jobSnapshot.startedAt) : Number.NaN
+          try {
+            application.get('AgentJobsService').recordTaskExecutionStart({
+              scheduleId,
+              startedAtMs: Number.isFinite(startedMs) ? startedMs : Date.now(),
+              jobId: ctx.jobId
+            })
+          } catch (admissionError) {
+            // The stream is live but the admission bookkeeping failed and the
+            // job is about to fail: nothing else would cancel this run, and
+            // because the write transaction rolled back (SQLite is atomic) the
+            // watermark never advanced, so a recovery replay WILL re-face the
+            // guard and re-run the work. Stop the orphaned stream and await
+            // its durable teardown before settling the job, or the replay
+            // could overlap it (duplicate execution). Listeners come off
+            // first: the run is dead either way, and `complete()` must not
+            // settle `executionDone` for a run whose admission never landed.
+            completionActive = false
+            const manager = application.get('AiStreamManager')
+            for (const listener of channelListeners) manager.removeListener(topicId, listener.id)
+            manager.removeListener(topicId, sentinel.id)
+            try {
+              await manager.abortAndDrain(topicId, 'task-admission-failed')
+            } catch (drainError) {
+              logger.warn('Failed to drain the task run after an admission bookkeeping failure', {
+                scheduleId,
+                topicId,
+                error: drainError instanceof Error ? drainError.message : String(drainError)
+              })
+            }
+            throw admissionError
+          }
+        }
+        break
+      }
       if (runSignal.aborted) {
         completionActive = false
         const reason = runSignal.reason
@@ -346,7 +477,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
-        return { result: 'Skipped (session busy)' }
+        // A busy skip never reached the agent: mark it skipped so it neither
+        // displays as an executed run nor advances the guard watermark.
+        return { result: 'Skipped (session busy)', skipped: true }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
