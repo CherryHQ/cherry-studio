@@ -1336,7 +1336,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const child = useAgentChildProjection(
     meta.sessionId ?? '',
     tab?.toolCallId,
-    active && !!meta.sessionId && meta.runtimeType === 'pi'
+    active && !!meta.sessionId && (meta.runtimeType === 'pi' || meta.runtimeType === 'pi-durable')
   )
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)

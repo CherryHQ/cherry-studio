@@ -233,7 +233,7 @@ patchedDependencies:
   '@earendil-works/pi-agent-core@1.4.0': 473b3d3cb72ce126cf7b8e28961f9512776ce4398c30666e0ee6adc18e9ac6ee
   '@earendil-works/pi-ai@1.4.0': 4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9
   '@earendil-works/pi-coding-agent@1.4.0': 68be665a0a9f9980b1e06171c7c4fd4466c7507276befc523d8e05f41cb2c7cb
-  '@earendil-works/pi-durable@1.4.0': 5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91
+  '@earendil-works/pi-durable@1.4.0': eb060b5a0add9989d84d1a375ad1135e9c2145e793406c787b321f441b2c8dbb
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
@@ -274,6 +274,9 @@ importers:
       '@cherrystudio/agent-runtime-pi':
         specifier: workspace:*
         version: link:packages/agent-runtime-pi
+      '@cherrystudio/agent-runtime-pi-durable':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-pi-durable
       '@cherrystudio/computer-use':
         specifier: 0.1.9
         version: 0.1.9
@@ -298,12 +301,15 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 1.4.0
         version: 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-codemode':
+        specifier: 1.4.0
+        version: 1.4.0
       '@earendil-works/pi-coding-agent':
         specifier: 1.4.0
         version: 1.4.0(patch_hash=68be665a0a9f9980b1e06171c7c4fd4466c7507276befc523d8e05f41cb2c7cb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-durable':
         specifier: 1.4.0
-        version: 1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+        version: 1.4.0(patch_hash=eb060b5a0add9989d84d1a375ad1135e9c2145e793406c787b321f441b2c8dbb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@firecrawl/anydoc':
         specifier: 0.2.4
         version: 0.2.4
@@ -533,9 +539,6 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:packages/agent-runtime
-      '@cherrystudio/agent-runtime-pi-durable':
-        specifier: workspace:*
-        version: link:packages/agent-runtime-pi-durable
       '@cherrystudio/ai-core':
         specifier: workspace:*
         version: link:packages/aiCore
@@ -1719,6 +1722,9 @@ importers:
 
   packages/agent-runtime-pi-durable:
     dependencies:
+      '@cherrystudio/agent-behavior':
+        specifier: workspace:*
+        version: link:../agent-behavior
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
@@ -1731,7 +1737,7 @@ importers:
         version: 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-durable':
         specifier: 1.4.0
-        version: 1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+        version: 1.4.0(patch_hash=eb060b5a0add9989d84d1a375ad1135e9c2145e793406c787b321f441b2c8dbb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -17711,7 +17717,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-durable@1.4.0(patch_hash=eb060b5a0add9989d84d1a375ad1135e9c2145e793406c787b321f441b2c8dbb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@earendil-works/chord': 1.4.0
       '@earendil-works/pi-ai': 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
@@ -17729,7 +17735,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-durable@1.4.0(patch_hash=eb060b5a0add9989d84d1a375ad1135e9c2145e793406c787b321f441b2c8dbb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@earendil-works/chord': 1.4.0
       '@earendil-works/pi-ai': 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)

@@ -71,6 +71,7 @@
   "backup.restore.failed": "還原失敗",
   "backup.restore.retry": "備份未能還原。已保留原有資料。請重新嘗試還原。",
   "chat.conversation.new": "新對話",
+  "common.agent_compaction_unchanged": "未寫入摘要，對話內容保持不變。",
   "common.channel_available_commands": "可用指令：",
   "common.channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
   "common.channel_error": "錯誤：{{error}}",

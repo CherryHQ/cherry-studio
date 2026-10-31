@@ -13,7 +13,7 @@ import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import type { OperationResult } from '@cherrystudio/agent-runtime'
+import { runtimeId, type OperationResult } from '@cherrystudio/agent-runtime'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -24,16 +24,13 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
 import {
-  confirmPiContext,
   createDurableBackend,
   createDurableContext,
-  createPiContext,
-  loadPiSession,
   openDurableBackend,
   openDurableStorage,
-  openNativeContext,
-  openPiBackend
-} from '../nativeContext'
+  prepareDurableRoot
+} from '../durableNativeContext'
+import { confirmPiContext, createPiContext, loadPiSession, openNativeContext, openPiBackend } from '../nativeContext'
 import { observeNativeThread, reconcileDurableMessage } from '../nativeSubmission'
 
 function confirmed<T>(result: OperationResult<T>): T {
@@ -101,6 +98,31 @@ describe('native context storage and reconciliation', () => {
     cleanup.push(() => runtime.shutdown())
     return { backend, runtime, options, faux }
   }
+
+  it('recovers the Durable root identity after native creation but before the product binding commits', async () => {
+    const intent = contexts.prepareDurableBranch(sessionId)
+    const root = await prepareDurableRoot(intent.id)
+    const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
+    const runtime = confirmed(
+      await createPiDurableRuntime({
+        backendId: runtimeId(intent.backendId),
+        openStorage: async () => root.storage,
+        harness: { models: createModels(), registry: createRegistry() }
+      })
+    )
+    cleanup.push(() => runtime.shutdown())
+    const handle = confirmed(await runtime.create({ ownership: { kind: 'ownerless' }, init: root.init }))
+    expect(contexts.context(intent.id).nativeThreadId).toBeNull()
+    await runtime.shutdown()
+    const recovered = await prepareDurableRoot(intent.id)
+    try {
+      expect(recovered.nativeId).toBe(handle.thread.id)
+      expect(contexts.context(intent.id).nativeThreadId).toBe(handle.thread.id)
+      expect((await recovered.storage.scanConversations({}, 100, undefined, BACKGROUND_CONTEXT)).items).toHaveLength(1)
+    } finally {
+      await recovered.storage.close(BACKGROUND_CONTEXT)
+    }
+  })
 
   it('keeps an unflushed Pi context unresolved, then strictly restores its original native history', async () => {
     const { backend, runtime, options, faux } = await pi()

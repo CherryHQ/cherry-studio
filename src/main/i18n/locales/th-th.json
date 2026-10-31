@@ -71,6 +71,7 @@
   "backup.restore.failed": "กู้คืนไม่สำเร็จ",
   "backup.restore.retry": "ยังไม่ได้กู้คืนข้อมูลจากแบ็คอัพนี้ ข้อมูลเดิมของคุณถูกเก็บไว้ตามเดิม โปรดลองกู้คืนอีกครั้ง",
   "chat.conversation.new": "แชทใหม่",
+  "common.agent_compaction_unchanged": "ไม่ได้บันทึกสรุป การสนทนาไม่มีการเปลี่ยนแปลง",
   "common.channel_available_commands": "คำสั่งที่ใช้ได้:",
   "common.channel_command_processing_error": "⚠️ เกิดข้อผิดพลาดในการประมวลผลคำสั่ง โปรดลองอีกครั้งภายหลัง",
   "common.channel_error": "ข้อผิดพลาด: {{error}}",

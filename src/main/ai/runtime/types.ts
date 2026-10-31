@@ -252,6 +252,8 @@ export interface AgentRuntimeConnection {
     { snapshot(): AgentChildView; subscribe(listener: (update: AgentChildUpdate) => void): () => void } | undefined
   >
   messageChild?(contextId: string, text: string): Promise<void>
+  /** Stop foreground work before retiring its owner; shutdown alone may preserve durable work. */
+  interrupt?(): Promise<void>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

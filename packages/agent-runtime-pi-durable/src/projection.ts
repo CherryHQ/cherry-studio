@@ -4,13 +4,14 @@ import type { ConversationView, ConversationWatch, LiveState } from '@earendil-w
 
 import { ThreadFeed, type Thread } from '@cherrystudio/agent-runtime'
 
-import { ContentProjection } from './content'
+import { ContentProjection, entryMessageId } from './content'
 
 /** One normalized source shared by every access to a native conversation. */
 export class DurableProjection {
   readonly feed: ThreadFeed
   private readonly epoch = randomUUID()
-  private transientIds = new Set<string>()
+  private previews = new Map<string, { task: number; after: number }>()
+  readonly aliases: Record<string, string> = {}
 
   constructor(
     readonly ref: Thread,
@@ -46,27 +47,42 @@ export class DurableProjection {
   private update(view: ConversationView): void {
     const live = view.docs['pi.live'] as LiveState | undefined
     const content = new ContentProjection()
-    const transientIds = new Set<string>()
+    const previews: typeof this.previews = new Map()
     for (const entry of view.entries) content.entry(entry)
+    const after = view.entries.reduce((latest, entry) => Math.max(latest, entry.id), 0)
     const generation = live?.generation
     const nextLiveId =
-      generation?.message && live?.run
-        ? `live:${this.epoch}:${live.run.taskId}:${generation.attempt}:${view.entries.at(-1)?.id ?? 0}`
-        : undefined
+      generation?.message && live?.run ? `live:${this.epoch}:${live.run.taskId}:${generation.attempt}` : undefined
     if (generation?.message && nextLiveId) {
-      transientIds.add(nextLiveId)
+      previews.set(nextLiveId, { task: live!.run!.taskId, after })
       content.message(generation.message, nextLiveId, 'partial')
     }
     for (const slot of live?.tools ?? []) {
       if (slot.output !== undefined && slot.taskId && !slot.entry) {
-        const id = `tool-progress:${this.epoch}:${slot.taskId}`
-        transientIds.add(id)
         content.progress(slot.callId, slot.output)
       }
     }
-    if ([...this.transientIds].some((id) => !transientIds.has(id)))
-      this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
-    this.transientIds = transientIds
+    let reset = false
+    for (const [id, preview] of this.previews) {
+      if (previews.has(id)) {
+        previews.set(id, preview)
+        continue
+      }
+      const candidates = view.entries.flatMap((entry) =>
+        entry.byTaskId === preview.task && entry.id > preview.after
+          ? (entry.model ?? []).flatMap((message, index) => (message.role === 'assistant' ? [{ entry, index }] : []))
+          : []
+      )
+      if (candidates.length !== 1) {
+        reset = true
+        continue
+      }
+      const { entry, index } = candidates[0]
+      const committed = entryMessageId(entry, index)
+      this.aliases[committed] = id
+    }
+    if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
+    this.previews = previews
     this.feed.publish({
       ...this.feed.snapshot,
       messages: content.messages,

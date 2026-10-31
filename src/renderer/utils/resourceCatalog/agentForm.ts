@@ -109,7 +109,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
     disabledTools: (agent?.disabledTools ?? []).map((name) =>
-      agent?.type === 'pi' ? normalizePiDisabledToolId(name) : name
+      agent?.type === 'pi' || agent?.type === 'pi-durable' ? normalizePiDisabledToolId(name) : name
     ),
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
