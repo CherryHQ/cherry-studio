@@ -587,46 +587,10 @@ describe('filesystem MCP security', () => {
         )(...args)
       })
 
-      // TEMPORARY windows-2022 CI diagnostic (revert with the fix): on the
-      // windows runner this create fails containment with "outside the
-      // configured workspace root: real/created.txt" while Linux/macOS pass.
-      // Log the canonicalized forms so the path-form mismatch is visible.
-      try {
-        await Promise.all([
-          handleWriteTool({ file_path: 'link/created.txt', content: 'first' }, workspaceRoot),
-          handleWriteTool({ file_path: 'real/created.txt', content: 'second' }, workspaceRoot)
-        ])
-      } catch (error) {
-        const { canonicalizePathForContainment } = await import('@main/utils/file')
-        const canon = async (p: string) => {
-          try {
-            return await canonicalizePathForContainment(p, { allowMissing: true })
-          } catch (e) {
-            return String(e)
-          }
-        }
-        const rp = async (p: string) => {
-          try {
-            return await fs.realpath(p)
-          } catch (e) {
-            return String(e)
-          }
-        }
-        console.error(
-          '[windows-alias-diag]',
-          JSON.stringify({
-            tempEnv: process.env.TEMP,
-            workspaceRoot,
-            rootCanon: await canon(path.resolve(workspaceRoot)),
-            linkCreateCanon: await canon(path.join(workspaceRoot, 'link', 'created.txt')),
-            realCreateCanon: await canon(path.join(workspaceRoot, 'real', 'created.txt')),
-            rootRealpath: await rp(workspaceRoot),
-            realDirRealpath: await rp(realDir),
-            linkRealpath: await rp(path.join(workspaceRoot, 'link'))
-          })
-        )
-        throw error
-      }
+      await Promise.all([
+        handleWriteTool({ file_path: 'link/created.txt', content: 'first' }, workspaceRoot),
+        handleWriteTool({ file_path: 'real/created.txt', content: 'second' }, workspaceRoot)
+      ])
 
       await expect(fs.readFile(path.join(realDir, 'created.txt'), 'utf-8')).resolves.toBe('second')
     })

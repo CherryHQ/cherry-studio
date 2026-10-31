@@ -52,22 +52,11 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
 
   // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
-  const relativeToRoot =
-    resolvedRoot && resolvedPath
-      ? path.relative(normalizeRealpathResult(resolvedRoot), normalizeRealpathResult(resolvedPath))
-      : undefined
-  if (!resolvedRoot || !resolvedPath || isOutsidePath(relativeToRoot as string)) {
-    // TEMPORARY windows-2022 CI diagnostic (revert with the fix): identify
-    // which condition denied admission and the raw forms at failure time.
-    logger.warn('[validate-diag]', {
-      requestedPath,
-      root,
-      absolute,
-      condition: !resolvedRoot ? 'root-undefined' : !resolvedPath ? 'path-undefined' : 'outside',
-      resolvedRoot,
-      resolvedPath,
-      relativeToRoot
-    })
+  if (
+    !resolvedRoot ||
+    !resolvedPath ||
+    isOutsidePath(path.relative(normalizeRealpathResult(resolvedRoot), normalizeRealpathResult(resolvedPath)))
+  ) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
