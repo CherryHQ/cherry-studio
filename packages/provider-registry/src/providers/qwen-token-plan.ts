@@ -1,4 +1,5 @@
 import type { ReasoningSupport } from '../schemas/model'
+import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { effortChatWire, highMaxSupport, qwen38ChatWire, qwen38Support, qwenChatWire } from './qwenFamily'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
@@ -8,6 +9,33 @@ const responsesEffortWire = modeWire(
   { off: 'none', auto: EFFORT, effort: EFFORT },
   { autoEffort: 'xhigh' }
 )
+
+const anthropicWire: ReasoningWireProfile = modeWire('thinking.type', {
+  off: 'disabled',
+  auto: 'enabled',
+  effort: 'enabled'
+})
+
+const kimiSupport: ReasoningSupport = {
+  controls: [{ kind: 'toggle', default: false }]
+}
+
+const kimiChatWire: ReasoningWireProfile = modeWire('enable_thinking', { off: false, auto: true })
+
+const glm53Support: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['high', 'max'], default: 'high' }],
+  defaultEffort: 'high',
+  supportedEfforts: ['high', 'max']
+}
+
+const glm53ChatWire: ReasoningWireProfile = {
+  effort: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'reasoning_effort', value: { source: 'effort' } }
+    ]
+  }
+}
 
 // Same Responses `reasoning.effort` ladder as Bailian — seven tiers defaulting to `xhigh`
 // (help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses); dashscope's constants are module-local.
@@ -33,7 +61,8 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic'
+      baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic',
+      reasoningFormat: { type: 'anthropic', wire: anthropicWire }
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
@@ -152,19 +181,25 @@ export default defineProvider({
     {
       apiModelId: 'kimi-k2.6',
       modelId: 'kimi-k2-6',
-      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      reasoningContracts: {
+        'openai-chat-completions': { support: kimiSupport, wire: kimiChatWire }
+      }
     },
     {
       apiModelId: 'kimi-k2.5',
       modelId: 'kimi-k2-5',
-      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      reasoningContracts: {
+        'openai-chat-completions': { support: kimiSupport, wire: kimiChatWire }
+      }
     },
     {
       apiModelId: 'glm-5.3',
       modelId: 'glm-5-3',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
+        'openai-chat-completions': { support: glm53Support, wire: glm53ChatWire }
       }
     },
     {

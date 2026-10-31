@@ -275,7 +275,8 @@ describe('qwen-token-plan endpoint matrix', () => {
     expect(provider('qwen-token-plan').endpointConfigs).toEqual({
       'anthropic-messages': {
         adapterFamily: 'anthropic',
-        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic'
+        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic',
+        reasoningFormat: { type: 'anthropic', wire: expect.any(Object) }
       },
       'openai-chat-completions': {
         adapterFamily: 'openai-compatible',
@@ -292,6 +293,54 @@ describe('qwen-token-plan endpoint matrix', () => {
 
   it('defaults chat to Chat Completions', () => {
     expect(provider('qwen-token-plan').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
+
+  it('keeps GLM-5.3 thinking enabled with only high and max effort', () => {
+    const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.modelId === 'glm-5-3')
+    const contract = entry?.reasoningContracts?.['openai-chat-completions']
+
+    expect(contract?.support).toEqual({
+      controls: [{ kind: 'effort', values: ['high', 'max'], default: 'high' }],
+      defaultEffort: 'high',
+      supportedEfforts: ['high', 'max']
+    })
+    expect(contract?.wire).toEqual({
+      effort: {
+        operations: [
+          { target: 'enable_thinking', value: { source: 'literal', value: true } },
+          { target: 'reasoning_effort', value: { source: 'effort' } }
+        ]
+      }
+    })
+    expect(contract?.wire).not.toHaveProperty('off')
+  })
+
+  it('uses only the binary thinking switch for Anthropic Messages on every model', () => {
+    const format = provider('qwen-token-plan').endpointConfigs?.['anthropic-messages']?.reasoningFormat
+
+    expect(format).toEqual({
+      type: 'anthropic',
+      wire: {
+        off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
+        auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
+        effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
+      }
+    })
+    expect(
+      providerModelEntries(provider('qwen-token-plan')).filter((o) => o.reasoningContracts?.['anthropic-messages'])
+    ).toEqual([])
+  })
+
+  it.each(['kimi-k2-6', 'kimi-k2-5'])('explicitly toggles thinking from off by default for %s', (modelId) => {
+    const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.modelId === modelId)
+
+    expect(entry?.reasoningContracts?.['openai-chat-completions']).toEqual({
+      support: { controls: [{ kind: 'toggle', default: false }] },
+      wire: {
+        off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+        auto: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: true } }] }
+      }
+    })
   })
 
   it.each(['qwen3-8-max', 'qwen3-8-flash', 'qwen3-7-max', 'qwen3-7-plus', 'qwen3-6-plus', 'qwen3-6-flash'])(

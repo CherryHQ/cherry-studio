@@ -1844,7 +1844,45 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic"
+          "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+          "reasoningFormat": {
+            "type": "anthropic",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
@@ -2880,5 +2918,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "095fac6d7cc7a674"
+  "version": "d09c1a642c5d2741"
 }

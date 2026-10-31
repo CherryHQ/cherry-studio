@@ -38198,11 +38198,11 @@
               {
                 "default": "high",
                 "kind": "effort",
-                "values": ["none", "high", "max"]
+                "values": ["high", "max"]
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["none", "high", "max"]
+            "supportedEfforts": ["high", "max"]
           },
           "wire": {
             "effort": {
@@ -38218,6 +38218,37 @@
                   "target": "reasoning_effort",
                   "value": {
                     "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "kimi-k2.5",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "kimi-k2-5",
+      "providerId": "qwen-token-plan",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": false,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
                   }
                 }
               ]
@@ -38238,16 +38269,46 @@
       }
     },
     {
-      "apiModelId": "kimi-k2.5",
-      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
-      "modelId": "kimi-k2-5",
-      "providerId": "qwen-token-plan"
-    },
-    {
       "apiModelId": "kimi-k2.6",
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "kimi-k2-6",
-      "providerId": "qwen-token-plan"
+      "providerId": "qwen-token-plan",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": false,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "kimi-k2.7-code",
@@ -45680,5 +45741,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e5c3a2ef9be046e7"
+  "version": "db4f520cb2307206"
 }
