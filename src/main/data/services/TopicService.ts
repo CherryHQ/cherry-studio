@@ -475,6 +475,7 @@ export class TopicService {
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     pinService.notifyPurged()
+    if (options.permanent === true) followupQueueService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id })
   }
@@ -491,6 +492,7 @@ export class TopicService {
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
+    if (options.permanent === true && deletedIds.length > 0) followupQueueService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Moved topics to Recycle Bin', {
       count: deletedIds.length

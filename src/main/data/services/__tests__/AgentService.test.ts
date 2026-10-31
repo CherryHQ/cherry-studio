@@ -15,6 +15,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { followupQueueTable } from '@data/db/schemas/followupQueue'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
@@ -1621,6 +1622,100 @@ describe('AgentService', () => {
         { endpoint: '/agent-sessions/latest' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    it('purges session queue rows and notifies consumers on permanent delete', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_queue_001' })
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values([{ id: 'workspace-agent-queue-1', name: 'Workspace 1', path: '/tmp/agent-queue-1', orderKey: 'a0' }])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-queue-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-queue-1',
+          orderKey: 'a0'
+        }
+      ])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'agent-session:session-queue-with-agent',
+          draft: { text: 'queued', tokens: [] },
+          payload: { text: 'queued', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      notifyDataApiDataChangeMock.mockClear()
+
+      // Trashing keeps the queue restorable; only the permanent delete purges.
+      const trashed = agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(trashed.deleted).toBe(true)
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(1)
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentService.deleteAgent(id, { permanent: true })
+
+      expect(result.deleted).toBe(true)
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+        { endpoint: '/followup-queue-states' }
+      ])
+    })
+
+    it('keeps closed queue receipts of retained sessions on permanent delete', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_queue_002' })
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values([{ id: 'workspace-agent-queue-2', name: 'Workspace 2', path: '/tmp/agent-queue-2', orderKey: 'a0' }])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-receipt-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-queue-2',
+          orderKey: 'a0'
+        }
+      ])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '44444444-4444-7444-8444-444444444444',
+          scopeKey: 'agent-session:session-receipt-with-agent',
+          draft: { text: 'delivered', tokens: [] },
+          payload: { text: 'delivered', userMessageParts: [] },
+          status: 'closed',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '55555555-5555-7555-8555-555555555555',
+          scopeKey: 'agent-session:session-receipt-with-agent',
+          draft: { text: 'queued', tokens: [] },
+          payload: { text: 'queued', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      agentService.deleteAgent(id)
+      const result = agentService.deleteAgent(id, { permanent: true })
+
+      expect(result.deleted).toBe(true)
+      // Live rows are purged (retained sessions can never drain them), but the
+      // closed receipt survives so a late same-id enqueue retry settles
+      // against it instead of resurrecting the delivered item.
+      const rows = await dbh.db.select().from(followupQueueTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: '44444444-4444-7444-8444-444444444444', status: 'closed' })
     })
 
     it('clears a task binding before permanent agent deletion detaches its session', async () => {
