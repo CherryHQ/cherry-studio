@@ -2586,7 +2586,18 @@ export class AgentSessionRuntimeService extends BaseService {
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
       }
-      if (!this.deliverRuntimeChunk(entry, chunk)) {
+      if (
+        !this.deliverRuntimeChunk(entry, {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          dynamic: true,
+          providerExecuted: true,
+          ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
+        }) ||
+        !this.deliverRuntimeChunk(entry, chunk)
+      ) {
         logger.warn('Live tool approval request lost its turn stream', {
           sessionId: entry.sessionId,
           approvalId: request.approvalId
