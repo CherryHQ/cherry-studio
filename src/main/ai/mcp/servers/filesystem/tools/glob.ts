@@ -25,7 +25,7 @@ export const globToolDefinition = {
 // Handler implementation
 export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseDir: string): Promise<CallToolResult> {
   const searchPath = args.path || baseDir
-  const validPath = await validatePath(searchPath, baseDir)
+  const validPath = await validatePath(searchPath, baseDir, true)
 
   // Verify the search directory exists
   try {
@@ -69,15 +69,14 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
   logger.debug('Ripgrep result', {
     ok: rgResult.ok,
     exitCode: rgResult.exitCode,
-    stdoutLength: rgResult.stdout.length,
-    stdoutPreview: rgResult.stdout.slice(0, 500)
+    stdoutLength: rgResult.stdout.length
   })
 
   // Process results if we have stdout content
   // Exit code 2 can indicate partial errors (e.g., permission denied on some dirs) but still have valid results
   if (rgResult.ok && rgResult.stdout.length > 0) {
     const lines = rgResult.stdout.split('\n').filter(Boolean)
-    logger.debug('Parsed lines from ripgrep', { lineCount: lines.length, lines })
+    logger.debug('Parsed lines from ripgrep', { lineCount: lines.length })
 
     for (const line of lines) {
       if (files.length >= MAX_FILES_LIMIT) {

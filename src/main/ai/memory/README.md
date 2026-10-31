@@ -1,22 +1,29 @@
 # 记忆存储底座
 
-本模块实现 [共享记忆 Spec](../../../../.agents/notes/proposed/feature/2026-10-29-shared-memory.md) 的文件提交、访问权限、入口加载、编辑和最近操作恢复。运行时受控文件工具和 Dreaming 尚未接入，旧 FACT/JOURNAL 尚未切换。
+本模块实现 [共享记忆 Spec](../../../../.agents/notes/proposed/feature/2026-10-29-shared-memory.md) 的文件提交、访问权限、入口加载、编辑和最近操作恢复。Pi 已接入受控读取、写入和编辑；行为验证尚未完成。Dreaming 尚未接入，旧 FACT/JOURNAL 尚未切换。
 
 - `MemoryStore.ts`：一个作用域由一个实例串行提交。调用方身份使用主进程持有的 `MemoryAccess` 对象，不能从模型或 IPC 输入反序列化。
 - `MemoryService.ts`：生命周期服务。按作用域复用存储实例，绑定调用方凭据，提供暂停、排空和恢复失效入口。
 - `memoryAuthority.ts`：从主进程会话、实体配置和受管理窗口确定权限。每次操作重查数据库，不接受模型提供的身份。
 - `memoryPrompt.ts`：按当前权限读取入口，标明截断和未加载的主题。加载后释放会话，组装引用前再次检查权限。
+- `memoryTarget.ts`：识别请求路径和真实目标中的受管理文件，阻止通过普通文件工具读取恢复备份。
 - `MemoryEditorService.ts`：把编辑会话绑定到主窗口。窗口关闭后释放会话，其他窗口不能复用凭据。
 - `memoryFiles.ts`：管理文件白名单、真实路径、完整读取、容量检查和文件替换。
 - `memoryBackups.ts`：保存原始字节、预期哈希和逐项结果。备份位于活动目录之外。
 
 服务从路径注册表获取根目录。私有范围检查现有 Agent 目录。`read()` 返回完整正文与调用方绑定的凭据。`entry()` 可能截断，因此不返回编辑凭据。
 
-Agent 的 `configuration.shared_memory_enabled` 缺省为开启。持久助手的 `settings.enableSharedMemory` 缺省为关闭。临时、辅助和普通 headless 助手不开放记忆。渠道 Agent 只能访问所属私有范围。编辑器要求真实的主窗口身份。运行时受控文件工具接入后，必须在轮次结束时释放 `MemorySession`。
+Agent 的 `configuration.shared_memory_enabled` 缺省为开启。持久助手的 `settings.enableSharedMemory` 缺省为关闭。临时、辅助和普通 headless 助手不开放记忆。渠道 Agent 只能访问所属私有范围。编辑器要求真实的主窗口身份。Pi 在新轮次、结束和关闭时释放文件会话及读取关联。
 
 关闭共享开关后，旧会话凭据不会因重新开启而恢复。实体数据服务只发布权限失效事件，文件操作仍归本模块。完整备份已接入 `pause()` 和 `drainInFlight()`；恢复提交启动日志后调用 `invalidateAll()`，保持暂停直到重启。
 
-Pi 在每次模型请求前替换 `cherry_memory` 系统区块，保留其他提示词和工具声明。Claude Code 在 `UserPromptSubmit` 和 `SessionStart` 提供完整引用，空引用撤回先前内容。已发送的上下文不能收回。助手入口仅接受持久聊天 owner 创建的主进程 `memoryContext`，每次 `prepareStep` 重新读取，覆盖压缩后的请求。原生工具写入保护尚未接入，入口引用不代表获得保存能力。
+Pi 在每次模型请求前替换 `cherry_memory` 系统区块，保留其他提示词和工具声明。Claude Code 在 `UserPromptSubmit` 和 `SessionStart` 提供完整引用，空引用撤回先前内容。已发送的上下文不能收回。助手入口仅接受持久聊天 owner 创建的主进程 `memoryContext`，每次 `prepareStep` 重新读取，覆盖压缩后的请求。入口引用不代表获得保存能力。
+
+Pi 的原生 `read`、`write`、`edit` 在执行入口调用原有审批器。受管理完整读取返回 `memoryReceipt`，修改必须显式带回同一轮次、同一文件的凭据。编辑继续使用 SDK 的替换算法，但最终保存归 `MemoryService`。审批带准确的完整提案；流式审批先刷新工具输入，再发出审批请求，卡片以只读正文展示拟保存内容和文件名。模型传入的预览字段不作为审批依据。审批中编辑输入后需重新发起操作，不能沿用旧提案。最终替换前检查权限、取消、工具开关和审批模式。普通文件继续走原工具。
+
+Claude Code 的原生钩子尚不能提供完整执行接管，因此拒绝命中受管理记忆的原生文件操作和包含它的搜索。没有调用方身份的内置 filesystem MCP 也拒绝受管理目标、恢复备份和相关目录操作。Shell 与外部工具仍不属于保护范围。当前未提供原生删除、重命名或主题搜索能力；这些能力不能宣称已完成验收。
+
+Pi 的可选 grep、find 和 ls 也拒绝受管理目标及其祖先目录，防止 SDK 动态启用这些工具后绕过主题读取边界。审批中改动搜索目标后再次检查。
 
 设置页 `/settings/memory` 不展示文件区域，不列举或读取正文，不提供 Agent 私有记忆入口。“恢复备份”和“清除全局记忆”分别使用独立的 `SettingRow`，右侧为“恢复”和红色“清除”按钮，操作前确认。清空窗口不列文件，后台 token 仍绑定文件集和版本；恢复窗口保留列表。恢复成功显示“已保存”，清空成功显示“清除成功”；各自显示在对应操作行的按钮左侧，并与按钮垂直居中对齐。操作使用 `memory.*` IpcApi；表单中的“使用共享记忆”沿用实体 DataApi，与其他基础字段使用相同布局和小尺寸开关。Agent 的该行放在整个心跳检测区域之后。状态只来自实际提交结果，不展示索引、条目计数或容量，不自动重试写入。
 

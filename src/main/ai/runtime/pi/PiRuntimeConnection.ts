@@ -72,6 +72,7 @@ import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
+import { createPiMemoryTools, PI_MEMORY_FILE_TOOLS } from './memoryTools'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
@@ -161,6 +162,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   )
   private mcpServerSnapshots: PiConnectionSnapshot['mcpServerSnapshots'] = new Map()
   private session?: AgentSession
+  private memoryTools?: ReturnType<typeof createPiMemoryTools>
   private unsubscribe?: () => void
   private resumeToken?: string
   private lastStopReason?: string
@@ -334,7 +336,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         getPermissionMode: () => this.permissionMode,
         isDisabled: (toolName: string) => this.isToolDisabled(toolName),
-        additionalReadOnlyRoots: additionalSkillPaths,
+        additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.memory.data')],
+        executionOwnedTools: PI_MEMORY_FILE_TOOLS,
         // Approval follows the mounted server set; disabledTools still blocks at fire-time.
         autoApprovedTools: new Set(
           mountedPolicies
@@ -357,6 +360,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
         )
       }
+      const memoryTools = createPiMemoryTools(pi, approvalContext)
+      this.memoryTools = memoryTools
       const mcpServers = buildAgentMcpServers(
         session,
         agent,
@@ -388,6 +393,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
           createPiApprovalExtension(approvalContext),
+          memoryTools.extension,
           createPiIdentityExtension(agentDataPath, this.input.sessionId),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
@@ -434,7 +440,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         model,
         // Patched pi-ai includes ultra; the SDK's transitive agent-core type still ends at max.
         thinkingLevel: resolvePiThinkingLevel(this.input.reasoningEffort) as CreateAgentSessionOptions['thinkingLevel'],
-        customTools: [managedBashTool],
+        customTools: [managedBashTool, ...memoryTools.tools],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
         ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
@@ -447,6 +453,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.maybeEmitResumeToken()
       return this
     } catch (error) {
+      this.memoryTools?.dispose()
       const cleanup = await Promise.allSettled([
         this.session?.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
       ])
@@ -632,6 +639,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   close(): Promise<void> {
     this.closed = true
+    this.memoryTools?.dispose()
     return (this.closePromise ??= this.finishClose())
   }
 
@@ -710,6 +718,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private finishPromptRun(error?: unknown): void {
     if (this.closed) return
+    this.memoryTools?.dispose()
     this.promptRunActive = false
     this.awaitingPromptStart = false
     this.maybeEmitResumeToken()

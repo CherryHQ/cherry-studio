@@ -24,7 +24,7 @@ export async function handleDeleteTool(
   baseDir: string
 ): Promise<CallToolResult> {
   const targetPath = args.path
-  const validPath = await validatePath(targetPath, baseDir)
+  const validPath = await validatePath(targetPath, baseDir, true)
   const recursive = args.recursive || false
 
   // Check if path exists and get stats

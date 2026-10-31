@@ -1,13 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
+import { findNextPendingPermissionRequest } from '../permissionRequestComposerRequest'
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
@@ -89,6 +91,61 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  it.each(['edit', 'write'] as const)(
+    'shows the complete streamed memory proposal before deciding a Pi %s',
+    async (toolName) => {
+      const user = userEvent.setup()
+      const onRespond = vi.fn().mockResolvedValue(undefined)
+      const content = 'Prefer detailed answers.\nKeep this unchanged exception.\n'
+      const original = {
+        path: 'C:/Memory/MEMORY.md',
+        content: 'Uncomputed input',
+        edits: [{ oldText: 'Short', newText: 'Detailed' }]
+      }
+      const input = { ...original, memoryPreview: [{ path: 'MEMORY.md', expectedHash: 'a'.repeat(64), content }] }
+      const chunks: UIMessageChunk[] = [
+        {
+          type: 'tool-input-available',
+          toolCallId: 'memory-call',
+          toolName,
+          input: original,
+          dynamic: true,
+          providerExecuted: true
+        },
+        {
+          type: 'tool-input-available',
+          toolCallId: 'memory-call',
+          toolName,
+          input,
+          dynamic: true,
+          providerExecuted: true,
+          providerMetadata: { cherry: { transport: 'pi-agent', toolName } }
+        },
+        { type: 'tool-approval-request', toolCallId: 'memory-call', approvalId: 'memory-approval' }
+      ]
+      let message: CherryUIMessage | undefined
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream })) message = snapshot
+      const request = findNextPendingPermissionRequest({ message: message!.parts })!
+      render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+      expect(screen.getByText('C:/Memory/MEMORY.md')).toBeVisible()
+      const proposal = screen.getByRole('textbox', { name: 'MEMORY.md' })
+      expect(proposal).toBeVisible()
+      expect(proposal).toHaveValue(content)
+      expect(proposal).toHaveAttribute('readonly')
+      expect(screen.queryByText('Uncomputed input')).not.toBeInTheDocument()
+      expect(onRespond).not.toHaveBeenCalled()
+      const approved = toolName === 'edit'
+      await user.click(screen.getByRole('button', { name: approved ? 'Allow' : 'Deny' }))
+      expect(onRespond).toHaveBeenCalledWith({ match: request.match, approved })
+    }
+  )
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 

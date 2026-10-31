@@ -101,7 +101,12 @@ also require their own lifecycle and product decisions.
 Live scoped-memory entries are delivered by the runtime hooks described in
 [Agent Prompt Layers](./agent-prompt-layers.md). They are separate from the
 connection's stable prompt and legacy identity files. Entry loading does not
-grant controlled file-write capability.
+grant controlled file-write capability. Pi's `memoryTools.ts` separately replaces
+native `read`, `write`, and `edit` execution for managed memory. It retains the
+normal approval policy for other files and releases memory receipts at turn end.
+Claude Code rejects native file operations that touch managed memory; its hook
+plane does not provide the same execution ownership. Neither path claims Shell
+or third-party tools are sandboxed by memory policy.
 
 `src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
 
