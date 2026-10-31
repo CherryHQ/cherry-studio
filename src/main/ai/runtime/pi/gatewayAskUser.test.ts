@@ -1,4 +1,13 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import {
+  createTestSession,
+  finish,
+  hostStore,
+  plain,
+  scriptedModel,
+  gatewayModel,
+  textParts
+} from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -8,7 +17,6 @@ import {
   createAskUserExtension
 } from '@cherrystudio/agent-runtime-pi'
 
-import { createTestSession, finish, hostStore, plain, scriptedModel, gatewayModel, textParts } from './gatewaySupport'
 import { textOf, toolOutputs, toolResults } from './gatewayToolResults'
 
 const question = (text: string, extra: Record<string, unknown> = {}) => ({
