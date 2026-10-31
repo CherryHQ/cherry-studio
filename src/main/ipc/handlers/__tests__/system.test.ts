@@ -57,6 +57,8 @@ vi.mock('@main/utils/screenCapturePermission', () => ({
   openScreenCaptureSettings: openScreenCaptureSettingsMock
 }))
 
+import { systemRequestSchemas } from '@shared/ipc/schemas/system'
+
 import { systemHandlers } from '../system'
 
 const navigation = createMockApplication().get('MainWindowService') as { openWebsite: (url: string) => Promise<void> }
@@ -164,9 +166,23 @@ describe('systemHandlers', () => {
     expect(navigation.openWebsite).toHaveBeenCalledWith('https://example.com')
   })
 
-  it('shell.open_website drops an unsafe URL without calling shell.openExternal', async () => {
+  it('shell.open_website delegates unsafe URL rejection to main without calling shell.openExternal', async () => {
     isSafeMock.mockReturnValue(false)
     await systemHandlers['system.shell.open_website']('javascript:alert(1)', ctx('w1'))
+    expect(openExternalMock).not.toHaveBeenCalled()
+    expect(navigation.openWebsite).toHaveBeenCalledWith('javascript:alert(1)')
+  })
+})
+
+describe('external website input compatibility', () => {
+  it.each([
+    'https://example.test',
+    { url: 'obsidian://open?vault=Notes', options: { activate: false, workingDirectory: '/tmp', logUsage: true } }
+  ])('accepts and delegates %j with forced-external routing', async (input) => {
+    const parsed = systemRequestSchemas['system.shell.open_external_website'].input.parse(input)
+    await systemHandlers['system.shell.open_external_website'](parsed, ctx('w1'))
+    const { url, options } = typeof input === 'string' ? { url: input, options: undefined } : input
+    expect(navigation.openWebsite).toHaveBeenCalledExactlyOnceWith(url, true, options)
     expect(openExternalMock).not.toHaveBeenCalled()
   })
 })

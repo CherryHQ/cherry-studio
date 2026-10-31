@@ -70,6 +70,16 @@ describe('agent-memory MCP server', () => {
     expect(result.tools[0].name).toBe('memory')
   })
 
+  it('delivers agent-specific memory instructions during MCP initialization', async () => {
+    const client = await createServer()
+
+    expect(client.getInstructions()).toContain(path.join(memoryPath, 'FACT.md'))
+    expect(client.getInstructions()).toContain(path.join(memoryPath, 'JOURNAL.jsonl'))
+    expect(client.getInstructions()).toContain('update replaces')
+    expect(client.getInstructions()).toContain('append records')
+    expect(client.getInstructions()).toContain('search retrieves')
+  })
+
   it('updates FACT.md atomically', async () => {
     const result = await callTool(createServer(), { action: 'update', content: '# Facts\n\nNew knowledge' })
 

@@ -27,16 +27,18 @@ type ResizablePanelProps = Partial<
     | 'collapsible'
     | 'defaultSize'
     | 'disabled'
+    | 'groupResizeBehavior'
     | 'id'
     | 'maxSize'
     | 'minSize'
     | 'onResize'
+    | 'panelRef'
     | 'style'
   >
 >
 
 type ResizableHandleProps = Partial<
-  Pick<PrimitiveSeparatorProps, 'children' | 'className' | 'disabled' | 'id' | 'style'>
+  Pick<PrimitiveSeparatorProps, 'aria-label' | 'children' | 'className' | 'disabled' | 'id' | 'style'>
 > & {
   withHandle?: boolean
 }
@@ -91,4 +93,6 @@ function ResizableHandle({ children, className, withHandle, ...props }: Resizabl
 }
 
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
-export type { ResizableHandleProps, ResizablePanelGroupProps, ResizablePanelProps }
+type ResizablePanelHandle = ResizablePrimitive.PanelImperativeHandle
+
+export type { ResizableHandleProps, ResizablePanelGroupProps, ResizablePanelHandle, ResizablePanelProps }

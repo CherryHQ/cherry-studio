@@ -187,7 +187,9 @@ export class PiStreamAdapter {
       this.sink.enqueue({
         type: 'tool-output-error',
         toolCallId,
-        errorText: stringifyResult(result),
+        errorText: stringifyResult(
+          toolName.startsWith('mcp__automation__') ? projectPiToolOutput(toolName, result) : result
+        ),
         dynamic: true,
         providerExecuted: true,
         providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
@@ -257,6 +259,8 @@ function projectPiToolOutput(toolName: string, result: unknown): unknown {
   }
   if (toolName.startsWith('mcp__')) {
     const mcpResult = toolResult.structuredContent as { structuredContent?: unknown } | undefined
+    // The automation card renders the REPL's content blocks; its structuredContent is metadata only.
+    if (toolName.startsWith('mcp__automation__')) return mcpResult ?? toolResult
     return mcpResult?.structuredContent ?? unwrapMcpContent(toolResult)
   }
   return toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult

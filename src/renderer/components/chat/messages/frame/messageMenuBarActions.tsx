@@ -13,7 +13,8 @@ import {
   Save,
   Split,
   ThumbsUp,
-  Upload
+  Upload,
+  Volume2
 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 
@@ -23,17 +24,19 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE } from '@renderer/components/chat/messages/types'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { readMessageAloud } from '@renderer/services/voice'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
-import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
+import { getTranslationFromParts, hasTextParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -212,6 +215,20 @@ registerCommand('message.copy', async ({ actions, mainTextContent, messageParts,
   setCopied(true)
 })
 
+registerCommand('message.readAloud', async ({ message, messageParts }) => {
+  const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+
+  await readMessageAloud({
+    messageId: message.id,
+    parts: messageParts,
+    ...(activeElement && {
+      focusOnClose: () => {
+        if (activeElement.isConnected) activeElement.focus()
+      }
+    })
+  })
+})
+
 registerCommand('message.edit', ({ message, startEditingMessage }) => {
   startEditingMessage?.(message.id)
 })
@@ -272,18 +289,25 @@ registerCommand('message.copyImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService } = await import('@renderer/services/ExportService')
     const messageContainerRef = getMessageCaptureRef(context)
-    await exportService.captureScrollableAsBlob(messageContainerRef, async (blob) => {
-      if (blob) {
-        await context.actions.copyImage?.(blob)
-      }
-    })
+    await exportService.captureScrollableAsBlob(
+      messageContainerRef,
+      async (blob) => {
+        if (blob) {
+          await context.actions.copyImage?.(blob)
+        }
+      },
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
   })
 })
 
 registerCommand('message.exportImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
-    const imageData = await exportService.captureScrollableAsDataUrl(getMessageCaptureRef(context))
+    const imageData = await exportService.captureScrollableAsDataUrl(
+      getMessageCaptureRef(context),
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
     const title = await getMessageTitle(context.messageForExport)
     if (!title || !imageData || !context.actions.saveImage) {
       context.actions.notifyError?.(context.t('message.error.unknown'))
@@ -355,6 +379,17 @@ registerToolbarAction({
   label: ({ t }) => t('common.copy'),
   icon: ({ copied }) => (copied ? <Check size={15} color="var(--primary)" /> : <CopyIcon size={15} />),
   availability: toolbarAvailability('copy', ({ actions }) => !!actions.copyText)
+})
+
+registerToolbarAction({
+  id: 'read-aloud',
+  commandId: 'message.readAloud',
+  label: ({ t }) => t('chat.message.read_aloud.label'),
+  icon: <Volume2 className="size-4.5" strokeWidth={1.75} />,
+  availability: ({ isAssistantMessage, isProcessing, message, messageParts }) => {
+    const visible = isAssistantMessage && message.status === 'success' && !isProcessing && hasTextParts(messageParts)
+    return { visible, enabled: visible }
+  }
 })
 
 registerToolbarAction({

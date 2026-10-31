@@ -1,3 +1,9 @@
 self-hosted-runner:
   labels:
     - windows-signing
+paths:
+  .github/workflows/qa-ondemand.yml:
+    ignore:
+      # TODO: Upgrade actionlint and remove this ignore once concurrency.queue support is released.
+      # Upstream fix: https://github.com/rhysd/actionlint/pull/654 (issue #657).
+      - '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'

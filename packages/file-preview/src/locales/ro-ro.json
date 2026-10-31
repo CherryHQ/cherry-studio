@@ -12,6 +12,8 @@
   "file_preview.pdf.page_number": "Numărul paginii",
   "file_preview.pdf.too_large.description": "O parte din acest PDF este prea mare pentru a fi previzualizată în siguranță în aplicație.",
   "file_preview.pdf.too_large.title": "Nu se poate previzualiza acest PDF",
+  "file_preview.powerpoint.zip_limit.description": "Acest fișier PowerPoint depășește limitele de previzualizare sigură ale aplicației.",
+  "file_preview.powerpoint.zip_limit.title": "Nu se poate previzualiza acest fișier PowerPoint",
   "file_preview.too_large.action": "Deschide cu aplicația implicită",
   "file_preview.too_large.description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
   "file_preview.too_large.title": "Fișier prea mare pentru previzualizare",

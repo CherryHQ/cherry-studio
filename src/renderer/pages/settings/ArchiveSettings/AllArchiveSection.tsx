@@ -1,5 +1,5 @@
 import { ListTodo, MessageSquare } from 'lucide-react'
-import { useMemo, useRef } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -34,18 +34,28 @@ const DOMAIN_PRESENTATION = {
 export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
   const { t } = useTranslation()
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/archives', {
-    limit: 50
+    limit: 50,
+    swrOptions: { revalidateOnMount: false, revalidateIfStale: false }
   })
   const entries = useInfiniteFlatItems(pages)
   const pendingActions = useRef(0)
-  const refreshArchive = async () => {
+  const refreshArchive = useCallback(async () => {
     if (pendingActions.current > 0) return
     try {
       await refresh()
     } catch (error) {
       logger.warn('Failed to refresh archive', error as Error)
     }
-  }
+  }, [refresh])
+  useLayoutEffect(() => {
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) void refreshArchive()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshArchive])
   useDataChange(['/topics', '/assistants', '/agents', '/agent-sessions', '/paintings', '/files/entries'], () => {
     void refreshArchive()
   })
@@ -108,7 +118,7 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
     <ArchiveSection
       {...props}
       items={items}
-      isLoading={isLoading}
+      isLoading={isLoading || (pages.length === 0 && !error)}
       error={error}
       onRetry={refresh}
       pagination={{ kind: 'cursor', hasMore: hasNext, isLoadingMore: isRefreshing, onLoadMore: loadNext }}

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useState } from 'react'
 
-import Scrollbar from '@renderer/components/Scrollbar'
+import { Scrollbar } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'

@@ -59,7 +59,7 @@ function useRoleLabel(role: MessageRole, isContextBoundary?: boolean) {
   if (isContextBoundary) return t('chat.message.new.context')
   if (role === 'user') return t('export.user')
   if (role === 'assistant') return t('export.assistant')
-  return t('assistants.tag.system')
+  return t('globalSearch.messageSearch.roles.system')
 }
 
 function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
@@ -69,7 +69,7 @@ function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
   if (status === 'pending') return t('common.loading')
   if (status === 'success') return t('common.completed')
   if (status === 'error') return t('common.error')
-  return t('agent.task.status.paused')
+  return t('agent.tasks.status.paused')
 }
 
 interface TopicMessageFlowNodePreviewCardProps {

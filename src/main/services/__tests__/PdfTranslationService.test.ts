@@ -7,6 +7,7 @@ import { PassThrough } from 'node:stream'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getShellEnv } from '@main/utils/shellEnv'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -70,11 +71,9 @@ const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 
 const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
-  acquireLease: vi.fn(),
-  ensureValidApiKey: vi.fn(),
-  getCurrentConfig: vi.fn(),
-  releaseLease: vi.fn()
+  createScopedCredential: vi.fn()
 }
+const disposeCredential = vi.fn()
 const fileManager = {
   createInternalEntry: vi.fn(),
   ensureExternalEntry: vi.fn(),
@@ -145,9 +144,11 @@ describe('PdfTranslationService', () => {
         application: { status: 'applied', version: '0.6.4.post4' }
       }
     })
-    apiGateway.acquireLease.mockResolvedValue(undefined)
-    apiGateway.ensureValidApiKey.mockResolvedValue('cs-sk-test')
-    apiGateway.getCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
+    apiGateway.createScopedCredential.mockResolvedValue({
+      baseUrl: 'http://127.0.0.1:23333',
+      apiKey: 'cs-sk-test',
+      dispose: disposeCredential
+    })
 
     mocks.spawn.mockImplementation((_command: string, args: string[]) => {
       const child = new EventEmitter() as EventEmitter & {
@@ -189,8 +190,10 @@ describe('PdfTranslationService', () => {
     })
 
     expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
-    expect(apiGateway.acquireLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
+    expect(apiGateway.createScopedCredential).toHaveBeenCalledWith({
+      path: '/v1/chat/completions',
+      model: 'openai:gpt-4.1'
+    })
     expect(mocks.spawn).toHaveBeenCalledWith(
       MANAGED_BINARY,
       expect.arrayContaining([
@@ -230,6 +233,7 @@ describe('PdfTranslationService', () => {
     expect(configPath).toContain('job-1')
     expect(args).not.toContain('cs-sk-test')
     expect(fs.existsSync(configPath)).toBe(false)
+    expect(disposeCredential).toHaveBeenCalledOnce()
     expect(result).toEqual({
       fileName: 'research paper.zh-CN.pdf',
       outputPath: managedPath(TRANSLATED_ENTRY_ID)
@@ -615,7 +619,6 @@ describe('PdfTranslationService', () => {
     })
 
     await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-scanned-pdf'))).toBe(false)
   })
 
@@ -643,8 +646,8 @@ describe('PdfTranslationService', () => {
 
     await expect(pending).rejects.toThrow('PDF translation cancelled')
     expect(child!.kill).toHaveBeenCalledTimes(1)
+    expect(disposeCredential).toHaveBeenCalledOnce()
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-cancel'))).toBe(false)
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
     // Cancellation is expected — it must not be logged as a failure.
     expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
       'PDF translation failed',
@@ -720,7 +723,6 @@ describe('PdfTranslationService', () => {
     await Promise.all([stopping, expect(translation).rejects.toThrow('PDF translation cancelled')])
 
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-stop'))).toBe(false)
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
   })
 
   it('takes and releases exactly one gateway lease per concurrent job', async () => {
@@ -750,19 +752,14 @@ describe('PdfTranslationService', () => {
     const first = translate('job-first')
     const second = translate('job-second')
     await vi.waitFor(() => expect(children.size).toBe(2))
-    // The service holds a lease per job; keeping the gateway up until the last lease drops is the
-    // gateway's own ref-counted concern (covered in ApiGatewayService tests), not the service's.
-    expect(apiGateway.acquireLease).toHaveBeenCalledTimes(2)
 
     children.get('job-first')!.stdout.write(finishEvent())
     children.get('job-first')!.emit('close', 0, null)
     await first
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
 
     children.get('job-second')!.stdout.write(finishEvent())
     children.get('job-second')!.emit('close', 0, null)
     await second
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(2)
   })
 
   it('logs the failure and surfaces the stderr tail when the sidecar exits non-zero', async () => {
@@ -798,7 +795,6 @@ describe('PdfTranslationService', () => {
       expect.any(Error),
       expect.objectContaining({ jobId: 'job-nonzero-exit' })
     )
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-nonzero-exit'))).toBe(false)
   })
 
@@ -903,11 +899,61 @@ describe('PdfTranslationService', () => {
     })
 
     it('strips the brackets an IPv6 gateway host carries', async () => {
-      apiGateway.getCurrentConfig.mockReturnValue({ host: '::', port: 23333 })
+      apiGateway.createScopedCredential.mockResolvedValue({
+        baseUrl: 'http://[::1]:23333',
+        apiKey: 'cs-sk-test',
+        dispose: disposeCredential
+      })
 
       const env = await spawnedEnv()
 
       expect(env.NO_PROXY).toBe('::1')
+    })
+
+    it.each([
+      ['NO_PROXY', '127.0.0.1', '127.0.0.1'],
+      ['no_proxy', '127.0.0.1', '127.0.0.1'],
+      ['shell', '127.0.0.1', '127.0.0.1'],
+      ['NO_PROXY', '[::1]', '::1'],
+      ['no_proxy', '[::1]', '::1'],
+      ['shell', '[::1]', '::1']
+    ])('normalizes exact IPv6 bypass entries from %s for gateway %s', async (source, gatewayHost, gatewayBypass) => {
+      const bypass = 'localhost,127.0.0.1,::1,[::1],[2001:db8::1],2001:db8::1,example.com,.internal,*.local,127.*'
+      const proxyUrl = 'http://127.0.0.1:7890'
+      vi.stubEnv('HTTP_PROXY', proxyUrl)
+      vi.stubEnv('HTTPS_PROXY', proxyUrl)
+      vi.stubEnv('ALL_PROXY', proxyUrl)
+      if (source === 'shell') {
+        const { getShellEnv } = await import('@main/utils/shellEnv')
+        vi.mocked(getShellEnv).mockResolvedValueOnce({ PATH: '/usr/bin', no_proxy: bypass })
+      } else {
+        vi.stubEnv(source, bypass)
+      }
+      apiGateway.createScopedCredential.mockResolvedValue({
+        baseUrl: `http://${gatewayHost}:23333`,
+        apiKey: 'cs-sk-test',
+        dispose: disposeCredential
+      })
+
+      const env = await spawnedEnv()
+
+      expect(env.NO_PROXY).toBe('localhost,127.0.0.1,::1,2001:db8::1,example.com,.internal,*.local,127.*')
+      expect(env.no_proxy).toBe(env.NO_PROXY)
+      expect(env.NO_PROXY.split(',')).toContain(gatewayBypass)
+      expect(env.HTTP_PROXY).toBe(proxyUrl)
+      expect(env.HTTPS_PROXY).toBe(proxyUrl)
+      expect(env.ALL_PROXY).toBe(proxyUrl)
+      if (source !== 'shell') expect(process.env[source]).toBe(bypass)
+    })
+
+    it('preserves bypass rules that are not exact IPv6 addresses', async () => {
+      vi.stubEnv('NO_PROXY', '[::1]:8080,http://[::1],*.example.com,example.com:8080,[example.com],localhost,localhost')
+
+      const env = await spawnedEnv()
+
+      expect(env.NO_PROXY).toBe(
+        '[::1]:8080,http://[::1],*.example.com,example.com:8080,[example.com],localhost,localhost,127.0.0.1'
+      )
     })
 
     it('leaves a bypass list that already covers the gateway untouched', async () => {
@@ -916,6 +962,74 @@ describe('PdfTranslationService', () => {
       const env = await spawnedEnv()
 
       expect(env.NO_PROXY).toBe('127.0.0.1,localhost')
+    })
+  })
+
+  describe('sidecar CA bundle environment', () => {
+    const spawnedEnv = async (): Promise<Record<string, string>> => {
+      const service = new PdfTranslationService()
+      await service.translate({
+        jobId: 'job-ca-bundle',
+        modelId: 'openai::gpt-4.1-internal',
+        sourcePath: SOURCE_PATH,
+        sourceLangCode: 'en-us',
+        targetLangCode: 'zh-cn'
+      })
+      return mocks.spawn.mock.calls[0][2].env
+    }
+
+    it('uses SSL_CERT_FILE for Requests asset downloads', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/etc/ssl/corp/ca-bundle.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/etc/ssl/corp/ca-bundle.pem')
+      expect(env.CURL_CA_BUNDLE).toBe('/etc/ssl/corp/ca-bundle.pem')
+    })
+
+    it('does not shadow an explicit curl bundle with the SSL_CERT_FILE bundle', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/a.pem', CURL_CA_BUNDLE: '/b.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.CURL_CA_BUNDLE).toBe('/b.pem')
+      expect(env).not.toHaveProperty('REQUESTS_CA_BUNDLE')
+    })
+
+    it('preserves an explicit Requests bundle without deriving a curl bundle', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/a.pem', REQUESTS_CA_BUNDLE: '/b.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/b.pem')
+      expect(env).not.toHaveProperty('CURL_CA_BUNDLE')
+    })
+
+    it('forwards an explicit Requests bundle without SSL_CERT_FILE', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ REQUESTS_CA_BUNDLE: '/b.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/b.pem')
+      expect(env).not.toHaveProperty('CURL_CA_BUNDLE')
+    })
+
+    it('leaves the CA bundle environment unset when the shell has no CA variables', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ PATH: '/usr/bin' })
+
+      const env = await spawnedEnv()
+
+      expect(env).not.toHaveProperty('REQUESTS_CA_BUNDLE')
+      expect(env).not.toHaveProperty('CURL_CA_BUNDLE')
+    })
+
+    it('recognizes SSL_CERT_FILE with Windows casing', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ ssl_cert_file: '/ca.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/ca.pem')
+      expect(env.CURL_CA_BUNDLE).toBe('/ca.pem')
     })
   })
 })

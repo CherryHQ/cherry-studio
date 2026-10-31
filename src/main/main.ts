@@ -24,6 +24,7 @@ import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
 import { runDataReset } from '@main/services/dataReset'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
+import { configureRemoteDebugging } from '@main/services/remoteDebugging'
 import { initSentry } from '@main/services/sentry'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 import { getApplicationId } from '@main/utils/appEdition'
@@ -32,6 +33,7 @@ import { getApplicationId } from '@main/utils/appEdition'
 resolveUserDataLocation()
 requireSingleInstance()
 configureChromiumFlags()
+configureRemoteDebugging()
 initCrashTelemetry()
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()

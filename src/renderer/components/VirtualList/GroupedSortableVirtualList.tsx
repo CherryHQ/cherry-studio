@@ -897,6 +897,29 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     return targets
   }, [getGroupId, getItemId, rows])
 
+  const groupIndicatorTargets = useMemo(() => {
+    const targets = new Map<UniqueIdentifier, GroupBoundaryIndicatorTargets<TGroup, TItem, THeader, TFooter>>()
+
+    for (const row of rows) {
+      const groupId = getGroupId(row.group, row.groupIndex)
+
+      if (row.type === 'group-header') {
+        targets.set(groupId, {
+          before: { position: 'before', row },
+          after: { position: 'after', row }
+        })
+        continue
+      }
+
+      const groupTargets = targets.get(groupId)
+      if (!groupTargets) continue
+
+      groupTargets.after = { position: 'after', row }
+    }
+
+    return targets
+  }, [getGroupId, rows])
+
   const groupBoundaryIndicatorTargets = useMemo(() => {
     const targets = new Map<UniqueIdentifier, GroupBoundaryIndicatorTargets<TGroup, TItem, THeader, TFooter>>()
 
@@ -1112,10 +1135,16 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       const isGroupDrag = activeDragState?.active !== undefined && !isItemDragData(activeDragState.active)
 
       if (isGroupDrag) {
-        const rowBoundaryId = getEffectiveGroupBoundaryId(row.group, row.groupIndex)
-        if (overDropState.targetGroupId !== rowBoundaryId) return null
+        const targetGroupId = overDropState.targetGroupId
+        const localExtent = groupIndicatorTargets.get(targetGroupId)
+        if (!localExtent) return null
 
-        const target = groupBoundaryIndicatorTargets.get(rowBoundaryId)?.[overDropState.position]
+        const headerRow = localExtent.before.row
+        const boundaryId = getEffectiveGroupBoundaryId(headerRow.group, headerRow.groupIndex)
+        const target =
+          boundaryId === targetGroupId
+            ? groupBoundaryIndicatorTargets.get(boundaryId)?.[overDropState.position]
+            : localExtent[overDropState.position]
         return target?.row === row ? target.position : null
       }
 
@@ -1138,6 +1167,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       getItemId,
       groupAppendIndicatorTargets,
       groupBoundaryIndicatorTargets,
+      groupIndicatorTargets,
       overDropState
     ]
   )

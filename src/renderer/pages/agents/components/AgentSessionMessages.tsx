@@ -28,6 +28,7 @@ const logger = loggerService.withContext('AgentSessionMessages')
 type Props = {
   agentId?: string
   sessionId: string
+  workspacePath?: string
   messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -47,6 +48,7 @@ type Props = {
   openBrowserUrl?: MessageListActions['openBrowserUrl']
   openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  previewInputFile?: MessageListActions['previewInputFile']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
@@ -56,6 +58,7 @@ type Props = {
 const AgentSessionMessages = ({
   agentId,
   sessionId,
+  workspacePath,
   messages,
   activeAgent,
   partsByMessageId,
@@ -72,6 +75,7 @@ const AgentSessionMessages = ({
   openBrowserUrl,
   openExternalUrl,
   openDiagnosticReport,
+  previewInputFile,
   deleteMessage,
   startEditing,
   editBusy,
@@ -155,12 +159,13 @@ const AgentSessionMessages = ({
     openExternalUrl,
     openDiagnosticReport,
     diagnosticReport,
+    previewInputFile,
     deleteMessage,
     startEditing,
     editBusy,
     respondToolApproval,
     messageNavigation,
-    workspacePath: session?.workspace?.path,
+    workspacePath: workspacePath ?? session?.workspace?.path,
     messageTail,
     afterMessages
   })

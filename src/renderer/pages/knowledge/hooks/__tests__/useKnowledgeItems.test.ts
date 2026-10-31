@@ -15,6 +15,7 @@ const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
     enabled,
     swrOptions: {
       refreshInterval: expect.any(Function),
+      keepPreviousData: false,
       revalidateAll: expect.any(Boolean)
     }
   })
