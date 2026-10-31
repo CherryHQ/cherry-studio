@@ -1,10 +1,18 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
+import {
+  createTestSession,
+  finish,
+  hostStore,
+  plain,
+  scriptedModel,
+  gatewayModel,
+  textParts
+} from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import { createTodoExtension } from '@cherrystudio/agent-runtime-pi'
 
-import { createTestSession, finish, hostStore, plain, scriptedModel, gatewayModel, textParts } from './gatewaySupport'
 import { textOf, toolOutputs, toolResults } from './gatewayToolResults'
 
 const todoCall = (id: string, todos: unknown): LanguageModelV3StreamPart[] => [
