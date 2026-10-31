@@ -32,6 +32,11 @@ export function isMcpToolDisabledBySource(server: McpServer, tool: McpPolicyTool
   return server.disabledTools?.some((value) => matchesMcpSourceToolRule(value, server, tool)) ?? false
 }
 
+/** A server-wide prompt rule cannot be changed by a per-tool approval editor. */
+export function isMcpAutoApprovalEnforcedBySource(server: McpServer): boolean {
+  return server.disabledAutoApproveTools?.includes(buildMcpWireWildcard(server.name)) ?? false
+}
+
 export function isMcpToolForcePromptBySource(server: McpServer, tool: McpPolicyTool): boolean {
   return server.disabledAutoApproveTools?.some((value) => matchesMcpSourceToolRule(value, server, tool)) ?? false
 }
