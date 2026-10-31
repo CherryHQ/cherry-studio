@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-20-web-core-page-bridge.md
+2026-10-20-web-core-page-bridge.md: 637c6c1b1136b3ffcfdde1f66a1806038a1d3930
+2026-10-20-web-core-page-bridge.zh.md: feeacbac8a0af48f97f2f4f195559aecea907a9e

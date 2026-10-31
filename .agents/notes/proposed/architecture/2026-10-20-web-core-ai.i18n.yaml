@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-20-web-core-ai.md
+2026-10-20-web-core-ai.md: 6cd1ae854301c6b6b7c9a038d9276590a333ec8e
+2026-10-20-web-core-ai.zh.md: 402c4b90277812afe36790a7cb1278cc1df47c9c
