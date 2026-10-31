@@ -1,4 +1,6 @@
 import {
+  Archive,
+  ArchiveRestore,
   ArrowRight,
   ChevronRight,
   Clock,
@@ -71,13 +73,16 @@ const formatCreatedAt = (value: unknown, locale: string): string => {
 const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }) => {
   const { t, i18n } = useTranslation()
   const [showStared, setShowStared] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [confirmClearOpen, setConfirmClearOpen] = useState(false)
   const { items, total, hasMore, isLoadingMore, loadMore, status } = useTranslateHistories({
-    star: showStared || undefined
+    star: showStared || undefined,
+    archived: showArchived || undefined
   })
   const { getLanguage, getLabel } = useLanguageLabels()
-  const { clear: clearHistory, update: updateHistory } = useTranslateHistory()
+  const { clear: clearHistory, update: updateHistory, remove: removeHistory } = useTranslateHistory()
   const pendingLoadMoreRef = useRef(false)
 
   const history: DisplayedTranslateHistoryItem[] = useMemo(
@@ -97,7 +102,27 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
     [getLabel, getLanguage, i18n.language, items]
   )
 
-  const deferredHistory = useDeferredValue(history)
+  const deferredView = useDeferredValue({ history, showArchived, showStared })
+  const deferredHistory =
+    deferredView.showArchived === showArchived && deferredView.showStared === showStared ? deferredView.history : []
+
+  useEffect(() => {
+    setSelectedId(null)
+    setPendingDeleteId(null)
+    setConfirmClearOpen(false)
+    pendingLoadMoreRef.current = false
+  }, [showArchived, showStared, isOpen])
+
+  const handleDelete = useCallback(async () => {
+    if (!pendingDeleteId) return
+    try {
+      await removeHistory(pendingDeleteId)
+      setPendingDeleteId(null)
+      setSelectedId((id) => (id === pendingDeleteId ? null : id))
+    } catch {
+      // The mutation hook reports the failure and keeps the record visible.
+    }
+  }, [pendingDeleteId, removeHistory])
 
   const selectedItem = useMemo(
     () => (selectedId ? (history.find((item) => item.id === selectedId) ?? null) : null),
@@ -115,6 +140,8 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
 
   const handleClose = useCallback(() => {
     setSelectedId(null)
+    setPendingDeleteId(null)
+    setConfirmClearOpen(false)
     onClose()
   }, [onClose])
 
@@ -165,7 +192,9 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
         el.scrollHeight - el.scrollTop - el.clientHeight < ITEM_HEIGHT * 2
       ) {
         pendingLoadMoreRef.current = true
-        queueMicrotask(loadMore)
+        queueMicrotask(() => {
+          if (pendingLoadMoreRef.current) loadMore()
+        })
       }
     },
     [hasMore, isLoadingMore, loadMore]
@@ -173,16 +202,15 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
 
   const renderHistoryRow = useCallback(
     (item: DisplayedTranslateHistoryItem) => (
-      <HistoryRow item={item} onSelect={setSelectedId} onUpdate={updateHistory} />
+      <HistoryRow item={item} onSelect={setSelectedId} onUpdate={updateHistory} onDelete={setPendingDeleteId} />
     ),
     [updateHistory]
   )
-  const showHistoryActions = showStared || history.length > 0
   const header = (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <span className="truncate font-semibold text-base text-foreground">{`${t('translate.history.title')} (${total})`}</span>
       <span className="flex-1" />
-      {!selectedItem && showHistoryActions && (
+      {!selectedItem && (
         <div className="flex shrink-0 items-center gap-1">
           <IconButton
             size="md"
@@ -192,6 +220,14 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
             aria-label={t('translate.history.filter.starred')}
             aria-pressed={showStared}>
             <Star size={14} className={cn(showStared && 'fill-amber-500')} />
+          </IconButton>
+          <IconButton
+            size="md"
+            active={showArchived}
+            onClick={() => setShowArchived((value) => !value)}
+            aria-label={t('translate.history.filter.archived')}
+            aria-pressed={showArchived}>
+            <Archive size={14} />
           </IconButton>
           {history.length > 0 && (
             <IconButton
@@ -230,6 +266,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
               {deferredHistory.length > 0 ? (
                 <div className="min-h-0 flex-1">
                   <DynamicVirtualList
+                    key={`${showArchived}:${showStared}`}
                     list={deferredHistory}
                     estimateSize={estimateItemSize}
                     onScroll={handleListScroll}>
@@ -240,7 +277,11 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
                 <div className="flex min-h-0 flex-1 items-center justify-center">
                   <EmptyState
                     icon={showStared ? Star : Clock}
-                    title={status === 'loading' ? t('common.loading') : t('translate.history.empty')}
+                    title={
+                      status === 'loading'
+                        ? t('common.loading')
+                        : t(showArchived ? 'translate.history.empty_archived' : 'translate.history.empty')
+                    }
                     compact
                   />
                 </div>
@@ -249,6 +290,18 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
           )}
         </div>
       </PageSidePanel>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteId(null)
+        }}
+        title={t('translate.history.delete')}
+        description={t('translate.history.delete_description')}
+        confirmText={t('translate.history.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={handleDelete}
+      />
       <ConfirmDialog
         open={confirmClearOpen}
         onOpenChange={setConfirmClearOpen}
@@ -286,8 +339,9 @@ const useLanguageLabels = () => {
 const HistoryRow: FC<{
   item: DisplayedTranslateHistoryItem
   onSelect: (id: string) => void
-  onUpdate: (id: string, data: { star: boolean }) => Promise<unknown>
-}> = ({ item, onSelect, onUpdate }) => {
+  onUpdate: (id: string, data: { star?: boolean; archived?: boolean }) => Promise<unknown>
+  onDelete: (id: string) => void
+}> = ({ item, onSelect, onUpdate, onDelete }) => {
   const { t } = useTranslation()
 
   const handleStar = async () => {
@@ -295,6 +349,14 @@ const HistoryRow: FC<{
       await onUpdate(item.id, { star: !item.star })
     } catch {
       // `useTranslateHistory` already reports mutation errors.
+    }
+  }
+
+  const handleArchive = async () => {
+    try {
+      await onUpdate(item.id, { archived: !item.archived })
+    } catch {
+      // The mutation hook reports the failure and keeps the record visible.
     }
   }
 
@@ -311,23 +373,43 @@ const HistoryRow: FC<{
         }
       }}
       className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
-      <IconButton
-        size="sm"
-        tone="star"
-        active={!!item.star}
-        onClick={(e) => {
-          e.stopPropagation()
-          void handleStar()
-        }}
-        aria-label={t('translate.history.star')}
-        aria-pressed={!!item.star}
-        className={cn(
-          'absolute top-2 right-2',
-          !item.star && 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
-        )}>
-        <Star size={10} className={cn(item.star && 'fill-amber-500')} />
-      </IconButton>
-      <div className="flex items-center gap-1.5 pr-5">
+      <div className="absolute top-2 right-2 flex items-center gap-0.5">
+        <IconButton
+          size="sm"
+          tone="star"
+          active={!!item.star}
+          onClick={(e) => {
+            e.stopPropagation()
+            void handleStar()
+          }}
+          aria-label={t('translate.history.star')}
+          aria-pressed={!!item.star}
+          className={cn(!item.star && 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100')}>
+          <Star size={10} className={cn(item.star && 'fill-amber-500')} />
+        </IconButton>
+        <IconButton
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation()
+            void handleArchive()
+          }}
+          aria-label={t(item.archived ? 'translate.history.restore' : 'common.archive')}
+          className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+          {item.archived ? <ArchiveRestore size={10} /> : <Archive size={10} />}
+        </IconButton>
+        <IconButton
+          size="sm"
+          tone="destructive"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(item.id)
+          }}
+          aria-label={t('translate.history.delete')}
+          className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+          <Trash2 size={10} />
+        </IconButton>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 pr-20">
         {item.kind === 'file' && (
           <FileText
             size={12}
@@ -342,7 +424,7 @@ const HistoryRow: FC<{
         <span className="rounded bg-primary/10 px-1 py-px text-primary text-sm">
           {item._targetEmoji} {item._targetLabel}
         </span>
-        <span className="ml-auto text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
+        <span className="ml-auto shrink-0 text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
       </div>
       <p className="line-clamp-1 text-muted-foreground text-sm">{item.sourceText}</p>
       <p className="line-clamp-1 text-foreground text-sm">{item.targetText}</p>

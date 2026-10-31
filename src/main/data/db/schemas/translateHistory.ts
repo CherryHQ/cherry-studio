@@ -37,6 +37,7 @@ export const translateHistoryTable = sqliteTable(
     sourceLanguage: text().references(() => translateLanguageTable.langCode, { onDelete: 'set null' }),
     targetLanguage: text().references(() => translateLanguageTable.langCode, { onDelete: 'set null' }),
     star: integer({ mode: 'boolean' }).notNull().default(false),
+    archived: integer({ mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },
   (t) => [

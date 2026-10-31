@@ -40,7 +40,8 @@ export const UpdateTranslateHistorySchema = TranslateHistorySchema.pick({
   targetText: true,
   sourceLanguage: true,
   targetLanguage: true,
-  star: true
+  star: true,
+  archived: true
 }).partial()
 /**
  * DTO for updating a translate history record. All fields optional. Uses
@@ -67,7 +68,8 @@ export const TranslateHistoryQuerySchema = z
      */
     search: z.string().min(1).max(TRANSLATE_HISTORY_SEARCH_MAX_LENGTH).optional(),
     /** Filter by starred status */
-    star: z.boolean().optional()
+    star: z.boolean().optional(),
+    archived: z.boolean().optional()
   })
   .strict()
 /** Parsed query parameters for listing translate histories. */

@@ -71,6 +71,7 @@ export const TranslateHistorySchema = z.strictObject({
   targetLanguage: PersistedLangCodeSchema.nullable(),
   /** Whether the record is starred */
   star: z.boolean(),
+  archived: z.boolean(),
   /** ISO 8601 datetime */
   createdAt: z.iso.datetime(),
   /** ISO 8601 datetime */
