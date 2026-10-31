@@ -57,6 +57,8 @@ This is the main entry point for Cherry Studio's data management documentation. 
 | **DataApiService**    | Business data, structured    | Permanent                         | **Severe** (irreplaceable) | Topics, messages, files, knowledge base               |
 | `app_state` (table)   | Owner-private completion/reconciliation marker | Until owner drops the key | Repeats completed internal work | Migration status, seeding journal, metadata generation |
 
+File-backed connector credentials use the main-only [CredentialStoreService](../../../src/main/services/credential/README.md) and IpcApi, not a DataApi table. Business bindings remain in SQLite. This store does not yet replace the existing Channel or Knowledge credential writers.
+
 ### Decision Flowchart
 
 Ask these questions in order:
