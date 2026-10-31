@@ -31,7 +31,7 @@ describe('standalone MCP navigation', () => {
   it('preserves server-only mode when retargeting an existing tab and opening server details', async () => {
     const router = createMcpRouter('/settings/mcp/servers')
     await router.load()
-    expect(router.state.matches.at(-1)?.search.mcpStandalone).toBeUndefined()
+    expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: undefined })
     await router.navigate({ to: '/settings/mcp/servers', search: { mcpStandalone: 'true' } })
     expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: 'true' })
     await router.navigate({ to: '/settings/mcp/settings/$serverId', params: { serverId: 'server-1' } })
