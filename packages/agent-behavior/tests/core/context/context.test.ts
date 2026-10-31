@@ -35,6 +35,21 @@ describe('offload (D31)', () => {
 })
 
 describe('recall (D32)', () => {
+  it('expands each index once in first-requested order without merging equal messages', () => {
+    const history = [user('same words'), user('same words'), assistant('answer')]
+    const expand = [2, 0, 2, 1, 0]
+    expect(recallText(history, { expand })).toBe(
+      '#2 [assistant] answer\n\n#0 [user] same words\n\n#1 [user] same words'
+    )
+    expect(expand).toEqual([2, 0, 2, 1, 0])
+  })
+
+  it('rejects missing indices once each before expanding any valid entry', () => {
+    expect(recallText([user('private history')], { expand: [0, 5, 3, 5, 0, 3] })).toBe(
+      'No entries #5, #3; this session has #0..#0.'
+    )
+  })
+
   // Catches recall losing what compaction folded, missing a person's words, or numbering records (which the model never
   // saw) as messages.
   it('numbers and searches the full lineage, folded entries included', () => {

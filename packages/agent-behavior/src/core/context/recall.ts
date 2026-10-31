@@ -63,10 +63,11 @@ function range(entries: readonly Recalled[], from: number, to: number, requested
   return items.map((entry) => line(entry, clipAround(entry.text, 0))).join('\n') + more
 }
 function expand(entries: readonly Recalled[], indices: readonly number[]): string {
-  const missing = indices.filter((index) => !entries[index])
+  const unique = [...new Set(indices)]
+  const missing = unique.filter((index) => !entries[index])
   if (missing.length > 0)
     return `No entries ${missing.map((i) => `#${i}`).join(', ')}; this session has #0..#${entries.length - 1}.`
-  return indices.map((index) => line(entries[index])).join('\n\n')
+  return unique.map((index) => line(entries[index])).join('\n\n')
 }
 const numbers = (value: JsonValue | undefined): readonly number[] | undefined =>
   Array.isArray(value) && value.every((item): item is number => typeof item === 'number') ? value : undefined

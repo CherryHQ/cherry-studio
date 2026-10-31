@@ -310,6 +310,13 @@ Durable's behavior adapter is not implemented; its
 immutable conversation ownership remains a limitation to resolve or reject before writing the continuation's run
 record and report job, without silently forking.
 
+`vcc_recall` reads the full active lineage, including compaction-folded messages and the running turn.
+`#N` numbers user, assistant, tool-result and marker messages; records and compaction entries do not consume a number.
+`query` searches keywords (5 results per page), `range: [from, to]` lists snippets (20 per page), and `expand: [N]`
+returns full text. Expansion deduplicates indices in first-requested order before checking missing entries or
+formatting results; distinct messages with identical text remain distinct. Any missing index rejects the expansion.
+With no selection it lists recent entries; `scope: 'all'` is the same as `'lineage'`.
+
 Each schema carries the constraints today's tools have. The rules check the arguments again themselves, so a harness
 that does not validate against the schema loses nothing.
 
