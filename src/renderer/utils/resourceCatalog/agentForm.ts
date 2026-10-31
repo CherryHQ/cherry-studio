@@ -30,6 +30,7 @@ export interface AgentFormState {
   model: UniqueModelId | ''
   planModel: UniqueModelId | ''
   smallModel: UniqueModelId | ''
+  expertModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
   /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
@@ -104,6 +105,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     model: agent?.model ?? '',
     planModel: agent?.planModel ?? '',
     smallModel: agent?.smallModel ?? '',
+    expertModel: agent?.expertModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
@@ -176,6 +178,10 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (baseline.smallModel !== next.smallModel) {
     dto.smallModel = next.smallModel || null
+    dirty = true
+  }
+  if (baseline.expertModel !== next.expertModel) {
+    dto.expertModel = next.expertModel || null
     dirty = true
   }
   if (baseline.instructions !== next.instructions) {

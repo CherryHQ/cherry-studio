@@ -210,6 +210,13 @@
       "when": 1792948344082,
       "tag": "0029_sloppy_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1793357664189,
+      "tag": "0030_brave_eddie_brock",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -160,6 +160,7 @@ function modelLabelsForAssistant(resource: AssistantEditDialogResource): ModelLa
     modelId: resource.modelName ?? null,
     planModelId: null,
     smallModelId: null,
+    expertModelId: null,
     contextCompressModelId: null
   }
 }

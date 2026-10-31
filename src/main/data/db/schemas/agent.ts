@@ -15,6 +15,7 @@ export const agentTable = sqliteTable(
     model: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     planModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     smallModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    expertModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     disabledTools: text({ mode: 'json' })
       .$type<string[]>()
       .notNull()

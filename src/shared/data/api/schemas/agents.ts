@@ -123,6 +123,8 @@ export const AgentBaseSchema = z.strictObject({
   model: UniqueModelIdSchema,
   planModel: UniqueModelIdSchema.optional(),
   smallModel: UniqueModelIdSchema.optional(),
+  /** Model consulted by the built-in `ask_expert` tool. Unset = no expert consultation. */
+  expertModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
   /** Knowledge base IDs linked through agent_knowledge_base. Empty = kb_* tools are not exposed to the agent. */
   knowledgeBaseIds: AgentKnowledgeBaseIdSetSchema.optional(),
@@ -140,6 +142,7 @@ export const AGENT_MUTABLE_FIELDS = {
   model: true,
   planModel: true,
   smallModel: true,
+  expertModel: true,
   mcps: true,
   knowledgeBaseIds: true,
   disabledTools: true,
@@ -227,10 +230,11 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  * removes that configuration key; omission preserves it.
  */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
-  // Nullable overrides of the picked columns: `null` clears the tier so the
-  // runtime falls back to the main model (unset is the default state).
+  // Nullable overrides of the picked columns: `null` clears the tier. planModel/smallModel
+  // fall back to the main model; expertModel simply disables expert consultation.
   planModel: UniqueModelIdSchema.nullable().optional(),
   smallModel: UniqueModelIdSchema.nullable().optional(),
+  expertModel: UniqueModelIdSchema.nullable().optional(),
   configuration: AgentConfigurationSchema.partial().optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills

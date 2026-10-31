@@ -367,6 +367,15 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Generates an image from a text prompt using your configured painting model',
     mcpServer: 'cherry-tools'
   },
+  // Expert consultation. Hosted by cherry-tools; the Agent's `expertModel` selects the model and the
+  // tool self-degrades with a configuration note when none is set.
+  CherryAskExpert: {
+    name: 'mcp__cherry-tools__ask_expert',
+    category: 'orchestration',
+    exposure: 'user',
+    description: 'Consults a stronger expert model on a self-contained question',
+    mcpServer: 'cherry-tools'
+  },
   // agent-memory (cross-session memory)
   AgentMemory: {
     name: 'mcp__agent-memory__memory',
@@ -459,7 +468,8 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__cron': 'Scheduler',
   'mcp__cherry-tools__notify': 'Notify',
   'mcp__cherry-tools__config': 'Configuration',
-  'mcp__cherry-tools__generate_image': 'Generate Image'
+  'mcp__cherry-tools__generate_image': 'Generate Image',
+  'mcp__cherry-tools__ask_expert': 'Ask Expert'
 }
 
 /**

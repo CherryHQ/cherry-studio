@@ -198,6 +198,7 @@ function rowToAgent(
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
     smallModel: clean.smallModel as UniqueModelId | undefined,
+    expertModel: clean.expertModel as UniqueModelId | undefined,
     configuration: parseConfiguration(row.configuration, row.id),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
@@ -321,6 +322,7 @@ export class AgentService {
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
+      expertModel: req.expertModel,
       disabledTools: req.disabledTools,
       configuration: req.configuration
     }

@@ -566,6 +566,90 @@ export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 export type { GenerateImageOutput, GenerateImageOutputItem } from './generateImageTool'
 export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageOutputSchema } from './generateImageTool'
 
+// ── ask_expert ───────────────────────────────────────────────────
+
+export const ASK_EXPERT_TOOL_NAME = 'ask_expert'
+export const ASK_EXPERT_QUESTION_TYPES = ['code_debug', 'math_reasoning', 'open_research', 'other'] as const
+export const ASK_EXPERT_MAX_CONTEXT_CHARS = 120_000
+
+export const askExpertInputSchema = z.object({
+  objective: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2_000)
+    .describe(
+      'The single, decidable output you want. No open-ended "research X" prompts — ask one answerable question.'
+    ),
+  context: z
+    .string()
+    .trim()
+    .min(1)
+    .max(ASK_EXPERT_MAX_CONTEXT_CHARS)
+    .describe(
+      'Minimum self-contained context needed to answer: objective artifacts only (code, errors, data, observed behavior). ' +
+        'Do not include your own unverified guesses or preferred conclusion — they anchor the expert.'
+    ),
+  output_format: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2_000)
+    .describe(
+      'Expected answer shape. For reasoning tasks require mechanically checkable intermediate steps. ' +
+        'Recommended default: VERDICT / ADVICE / RISKS.'
+    ),
+  trigger: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1_000)
+    .describe('One sentence naming the observable trigger for this call. If you cannot name one, do not call.'),
+  question_type: z
+    .enum(ASK_EXPERT_QUESTION_TYPES)
+    .default('other')
+    .describe('Task type; selects the expert answer template. Use other when unsure.'),
+  attempts: z
+    .string()
+    .trim()
+    .max(20_000)
+    .optional()
+    .describe(
+      'Approaches already tried and their failure evidence (full error text, minimal reproduction, suspected code, versions). ' +
+        'If a previous expert answer was disproved, say so and cite the evidence so it is not reused.'
+    ),
+  boundaries: z
+    .string()
+    .trim()
+    .max(4_000)
+    .optional()
+    .describe(
+      'Scope and stopping conditions: what not to do, and when the expert should answer "insufficient information".'
+    )
+})
+
+export type AskExpertInput = z.infer<typeof askExpertInputSchema>
+export type AskExpertQuestionType = (typeof ASK_EXPERT_QUESTION_TYPES)[number]
+
+export const ASK_EXPERT_DESCRIPTION =
+  'Consult a stronger, tool-less expert model with one self-contained question. The expert has no tools, no memory, ' +
+  'and cannot ask follow-ups — every call is an independent single-turn Q&A, so the question must carry the objective, ' +
+  'constraints, minimal context, attempts, and expected output format.\n\n' +
+  'Call only when one of these observable conditions holds:\n' +
+  '1. The next action is irreversible or expensive and no cheaper verification (test/search/calculation) exists.\n' +
+  '2. The same problem has failed twice or more (tool error, failing test, reasoning loop), or 3-5 self-samples ' +
+  'contradict each other.\n' +
+  '3. A spec is ambiguous or missing information that the environment cannot supply.\n' +
+  '4. Process checkpoints: before declaring a multi-step task done (persist the deliverable first), or before ' +
+  'changing the overall approach.\n\n' +
+  'Do NOT call:\n' +
+  '- When running code, searching, or calculating can settle it — verify first.\n' +
+  '- To "double-check" without new evidence; repeating the same question is waste.\n' +
+  '- When you already have ground truth or sufficient evidence.\n' +
+  '- When the expert disagrees with your evidence: reconcile once with the conflicting evidence, do not silently switch.\n\n' +
+  'The return is a candidate hypothesis, not a conclusion. Verify its claims before adopting. A per-session call ' +
+  'budget applies.'
+
 // ── agent autonomy tools (cron / notify / config) ────────────────
 // Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their zod input
 // schemas live in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`; only the names are shared
