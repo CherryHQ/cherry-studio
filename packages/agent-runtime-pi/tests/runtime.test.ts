@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import {
   fauxAssistantMessage,
+  fauxToolCall,
   fauxProvider,
   InMemoryCredentialStore,
   type FauxResponseStep
@@ -168,4 +169,46 @@ it('reopens native files after shutdown without requiring the Cherry model bridg
     ])
   )
   expect(await handle.submit(input('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+})
+
+it('binds a child launched during session initialization to its ready parent', async () => {
+  const { runtime, options, faux } = await setup()
+  const manager = SessionManager.inMemory(options.cwd)
+  let settled!: () => void
+  const startup = new Promise<void>((resolve) => {
+    settled = resolve
+  })
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('subagent', { description: 'Startup child', prompt: 'child task' })),
+    fauxAssistantMessage('child report'),
+    fauxAssistantMessage('parent report')
+  ])
+  const parent = confirmed(
+    await runtime.create({
+      ...options,
+      sessionManager: manager,
+      subagents: { configure: () => ({}) },
+      extensionFactories: [
+        (pi) => {
+          pi.on('agent_end', () => {
+            settled()
+          })
+          pi.on('session_start', async () => {
+            pi.sendUserMessage('startup task')
+            await startup
+          })
+        }
+      ]
+    })
+  )
+  const events = await observe(parent)
+  const snapshot = events[0]
+  if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
+  expect(JSON.stringify(snapshot.messages)).toContain('child report')
+  expect(JSON.stringify(snapshot.messages)).not.toContain('before initialization')
+  expect(snapshot.delegations).toHaveLength(1)
+  const delegation = snapshot.delegations?.[0]
+  if (!delegation) throw new Error('Missing child delegation')
+  const child = confirmed(await runtime.open(delegation.child))
+  expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
 })
