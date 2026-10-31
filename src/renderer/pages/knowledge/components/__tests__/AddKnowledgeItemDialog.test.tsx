@@ -16,6 +16,7 @@ const mockGetPathForFile = vi.fn()
 const mockReadExternal = vi.fn()
 const mockUseDirectoryTree = vi.fn()
 const mockProjectNotesTree = vi.fn()
+const mockResolveNotesPath = vi.fn()
 
 const createNoteNode = (name: string, externalPath: string) => ({
   id: externalPath,
@@ -84,7 +85,8 @@ vi.mock('@renderer/hooks/useDirectoryTree', () => ({
 }))
 
 vi.mock('@renderer/services/NotesService', () => ({
-  projectNotesTree: () => mockProjectNotesTree()
+  projectNotesTree: () => mockProjectNotesTree(),
+  resolveNotesPath: (...args: unknown[]) => mockResolveNotesPath(...args)
 }))
 
 // The real RichEditor boots Tiptap (and its extension graph) on mount, which is far more
@@ -306,6 +308,7 @@ describe('AddKnowledgeItemDialog', () => {
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
     mockUseDirectoryTree.mockReturnValue({ root: {}, isLoading: false, error: null })
     mockProjectNotesTree.mockReturnValue([])
+    mockResolveNotesPath.mockImplementation(async (path: string) => ({ path, isFallback: false }))
     ;(window as any).api = {
       file: {
         select: mockFileSelect,
@@ -584,7 +587,7 @@ describe('AddKnowledgeItemDialog', () => {
   })
 
   describe('note source (panel)', () => {
-    it('renders the note picker and reflects selection in the footer', () => {
+    it('renders the note picker and reflects selection in the footer', async () => {
       setPendingAddSource('note')
       mockProjectNotesTree.mockReturnValue([
         createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
@@ -593,7 +596,7 @@ describe('AddKnowledgeItemDialog', () => {
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
       expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
-      expect(screen.getByText('Meeting notes')).toBeInTheDocument()
+      expect(await screen.findByText('Meeting notes')).toBeInTheDocument()
       expect(screen.getByText('Ideas')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
 
@@ -603,7 +606,7 @@ describe('AddKnowledgeItemDialog', () => {
       expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
     })
 
-    it('selects and deselects every note from the list header', () => {
+    it('selects and deselects every note from the list header', async () => {
       setPendingAddSource('note')
       mockProjectNotesTree.mockReturnValue([
         createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
@@ -611,7 +614,7 @@ describe('AddKnowledgeItemDialog', () => {
       ])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      const selectAll = screen.getByRole('checkbox', { name: '全选' })
+      const selectAll = await screen.findByRole('checkbox', { name: '全选' })
       fireEvent.click(selectAll)
 
       expect(screen.getByText('已选 2 个笔记')).toBeInTheDocument()
@@ -632,7 +635,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockResolvedValueOnce('# Meeting\n\nbody')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
+      fireEvent.click(await screen.findByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       await waitFor(() => {
@@ -651,7 +654,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockProjectNotesTree.mockReturnValue(notes)
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+      fireEvent.click(await screen.findByRole('checkbox', { name: '全选' }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       await waitFor(() => {
@@ -663,12 +666,12 @@ describe('AddKnowledgeItemDialog', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
-    it('surfaces a note tree load error instead of the empty state', () => {
+    it('surfaces a note tree load error instead of the empty state', async () => {
       setPendingAddSource('note')
       mockUseDirectoryTree.mockReturnValue({ root: null, isLoading: false, error: new Error('read failed') })
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      expect(screen.getByText('加载笔记目录失败')).toBeInTheDocument()
+      expect(await screen.findByText('加载笔记目录失败')).toBeInTheDocument()
       expect(screen.queryByText('未找到笔记')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
     })
@@ -679,7 +682,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockRejectedValueOnce(new Error('ENOENT'))
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
+      fireEvent.click(await screen.findByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       const alert = await screen.findByRole('alert')
@@ -691,13 +694,13 @@ describe('AddKnowledgeItemDialog', () => {
   describe('note source — create mode', () => {
     const switchToCreateMode = () => fireEvent.click(screen.getByRole('radio', { name: '新建笔记' }))
 
-    it('starts on the import list and swaps to the draft form on demand', () => {
+    it('starts on the import list and swaps to the draft form on demand', async () => {
       setPendingAddSource('note')
       mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
       expect(screen.getByRole('radio', { name: '导入笔记' })).toHaveAttribute('aria-checked', 'true')
-      expect(screen.getByText('Meeting notes')).toBeInTheDocument()
+      expect(await screen.findByText('Meeting notes')).toBeInTheDocument()
       expect(screen.queryByPlaceholderText('为这篇笔记取个名字')).not.toBeInTheDocument()
 
       switchToCreateMode()
@@ -765,7 +768,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
+      fireEvent.click(await screen.findByRole('checkbox', { name: /Meeting notes/ }))
       expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
 
       switchToCreateMode()
