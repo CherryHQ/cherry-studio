@@ -29,6 +29,17 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
 }
 
 describe('buildInitialAgentFormState', () => {
+  it('defaults shared memory on and saves an opt-out without replacing unrelated configuration', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { language: '中文' } }))
+    expect(baseline.sharedMemoryEnabled).toBe(true)
+    expect(diffAgentUpdate(baseline, { ...baseline, sharedMemoryEnabled: false })?.dto).toEqual({
+      configuration: { shared_memory_enabled: false }
+    })
+    expect(
+      buildInitialAgentFormState(createAgent({ configuration: { shared_memory_enabled: false } })).sharedMemoryEnabled
+    ).toBe(false)
+  })
+
   it('copies AgentBase fields to form state', () => {
     const agent = createAgent({
       name: 'Demo',
