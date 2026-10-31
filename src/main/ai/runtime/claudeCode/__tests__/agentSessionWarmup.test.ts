@@ -1675,6 +1675,102 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptModelName'])
   })
 
+  // The baseline has to fingerprint the values the prompt actually materialized with, not the row's
+  // current ones: a model fallback saves the new model while the turn is still replaying the primary.
+  it('fingerprints the materialized prompt variables, not the row saved mid-turn', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Primary Model',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Alice' : undefined))
+
+    // The user saves the fallback as primary while settings materialization is still awaiting.
+    mocks.buildSessionSettings.mockImplementationOnce(async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        modelName: 'Fallback Model',
+        disabledTools: [],
+        mcps: [],
+        configuration: {}
+      })
+      return { env: {} }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // The replay pins the admitted values, so the baseline must describe this turn's prompt — a
+    // mismatch here would let a fresh turn keep serving the primary's values until an unrelated
+    // rebuild, and would hide the divergence the next turn needs to rebuild on.
+    expect(request?.capturedPromptVariables).toEqual({ username: 'Alice', modelName: 'Primary Model' })
+    const afterSave = await deriveSignature()
+    expect(
+      Object.keys(afterSave.rebuildFactFingerprints).filter(
+        (name) => afterSave.rebuildFactFingerprints[name] !== request?.connectionConfig.rebuildFactFingerprints?.[name]
+      )
+    ).toEqual(['promptModelName'])
+  })
+
+  it('pins the admitted language against a row saved mid-turn', async () => {
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      env: {},
+      skills: [],
+      mcpServers: {},
+      effectiveLanguage: options.effectiveLanguage
+    }))
+    // A language saved during provider backoff is a prompt-rebuild fact the ordinary reconciliation
+    // applies at the next fresh turn; the replay must keep the language it was admitted with.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Primary Model',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: 'English' }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'agent.language' ? 'English' : undefined))
+    const admitted = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(admitted?.capturedLanguage).toBe('English')
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Primary Model',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: '中文' }
+    })
+    const replay = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      {
+        instructions: 'admitted prompt',
+        language: 'English',
+        promptVariables: { username: 'Alice', modelName: 'Primary Model' }
+      }
+    )
+    expect(replay?.capturedLanguage).toBe('English')
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ effectiveLanguage: 'English' }),
+      expect.anything()
+    )
+  })
+
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
     const first = await deriveSignature()

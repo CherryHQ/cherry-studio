@@ -128,6 +128,53 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(adapter.hasTurnActivity).toBe(false)
     })
 
+    it('does not count an empty text or reasoning block boundary as turn activity', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+
+      expect(adapter.hasTurnActivity).toBe(false)
+
+      // Real content still closes the no-replay gate.
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 2, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 2, delta: { type: 'text_delta', text: 'hi' } })
+      )
+      expect(adapter.hasTurnActivity).toBe(true)
+    })
+
+    it('stays fallback-eligible when an empty text block closes with a terminal 529', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            terminal_reason: 'api_error',
+            errors: ['API Error: 529 overloaded'],
+            session_id: 'sdk-error'
+          })
+        )
+      ).toThrow('API Error: 529')
+
+      // The driver reads this flag before selecting the backup model: the finalize path must not
+      // turn an empty boundary into activity.
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+
     it('tracks tool-use chunks emitted by a parented assistant flow', () => {
       const { adapter } = createAdapter()
 
@@ -143,6 +190,100 @@ describe('ClaudeCodeStreamAdapter', () => {
       } as any)
 
       expect(adapter.hasTurnActivity).toBe(true)
+    })
+
+    it('renders the CLI’s synthetic API-error diagnostic without counting it as turn activity', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        is_api_error_message: true,
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'API Error: 429 {"type":"rate_limit_error"}' }]
+        }
+      } as any)
+
+      // The diagnostic still reaches the transcript…
+      expect(parts.some((part) => part.type === 'text-delta')).toBe(true)
+      // …but it is no answer, so a content-free provider failure can still fall back.
+      expect(adapter.hasTurnActivity).toBe(false)
+
+      // Real output on the same turn still closes the no-replay gate.
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }] }
+      } as any)
+      expect(adapter.hasTurnActivity).toBe(true)
+    })
+
+    it('recognises the camelCase diagnostic marker too and keeps the gate open through the terminal result', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        isApiErrorMessage: true,
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'API Error: 429 overloaded' }] }
+      } as any)
+
+      // The driver reads this right before the terminal result decides the fallback.
+      expect(adapter.hasTurnActivity).toBe(false)
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            terminal_reason: 'api_error',
+            errors: ['API Error: 429 {"type":"rate_limit_error"}'],
+            session_id: 'sdk-error'
+          })
+        )
+      ).toThrow('API Error: 429')
+    })
+
+    it.each([
+      ['snake_case', 'is_api_error_message'],
+      ['camelCase', 'isApiErrorMessage']
+    ])('keeps a closed diagnostic text part out of the no-replay gate (%s marker)', (_label, marker) => {
+      const { adapter, parts } = createAdapter()
+      const diagnosticText = 'API Error: 429 {"type":"rate_limit_error"}'
+
+      adapter.handleMessage({
+        type: 'assistant',
+        [marker]: true,
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: { role: 'assistant', content: [{ type: 'text', text: diagnosticText }] }
+      } as any)
+      expect(adapter.hasTurnActivity).toBe(false)
+
+      // The terminal 429 finalizes the still-open diagnostic part before propagating.
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            terminal_reason: 'api_error',
+            errors: [diagnosticText],
+            session_id: 'sdk-error'
+          })
+        )
+      ).toThrow('API Error: 429')
+
+      // Its `text-end` is a structural close, not answer content: the backup stays eligible.
+      expect(adapter.hasTurnActivity).toBe(false)
+      // The diagnostic is all that rendered; the terminal error itself contributes no text.
+      expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual([diagnosticText])
     })
 
     it('remains inactive when an error result emits only usage metadata', () => {

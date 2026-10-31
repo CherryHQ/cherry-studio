@@ -295,3 +295,64 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(snapshot.resolve('mcp__cherry-tools__future_mutator')).toBeUndefined()
   })
 })
+
+describe('createClaudeAgentToolPolicySnapshot — admitted permission mode across live updates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.listMcpTools.mockReturnValue([])
+  })
+
+  function agentWithPermissionMode(permissionMode: string): AgentEntity {
+    return {
+      id: 'agent-1',
+      mcps: [],
+      disabledTools: [],
+      configuration: { permission_mode: permissionMode }
+    } as unknown as AgentEntity
+  }
+
+  // A turn admitted under `default` keeps its gate even when the agent is saved as a wider mode
+  // while the turn is live: the bounded-warm callback and the MCP catalog refresh both call
+  // `update()` from writers that do not know a turn is in flight.
+  it('keeps a live turn on the mode it was admitted under when update() widens the saved mode', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agentWithPermissionMode('default'))
+
+    expect(snapshot.getPermissionMode()).toBe('default')
+    snapshot.pinPermissionMode('default')
+
+    await snapshot.update(agentWithPermissionMode('acceptEdits'))
+
+    expect(snapshot.getPermissionMode()).toBe('default')
+    expect(snapshot.resolve('Write')?.approval).not.toBe('auto')
+  })
+
+  it('stops pinning once the turn ends so the next turn picks up the saved mode', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agentWithPermissionMode('default'))
+    snapshot.pinPermissionMode('default')
+
+    await snapshot.update(agentWithPermissionMode('acceptEdits'))
+    expect(snapshot.resolve('Write')?.approval).not.toBe('auto')
+
+    snapshot.clearPermissionModePin()
+    await snapshot.update(agentWithPermissionMode('acceptEdits'))
+
+    expect(snapshot.getPermissionMode()).toBe('acceptEdits')
+    expect(snapshot.resolve('Write')?.approval).toBe('auto')
+  })
+
+  // The pin records the mode the turn was admitted under, so a *narrower* save cannot widen the
+  // gate either — only the turn boundary releases it.
+  it('re-applies the pinned mode to a policy rebuilt from a wider agent', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agentWithPermissionMode('default'))
+    snapshot.pinPermissionMode('default')
+
+    await snapshot.update(agentWithPermissionMode('bypassPermissions'))
+
+    expect(snapshot.getPermissionMode()).toBe('default')
+    expect(snapshot.resolve('Write')?.approval).toBe('prompt')
+  })
+})
