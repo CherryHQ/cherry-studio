@@ -3150,6 +3150,17 @@ describe('heading ids assigned from the text the renderer reads', () => {
     expect(renderedHeadingIds(content)).toEqual(['chunk--foobarbaz', 'chunk--foobarbaz-1'])
   })
 
+  it('pairs a strikethrough only inside the emphasis level it sits in', () => {
+    // `*a~~B*` closes its emphasis over `a~~B`, so the trailing `~~` sits outside it and pairs with
+    // nothing: the renderer reads `a~~B~~` and numbers `a-b`. Pairing the tildes across the emphasis
+    // boundary consumed them, keyed `ab`, and the duplicate fell back to a local id the adjacent
+    // `[jump](#a-b-1)` never reached even when its destination was mounted.
+    const content = '# *a~~B*~~\n\n' + 'filler\n\n'.repeat(3100) + '# *a~~B*~~\n\n[jump](#a-b-1)\n'
+
+    expect(renderedHeadingIds(content)).toEqual(['chunk--a-b', 'chunk--a-b-1'])
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+  })
+
   it('numbers a highlighted heading toward the text the renderer reads', () => {
     // The renderer reads `==bar==` as the `mark` it renders — `foo<mark>bar</mark>baz`, whose text
     // is `foobarbaz` — so both headings read `foobarbaz` and the second takes the `-1` the link

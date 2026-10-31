@@ -183,15 +183,15 @@ export abstract class BaseService {
    * Accepts either a Disposable object or a plain cleanup function.
    * Returns the registered disposable for optional inline assignment.
    *
+   * Do not register an `Emitter` the service owns: stop would dispose it for good,
+   * and a later start reuses this instance. Dispose it in `onDestroy()` instead.
+   *
    * @example
    * // Disposable object (e.g., Emitter subscription)
    * this.registerDisposable(windowService.onMainWindowCreated((win) => this.bind(win)))
    *
    * // Plain cleanup function (e.g., PreferenceService.subscribeChange)
    * this.registerDisposable(preferenceService.subscribeChange('key', handler))
-   *
-   * // Inline assignment
-   * this.emitter = this.registerDisposable(new Emitter<void>())
    */
   protected registerDisposable<T extends Disposable>(disposable: T): T
   protected registerDisposable(dispose: () => void): Disposable

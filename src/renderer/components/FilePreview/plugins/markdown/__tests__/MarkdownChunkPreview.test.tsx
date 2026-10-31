@@ -221,10 +221,8 @@ describe('MarkdownChunkPreview', () => {
   })
 
   it('resolves a footnote backlink inside the chunk that was clicked', async () => {
-    // Each mounted chunk numbers its footnotes from the same reference, so every chunk emits the
-    // same reference id and a preview-wide search always finds the first chunk's — a later chunk's
-    // backlink then jumps to another chunk's definition. The click has to resolve in the container
-    // it was made in first.
+    // Each mounted chunk derives its own footnote ids from its instance id, so a backlink resolves
+    // to the reference that chunk rendered — not to another mounted chunk's copy.
     const content = ['first[^n]', '', '[^n]: first note', '', 'filler', '', 'second[^n]', '', '[^n]: second note'].join(
       '\n'
     )
@@ -232,18 +230,18 @@ describe('MarkdownChunkPreview', () => {
 
     const { container } = render(<MarkdownChunkPreview chunks={splitMarkdownChunks(content, 1).chunks} id="doc" />)
 
-    const backlinks = await screen.findAllByRole('link')
-    const withHref = backlinks.filter((link) => link.getAttribute('href') === '#user-content-fnref-n')
-    // The second chunk's backlink: the one a preview-wide search sends to the first chunk's copy.
-    const backlink = withHref[withHref.length - 1]
+    const backlinks = (await screen.findAllByRole('link')).filter((link) => link.hasAttribute('data-footnote-backref'))
+    // The second chunk's backlink.
+    const backlink = backlinks[backlinks.length - 1]
     const ownChunk = backlink.closest('.markdown') as HTMLElement
     const others = Array.from(container.querySelectorAll('.markdown')).filter((part) => part !== ownChunk)
+    const fragment = decodeURIComponent((backlink.getAttribute('href') ?? '').slice(1))
 
-    // The collision that makes scoping matter: the reference exists in the clicked chunk and in
-    // another mounted one under the very same id.
+    // The reference the backlink names exists in the clicked chunk, and no other mounted chunk
+    // claims the same id.
     expect(others.length).toBeGreaterThan(0)
-    expect(ownChunk.querySelectorAll('[id="user-content-user-content-fnref-n"]')).toHaveLength(1)
-    expect(others.every((part) => part.querySelector('[id="user-content-user-content-fnref-n"]'))).toBe(true)
+    expect(ownChunk.querySelectorAll(`[id="${fragment}"]`)).toHaveLength(1)
+    expect(others.every((part) => !part.querySelector(`[id="${fragment}"]`))).toBe(true)
 
     // Clicking the last chunk's backlink scrolls to the reference in that chunk — the preview-wide
     // search used to pick the first chunk's copy, so the jump landed in another chunk entirely.

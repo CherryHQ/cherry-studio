@@ -43,7 +43,7 @@
     },
     {
       "path": "docs/references/ai/agent-session-runtime.md",
-      "sources": ["patches/@sting8k__pi-vcc@0.8.1.patch","scripts/piVccBundle.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agents/heartbeatSchedule.ts","src/main/ai/agents/runAgentTask.ts","src/main/ai/mcp/servers/cherryAutonomyTools.ts","src/main/ai/messages/readConversation.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts","src/main/data/db/schemas/agentSession.ts","src/main/data/services/AgentSessionService.ts","src/shared/ai/agentHeartbeat.ts","src/shared/ai/piBuiltinTools.ts"]
+      "sources": ["patches/@sting8k__pi-vcc@0.8.1.patch","scripts/piVccBundle.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/relocateSystemWorkspaces.ts","src/main/ai/agents/AgentWorkspaceStorageService.ts","src/main/ai/agents/heartbeatSchedule.ts","src/main/ai/agents/runAgentTask.ts","src/main/ai/mcp/servers/cherryAutonomyTools.ts","src/main/ai/messages/readConversation.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts","src/main/ai/runtime/workspaceRelocation.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts","src/main/data/db/schemas/agentSession.ts","src/main/data/services/AgentSessionService.ts","src/shared/ai/agentHeartbeat.ts","src/shared/ai/piBuiltinTools.ts"]
     },
     {
       "path": "docs/references/ai/ai-usage-records.md",
@@ -127,7 +127,7 @@
     },
     {
       "path": "docs/references/ai/tool-approval.md",
-      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/hooks/useToolApprovalBridge.ts"]
+      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/mcp/McpRuntimeService.ts","src/main/ai/mcp/connections/ClientMcpConnection.ts","src/main/ai/mcp/connections/ExternalMcpConnection.ts","src/main/ai/mcp/createMcpBridgeServer.ts","src/main/ai/mcp/mcpRequestOptions.ts","src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts","src/main/ai/runtime/claudeCode/hooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/runtime/claudeCode/streamAdapter.ts","src/main/ai/toolApproval/ToolApprovalRegistry.ts","src/main/ai/toolApproval/builtinToolPolicy.ts","src/main/ai/tools/adapters/claudeCode/agentTools.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx","src/renderer/components/chat/messages/tools/toolResponse.ts","src/renderer/components/composer/variants/PermissionRequestComposer.tsx","src/renderer/hooks/useToolApprovalBridge.ts","src/shared/ai/claudecode/toolRules.ts","src/shared/ai/tools/mcpSourcePolicy.ts","src/shared/ipc/schemas/ai.ts"]
     },
     {
       "path": "docs/references/ai/tool-registry.md",

@@ -30,8 +30,16 @@ type AppItem = {
 }
 
 const uiMocks = vi.hoisted(() => ({
+  isMac: false,
   sortableCalls: [] as any[],
   contextMenuOpenChange: undefined as ((open: boolean) => void) | undefined
+}))
+
+vi.mock(import('@renderer/utils/platform'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  get isMac() {
+    return uiMocks.isMac
+  }
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -41,6 +49,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const { Button } = await vi.importActual<typeof ButtonModule>('@cherrystudio/ui/components/primitives/button')
   return {
     Button,
+    ...(await vi.importActual('@cherrystudio/ui/components/primitives/separator')),
     Tooltip: (await vi.importActual<typeof TooltipModule>('@cherrystudio/ui/components/primitives/tooltip')).Tooltip,
     ...menuList,
     ...popover,
@@ -122,6 +131,7 @@ const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
+  uiMocks.isMac = false
   vi.useRealTimers()
   uiMocks.sortableCalls.length = 0
   uiMocks.contextMenuOpenChange = undefined
@@ -290,7 +300,7 @@ describe('Sidebar resize handle', () => {
     { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
     { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
     { name: 'floating', width: 0, isFloating: true }
-  ])('renders the $name account entry as an accessible footer button', async ({ width, isFloating }) => {
+  ])('renders the $name account entry as an accessible header button', async ({ width, isFloating }) => {
     const user = userEvent.setup()
     const onAccountClick = vi.fn()
     render(
@@ -300,19 +310,62 @@ describe('Sidebar resize handle', () => {
         entries={entries}
         user={{ name: 'User', onClick: onAccountClick }}
         isFloating={isFloating}
-        renderUserTrigger={(trigger: ReactElement) => <div data-testid="footer-account-trigger">{trigger}</div>}
+        renderUserTrigger={(trigger: ReactElement) => <div data-testid="header-account-trigger">{trigger}</div>}
       />
     )
 
     const accountButton = screen.getByRole('button', { name: 'User' })
 
-    expect(screen.getByTestId('footer-account-trigger')).toContainElement(accountButton)
-    expect(accountButton.querySelector('.size-6')).toBeTruthy()
+    expect(screen.getByTestId('header-account-trigger')).toContainElement(accountButton)
+    expect(
+      accountButton.compareDocumentPosition(screen.getByRole('button', { name: 'Chat' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     await user.click(accountButton)
     expect(onAccountClick).toHaveBeenCalledOnce()
   })
 
-  it('exposes account menu state and restores focus to its footer trigger', async () => {
+  it.each([
+    { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
+    { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
+    { name: 'floating', width: 0, isFloating: true }
+  ])('moves the macOS $name account entry between footer and fullscreen header', ({ width, isFloating }) => {
+    uiMocks.isMac = true
+    const props = {
+      width,
+      setWidth: vi.fn(),
+      entries,
+      user: { name: 'User' },
+      isFloating,
+      actions: <button type="button">Settings</button>
+    }
+    const { rerender } = render(<Sidebar {...props} />)
+
+    const accountButton = screen.getByRole('button', { name: 'User' })
+    for (const name of ['Chat', 'Settings']) {
+      expect(
+        screen.getByRole('button', { name }).compareDocumentPosition(accountButton) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    }
+
+    rerender(<Sidebar {...props} isFullscreen />)
+    expect(screen.getAllByRole('button', { name: 'User' })).toHaveLength(1)
+    expect(
+      screen
+        .getByRole('button', { name: 'User' })
+        .compareDocumentPosition(screen.getByRole('button', { name: 'Chat' })) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    rerender(<Sidebar {...props} />)
+    expect(
+      screen
+        .getByRole('button', { name: 'Settings' })
+        .compareDocumentPosition(screen.getByRole('button', { name: 'User' })) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('exposes account menu state and restores focus to its macOS footer trigger', async () => {
+    uiMocks.isMac = true
     const user = userEvent.setup()
 
     function AccountSidebar() {
@@ -353,6 +406,7 @@ describe('Sidebar resize handle', () => {
   })
 
   it('keeps the full footer update action independent from the account trigger', async () => {
+    uiMocks.isMac = true
     const user = userEvent.setup()
     const onAccountClick = vi.fn()
     const onUpdateClick = vi.fn()
@@ -386,7 +440,7 @@ describe('Sidebar resize handle', () => {
     const settingsButton = screen.getByRole('button', { name: 'Settings full' })
     const helpButton = screen.getByRole('button', { name: 'Help full' })
     expect(accountButton).not.toHaveTextContent('›')
-    expect(updateButton.parentElement?.parentElement).toBe(accountButton.parentElement)
+    expect(accountButton.compareDocumentPosition(updateButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(settingsButton.parentElement).not.toBe(accountButton.parentElement)
     expect(helpButton.parentElement).not.toBe(accountButton.parentElement)
   })
@@ -465,9 +519,11 @@ describe('Sidebar resize handle', () => {
 
       const panel = container.querySelector('.slide-in-from-left-2') as HTMLElement
 
+      // Floating blank space must leave pointer input available for the edge resize gesture.
+      expect(panel).toHaveClass('[-webkit-app-region:no-drag]')
+      expect(panel).not.toHaveClass('[-webkit-app-region:drag]')
       fireEvent.mouseEnter(panel)
       act(() => uiMocks.contextMenuOpenChange?.(true))
-      // The floating branch must honor the same Electron drag-region contract as the docked sidebar.
       expect(panel).toHaveClass('[-webkit-app-region:no-drag]')
       fireEvent.mouseLeave(panel)
       vi.advanceTimersByTime(350)
@@ -475,7 +531,8 @@ describe('Sidebar resize handle', () => {
       expect(onDismiss).not.toHaveBeenCalled()
 
       act(() => uiMocks.contextMenuOpenChange?.(false))
-      expect(panel).toHaveClass('[-webkit-app-region:drag]')
+      expect(panel).toHaveClass('[-webkit-app-region:no-drag]')
+      expect(panel).not.toHaveClass('[-webkit-app-region:drag]')
       vi.advanceTimersByTime(350)
 
       expect(onDismiss).toHaveBeenCalledTimes(1)
@@ -568,7 +625,7 @@ describe('Sidebar resize handle', () => {
     )
 
     const sortableCall = uiMocks.sortableCalls.at(-1)
-    sortableCall.onDragStart({ active: { id: 'app:chat' } })
+    sortableCall.onDragStart({ activeId: 'app:chat' })
     sortableCall.onDragEnd()
 
     fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
@@ -611,7 +668,7 @@ describe('Sidebar resize handle', () => {
     )
 
     const sortableCall = uiMocks.sortableCalls.at(-1)
-    sortableCall.onDragStart({ active: { id: 'app:chat' } })
+    sortableCall.onDragStart({ activeId: 'app:chat' })
     sortableCall.onDragEnd()
 
     const chatButton = screen.getByRole('button', { name: 'Chat' })

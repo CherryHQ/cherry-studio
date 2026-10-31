@@ -1219,15 +1219,37 @@ const TILDE_RUN = /^~+/
 const EQUALS_RUN = /^=+/
 
 /**
+ * The innermost emphasis range that holds a position, or −1 outside every range. Emphasis resolves
+ * before the extensions do, so a construct pairing markers of its own can pair only inside the
+ * level it sits in.
+ */
+function emphasisRegionAt(ranges: ReadonlyArray<{ start: number; end: number }>): (position: number) => number {
+  const sorted = [...ranges].sort((a, b) => a.start - b.start || b.end - a.end)
+  const active: number[] = []
+  let next = 0
+  return (position) => {
+    while (next < sorted.length && sorted[next].start <= position) active.push(next++)
+    while (active.length > 0 && sorted[active[active.length - 1]].end <= position) active.pop()
+    return active.length === 0 ? -1 : active[active.length - 1]
+  }
+}
+
+/**
  * The tilde runs of `source` that the renderer reads as the markers of a strikethrough — which
  * render no text of their own. The renderer turns single tildes away, so a run is eligible only
  * at two markers, and it pairs a closing run with the nearest earlier one of its own length by
- * the same flank tests emphasis reads; a run that pairs with nothing stays the text it was
- * written as.
+ * the same flank tests emphasis reads, inside the emphasis level it sits in; a run that pairs
+ * with nothing stays the text it was written as.
  */
-function strikethroughSpans(source: string): Set<number> {
+function strikethroughSpans(
+  source: string,
+  emphasisRanges: ReadonlyArray<{ start: number; end: number }>
+): Set<number> {
   const spans = new Set<number>()
-  const open: number[] = []
+  // Emphasis resolves first, so a tilde run pairs only inside the level it sits in — `*a~~B*~~`
+  // keeps both runs literal, and a heading keys `a-b` rather than `ab`.
+  const regionAt = emphasisRegionAt(emphasisRanges)
+  const open = new Map<number, number[]>()
   for (let index = 0; index < source.length;) {
     const character = source[index]
     if (character === '\\') {
@@ -1249,14 +1271,17 @@ function strikethroughSpans(source: string): Set<number> {
       const right = micromarkClass(source.charCodeAt(end))
       const opens = right === undefined || (right === 'punctuation' && left !== undefined)
       const closes = left === undefined || (left === 'punctuation' && right !== undefined)
-      const partner = open.length - 1
+      const region = regionAt(index)
+      const stack = open.get(region) ?? []
+      const partner = stack.length - 1
       if (closes && partner >= 0) {
-        spans.add(open[partner])
+        spans.add(stack[partner])
         spans.add(index)
-        open.pop()
+        stack.pop()
       } else if (opens) {
-        open.push(index)
+        stack.push(index)
       }
+      open.set(region, stack)
     }
     index = end
   }
@@ -1276,14 +1301,7 @@ function highlightSpans(source: string, emphasisRanges: ReadonlyArray<{ start: n
   const spans = new Set<number>()
   // Emphasis resolves first, so a highlight pairs only inside the level it sits in: the strong
   // `**` runs form in `**==**B==a` leave the first `==` inside it, where the second cannot meet it.
-  const ranges = [...emphasisRanges].sort((a, b) => a.start - b.start || b.end - a.end)
-  const active: number[] = []
-  let nextRange = 0
-  const regionAt = (position: number): number => {
-    while (nextRange < ranges.length && ranges[nextRange].start <= position) active.push(nextRange++)
-    while (active.length > 0 && ranges[active[active.length - 1]].end <= position) active.pop()
-    return active.length === 0 ? -1 : active[active.length - 1]
-  }
+  const regionAt = emphasisRegionAt(emphasisRanges)
   const open = new Map<number, number[]>()
   for (let index = 0; index < source.length;) {
     const character = source[index]
@@ -1834,7 +1852,9 @@ function headingRenderedText(
       } else if (character === '~') {
         const run = TILDE_RUN.exec(segment.slice(index))?.[0] ?? character
         // The same for a strikethrough: only the run that found its partner renders nothing.
-        if (!(strikes ??= strikethroughSpans(segment)).has(index)) text += run
+        if (!(strikes ??= strikethroughSpans(segment, (spans ??= emphasisSpans(segment)).ranges)).has(index)) {
+          text += run
+        }
         index += run.length
       } else if (character === '=') {
         const run = EQUALS_RUN.exec(segment.slice(index))?.[0] ?? character

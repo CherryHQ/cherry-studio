@@ -17,7 +17,7 @@ import { hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import type * as OpenTargetModule from '@renderer/components/OpenTarget'
 import { FileEditSessionContext, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
-import type { SelectionReference } from '@renderer/types/selectionReference'
+import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -140,7 +140,7 @@ function SelectionPaneHarness({
   headerVariant
 }: {
   workspacePath: string
-  onInsertSelectionReference: (reference: SelectionReference) => void
+  onInsertSelectionReference: (reference: ComposerFileReference) => void
   headerVariant?: 'pane'
 }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -332,6 +332,7 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
     Tabs: actual.Tabs,
     TabsList: actual.TabsList,
     TabsTrigger: actual.TabsTrigger,
+    Textarea: actual.Textarea,
     DropdownMenu: actual.DropdownMenu,
     DropdownMenuCheckboxItem: actual.DropdownMenuCheckboxItem,
     DropdownMenuContent: actual.DropdownMenuContent,
@@ -889,25 +890,63 @@ describe('ArtifactPane', () => {
     })
   })
 
-  it('keeps the quote chip after handing the reference off, since the composer can still refuse it', async () => {
-    // The composer receives the reference over a window event and may reject it (no room in the input)
-    // without reporting back, so clearing on click would drop the selection with no way to retry.
+  async function openPickedSelection(onInsert: (reference: unknown) => void) {
     mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
-    const onInsert = vi.fn()
-
     render(<SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
     await waitFor(() => expect(screen.getByTestId('tree-node-notes.docx')).toBeInTheDocument())
     fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
     await screen.findByTestId('file-preview')
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' }))
-
     fireEvent.click(screen.getByTestId('report-selection'))
-    const chip = await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.preview_pane.comment.submit' }))
+  }
 
-    fireEvent.click(chip)
+  it('quotes the selection unchanged when the comment is left empty, and keeps it for a retry', async () => {
+    // The composer receives the reference over a window event and may reject it (no room in the input)
+    // without reporting back, so clearing on submit would drop the selection with no way to retry.
+    const onInsert = vi.fn()
+    await openPickedSelection(onInsert)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'agent.preview_pane.comment.placeholder_optional' }), {
+      key: 'Enter',
+      metaKey: true
+    })
 
     expect(onInsert).toHaveBeenCalledWith(mocks.selectionReference)
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.quote_selection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.preview_pane.comment.submit' })).toBeInTheDocument()
+  })
+
+  it('attaches the written comment to the selection reference', async () => {
+    const onInsert = vi.fn()
+    await openPickedSelection(onInsert)
+
+    const input = screen.getByRole('textbox', { name: 'agent.preview_pane.comment.placeholder_optional' })
+    fireEvent.change(input, { target: { value: '  Tighten this paragraph  ' } })
+    fireEvent.keyDown(input, { key: 'Enter', metaKey: true })
+
+    expect(onInsert).toHaveBeenCalledWith({
+      ...(mocks.selectionReference as object),
+      comment: 'Tighten this paragraph'
+    })
+  })
+
+  it('closes only the comment box on Escape, keeping the picker and the preview', async () => {
+    const onInsert = vi.fn()
+    await openPickedSelection(onInsert)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'agent.preview_pane.comment.placeholder_optional' }), {
+      key: 'Escape'
+    })
+
+    expect(
+      screen.queryByRole('textbox', { name: 'agent.preview_pane.comment.placeholder_optional' })
+    ).not.toBeInTheDocument()
+    expect(onInsert).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(screen.getByTestId('file-preview')).toBeInTheDocument()
   })
 
   it('drops the quote chip when the previewed file changes', async () => {
@@ -921,12 +960,12 @@ describe('ArtifactPane', () => {
     const toggle = screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })
     fireEvent.click(toggle)
     fireEvent.click(screen.getByTestId('report-selection'))
-    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+    await screen.findByRole('button', { name: 'agent.preview_pane.comment.submit' })
 
     fireEvent.click(screen.getByTestId('tree-node-other.docx'))
 
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'agent.preview_pane.comment.submit' })).not.toBeInTheDocument()
     )
     expect(screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })).toHaveAttribute(
       'aria-pressed',
@@ -967,18 +1006,18 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(toggle)
     fireEvent.click(screen.getByTestId('report-selection'))
-    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+    await screen.findByRole('button', { name: 'agent.preview_pane.comment.submit' })
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.comment.submit' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('report-selection')).not.toBeInTheDocument()
 
     fireEvent.click(toggle)
     fireEvent.click(screen.getByTestId('report-selection'))
-    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+    await screen.findByRole('button', { name: 'agent.preview_pane.comment.submit' })
     fireEvent.keyDown(screen.getByTestId('artifact-file-preview-overlay'), { key: 'Escape' })
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.comment.submit' })).not.toBeInTheDocument()
     expect(screen.getByTestId('file-preview')).toBeInTheDocument()
 
     fireEvent.keyDown(screen.getByTestId('artifact-file-preview-overlay'), { key: 'Escape' })

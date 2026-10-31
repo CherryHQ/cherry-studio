@@ -1,20 +1,18 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type ReactNode, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import CodeViewer from '@renderer/components/CodeViewer'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 
-import { hasPathologicalLongLines } from '../../textPreviewGuard'
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 const TEXT_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
 
 type TextFileLoadState =
@@ -82,38 +80,41 @@ function TextPreviewError() {
 
 interface TextPreviewContentProps {
   filePath: string
-  highlight: boolean
   loadState: TextFileLoadState
+  onLineComment?: FilePreviewPluginProps['onLineComment']
 }
 
-function TextPreviewContent({ filePath, highlight, loadState }: TextPreviewContentProps): ReactNode {
+function TextPreviewContent({ filePath, loadState, onLineComment }: TextPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
   if (loadState.status === 'error') return <TextPreviewError />
 
   return (
-    <div className="flex h-full min-h-0 w-full">
-      {/* The composer inset pads inside the viewer, whose shiki theme paints an opaque
-          background — the code surface then runs to the container bottom under the composer. */}
-      <CodeViewer
-        value={loadState.content}
-        language={getLanguageByFilePath(filePath)}
-        expanded={false}
-        height="100%"
-        options={{ highlight }}
-        className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
-      />
+    <div className="flex min-h-full w-full">
+      <Suspense fallback={<TextPreviewLoading />}>
+        <FileEditor
+          value={loadState.content}
+          fileName={filePath}
+          readOnly
+          expanded
+          wrapLines
+          onLineComment={onLineComment}
+          className="min-w-0 flex-1"
+        />
+      </Suspense>
     </div>
   )
 }
 
-export default function TextFilePreview({ filePath, metadata, metadataRequest, refreshKey }: FilePreviewPluginProps) {
+export default function TextFilePreview({
+  filePath,
+  metadata,
+  metadataRequest,
+  refreshKey,
+  onLineComment
+}: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
-  const readyContent = loadState.status === 'ready' ? loadState.content : null
-  // Shiki tokenizes in a worker, incrementally up to the last visible row, so document size costs
-  // nothing up front — only lines too long to window can still block the layout engine.
-  const highlight = useMemo(() => readyContent !== null && !hasPathologicalLongLines(readyContent), [readyContent])
   const sourceMetadata = metadataRequest ?? metadata.size
 
   // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
@@ -157,7 +158,7 @@ export default function TextFilePreview({ filePath, metadata, metadataRequest, r
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content composerInset={loadState.status !== 'ready'}>
-        <TextPreviewContent filePath={filePath} highlight={highlight} loadState={loadState} />
+        <TextPreviewContent filePath={filePath} loadState={loadState} onLineComment={onLineComment} />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

@@ -11,7 +11,7 @@ const groupExpandedCalls: Array<{ presetProviderId: string; expanded: boolean }>
 const sortableCalls: Array<{
   items: Array<{ id: string }>
   renderItem: (item: any, state: { dragging: boolean; overlay: boolean }) => React.ReactNode
-  onDragStart: (event: { active: { id: string } }) => void
+  onDragStart: (event: { activeId: string }) => void
   onDragEnd: () => void
   onDragCancel: () => void
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
@@ -371,7 +371,7 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     )
 
     act(() => {
-      sortableCalls[0].onDragStart({ active: { id: 'group:zhipu' } })
+      sortableCalls[0].onDragStart({ activeId: 'group:zhipu' })
     })
 
     expect(onDragStateChange).toHaveBeenLastCalledWith(true)
