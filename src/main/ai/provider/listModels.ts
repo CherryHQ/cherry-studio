@@ -24,7 +24,7 @@ import { providerRegistryService } from '@main/data/services/ProviderRegistrySer
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
-import type { EndpointType, ListedModels, Model } from '@shared/data/types/model'
+import type { EndpointType, ListedModels, Modality, Model, ModelCapability } from '@shared/data/types/model'
 import {
   createUniqueModelId,
   ENDPOINT_TYPE,
@@ -67,6 +67,8 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
+  type HubrisModelResponseItem,
+  HubrisModelsResponseSchema,
   LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
@@ -808,6 +810,90 @@ const ppioFetcher: ModelFetcher = {
   }
 }
 
+const HUBRIS_INPUT_MODALITIES: Record<string, Modality> = {
+  text: MODALITY.TEXT,
+  image: MODALITY.IMAGE,
+  audio: MODALITY.AUDIO,
+  video: MODALITY.VIDEO
+}
+
+const HUBRIS_RECOGNITION_CAPABILITIES: Partial<Record<Modality, ModelCapability>> = {
+  [MODALITY.IMAGE]: MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  [MODALITY.AUDIO]: MODEL_CAPABILITY.AUDIO_RECOGNITION,
+  [MODALITY.VIDEO]: MODEL_CAPABILITY.VIDEO_RECOGNITION
+}
+
+/** Display name, modalities, tool and reasoning support from the Hubris catalogue row. */
+function hubrisChatModelFields(m: HubrisModelResponseItem): Partial<Model> {
+  const inputModalities = dedup(
+    (m.input_modalities ?? []).map((modality) => HUBRIS_INPUT_MODALITIES[modality]).filter(Boolean),
+    (modality) => modality
+  )
+  const params = new Set(m.supported_parameters ?? [])
+  const capabilities: ModelCapability[] = inputModalities
+    .map((modality) => HUBRIS_RECOGNITION_CAPABILITIES[modality])
+    .filter((capability): capability is ModelCapability => Boolean(capability))
+  if (params.has('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+  if (params.has('reasoning') || params.has('reasoning_effort')) capabilities.push(MODEL_CAPABILITY.REASONING)
+
+  return {
+    name: m.display_name || m.name || m.id,
+    ownedBy: m.owned_by,
+    description: m.description,
+    capabilities,
+    ...(inputModalities.length > 0 ? { inputModalities } : {}),
+    ...(m.context_length ? { contextWindow: m.context_length } : {})
+  }
+}
+
+/** Hubris `/models` lists only the models that answer on chat completions (text output); embeddings,
+ *  image, speech, transcription and video models sit behind `?output_modalities=`. Chat rows are still
+ *  filtered by their declared output, and embeddings come from their own list, as with OpenRouter. */
+const hubrisFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.hubris),
+  fetch: async (provider, signal, options) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const headers = defaultHeaders(provider)
+    const [chat, embeddings] = await Promise.all([
+      getFromApi({
+        url: `${baseUrl}/models`,
+        headers,
+        responseSchema: HubrisModelsResponseSchema,
+        abortSignal: signal
+      }),
+      getFromApi({
+        url: `${baseUrl}/models?output_modalities=embeddings`,
+        headers,
+        responseSchema: HubrisModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        handleOptionalModelListFailure<HubrisModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'hubris-embedding-models'
+        })
+      )
+    ])
+    warnSkippedOpenAIModelEntries(provider.id, chat, embeddings)
+
+    const chatModels = chat.data
+      .filter((m) => !m.output_modalities || m.output_modalities.includes('text'))
+      .map((m) => toModel(m.id, provider, hubrisChatModelFields(m)))
+    const embeddingModels = embeddings.data
+      .filter((m) => m.output_modalities?.includes('embeddings'))
+      .map((m) =>
+        toModel(m.id, provider, {
+          name: m.display_name || m.name || m.id,
+          ownedBy: m.owned_by,
+          description: m.description,
+          capabilities: [MODEL_CAPABILITY.EMBEDDING],
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          ...(m.context_length ? { contextWindow: m.context_length } : {})
+        })
+      )
+    return listing(dedup([...chatModels, ...embeddingModels], (m) => m.apiModelId))
+  }
+}
+
 const aiHubMixFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.aihubmix,
   fetch: async (provider, signal) => {
@@ -1207,6 +1293,7 @@ const fetchers: ModelFetcher[] = [
   newApiFetcher,
   tokenDanceFetcher,
   openRouterFetcher,
+  hubrisFetcher,
   ppioFetcher,
   gatewayFetcher,
   anthropicFetcher,
