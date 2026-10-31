@@ -2,7 +2,9 @@ import { debounce, trim } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -258,29 +260,45 @@ export function useProviderEndpointActions({
   }, [apiVersion, patchProvider, provider, t])
 
   const resetApiHost = useCallback(async (): Promise<boolean> => {
-    if (!provider) {
+    if (!provider || !defaultApiHost || apiHost === defaultApiHost) {
       return false
     }
 
-    const nextBaseUrl = defaultApiHost
-    const nextEndpointConfigs = {
-      ...provider.endpointConfigs,
-      [primaryEndpoint]: {
-        ...provider.endpointConfigs?.[primaryEndpoint],
-        baseUrl: nextBaseUrl
+    return ConfirmActionPopup.show({
+      title: t('common.reset'),
+      content: t('settings.provider.api.url.reset_confirm'),
+      okText: t('common.reset'),
+      cancelText: t('common.cancel'),
+      danger: true,
+      action: async () => {
+        debouncedPersistApiHost.cancel()
+        const fresh = await dataApiService.get(`/providers/${provider.id}`).catch((error: unknown) => {
+          throw new Error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        })
+        if (!fresh) {
+          throw new Error(getEndpointActionErrorMessage(undefined, t('settings.provider.save_failed')))
+        }
+        const nextEndpointConfigs = {
+          ...fresh.endpointConfigs,
+          [primaryEndpoint]: {
+            ...fresh.endpointConfigs?.[primaryEndpoint],
+            baseUrl: defaultApiHost
+          }
+        }
+
+        const previousPersistedApiHost = lastPersistedApiHostRef.current
+        lastPersistedApiHostRef.current = trim(defaultApiHost)
+        setApiHost(defaultApiHost)
+        try {
+          await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        } catch (error) {
+          lastPersistedApiHostRef.current = previousPersistedApiHost
+          logger.error('Failed to reset provider API host', { providerId: provider.id, error })
+          throw new Error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        }
       }
-    }
-
-    setApiHost(nextBaseUrl)
-    try {
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
-      return true
-    } catch (error) {
-      logger.error('Failed to reset provider API host', { providerId: provider.id, error })
-      toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
-      return false
-    }
-  }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
+    })
+  }, [apiHost, debouncedPersistApiHost, defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
 
   return {
     commitApiHost,
