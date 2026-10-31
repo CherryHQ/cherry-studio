@@ -1,11 +1,10 @@
-import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
 import { cp, lstat, mkdir, readFile, readdir, rename } from 'node:fs/promises'
 import path from 'node:path'
 
 import * as z from 'zod'
 
 import { application } from '@application'
+import { RuntimeForkAnchorSchema } from '@data/services/agentSessionForkContract'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { listRetiredAgentSessionMigrations } from '@data/services/retiredAgentRuntimeMigration'
@@ -17,6 +16,10 @@ import {
   removeAgentStorageSubdirectory
 } from '@main/ai/agents/agentDataDirectory'
 import {
+  digestRelocationArtifact as digest,
+  relocationArtifactExists as exists
+} from '@main/ai/agents/agentRelocationFiles'
+import {
   assertWorkspaceDirectoryIdentity,
   inspectWorkspaceStorage,
   validateWorkspaceArchive,
@@ -24,13 +27,11 @@ import {
   workspaceDirectoryIdentity,
   type WorkspaceStorageRecord
 } from '@main/ai/agents/agentWorkspaceStorage'
-import { blockWorkspaceRelocation } from '@main/ai/runtime/agentSessionWorkspace'
-import { runForkWorker } from '@main/ai/runtime/fork'
-import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
+import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import type { RelocatedCheckpoint } from '@main/ai/runtime/workspaceRelocation'
 import { atomicWriteFile } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-
-import type { RelocationWorkerInput } from './relocationWorker'
 
 const logger = loggerService.withContext('SystemWorkspaceRelocation')
 const OperationSchema = z.union([
@@ -51,16 +52,6 @@ const JournalSchema = z.strictObject({
 })
 type Journal = z.infer<typeof JournalSchema>
 
-async function exists(file: string): Promise<boolean> {
-  try {
-    await lstat(file)
-    return true
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
-    throw error
-  }
-}
-
 function workspaceLayout(cwd: string) {
   if (!path.isAbsolute(cwd) || path.normalize(cwd) !== cwd) throw new Error('Invalid system workspace path')
   const id = path.basename(cwd)
@@ -79,39 +70,19 @@ function workspaceLayout(cwd: string) {
   return { agents, suffix: path.join(date, id) }
 }
 
-/** Also validates every descendant before native readers or recursive copies see it. */
-async function digest(root: string, file: string): Promise<string> {
-  await assertAgentStoragePath(root, file)
-  const hash = createHash('sha256')
-  async function visit(current: string) {
-    const stat = await lstat(current)
-    if (stat.isSymbolicLink()) throw new Error(`Linked runtime history: ${current}`)
-    hash.update(JSON.stringify(path.relative(file, current)))
-    if (stat.isFile()) {
-      hash.update('file')
-      for await (const chunk of createReadStream(current)) hash.update(chunk)
-    } else if (stat.isDirectory()) {
-      hash.update('directory')
-      for (const name of (await readdir(current)).sort()) await visit(path.join(current, name))
-    } else throw new Error(`Unsupported runtime history: ${current}`)
-  }
-  await visit(file)
-  return hash.digest('hex')
-}
-
 function artifactPath(root: string, relative: string, workspacePath: string): string {
   const segments = relative.split(/[\\/]/)
   if (segments.some((part) => !part || part === '.' || part === '..') || path.isAbsolute(relative)) {
     throw new Error('Invalid relocation artifact path')
   }
-  const claude =
-    segments[0] === '.claude' &&
-    ((segments.length === 2 && segments[1] === '.claude.json') || (segments.length === 3 && segments[1] === 'projects'))
+  const runtimeOwned = runtimeDriverRegistry
+    .getAgentSessionDrivers()
+    .some((driver) => driver.workspaceRelocation?.ownsArtifact(segments))
   // Older journals may still need to restore retired DSH artifacts.
   const dsh = segments.length === 4 && segments[0] === '.dsh' && segments[1] === 'sessions'
   const storage =
     path.join(...segments) === path.join('system', `${workspaceLayout(workspacePath).suffix}.storage.json`)
-  if (!claude && !dsh && !storage) throw new Error('Artifact is outside managed relocation storage')
+  if (!runtimeOwned && !dsh && !storage) throw new Error('Artifact is outside managed relocation storage')
   return path.join(root, ...segments)
 }
 
@@ -199,14 +170,14 @@ async function recover(root: string, directory: string, journal: Journal): Promi
     { mode: 0o600 }
   )
   await removeAgentStorageSubdirectory(root, directory)
+  agentWorkspaceStorageService.completeRelocation(journal.oldPath, journal.newPath)
 }
 
 async function relocate(root: string, workspace: { id: string; path: string }, newPath: string) {
-  const oldConfig = path.join(workspaceLayout(workspace.path).agents, '.claude')
-  const newConfig = application.getPath('feature.agents.claude.root')
+  const oldDataRoot = workspaceLayout(workspace.path).agents
   const history = agentSessionMessageService.readWorkspaceRelocationHistory(workspace.id).map((row) => ({
     ...row,
-    checkpoint: row.checkpoint ? (JSON.parse(row.checkpoint) as Record<string, unknown>) : undefined
+    checkpoint: row.checkpoint ? RuntimeForkAnchorSchema.shape.checkpoint.parse(JSON.parse(row.checkpoint)) : undefined
   }))
   let relocatedStorage: WorkspaceStorageRecord | undefined
   const storage = await inspectWorkspaceStorage(root, newPath)
@@ -241,17 +212,6 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
   const journal: Journal = { version: 1, workspaceId: workspace.id, oldPath: workspace.path, newPath, operations: [] }
   const journalPath = path.join(directory, 'journal.json')
   try {
-    const { default: createWorker } = await import('./relocationWorker?nodeWorker')
-    const workerData: RelocationWorkerInput = {
-      oldCwd: workspace.path,
-      newCwd: newPath
-    }
-    const result = z
-      .strictObject({
-        oldKey: z.string(),
-        newKey: z.string()
-      })
-      .parse(await runForkWorker(createWorker({ workerData, env: { ...process.env } }), new AbortController().signal))
     await mkdir(path.join(directory, 'staged'))
     await mkdir(path.join(directory, 'backup'))
     async function assertNoPendingRelocation(...files: string[]) {
@@ -272,7 +232,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         }
       }
     }
-    async function stage(source: string, target: string, prepared?: string) {
+    async function stage(sources: readonly [string, ...string[]], target: string, prepared?: string) {
+      const [source, ...additionalSources] = sources
       const sourceRelative = path.relative(root, source)
       const targetRelative = path.relative(root, target)
       artifactPath(root, sourceRelative, newPath)
@@ -290,176 +251,51 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       if (!prepared && after !== before) throw new Error('Copied history changed')
       const operation = { source: sourceRelative, target: targetRelative, before, after }
       journal.operations.push(operation)
-      return { staged, operation }
+      for (const additional of additionalSources) {
+        const relative = path.relative(root, additional)
+        artifactPath(root, relative, newPath)
+        await assertNoPendingRelocation(relative)
+        const before = await digest(root, additional)
+        const snapshot = path.join(directory, `source-${journal.operations.length}`)
+        await cp(additional, snapshot, { recursive: true, force: false, errorOnExist: true })
+        if ((await digest(root, snapshot)) !== before) throw new Error('Copied history changed')
+        await mergeArtifacts(snapshot, staged)
+        journal.operations.push({ source: relative, before })
+      }
+      operation.after = await digest(root, staged)
+      return staged
     }
-    async function mergeProject(source: string, target: string): Promise<void> {
+    async function mergeArtifacts(source: string, target: string): Promise<void> {
       for (const entry of await readdir(source, { withFileTypes: true })) {
         const from = path.join(source, entry.name)
         const to = path.join(target, entry.name)
         if (entry.isDirectory() && (await exists(to)) && (await lstat(to)).isDirectory()) {
-          await mergeProject(from, to)
+          await mergeArtifacts(from, to)
         } else await cp(from, to, { recursive: true, force: false, errorOnExist: true })
       }
-    }
-    const oldProject = artifactPath(root, path.join('.claude', 'projects', result.oldKey), newPath)
-    const newProject = artifactPath(root, path.join('.claude', 'projects', result.newKey), newPath)
-    const entriesByFile = new Map<string, Array<Record<string, unknown>>>()
-    async function readEntries(file: string) {
-      const cached = entriesByFile.get(file)
-      if (cached) return cached
-      await digest(root, file)
-      const parsed: unknown[] = []
-      for (const line of (await readFile(file, 'utf8')).split('\n')) {
-        if (!line.trim()) continue
-        try {
-          parsed.push(JSON.parse(line))
-        } catch (error) {
-          // Both runtimes skip malformed JSONL records, including interrupted trailing writes.
-          if (!(error instanceof SyntaxError)) throw error
-        }
-      }
-      const entries = z.array(z.record(z.string(), z.unknown())).parse(parsed)
-      entriesByFile.set(file, entries)
-      return entries
     }
     const retiredSessions = new Set(
       listRetiredAgentSessionMigrations(application.get('DbService').getDb()).map((migration) => migration.sessionId)
     )
-    const unflushedPiSessions = new Set<string>()
-    for (const [sessionId, rows] of Map.groupBy(history, (row) => row.sessionId)) {
-      // Manual /compact bypasses Pi's prompt persistence; an empty failure never creates history.
-      if (
-        rows.some((row) => row.role === 'user') &&
-        rows.every(
-          (row) =>
-            row.runtime === 'pi' &&
-            !row.checkpoint &&
-            !row.nativeSessionId &&
-            (!row.resumeToken || row.resumeToken === sessionId) &&
-            (row.role === 'user'
-              ? /^\/compact(?:\s|$)/.test(row.userText?.trim() ?? '')
-              : row.role === 'assistant' && (row.status === 'error' || row.status === 'paused'))
-        )
-      ) {
-        unflushedPiSessions.add(sessionId)
-      }
-    }
-    const claudeConfigDirs = new Map<string, string>()
-    for (const { sessionId, checkpoint } of history) {
-      if (
-        checkpoint?.runtime === 'claude-code' &&
-        typeof checkpoint.runtimeSessionId === 'string' &&
-        typeof checkpoint.configDir === 'string'
-      ) {
-        claudeConfigDirs.set(`${sessionId}:${checkpoint.runtimeSessionId}`, checkpoint.configDir)
-      }
-    }
-    const claudeHistory: Array<{ id: string; checkpoint: Record<string, unknown> | undefined }> = []
-    for (const row of history) {
-      // Pi recovery rebuilds these histories from SQLite after workspace relocation.
-      if (retiredSessions.has(row.sessionId)) continue
-      const checkpoint = row.checkpoint
-      const runtime = checkpoint?.runtime ?? row.runtime
-      // nativeSessionId only initializes a new history; it need not have materialized on disk.
-      const id = checkpoint?.runtimeSessionId ?? row.resumeToken
-      if (typeof id !== 'string') continue
-      if (runtime !== 'pi' && !z.uuid().safeParse(id).success) throw new Error('Invalid native session identity')
-      if (runtime === 'pi') {
-        const file = resolveResumeTokenSessionFile(id, application.getPath('feature.agents.pi.sessions'))
-        if (!file && unflushedPiSessions.has(row.sessionId)) continue
-        if (!file) throw new Error('Pi history missing')
-        const entries = await readEntries(file)
-        if (entries[0]?.type !== 'session' || entries[0]?.id !== id) throw new Error('Pi history corrupt')
-        if (checkpoint?.leafId && !entries.some((entry) => entry.id === checkpoint.leafId))
-          throw new Error('Pi checkpoint history missing')
-      }
-      const configDir = checkpoint?.configDir ?? claudeConfigDirs.get(`${row.sessionId}:${id}`)
-      if (runtime === 'claude-code' && (!configDir || configDir === oldConfig)) {
-        claudeHistory.push({ id, checkpoint })
-      }
-    }
-    const claudeProjects = new Set<string>()
-    for (const { id } of claudeHistory) {
-      let owner = oldProject
-      await assertAgentStoragePath(root, owner)
-      if (!(await exists(path.join(owner, id + '.jsonl')))) {
-        // A stale literal project can outlive a removed symlink ancestor; resolve required identities before staging.
-        const projectsRoot = path.dirname(oldProject)
-        await assertAgentStorageDirectory(root, projectsRoot)
-        const candidates: string[] = []
-        for (const project of await readdir(projectsRoot, { withFileTypes: true })) {
-          if (!project.isDirectory() || project.isSymbolicLink()) continue
-          const candidate = artifactPath(root, path.join('.claude', 'projects', project.name), newPath)
-          await assertAgentStoragePath(root, candidate)
-          if (await exists(path.join(candidate, id + '.jsonl'))) candidates.push(candidate)
-          if (candidates.length > 1) throw new Error('Ambiguous Claude project history')
-        }
-        if (candidates[0] === newProject) throw new Error('Relocation target already exists')
-        if (!candidates.length) throw new Error('Claude history missing')
-        owner = candidates[0]
-      }
-      claudeProjects.add(owner)
-    }
-    const [primaryProject = oldProject, ...additionalProjects] = claudeProjects
-    let validationProject = primaryProject
-    if (await exists(primaryProject)) {
-      await digest(root, primaryProject)
-      if (primaryProject !== newProject || additionalProjects.length) {
-        const { staged, operation } = await stage(primaryProject, newProject)
-        for (const project of additionalProjects) {
-          await assertNoPendingRelocation(path.relative(root, project))
-          const before = await digest(root, project)
-          const snapshot = path.join(directory, `source-${journal.operations.length}`)
-          await cp(project, snapshot, { recursive: true, force: false, errorOnExist: true })
-          if ((await digest(root, snapshot)) !== before) throw new Error('Copied history changed')
-          await mergeProject(snapshot, staged)
-          // Back up every merged source so retries restore all owners without leaving duplicate identities after commit.
-          journal.operations.push({ source: path.relative(root, project), before })
-        }
-        operation.after = await digest(root, staged)
-        validationProject = staged
-      }
-    }
-    for (const { id, checkpoint } of claudeHistory) {
-      const file = path.join(validationProject, id + '.jsonl')
-      await assertAgentStoragePath(root, file)
-      if (!(await exists(file))) throw new Error('Claude history missing')
-      const entries = await readEntries(file)
-      if (
-        !entries.some(
-          (entry) => entry.sessionId === id && entry.uuid && (entry.type === 'user' || entry.type === 'assistant')
-        )
+    const checkpoints: RelocatedCheckpoint[] = []
+    for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
+      if (!driver.workspaceRelocation) continue
+      checkpoints.push(
+        ...(await driver.workspaceRelocation.prepare({
+          oldPath: workspace.path,
+          newPath,
+          oldDataRoot,
+          directory,
+          history: history.filter((row) => !retiredSessions.has(row.sessionId)),
+          stage,
+          assertAvailable: (...files) => assertNoPendingRelocation(...files.map((file) => path.relative(root, file)))
+        }))
       )
-        throw new Error('Claude history corrupt')
-      if (checkpoint?.messageUuid && !entries.some((entry) => entry.uuid === checkpoint.messageUuid))
-        throw new Error('Claude checkpoint history missing')
-    }
-    const configFile = path.join(newConfig, '.claude.json')
-    await assertNoPendingRelocation(path.relative(root, configFile))
-    if (await exists(configFile)) {
-      await digest(root, configFile)
-      const config = JSON.parse(await readFile(configFile, 'utf8'))
-      const projects = config.projects
-      if (projects && typeof projects === 'object' && !Array.isArray(projects)) {
-        const keys = Object.keys(projects).filter(
-          (key) => path.isAbsolute(key) && path.relative(key, workspace.path) === ''
-        )
-        if (keys.length > 1) throw new Error('Ambiguous Claude project configuration')
-        if (keys.length) {
-          if (Object.keys(projects).some((key) => path.isAbsolute(key) && path.relative(key, newPath) === ''))
-            throw new Error('Claude project configuration conflict')
-          projects[newPath] = projects[keys[0]]
-          delete projects[keys[0]]
-          const prepared = path.join(directory, 'config.json')
-          await atomicWriteFile(AbsoluteFilePathSchema.parse(prepared), JSON.stringify(config), { mode: 0o600 })
-          await stage(configFile, configFile, prepared)
-        }
-      }
     }
     if (relocatedStorage) {
       const prepared = path.join(directory, 'storage.json')
       await atomicWriteFile(AbsoluteFilePathSchema.parse(prepared), JSON.stringify(relocatedStorage), { mode: 0o600 })
-      await stage(`${newPath}.storage.json`, `${newPath}.storage.json`, prepared)
+      await stage([`${newPath}.storage.json`], `${newPath}.storage.json`, prepared)
     }
     await atomicWriteFile(AbsoluteFilePathSchema.parse(journalPath), JSON.stringify(journal), { mode: 0o600 })
     for (const [index, operation] of journal.operations.entries()) {
@@ -479,7 +315,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     }
     application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.relocateSystemWorkspaceTx(tx, workspace.id, workspace.path, newPath)
-      agentSessionMessageService.relocateClaudeConfigTx(tx, workspace.id, oldConfig, newConfig)
+      agentSessionMessageService.relocateCheckpointsTx(tx, workspace.id, checkpoints)
     })
     await recover(root, directory, journal)
   } catch (error) {
@@ -499,7 +335,7 @@ export async function relocateSystemWorkspaces(): Promise<Set<string>> {
   function failed(workspaceId: string, error: unknown) {
     logger.error('Failed to relocate system workspace; original history retained', { workspaceId, error })
     const workspace = agentWorkspaceService.getById(workspaceId, { includeSystem: true })
-    blockWorkspaceRelocation(workspace.path, error)
+    agentWorkspaceStorageService.blockRelocation(workspace.path)
     for (const row of agentSessionMessageService.readWorkspaceRelocationHistory(workspaceId))
       protectedSessions.add(row.sessionId)
   }

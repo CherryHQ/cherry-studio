@@ -21,10 +21,13 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import * as workspaceStorage from '@main/ai/agents/agentWorkspaceStorage'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
+import { assertAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { runForkWorker } from '@main/ai/runtime/fork'
 import { loadPiAi, loadPiSdk } from '@main/ai/runtime/pi/piSdk'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
 import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessionHistory'
+import { registerRuntimeDrivers } from '@main/ai/runtime/registerDrivers'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from '../relocateSystemWorkspaces'
@@ -45,7 +48,7 @@ vi.mock('@application', async () => {
 })
 
 // Keep filesystem publication and database recovery real; isolate only the native SDK worker.
-vi.mock('../relocationWorker?nodeWorker', async () => {
+vi.mock('../../runtime/claudeCode/relocationWorker?nodeWorker', async () => {
   const { EventEmitter } = await import('node:events')
   const { basename } = await import('node:path')
   const { Worker } = await import('node:worker_threads')
@@ -73,6 +76,7 @@ describe('system workspace relocation', () => {
   let root: string
 
   beforeEach(async () => {
+    registerRuntimeDrivers()
     workerMocks.source = undefined
     workerMocks.keys = undefined
     temporaryRoot = await mkdtemp(path.join(tmpdir(), 'cs-relocation-'))
@@ -92,6 +96,7 @@ describe('system workspace relocation', () => {
   })
 
   afterEach(async () => {
+    runtimeDriverRegistry.clearForTest()
     vi.restoreAllMocks()
     await rm(temporaryRoot, { recursive: true, force: true })
   })
@@ -159,6 +164,95 @@ describe('system workspace relocation', () => {
     }).persistAssistant({ status, finalMessage: { id, role: 'assistant', parts: [{ type: 'text', text: status }] } })
   }
 
+  it.each([false, true])(
+    'keeps adapter checkpoint payloads opaque and workspace-scoped (foreign target: %s)',
+    async (foreignTarget) => {
+      const workspace = await createWorkspace('pi')
+      const foreign = await createWorkspace('pi')
+      dbh.db.update(agentTable).set({ type: 'test-runtime' }).where(eq(agentTable.id, workspace.agentId)).run()
+      const messageId = randomUUID()
+      const foreignMessageId = randomUUID()
+      const checkpoint = { runtime: 'test-runtime', locator: { volume: 'old', cursor: [1, 2, 3] }, version: 7 }
+      for (const [id, sessionId] of [
+        [messageId, workspace.sessionId],
+        [foreignMessageId, foreign.sessionId]
+      ]) {
+        dbh.db
+          .insert(agentSessionMessageTable)
+          .values({
+            id,
+            sessionId,
+            role: 'assistant',
+            status: 'success',
+            createdAt: 123,
+            updatedAt: 456,
+            data: {
+              parts: [{ type: 'text', text: 'unchanged' }],
+              runtimeAnchor: { checkpoint, excludedMessageIds: ['excluded'] }
+            }
+          })
+          .run()
+      }
+      const replacement = { ...checkpoint, locator: { ...checkpoint.locator, volume: 'new' } }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        validateSession: () => {},
+        listAvailableTools: async () => [],
+        connect: async () => {
+          throw new Error('Relocation must not connect a runtime')
+        },
+        workspaceRelocation: {
+          ownsArtifact: () => false,
+          prepare: async ({ history }) =>
+            history.some((row) => row.messageId === messageId)
+              ? [{ messageId: foreignTarget ? foreignMessageId : messageId, checkpoint: replacement }]
+              : []
+        }
+      })
+      expect(await relocateSystemWorkspaces()).toEqual(new Set(foreignTarget ? [workspace.sessionId] : []))
+      expect(workspacePath(workspace.id)).toBe(foreignTarget ? workspace.oldPath : workspace.newPath)
+      const read = (id: string) =>
+        dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()!
+      expect(read(messageId)).toMatchObject({
+        createdAt: 123,
+        updatedAt: 456,
+        data: {
+          parts: [{ type: 'text', text: 'unchanged' }],
+          runtimeAnchor: {
+            checkpoint: foreignTarget ? checkpoint : replacement,
+            excludedMessageIds: ['excluded']
+          }
+        }
+      })
+      expect(read(foreignMessageId).data).toMatchObject({ runtimeAnchor: { checkpoint } })
+    }
+  )
+
+  it('blocks native admission until the missing history has been recovered', async () => {
+    const workspace = await createWorkspace('pi')
+    const nativeId = randomUUID()
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: randomUUID(),
+        sessionId: workspace.sessionId,
+        role: 'assistant',
+        status: 'success',
+        runtimeResumeToken: nativeId,
+        data: { parts: [] }
+      })
+      .run()
+    expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId]))
+    await expect(assertAgentSessionWorkspaceDirectory(workspace.sessionId, workspace.oldPath)).rejects.toThrow(
+      'relocation requires recovery'
+    )
+    await writeHistory('pi', workspace.id, nativeId)
+    expect(await relocateSystemWorkspaces()).toEqual(new Set())
+    await expect(assertAgentSessionWorkspaceDirectory(workspace.sessionId, workspace.newPath)).resolves.toBeUndefined()
+    expect(agentWorkspaceStorageService.isRelocationBlocked(workspace.oldPath)).toBe(false)
+  })
+
   it.each([
     { runtime: 'pi', linked: false },
     { runtime: 'claude-code', linked: false },
@@ -203,12 +297,12 @@ describe('system workspace relocation', () => {
         nativeId = manager.getSessionId()
         nativeFile = manager.getSessionFile()!
       } else {
-        const source = await readFile(path.resolve('src/main/ai/agentSession/relocationWorker.ts'), 'utf8')
+        const source = await readFile(path.resolve('src/main/ai/runtime/claudeCode/relocationWorker.ts'), 'utf8')
         workerMocks.source = stripTypeScriptTypes(source).replaceAll(
           '@anthropic-ai/claude-agent-sdk',
           pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
         )
-        const { default: createWorker } = await import('../relocationWorker?nodeWorker')
+        const { default: createWorker } = await import('../../runtime/claudeCode/relocationWorker?nodeWorker')
         const keys = (await runForkWorker(
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
           new AbortController().signal
@@ -496,12 +590,12 @@ describe('system workspace relocation', () => {
       await mkdir(path.join(canonicalRoot, path.relative(path.join(temporaryRoot, 'old'), workspace.oldPath)), {
         recursive: true
       })
-      const source = await readFile(path.resolve('src/main/ai/agentSession/relocationWorker.ts'), 'utf8')
+      const source = await readFile(path.resolve('src/main/ai/runtime/claudeCode/relocationWorker.ts'), 'utf8')
       workerMocks.source = stripTypeScriptTypes(source).replaceAll(
         '@anthropic-ai/claude-agent-sdk',
         pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
       )
-      const { default: createWorker } = await import('../relocationWorker?nodeWorker')
+      const { default: createWorker } = await import('../../runtime/claudeCode/relocationWorker?nodeWorker')
       const keys = () =>
         runForkWorker(
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),

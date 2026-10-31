@@ -3,6 +3,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
+import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { t } from '@main/i18n'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -12,14 +13,8 @@ const logger = loggerService.withContext('AgentSessionWorkspace')
 const WORKSPACE_PROBE_TIMEOUT_MS = 5_000
 const RETRYABLE_WORKSPACE_ERROR_CODES = new Set(['EBUSY', 'EIO', 'EMFILE', 'ENFILE', 'ENOSPC', 'ESTALE', 'ETIMEDOUT'])
 const workspacePathProbes = new Map<string, Promise<PathStatus>>()
-const relocationErrors = new Map<string, unknown>()
-
-export function blockWorkspaceRelocation(cwd: string, error: unknown): void {
-  relocationErrors.set(path.resolve(cwd), error)
-}
-
 function assertRelocationReady(cwd: string): void {
-  if (relocationErrors.has(path.resolve(cwd))) {
+  if (agentWorkspaceStorageService.isRelocationBlocked(cwd)) {
     throw new AgentSessionWorkspaceError(`System workspace relocation requires recovery: ${cwd}`)
   }
 }

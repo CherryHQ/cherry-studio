@@ -77,6 +77,7 @@ import {
 } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
+import { claudeWorkspaceRelocation } from './workspaceRelocation'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
@@ -1323,6 +1324,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
