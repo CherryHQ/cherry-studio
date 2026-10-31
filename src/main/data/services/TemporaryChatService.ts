@@ -16,7 +16,6 @@ import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -235,22 +234,20 @@ export class TemporaryChatService {
         const rootId = messageService.createRootMessageTx(tx, topic.id)
         let prevId: string = rootId
         for (const m of msgs) {
-          tx.insert(messageTable)
-            .values({
-              id: m.id,
-              topicId: topic.id,
-              parentId: prevId,
-              role: m.role,
-              data: m.data,
-              status: m.status,
-              siblingsGroupId: 0,
-              modelId: m.modelId ?? undefined,
-              messageSnapshot: m.messageSnapshot ?? undefined,
-              stats: m.stats ?? undefined,
-              createdAt: m.createdAt,
-              updatedAt: m.updatedAt
-            })
-            .run()
+          messageService.persistTemporaryMessageTx(tx, {
+            id: m.id,
+            topicId: topic.id,
+            parentId: prevId,
+            role: m.role,
+            data: m.data,
+            status: m.status,
+            siblingsGroupId: 0,
+            modelId: m.modelId ?? undefined,
+            messageSnapshot: m.messageSnapshot ?? undefined,
+            stats: m.stats ?? undefined,
+            createdAt: m.createdAt,
+            updatedAt: m.updatedAt
+          })
           prevId = m.id
         }
 

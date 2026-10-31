@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -21,6 +23,41 @@ function fieldsOf(err: unknown): Record<string, string[]> {
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
+}
+
+function attachmentData(fileEntryId: string): MessageData {
+  const part = {
+    type: 'file' as const,
+    mediaType: 'text/plain',
+    url: `file:///tmp/${fileEntryId}.txt`,
+    filename: 'attachment.txt',
+    providerMetadata: { cherry: { fileEntryId } }
+  }
+  return { parts: [part, part] }
+}
+
+function toolOutputData(fileEntryId: string): MessageData {
+  return {
+    parts: [
+      {
+        type: 'tool-run_cmd',
+        toolCallId: 'call-1',
+        state: 'output-available',
+        input: {},
+        output: {
+          $persistedToolOutput: {
+            shape: 'text',
+            fileEntryId,
+            vfsFilename: 'vfs_0123456789abcdef.txt',
+            head: 'head',
+            tail: 'tail',
+            totalChars: 200_000,
+            totalLines: 5_000
+          }
+        }
+      }
+    ]
+  }
 }
 
 describe('TemporaryChatService', () => {
@@ -186,6 +223,102 @@ describe('TemporaryChatService', () => {
   })
 
   describe('persist', () => {
+    describe('file references', () => {
+      const firstFileId = '019606a0-0000-7000-8000-00000000fc01'
+      const secondFileId = '019606a0-0000-7000-8000-00000000fc02'
+
+      beforeEach(async () => {
+        await dbh.db.insert(fileEntryTable).values(
+          [firstFileId, secondFileId].map((id) => ({
+            id,
+            origin: 'internal',
+            name: 'attachment',
+            ext: 'txt',
+            size: 1,
+            cleanupPolicy: 'delete_when_unreferenced'
+          }))
+        )
+      })
+
+      it('saves one attachment reference per file while preserving message content and timestamps', () => {
+        const topic = service.createTopic({ name: 'attachments' })
+        const message = service.appendMessage(topic.id, { role: 'user', data: attachmentData(firstFileId) })
+
+        service.persist(topic.id)
+
+        const refs = dbh.db.select().from(chatMessageFileRefTable).all()
+        expect(refs).toHaveLength(1)
+        expect(refs[0]).toMatchObject({ sourceId: message.id, fileEntryId: firstFileId, role: 'attachment' })
+        expect(dbh.db.select().from(messageTable).where(eq(messageTable.id, message.id)).get()).toMatchObject({
+          topicId: topic.id,
+          data: message.data,
+          status: message.status,
+          createdAt: Date.parse(message.createdAt),
+          updatedAt: Date.parse(message.updatedAt)
+        })
+      })
+
+      it('saves tool-output references independently from attachments to the same file', () => {
+        const topic = service.createTopic({ name: 'tool outputs' })
+        const user = service.appendMessage(topic.id, { role: 'user', data: attachmentData(firstFileId) })
+        const assistant = service.appendMessage(topic.id, { role: 'assistant', data: toolOutputData(firstFileId) })
+
+        service.persist(topic.id)
+
+        expect(
+          dbh.db
+            .select({ sourceId: chatMessageFileRefTable.sourceId, role: chatMessageFileRefTable.role })
+            .from(chatMessageFileRefTable)
+            .where(eq(chatMessageFileRefTable.fileEntryId, firstFileId))
+            .all()
+        ).toEqual(
+          expect.arrayContaining([
+            { sourceId: user.id, role: 'attachment' },
+            { sourceId: assistant.id, role: 'tool_output' }
+          ])
+        )
+      })
+
+      it('keeps missing-file parts without inserting dangling references', () => {
+        const missingId = '019606a0-0000-7000-8000-00000000fc03'
+        const topic = service.createTopic({ name: 'missing file' })
+        const message = service.appendMessage(topic.id, { role: 'user', data: attachmentData(missingId) })
+
+        service.persist(topic.id)
+
+        expect(dbh.db.select().from(chatMessageFileRefTable).all()).toEqual([])
+        expect(dbh.db.select().from(messageTable).where(eq(messageTable.id, message.id)).get()?.data).toEqual(
+          message.data
+        )
+      })
+
+      it('rolls back messages and references on a later reference-write failure and can retry', () => {
+        const topic = service.createTopic({ name: 'retry' })
+        service.appendMessage(topic.id, { role: 'user', data: attachmentData(firstFileId) })
+        service.appendMessage(topic.id, { role: 'assistant', data: toolOutputData(secondFileId) })
+        const buffered = service.listMessages(topic.id)
+        dbh.sqlite.exec(`
+          CREATE TRIGGER fail_temporary_file_ref BEFORE INSERT ON chat_message_file_ref
+          WHEN NEW.file_entry_id = '${secondFileId}'
+          BEGIN SELECT RAISE(ABORT, 'injected reference-write failure'); END
+        `)
+
+        try {
+          expect(() => service.persist(topic.id)).toThrow('injected reference-write failure')
+          expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).all()).toEqual([])
+          expect(dbh.db.select().from(messageTable).all()).toEqual([])
+          expect(dbh.db.select().from(chatMessageFileRefTable).all()).toEqual([])
+          expect(service.listMessages(topic.id)).toEqual(buffered)
+        } finally {
+          dbh.sqlite.exec('DROP TRIGGER fail_temporary_file_ref')
+        }
+
+        expect(service.persist(topic.id)).toEqual({ topicId: topic.id, messageCount: 2 })
+        expect(dbh.db.select().from(chatMessageFileRefTable).all()).toHaveLength(2)
+        expect(service.hasTopic(topic.id)).toBe(false)
+      })
+    })
+
     it('happy path: writes topic + messages, linearizes parentId chain, sets activeNodeId, clears store', async () => {
       const topic = service.createTopic({ name: 'persisted' })
       const m1 = service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
