@@ -1,5 +1,6 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { finish, plain, tempDir, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -22,7 +23,6 @@ import {
   working
 } from './gatewayGoalSupport'
 import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './gatewaySubagentSupport'
-import { finish, plain, tempDir, textParts } from './gatewaySupport'
 import { textOf, toolResults } from './gatewayToolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */

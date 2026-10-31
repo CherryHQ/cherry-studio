@@ -1,6 +1,7 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { finish, MODEL, plain, tempDir, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import { createGoalExtension } from '@cherrystudio/agent-runtime-pi'
@@ -28,7 +29,6 @@ import {
   toolCallPart,
   toolResults
 } from './gatewaySubagentSupport'
-import { finish, MODEL, plain, tempDir, textParts } from './gatewaySupport'
 
 describe('goal across sessions', () => {
   it('reads the selected branch goal after native tree navigation and leaves other branches unchanged', async () => {
