@@ -880,6 +880,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       refreshKey={contentRefreshToken}
       type={overlaySelection.previewType ?? 'artifact'}
       onSelectionReference={onInsertSelectionReference && pickerActive ? setSelectionReference : undefined}
+      onLineComment={onInsertSelectionReference ? handleLineComment : undefined}
     />
   ) : null
 

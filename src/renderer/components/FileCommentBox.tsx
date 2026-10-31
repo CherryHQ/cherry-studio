@@ -7,7 +7,7 @@ import { cn } from '@renderer/utils/style'
 
 interface Props {
   onSubmit: (comment: string) => void
-  onCancel: () => void
+  onCancel: (reason: 'escape' | 'blur') => void
   /** Submitting with no text quotes the target without a comment. */
   allowEmpty?: boolean
   className?: string
@@ -47,7 +47,7 @@ export default function FileCommentBox({ onSubmit, onCancel, allowEmpty = false,
       onBlur={(event) => {
         // Tabbing to the button stays inside; switching windows keeps the draft for the user's return.
         if (event.currentTarget.contains(event.relatedTarget) || !document.hasFocus()) return
-        finish(onCancel)
+        finish(() => onCancel('blur'))
       }}>
       <Textarea.Input
         ref={input}
@@ -63,7 +63,7 @@ export default function FileCommentBox({ onSubmit, onCancel, allowEmpty = false,
             // Escape closes only the box, not the file pane around it.
             event.preventDefault()
             event.stopPropagation()
-            finish(onCancel)
+            finish(() => onCancel('escape'))
           } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
             event.preventDefault()
             submit()

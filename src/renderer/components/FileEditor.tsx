@@ -144,7 +144,7 @@ export default function FileEditor({
     // Pierre owns the live document; a host draft echo must not replace it.
     const file =
       value === lastEdit.current && input.file.name === fileName ? input.file : { name: fileName, contents: value }
-    liveContents.current = file.contents
+    if (file !== input.file) liveContents.current = file.contents
     setInput({ value, file })
   }
 
@@ -233,9 +233,10 @@ export default function FileEditor({
     [commentDraft]
   )
   const groupRef = useRef<HTMLDivElement>(null)
-  const closeCommentDraft = useCallback(() => {
+  const closeCommentDraft = useCallback((reason: 'escape' | 'blur') => {
     setCommentDraft(null)
-    // The box unmounts with its focus; hand it back to Pierre's editable content.
+    if (reason !== 'escape') return
+    // Escape returns to the file; clicking away keeps the user's new focus target.
     requestAnimationFrame(() =>
       groupRef.current
         ?.querySelector('diffs-container')

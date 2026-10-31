@@ -62,7 +62,7 @@ describe('FileCommentBox', () => {
 
     fireEvent.keyDown(input(), { key: 'Escape' })
 
-    expect(onCancel).toHaveBeenCalledOnce()
+    expect(onCancel).toHaveBeenCalledExactlyOnceWith('escape')
     expect(onPaneKeyDown).not.toHaveBeenCalled()
   })
 
@@ -75,7 +75,7 @@ describe('FileCommentBox', () => {
     expect(onCancel).not.toHaveBeenCalled()
 
     fireEvent.focusOut(input(), { relatedTarget: document.body })
-    expect(onCancel).toHaveBeenCalledOnce()
+    expect(onCancel).toHaveBeenCalledExactlyOnceWith('blur')
   })
 
   it('keeps the draft when the whole window loses focus', () => {
