@@ -13,6 +13,7 @@ export interface AgentBrowserResource {
   overlays: HTMLElement | null
   reloadKey?: number | string
   guest: WebviewTag | null
+  /** Last location committed by the current guest; empty until it commits. */
   url: string
   title: string
   ready: boolean
@@ -60,7 +61,8 @@ export class AgentBrowserRuntimeService {
     const securityProfile = sourceUrl.startsWith('file:') ? WebviewSecurityProfile.AgentHtmlArtifact : profile
     if (existing) {
       if (existing.sourceUrl !== sourceUrl || existing.securityProfile !== securityProfile) {
-        this.update(sessionId, { sourceUrl, securityProfile })
+        // A different entry or profile replaces the guest, so the previous guest's committed location no longer applies.
+        this.update(sessionId, { sourceUrl, securityProfile, url: '' })
       }
       return
     }
@@ -103,7 +105,15 @@ export class AgentBrowserRuntimeService {
     }
     if (resource.guest === guest) return
     // A new guest replaces the old one, so its crash reason no longer applies.
-    this.update(sessionId, { guest, ready: false, loading: true, failed: false, title: '', recoveryReason: undefined })
+    this.update(sessionId, {
+      guest,
+      url: '',
+      ready: false,
+      loading: true,
+      failed: false,
+      title: '',
+      recoveryReason: undefined
+    })
   }
 
   updateGuest(

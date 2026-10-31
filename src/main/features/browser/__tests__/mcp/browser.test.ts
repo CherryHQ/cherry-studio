@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events'
+
 import { Client, InMemoryTransport, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
@@ -220,6 +222,25 @@ describe('MCP browser on shared sessions', () => {
     guest.recover()
     expect((await handleExecute(c, { code: 'document.title', tabId })).isError).not.toBe(true)
     expect(view.webContents.id).toBe(id)
+  })
+
+  it('keeps reporting downloads after the same webContents recovers', async () => {
+    const c = controller()
+    const { tabId, view } = await c.createTab()
+    const guest = view.webContents as unknown as ReturnType<typeof createGuest>['mock']
+    guest.crash()
+    guest.recover()
+    const item = Object.assign(new EventEmitter(), { getFilename: () => 'after-recovery.txt' })
+    guest.session.emit('will-download', {}, item, view.webContents)
+
+    const result = await handleConsoleMessages(c, { tabId })
+    expect(result.isError).not.toBe(true)
+    expect(JSON.parse((result.content as Array<{ text: string }>)[0].text)).toMatchObject({
+      ok: true,
+      tabId,
+      downloads: [{ filename: 'after-recovery.txt', state: 'progressing' }]
+    })
+    item.emit('done', {}, 'completed')
   })
 
   it('does not create a replacement page when execute cannot resolve its explicit target', async () => {

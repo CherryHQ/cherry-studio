@@ -172,6 +172,43 @@ describe('AgentBrowserRuntimeHost', () => {
     expect(runtime.get('session-a')).toBe(replacement)
   })
 
+  it('recovers an artifact that crashes before its first commit from the artifact URL', () => {
+    runtime.ensure('session-a', 'https://example.com/page')
+    const httpGuest = document.createElement('webview')
+    runtime.installGuest('session-a', httpGuest)
+    runtime.updateGuest('session-a', httpGuest, {
+      ready: true,
+      loading: false,
+      url: 'https://example.com/committed'
+    })
+    expect(runtime.get('session-a')?.url).toBe('https://example.com/committed')
+
+    act(() => runtime.ensure('session-a', 'file:///workspace/artifact.html'))
+    expect(runtime.get('session-a')).toMatchObject({ securityProfile: 'agent-html-artifact', url: '' })
+    const artifactGuest = document.createElement('webview')
+    runtime.installGuest('session-a', artifactGuest)
+    runtime.reportGuestHealth('session-a', artifactGuest, 'render-process-gone')
+    void runtime.recover('session-a')
+    expect(runtime.get('session-a')).toMatchObject({
+      sourceUrl: 'file:///workspace/artifact.html',
+      securityProfile: 'agent-html-artifact',
+      guest: null,
+      recoveryReason: undefined
+    })
+  })
+
+  it('keeps the committed location of a recovered guest across its replacement', () => {
+    runtime.ensure('session-a', 'https://example.com/original')
+    const guest = document.createElement('webview')
+    runtime.update('session-a', { guest, url: 'https://example.com/committed' })
+    void runtime.recover('session-a')
+    expect(runtime.get('session-a')?.sourceUrl).toBe('https://example.com/committed')
+
+    const replacement = document.createElement('webview')
+    runtime.installGuest('session-a', replacement)
+    expect(runtime.get('session-a')).toMatchObject({ url: '', sourceUrl: 'https://example.com/committed' })
+  })
+
   it('latches guest death and recovers the committed location with a new guest', async () => {
     let nextId = 40
     const ids = new WeakMap<HTMLElement, number>()

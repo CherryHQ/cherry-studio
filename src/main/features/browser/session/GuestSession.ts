@@ -52,6 +52,7 @@ export class GuestSession implements Disposable {
   private readonly nodeRefs = new Map<number, BrowserRef>()
   private readonly refTargets = new Map<BrowserRef, { role: string; name: string }>()
   private observers = 0
+  private downloadObserved = false
   private readonly inspection = new BrowserInspection()
   readonly webTools = new WebMcpTools(this)
   private readonly webToolCleanup = new Set<Promise<void>>()
@@ -82,7 +83,7 @@ export class GuestSession implements Disposable {
     guest.once('destroyed', this.onDestroyed)
     guest.on('render-process-gone', this.onRenderProcessGone)
     guest.on('dom-ready', this.onDomReady)
-    if (ownership === 'managed') this.electronSession.on('will-download', this.onDownload)
+    if (ownership === 'managed') this.startDownloadObservation()
   }
 
   private get observing(): boolean {
@@ -93,7 +94,7 @@ export class GuestSession implements Disposable {
     if (this.disposed || this.processGone) throw new BrowserSessionError('debugger_unavailable')
     if (!this.observing) {
       this.clearBrowserRefs()
-      this.electronSession.on('will-download', this.onDownload)
+      this.startDownloadObservation()
     }
     this.observers++
     let released = false
@@ -112,8 +113,20 @@ export class GuestSession implements Disposable {
     }
   }
 
-  private stopObserving(): void {
+  private startDownloadObservation(): void {
+    if (this.downloadObserved) return
+    this.downloadObserved = true
+    this.electronSession.on('will-download', this.onDownload)
+  }
+
+  private stopDownloadObservation(): void {
+    if (!this.downloadObserved) return
+    this.downloadObserved = false
     this.electronSession.removeListener('will-download', this.onDownload)
+  }
+
+  private stopObserving(): void {
+    this.stopDownloadObservation()
     for (const cleanup of this.downloadItems.values()) cleanup()
     this.downloadItems.clear()
     this.downloadUpdates.clear()
@@ -246,6 +259,8 @@ export class GuestSession implements Disposable {
         this.electronDebugger.detach()
       } catch {}
     }
+    // A managed consumer keeps observing across the renderer restart.
+    if (this.observing) this.startDownloadObservation()
   }
 
   private readonly onDestroyed = () => this.dispose()

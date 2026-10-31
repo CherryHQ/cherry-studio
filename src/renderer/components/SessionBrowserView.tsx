@@ -83,7 +83,7 @@ export function SessionBrowserView({
     <BrowserChrome
       webviewRef={webviewRef}
       webviewRevision={webviewRevision}
-      initialUrl={resource?.url ?? initialUrl ?? 'about:blank'}
+      initialUrl={resource?.url || resource?.sourceUrl || initialUrl || 'about:blank'}
       pageTitle={resource?.title ?? ''}
       historyEnabled={activeProfile === WebviewSecurityProfile.AgentBrowser}
       onNavigate={onNavigate}

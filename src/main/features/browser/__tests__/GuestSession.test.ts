@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events'
+
 import type { Protocol } from 'devtools-protocol'
 import { afterEach, assertType, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
@@ -66,6 +68,37 @@ describe('GuestSession command lifetime', () => {
     await expect(session.send('Runtime.enable')).resolves.toBeDefined()
     expect(mock.debugger.attach).toHaveBeenCalledTimes(2)
     expect(() => session.resolveRef(matches[0].ref)).toThrow(expect.objectContaining({ code: 'stale_ref' }))
+  })
+
+  it('re-arms download observation once when a managed guest recovers', () => {
+    const fixture = createGuest()
+    const session = new GuestSession(fixture.guest, 'managed')
+    sessions.push(session)
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(1)
+    fixture.mock.crash()
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(0)
+    fixture.mock.recover()
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(1)
+    fixture.mock.crash()
+    fixture.mock.recover()
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(1)
+
+    const item = Object.assign(new EventEmitter(), { getFilename: () => 'after-recovery.txt' })
+    fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'after-recovery.txt', state: 'progressing' }] })
+    expect(session.busy).toBe(true)
+    item.emit('done', {}, 'completed')
+    expect(session.busy).toBe(false)
+  })
+
+  it('keeps observing downloads after recovery while an observe() handle is held', async () => {
+    const { session, mock } = setup()
+    const handle = await session.observe()
+    mock.crash()
+    mock.recover()
+    expect(mock.session.listenerCount('will-download')).toBe(1)
+    handle.dispose()
+    expect(mock.session.listenerCount('will-download')).toBe(0)
   })
 
   it('cancels queued actions on death and prevents an active action from succeeding', async () => {
