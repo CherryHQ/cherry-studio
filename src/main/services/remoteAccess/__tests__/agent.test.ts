@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
@@ -53,6 +54,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { FileManager, FileIntakeService } from '@main/services/file'
 import type { FileManagerDeps } from '@main/services/file/internal/deps'
 import { createInternal } from '@main/services/file/internal/entry/create'
+import { AGENT_SESSION_STOPPED_CACHE_KEY } from '@shared/ai/agentSessionStopped'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -99,7 +101,7 @@ const fake = vi.hoisted(() => {
       assertSessionWritable() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
-      respondToolApproval: vi.fn(() => true),
+      respondToolApproval: vi.fn(() => ({ dispatched: true, handoff: 'not-requested' })),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
       recoverSessionForks: async () => {}
@@ -1901,15 +1903,20 @@ describe('remote agent access', () => {
 
   it('cancels only the execution the phone expects', async () => {
     const { session } = await call('agent.sessions.get', { sessionId })
+    MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY(sessionId), true)
     const receipt = await call('agent.messages.send', {
       commandId: randomUUID(),
       sessionId,
       text: 'hi',
       expectedIdleRevision: session.idleRevision
     })
+    // Admission publishes the accepted turn, so a Stop that preceded it no longer blocks a handoff.
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY(sessionId))).toBe(false)
     expect(
       await call('agent.executions.cancel', { commandId: randomUUID(), sessionId, expectedExecutionId: 'stale' })
     ).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+    // A rejected cancel is not a stop: it must not suppress a handoff the desktop armed.
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY(sessionId))).toBe(false)
     expect(
       await call('agent.executions.cancel', {
         commandId: randomUUID(),
@@ -1917,5 +1924,7 @@ describe('remote agent access', () => {
         expectedExecutionId: receipt.executionId
       })
     ).toMatchObject({ status: 'applied', result: { disposition: 'cancelled' } })
+    // The phone's cancel is a session-wide stop, so the window holding the armed handoff sees it.
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY(sessionId))).toBe(true)
   })
 })
