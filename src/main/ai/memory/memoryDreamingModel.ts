@@ -10,7 +10,10 @@ import type { DreamingState } from './memoryDreamingState'
 import type { MemoryRead } from './MemoryStore'
 
 export class DreamingError extends Error {
-  constructor(readonly reason: NonNullable<DreamingState['reason']>) {
+  constructor(
+    readonly reason: NonNullable<DreamingState['reason']>,
+    readonly unfit: readonly MemoryRead[] = []
+  ) {
     super(`Memory organization requires attention: ${reason}`)
   }
 }
@@ -35,8 +38,7 @@ export function fitDreamingInputs(
   candidates: readonly MemoryRead[],
   resolved: Awaited<ReturnType<typeof resolveDreamingModel>>
 ) {
-  const inputs = [...candidates]
-  while (inputs.length) {
+  const fit = (inputs: MemoryRead[]) => {
     const prompt = JSON.stringify({ files: inputs.map(({ path, content }) => ({ path, content })) })
     const contentTokens = inputs.reduce((total, file) => total + resolved.tokenizer.count(file.content ?? ''), 0)
     const outputTokens = Math.max(2048, Math.ceil(contentTokens * 2 + 1024))
@@ -50,10 +52,18 @@ export function fitDreamingInputs(
       inputTokens + outputTokens <= resolved.model.contextWindow!
     )
       return { inputs, prompt, outputTokens }
-    if (inputs.length === 1) break
-    inputs.pop()
+    return undefined
   }
-  throw new DreamingError('budget')
+  const entry = candidates[0]
+  let batch = entry && fit([entry])
+  if (!batch) throw new DreamingError('budget', entry ? [entry] : [])
+  const unfit: MemoryRead[] = []
+  for (const candidate of candidates.slice(1)) {
+    const combined = fit([...batch.inputs, candidate])
+    if (combined) batch = combined
+    else if (!fit([entry, candidate])) unfit.push(candidate)
+  }
+  return { ...batch, unfit }
 }
 
 export async function generateDreamingPlan(

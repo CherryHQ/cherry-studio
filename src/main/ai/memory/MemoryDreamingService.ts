@@ -256,7 +256,6 @@ export class MemoryDreamingService extends BaseService {
     const revisions = new Map<string, number>()
     let attempted = false
     let inputs: MemoryRead[] = []
-    let inputBytes = 0
     const assertCurrent = (): undefined => {
       ctx.signal.throwIfAborted()
       controller.signal.throwIfAborted()
@@ -311,13 +310,16 @@ export class MemoryDreamingService extends BaseService {
         }
         writeDreamingState(latest)
         if (target === MEMORY_ENTRY && bytes > 50_000) throw new DreamingError('budget')
-        if (inputBytes + bytes <= 50_000) {
-          inputs.push(read)
-          inputBytes += bytes
-        }
+        if (bytes <= 50_000) inputs.push(read)
       }
       let latest = readDreamingState(scope)
-      inputs = inputs.filter((read) => read.path === MEMORY_ENTRY || latest.files[read.path].attempts < 2)
+      inputs = inputs.filter(
+        (read) =>
+          read.path === MEMORY_ENTRY ||
+          (latest.files[read.path].attempts < 2 && latest.files[read.path].retryAt <= Date.now())
+      )
+      if (latest.files[MEMORY_ENTRY].attempts >= 2 && latest.files[MEMORY_ENTRY].reason === 'budget')
+        return { deferred: true }
       if (!start.manual && !inputs.some((read) => needsDreaming(latest.files[read.path], Date.now())))
         return { scanned: inputs.length }
       if (!inputs.some((read) => latest.files[read.path].attempts < 2 && latest.files[read.path].retryAt <= Date.now()))
@@ -325,7 +327,18 @@ export class MemoryDreamingService extends BaseService {
       const empty = inputs.every((read) => !read.content?.trim())
       const resolved = empty ? undefined : await resolveDreamingModel()
       const batch = resolved ? fitDreamingInputs(inputs, resolved) : undefined
-      if (batch) inputs = batch.inputs
+      if (batch) {
+        assertCurrent()
+        inputs = batch.inputs
+        latest = readDreamingState(scope)
+        for (const read of batch.unfit) {
+          const file = latest.files[read.path]
+          if (file.observedHash !== read.hash) continue
+          file.attempts = 2
+          file.reason = 'budget'
+        }
+        writeDreamingState(latest)
+      }
       latest = readDreamingState(scope)
       if (!start.manual && !inputs.some((read) => needsDreaming(latest.files[read.path], Date.now())))
         throw new DreamingError('budget')
@@ -403,6 +416,13 @@ export class MemoryDreamingService extends BaseService {
     } catch (error) {
       const latest = readDreamingState(scope)
       if (latest.generation === generation) {
+        if (error instanceof DreamingError)
+          for (const read of error.unfit) {
+            const file = latest.files[read.path]
+            if (file?.observedHash !== read.hash) continue
+            file.attempts = 2
+            file.reason = 'budget'
+          }
         const retryable =
           attempted && latest.manualAttempts < 2 && inputs.some((read) => (latest.files[read.path]?.attempts ?? 2) < 2)
         latest.manual = start.manual && retryable

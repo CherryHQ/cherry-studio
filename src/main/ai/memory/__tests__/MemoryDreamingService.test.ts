@@ -105,6 +105,62 @@ describe('memory organization lifecycle and commit fences', () => {
     return session.commit([{ kind: 'write', receipt: read.receipt, content }], approve)
   }
 
+  it('processes smaller due topics past an unfit topic and retries the blocked file only after it changes', async () => {
+    dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
+    await save('Entry that is not due')
+    const large = '.memories/a-large.md'
+    const small = '.memories/b-small.md'
+    for (let index = 0; index < 10; index++) {
+      await save(`Large ${index}: ${'reason '.repeat(3000)}`, large)
+      await save(`Small ${index}`, small)
+    }
+    const original = (await session.read(large)).content
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 2 })
+    const state = readDreamingState(scope)
+    expect(state.files[small]).toMatchObject({ changes: 0, processedHash: (await session.read(small)).hash })
+    expect(state.files[large]).toMatchObject({ changes: 10, attempts: 2, reason: 'budget' })
+    expect(state.files[large].processedHash).toBeUndefined()
+    expect((await session.read(large)).content).toBe(original)
+    await dreaming.execute(job())
+    await dreaming.execute(job())
+    expect(generate).toHaveBeenCalledTimes(1)
+    await save('Now the large topic fits', large)
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 3 })
+    expect(readDreamingState(scope).files[large]).toMatchObject({
+      changes: 0,
+      processedHash: (await session.read(large)).hash
+    })
+    expect(generate).toHaveBeenCalledTimes(2)
+  })
+
+  it('defers a topic that fits alone to the next batch without exhausting its attempts', async () => {
+    dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
+    await save('Entry')
+    const topics = ['.memories/a.md', '.memories/b.md']
+    for (let index = 0; index < 10; index++)
+      for (const target of topics) await save(`${index} ${'reason '.repeat(1000)}`, target)
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 2 })
+    expect(readDreamingState(scope).files[topics[1]]).toMatchObject({ changes: 10, attempts: 0 })
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 2 })
+    for (const target of topics)
+      expect(readDreamingState(scope).files[target]).toMatchObject({
+        changes: 0,
+        processedHash: (await session.read(target)).hash
+      })
+  })
+
+  it('keeps an unfit required entry intact and blocks repeated preflight until a fresh request', async () => {
+    dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
+    const original = 'reason '.repeat(3000)
+    await save(original)
+    dreaming.request(scope)
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'budget' })
+    expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({ attempts: 2, reason: 'budget' })
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ deferred: true })
+    expect(generate).not.toHaveBeenCalled()
+    expect((await session.read('MEMORY.md')).content).toBe(original)
+  })
+
   it('counts only changed controlled writes and keeps the earliest pending time across recovery', async () => {
     await save('First fact')
     const initial = readDreamingState(scope).files['MEMORY.md']
