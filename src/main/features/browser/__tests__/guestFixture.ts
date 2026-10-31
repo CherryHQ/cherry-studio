@@ -29,6 +29,7 @@ export function createGuest(id = 1) {
     debugger: debuggerSession,
     isDestroyed: vi.fn(() => destroyed),
     setWindowOpenHandler: vi.fn(),
+    sendInputEvent: vi.fn<(event: Electron.KeyboardInputEvent) => void>(),
     getType: vi.fn(() => 'window'),
     getBackgroundThrottling: vi.fn(() => backgroundThrottling),
     setBackgroundThrottling: vi.fn((allowed: boolean) => {

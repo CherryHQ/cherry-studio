@@ -123,7 +123,7 @@ Agent pointer actions publish a host-rendered cursor through the binding-owned `
 Only a presented, focused host waits for arrival, bounded by 250 ms and the action deadline.
 Owner/tab/document/sequence checks reject unrelated acknowledgements; cancellation, navigation and
 binding disposal invalidate pending input. Actions re-resolve their element after the visual wait,
-and clicks check for layout changes caused by real hover before pressing. Actual input stays on CDP;
+and clicks check for layout changes caused by real hover before pressing. Mouse input uses CDP;
 the overlay never intercepts user input or appears in guest screenshots. Matching runtime output
 boundaries and controller release hide the cursor without closing the borrowed page. Renderer motion
 uses a host PNG and eight response/damping springs in one requestAnimationFrame loop. Short moves
@@ -137,8 +137,36 @@ use separate IPC events. Per-tool execution leases temporarily disable backgroun
 restore its previous value after the last execution. Webview screenshots retain a native frame
 subscription for the bounded CDP command, releasing it on completion, cancellation or timeout.
 
-Keyboard readiness is checked against the invocation's current conversation owner
-and exact guest binding before and after renderer acknowledgement. Inert retained
-guests acknowledge background execution without taking DOM focus or revealing the
-pane; visible guests must focus successfully. Missing guests, cancellation and
-ownership changes reject the input before CDP keyboard dispatch.
+Borrowed keyboard/text input requests focus once against the current conversation
+owner and exact guest binding. A visible pane receives DOM focus; an inert retained
+pane acknowledges `background` without being revealed. Both acknowledgements admit
+input through that guest's `webContents.sendInputEvent`, regardless of host DOM or
+OS foreground focus. Text uses `keyDown`, `char` and `keyUp` per Unicode code point;
+CRLF is normalized to LF, and text newlines use only `char '\r'`, never Enter
+key-down/key-up. A single-line target rejects multiline text with `not_found` before any mutation. Chords use
+key-down, optional character and key-up events. Clearing selects the contents
+in-page, rechecks the target and sends `Backspace`. Inputs without a selection API
+(such as email and number) instead clear their value in-page and dispatch bubbling
+`input`, then `change`, before read-back verification. The platform select-all chord
+(`Meta+a` on macOS, `Control+a` elsewhere) selects the active editable's contents
+in-page and still delivers key events. An unsupported active target returns
+`not_found`. Managed keyboard input uses CDP.
+The borrowed controller supplies the focus request and route assertion through
+`BrowserActionOptions`; it verifies the binding and live guest. Keyboard actions
+check the resolved target's editing focus, including shadow roots and editing hosts.
+The session input transport checks cancellation, deadlines, dialogs and availability.
+Target focus loss returns `input_not_focused`; failed renderer focus preparation returns
+`input_unavailable`. Ref invalidation, cancellation and deadlines also stop input.
+Keys are released even after cancellation, timeout or route/ref invalidation, with
+a separate one-second deadline; only guest destruction skips release. Typing reads
+back the value. CDP retries a mismatch once; borrowed input fails without replay.
+Inspect the page before retrying a failed action; earlier input may already have
+been applied. All MCP interactions use focus emulation; borrowed keyboard tools
+use direct guest delivery through the session input transport.
+
+For `type`, `submit: true` is the only path that sends Enter. Borrowed input
+delivers the Enter key event to the bound
+guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
+Page `keydown` handlers receive it and textareas insert a line break. Forms with a
+submit button can submit implicitly. Forms without one can do so only if they
+contain at most one text-like input. The page's own `keydown` handling decides the rest.

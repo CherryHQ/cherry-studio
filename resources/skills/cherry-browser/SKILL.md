@@ -31,8 +31,11 @@ The runtime emits this same reference on first binding and through `documentatio
 4. Group already-determined sequential actions and a final observation in one cell.
    Stop at that observation when the next action depends on unseen UI. Verify the
    outcome, URL and page identity before reporting success.
-5. On `stale_ref`, observe again and resolve the intended element. After an action
-   times out or is interrupted, inspect whether its effect already happened.
+5. On `stale_ref`, observe again and resolve the intended element. On
+   `input_not_focused`, inspect the target field and resolve it from fresh AX state.
+   On `input_unavailable`, reopen the browser pane, inspect it and resolve fresh refs.
+   A background pane can receive input. After an action times out or is interrupted,
+   inspect whether its effect already happened.
    Never automatically repeat a purchase, submission, message or other uncertain effect.
 
 The visible host has one page per session. It does not support new/private tabs,
@@ -40,6 +43,8 @@ closing/resetting the user's page or popup windows. A standalone browser MCP may
 have different capabilities; only advertise the tools actually exposed. Navigation
 can replace the document and invalidate old refs. Session or profile changes revoke
 the target entirely. Missing targets are unavailable, not permission to choose another.
+
+`type` inserts newlines as text without triggering Enter. CRLF is normalized to LF. A single-line target rejects multiline text with `not_found` before any mutation, including clearing. For `type`, only `submit: true` sends Enter after successful value verification. `pressKey('Meta+a')` on macOS and `pressKey('Control+a')` elsewhere select the active editable's contents; an unsupported target fails with `not_found`.
 
 ## Screenshots
 

@@ -15,6 +15,8 @@ export class BrowserSessionError extends Error {
       | 'debugger_unavailable'
       | 'not_allowed'
       | 'budget_exceeded'
+      | 'input_not_focused'
+      | 'input_unavailable'
       | 'not_found'
       | 'occluded',
     readonly dialog?: BrowserDialog
