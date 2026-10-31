@@ -46,6 +46,11 @@ const TaskFormDialog = lazy(() =>
   import('@renderer/components/ScheduledTask/TaskFormDialog').then((module) => ({ default: module.TaskFormDialog }))
 )
 
+function navigationTargetKey(row: DashboardEntry): string | null {
+  if (row.sessionId) return `session:${row.sessionId}`
+  return row.taskId ? `task:${row.taskId}` : null
+}
+
 function useVisibleTime(enabled: boolean): number {
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
@@ -119,7 +124,10 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
     )
   const errorToast = (error: unknown) =>
     toast.error(formatErrorMessageWithPrefix(error, t('agent.task_dashboard.action_failed')))
-  const markUnavailable = (id: string) => setUnavailable((current) => new Set([...current, id]))
+  const markUnavailable = (row: DashboardEntry) => {
+    const targetKey = navigationTargetKey(row)
+    if (targetKey) setUnavailable((current) => new Set([...current, targetKey]))
+  }
 
   const open = async (row: DashboardEntry) => {
     try {
@@ -132,9 +140,9 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
       } else if (row.taskId) {
         await dataApiService.get(`/agent-tasks/${row.taskId}`)
         openSettingsTab(`/settings/scheduled-tasks/${encodeURIComponent(row.taskId)}`)
-      } else markUnavailable(row.id)
+      }
     } catch (error) {
-      if (isDataApiNotFoundError(error) || isAgentSessionNotFoundError(error)) markUnavailable(row.id)
+      if (isDataApiNotFoundError(error) || isAgentSessionNotFoundError(error)) markUnavailable(row)
       else errorToast(error)
     }
   }
@@ -159,7 +167,8 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
   }
 
   const renderRow = (row: DashboardEntry) => {
-    const missing = unavailable.has(row.id) || (!row.sessionId && !row.taskId)
+    const targetKey = navigationTargetKey(row)
+    const missing = targetKey === null || unavailable.has(targetKey)
     const isStopping = stopping.has(row.id)
     const Icon = row.blockedOn ? OctagonAlert : Loader2
     const status = isStopping

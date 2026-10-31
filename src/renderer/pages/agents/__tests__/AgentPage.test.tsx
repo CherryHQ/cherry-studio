@@ -891,9 +891,15 @@ describe('Agent task dashboard interactions', () => {
     expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
   })
 
-  it('opens running tasks at their anchor and disables navigation when the session was deleted', async () => {
+  it('opens runs at their anchor and restores schedule navigation when a deleted session is replaced', async () => {
     const user = userEvent.setup()
-    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [run('Research')])
+    const entry: DashboardEntry = {
+      ...run('Research'),
+      id: 'scheduled:schedule',
+      source: 'scheduled',
+      taskId: 'schedule'
+    }
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [entry])
     render(<Dashboard enabled />)
     await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
     expect(ipcMocks.request).toHaveBeenCalledWith('navigation.focus_or_open_conversation', {
@@ -905,6 +911,19 @@ describe('Agent task dashboard interactions', () => {
     await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
     expect(screen.getByRole('button', { name: /Research Agent A No longer available/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, []))
+    act(() =>
+      cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [{ ...entry, sessionId: 'new-session', runIds: ['new-run'] }])
+    )
+    const replacement = screen.getByRole('button', { name: /Research Agent A Running/ })
+    expect(replacement).toBeEnabled()
+    await user.click(replacement)
+    expect(ipcMocks.request).toHaveBeenLastCalledWith('navigation.focus_or_open_conversation', {
+      target: { conversationType: 'agent', conversationId: 'new-session' },
+      title: 'Research',
+      messageId: 'anchor'
+    })
   })
 
   it('opens a scheduled run without a session through its task and disables a targetless run', async () => {
