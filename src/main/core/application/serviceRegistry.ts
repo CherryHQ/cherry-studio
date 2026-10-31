@@ -82,6 +82,7 @@ import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrashService } from '@main/services/trash'
 import { TrayService } from '@main/services/TrayService'
+import { VoiceExpressiveService } from '@main/services/voice/VoiceExpressiveService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/webview'
 
@@ -161,6 +162,7 @@ export const services = {
   LogRetentionService,
   PythonService,
   TrayService,
+  VoiceExpressiveService,
   WebSearchService,
   WebviewService,
   BrowserSessionService,
