@@ -290,9 +290,18 @@ function isBuiltinServerToolAvailable(
   toolId: ServerTool,
   endpointType?: EndpointType
 ): boolean {
-  // A user-set model capability overrides registry detection, so unrecognized models can still search.
+  // A user-set model capability waives only the model-eligibility match, so unrecognized
+  // models can still search on providers that serve native search. It never manufactures a
+  // native path: without a declaration for this endpoint the 'server' route has no factory
+  // to serve it and would silently drop a configured client fallback.
   if (toolId === SERVER_TOOL.WEB_SEARCH && model.capabilities?.includes(MODEL_CAPABILITY.WEB_SEARCH)) {
-    return !isNonChatModel(model)
+    if (isNonChatModel(model)) return false
+    const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
+    return (
+      provider.serverTools?.some(
+        (tool) => tool.id === SERVER_TOOL.WEB_SEARCH && serverToolServesEndpoint(tool, endpoint)
+      ) ?? false
+    )
   }
   const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
   const declarations =
