@@ -27,6 +27,7 @@ import {
   projectRuntimeReasoning,
   providerRegistryService,
   type ReasoningProviderContext,
+  reportRegistryResourceFailure,
   type ResolvedReasoningProfile,
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
@@ -558,11 +559,13 @@ class ModelService {
           .get(existing.providerId)
         if (context) baseline = this.getRegistryBaseline(context, existing.modelId)
       } catch (error) {
-        logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
-          providerId: existing.providerId,
-          modelId: existing.modelId,
-          error
-        })
+        if (!reportRegistryResourceFailure(error)) {
+          logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
+            providerId: existing.providerId,
+            modelId: existing.modelId,
+            error
+          })
+        }
       }
     }
 
@@ -744,11 +747,13 @@ class ModelService {
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
-          logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
-            providerId: row.providerId,
-            modelId: row.modelId,
-            error
-          })
+          if (!reportRegistryResourceFailure(error)) {
+            logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
+              providerId: row.providerId,
+              modelId: row.modelId,
+              error
+            })
+          }
           return createPresetFallback(row)
         }
       }
@@ -827,11 +832,13 @@ class ModelService {
         // A registry-lookup failure must not silently strip a model's
         // imageGeneration / capabilities — log so a real registry/IO fault
         // is diagnosable rather than masquerading as "model isn't image-gen".
-        logger.warn('Registry enrichment failed; serving model without registry metadata', {
-          providerId: model.providerId,
-          modelId,
-          error
-        })
+        if (!reportRegistryResourceFailure(error)) {
+          logger.warn('Registry enrichment failed; serving model without registry metadata', {
+            providerId: model.providerId,
+            modelId,
+            error
+          })
+        }
         return model
       }
     })
