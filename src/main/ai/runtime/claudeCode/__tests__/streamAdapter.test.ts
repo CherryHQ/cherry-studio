@@ -618,6 +618,52 @@ describe('ClaudeCodeStreamAdapter', () => {
       adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     }
 
+    it.each(['42', 'A longer complete fallback answer.'])(
+      'preserves %s after a held prefix and SDK synthetic continuation',
+      async (fallback) => {
+        const { adapter, parts } = createAdapter()
+        streamReasoning(adapter, monologue)
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+        )
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'Let me ' } })
+        )
+        expect(parts.some((part) => part.type === 'text-delta')).toBe(false)
+        adapter.handleMessage({
+          type: 'user',
+          isSynthetic: true,
+          message: { role: 'user', content: 'Continue.' },
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID()
+        } as any)
+        adapter.handleMessage(assistant([{ type: 'text', text: fallback }], null, 'fallback_1'))
+        adapter.handleMessage(successResult())
+        expect(
+          parts
+            .filter((part) => part.type === 'text-delta')
+            .map((part: any) => part.delta)
+            .join('')
+        ).toBe('Let me ' + fallback)
+        expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(2)
+        expect(parts.filter((part) => part.type === 'text-end')).toHaveLength(2)
+        const stream = new ReadableStream<CherryUIMessageChunk>({
+          start(controller) {
+            parts.forEach((part) => controller.enqueue(part))
+            controller.close()
+          }
+        })
+        let saved: CherryUIMessage | undefined
+        for await (const message of readUIMessageStream<CherryUIMessage>({ stream })) saved = message
+        expect(
+          saved?.parts
+            .filter((part) => part.type === 'text')
+            .map((part: any) => part.text)
+            .join('')
+        ).toBe('Let me ' + fallback)
+      }
+    )
+
     it('drops a streamed parentless text copy before it reaches the output sink', () => {
       const { adapter, parts } = createAdapter()
       streamReasoning(adapter, monologue)

@@ -1337,7 +1337,9 @@ export class ClaudeCodeStreamAdapter {
       }
     }
 
-    if (ctx.textPartId) {
+    // A held reasoning-like prefix has no textPartId yet, but it still owns text counters.
+    // Settle it before a retry/continuation snapshot can reconcile against those counters.
+    if (ctx.textPartId || ctx.pendingReasoningText) {
       this.closeActiveTextPart(ctx)
       ctx.accumulatedText = ''
       ctx.streamedTextLength = 0
