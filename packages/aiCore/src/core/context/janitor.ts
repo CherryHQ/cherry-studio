@@ -207,7 +207,7 @@ function clampToInputBudget(messages: ContextMessage[], maxInputTokens: number):
  * Produce a compression summary for a slice of conversation `messages`:
  * tool-result stubbing → attachment stripping → trailing instruction →
  * `<summary>` extraction. Returns the extracted summary text (after
- * `formatCompactSummary` strips `<analysis>` and unwraps `<summary>`) — the
+ * `formatCompactSummary` strips model scratchpad wrappers and unwraps `<summary>`) — the
  * caller wraps it (e.g. with `ContextPrompts.getCompactSummaryWrapper`) if it
  * wants the continuation framing.
  *

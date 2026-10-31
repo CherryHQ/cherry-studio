@@ -1,0 +1,338 @@
+[
+  {
+    "raw": "- > -\n      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "- > -\n       <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "- > -\n        <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "- > -\n          <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "- > -\n  >       <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "- > -\n  >        <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "- > -\n  >         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "- > -\n  >           <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n>\n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n>\n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n> \n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n> \n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n> >\n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n> >\n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n>\n>\n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n>\n>\n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n> >\n>     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n> >\n>      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   - \n> >\n>     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   - \n> >\n>      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   - \n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   - \n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - \n>   -\n> >\n>     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - \n>   -\n> >\n>      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - \n>   -\n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - \n>   -\n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - a\n>   -\n> >\n>     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - a\n>   -\n> >\n>      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - a\n>   -\n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> - a\n>   -\n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n       <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n        <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n          <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n>           <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n  >           <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n>\n>         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n>\n  >         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> \n>         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> \n  >         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n>     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n>      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n>       <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n>        <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n>         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n  >       <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n  >        <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n> >\n  >         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n  >\n>         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n  >\n  >         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n>\n>\n>         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   -\n>     -\n>\n>\n  >         <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> 1.\n>    -\n> >\n>     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> 1.\n>    -\n> >\n>      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> 1.\n>    -\n> >\n>       <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> 1.\n>    -\n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> 1.\n>    -\n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> 1.\n>    -\n> >\n  >       <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   > -\n> >\n>     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   > -\n> >\n>      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   > -\n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "> -\n>   > -\n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> \n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> \n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> \n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> \n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> >\n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> >\n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> >\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n> >\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n>\n    <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n>\n     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n>\n  >     <thinking>MARK</thinking>\n",
+    "want": true
+  },
+  {
+    "raw": "-\n  > -\n  >   -\n>\n>\n  >      <thinking>MARK</thinking>\n",
+    "want": true
+  }
+]

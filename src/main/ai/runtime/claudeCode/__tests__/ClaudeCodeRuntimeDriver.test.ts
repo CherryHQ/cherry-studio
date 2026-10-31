@@ -272,14 +272,15 @@ vi.mock('../streamAdapter', async (importActual) => {
         return this.turnHasActivity
       }
 
-      beginTurn() {
+      beginTurn = vi.fn((options?: { userPrompt?: boolean }) => {
+        void options
         this.turnHasActivity = false
         this.turnActive = true
         if (this.pendingInit) {
           this.pendingInit = undefined
           this.emitInitMetadata()
         }
-      }
+      })
 
       private enqueue(chunk: any) {
         if (chunk.type !== 'message-metadata') this.turnHasActivity = true
@@ -621,6 +622,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    expect(mocks.adapterInstances.at(-1).beginTurn).toHaveBeenCalledWith({ userPrompt: true })
     nextQueryResult.reject(
       new ReferenceError(
         'Claude Code executable not found at /missing/claude. Is options.pathToClaudeCodeExecutable set?'
