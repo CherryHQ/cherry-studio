@@ -157,7 +157,7 @@ describe('updateCliConfigDraftConfig', () => {
     const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
 
     const config = JSON.parse(updated[0].content)
-    expect(config.provider['cherry-DeepSeek'].options).toEqual({
+    expect(config.providers['cherry-DeepSeek'].settings).toEqual({
       apiKey: 'sk-secret',
       baseURL: 'https://api.deepseek.com/v1',
       headers: { 'HTTP-Referer': 'https://cherry-ai.com' }
@@ -167,12 +167,12 @@ describe('updateCliConfigDraftConfig', () => {
   it('preserves OpenCode model limits during a config-only update', async () => {
     const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
     const config = JSON.parse(files[0].content)
-    config.provider['cherry-DeepSeek'].models['deepseek-chat'].limit = { context: 65536, output: 8192 }
+    config.providers['cherry-DeepSeek'].models['deepseek-chat'].limit = { context: 65536, output: 8192 }
     files[0].content = JSON.stringify(config)
 
     const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
 
-    expect(JSON.parse(updated[0].content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+    expect(JSON.parse(updated[0].content).providers['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
       context: 65536,
       output: 8192
     })
@@ -246,10 +246,10 @@ describe('updateCliConfigDraftConfig', () => {
         path: '',
         language: 'json',
         content: JSON.stringify({
-          provider: {
+          providers: {
             'cherry-gateway': {
-              npm: '@ai-sdk/anthropic',
-              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              package: '@opencode/ai/providers/anthropic',
+              settings: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
               models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
             }
           }
@@ -261,7 +261,7 @@ describe('updateCliConfigDraftConfig', () => {
 
     const parsed = JSON.parse(updated.find((f) => f.target === 'opencode-config')!.content)
     expect(parsed.compaction.auto).toBe(true)
-    expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
+    expect(parsed.providers['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
     expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
   })
 

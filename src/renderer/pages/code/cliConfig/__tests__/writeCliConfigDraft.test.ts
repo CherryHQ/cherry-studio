@@ -986,10 +986,10 @@ describe('writeCliConfigDraft', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const provider = parsed.provider['cherry-DeepSeek']
-      expect(provider.npm).toBe('@ai-sdk/openai-compatible')
-      expect(provider.options.apiKey).toBe('sk-secret')
-      expect(provider.options.baseURL).toBe('https://api.deepseek.com/v1')
+      const provider = parsed.providers['cherry-DeepSeek']
+      expect(provider.package).toBe('@opencode/ai/providers/openai-compatible')
+      expect(provider.settings.apiKey).toBe('sk-secret')
+      expect(provider.settings.baseURL).toBe('https://api.deepseek.com/v1')
       const model = provider.models['deepseek-chat']
       expect(model.name).toBe('deepseek-chat')
       expect(model).not.toHaveProperty('reasoning')
@@ -1017,7 +1017,7 @@ describe('writeCliConfigDraft', () => {
         modelId: 'deepseek::deepseek-chat'
       })
 
-      const options = JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].options
+      const options = JSON.parse(opencodeWrite().content).providers['cherry-DeepSeek'].settings
       expect(options.headers).toEqual({
         'HTTP-Referer': 'https://cherry-ai.com',
         'X-Title': 'Cherry Studio'
@@ -1036,7 +1036,7 @@ describe('writeCliConfigDraft', () => {
         modelId: 'deepseek::deepseek-chat'
       })
 
-      expect(JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+      expect(JSON.parse(opencodeWrite().content).providers['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
         context: 65536,
         output: 8192
       })
@@ -1056,8 +1056,8 @@ describe('writeCliConfigDraft', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const provider = parsed.provider['cherry-Anthropic']
-      expect(provider.options.baseURL).toBe('https://api.anthropic.com/v1')
+      const provider = parsed.providers['cherry-Anthropic']
+      expect(provider.settings.baseURL).toBe('https://api.anthropic.com/v1')
       const model = provider.models['claude-sonnet-4-5']
       expect(model.reasoning).toBe(true)
       expect(model.options.thinking).toEqual({ budgetTokens: 10000, type: 'enabled' })
@@ -1076,10 +1076,10 @@ describe('writeCliConfigDraft', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const provider = parsed.provider['cherry-Ollama']
-      expect(provider.npm).toBe('@ai-sdk/anthropic')
-      expect(provider.options.apiKey).toBe('ollama')
-      expect(provider.options.baseURL).toBe('http://localhost:11434/v1')
+      const provider = parsed.providers['cherry-Ollama']
+      expect(provider.package).toBe('@opencode/ai/providers/anthropic')
+      expect(provider.settings.apiKey).toBe('ollama')
+      expect(provider.settings.baseURL).toBe('http://localhost:11434/v1')
     })
 
     it('uses reasoningEffort for openai-compatible models that support it', async () => {
@@ -1096,7 +1096,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const model = parsed.provider['cherry-DeepSeek'].models['deepseek-chat']
+      const model = parsed.providers['cherry-DeepSeek'].models['deepseek-chat']
       expect(model.reasoning).toBe(true)
       expect(model.options.reasoningEffort).toBe('medium')
       // Non-gateway mode also prefers the record's display name over the raw model id.
@@ -1120,7 +1120,7 @@ describe('writeCliConfigDraft', () => {
       await writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      expect(parsed.provider['cherry-DeepSeek'].options.baseURL).toBe('https://api.deepseek.com/v1')
+      expect(parsed.providers['cherry-DeepSeek'].settings.baseURL).toBe('https://api.deepseek.com/v1')
     })
 
     it('uses the model endpoint type and matching baseURL for mixed providers', async () => {
@@ -1142,9 +1142,9 @@ describe('writeCliConfigDraft', () => {
 
       await writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'mixed::gpt-compatible' })
 
-      const provider = JSON.parse(opencodeWrite().content).provider['cherry-Mixed']
-      expect(provider.npm).toBe('@ai-sdk/openai-compatible')
-      expect(provider.options.baseURL).toBe('https://chat.example.com/v1')
+      const provider = JSON.parse(opencodeWrite().content).providers['cherry-Mixed']
+      expect(provider.package).toBe('@opencode/ai/providers/openai-compatible')
+      expect(provider.settings.baseURL).toBe('https://chat.example.com/v1')
     })
 
     it('writes the global OpenCode permission mode', async () => {
@@ -1478,10 +1478,10 @@ describe('writeCliConfigDraft', () => {
       })
 
       const parsed = JSON.parse(writes.find((w) => w.path.endsWith('opencode.json'))!.content)
-      const provider = parsed.provider['cherry-gateway']
+      const provider = parsed.providers['cherry-gateway']
       expect(provider).toBeTruthy()
-      expect(provider.options.baseURL).toBe(`${GATEWAY_BASE_URL}/v1`)
-      expect(provider.options.apiKey).toBe('cs-sk-gateway')
+      expect(provider.settings.baseURL).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(provider.settings.apiKey).toBe('cs-sk-gateway')
       // The map key stays the addressing id; `name` is what OpenCode's UI shows, so it
       // carries the display name instead of the opaque gateway id.
       expect(provider.models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
@@ -1500,7 +1500,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const parsed = JSON.parse(writes.find((w) => w.path.endsWith('opencode.json'))!.content)
-      expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('deepseek-chat')
+      expect(parsed.providers['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('deepseek-chat')
     })
 
     it('writes the gateway URL + key + gateway-addressed model for codex under the "cherry-gateway" key', async () => {
