@@ -1,4 +1,4 @@
-import type { ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
+import { type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 
 import type {
   BoundPorts,
@@ -14,6 +14,7 @@ import { type InputId, type JsonValue, runtimeId, type ThreadId } from '@cherrys
 import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
 import { compactionSummarizer, conversationExtension, meterRequests } from './extension'
+import { historyOf } from './history'
 import { commit, modelContext, readFacts } from './ledger'
 import {
   awaitAnswer,
@@ -314,6 +315,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   async function openRoot(conv: Conversation): Promise<void> {
     try {
       await openNative(conv)
+      if (conv.reopened) await restoreChildren(conv)
     } catch (error) {
       // Never opened: the host may open it again.
       conversations.delete(conv.thread)
@@ -332,6 +334,40 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         // So does a person's text submitted while the session was being built.
         drain(adapter, conv)
       }
+    }
+  }
+  async function restoreChildren(parent: Conversation): Promise<void> {
+    if (!parent.manager.isPersisted()) return
+    const history = historyOf(parent.manager.getBranch(), parent.thread)
+    for (const item of history)
+      if (item.kind === 'assistant') for (const call of item.toolCalls) parent.callIds.set(call.callKey, call.callId)
+    const ids = new Set(
+      history.flatMap((item) =>
+        item.kind === 'record' && item.record.type === 'subagent-run' ? [item.record.value.sessionId] : []
+      )
+    )
+    if (!ids.size) return
+    const files = await SessionManager.list(parent.manager.getCwd(), parent.manager.getSessionDir())
+    for (const id of ids) {
+      const candidates = files.filter(
+        (file) => file.id === id && file.parentSessionPath === parent.manager.getSessionFile()
+      )
+      if (candidates.length !== 1) continue
+      const manager = SessionManager.openExisting(candidates[0].path, id)
+      const origin = historyOf(manager.getBranch(), id).findLast(
+        (item) => item.kind === 'record' && item.record.type === 'subagent-origin'
+      )
+      if (origin?.kind !== 'record' || origin.record.type !== 'subagent-origin') continue
+      const child = newConversation(
+        id,
+        manager,
+        { kind: 'subagent', parent: parent.thread, origin: origin.record.value },
+        undefined,
+        true
+      )
+      conversations.set(id, child)
+      await openNative(child)
+      await restoreChildren(child)
     }
   }
   async function openNative(conv: Conversation): Promise<void> {

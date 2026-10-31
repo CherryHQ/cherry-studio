@@ -6,6 +6,7 @@ import { application } from '@application'
 import type { InputState } from '@cherrystudio/agent-runtime'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -29,6 +30,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -113,6 +115,7 @@ import {
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
+import { savedChildView } from './ChildThreadProjection'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
@@ -1603,6 +1606,52 @@ export class AgentSessionRuntimeService extends BaseService {
     return await connection.stopTask(taskId)
   }
 
+  private readonly childSubscriptions = new Map<Electron.WebContents, Map<string, () => void>>()
+
+  detachChild(sender: Electron.WebContents, id: string): void {
+    this.childSubscriptions.get(sender)?.get(id)?.()
+    this.childSubscriptions.get(sender)?.delete(id)
+  }
+
+  async attachChild(
+    sender: Electron.WebContents,
+    sessionId: string,
+    toolCallId: string,
+    id: string,
+    send: (update: AgentChildUpdate) => void
+  ): Promise<AgentChildView | null> {
+    this.detachChild(sender, id)
+    let subscriptions = this.childSubscriptions.get(sender)
+    if (!subscriptions) {
+      subscriptions = new Map()
+      this.childSubscriptions.set(sender, subscriptions)
+      sender.once('destroyed', () => {
+        for (const dispose of subscriptions!.values()) dispose()
+        this.childSubscriptions.delete(sender)
+      })
+    }
+    const marker = () => {}
+    subscriptions.set(id, marker)
+    await this.primeConnection(sessionId)
+    const entry = this.entries.get(sessionId)
+    const connection = entry && this.currentConnection(entry)
+    const child = await connection?.childProjection?.(toolCallId)
+    if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+    if (child) {
+      subscriptions.set(id, child.subscribe(send))
+      return child.snapshot()
+    }
+    const context = childContexts.findChild(sessionId, toolCallId)
+    return context ? savedChildView(context) : null
+  }
+
+  async messageChild(sessionId: string, contextId: string, text: string): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    const connection = entry && this.currentConnection(entry)
+    if (!connection?.messageChild) throw new Error('Child native owner is unavailable')
+    await connection.messageChild(contextId, text)
+  }
+
   recordToolExecutionTiming(
     sessionId: string,
     input: { toolCallId: string; toolName: string; durationMs: number }
@@ -1648,6 +1697,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    for (const subscriptions of this.childSubscriptions.values())
+      for (const dispose of subscriptions.values()) dispose()
+    this.childSubscriptions.clear()
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()

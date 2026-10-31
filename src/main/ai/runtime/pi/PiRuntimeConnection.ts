@@ -15,6 +15,7 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { startAgentRuntimeChildSpan, endAgentRuntimeSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
@@ -47,7 +48,6 @@ import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
@@ -146,14 +146,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private context?: ReturnType<typeof contexts.preparePiBranch>
   private closing = false
   private closePromise?: Promise<void>
+  private nativeClosed = false
   private active = false
   private sending = false
   private manualCompactInFlight = false
   private autonomous = false
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
-  private readonly childOrigins = new Map<string, { parentToolCallId: string; description: string }>()
+  private readonly childOrigins = new Map<
+    string,
+    { parentToolCallId: string; parentThreadId: string; description: string }
+  >()
   private readonly childTaskStates = new Map<string, AgentTaskEventPartData>()
   private readonly childHandles = new Map<string, Promise<PiThreadHandle | undefined>>()
+  private readonly childProjections = new Map<string, ChildThreadProjection>()
   private failure?: unknown
   private connectionSignature?: string
   private permissionMode: AgentPermissionMode = 'default'
@@ -229,7 +234,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.mcpServerSnapshots = initialSnapshot.mcpServerSnapshots
     const pi = await loadPiSdk()
     const { createPiRuntime } = await import('@cherrystudio/agent-runtime-pi')
-    const { callKeyOf } = await import('@cherrystudio/agent-behavior')
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
     const shellPath = resolvePiShellPath()
@@ -388,14 +392,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       excludeTools: [...this.disabledTools],
       behavior: {
         ...behavior,
-        configureChild: async (child: Parameters<typeof behavior.configureChild>[0]) => {
+        configureChild: async (child: Parameters<typeof behavior.configureChild>[0] & { toolCallId: string }) => {
           const configured = await behavior.configureChild(child)
           this.childOrigins.set(child.thread.id, {
             description: child.origin.description,
-            parentToolCallId: await toolCallId({
-              thread: child.parent.id,
-              key: callKeyOf(child.origin.parentToolCallId)
-            })
+            parentThreadId: child.parent.id,
+            parentToolCallId: child.toolCallId
           })
           return configured
         }
@@ -499,6 +501,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.projection.accept(event)
       if (event.type === 'snapshot') {
         for (const input of event.inputs) this.captureInput(input)
+        for (const relation of event.subagents ?? []) if (relation.child) this.observeChild(relation.child.id)
         this.active = event.activity.state === 'active'
       } else if (event.type === 'input.changed') {
         this.captureInput(event.input)
@@ -593,7 +596,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private observeChild(id: string): void {
-    if (this.childHandles.has(id) || !this.childOrigins.has(id)) return
+    if (this.closing || this.childHandles.has(id) || !this.childOrigins.has(id)) return
     const origin = this.childOrigins.get(id)!
     this.publishChildTask(id, 'in_progress')
     this.childHandles.set(
@@ -602,44 +605,70 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         const handle = opened.value
-        const emit = (chunk: CherryUIMessageChunk) => {
-          this.eventQueue.push({
-            type: 'background-flow-chunk',
-            rootToolCallId: origin.parentToolCallId,
-            chunk: parentChunk(chunk, origin.parentToolCallId)
-          })
-        }
-        const adapter = new PiStreamAdapter({ enqueue: emit }, (name) =>
-          resolvePiMcpToolMetadata(handle.pi.toolDefinition(name), this.mcpServerSnapshots)
+        const parentContext =
+          origin.parentThreadId === this.handle?.thread.id
+            ? this.context!
+            : this.childProjections.get(origin.parentThreadId)?.context
+        if (!parentContext) throw new Error('Native child owner context is unavailable')
+        const context = contexts.child(parentContext.id, id, id, origin.parentToolCallId, origin.description)
+        const projection = new ChildThreadProjection(
+          context,
+          {
+            ...handle,
+            observe: (sink) =>
+              handle.observe(async (event) => {
+                await sink(event)
+                if (event.type === 'snapshot')
+                  for (const relation of event.subagents ?? []) if (relation.child) this.observeChild(relation.child.id)
+                if (event.type === 'subagent.upsert' && event.subagent.child) this.observeChild(event.subagent.child.id)
+              })
+          },
+          () => handle.pi.archive()
         )
-        const projection = new ThreadProjection(emit, (part) => {
-          adapter.handleToolStart(part.toolCallId, part.toolName, part.input)
-          if (part.state === 'output-available')
-            adapter.handleToolEnd(part.toolCallId, part.toolName, part.output, false, part.preliminary)
-          else if (part.state === 'output-error')
-            adapter.handleToolEnd(
-              part.toolCallId,
-              part.toolName,
-              part.resultProviderMetadata?.pi?.result ?? part.errorText,
-              true
-            )
-        })
-        const observed = await handle.observe((event) => {
-          projection.accept(event)
-          if (event.type === 'activity.changed' && event.activity.state === 'active')
-            this.publishChildTask(id, 'in_progress')
-          else if (event.type === 'input.changed' && event.input.outcome)
-            this.publishChildTask(id, childTaskStatus(event.input.outcome))
-          else if (event.type === 'diagnostic') this.publishChildTask(id, 'error')
-        })
-        if (observed.status !== 'confirmed') throw new Error(observed.error.message)
+        this.childProjections.set(id, projection)
+        await projection.attach()
         return handle
       })().catch((error) => {
         logger.error('Failed to observe Pi child', { id, error })
-        this.eventQueue.push({ type: 'error', error })
         return undefined
       })
     )
+  }
+
+  async childProjection(toolCallId: string) {
+    const id = [...this.childOrigins].find(([, origin]) => origin.parentToolCallId === toolCallId)?.[0]
+    if (!id) return undefined
+    this.observeChild(id)
+    await this.childHandles.get(id)
+    const projection = this.childProjections.get(id)
+    if (!projection) return undefined
+    await projection.attach()
+    return { snapshot: projection.snapshot.bind(projection), subscribe: projection.subscribe.bind(projection) }
+  }
+
+  async messageChild(contextId: string, text: string): Promise<void> {
+    const projection = [...this.childProjections.values()].find((value) => value.context.id === contextId)
+    const handle = projection && (await this.childHandles.get(projection.thread.id))
+    if (!handle || this.closing) throw new Error('Child native owner is unavailable')
+    await projection.flush()
+    const { sessionId } = projection.context
+    const messageId = randomUUID()
+    messages.saveMessage({
+      sessionId,
+      message: { id: messageId, role: 'user', data: { parts: [{ type: 'text', text }] } }
+    })
+    const draft = messages.prepareSubmission(sessionId, messageId, contextId, 'steer')
+    await projection.refresh()
+    const result = await handle.input.submit(draft)
+    application.get('DbService').withWriteTx((tx) =>
+      messages.mergeSubmissionTx(tx, sessionId, messageId, {
+        ...result,
+        facts: result.status === 'acknowledged' ? result.facts : [],
+        ...(result.status === 'rejected' || result.status === 'unsupported' ? { outcome: 'failed' as const } : {})
+      })
+    )
+    await projection.refresh()
+    if (result.status !== 'acknowledged') throw new Error(result.error.message)
   }
 
   async stopTask(taskId: string): Promise<boolean> {
@@ -887,13 +916,26 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private async finishClose(): Promise<void> {
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
-    if (this.handle?.interrupt) {
-      const interrupted = await this.handle.interrupt()
-      if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
+    if (!this.nativeClosed) {
+      if (this.handle?.interrupt) {
+        const interrupted = await this.handle.interrupt()
+        if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
+      }
+      this.cancelQueuedInputs()
+      await Promise.all(
+        [...this.childHandles.values()].map(async (child) => {
+          const handle = await child
+          if (handle?.interrupt) {
+            const result = await handle.interrupt()
+            if (result.status !== 'confirmed') throw new Error(result.error.message)
+          }
+        })
+      )
+      const result = await this.runtime?.shutdown()
+      if (result && result.status !== 'confirmed') throw new Error(result.error.message)
+      this.nativeClosed = true
     }
-    this.cancelQueuedInputs()
-    const result = await this.runtime?.shutdown()
-    if (result && result.status !== 'confirmed') throw new Error(result.error.message)
+    await Promise.all([...this.childProjections.values()].map((projection) => projection.stop()))
     await this.observation?.stop()
     this.flushInputs()
     await this.handle?.release()
@@ -970,23 +1012,4 @@ function parseManualCompactCommand(content: string): { instructions: string } | 
   const trimmed = content.trim()
   if (!/^\/compact(?:\s|$)/.test(trimmed)) return undefined
   return { instructions: trimmed.slice('/compact'.length).trim() }
-}
-
-function parentChunk(chunk: CherryUIMessageChunk, parentToolCallId: string): CherryUIMessageChunk {
-  switch (chunk.type) {
-    case 'text-start':
-    case 'text-end':
-    case 'reasoning-start':
-    case 'reasoning-end':
-    case 'tool-input-start':
-    case 'tool-input-available':
-    case 'tool-output-available':
-    case 'tool-output-error':
-      return {
-        ...chunk,
-        providerMetadata: { ...chunk.providerMetadata, cherry: { ...chunk.providerMetadata?.cherry, parentToolCallId } }
-      }
-    default:
-      return chunk
-  }
 }

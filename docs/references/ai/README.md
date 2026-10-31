@@ -144,9 +144,10 @@ src/main/ai/
 
 ## Key invariants
 
-- **Topic-level addressing.** Every IPC and broadcast is keyed by `topicId`.
+- **Topic-level addressing.** Root chat streams are keyed by `topicId`.
   A topic has at most one active stream; subscribers are equal — there's no
-  "owner" window.
+  "owner" window. Pi child projections use a separate owner-scoped subscription
+  and remain independent of the parent's active turn.
 - **Main owns persistence.** Renderer closing or crashing does not abort the
   stream and does not lose data — `PersistenceListener` writes on terminal
   regardless of who is listening.

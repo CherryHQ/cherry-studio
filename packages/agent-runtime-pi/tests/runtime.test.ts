@@ -70,7 +70,7 @@ async function observe(handle: ThreadHandle) {
   return events
 }
 
-it('shares streamed message identities across handles while releasing only one observation', async () => {
+it('shares streamed item identities across handles while releasing only one observation', async () => {
   const { runtime, options, faux } = await setup()
   faux.setResponses([fauxAssistantMessage('native output for both handles')])
   const first = confirmed(await runtime.create(options))
@@ -731,3 +731,69 @@ it('binds a child launched during session initialization to its ready parent', a
 })
 
 // A tool update must change its part, without splitting or reordering the surrounding native message.
+it('streams interleaved content and preliminary tool output in the same native message', async () => {
+  const { runtime, options, faux } = await setup()
+  const finish = gate()
+  onTestFinished(() => finish.resolve())
+  faux.setResponses([
+    fauxAssistantMessage(
+      [
+        { type: 'thinking', thinking: 'Reason first', thinkingSignature: 'native-signature' },
+        { type: 'text', text: 'Before tool' },
+        fauxToolCall('progress', {}, { id: 'native-call' }),
+        { type: 'text', text: 'After tool' }
+      ],
+      { stopReason: 'toolUse' }
+    ),
+    fauxAssistantMessage('Final answer')
+  ])
+  const handle = confirmed(
+    await runtime.create({
+      ...options,
+      tools: [
+        defineTool({
+          name: 'progress',
+          label: 'Progress',
+          description: 'Report progress',
+          parameters: Type.Object({}),
+          execute: async (_id, _args, _signal, update) => {
+            update?.({ content: [{ type: 'text', text: 'FIRST' }], details: { stage: 1 } })
+            await finish.promise
+            return { content: [{ type: 'text', text: 'LAST' }], details: { stage: 2 } }
+          }
+        })
+      ]
+    })
+  )
+  const events = await observe(handle)
+  await handle.input.submit(input('stream content'))
+  const latest = () =>
+    events
+      .filter((event) => event.type === 'message.upsert')
+      .map((event) => event.message)
+      .findLast((message) => message.parts.some((part) => part.type === 'dynamic-tool'))!
+  await expect
+    .poll(() => latest()?.parts[2])
+    .toMatchObject({
+      toolCallId: 'native-call',
+      preliminary: true,
+      output: { content: [{ type: 'text', text: 'FIRST' }], details: { stage: 1 } }
+    })
+  const partial = latest()
+  expect(partial.parts.map((part) => part.type)).toEqual(['reasoning', 'text', 'dynamic-tool', 'text'])
+  expect(partial.parts[0]).toMatchObject({
+    text: 'Reason first',
+    providerMetadata: { pi: { thinkingSignature: 'native-signature' } }
+  })
+  finish.resolve()
+  await expect
+    .poll(() => latest().parts[2])
+    .toMatchObject({ preliminary: false, output: { content: [{ type: 'text', text: 'LAST' }] } })
+  expect(latest().id).toBe(partial.id)
+  expect(partial.parts[2]).toMatchObject({ preliminary: true })
+  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  const archive = handle.pi.archive()
+  const committed = archive.messages.find((message) => message.parts.some((part) => part.type === 'dynamic-tool'))!
+  expect(committed.parts).toEqual(latest().parts)
+  expect(archive.messages.filter((message) => message.role === 'assistant')).toHaveLength(2)
+})

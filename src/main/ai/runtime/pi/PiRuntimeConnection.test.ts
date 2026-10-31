@@ -17,6 +17,7 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
@@ -375,27 +376,26 @@ describe('desktop Pi root connection', () => {
     await done(events)
     const firstChild = child
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+    const access = await connection.childProjection('spawn')
+    expect(access).toBeDefined()
     const childText = () =>
-      events
-        .flatMap((event) =>
-          event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []
+      access!
+        .snapshot()
+        .messages.flatMap((message) =>
+          message.role === 'assistant' ? message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])) : []
         )
         .join('')
-    expect(childText()).toBe('child first answer')
+    await expect.poll(childText).toBe('child first answer')
     expect(text(events)).toBe('parent finished')
-    expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
-      data: { taskId: child, toolUseId: 'spawn', title: 'scan', status: 'completed', isBackgrounded: false }
-    })
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        type: 'background-flow-chunk',
-        rootToolCallId: 'spawn',
-        chunk: expect.objectContaining({
-          type: 'text-start',
-          providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
-        })
-      })
+    expect(events.some((event) => event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta')).toBe(
+      false
     )
+    const before = access!.snapshot()
+    const subscriberA: unknown[] = []
+    const subscriberB: unknown[] = []
+    const detach = access!.subscribe((update) => subscriberA.push(update))
+    access!.subscribe((update) => subscriberB.push(update))
+    detach()
     events.length = 0
     await connection.send({ message: message('continue child') })
     await done(events)
@@ -410,6 +410,68 @@ describe('desktop Pi root connection', () => {
       )
       .toBe(true)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(subscriberA).toEqual([])
+    expect(subscriberB.length).toBeGreaterThan(0)
+    expect(
+      access!
+        .snapshot()
+        .messages.slice(0, before.messages.length)
+        .map((value) => value.id),
+      JSON.stringify({ before: before.messages, after: access!.snapshot().messages }, null, 2)
+    ).toEqual(before.messages.map((value) => value.id))
+    const archived = access!.snapshot()
+    await connection.close()
+    const requests = script.calls.length
+    const reopened = (await connect()).connection
+    const recovered = await reopened.childProjection('spawn')
+    expect(recovered).toBeDefined()
+    await expect
+      .poll(() => recovered!.snapshot().messages.map((value) => value.id))
+      .toEqual(archived.messages.map((value) => value.id))
+    expect(script.calls.length).toBe(requests)
+    expect(contexts.findChild(input.sessionId, 'spawn')?.sessionId).toBe(archived.sessionId)
+    expect(() => contexts.preparePiBranch(archived.sessionId)).toThrow('native owner')
+    await expect(reopened.messageChild(archived.contextId, 'continue after restart')).rejects.toThrow(
+      'turn was stopped'
+    )
+    await reopened.send({ message: message('new parent turn') })
+    await expect.poll(() => script.calls.length).toBeGreaterThan(requests)
+    await reopened.messageChild(archived.contextId, 'continue after new turn')
+    await expect.poll(() => childRuns).toBe(3)
+    expect(child).toBe(firstChild)
+  })
+
+  // Catches native streaming updates disappearing between the first preview and the final archive.
+  it('publishes child text deltas while the native model is still streaming', async () => {
+    let root = ''
+    const answer = 'Incremental child output. '.repeat(8)
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return assistantReply(answer)
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'stream', prompt: 'write text' })], 'toolUse')
+      return assistantReply('done')
+    }, 20)
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate now') })
+    let access: Awaited<ReturnType<PiRuntimeConnection['childProjection']>>
+    await expect.poll(async () => Boolean((access = await connection.childProjection('spawn')))).toBe(true)
+    const updates: AgentChildUpdate[] = []
+    access!.subscribe((update) => updates.push(update))
+    await expect
+      .poll(() => updates.some((update) => update.active && update.patches.some((patch) => patch.type === 'append')))
+      .toBe(true)
+    const partial = access!.snapshot()
+    const frozen = structuredClone(partial)
+    await expect.poll(() => events.some((event) => event.type === 'turn-complete'), { timeout: 5000 }).toBe(true)
+    await expect.poll(() => access!.snapshot().active).toBe(false)
+    expect(partial).toEqual(frozen)
+    expect(
+      access!
+        .snapshot()
+        .messages.flatMap((entry) => entry.parts)
+        .filter((part) => part.type === 'text')
+    ).toContainEqual(expect.objectContaining({ text: answer }))
   })
 
   // Catches a background stop missing the child and a late stop cancelling its parent's later turn.

@@ -196,6 +196,7 @@ it('correlates a steer placed in an already running child', async () => {
   if (initial?.type !== 'snapshot') throw new Error('No child snapshot')
   const task = initial.messages.find((message) => message.role === 'user')
   expect(task?.parts).toEqual([{ type: 'text', text: expect.stringContaining('task'), state: 'done' }])
+  expect(child.pi.archive().messages.find((message) => message.id === task?.id)).toEqual(task)
   const submitted = child.input.submit(draft('steer child', 'steer'))
   await expect
     .poll(() =>
@@ -211,6 +212,15 @@ it('correlates a steer placed in an already running child', async () => {
       outcome: 'completed',
       response: { session: child.thread }
     })
+  const archive = child.pi.archive().messages
+  const placed = archive.find(
+    (message) =>
+      message.role === 'user' && message.parts.some((part) => part.type === 'text' && part.text === 'steer child')
+  )
+  expect(placed?.metadata?.inputId).toBe('steer child')
+  expect(archive.findIndex((message) => message.id === placed?.id)).toBeLessThan(
+    archive.findIndex((message) => message.parts.some((part) => part.type === 'text' && part.text === 'steered answer'))
+  )
   expect(errors).toEqual([])
 })
 

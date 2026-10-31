@@ -4,20 +4,18 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 
-The caller supplies a borrowed native `ModelRuntime` and `Model`, a working directory and an agent
-directory. Credentials and provider registration remain with the caller. Closing the runtime leaves
-the supplied model runtime usable. Content uses the common AI SDK message protocol; this package has no Cherry application dependency.
-
 Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
 `steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
 controller: a live run receives a queued message; a finished child continues in the background.
 The legacy controller needs `SubagentPort.load`; the behavior-backed controller retains the same
 native session. An unsupported policy is rejected before native dispatch.
 
-
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
-Pi owns the execution loop, tools, context accounting and compaction. Content uses the common AI SDK message protocol; the package imports no Cherry application code.
-Native deltas accumulate once into ordered SDK messages, including preliminary/final tool results.
+Pi owns the execution loop, tools, context accounting and compaction. Content deltas use the common AI SDK message reader before observer fanout; the package
+imports no Cherry application code. Native tool results and progress update their calling message,
+without reordering its text, reasoning and tool parts.
+Behavior's child-task and continuation custom messages project as user messages with native entry
+identities. Other hidden custom markers remain hidden; filtering them must not erase actual input boundaries.
 
 ## Common runtime with Cherry behavior
 
@@ -27,7 +25,7 @@ share one behavior instance. `host` implements the existing `HostPorts`: applica
 services such as approval UI, model selection, settings, output storage and summarization.
 The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
 
-`configureChild({ thread, parent, origin })` supplies the native model/runtime, extensions and
+`configureChild({ thread, parent, origin, toolCallId })` supplies the native model/runtime, extensions and
 listeners once per child context. The selected model must match `origin.modelKey` (`provider/id`).
 Unspecified native options inherit from the root. The adapter installs the behavior extension and
 summarizer on every child, filters parent-only tools, and disables native retries and cache warming
@@ -55,9 +53,10 @@ Host extensions must not install duplicate behavior tools or start native runs t
 The desktop connection opts in through `src/main/ai/runtime/pi/piBehaviorHost.ts`; its production
 approval, question, model, summary, verifier and output ports use existing Cherry services.
 
-Reopening a root restores native history and child relations, but does not reconstruct child sessions
-or resume work. A loader cannot reopen a stored child as an independent root: that returns
-`child-owner-unavailable`. Reconstructing the owning child graph after restart remains separate work.
+Reopening a root restores its child graph from saved run/origin entries and identity-checked files,
+without resuming work. Missing or ambiguous child files are not replaced. A loader cannot reopen a
+stored child as an independent root: that returns `child-owner-unavailable`. Restored child input
+still passes the parent's continuation policy, including its persisted stopped-turn state.
 
 `tests/behaviorRuntime.test.ts` exercises these public accesses against real Pi execution with
 scripted native providers and host ports, rather than calling the harness ports directly.
@@ -90,10 +89,14 @@ Cherry registers native Pi providers against its internal gateway in `src/main/a
 The gateway owns upstream credentials and billing. Pi owns protocol replay, tool execution and session retries.
 
 Cherry's desktop root Pi connection uses this package through `create/open/observe/input.submit`.
-Live child projections feed the existing desktop tool-card transport. Native session, goal and subagent
+Live child projections feed independent desktop message archives and IPC subscriptions. Native session, goal and subagent
 tests live in `tests/`, using Pi providers directly. `tests/sessionSupport.ts` supplies native
 scripted streams with fixed usage for budget and compaction assertions, without an HTTP or AI SDK fixture.
 Cherry gateway integration tests remain in `src/main/ai/runtime/pi/`.
+The typed `pi.archive()` facet supplies committed content and proven native-entry/live-message aliases and legacy part mappings;
+it excludes a child's inherited parent context. It remains readable after native shutdown until the
+access is released, so the host can finish archiving the quiesced tail. This is not a mandatory common
+Runtime history interface.
 `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
 `tests/runtime.test.ts` exercises public child discovery, input and observation through native
 execution, including continuation, release, once-only native reporting, and shutdown during child loading.

@@ -168,7 +168,7 @@ Pi 根会话的桌面路径现为 `AgentChatContextProvider → AgentSessionRunt
 | [Durable Runtime](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) | 激活调度前，依据原生 submission/task 对账持久输入映射和 child 所有权。 | 原生 Harness/storage 所有权与恢复语义。 |
 | [桌面 Pi 接入](../../../../src/main/ai/runtime/pi/README.md) | 复用宿主配置与装配，将原生 Pi provider 绑定到内部网关，逐步替换执行和输出路由。 | Prompt、skills、MCP、审批、shell 环境、模型政策、用量和 tracing。 |
 | [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) 及其持久化模块 | 持有已配置 Runtime 实例、逻辑输入投递和每个 Thread 的投影。`ThreadProjection.ts` 在现有模块中转换实时内容。 | 产品生命周期、授权、持久化屏障，以及与投递、fork 操作的集成。 |
-| [数据 schema](../../../../src/main/data/db/schemas/agentSession.ts) 与[数据服务](../../../../src/main/data/services/README.md) | 用 `DbService` 增加上下文关联和输入投递记录，并追加 migration。 | 产品数据事务；不执行原生任务或解析 transcript。 |
+| [数据 schema](../../../../src/main/data/db/schemas/agentSession.ts) 与[数据服务](../../../../src/main/data/services/README.md) | 用 `DbService` 增加上下文/child 关联及消息上必要的提交元数据，并追加 migration。 | 产品数据事务；不执行原生任务或解析 transcript。 |
 | [useAgentSessionParts](../../../../src/renderer/hooks/useAgentSessionParts.ts) 与共享 IPC 契约 | 独立于父 assistant 消息寻址某个上下文的投影。 | 展示和订阅；Main 继续负责持久化。 |
 
 辅助模块由现有生命周期服务持有，不增加单例或第二套执行引擎。原生路径通过 `application.getPath` 解析；跨进程 schema 放在 `src/shared`。持久业务数据查询走 DataApi；提交、观察、中断和恢复命令走 IpcApi。Renderer 输入必须针对关联的产品会话校验权限，不能因为携带了原生 ID 就被信任。
@@ -204,7 +204,17 @@ P0 现在已有包级终态和多输入归属证据。Pi 补丁在原生请求�
 
 #### 边界三：Main 按 Thread 独立投影
 
-在已配置 Runtime 内，为每个 `(backendId, threadId)` 设置一个宿主投影所有者。它持有适配器句柄、观察、当前视图、来源到产品 Item 的映射，以及待持久化写入。Renderer 窗口订阅该视图；打开第二个窗口不创建竞争的原生投影或持久化写入者。
+##### P3 起点与所有权
+
+P3 先用 Pi 验证后续 Durable 和 Claude Code 适配器共用的宿主路径。现有 [ThreadProjection](../../../../src/main/ai/agentSession/ThreadProjection.ts) 是只支持追加的 UI chunk 转换器：它把快照中的所有 Item 标为已结束，忽略删除/替换，并拒绝正文前缀变化。它尚不是这里定义的当前视图 reducer。[Pi child 观察](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts)现已把 child 内容路由到独立投影；现有 root 转换器和小型任务卡片元数据继续使用各自的既有路径。
+
+P3-A 核心现已落在 [ThreadMessageProjection](../../../../src/main/ai/agentSession/ThreadMessageProjection.ts)。每个实例接收一个 Thread 的观察，提供已提交的 `CherryUIMessage` 基线，并发布变化的消息、删除项、顺序和状态。它串行处理更新与 observation 替换，隔离退役回调，复用逐消息 SDK reader，并在订阅者失败时仅移除该订阅者，不停止原生工作。关闭投影会停止其 observation 和 reader，不释放原生句柄或中断执行。消息 ID 仍是该 Thread 内的来源身份；产品归档 ID 与持久映射属于 P3-B。Pi 桌面 child 渲染现已围绕该 reducer 补齐 P3-B/C 的所有权、持久化与路由；root 与 Claude Code flow 的迁移仍单独处理。
+
+旧 flow 已通过 shared cache 推送并节流。Child 内容放在父消息 parts 内；后台累积和发布覆盖整条父消息；持续输出、恢复和收尾依赖父消息生命周期。这些是宿主的所有权组织方式，不是 AI SDK 的要求。完整复制有成本，但这里尚无测量证明它是主要瓶颈。P3 调整所有权与更新粒度，并对照既有 flow 验证性能。
+
+[#20389](https://github.com/CherryHQ/cherry-studio/issues/20389) 记录了从已保存父 parts 重建时丢失流身份的问题；[#22482](https://github.com/CherryHQ/cherry-studio/issues/22482) 记录了 reader 失败后继续 enqueue，但没有证明其初始原因相同。P3 移除 child 对父消息 accumulator 的依赖，并单独验证失败恢复。
+
+在已配置 Runtime 内，为每个 `(backendId, threadId)` 设置一个宿主投影所有者。它持有适配器句柄、观察、当前视图、来源到产品 Item 的映射，以及待持久化写入，归既有 Main 生命周期所有者管理。Renderer 窗口订阅该视图；打开第二个窗口不创建竞争的原生投影或持久化写入者。Root 和 child 使用相同归并规则，各自保留捕获的归档目标。
 
 ```text
 Parent Thread observation -> parent projection -> parent display
@@ -214,21 +224,65 @@ Child Thread observation  -> child projection  -> child panel / tool card
                             +-> child context's product messages
 ```
 
-Child 内容归其上下文，并拥有独立的产品消息身份。父工具卡片保存关系和展示入口，不再作为 child 唯一的持久存储位置。父回合结束、移除其实时 assistant accumulator，以及关闭父视图都不能停止 child 观察。如果 UI 需要 lane，它只是 Cherry 根据关联派生出的视图分组，不是 harness 执行身份。
+Child 内容归与其上下文关联的独立产品归档，具有自己的消息身份和消息树根。父工具卡片保存关系和展示入口，不再作为 child 唯一的持久存储位置。父回合结束、移除其实时 assistant accumulator，以及关闭父视图都不能停止 child 观察。`toolCallId` 只保留启动/续接来源，不作为 child 身份。UI lane 是 Cherry 根据关联派生出的视图分组，不是 harness 执行身份。后台 shell 输出也不自动等同于 child Thread。
 
-附着前先让 sink 捕获订阅替换标记，因为初始快照可能早于 `observe` 返回。按 Thread 串行处理投影写入。替换观察前，封闭旧写入者、停止观察并排空已经进入的写入；之后只有当前标记可以提交。Renderer 附着或漏掉更新时，发送带宿主 revision 的完整视图。该 revision 不进入公共 Runtime 契约。
+没有 `child` 的关系保留为可读的关系/结果卡片。可访问的 child 单独打开，只有新取得的访问和产品授权允许时才开放输入。历史关系、前台 idle 和观察到完整消息都不能授予控制权限，也不能证明任务成功。续接输入仍经过边界一的原生所有者；投影器从不发起 prompt、重试输入或向父级报告完成。
 
-在有效映射内，累积 upsert 更新同一产品消息，不逐 token 插入行。`snapshot`、`item.remove` 和 `gap` 改变当前视图，不改变已保存的会话历史。压缩、重新绑定或重建后，只有原生证据支持时才能复用历史身份。不把恢复快照当作新的历史消息追加，也不按相同文本去重。映射不可用时保留归档、标记视图断点，并单独展示新的当前视图；完整原生历史导入不在本轮范围。
+##### 将 observation 归并为状态
+
+Main reducer 消费 `ObservationPayload`，产出变化的 Item/关系以及来源的当前视图，不调用原生控制或写数据库。内容随后映射为统一的产品消息模型。现有公共字段足以承担本阶段，不增加强制 replay cursor、lane 或 history API。
+
+普通聊天、root agent 和 child agent 共用 [CherryUIMessage 与 CherryMessagePart](../../../../src/shared/data/types/message.ts) 表达、持久化和渲染产品内容。Runtime 的 `ContentItem` 与 Thread 关系描述来源事实，不引入第二套 UI 消息结构。复用既有流管理和生命周期基础设施；P3 不要求退役 `AiStreamManager` 或另建平行的流管理器。
+
+每条消息的实时 `UIMessageChunk` 累积继续复用 `readUIMessageStream`，包括能表达为合法 chunk 的 observation 更新。它支持增量更新并连续输出消息快照；固定依赖版本在输出时复制消息。这不要求全量广播父消息或全量写库。一个 Thread 可以包含多条消息，不能把整个 Thread 变成不断增长的单条消息 accumulator。
+
+同一个 Main 所有者协调实时 reader 输出与快照/历史替换，共同更新统一消息状态。已保存 parts 不包含 reader 活跃 part 身份的 checkpoint。替换或恢复时，先隔离旧 reader，再应用新基线并建立合法的续接序列；不能让迟到快照覆盖恢复状态，也不能向缺失起始帧的 reader 投递 delta。窗口重新附着时订阅既有 Main 视图，不重建该 reader。这一协调补充 SDK parser，不重新实现它的 token 累积。
+
+| Observation | 当前视图规则 | 归档与控制边界 |
+| --- | --- | --- |
+| 初始或替换 `snapshot` | 仅替换该来源视图。遵循各 Item 的 `completeness`，partial Item 仍可更新，保留声明的 coverage。 | 不把快照追加成新 transcript、不删除旧消息，也不把所有 Item 标为结束。 |
+| `item.upsert` | 替换该 Item 的累积值，包括变短/改写的文本与未完整的工具参数。相同更新保持幂等。 | 更新已建立的产品映射，不逐 token 建行、不按文本去重。多个内容 Item 仅凭有证据的分组映射到同一消息。 |
+| `replaces` / `item.remove` | 按来源范围内的身份从当前视图移除指定 Item，替换与插入一并应用。 | 被替换的 preview 可以转交已证明的映射；单独删除 Item 不删除历史行，也不合并无关的已完成消息。 |
+| `input.changed` / `activity.changed` | 输入证据、前台活动与内容独立更新。 | 视图重置仍保留已确认且保存的回执/终态。Idle 或内容完整不结算输入；终态提交仍需响应关联和持久化屏障。 |
+| `subagent.upsert` / 快照关系 | 更新父级范围内的关系并发现可访问 child，不把其内容混进父视图。 | 当前列表省略或为空，不删除已保存关系、不终止 child，也不撤销所有历史入口。 |
+| `gap` | 标记不连续。映射丢失后，先等待替换基线，再通过新映射应用变化。 | 保留已存历史并启动对账，不能静默把新身份拼接到旧流。 |
+| `diagnostic` / `closed` | 记录诊断或观察不可用，保留最后可读视图。 | 观察失败不等于原生任务失败，也不允许重新提交。尽力交付的 `closed` 回调不等于 flush 确认。 |
+
+按捕获的 Thread 验证 Item 和关系范围。Sink/reducer 失败时移除失败消费者、记录有界诊断，并允许显式恢复观察；不能继续向不可用 reader enqueue，也不能使另一 Thread 的投影失败。重新附着不会创建另一轮执行。
+
+##### 区分当前视图交付与产品历史持久化
+
+Sink 及时归并帧并调度合并写入，不在每次回调中等待数据库/IPC。已映射 Item 的待写累积值只保留最新版本，同时保留已接纳的身份变更和终态证据，直到对应写入完成。限制待处理工作量，归档失败时明确报错，不另建无界事件队列。这能降低压力，但不会让 `ThreadFeed` 无损：同步突发仍可能在消费者执行前超过待交付帧上限。
+
+P3 有两项恢复责任：替换快照让 UI 跟上当前状态，原生证据负责把已提交内容对账到产品归档。Pi 提供强类型 `handle.pi.archive()` facet，包含原生 entry ID 和由原生消息身份证明的实时别名；在 `subagent-origin` 边界排除继承的父上下文。`PiRuntimeConnection` 读取该 facet，向 `ChildThreadProjection` 注入已提交的 `ContentItem` 数据。宿主投影消费公共 `ThreadHandle` 观察，不导入 Pi 类型，也不派发 child 输入。不新增必选的公共 Runtime 历史接口。不解析 `live:*` ID、不匹配文本/位置，也不穿透私有 session 字段；其他适配器必须提供各自的证据。
+
+只在首次附着、gap/映射重置、终态收束或重开时，对账已绑定 child 及其可证明的历史范围。这不是定时轮询 transcript，也不是批量导入全部原生分支。原生历史读取与观察更新需要捕获原生边界并串行合并，避免并发完成被跳过或导入两次。只有原生关联证明时才复用已存产品 ID。映射未知时保留归档，并带可见断点展示新视图，不静默宣称历史完整。
+
+已知产品映射、重开所需的原生 entry 关联，以及影响后续历史读取的断点，都是 Main 拥有的持久事实。来源 epoch、宿主 revision 和临时 preview key 保留为私有交付状态，不作为永久历史 ID。压缩可以改变当前视图，但不删除产品历史。最终原生 entry 可以替换已证明属于它的 partial 投影；不分别归档每次 token 修订。进程崩溃前，原生存储与 Cherry 都未提交的 partial 输出不保证可恢复。
+
+保存最终响应内容、产品映射和已知输入 outcome 后，才宣告产品投递完成。DB 失败时保留待写事实供有界重试/显式恢复，产品终态提交保持未完成；绝不重复模型/工具操作。原生结果报告仍由 harness 负责，不等待宿主再生成一份报告。Durable 和 Claude Code 必须为同一归档边界提供各自的证据，不能复制 Pi entry 语义。
+
+##### 附着、持久化与生命周期屏障
+
+调用 `observe` 前捕获 Thread、归档目标和订阅替换标记：sink 可能早于注册返回执行。每个 Thread 仅保留一个串行写入者。替换观察时先封闭入口、调用 `stop`，等待已经进入的消费者和已接纳写入在其捕获目标上完成，再发布新来源映射。仅 `stop()` 不会排空异步 sink。旧标记的迟到回调不能改变新视图；排空失败时不能宣布交接成功，也不能启动竞争写入者。
+
+Renderer 附着时，Main 发送统一消息视图与宿主 revision，随后仅发送受影响的消息或 part 及有序 revision。在同一串行操作中捕获附着边界并注册后续交付。按 revision 忽略重复/过期交付；缺失 revision 时请求替换视图。这些传输 revision 不进入 `agent-runtime`，也不是归档提交回执。未变更的 child/父视图保持稳定引用；普通 child 更新既不发布完整父 parts，也不通过 DataApi 刷新整个会话。DataApi 继续读取已保存历史，IpcApi 承担实时观察和控制。
+
+同一已映射 part 的文本被证明只是追加时，宿主传输仅发送新增文本及其目标和 revision。前缀变化、part 重排或身份替换时，改为替换受影响的消息/part。交付补丁更新同一份 `CherryUIMessage` 状态；它们是传输表示，不是另一套消息模型或第二个 token parser。不能只因 child 已独立于父级，就在普通长输出期间反复序列化整份累积 child transcript。
+
+Partial 按批更新同一产品行；内容收束、观察替换和协调关闭时 flush，但不把内容完整等同于输入成功。重连时恢复已存归档和有证据的实时映射，不把历史文本重放进 chunk parser。父工具卡片和 child 面板消费同一 child 投影并复用既有共享消息组件，不各自持有 parser 或持久化写入者。
+
+最终原生历史对账需要可读边界。Pi 的强类型 `archive()` 在原生 shutdown 后仍可读取，直到对应访问被 release；命令和输入访问已经封闭。Connection 先停止原生执行，再 flush 已提交 child 内容及产品映射，最后释放句柄。Flush 失败仍保持未解决，可重试而不重复原生 shutdown。这不保证强制结束进程后的 token 恢复，也不自动适用于 Durable/Claude Code；每个适配器必须证明交接，不能使用可能启动调度的原生 wait。
 
 | 产品动作 | 宿主行为 |
 | --- | --- |
 | 窗口关闭或切换选择 | 移除该订阅者；继续保留活跃工作与持久化需要的 Main 观察。 |
 | 父会话结束，child 继续 | 独立于父消息，继续持有 child 投影和原生所有者。 |
 | 用户停止生成 | 封闭相关宿主投递，请求文档约定范围的原生中断，并跟踪结果；不能用 `release` 替代，也不宣称所有队列已清空。 |
-| 最后一个视图释放 | 释放不再需要的访问，不假定已经驱逐原生资源。当前适配器保留已加载上下文直到 shutdown。 |
-| 应用退出或执行环境退役 | 封闭接纳、收集进行中的回执、关闭自有 Runtime，随后在关闭数据库前排空并封闭最终投影写入。清理未知必须保留可见性。 |
+| 最后一个视图释放 | 移除该订阅者。首版 Main observer 跟随 Runtime 所有者保留；仅前台 idle 不能证明之后不会发生自主 child 工作。 |
+| 应用退出或执行环境退役 | 封闭接纳、收集进行中的回执，在原生关闭期间保留观察，对账最终持久内容，并在关闭数据库前排空/封闭投影写入。缺失终态回调或 flush 失败不能算作已确认的干净完成。 |
 
-首轮 Pi 接入把 Runtime 作用域限定为一个产品会话的原生 root 及其自有 child 树，全部句柄由该所有者管理。Durable 作用域遵循其独占原生 storage/Harness，其中可以有多个 conversation。不能把旧的逐消息、逐连接 idle TTL 套到任一所有者内部的单个会话上。首版政策是保留已配置所有者，直到明确退役或应用退出；内存增长是已知限制。逐 Thread 驱逐需要后续原生支持和单独验证。
+首轮 Pi 接入把 Runtime 作用域限定为一个产品会话的原生 root 及其自有 child 树，全部句柄由该所有者管理。Durable 作用域遵循其独占原生 storage/Harness，其中可以有多个 conversation。不能把旧的逐消息、逐连接 idle TTL 套到任一所有者内部的单个会话上。首版保留已配置所有者及已经打开的 Main observation，直到明确退役或应用退出；内存增长是已知限制。释放空闲观察或逐 Thread 驱逐需要有证据的原生重新发现/恢复路径，以及单独验证。
 
 #### 边界四：保存产品关联，恢复原生状态
 
@@ -544,7 +598,7 @@ Pi 原生 provider 实现及 transcript；Cherry 不另行编码重放格式。�
 | P0 — 原生证据 | Pi 输入关联/上游改进与强类型终态映射；说明多输入共同回答的归属。 | 相同文本、文本变换/已处理/失败命令、排队及未送达输入、中止、截断、迟到确认和 child 续接都保留正确身份与终态。AC2、AC7。 |
 | P1 — 关联与提交事实 | 原生关联、消息上必要的私有提交元数据、稳定 backend 作用域、严格 loader，以及已有数据迁移。 | 读取旧历史而不补造接纳事实、识别原生上下文缺失、对账部分创建/接纳，并拒绝旧身份/key 下的变更草稿。AC1、AC8。 |
 | P2 — Pi root 接入 | Agent 树迁移、保留分支的编辑操作、强类型原生历史访问、原生 provider 与内部网关的绑定、root 投影及生命周期映射。 | 通过桌面 create/open/submit/observe/stop/reopen 及独立分支续写路径，保留权限、配置、用量、命令和投递完成行为。AC3、AC4、AC6、AC9、AC12。 |
-| P3 — Pi child 独立接入 | 所有者恢复、child 投影，以及没有活跃父消息时的 child 输入。 | 父结束/窗口关闭不丢 child 输出；冷启动重开保留所有权；续接仅由所有者报告一次结果。AC5、AC9、AC10。 |
+| P3 — Pi child 独立接入 | 当前视图归并、有证据的独立归档、所有者恢复，以及没有活跃父消息时的 child 输入，按下方切片交付。 | 父结束/窗口关闭不丢已提交 child 输出；gap 和冷启动重开能对账且不重复历史；续接仅由所有者报告一次结果。AC3、AC5、AC6、AC8–AC10、AC12–AC16。 |
 | P4 — Durable 宿主接入 | 复用宿主投影和消息提交关联，保留原生 submission、task 调度、报告政策与恢复。 | 被动重开不执行模型/工具；强制进程退出后，新进程使用同一 store 对账未完成工作和输入回执。AC8、AC11、AC12。 |
 | 后续 — 公共控制 | 在控制文档下推进可选 spawn/stop 与宿主跨 harness 委派。 | 两种适配器都证明创建/部分接纳、停止范围和继续输入语义后，才共享签名。不是 P0–P4 的门槛。 |
 
@@ -553,6 +607,50 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 扩展现有 [Pi Runtime 测试](../../../../packages/agent-runtime-pi/tests/runtime.test.ts)、[Durable Runtime 测试](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts)和[观察测试](../../../../packages/agent-runtime/tests/observation.test.ts)，走公共边界验证。宿主验证放在现有 Runtime、归档持久化、投递、消息 backend 与 `useAgentSessionParts` 测试旁；引入投影及私有提交元数据路径时，再增加聚焦测试。SQLite 测试使用 `setupTestDatabase()` 和生产 migration。Durable 崩溃测试使用隔离 worker 进程与持久 store，在有证据的 checkpoint 后直接杀进程，不调用 `shutdown`，再用新进程验证恢复。不假定外部工具副作用恰好执行一次。
 
 实现改动只运行显式指定的受影响测试文件，并检查 `docs:affected`；仅在代码路径改变后更新当前参考文档。包级测试和有序 close/reopen 不能满足 Electron 或崩溃恢复门槛。P1 层还运行限定范围的宿主/原生 fixture、受影响消费者测试、Main 类型检查和 migration 检查。
+
+#### P3 实现切片与验收
+
+下表区分 P3 的实现与验收边界；A/B/C 在 Pi 桌面接入层之上的同一个 PR 中交付。下方证据区分核心检查与桌面检查。除非有适配器证据支持的消费者证明契约缺失，否则保持公共访问接口不变。Claude Code 迁移另写 Spec/PR，使用这里的消费规则；Durable 桌面接入仍属于 P4。通用 spawn/stop、跨 harness 委派、配置协调，以及与 `topic`/`message` 物理合表都不是 P3 前置工作。
+
+| 切片 | 改动边界 | 切换前所需证据 |
+| --- | --- | --- |
+| P3-A — 宿主投影核心 | 按 Thread 对账 observation 并映射为统一消息模型，复用逐消息 SDK reader，协调快照替换、实时更新与附着顺序。原生派发与产品存储由核心之外的层负责。 | Partial/替换快照、替换/删除、重复帧、gap 和消费者故障隔离满足 AC3、AC13，以及 AC15 的传输部分。除聚焦 fixture 外，还使用真实 Pi/Durable observation 与 `readUIMessageStream`。 |
+| P3-B — child 所有权与归档 | 恢复 Pi 父所有者；补充原生 entry 关联、独立 child 归档归属、幂等产品写入及恢复/flush 屏障。仅增加这些路径消费的 schema 和强类型 Pi 扩展。 | 真实 Pi 父子文件与 `setupTestDatabase()` 证明 AC8–AC10、AC14，以及 AC15 的写入/关闭竞争。Child 重开不能变成无关的可写 root。 |
+| P3-C — Pi 桌面切换 | 把发现的 child 路由到共享 Main 所有者，开放经过授权的历史/实时订阅和所有者路由输入，用共享消息视图替换已迁移 child 的 flow 渲染。 | Electron 验证 AC5、AC6、AC12 和 AC16，覆盖父结束、双窗口、续接输入、重连、冷启动重开及投影错误。Root 行为、审批与单次记账保持正确。 |
+
+P3-A 建立 reducer，P3-B 提供原生历史/存储交接，P3-C 切换 Pi child 写入者与视图。合并后的 P3 PR 保留 Spec 的 proposed 状态，分别报告各边界的证据；reducer 测试通过不等于独立 child 验收通过。
+
+P3-A 的[聚焦测试](../../../../src/main/ai/agentSession/__tests__/ThreadMessageProjection.test.ts)覆盖真实 SDK 累积、缩短/重排、替换/删除、输入关联、临时工具结果、已提交基线附着、退役回调、投影/订阅者失败和 `ThreadFeed` 溢出恢复。[集成测试](../../../../src/main/ai/agentSession/__tests__/ThreadMessageProjection.integration.test.ts)使用脚本化原生模型 Provider，运行真实 Pi/behavior 和 Durable 执行循环，覆盖两个 Pi 后台 child 在父结束/访问释放后继续运行、停止一个兄弟任务、同一 child 重附着后续接、前台 child 取消及父级后续轮次，以及 Durable 父/子/孙关系链与仅续接 child。这些测试不覆盖独立 child SQLite 归档、IPC/窗口、冷启动所有权恢复、强制崩溃或真实 Provider 验收。它们为 AC3、AC13 和 AC15 的观察部分提供证据；完整 P3 验收仍未完成。
+
+P3-B/C 现已把 [ChildThreadProjection](../../../../src/main/ai/agentSession/ChildThreadProjection.ts) 接到 Pi 所有者管理的 child 访问、既有 session/message 表，以及所有者范围的 IPC。[投影测试](../../../../src/main/ai/agentSession/__tests__/ChildThreadProjection.test.ts)覆盖从空 assistant 消息开始的已发布快照稳定性、增量文本、延迟提交的顺序、idle 前的工具结果，以及归档读写失败后仅恢复观察而不重执行。[存储测试](../../../../src/main/data/services/__tests__/AgentChildArchive.test.ts)覆盖有数据的向前迁移、child 身份隔离、独立 root 接纳拒绝、回收站/恢复、外键删除及原生文件保留。[桌面连接测试](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.test.ts)证明同一 child 续接、有序重开所有者且不新增模型调用；[Renderer 测试](../../../../src/renderer/hooks/agent/__tests__/useAgentChildProjection.test.ts)覆盖快照/实时更新重叠、重复及缺失 revision、附着缓冲上限和退役订阅隔离。
+
+2026-10-26 的隔离 Electron 验收通过生产网关调用已配置的 Claude Sonnet 4.5 Provider，覆盖前台输出、父结束后两个后台兄弟任务、仅向 child 续接、双窗口观察、child 活跃时关闭一个窗口，以及冷启动历史展示。空消息回归曾导致桌面中间更新丢失；分开 SDK 可变 seed 与已发布视图后恢复了流式渲染。重复运行的 12 行场景交付 74 次更新，其中 70 次为文本追加补丁，结束前可见部分输出。这些是功能观察，不是旧 flow 的性能对比。强制崩溃恢复、迁移位置后的备份所有权和一/十个 child 性能矩阵仍未验证；完整 P3 验收保持未完成。
+
+##### 最小 child 归档与迁移
+
+产品内容复用 `agent_session_message` 及其既有服务。首轮 child 归档采用独立 `agent_session` 容器和消息树根，仅沿用既有 `background` 分类使其不进入普通会话导航，不新增 `subagent` 会话类型。这是产品存储所有者，不是创建另一个原生 root、schedule 或跨会话投递。进入通用 session-open/input 路径前，先按 child 已保存的原生关系解析 Runtime 访问。不复制父消息前缀，也不把 child 节点合进父级普通选中路径。
+
+只保存重开和展示消费的事实：既定父级范围关系键 `(parentContextId, nativeSubagentId)`、可选的已验证 child 上下文和归档关联，以及有证据的来源到产品映射/断点。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入继续复用消息上的提交元数据，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
+
+归档容器从其所有权关系继承产品访问权限，不能凭调用者提供的 ID 或 `type: background` 授权。查询、通用控制、搜索/导航和后台 GC 必须区分这种所有权与定时任务会话。父分支选择不能改变 child 写入目标；复制分支不能复制现有 child 的控制权。删除、备份和保留必须共同保护关系、归档及原生所有者。关系/GC 消费者审查是 P3-B 的生产门槛，不能假定既有 background 分类已经提供这些保证。
+
+需要回填时使用追加 schema migration 和仅操作数据库的 Seeder。已有内嵌 child parts 保持可读。只提升能够验证的原生身份和映射；工具结果文本、内容相同或单个 tool-call ID 都不足以作为依据。未验证的旧内容保留为历史展示，不新增输入权限。原生 loader 在 seed 事务外验证候选；迁移从不创建或运行 harness。
+
+启动写入者前，为每个已迁移 child 选定并保存唯一投影路径。父级可以保留旧历史内容，同时让新观察到的 child 走新路径，但同一 child 不能由两条路径同时写入。发布关联后，工具卡片读取所链接的归档；内嵌旧内容保留为历史快照，不成为第二条实时流。切换后发生失败或恢复不确定时，封闭该路径并修复，不重新启用旧 flow writer，也不重新提交输入。已迁移消费者获得覆盖后移除 Pi child flow 路径；CC 旧路径保留到其独立迁移。
+
+##### P3 聚焦验证矩阵
+
+| 场景 | 必须观察到的结果 | 验证所有者 |
+| --- | --- | --- |
+| 消息/工具参数仍为 partial 时附着；缩短或替换内容；重复 Durable 快照 | 统一消息模型反映累积值，继续流式更新，仅凭实际证据结束；不重复导入归档，也不被旧 reader 覆盖。 | 使用真实 `readUIMessageStream` 与 Pi/Durable 适配器观察的投影；AC13。 |
+| 一次同步突发超过 100 帧，随后压缩或替换 preview | 明确出现 gap，视图收敛，原生已提交 entry 只对账一次。不可恢复内容保留可见断点，不虚构历史。 | `ThreadFeed`、Pi 历史桥接与真实 DB fixture；AC14。 |
+| Child 继续运行时 reader/reducer 或 DB 写入失败 | 其他 Thread 继续；不重复 enqueue/刷日志、不虚报持久化完成、不重复模型/工具调用。修复复用原生所有者和身份。 | 使用真实 DB 的宿主故障注入；AC14、AC15。 |
+| Sink/写入延迟时替换 observation；附着边界交错交付 replay 与 live | 旧的已接纳写入保持原目标；退役回调不覆盖新视图，每个来源更新只应用一次，保留合法重复文本。 | 协调器/传输竞争 fixture；AC9、AC15。 |
+| 父结束、其 accumulator 被移除，或两个窗口中的一个关闭 | Child 输出由一个 Main observer/writer 持续处理，剩余窗口与已存归档一致。 | Electron 与投影所有权断言；AC5、AC6。 |
+| 父结束后冷启动重开并续接同一 child | 恢复父所有权及产品 ID，保留历史，新结果由原生所有者报告一次。父所有者缺失时允许读历史，但不能回退为可写 root。 | 真实 Pi 文件/DB 与 Electron；AC10、AC12。 |
+| 升级父级内嵌的旧内容、切换分支，随后删除或备份所有者 | 已证明关联只迁移一次，未验证内容保持可读；活跃/保留的 child 归档与原生数据不被当作可丢弃 job 清理。 | 生产 migration/Seeder 与生命周期 fixture；AC8、AC9。 |
+| Partial 输出或终态持久化期间关闭 | 访问消失前完成原生尾部证据交接；已接纳产品写入完成，或明确保持未解决。区分正常重开与强制进程丢失。 | 原生/store 关闭 fixture 与 Electron；AC6、AC14、AC15。 |
+| 运行一个和十个长输出 child，同时其他兄弟视图保持静止 | 普通更新仅包含变化的 child Item/part，不重写父 parts、不重新获取完整归档，也不重新渲染未变化兄弟。在相同 fixture 下记录 IPC 字节、写入批次和渲染次数，并与旧 flow 比较。 | Electron 性能场景；AC16。 |
 
 ## Alternatives considered
 
@@ -565,6 +663,10 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 - 用展示消息充当原生历史，或只保留最新 resume token：不采用，因为这种投影无法恢复原生分支状态、队列、部分创建结果及准确原生载荷。
 - 为编辑／分支另建 context 树，或通过普通消息前序表达 spawn：不采用，因为现有产品消息树已经负责分支导航，而 child 执行具有独立所有权和输入路由。
 - P1 强制增加独立 input/attempt 表或逐消息 `contextId`：本阶段不采用。逻辑身份无需独立表；复用已提交消息及最少私有提交元数据，评估会话/分支锚点绑定。独立保留输入需要具体消费者证明必要性。
+- 把 child 内容及其流生命周期保留在父消息内，只增加节流或订阅包装：P3 不采用，因为所有权、恢复和完整父消息发布仍然耦合。每条 child 消息复用 SDK reader 仍是所选设计的一部分。
+- 仅因 SDK 输出快照就另建 child 消息结构或替换其 parser：不采用，因为既有产品模型与增量 parser 可以复用；快照输出不决定传输粒度，也没有测量依据支持替换 parser。
+- 把更大的 observation buffer 或不等待的 sink 当持久日志：不采用，因为同步突发和原生压缩仍可能移除中间事实；归档对账需要原生身份及覆盖证据。
+- 把 child 行插入父级普通消息路径，或为每份 child 归档创建新的原生 root：不采用，因为两者都会改变所有权和续接语义。复用独立产品归档，但不授予独立执行所有者身份。
 
 ## Acceptance criteria
 
@@ -582,8 +684,16 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 - AC10 — 新 Pi Runtime 在继续输入前恢复 child 的父所有者与关系，保留原生停止/报告政策，绝不把失去所有者的历史 child 升级为可写 root。 (verification: unit — 持久 Pi 父子会话重开测试)
 - AC11 — 强制进程退出后用新进程重开 Durable，保留输入身份与原生所有权；被动对账不执行模型/工具，允许的 resume 遵循 Harness 作用域，宿主不额外报告结果。 (verification: unit — Durable worker 进程崩溃集成测试)
 - AC12 — Root 与 child 桌面流程保留产品授权、模型/工具边界、单次用量记账、投递终态，以及约定的停止/恢复行为。编辑保留旧分支并选中新分支，浏览不调用原生执行，各分支续写解析正确 checkpoint/绑定。 (verification: Electron — Pi 与 Durable 宿主接入场景)
+- AC13 — Root 与 child 内容使用统一产品消息模型。初始/重复快照、后续实时 chunk、替换/删除及变化的工具参数收敛，不重复历史、不丢 partial 更新，也不被旧 reader 覆盖。 (verification: unit — 使用真实 SDK reader 与 Pi/Durable observation fixture 的宿主投影)
+- AC14 — 溢出、压缩、重开和关闭后，有映射的原生已提交内容只恢复一次；不可用映射保留可见断点，归档失败绝不变成产品成功终态或重复执行。 (verification: unit — Pi 原生历史、真实 DB 与关闭集成 fixture)
+- AC15 — Observation 替换在交接前排空已接纳写入；迟到回调不能覆盖更新视图，附着的 replay/live 重叠时每个更新仅应用一次，消费者失败保持隔离且诊断有界。 (verification: unit — 宿主 writer、传输与故障注入 fixture)
+- AC16 — 独立 child 渲染在父结束和多窗口下通过一个 Main writer 保留流式内容；普通更新仅触及变化的 child Item/part，不发布完整父消息、不重新获取完整历史，也不重渲染未变化兄弟。可比较的单/十 child 场景记录 IPC、持久化和渲染成本。 (verification: Electron — child 投影与性能场景)
 
 ## Risks
+
+Rebase 后的验证发现了一次同一 child 续聊时已有消息顺序的偶发失败。后续定向运行和不同流速探测均通过，但没有生产代码修复，根因仍未确定，P3 验收仍受此阻塞。PR 保持 Draft，并保留失败运行的证据。
+
+P3 不能根据 current-view 观察宣称 token 历史无损。Pi 现已提供实时到原生的映射、最终可读归档边界及 child 所有者恢复；原生保留不完整仍会限制 gap 后的修复能力。Child 归档在接纳、回收站/恢复、外键删除和原生文件保留方面继承 root 所有权，不继承定时任务策略。备份迁移位置后，如果原生父路径不再匹配，则在能证明所有权前保持只读。强制崩溃和可比较的一/十个 child 性能测量仍未完成；实现本身不证明性能收益。
 
 精确任务取消和宿主跨 harness 编排仍是方案。可选 child/input 字段让受限访问可以表达，但不代表已有每种 harness 的适配器，也不从恢复的历史授予控制权限。Pi child 续接需要所有者的 loader，并保留原生报告策略。上下文保留到 shutdown 会增加内存占用；无法取消的 preflight 可能无限推迟关闭。归一化视图省略原生数据，背压下还可能丢失中间事件。Durable 的内存逻辑输入映射本身不能持久保存其与 Cherry 消息的关联。把这些限制当作公共类型已经解决的问题，会让纸面抽象强于实际实现。
 
