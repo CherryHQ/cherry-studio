@@ -2,6 +2,7 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
   ConversationBusy,
   Harness,
+  InboxDoc,
   type Conversation,
   type ConversationCreateOptions,
   type ConversationId,
@@ -187,6 +188,16 @@ export async function createPiDurableRuntime(
     if (existing) return existing
     const loading = (async (): Promise<OperationResult<Entry>> => {
       try {
+        const queued = await conversation.commit(async (tx) => {
+          const inbox = await tx.doc(InboxDoc, conversation.id)
+          return inbox.items.filter((item) => item.mode !== 'write').map((item) => item.id)
+        }, context)
+        for (const id of queued) {
+          const submission = await harness.submission(id, context)
+          const record = await submission?.status(context)
+          // Commit notifications may already contain a newer placement or terminal state.
+          if (record?.type === 'input' && !inputs.has(record.id)) inputs.set(record.id, record)
+        }
         const watch = await conversation.watch(context)
         const entry: Entry = {
           ref: refFor(conversation.id),
