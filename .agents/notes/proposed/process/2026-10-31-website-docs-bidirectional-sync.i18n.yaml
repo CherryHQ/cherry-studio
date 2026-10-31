@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/process/2026-10-31-website-docs-bidirectional-sync.md
+2026-10-31-website-docs-bidirectional-sync.md: 7b85d1db0c10bf24cf18cac3319397c01e1cafbd
+2026-10-31-website-docs-bidirectional-sync.zh.md: 7862457bb297424cc8c2875829b351827717dc39
