@@ -32,7 +32,9 @@ import StreamZip from 'node-stream-zip'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { application } from '@application'
+import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { loggerService } from '@logger'
+import { listLiveDetachedBackgroundTasks } from '@main/ai/agents/backgroundTaskActions'
 import { WindowType } from '@main/core/window/types'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
@@ -360,6 +362,9 @@ class BackupManager {
           writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
           writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
+          // A detached task finishing mid-capture would move the fingerprint the snapshot is
+          // checked against; its index write waits with the rest.
+          writerHolds.push(agentBackgroundTaskService.pauseWrites(quiesceReason))
 
           const writerVerdicts = await Promise.all([
             agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
@@ -940,6 +945,9 @@ class BackupManager {
         const aiStreamManager = application.get('AiStreamManager')
         writerHolds.push(aiStreamManager.pause('backup restore'))
         writerHolds.push(agentLifecycle.pauseExecution('backup restore'))
+        // A completion landing while the promotion journal is staged would move the fingerprint the
+        // restore is checked against; its index write waits with the rest.
+        writerHolds.push(agentBackgroundTaskService.pauseWrites('backup restore'))
         this.assertWritersDrained(
           await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
@@ -947,6 +955,27 @@ class BackupManager {
           ])
         )
         this.assertNoActiveDataWriters()
+        // Promotion replaces Data/Agents and the database wholesale, while a detached task lives
+        // on in its own process session: its JSON record and index row vanish, and with them the
+        // only handle that can still list, stop, or purge it. Pausing the index writes does not
+        // protect it — the task is not the write — so the restore is refused while one is live,
+        // the way every other unsatisfied precondition here is refused: before the journal is
+        // committed, so nothing is staged and the write holds are released.
+        const liveTasks = await listLiveDetachedBackgroundTasks().catch((error: unknown) => {
+          // A failed inventory is not a confirmed-empty one: promotion deletes every task record,
+          // so this refuses exactly like a confirmed live task instead of assuming there is none.
+          logger.error('[restoreDirect] Failed to inventory detached background tasks', error as Error)
+          throw new Error(
+            `${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Cannot confirm whether a detached background task is still running, so the restore was stopped. (${(error as Error).message})`
+          )
+        })
+        if (liveTasks.length > 0) {
+          throw new Error(
+            `${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: A detached background task is still running (${liveTasks
+              .map((task) => task.id)
+              .join(', ')}). Stop it from the agent's background tasks, then retry the restore.`
+          )
+        }
         const dbService = application.get('DbService')
         dbService.checkpointTruncate()
         const fingerprint = await hashDbFile(application.getPath('app.database.file'))
@@ -1563,7 +1592,12 @@ class BackupManager {
               this.logSkippedSymlink(fullPath, error)
             }
           } else {
-            size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
+            try {
+              size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
+            } catch (error) {
+              // A staging directory renamed away between the walk's stat and the descent.
+              if (!(await this.isVanishedSourceEntry(fullPath, error))) throw error
+            }
           }
         } else if (entry.stats.isFile()) {
           size += entry.stats.size
@@ -1708,7 +1742,9 @@ class BackupManager {
               await copyDir(sourcePath, destPath)
             } catch (error) {
               if (!entry.isSymlink) {
-                throw error
+                if (!(await this.isVanishedSourceEntry(sourcePath, error))) throw error
+                await fs.remove(destPath).catch(() => {})
+                continue
               }
               await fs.remove(destPath).catch(() => {})
               this.logSkippedSymlink(sourcePath, error)
@@ -1726,6 +1762,9 @@ class BackupManager {
                 } catch {
                   throw error
                 }
+                if (await this.isVanishedSourceEntry(sourcePath, error)) {
+                  continue
+                }
                 if (isSkippableLevelDbLockError(sourcePath, error)) {
                   logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
                   continue
@@ -1733,11 +1772,22 @@ class BackupManager {
                 throw error
               }
             } else if (entry.isSymlink) {
-              await fs.copy(sourcePath, destPath, { dereference: true })
+              try {
+                await fs.copy(sourcePath, destPath, { dereference: true })
+              } catch (error) {
+                if (!(await this.isVanishedSourceEntry(sourcePath, error))) throw error
+                await fs.remove(destPath).catch(() => {})
+                continue
+              }
             } else {
               try {
                 await fs.copy(sourcePath, destPath)
               } catch (copyError) {
+                // A staging entry the walk statted can be renamed away before the copy opens it.
+                if (await this.isVanishedSourceEntry(sourcePath, copyError)) {
+                  await fs.remove(destPath).catch(() => {})
+                  continue
+                }
                 // Skip files that are locked by another process (e.g., LevelDB LOCK file
                 // in Local Storage held by the renderer). These files are not needed for
                 // backup integrity and will be recreated on restore if needed.
@@ -1773,11 +1823,31 @@ class BackupManager {
     return realPath
   }
 
+  /**
+   * Whether a read failed because the entry is already gone: a writer stages a file beside its
+   * target and renames it away, which can land between the walk's stat and the copy's open.
+   */
+  private async isVanishedSourceEntry(sourcePath: string, error: unknown): Promise<boolean> {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') return false
+    const gone = !(await fs.pathExists(sourcePath))
+    if (gone) logger.debug('[BackupManager] Skipping entry that vanished during capture', { path: sourcePath })
+    return gone
+  }
+
   private async getEffectiveEntryStats(
     sourcePath: string,
     options: CopyDirOptions
   ): Promise<EffectiveEntryStats | null> {
-    const stats = await fs.lstat(sourcePath)
+    let stats: Stats
+    try {
+      stats = await fs.lstat(sourcePath)
+    } catch (error) {
+      // A writer that stages a file beside its target and renames it can drop that staging entry
+      // between this walk's readdir and its stat. The file is gone, so it cannot belong to the
+      // snapshot: skip it instead of failing the whole backup.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
 
     if (!stats.isSymbolicLink()) {
       return { isSymlink: false, stats }

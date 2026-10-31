@@ -1,4 +1,6 @@
 import type * as CryptoModule from 'node:crypto'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { Readable, Writable } from 'node:stream'
 import type * as PathModule from 'path'
 
@@ -328,6 +330,17 @@ vi.mock('node-stream-zip', () => ({
   default: { async: MockStreamZipAsync }
 }))
 
+// Restore replaces Data/Agents wholesale, so anything this module reports live is what the
+// promotion would strand with no control record. It is mocked rather than spawned: the condition
+// under test is the restore ordering, not whether a detached process stays up.
+const { mockLiveDetachedTasks } = vi.hoisted(() => ({
+  mockLiveDetachedTasks: vi.fn((): Promise<Array<{ id: string; agentId: string }>> => Promise.resolve([]))
+}))
+
+vi.mock('@main/ai/agents/backgroundTaskActions', () => ({
+  listLiveDetachedBackgroundTasks: mockLiveDetachedTasks
+}))
+
 // Import after mocks
 import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
@@ -389,6 +402,7 @@ describe('BackupManager direct v2 data compatibility', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockLiveDetachedTasks.mockResolvedValue([])
     backupManager = new BackupManager()
     mockRandomUUID.mockReturnValue('operation-id')
     mockHashDbFile.mockResolvedValue('same-fingerprint')
@@ -887,6 +901,32 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.openSync).toHaveBeenCalledWith('/mock/userData/restore-staging/work.sqlite', 'r+')
     expect(fs.fsyncSync).toHaveBeenCalledWith(42)
     expect(fs.closeSync).toHaveBeenCalledWith(42)
+  })
+
+  it('refuses restore promotion while a detached background task is still live', async () => {
+    arrangeDirectRestore()
+    mockLiveDetachedTasks.mockResolvedValue([{ id: 'bt-1', agentId: 'agent-1' }])
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'detached background task is still running'
+    )
+
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('refuses restore promotion when the detached-task inventory cannot be read', async () => {
+    // A failed inventory is not a confirmed-empty one: treating it as empty would commit a journal
+    // whose promotion deletes the records of a task this restore can no longer even see.
+    arrangeDirectRestore()
+    mockLiveDetachedTasks.mockRejectedValueOnce(new Error('EACCES: permission denied, scandir'))
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      `${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Cannot confirm whether a detached background task is still running`
+    )
+
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
   })
 
   it('commits one crash-safe restore journal without relaunching inside staging', async () => {
@@ -1608,6 +1648,40 @@ describe('BackupManager.copyDirWithProgress', () => {
     )
   })
 
+  it('should skip a staging file that vanished between enumeration and stat', async () => {
+    // A writer that stages beside its target and renames removes the staging name after this walk
+    // may already have enumerated it, so lstat answers ENOENT. The file is gone and cannot belong
+    // to the snapshot: skipping it keeps one rename from aborting the whole backup.
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('task.json'), createDirent('task.pids.4242.tmp')] as never)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      if (String(entryPath).endsWith('.tmp')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return createStats('file', 7) as never
+    })
+
+    const onProgress = vi.fn()
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, { dereferenceSymlinks: true })
+    ).resolves.toBeUndefined()
+
+    expect(fs.copy).toHaveBeenCalledTimes(1)
+    expect(fs.copy).toHaveBeenCalledWith('/src/task.json', '/dest/task.json')
+    expect(onProgress).toHaveBeenCalledWith(7)
+  })
+
+  it('should not fail the size scan when a staging file vanishes', async () => {
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('task.json'), createDirent('task.pids.4242.tmp')] as never)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      if (String(entryPath).endsWith('.tmp')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return createStats('file', 7) as never
+    })
+
+    await expect((backupManager as any).getDirSize('/src', { dereferenceSymlinks: true })).resolves.toBe(7)
+  })
+
   it('should preserve normal file and directory copy behavior', async () => {
     vi.mocked(fs.readdir).mockImplementation(async (dir) => {
       const dirPath = String(dir)
@@ -1907,6 +1981,117 @@ describe('BackupManager.copyDirWithProgress', () => {
       expect.objectContaining({ path: '/src/self-link', realPath: '/src' })
     )
   })
+})
+
+describe('BackupManager captures a task directory whose staging entry vanishes', () => {
+  let backupManager: BackupManager
+
+  /**
+   * The mocked `fs-extra` is replaced by the real module for the duration of a test: the race under
+   * test is a filesystem window, so only a real tree can open it.
+   */
+  const delegateToRealFilesystem = async () => {
+    const real = await vi.importActual<typeof fs>('fs-extra')
+    for (const method of [
+      'lstat',
+      'stat',
+      'realpath',
+      'readdir',
+      'ensureDir',
+      'copy',
+      'remove',
+      'chmod',
+      'pathExists',
+      'createReadStream',
+      'createWriteStream'
+    ] as const) {
+      vi.mocked(fs[method]).mockImplementation(real[method] as never)
+    }
+    return real
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    backupManager = new BackupManager()
+  })
+
+  it('skips a staging file that vanishes between the walk statting it and the copy opening it', async () => {
+    const real = await delegateToRealFilesystem()
+    const root = await real.mkdtemp(path.join(tmpdir(), 'cherry-backup-staging-'))
+    const source = path.join(root, 'Data')
+    const destination = path.join(root, 'capture')
+    const agents = path.join(source, 'Agents')
+    await real.ensureDir(agents)
+    const staging = path.join(agents, 'task.pids.4242.tmp')
+    const stagingTree = path.join(agents, 'task.staging')
+    await real.writeFile(staging, 'in flight')
+    await real.ensureDir(stagingTree)
+    await real.writeFile(path.join(stagingTree, 'blob'), 'in flight')
+    await real.writeFile(path.join(agents, 'task.json'), '{"id":"task"}')
+    // The writer renames its staging entries away after the walk has statted them: the stat
+    // succeeds, the open and the descent the copy then performs do not.
+    vi.mocked(fs.lstat).mockImplementation((async (entryPath: string) => {
+      const stats = await real.lstat(entryPath)
+      if (String(entryPath) === staging) await real.remove(staging)
+      if (String(entryPath) === stagingTree) await real.remove(stagingTree)
+      return stats
+    }) as never)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress(source, destination, () => {}, { dereferenceSymlinks: false })
+    ).resolves.toBeUndefined()
+
+    await expect(real.readFile(path.join(destination, 'Agents', 'task.json'), 'utf8')).resolves.toBe('{"id":"task"}')
+    await expect(real.pathExists(path.join(destination, 'Agents', 'task.pids.4242.tmp'))).resolves.toBe(false)
+    await expect(real.pathExists(path.join(destination, 'Agents', 'task.staging'))).resolves.toBe(false)
+  }, 20_000)
+
+  it('skips the vanished staging file on the streaming copy path as well', async () => {
+    const real = await delegateToRealFilesystem()
+    const root = await real.mkdtemp(path.join(tmpdir(), 'cherry-backup-staging-'))
+    const source = path.join(root, 'Data')
+    const destination = path.join(root, 'capture')
+    const agents = path.join(source, 'Agents')
+    await real.ensureDir(agents)
+    const staging = path.join(agents, 'task.pids.4343.tmp')
+    await real.writeFile(staging, 'in flight')
+    await real.writeFile(path.join(agents, 'task.json'), '{"id":"task"}')
+    vi.mocked(fs.lstat).mockImplementation((async (entryPath: string) => {
+      const stats = await real.lstat(entryPath)
+      if (String(entryPath) === staging) await real.remove(staging)
+      return stats
+    }) as never)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress(source, destination, () => {}, {
+        dereferenceSymlinks: false,
+        signal: new AbortController().signal
+      })
+    ).resolves.toBeUndefined()
+
+    await expect(real.readFile(path.join(destination, 'Agents', 'task.json'), 'utf8')).resolves.toBe('{"id":"task"}')
+    await expect(real.pathExists(path.join(destination, 'Agents', 'task.pids.4343.tmp'))).resolves.toBe(false)
+  }, 20_000)
+
+  it('skips a staging directory that vanishes while the size scan descends into it', async () => {
+    const real = await delegateToRealFilesystem()
+    const root = await real.mkdtemp(path.join(tmpdir(), 'cherry-backup-staging-'))
+    const source = path.join(root, 'Data')
+    const agents = path.join(source, 'Agents')
+    const stagingTree = path.join(agents, 'task.staging')
+    await real.ensureDir(stagingTree)
+    await real.writeFile(path.join(stagingTree, 'blob'), 'in flight')
+    await real.writeFile(path.join(agents, 'task.json'), '{"id":"task"}')
+    vi.mocked(fs.lstat).mockImplementation((async (entryPath: string) => {
+      const stats = await real.lstat(entryPath)
+      if (String(entryPath) === stagingTree) await real.remove(stagingTree)
+      return stats
+    }) as never)
+
+    await expect((backupManager as any).getDirSize(source, { dereferenceSymlinks: false })).resolves.toBe(
+      Buffer.byteLength('{"id":"task"}')
+    )
+  }, 20_000)
 })
 
 describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {

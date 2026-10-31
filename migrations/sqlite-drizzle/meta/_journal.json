@@ -210,6 +210,13 @@
       "when": 1792948344082,
       "tag": "0029_sloppy_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1793335263356,
+      "tag": "0030_ancient_killraven",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -43,8 +43,11 @@ describe('knowledge ordering migrate-forward', () => {
       .insert(knowledgeItemTable)
       .values({ baseId: values[0].id, type: 'note', data: content, status: 'completed' })
       .run()
+    // The journal reset replays everything from 0027 onward, so the simulated previous schema
+    // must also revert the migrations that follow it, or their CREATEs land on existing objects.
     dbh.sqlite.exec(
-      'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
+      'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key;' +
+        ' DROP INDEX agent_background_task_agent_started_idx; DROP TABLE agent_background_task'
     )
     replayMigration(dbh, '0027_knowledge_base_order')
     new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])

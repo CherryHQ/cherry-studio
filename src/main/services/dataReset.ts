@@ -224,6 +224,22 @@ export async function requestV1Remigration(): Promise<void> {
 }
 
 async function stageDataReset(operation: DataResetOperation, shouldClearChromiumState: boolean): Promise<void> {
+  // Imported at staging, not at boot: this module also runs at preboot, before services exist.
+  const { DetachedTasksBusyError, withDetachedTasksStopped } = await import('@main/ai/agents/backgroundTaskActions')
+  try {
+    // The reset erases the records, logs and workspaces detached tasks run in, so everything this
+    // app can reach is stopped and verified first, and no new task may start while it stages.
+    await withDetachedTasksStopped(() => stageResetAndExit(operation, shouldClearChromiumState))
+  } catch (error) {
+    if (!(error instanceof DetachedTasksBusyError)) throw error
+    logger.error('Data reset refused: a detached background task could not be stopped and verified', {
+      error: String(error)
+    })
+    showDetachedTasksBusyWarning()
+  }
+}
+
+async function stageResetAndExit(operation: DataResetOperation, shouldClearChromiumState: boolean): Promise<void> {
   const userDataPath = application.getPath('app.userdata')
   // Bind authorization to the physical directory the user confirmed.
   try {
@@ -523,6 +539,10 @@ function showPathMismatchWarning(): void {
       'No data was removed, and the pending request has been cleared. ' +
       'Run Data Reset again from Settings if you still want to erase this profile.'
   )
+}
+
+function showDetachedTasksBusyWarning(): void {
+  dialog.showErrorBox(t('dialog.data_reset.detached_tasks.title'), t('dialog.data_reset.detached_tasks.message'))
 }
 
 function showIncompleteResetWarning(): void {
