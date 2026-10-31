@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { agentHandlers } from '@data/api/handlers/agents'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
@@ -32,6 +33,18 @@ describe('AgentTaskService active-Agent read contract', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     }).id
   }
+
+  it('validates the public status query and returns only the requested group', async () => {
+    seedAgent('owner')
+    seedTask('active', 'owner')
+    const paused = seedTask('paused', 'owner')
+    jobScheduleService.update(paused, { enabled: false })
+    const response = await agentHandlers['/agent-tasks'].GET({
+      query: { status: 'paused', page: 1, limit: 50 }
+    } as never)
+    expect(response).toMatchObject({ total: 1, page: 1, items: [{ id: paused, status: 'paused' }] })
+    await expect(agentHandlers['/agent-tasks'].GET({ query: { status: 'unknown' } } as never)).rejects.toThrow()
+  })
 
   it('hides tasks owned by trashed or missing Agents from every normal read and shows them after restore', () => {
     seedAgent('agent-active')
