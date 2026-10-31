@@ -87,6 +87,8 @@ function AgentTopBarControls(props: AgentTopBarControlsProps) {
 }
 
 interface AgentChatProps {
+  /** Page-owned toolbar that replaces the standard Agent navbar. */
+  conversationToolbar?: ReactNode
   centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
@@ -151,6 +153,7 @@ interface AgentChatLayoutProps {
 }
 
 const AgentChat = ({
+  conversationToolbar,
   centerSurface,
   pane,
   paneOpen,
@@ -534,7 +537,7 @@ const AgentChat = ({
     paneManualToggle,
     sessionSnapshot,
     sidePanel,
-    topBar,
+    topBar: conversationToolbar ?? topBar,
     topRightTool: rightPaneTools
   }
 

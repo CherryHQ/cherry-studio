@@ -15,6 +15,7 @@ import { PoeChatEndpointUpgradeSeeder } from './seeders/PoeChatEndpointUpgradeSe
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { RetiredAgentRuntimeSeeder } from './seeders/RetiredAgentRuntimeSeeder'
+import { ScheduledTasksShortcutSeeder } from './seeders/scheduledTasksShortcutSeeder'
 import { SidebarShortcutMigrationSeeder } from './seeders/sidebarShortcutMigrationSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceUpgradeSeeder'
@@ -43,6 +44,7 @@ export const seeders: ISeeder[] = [
   new LongTextPastePreferenceUpgradeSeeder(),
   new WebSearchPreferenceUpgradeSeeder(),
   new SidebarShortcutMigrationSeeder(),
+  new ScheduledTasksShortcutSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new LocalModelSeeder(),

@@ -14,6 +14,7 @@ import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
 import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
+import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
@@ -38,9 +39,10 @@ const APP_ICON_FRAME_CLASS =
 const APP_ICON_CLASS = 'size-11 object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
+const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
   assistants: assistantsIcon,
   agents: agentsIcon,
+  scheduled_tasks: undefined,
   paintings: paintingsIcon,
   translate: translateIcon,
   mini_app: miniAppIcon,
@@ -250,7 +252,11 @@ export default function LaunchpadPage() {
         <span className="relative flex size-14 items-center justify-center">
           <span className={APP_ICON_SURFACE_CLASS}>
             <span className={APP_ICON_FRAME_CLASS}>
-              <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
+              {item.iconSrc ? (
+                <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
+              ) : (
+                <SidebarIcon icon={item.id} className="size-9 text-foreground" />
+              )}
             </span>
           </span>
         </span>

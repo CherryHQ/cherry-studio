@@ -390,6 +390,10 @@
       "sources": ["src/main/core/job","src/main/core/scheduler"]
     },
     {
+      "path": "docs/references/job-and-scheduler/scheduled-tasks-page.md",
+      "sources": ["src/main/data/db/seeding/seeders/scheduledTasksShortcutSeeder.ts","src/main/data/services/AgentTaskService.ts","src/renderer/components/app/sidebarIcons.tsx","src/renderer/hooks/agent/useTaskConversation.ts","src/renderer/pages/agents/AgentChat.tsx","src/renderer/pages/agents/ScheduledTasksPage.tsx","src/renderer/pages/agents/components/ScheduledTaskSidebar.tsx","src/renderer/services/taskConversation.ts"]
+    },
+    {
       "path": "docs/references/job-and-scheduler/scheduler-usage.md",
       "sources": ["src/main/core/job/JobManager.ts","src/main/core/lifecycle/BaseService.ts","src/main/core/scheduler/SchedulerService.ts"]
     },
