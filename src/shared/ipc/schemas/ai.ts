@@ -425,7 +425,10 @@ export const aiRequestSchemas = {
   }),
   'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
   'ai.local_agents.open_terminal': defineRoute({
-    input: LocalAgentConfigurationSchema,
+    input: LocalAgentConfigurationSchema.extend({
+      directory: AbsoluteFilePathSchema.optional(),
+      terminal: z.string().optional()
+    }),
     output: z.object({ success: z.boolean(), message: z.string().optional() })
   }),
   'ai.local_agents.check': defineRoute({

@@ -77,6 +77,38 @@ describe('global local agent model selection', () => {
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('custom/new')
   })
 
+  it.each([
+    ['kilo', 'kilo-config', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],
+    ['copilot', 'copilot-settings', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],
+    [
+      'factory-droid',
+      'factory-settings',
+      '{"sessionDefaultSettings":{"model":"custom:provider:model"}}',
+      'custom:provider:model'
+    ],
+    ['mistral-vibe', 'vibe-config', 'active_model="cherry-gateway"', 'cherry-gateway']
+  ] as const)('synchronizes %s global config and chat model identity', async (presetId, target, content, expected) => {
+    const agent = agentService.createAgentWithId(`new-${presetId}`, {
+      name: presetId,
+      type: 'local',
+      model: null,
+      configuration: { localRuntime: { presetId, protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+    const selected = await selectLocalAgentModel(agent.id, undefined, {
+      sourceModelId: createUniqueModelId('provider', 'model'),
+      sourceModelViaGateway: true,
+      files: [{ target, content }]
+    })
+    expect(selected.configuration?.localRuntime?.nativeModel).toBe(expected)
+    const saved = await service.readConfigFiles([target])
+    expect(saved[0].content).toBe(content)
+    const restored = await selectLocalAgentModel(agent.id, 'native-model', {
+      files: [{ target, content: target === 'vibe-config' ? '' : '{}' }]
+    })
+    expect(restored.configuration?.localRuntime).toMatchObject({ nativeModel: 'native-model' })
+    expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+  })
+
   it('does not change the saved model when native persistence is unsupported', async () => {
     const agent = agentService.createAgentWithId('custom-local', {
       name: 'Custom',

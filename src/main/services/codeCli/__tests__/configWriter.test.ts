@@ -85,17 +85,17 @@ describe('writeCliConfigFiles', () => {
     await rm(home, { recursive: true, force: true })
   })
 
-  it('edits existing Copilot config.json until native settings.json is present', async () => {
+  it('writes Copilot settings without overwriting internal config.json state', async () => {
     const directory = path.join(home, '.copilot')
     await mkdir(directory, { recursive: true })
     const legacy = path.join(directory, 'config.json')
-    await writeFile(legacy, '{"theme":"dark"}')
+    await writeFile(legacy, '{"authenticated":true}')
     await writeCliConfigFiles(CodeCli.GITHUB_COPILOT_CLI, [
       { target: 'copilot-settings', content: '{"theme":"light"}' }
     ])
-    expect(await readFile(legacy, 'utf8')).toBe('{"theme":"light"}')
+    expect(await readFile(legacy, 'utf8')).toBe('{"authenticated":true}')
     const settings = path.join(directory, 'settings.json')
-    await writeFile(settings, '{}')
+    expect(await readFile(settings, 'utf8')).toBe('{"theme":"light"}')
     const [file] = await readCliConfigFiles(['copilot-settings'])
     expect(file.path).toBe(settings)
   })

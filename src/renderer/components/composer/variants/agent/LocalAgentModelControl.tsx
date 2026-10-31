@@ -71,6 +71,7 @@ export function LocalAgentModelControl({
   return (
     <LocalAgentModelSelector
       models={models}
+      sourceRestrictions={selection.sourceRestrictions}
       value={value}
       disabled={disabled || saving || !LOCAL_AGENT_MODEL_CONFIG[config.presetId ?? '']}
       loading={loading}

@@ -15,9 +15,9 @@ function parseToml(content: string) {
 
 /** Changes only the native default, preserving credentials and unrelated settings. */
 export function updateNativeModelConfig(target: CliConfigTarget, content: string | null, model?: string): string {
-  if (target === 'codex-config' || target === 'kimi-config') {
+  if (target === 'codex-config' || target === 'kimi-config' || target === 'vibe-config') {
     const config = parseToml(content ?? '')
-    const key = target === 'codex-config' ? 'model' : 'default_model'
+    const key = target === 'codex-config' ? 'model' : target === 'vibe-config' ? 'active_model' : 'default_model'
     if (model === undefined) delete config[key]
     else config[key] = model
     return toml.stringify(config)
@@ -45,7 +45,12 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
       break
     case 'codebuddy-settings':
     case 'opencode-config':
+    case 'kilo-config':
+    case 'copilot-settings':
       updates = [[['model'], model]]
+      break
+    case 'factory-settings':
+      updates = [[['sessionDefaultSettings', 'model'], model]]
       break
     case 'qwen-settings':
       updates = [[['model', 'name'], model]]
@@ -75,9 +80,10 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
 }
 
 export function readNativeModelConfig(target: CliConfigTarget, content: string): string | undefined {
-  if (target === 'codex-config' || target === 'kimi-config') {
+  if (target === 'codex-config' || target === 'kimi-config' || target === 'vibe-config') {
     const config = parseToml(content)
-    const value = config[target === 'codex-config' ? 'model' : 'default_model']
+    const value =
+      config[target === 'codex-config' ? 'model' : target === 'vibe-config' ? 'active_model' : 'default_model']
     return typeof value === 'string' ? value : undefined
   }
   if (target === 'hermes-config' || target === 'minimax-config') {
@@ -91,12 +97,14 @@ export function readNativeModelConfig(target: CliConfigTarget, content: string):
   if (errors.length || !config || typeof config !== 'object' || Array.isArray(config))
     throw new Error(t('code_cli.model.invalid_config', { format: 'JSON' }))
   const value =
-    target === 'pi-settings'
-      ? config.defaultProvider && config.defaultModel && `${config.defaultProvider}/${config.defaultModel}`
-      : target === 'qwen-settings'
-        ? config.model?.name
-        : target === 'claude-settings'
-          ? config.env?.ANTHROPIC_MODEL || config.model
-          : config.model
+    target === 'factory-settings'
+      ? config.sessionDefaultSettings?.model
+      : target === 'pi-settings'
+        ? config.defaultProvider && config.defaultModel && `${config.defaultProvider}/${config.defaultModel}`
+        : target === 'qwen-settings'
+          ? config.model?.name
+          : target === 'claude-settings'
+            ? config.env?.ANTHROPIC_MODEL || config.model
+            : config.model
   return typeof value === 'string' ? value : undefined
 }

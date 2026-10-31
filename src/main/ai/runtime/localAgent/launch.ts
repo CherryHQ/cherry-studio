@@ -14,6 +14,7 @@ import {
   type LocalAgentConfiguration,
   type LocalAgentDetection
 } from '@shared/ai/localAgent'
+import type { InputFor } from '@shared/ipc/types'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 
 import { readInstalledPackageVersion } from './installedVersion'
@@ -134,7 +135,7 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
   }
 }
 
-export async function openLocalAgentTerminal(config: LocalAgentConfiguration) {
+export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.open_terminal'>) {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
   if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
   const launch = await resolveLocalAgentLaunch(config, undefined, true)
@@ -148,6 +149,8 @@ export async function openLocalAgentTerminal(config: LocalAgentConfiguration) {
     executable: launch.executable,
     args: preset.terminalArgs,
     env,
-    usesCherryExecutionEnv: launch.source !== 'system'
+    usesCherryExecutionEnv: launch.source !== 'system',
+    directory: config.directory,
+    terminal: config.terminal
   })
 }

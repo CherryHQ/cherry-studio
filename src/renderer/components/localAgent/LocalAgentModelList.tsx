@@ -17,7 +17,10 @@ import {
 import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelTag } from '@renderer/components/tags/Model'
-import type { LocalAgentModelOption } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+import type {
+  LocalAgentModelOption,
+  LocalAgentModelSourceRestrictions
+} from '@renderer/hooks/agent/useLocalAgentModelSelection'
 import { useLocalAgentModelTabs } from '@renderer/hooks/agent/useLocalAgentModelTabs'
 import { cn } from '@renderer/utils/style'
 import { deriveModelGroupName } from '@shared/utils/model'
@@ -26,6 +29,7 @@ import { LocalAgentModelTabs } from './LocalAgentModelTabs'
 
 export function LocalAgentModelList({
   models,
+  sourceRestrictions,
   showFollowCli = true,
   groupFallback,
   value,
@@ -38,6 +42,7 @@ export function LocalAgentModelList({
 }: {
   showFollowCli?: boolean
   models: LocalAgentModelOption[]
+  sourceRestrictions?: LocalAgentModelSourceRestrictions
   groupFallback?: string
   value?: string
   loaded: boolean
@@ -58,7 +63,8 @@ export function LocalAgentModelList({
     setQuery('')
     setSearchOpen(false)
   }
-  const tabs = useLocalAgentModelTabs(models, value, showFollowCli)
+  const tabs = useLocalAgentModelTabs(models, value, showFollowCli, sourceRestrictions)
+  const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
   const search = query.trim().toLowerCase()
   const filtered = tabs.models.filter((model) =>
     `${model.name} ${model.id} ${model.group ?? ''}`.toLowerCase().includes(search)
@@ -82,12 +88,14 @@ export function LocalAgentModelList({
     <section className="space-y-3" aria-labelledby="local-agent-model-label">
       <LocalAgentModelTabs
         tabs={tabs}
+        sourceRestrictions={sourceRestrictions}
         renderHeader={(tabList) => (
-          <>
-            <div className="flex min-h-9 flex-wrap items-center gap-1">
-              <h2 id="local-agent-model-label" className="mr-2 shrink-0 text-sm font-semibold">
-                {t('settings.models.list_title')}
-              </h2>
+          <div className="flex min-h-9 min-w-0 items-end justify-between gap-2 border-b border-border-subtle">
+            <h2 id="local-agent-model-label" className="sr-only">
+              {t('settings.models.list_title')}
+            </h2>
+            {tabList}
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-1 self-center">
               <Tooltip content={t('common.refresh')}>
                 <Button
                   variant="ghost"
@@ -110,7 +118,7 @@ export function LocalAgentModelList({
                 </Button>
               </Tooltip>
               {searchOpen || query ? (
-                <InputGroup className="h-8 w-[min(38vw,220px)] min-w-36 rounded-[10px] border-border-subtle shadow-none">
+                <InputGroup className="h-8 w-[min(38vw,220px)] min-w-0 rounded-[10px] border-border-subtle shadow-none">
                   <InputGroupAddon className="pl-2.5">
                     <Search className="lucide-custom size-3 text-muted-foreground" />
                   </InputGroupAddon>
@@ -150,15 +158,14 @@ export function LocalAgentModelList({
                 </Tooltip>
               )}
             </div>
-            {tabList}
-          </>
+          </div>
         )}>
         {showFollowCli && tabs.source === 'native' && (
           <div className="overflow-hidden rounded-lg border border-border-subtle p-1.5">
             <Button
               variant="ghost"
               aria-pressed={!value}
-              disabled={disabled}
+              disabled={selectionDisabled}
               className={rowClass}
               onClick={() => void onSelect()}>
               <CliModelAvatar className="size-[26px] shrink-0 rounded-full border border-border" />
@@ -199,7 +206,7 @@ export function LocalAgentModelList({
                       key={model.id}
                       variant="ghost"
                       aria-pressed={value === model.id}
-                      disabled={disabled}
+                      disabled={selectionDisabled}
                       className={rowClass}
                       onClick={() => void onSelect(model.id)}>
                       <ModelAvatar

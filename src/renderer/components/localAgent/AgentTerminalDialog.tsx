@@ -4,13 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import type { TerminalConfig } from '@shared/types/codeCli'
 
-import { CurrentConfigPanel } from './CurrentConfigPanel'
+import { TerminalConfigPanel } from './TerminalConfigPanel'
 
-export interface LaunchDialogProps {
+export interface AgentTerminalDialogProps {
   open: boolean
   onClose: () => void
   toolName: string
   directory?: string
+  directoryHistory?: string[]
+  onSelectDirectory?: (directory: string) => void
+  onRemoveDirectory?: (directory: string) => void
   terminals: TerminalConfig[]
   selectedTerminal: string | undefined
   onSelectFolder: () => void
@@ -19,11 +22,14 @@ export interface LaunchDialogProps {
   launching: boolean
 }
 
-export const LaunchDialog: FC<LaunchDialogProps> = ({
+export const AgentTerminalDialog: FC<AgentTerminalDialogProps> = ({
   open,
   onClose,
   toolName,
   directory,
+  directoryHistory,
+  onSelectDirectory,
+  onRemoveDirectory,
   terminals,
   selectedTerminal,
   onSelectFolder,
@@ -35,14 +41,18 @@ export const LaunchDialog: FC<LaunchDialogProps> = ({
   const canLaunch = !!directory
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
+    <Dialog open={open} onOpenChange={(o) => (!o && !launching ? onClose() : undefined)}>
       <DialogContent size="default" aria-describedby={undefined} className="flex flex-col">
         <DialogHeader>
           <DialogTitle>{t('code.launch.title', { tool: toolName })}</DialogTitle>
         </DialogHeader>
 
-        <CurrentConfigPanel
+        <TerminalConfigPanel
+          disabled={launching}
           directory={directory}
+          directoryHistory={directoryHistory}
+          onSelectDirectory={onSelectDirectory}
+          onRemoveDirectory={onRemoveDirectory}
           terminals={terminals}
           selectedTerminal={selectedTerminal}
           onSelectFolder={onSelectFolder}

@@ -26,6 +26,14 @@ program layout. Selecting a model saves its provider and model for the next mana
 launch; their existing web launch, stop and configuration actions remain available.
 They do not expose a Cherry chat toggle or an unsupported terminal action.
 
+Interactive terminal actions open the shared Code Mate launch dialog to select a
+working directory and terminal application. Choices are saved per tool in
+`feature.code_cli.configs`, reusing existing Code Mate keys and using preset IDs
+for ACP-only tools. A per-tool recent-directory dropdown supports selection and
+removing history entries without changing files on disk. Launching moves the selected
+directory to the front; removing an entry saves immediately. The selected directory is checked before launch; an unavailable
+directory is reported rather than silently replaced with the user's home directory.
+
 Enabling a local CLI creates a persistent agent. Each preset has one stable agent ID; custom ACP configurations have
 independent IDs. Disabling asks for confirmation, archives the agent and its active
 conversations, and stops its managed WebUI. Running tasks must stop before the
@@ -60,11 +68,18 @@ provider is required. “Local” refers to the CLI process, not an offline mode
   following the CLI clears the previous Cherry-managed provider configuration.
   No Cherry prompts, knowledge bases or tools are injected.
 - Native default persistence currently supports Claude, Codex, OpenCode, Qwen,
-  Kimi, Pi, Hermes and MiniMax. Other presets and custom ACP agents show an explicit
+  Kimi, Pi, Hermes, MiniMax, CodeBuddy, Kilo, Factory Droid, Mistral Vibe and
+  GitHub Copilot. Other presets and custom ACP agents show an explicit
   limitation instead of claiming a session-only change is global. Defaults apply
   to newly started CLI sessions, including manual terminal launches. Explicit
   model arguments, environment overrides and project settings can take precedence.
   Existing interactive CLI sessions are not forcibly switched.
+- Kilo shares OpenCode's provider configuration format. Droid uses `customModels`
+  and `sessionDefaultSettings.model`; Vibe uses model aliases in `config.toml`
+  with a Cherry-owned key in `.env`; Copilot uses `providers.json` and
+  `settings.json`, leaving its internal `config.json` untouched. Switching back
+  removes only Cherry-owned providers, models and credentials. Droid's ACP mode
+  still requires Factory account authentication even when a custom model is configured.
 - A new local task defaults to its own managed directory. An empty task can select
   an existing project; sending its first message locks the agent and directory.
   Missing user directories are reported rather than created.
@@ -362,10 +377,10 @@ entries, not a claim that every installed version implements the protocol.
 | Codebuddy Code | `codebuddy --acp` | — | Registry launch definition checked (2.159.0); real CLI acceptance pending |
 | Auggie CLI | `auggie --acp` | — | Registry launch definition checked (0.36.0); real CLI acceptance pending |
 | Junie | `junie --acp=true` | — | Registry launch definition checked (3419.16.0); real CLI acceptance pending |
-| Factory Droid | `droid exec --output-format acp-daemon` | — | Registry launch definition checked (0.228.0); real CLI acceptance pending |
+| Factory Droid | `droid exec --output-format acp-daemon` | 1.1.0 | Persistent custom model works in standalone CLI against a local test backend; ACP handshake passed, but session creation requires Factory authentication (2026-10-31) |
 | Devin | `devin acp` | — | Registry launch definition checked (3000.11.3); real CLI acceptance pending |
 | Google Antigravity | `agy_acp_server.par` | 1.2.1 | Configured Gemini 3.7 Flash Medium: real text, read/write tools and diff, approval, process release/resume, stop and continuation passed; identical file callbacks reuse one native approval (2026-09-30) |
-| Mistral Vibe | `vibe-acp ` | — | Registry launch definition checked (2.25.8); real CLI acceptance pending |
+| Mistral Vibe | `vibe-acp` | 3.0.4 | Persistent custom model, standalone CLI and ACP text passed against a local test backend (2026-10-31); production provider credentials not exercised |
 | Amp | `amp-acp ` | — | Registry launch definition checked (0.9.0); real CLI acceptance pending |
 | pi ACP | `pi-acp ` | 0.0.34 | Real text, medium → low → medium reasoning, read/write tools and diff, process release/resume, stop and continuation passed (2026-09-30) |
 | DeepAgents | `deepagents-acp ` | — | Registry launch definition checked (0.1.7); real CLI acceptance pending |

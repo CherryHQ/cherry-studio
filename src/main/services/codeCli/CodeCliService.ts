@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { t } from '@main/i18n'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
@@ -679,7 +680,12 @@ export class CodeCliService extends BaseService {
     args: readonly string[]
     env: Record<string, string>
     usesCherryExecutionEnv: boolean
+    directory?: string
+    terminal?: string
   }): Promise<OperationResult> {
+    if (input.directory && !fs.statSync(input.directory, { throwIfNoEntry: false })?.isDirectory()) {
+      return { success: false, message: t('agent.session.workspace_status.not_directory', { path: input.directory }) }
+    }
     const platform = process.platform
     const needsBatchCall =
       platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(input.executable).toLowerCase())
@@ -690,7 +696,8 @@ export class CodeCliService extends BaseService {
         : posixQuote(input.executable)
     return this.launchTerminal({
       cliTool: 'local-agent',
-      directory: application.getPath('sys.home'),
+      directory: input.directory ?? application.getPath('sys.home'),
+      terminal: input.terminal,
       baseCommand: [executable, ...input.args.map((arg) => (platform === 'win32' ? arg : posixQuote(arg)))].join(' '),
       env: input.env,
       usesCherryExecutionEnv: input.usesCherryExecutionEnv

@@ -24,12 +24,12 @@ export function AgentServiceCard({
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center">{icon}</div>
-          <div className="min-w-0 space-y-1">
+          <div className="flex min-h-11 min-w-0 flex-col justify-center gap-1">
             <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>
             {(version || versionAction) && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex h-5 min-w-0 items-center gap-1.5">
                 {version && (
-                  <p className="font-mono text-xs text-muted-foreground">
+                  <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
                     {version.startsWith('v') ? version : `v${version}`}
                   </p>
                 )}

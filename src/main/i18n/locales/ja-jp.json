@@ -122,6 +122,7 @@
   "common.wecom_processing": "処理中…",
   "common.wecom_replaced": "別のクライアントが接続しています。先に切断してください。",
   "common.wecom_unsupported_message": "このメッセージ形式には対応していません。テキスト、音声、画像、動画、ファイルを送信してください。",
+  "deepseek_harness.model_unavailable": "選択したモデルは存在しません。別のモデルを選択してから WebUI を起動してください。",
   "dialog.all_files": "すべてのファイル",
   "dialog.architecture_mismatch.detail": "お使いの Mac は Apple チップを搭載していますが、現在の Cherry Studio は Intel 版のため、Rosetta 経由で動作しています。動作が遅くなる可能性があります。公式サイトから macOS Apple シリコン（ARM64）版をダウンロードしてインストールしてください。",
   "dialog.architecture_mismatch.download": "ダウンロードページを開く",

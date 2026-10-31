@@ -1,4 +1,5 @@
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -31,6 +32,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.unmock('@cherrystudio/ui')
 
 beforeEach(() => {
+  mockPreferenceState.set('feature.code_cli.configs', {})
+  vi.mocked(window.api.file.selectFolder).mockResolvedValue('/test/project')
   MockUseCacheUtils.resetMocks()
   MockUseDataApiUtils.resetMocks()
   MockUseDataApiUtils.mockQueryData('/agents', { items: [], total: 0, page: 1 })
@@ -40,9 +43,11 @@ beforeEach(() => {
     return Promise.resolve()
   })
   vi.mocked(ipcApi.request).mockImplementation(async (route) =>
-    route === 'ai.local_agents.detect'
-      ? [{ presetId: 'claude', path: '/usr/local/bin/claude' }]
-      : ({ models: [] } as never)
+    route === 'code_cli.get_available_terminals'
+      ? []
+      : route === 'ai.local_agents.detect'
+        ? [{ presetId: 'claude', path: '/usr/local/bin/claude' }]
+        : ({ models: [] } as never)
   )
 })
 
@@ -273,13 +278,17 @@ describe('local agent settings navigation', () => {
     const user = userEvent.setup()
     render(<LocalAgentSettingsPage />)
     await user.click(await screen.findByRole('button', { name: '在终端打开命令行' }))
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.open_terminal', expect.anything())
+    await user.click(screen.getByRole('button', { name: '选择文件夹' }))
+    await user.click(screen.getByRole('button', { name: '启动' }))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.open_terminal', {
         presetId: 'claude',
         protocol: 'claude',
         enabled: false,
         args: [],
-        env: {}
+        env: {},
+        directory: '/test/project'
       })
     )
   })
@@ -302,7 +311,12 @@ describe('local agent settings navigation', () => {
       })
       render(<LocalAgentSettingsPage />)
       await userEvent.click(await screen.findByRole('button', { name: '在终端打开命令行' }))
-      await waitFor(() => expect(screen.getByRole('button', { name: '在终端打开命令行' })).toBeEnabled())
+      await userEvent.click(screen.getByRole('button', { name: '选择文件夹' }))
+      await userEvent.click(screen.getByRole('button', { name: '启动' }))
+      await waitFor(() => {
+        if (confirmed) expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        else expect(screen.getByRole('button', { name: '启动' })).toBeEnabled()
+      })
       expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ content: 'agy: 未安装', okText: '安装' }))
       expect(actions).toEqual(confirmed ? ['install', 'open'] : [])
     }

@@ -16,7 +16,7 @@ import {
  * device code) rather than a Cherry provider + model. They launch with a
  * working directory only — no provider config or model selection is offered.
  */
-export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([CodeCli.QODER_CLI, CodeCli.GITHUB_COPILOT_CLI])
+export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([CodeCli.QODER_CLI])
 
 /** Aggregators fronting Gemini behind a non-Gemini provider type, surfaced
  * here so Gemini-compatible CLIs can select them despite lacking a Gemini endpoint. */
@@ -51,7 +51,7 @@ const filterGeminiProviders = (providers: Provider[]): Provider[] =>
  * - Pi: injects any endpoint supported by Pi's custom-provider schema.
  * - Hermes: injects Anthropic or OpenAI-compatible endpoints into its custom runtime.
  * - MiniMax Code: injects Anthropic or OpenAI-compatible endpoints into `custom_provider`.
- * - Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
+ * - Qoder CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (providers: Provider[]) => Provider[]> = {
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
@@ -71,7 +71,10 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (provid
   [CodeCli.QWEN_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.KIMI_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.QODER_CLI]: () => [],
-  [CodeCli.GITHUB_COPILOT_CLI]: () => [],
+  [CodeCli.GITHUB_COPILOT_CLI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  kilo: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
+  'factory-droid': (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  'mistral-vibe': (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
   [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
   [CodeCli.HERMES]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
   [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
@@ -96,6 +99,7 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
     case CodeCli.OPENAI_CODEX:
       return hasModelEndpoint(model, ENDPOINT_TYPE.OPENAI_RESPONSES)
     case CodeCli.OPEN_CODE:
+    case 'kilo':
       return hasAnyModelEndpoint(model, [
         ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
@@ -105,6 +109,9 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
     case CodeCli.DEEPSEEK_HARNESS:
     case CodeCli.HERMES:
     case CodeCli.MINIMAX_CODE:
+    case CodeCli.GITHUB_COPILOT_CLI:
+    case 'factory-droid':
+    case 'mistral-vibe':
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
     case CodeCli.ANTIGRAVITY_CLI:
       return hasModelEndpoint(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
@@ -119,7 +126,6 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
         ...OPENAI_LIKE_ENDPOINTS
       ])
     case CodeCli.QODER_CLI:
-    case CodeCli.GITHUB_COPILOT_CLI:
       return false
     default:
       return false

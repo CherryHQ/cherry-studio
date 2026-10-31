@@ -52,6 +52,36 @@ beforeEach(() => {
 })
 
 describe('local agent model persistence', () => {
+  it.each([
+    ['cursor', 'Cursor CLI 当前不支持自定义服务商模型。'],
+    ['auggie', 'Cherry Studio 暂未适配此智能体的服务商模型。']
+  ])('explains model switching restrictions for %s without changing configuration', async (presetId, reason) => {
+    const user = userEvent.setup()
+    render(
+      <LocalAgentModelControl
+        agent={{
+          ...agent,
+          configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId } }
+        }}
+        info={info}
+        disabled={false}
+        side="bottom"
+      />
+    )
+    await user.click(screen.getByRole('button', { name: '选择模型' }))
+    const native = screen.getByRole('tab', { name: '智能体模型' })
+    const gateway = screen.getByRole('tab', { name: '服务商模型' })
+    expect(native).toBeDisabled()
+    expect(gateway).toBeDisabled()
+    expect(screen.getByRole('option', { name: 'Second' })).toHaveAttribute('aria-disabled', 'true')
+    await user.hover(native.parentElement!)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Cherry Studio 暂未适配此智能体的默认模型切换。')
+    await user.hover(gateway.parentElement!)
+    expect(await screen.findByRole('tooltip', { name: reason })).toBeVisible()
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(updateNativeModel).not.toHaveBeenCalled()
+  })
+
   it('edits session model parameters in the model picker without changing the global model', async () => {
     const user = userEvent.setup()
     render(

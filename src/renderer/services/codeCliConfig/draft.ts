@@ -204,7 +204,7 @@ export async function writeCliConfigDraft(args: {
 /**
  * Login-capable tools whose "own login" entry also exposes a config panel (tool
  * params only, no model/credentials) expose a `buildOwnLoginDraft` on their
- * adapter. Qoder / GitHub Copilot are fully provider-less and never reach here;
+ * adapter. Qoder is fully provider-less and never reaches here;
  * OpenCode has no own-login config panel.
  */
 export function isOwnLoginConfigurable(cliTool: string): boolean {

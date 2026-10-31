@@ -40,7 +40,14 @@ export async function selectLocalAgentModel(
     'OPENCODE_CONFIG',
     'OPENCODE_CONFIG_DIR',
     'CODEBUDDY_MODEL',
-    'ANTHROPIC_MODEL'
+    'ANTHROPIC_MODEL',
+    'KILO_CONFIG',
+    'KILO_CONFIG_CONTENT',
+    'COPILOT_HOME',
+    'COPILOT_PROVIDERS_CONFIG',
+    'COPILOT_MODEL',
+    'VIBE_HOME',
+    'VIBE_ACTIVE_MODEL'
   ]
   if (
     overrides.some((key) => {

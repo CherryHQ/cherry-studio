@@ -312,6 +312,7 @@ export function useCodeCliPageViewProps(
       id: JSON.stringify([provider.id, model.id]),
       name: model.name || model.id,
       group: resolveProviderMeta(provider).providerName,
+      source: 'gateway' as const,
       provider,
       model
     }))

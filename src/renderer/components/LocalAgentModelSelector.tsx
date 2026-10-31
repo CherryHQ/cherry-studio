@@ -14,7 +14,10 @@ import {
 } from '@renderer/components/ModelSelector'
 import { SelectorShell } from '@renderer/components/SelectorShell'
 import { ModelTag } from '@renderer/components/tags/Model'
-import type { LocalAgentModelOption } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+import type {
+  LocalAgentModelOption,
+  LocalAgentModelSourceRestrictions
+} from '@renderer/hooks/agent/useLocalAgentModelSelection'
 import { useLocalAgentModelTabs } from '@renderer/hooks/agent/useLocalAgentModelTabs'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import { getSearchMatchScore } from '@renderer/utils/model'
@@ -23,6 +26,7 @@ import { cn } from '@renderer/utils/style'
 interface LocalAgentModelSelectorProps {
   trigger: ReactElement
   models: LocalAgentModelOption[]
+  sourceRestrictions?: LocalAgentModelSourceRestrictions
   value?: string
   disabled?: boolean
   loading?: boolean
@@ -39,6 +43,7 @@ interface LocalAgentModelSelectorProps {
 export function LocalAgentModelSelector({
   trigger,
   models,
+  sourceRestrictions,
   value,
   disabled,
   loading,
@@ -59,7 +64,9 @@ export function LocalAgentModelSelector({
   const [searchText, setSearchText] = useState('')
   const [focusedKey, setFocusedKey] = useState('')
   const listboxId = useId()
-  const tabs = useLocalAgentModelTabs(models, value)
+  const tabs = useLocalAgentModelTabs(models, value, true, sourceRestrictions)
+  const source = tabs.sources.includes(tabs.source) ? tabs.source : ''
+  const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
   const options = tabs.source === 'native' ? [undefined, ...tabs.models] : tabs.models
   const items = options
     .flatMap((model) => {
@@ -84,13 +91,13 @@ export function LocalAgentModelSelector({
   }
   const optionId = (key: string) => `${listboxId}-${encodeURIComponent(key)}`
   const select = async (next?: string) => {
-    if (disabled) return
+    if (selectionDisabled) return
     if (await onSelect(next)) setOpen(false)
   }
   useModelListKeyboardNav({
     open,
     focusedItemKey: activeKey,
-    items: disabled ? [] : [...groups.values()].flat(),
+    items: selectionDisabled ? [] : [...groups.values()].flat(),
     onClose: () => setOpen(false),
     onFocusItem: setFocusedKey,
     onSelectItem: (item) => void select(item.model?.id)
@@ -101,7 +108,7 @@ export function LocalAgentModelSelector({
   }, [activeKey, listboxId, open, tabs.source])
   return (
     <Tabs
-      value={tabs.source}
+      value={source}
       onValueChange={(source) => {
         tabs.setSource(source)
         setSearchText('')
@@ -135,12 +142,11 @@ export function LocalAgentModelSelector({
           }
         }}
         filterContent={
-          tabs.sources.length > 1 ? (
-            <LocalAgentModelTabList
-              sources={tabs.sources}
-              className="min-h-7 w-full p-0.5 [&>[data-slot=tabs-trigger]]:py-0.5"
-            />
-          ) : undefined
+          <LocalAgentModelTabList
+            sources={tabs.sources}
+            sourceRestrictions={sourceRestrictions}
+            className="min-h-7 w-full p-0.5 [&_[data-slot=tabs-trigger]]:py-0.5"
+          />
         }
         bottomAction={
           onOpenSettings
@@ -156,7 +162,7 @@ export function LocalAgentModelSelector({
         }>
         {({ contentElement }) => (
           <PortalContainerProvider container={contentElement ?? null}>
-            <TabsContent value={tabs.source} className="flex h-full min-h-0 flex-col">
+            <TabsContent value={source} className="flex h-full min-h-0 flex-col">
               {configuration && (
                 <div className="shrink-0 px-2 py-1" onKeyDown={(event) => event.stopPropagation()}>
                   {configuration}
@@ -205,7 +211,7 @@ export function LocalAgentModelSelector({
                           <ModelSelectorRow
                             selected={selected}
                             focused={activeKey === key}
-                            disabled={disabled}
+                            disabled={selectionDisabled}
                             showSelectedIndicator={selected}
                             onSelect={() => void select(model?.id)}
                             optionProps={{ id: optionId(key), 'aria-label': label }}

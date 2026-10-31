@@ -8,6 +8,7 @@ import { application } from '@application'
 import type * as Platform from '@main/core/platform'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch } from '../launch'
 
@@ -55,12 +56,20 @@ describe('local agent installation resolution', () => {
   it('opens the installed CLI with native terminal arguments and the selected execution environment', async () => {
     inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
     await expect(
-      openLocalAgentTerminal({ ...config, args: ['app-server'], env: { CUSTOM: 'explicit' } })
+      openLocalAgentTerminal({
+        ...config,
+        args: ['app-server'],
+        env: { CUSTOM: 'explicit' },
+        directory: AbsoluteFilePathSchema.parse('/user/my project'),
+        terminal: 'iTerm2'
+      })
     ).resolves.toEqual({ success: true })
     expect(inventory.openTerminal).toHaveBeenLastCalledWith({
       executable: '/user/bin/codex',
       args: [],
       usesCherryExecutionEnv: false,
+      directory: AbsoluteFilePathSchema.parse('/user/my project'),
+      terminal: 'iTerm2',
       env: { PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', CUSTOM: 'explicit' }
     })
     inventory.snapshots.codex.availability = { source: 'mise', path: '/managed/new/codex' }

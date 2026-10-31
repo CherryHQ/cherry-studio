@@ -29,10 +29,12 @@ export interface LocalAgentModelOption {
 
 export const LOCAL_AGENT_MODEL_SOURCE_LABELS = {
   native: 'local_agents.model_sources.native',
-  gateway: 'code.api_gateway.title'
+  gateway: 'local_agents.model_sources.gateway'
 } as const
 
 const GATEWAY_MODEL_PREFIX = 'gateway-model:'
+
+export type LocalAgentModelSourceRestrictions = Partial<Record<'native' | 'gateway', string>>
 
 /** One selection applies the native CLI files and the chat Agent together. */
 export function useLocalAgentModelSelection(
@@ -43,6 +45,16 @@ export function useLocalAgentModelSelection(
   const { updateNativeModel } = useUpdateAgent()
   const gateway = useApiGatewayProvider()
   const native = LOCAL_AGENT_MODEL_CONFIG[config?.presetId ?? '']
+  const sourceRestrictions: LocalAgentModelSourceRestrictions | undefined = native
+    ? undefined
+    : {
+        native: t('local_agents.global_model_unavailable'),
+        gateway: t(
+          config?.presetId === 'cursor'
+            ? 'local_agents.model_sources.cursor_provider_unsupported'
+            : 'local_agents.model_sources.gateway_not_integrated'
+        )
+      }
   const { models } = useModels({ enabled: true }, { fetchEnabled: !!native })
   const { providers } = useProviders(undefined, { enabled: !!native })
   const gatewayProviders = getGatewayProviderIds(providers)
@@ -104,5 +116,5 @@ export function useLocalAgentModelSelection(
       : undefined
     return updateNativeModel(agent.id, id, { files: files?.length ? files : undefined, expectedFiles })
   }
-  return { models: options, value, select }
+  return { models: options, value, select, sourceRestrictions }
 }

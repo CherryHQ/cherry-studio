@@ -11,11 +11,11 @@ const logger = loggerService.withContext('useAvailableTerminals')
  * Available terminal apps (macOS/Windows only). Loaded once on mount; returns
  * an empty list on Linux or on fetch failure.
  */
-export function useAvailableTerminals(): TerminalConfig[] {
+export function useAvailableTerminals(enabled = true): TerminalConfig[] {
   const [terminals, setTerminals] = useState<TerminalConfig[]>([])
 
   useEffect(() => {
-    if (!isMac && !isWin) return
+    if (!enabled || (!isMac && !isWin)) return
     let cancelled = false
     ipcApi
       .request('code_cli.get_available_terminals')
@@ -29,7 +29,7 @@ export function useAvailableTerminals(): TerminalConfig[] {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [enabled])
 
   return terminals
 }

@@ -122,6 +122,7 @@
   "common.wecom_processing": "Elaborazione in corso…",
   "common.wecom_replaced": "Un altro client si è connesso a questo bot. Disconnettilo prima di riconnetterti.",
   "common.wecom_unsupported_message": "Questo tipo di messaggio non è supportato. Invia testo, messaggi vocali, immagini, video o file.",
+  "deepseek_harness.model_unavailable": "Il modello selezionato non esiste più. Seleziona un altro modello prima di avviare la WebUI.",
   "dialog.all_files": "Tutti i file",
   "dialog.architecture_mismatch.detail": "Il tuo Mac utilizza un chip Apple, ma questa versione Intel di Cherry Studio viene eseguita tramite Rosetta. Ciò può causare rallentamenti. Scarica e installa la versione macOS per Apple Silicon (ARM64) dal nostro sito ufficiale.",
   "dialog.architecture_mismatch.download": "Vai alla pagina di download",

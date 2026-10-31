@@ -22,12 +22,16 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.unmock('@cherrystudio/ui')
 
 beforeEach(() => {
+  mockPreferenceState.set('feature.code_cli.configs', {})
+  vi.mocked(window.api.file.selectFolder).mockResolvedValue('/test/project')
   navigation.search = { id: 'claude' }
   MockUseDataApiUtils.mockQueryData('/agents', { items: [], total: 0, page: 1 })
   vi.mocked(ipcApi.request).mockImplementation(async (route) =>
-    route === 'ai.local_agents.detect'
-      ? [{ presetId: 'claude', path: '/usr/local/bin/claude' }]
-      : ({ models: [] } as never)
+    route === 'code_cli.get_available_terminals'
+      ? []
+      : route === 'ai.local_agents.detect'
+        ? [{ presetId: 'claude', path: '/usr/local/bin/claude' }]
+        : ({ models: [] } as never)
   )
 })
 
@@ -57,15 +61,22 @@ it('offers terminal-only CLI access without requiring a Code Mate provider or an
   render(<LocalAgentDirectory />)
   expect(await screen.findByText('/usr/local/bin/kilo')).toBeVisible()
   expect(screen.getByRole('switch')).not.toBeChecked()
-  expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: '智能体模型' })).toBeEnabled()
+  expect(screen.getByRole('tab', { name: '服务商模型' })).toBeDisabled()
   await userEvent.click(screen.getByRole('button', { name: '在终端打开命令行' }))
-  expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.open_terminal', {
-    presetId: 'kilo',
-    protocol: 'acp',
-    enabled: false,
-    args: [],
-    env: {}
-  })
+  await userEvent.click(screen.getByRole('button', { name: '选择文件夹' }))
+  await userEvent.click(screen.getByRole('button', { name: '启动' }))
+  await waitFor(() =>
+    expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.open_terminal', {
+      presetId: 'kilo',
+      protocol: 'acp',
+      enabled: false,
+      args: [],
+      env: {},
+      directory: '/test/project'
+    })
+  )
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.getByRole('button', { name: '高级设置' })).toBeVisible()
 })
 
@@ -74,7 +85,8 @@ it('offers installation before terminal actions for an absent agent', async () =
   render(<LocalAgentDirectory />)
   expect(await screen.findByRole('button', { name: '安装' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: '在终端打开命令行' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: '智能体模型' })).toBeDisabled()
+  expect(screen.getByRole('tab', { name: '服务商模型' })).toBeDisabled()
 })
 
 it.each([

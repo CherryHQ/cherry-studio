@@ -8,9 +8,11 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { t } from '@main/i18n'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
-import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { parseUniqueModelId, type Model, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { BinaryAvailability } from '@shared/types/binary'
 import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -234,7 +236,15 @@ export class DeepSeekHarnessService extends BaseService {
     const uniqueModelId = UniqueModelIdSchema.parse(input.uniqueModelId)
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const provider = providerService.getByProviderId(providerId)
-    const model = modelService.getByKey(providerId, modelId)
+    let model: Model
+    try {
+      model = modelService.getByKey(providerId, modelId)
+    } catch (error) {
+      if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+        throw new Error(t('deepseek_harness.model_unavailable'))
+      }
+      throw error
+    }
     if (!provider.isEnabled || !model.isEnabled) throw new Error('The selected DeepSeek Harness model is disabled')
     if (isNonChatModel(model)) throw new Error('The selected DeepSeek Harness model must support chat')
 

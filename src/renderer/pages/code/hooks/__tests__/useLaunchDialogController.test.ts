@@ -50,7 +50,7 @@ vi.mock('@renderer/services/codeCliConfig', async (importOriginal) => ({
   gatewayModelIdFromAddress: mocks.gatewayModelIdFromAddress
 }))
 
-vi.mock('../useAvailableTerminals', () => ({
+vi.mock('@renderer/hooks/agent/useAvailableTerminals', () => ({
   useAvailableTerminals: () => mocks.availableTerminals
 }))
 

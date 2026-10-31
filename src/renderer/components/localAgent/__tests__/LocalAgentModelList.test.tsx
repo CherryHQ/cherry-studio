@@ -2,12 +2,74 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { LocalAgentModelOption } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+
 import { LocalAgentModelSelector } from '../../LocalAgentModelSelector'
 import { LocalAgentModelList } from '../LocalAgentModelList'
 
 vi.unmock('@cherrystudio/ui')
 
 describe('local agent model search', () => {
+  it('keeps unavailable provider models visible, explains the disabled state, and enables them after loading', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn(async () => true)
+    const props = {
+      models: [{ id: 'native', name: 'Native model', source: 'native' }] as LocalAgentModelOption[],
+      loaded: true,
+      loading: false,
+      disabled: false,
+      loadDisabled: false,
+      onLoad: async () => {},
+      onSelect
+    }
+    const { rerender } = render(<LocalAgentModelList {...props} />)
+    const native = screen.getByRole('tab', { name: '智能体模型' })
+    const gateway = screen.getByRole('tab', { name: '服务商模型' })
+    expect(native).toHaveAttribute('aria-selected', 'true')
+    expect(gateway).toBeDisabled()
+    await user.hover(gateway.parentElement!)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('此智能体暂无可用的服务商模型。')
+    await user.keyboard('{Escape}')
+    await user.click(native)
+    await user.keyboard('{ArrowRight}')
+    expect(native).toHaveAttribute('aria-selected', 'true')
+    rerender(
+      <LocalAgentModelList
+        {...props}
+        models={[...props.models, { id: 'gateway', name: 'Gateway model', source: 'gateway' }]}
+      />
+    )
+    const availableGateway = screen.getByRole('tab', { name: '服务商模型' })
+    expect(availableGateway).toBeEnabled()
+    await user.click(availableGateway)
+    expect(screen.getByRole('button', { name: /Gateway model$/ })).toBeVisible()
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('keeps the empty state visible when both sources are disabled and selects the first available source after loading', async () => {
+    const user = userEvent.setup()
+    const props = {
+      showFollowCli: false,
+      loaded: true,
+      loading: false,
+      disabled: false,
+      loadDisabled: false,
+      onLoad: async () => {},
+      onSelect: async () => true
+    }
+    const { rerender } = render(<LocalAgentModelList {...props} models={[]} />)
+    const native = screen.getByRole('tab', { name: '智能体模型' })
+    expect(native).toBeDisabled()
+    expect(screen.getByRole('tab', { name: '服务商模型' })).toBeDisabled()
+    expect(screen.getByText('此 CLI 未返回可选模型，请沿用其原生配置。')).toBeVisible()
+    await user.hover(native.parentElement!)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('此智能体暂无可选的智能体模型。')
+    rerender(<LocalAgentModelList {...props} models={[{ id: 'gateway', name: 'Gateway model', source: 'gateway' }]} />)
+    expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
+    expect(native).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Gateway model$/ })).toBeVisible()
+  })
+
   it('shows refresh progress only after a manual click, not during background loading', async () => {
     const user = userEvent.setup()
     const pending = Promise.withResolvers<void>()
@@ -116,11 +178,11 @@ describe('local agent model search', () => {
         onSelect={onSelect}
       />
     )
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['原生模型', '统一网关'])
-    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['智能体模型', '服务商模型'])
+    expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: /Gateway model$/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('button', { name: '跟随 CLI' })).not.toBeInTheDocument()
-    fireEvent.mouseDown(screen.getByRole('tab', { name: '原生模型' }), { button: 0, ctrlKey: false })
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '智能体模型' }), { button: 0, ctrlKey: false })
     expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'CLI vendor' }))
     expect(screen.queryByRole('button', { name: /Native model$/ })).not.toBeInTheDocument()
@@ -148,13 +210,13 @@ describe('local agent model search', () => {
       />
     )
     await user.click(screen.getByRole('button', { name: 'Models' }))
-    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
-    await user.click(screen.getByRole('tab', { name: '原生模型' }))
+    expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
+    await user.click(screen.getByRole('tab', { name: '智能体模型' }))
     expect(screen.getByRole('option', { name: /Native model/ })).toBeVisible()
     expect(screen.queryByRole('option', { name: /Gateway model/ })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Models' }))
-    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
     expect(onSelect).not.toHaveBeenCalled()
   })
 

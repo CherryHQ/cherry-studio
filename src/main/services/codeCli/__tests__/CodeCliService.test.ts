@@ -27,6 +27,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({ skillService: skillServiceMock 
 
 vi.mock('electron', () => ({
   app: {
+    getLocale: vi.fn(() => 'en-US'),
     getVersion: vi.fn(() => '2.0.9'),
     getAppPath: vi.fn(() => '/mock/app'),
     isPackaged: false
@@ -135,6 +136,7 @@ vi.mock('node:fs', () => ({
   default: {
     promises: { access: vi.fn().mockResolvedValue(undefined) },
     existsSync: vi.fn().mockReturnValue(false),
+    statSync: vi.fn(),
     readFileSync: vi.fn().mockReturnValue(''),
     writeFileSync: vi.fn(),
     unlinkSync: vi.fn(),
@@ -648,6 +650,42 @@ describe('CodeCliService', () => {
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('uses the selected directory when opening a local agent terminal', async () => {
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.statSync).mockReturnValueOnce({ isDirectory: () => true } as never)
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+      await expect(
+        codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: [],
+          env: {},
+          usesCherryExecutionEnv: false,
+          directory: '/projects/中文 folder',
+          terminal: TerminalApp.SYSTEM_DEFAULT
+        })
+      ).resolves.toMatchObject({ success: true })
+      const script = ((vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []) as string[])[1]
+      expect(script).toContain("cd '\\''/projects/中文 folder'\\''")
+    })
+
+    it('refuses a deleted working directory without opening a terminal', async () => {
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.statSync).mockReturnValueOnce(undefined)
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+      await expect(
+        codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: [],
+          env: {},
+          usesCherryExecutionEnv: false,
+          directory: '/missing/project'
+        })
+      ).resolves.toMatchObject({ success: false, message: expect.stringContaining('/missing/project') })
+      expect(spawn).not.toHaveBeenCalled()
     })
 
     it.each<Record<string, string>>([{}, { NO_COLOR: '1' }])(

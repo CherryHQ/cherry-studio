@@ -63,12 +63,14 @@ import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import { AGENTS_MAX_LIMIT, type AgentEntity } from '@shared/data/api/schemas/agents'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 
 import { AgentServiceCard } from './AgentServiceCard'
 import { AgentUpgradeControl } from './AgentUpgradeControl'
 import { LocalAgentAdvancedSettings } from './LocalAgentAdvancedSettings'
 import { LocalAgentModelList } from './LocalAgentModelList'
+import { LocalAgentTerminalDialog } from './LocalAgentTerminalDialog'
 import { LocalAgentWebUiActions } from './LocalAgentWebUiActions'
 
 const installErrorKeys = {
@@ -542,11 +544,12 @@ function LocalAgentDetails({
     }
   }, [connection, programHovered])
   const [editing, setEditing] = useState(!preset && !agent)
+  const [terminalOpen, setTerminalOpen] = useState(false)
   useEffect(() => {
     if (pendingSelection && !editing && (!busy || installing)) onNavigate()
   }, [pendingSelection, editing, busy, installing, onNavigate])
-  const openTerminal = async () => {
-    if (busy) return
+  const openTerminal = async (options: { directory: string; terminal?: string }) => {
+    if (busy) return false
     setBusyAction('terminal')
     try {
       if (preset?.terminalExecutable) {
@@ -559,14 +562,20 @@ function LocalAgentDetails({
               okText: t('code.install')
             }))
           )
-            return
+            return false
           await ipcApi.request('binary.install_tool', { name: preset.terminalExecutable })
         }
       }
-      const response = await ipcApi.request('ai.local_agents.open_terminal', initial)
+      const response = await ipcApi.request('ai.local_agents.open_terminal', {
+        ...initial,
+        ...options,
+        directory: AbsoluteFilePathSchema.parse(options.directory)
+      })
       if (!response.success) toast.error(response.message ?? t('common.error'))
+      return response.success
     } catch (error) {
       toast.error(String(error))
+      return false
     } finally {
       setBusyAction(undefined)
     }
@@ -579,7 +588,7 @@ function LocalAgentDetails({
         className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
         aria-label={t('local_agents.open_terminal')}
         disabled={busy || !available}
-        onClick={() => void openTerminal()}>
+        onClick={() => setTerminalOpen(true)}>
         {busyAction === 'terminal' ? (
           <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
         ) : (
@@ -846,6 +855,15 @@ function LocalAgentDetails({
   )
   return (
     <>
+      {preset?.terminalArgs && (
+        <LocalAgentTerminalDialog
+          open={terminalOpen}
+          preset={preset}
+          name={agent?.name ?? preset.name}
+          onClose={() => setTerminalOpen(false)}
+          onLaunch={openTerminal}
+        />
+      )}
       <div className={cn('flex min-h-0 flex-1 flex-col', modelSavingClass)}>
         <div className="shrink-0 overflow-y-hidden px-6 pt-3 pb-3 [scrollbar-color:transparent_transparent] [scrollbar-gutter:stable]">
           <div className="mx-auto w-full max-w-3xl">
@@ -1045,6 +1063,7 @@ function LocalAgentDetails({
             {(preset || agent) && (
               <LocalAgentModelList
                 models={modelSelection.models}
+                sourceRestrictions={modelSelection.sourceRestrictions}
                 groupFallback={agent?.name ?? preset?.name}
                 value={modelSelection.value}
                 disabled={busy || archived || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}

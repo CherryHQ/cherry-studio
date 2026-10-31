@@ -26,6 +26,7 @@ import {
   OPEN_CODE_ENDPOINTS,
   PI_ENDPOINTS
 } from './constants'
+import { copilotAdapter } from './copilot'
 import { parseDotenv, renderDotenvFile } from './dotenv'
 import {
   getDraftFile,
@@ -35,6 +36,7 @@ import {
   readConfigFilesForDraft,
   readDraftFileText
 } from './draftFiles'
+import { factoryAdapter } from './factory'
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
@@ -101,6 +103,7 @@ import {
   omitKeysByPrefix,
   stringValue
 } from './values'
+import { vibeAdapter } from './vibe'
 
 /**
  * A per-CLI config adapter: everything the config-generation layer needs to know
@@ -482,131 +485,135 @@ const codexAdapter: CliConfigAdapter = {
   }
 }
 
-const openCodeAdapter: CliConfigAdapter = {
-  targets: getCliConfigTargets(CodeCli.OPEN_CODE),
-  providerBaseUrls: (provider) =>
-    OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
-      const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
-      return baseUrl ? [baseUrl] : []
-    }),
-  sanitize: sanitizeOpenCodeConfigBlob,
-  async buildDraft(args, context) {
-    const { provider, apiKey, model, modelLabel, modelRecord, configBlob } = context
-    const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
-    // formatApiHost appends /v1 even for anthropic-messages — unlike Claude Code's
-    // bare ANTHROPIC_BASE_URL (the Claude binary adds /v1/messages itself), the
-    // @ai-sdk/anthropic package OpenCode loads expects the /v1 in baseURL and only
-    // appends /messages.
-    const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
-    const read = await readConfigFilesForDraft(this.targets, args.files)
-    const existing = readAndParseDraftFile('opencode-config', parseJsonOrThrow, args.files, read)
-    const env = asRecord(configBlob.env)
-    return [
-      makeDraftFile(
-        'opencode-config',
-        renderJsonFile(
-          buildOpenCodeConfig(
-            existing,
-            provider,
-            npmInfo,
-            { apiKey, baseUrl, model, modelLabel },
-            {
-              reasoning: env.OPENCODE_REASONING === 'true',
-              supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
-              ...configBlob,
-              providerHeaders: provider.settings?.extraHeaders,
-              contextWindow: modelRecord?.contextWindow,
-              maxOutputTokens: modelRecord?.maxOutputTokens
-            }
-          )
-        ),
-        read
+function createOpenCodeAdapter(tool: CodeCli.OPEN_CODE | 'kilo'): CliConfigAdapter {
+  const target: CliConfigTarget = tool === 'kilo' ? 'kilo-config' : 'opencode-config'
+  return {
+    targets: getCliConfigTargets(tool),
+    providerBaseUrls: (provider) =>
+      OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
+        const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
+        return baseUrl ? [baseUrl] : []
+      }),
+    sanitize: sanitizeOpenCodeConfigBlob,
+    async buildDraft(args, context) {
+      const { provider, apiKey, model, modelLabel, modelRecord, configBlob } = context
+      const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
+      // formatApiHost appends /v1 even for anthropic-messages — unlike Claude Code's
+      // bare ANTHROPIC_BASE_URL (the Claude binary adds /v1/messages itself), the
+      // @ai-sdk/anthropic package OpenCode loads expects the /v1 in baseURL and only
+      // appends /messages.
+      const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+      const read = await readConfigFilesForDraft(this.targets, args.files)
+      const existing = readAndParseDraftFile(target, parseJsonOrThrow, args.files, read)
+      if (tool === 'kilo' && !existing.$schema) existing.$schema = 'https://app.kilo.ai/config.json'
+      const env = asRecord(configBlob.env)
+      return [
+        makeDraftFile(
+          target,
+          renderJsonFile(
+            buildOpenCodeConfig(
+              existing,
+              provider,
+              npmInfo,
+              { apiKey, baseUrl, model, modelLabel },
+              {
+                reasoning: env.OPENCODE_REASONING === 'true',
+                supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
+                ...configBlob,
+                providerHeaders: provider.settings?.extraHeaders,
+                contextWindow: modelRecord?.contextWindow,
+                maxOutputTokens: modelRecord?.maxOutputTokens
+              }
+            )
+          ),
+          read
+        )
+      ]
+    },
+    assertCredentials(context) {
+      const npmInfo = resolveOpenCodeNpmInfo(context.provider, context.modelRecord?.endpointTypes)
+      const baseUrl = formatApiHost(context.provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+      if (!context.apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
+    },
+    updateDraftConfig(files, connection, configBlob) {
+      const existing = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
+      const providers = asRecord(existing.provider)
+      const providerKey = cherryProviderKeyFrom(providers)
+      const provider = asRecord(providers[providerKey])
+      const providerOptions = asRecord(provider.options)
+      const existingModel = asRecord(asRecord(provider.models)[connection.model ?? ''])
+      const existingLimit = asRecord(existingModel.limit)
+      const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
+      const env = asRecord(configBlob.env)
+      const model = requireDraftValue(connection.model, 'OpenCode model')
+      const nextConfig = buildOpenCodeConfig(
+        existing,
+        { id: providerName, name: providerName },
+        openCodeNpmInfoFromNpmPackage(requireDraftValue(stringValue(provider.npm), 'OpenCode provider npm package')),
+        {
+          apiKey: requireDraftValue(connection.apiKey, 'OpenCode API key'),
+          baseUrl: requireDraftValue(connection.baseUrl, 'OpenCode base URL'),
+          model,
+          // A config-only edit has no model record to re-derive the display name from; keep
+          // the one already written for this model key.
+          modelLabel: stringValue(asRecord(asRecord(provider.models)[model]).name)
+        },
+        {
+          reasoning: env.OPENCODE_REASONING === 'true',
+          supportsReasoningEffort: true,
+          ...configBlob,
+          providerHeaders: providerOptions.headers,
+          contextWindow: existingLimit.context,
+          maxOutputTokens: existingLimit.output
+        }
       )
-    ]
-  },
-  assertCredentials(context) {
-    const npmInfo = resolveOpenCodeNpmInfo(context.provider, context.modelRecord?.endpointTypes)
-    const baseUrl = formatApiHost(context.provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
-    if (!context.apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
-  },
-  updateDraftConfig(files, connection, configBlob) {
-    const existing = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
-    const providers = asRecord(existing.provider)
-    const providerKey = cherryProviderKeyFrom(providers)
-    const provider = asRecord(providers[providerKey])
-    const providerOptions = asRecord(provider.options)
-    const existingModel = asRecord(asRecord(provider.models)[connection.model ?? ''])
-    const existingLimit = asRecord(existingModel.limit)
-    const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
-    const env = asRecord(configBlob.env)
-    const model = requireDraftValue(connection.model, 'OpenCode model')
-    const nextConfig = buildOpenCodeConfig(
-      existing,
-      { id: providerName, name: providerName },
-      openCodeNpmInfoFromNpmPackage(requireDraftValue(stringValue(provider.npm), 'OpenCode provider npm package')),
-      {
-        apiKey: requireDraftValue(connection.apiKey, 'OpenCode API key'),
-        baseUrl: requireDraftValue(connection.baseUrl, 'OpenCode base URL'),
-        model,
-        // A config-only edit has no model record to re-derive the display name from; keep
-        // the one already written for this model key.
-        modelLabel: stringValue(asRecord(asRecord(provider.models)[model]).name)
-      },
-      {
-        reasoning: env.OPENCODE_REASONING === 'true',
-        supportsReasoningEffort: true,
-        ...configBlob,
-        providerHeaders: providerOptions.headers,
-        contextWindow: existingLimit.context,
-        maxOutputTokens: existingLimit.output
+      return replaceDraftContent(files, target, renderJsonFile(nextConfig))
+    },
+    async buildClearFiles() {
+      const read = await readConfigFiles(this.targets)
+      const existing = readValidatedJsonOrNull(target, read, 'OpenCode config')
+      if (!existing) return []
+      const next: Record<string, any> = { ...existing }
+      delete next.autoCompact
+      delete next.maxTurns
+      // Only drop the top-level model when it points at a cherry-* provider (about to be
+      // removed below — keeping it would leave a dangling reference); a user's own value
+      // referencing their own provider stays.
+      if (typeof next.model === 'string' && next.model.startsWith(CHERRY_PROVIDER_PREFIX)) {
+        delete next.model
       }
-    )
-    return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))
-  },
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
-    const existing = readValidatedJsonOrNull('opencode-config', read, 'OpenCode config')
-    if (!existing) return []
-    const next: Record<string, any> = { ...existing }
-    delete next.autoCompact
-    delete next.maxTurns
-    // Only drop the top-level model when it points at a cherry-* provider (about to be
-    // removed below — keeping it would leave a dangling reference); a user's own value
-    // referencing their own provider stays.
-    if (typeof next.model === 'string' && next.model.startsWith(CHERRY_PROVIDER_PREFIX)) {
-      delete next.model
+      if (next.provider && typeof next.provider === 'object') {
+        next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+      }
+      return [{ target: target, content: renderJsonFile(next) }]
+    },
+    extractConnection(files) {
+      const config = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
+      const providers = asRecord(config.provider)
+      const providerKey = findCherryProviderKey(providers)
+      const provider = asRecord(providerKey ? providers[providerKey] : undefined)
+      const models = asRecord(provider.models)
+      // The models map KEY is the addressing id (what gateway matching compares against);
+      // `name` is only the display label and may differ from it.
+      const model = Object.keys(models)[0]
+      return {
+        baseUrl: stringValue(asRecord(provider.options).baseURL),
+        apiKey: stringValue(asRecord(provider.options).apiKey),
+        model
+      }
+    },
+    extractConfig(files) {
+      const config = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
+      const out: Record<string, any> = {}
+      if (typeof asRecord(config.compaction).auto === 'boolean') out.autoCompact = asRecord(config.compaction).auto
+      if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
+      const providers = asRecord(config.provider)
+      const providerKey = findCherryProviderKey(providers)
+      const provider = asRecord(providerKey ? providers[providerKey] : undefined)
+      const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])
+      if (model.reasoning === true) out.env = { OPENCODE_REASONING: 'true' }
+      return out
     }
-    if (next.provider && typeof next.provider === 'object') {
-      next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
-    }
-    return [{ target: 'opencode-config', content: renderJsonFile(next) }]
-  },
-  extractConnection(files) {
-    const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
-    const providers = asRecord(config.provider)
-    const providerKey = findCherryProviderKey(providers)
-    const provider = asRecord(providerKey ? providers[providerKey] : undefined)
-    const models = asRecord(provider.models)
-    // The models map KEY is the addressing id (what gateway matching compares against);
-    // `name` is only the display label and may differ from it.
-    const model = Object.keys(models)[0]
-    return {
-      baseUrl: stringValue(asRecord(provider.options).baseURL),
-      apiKey: stringValue(asRecord(provider.options).apiKey),
-      model
-    }
-  },
-  extractConfig(files) {
-    const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
-    const out: Record<string, any> = {}
-    if (typeof asRecord(config.compaction).auto === 'boolean') out.autoCompact = asRecord(config.compaction).auto
-    if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
-    const providers = asRecord(config.provider)
-    const providerKey = findCherryProviderKey(providers)
-    const provider = asRecord(providerKey ? providers[providerKey] : undefined)
-    const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])
-    if (model.reasoning === true) out.env = { OPENCODE_REASONING: 'true' }
-    return out
   }
 }
 
@@ -1059,7 +1066,11 @@ const minimaxAdapter: CliConfigAdapter = {
 export const CLI_CONFIG_ADAPTERS: Record<ModelConfiguredCli, CliConfigAdapter> = {
   [CodeCli.CLAUDE_CODE]: claudeAdapter,
   [CodeCli.OPENAI_CODEX]: codexAdapter,
-  [CodeCli.OPEN_CODE]: openCodeAdapter,
+  [CodeCli.OPEN_CODE]: createOpenCodeAdapter(CodeCli.OPEN_CODE),
+  kilo: createOpenCodeAdapter('kilo'),
+  [CodeCli.GITHUB_COPILOT_CLI]: copilotAdapter,
+  'factory-droid': factoryAdapter,
+  'mistral-vibe': vibeAdapter,
   [CodeCli.QWEN_CODE]: qwenAdapter,
   [CodeCli.KIMI_CODE]: kimiAdapter,
   [CodeCli.PI]: piAdapter,

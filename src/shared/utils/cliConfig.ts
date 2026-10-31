@@ -160,24 +160,24 @@ export const MODEL_CONFIGURED_CLI_TOOL_IDS = [
   CodeCli.PI,
   CodeCli.HERMES,
   CodeCli.MINIMAX_CODE,
-  'codebuddy-code'
+  'codebuddy-code',
+  CodeCli.GITHUB_COPILOT_CLI,
+  'kilo',
+  'factory-droid',
+  'mistral-vibe'
 ] as const
 
 export type ModelConfiguredCli = (typeof MODEL_CONFIGURED_CLI_TOOL_IDS)[number]
 
 export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   ...MODEL_CONFIGURED_CLI_TOOL_IDS,
-  CodeCli.GITHUB_COPILOT_CLI,
   'cursor',
   'kiro',
   CodeCli.QODER_CLI,
-  'kilo',
   'goose',
   'auggie',
   'junie',
-  'factory-droid',
   'devin',
-  'mistral-vibe',
   'amp-acp',
   'grok-build',
   'cortex-code',

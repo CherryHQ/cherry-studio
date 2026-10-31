@@ -5,9 +5,43 @@ import { parse as parseYaml } from 'yaml'
 
 import { application } from '@application'
 
-import { updateNativeModelConfig } from '../nativeModelConfig'
+import { readNativeModelConfig, updateNativeModelConfig } from '../nativeModelConfig'
 
 describe('native model defaults', () => {
+  it.each(['kilo-config', 'copilot-settings'] as const)(
+    'persists and clears %s without dropping JSONC settings',
+    (target) => {
+      const saved = updateNativeModelConfig(target, '{\n// retain\n"theme":"dark"\n}', 'custom/model')
+      expect(readNativeModelConfig(target, saved)).toBe('custom/model')
+      expect(saved).toContain('// retain')
+      expect(parse(updateNativeModelConfig(target, saved))).toEqual({ theme: 'dark' })
+    }
+  )
+
+  it('updates Droid session defaults while preserving custom models and effort', () => {
+    const saved = updateNativeModelConfig(
+      'factory-settings',
+      '{"sessionDefaultSettings":{"reasoningEffort":"high"},"customModels":[{"model":"custom"}]}',
+      'custom:custom'
+    )
+    expect(readNativeModelConfig('factory-settings', saved)).toBe('custom:custom')
+    expect(JSON.parse(updateNativeModelConfig('factory-settings', saved))).toEqual({
+      sessionDefaultSettings: { reasoningEffort: 'high' },
+      customModels: [{ model: 'custom' }]
+    })
+  })
+
+  it('persists a Vibe alias without removing the provider or its model presets', () => {
+    const saved = updateNativeModelConfig(
+      'vibe-config',
+      '[[models]]\nname="model"\nprovider="custom"\n',
+      'custom-alias'
+    )
+    expect(readNativeModelConfig('vibe-config', saved)).toBe('custom-alias')
+    expect(toml.parse(updateNativeModelConfig('vibe-config', saved))).toEqual({
+      models: [{ name: 'model', provider: 'custom' }]
+    })
+  })
   it('saves and clears CodeBuddy defaults while retaining other settings', () => {
     const saved = updateNativeModelConfig('codebuddy-settings', '{"theme":"dark"}', 'test-model')
     expect(JSON.parse(saved)).toEqual({ theme: 'dark', model: 'test-model' })

@@ -2,6 +2,8 @@ import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { AgentTerminalDialog } from '@renderer/components/localAgent/AgentTerminalDialog'
+import { useAvailableTerminals } from '@renderer/hooks/agent/useAvailableTerminals'
 import type { ApiGatewayProviderBundle } from '@renderer/hooks/useApiGatewayProvider'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -22,9 +24,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isModelConfiguredCli } from '@shared/utils/cliConfig'
 
-import type { LaunchDialog } from '../components/LaunchDialog'
 import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
-import { useAvailableTerminals } from './useAvailableTerminals'
 
 const logger = loggerService.withContext('useLaunchDialogController')
 
@@ -54,7 +54,7 @@ interface UseLaunchDialogControllerOptions {
 }
 
 interface LaunchDialogController {
-  launchDialogProps: ComponentProps<typeof LaunchDialog>
+  launchDialogProps: ComponentProps<typeof AgentTerminalDialog>
   launching: boolean
   openLaunchDialog: () => void
 }
@@ -82,7 +82,7 @@ export function useLaunchDialogController({
   const [launching, setLaunching] = useState(false)
 
   // The picker displays a fallback terminal before the user has ever chosen one
-  // (see LaunchDialog/CurrentConfigPanel); resolve that same fallback here so the
+  // (see AgentTerminalDialog/TerminalConfigPanel); resolve that same fallback here so the
   // launch payload matches what's on screen instead of sending `undefined`.
   const effectiveTerminal = selectedTerminal ?? availableTerminals[0]?.id
 

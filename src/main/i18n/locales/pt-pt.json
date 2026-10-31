@@ -122,6 +122,7 @@
   "common.wecom_processing": "A processar…",
   "common.wecom_replaced": "Outro cliente ligou-se a este bot. Desligue-o primeiro.",
   "common.wecom_unsupported_message": "Este tipo de mensagem não é suportado. Envie texto, mensagens de voz, imagens, vídeos ou ficheiros.",
+  "deepseek_harness.model_unavailable": "O modelo selecionado já não existe. Selecione outro modelo antes de iniciar a WebUI.",
   "dialog.all_files": "Todos os Ficheiros",
   "dialog.architecture_mismatch.detail": "O seu Mac utiliza um chip Apple, mas esta versão Intel do Cherry Studio está a ser executada através do Rosetta. Isto pode tornar o funcionamento mais lento. Transfira e instale a versão macOS para Apple Silicon (ARM64) a partir do nosso site oficial.",
   "dialog.architecture_mismatch.download": "Ir para a página de transferência",

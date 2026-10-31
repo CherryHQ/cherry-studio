@@ -122,6 +122,7 @@
   "common.wecom_processing": "Se procesează…",
   "common.wecom_replaced": "Un alt client s-a conectat la bot. Deconectați-l mai întâi.",
   "common.wecom_unsupported_message": "Acest tip de mesaj nu este acceptat. Trimiteți text, mesaje vocale, imagini, videoclipuri sau fișiere.",
+  "deepseek_harness.model_unavailable": "Modelul selectat nu mai există. Selectați alt model înainte de a porni WebUI.",
   "dialog.all_files": "Toate fișierele",
   "dialog.architecture_mismatch.detail": "Mac-ul tău folosește un cip Apple, dar această versiune Intel a Cherry Studio rulează prin Rosetta. Acest lucru poate încetini aplicația. Descarcă și instalează versiunea macOS pentru Apple Silicon (ARM64) de pe site-ul nostru oficial.",
   "dialog.architecture_mismatch.download": "Deschide pagina de descărcare",

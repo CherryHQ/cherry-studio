@@ -98,6 +98,8 @@ describe('CLI-only Agent details', () => {
     async (tool) => {
       render(<CodeCliConfiguration initialTool={tool} embedded />)
       const button = await screen.findByRole('button', { name: 'DeepSeek Chat' })
+      expect(screen.getByRole('tab', { name: '智能体模型' })).toBeDisabled()
+      expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
       await userEvent.click(button)
       await waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'true'))
       expect(mockPreferenceState.get('feature.code_cli.configs')[tool]).toMatchObject({

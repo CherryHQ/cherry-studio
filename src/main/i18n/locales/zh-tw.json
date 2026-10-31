@@ -122,6 +122,7 @@
   "common.wecom_processing": "處理中…",
   "common.wecom_replaced": "其他用戶端已連線此機器人，請先中斷該連線。",
   "common.wecom_unsupported_message": "暫不支援此訊息類型，請傳送文字、語音、圖片、影片或檔案。",
+  "deepseek_harness.model_unavailable": "所選模型已不存在，請重新選擇模型後啟動 WebUI。",
   "dialog.all_files": "所有檔案",
   "dialog.architecture_mismatch.detail": "你的 Mac 使用 Apple 晶片，但目前安裝的是 Intel 版 Cherry Studio，正在透過 Rosetta 轉譯執行，可能導致運作緩慢。請前往官網下載並安裝 macOS Apple 晶片（ARM64）版本。",
   "dialog.architecture_mismatch.download": "前往官網下載",

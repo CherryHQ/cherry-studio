@@ -12,5 +12,9 @@ export const LOCAL_AGENT_MODEL_CONFIG: Readonly<Record<string, { tool: ModelConf
     kimi: { tool: CodeCli.KIMI_CODE, target: 'kimi-config' },
     'pi-acp': { tool: CodeCli.PI, target: 'pi-settings' },
     hermes: { tool: CodeCli.HERMES, target: 'hermes-config' },
-    minimax: { tool: CodeCli.MINIMAX_CODE, target: 'minimax-config' }
+    minimax: { tool: CodeCli.MINIMAX_CODE, target: 'minimax-config' },
+    kilo: { tool: 'kilo', target: 'kilo-config' },
+    copilot: { tool: CodeCli.GITHUB_COPILOT_CLI, target: 'copilot-settings' },
+    'factory-droid': { tool: 'factory-droid', target: 'factory-settings' },
+    'mistral-vibe': { tool: 'mistral-vibe', target: 'vibe-config' }
   }

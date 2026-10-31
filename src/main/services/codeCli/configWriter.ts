@@ -56,10 +56,6 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
   const home = application.getPath('sys.home')
   const configHome = env.XDG_CONFIG_HOME || path.join(home, '.config')
   const roaming = env.APPDATA || path.join(home, 'AppData', 'Roaming')
-  if (target === 'copilot-settings' && (await readOrNull(AbsoluteFilePathSchema.parse(filename))) === null) {
-    const legacy = AbsoluteFilePathSchema.parse(path.join(path.dirname(filename), 'config.json'))
-    if ((await readOrNull(legacy)) !== null) filename = legacy
-  }
   if (target === 'copilot-providers' && env.COPILOT_PROVIDERS_CONFIG) filename = env.COPILOT_PROVIDERS_CONFIG
   if (target.startsWith('cline-')) {
     filename = path.join(

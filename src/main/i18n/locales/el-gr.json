@@ -122,6 +122,7 @@
   "common.wecom_processing": "Επεξεργασία…",
   "common.wecom_replaced": "Άλλος πελάτης συνδέθηκε στο bot. Αποσυνδέστε τον πρώτα.",
   "common.wecom_unsupported_message": "Αυτός ο τύπος μηνύματος δεν υποστηρίζεται. Στείλτε κείμενο, φωνητικά μηνύματα, εικόνες, βίντεο ή αρχεία.",
+  "deepseek_harness.model_unavailable": "Το επιλεγμένο μοντέλο δεν υπάρχει πλέον. Επιλέξτε άλλο μοντέλο πριν ξεκινήσετε το WebUI.",
   "dialog.all_files": "Όλα τα Αρχεία",
   "dialog.architecture_mismatch.detail": "Το Mac σας διαθέτει επεξεργαστή Apple, αλλά αυτή η έκδοση Intel του Cherry Studio εκτελείται μέσω Rosetta. Αυτό μπορεί να προκαλέσει αργή απόδοση. Κατεβάστε και εγκαταστήστε την έκδοση macOS για Apple Silicon (ARM64) από τον επίσημο ιστότοπό μας.",
   "dialog.architecture_mismatch.download": "Μετάβαση στη σελίδα λήψης",

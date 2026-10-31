@@ -144,6 +144,7 @@ vi.stubGlobal('electron', {
 })
 vi.stubGlobal('api', {
   file: {
+    selectFolder: vi.fn().mockResolvedValue(null),
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
   },

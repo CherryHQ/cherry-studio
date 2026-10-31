@@ -122,6 +122,7 @@
   "common.wecom_processing": "Đang xử lý…",
   "common.wecom_replaced": "Một ứng dụng khác đã kết nối với bot. Hãy ngắt kết nối đó trước.",
   "common.wecom_unsupported_message": "Loại tin nhắn này chưa được hỗ trợ. Hãy gửi văn bản, tin nhắn thoại, hình ảnh, video hoặc tệp.",
+  "deepseek_harness.model_unavailable": "Mô hình đã chọn không còn tồn tại. Hãy chọn mô hình khác trước khi khởi động WebUI.",
   "dialog.all_files": "Tất cả các tệp",
   "dialog.architecture_mismatch.detail": "Máy Mac của bạn sử dụng chip Apple, nhưng phiên bản Intel của Cherry Studio này đang chạy qua Rosetta. Điều này có thể làm ứng dụng chạy chậm. Vui lòng tải xuống và cài đặt phiên bản macOS Apple Silicon (ARM64) từ trang web chính thức của chúng tôi.",
   "dialog.architecture_mismatch.download": "Mở trang tải xuống",
