@@ -99,6 +99,33 @@ describe('legacy memory activation', () => {
     session.dispose()
   })
 
+  it.each([
+    ['relative link', '[source](../USER.md)'],
+    ['relative image', '![source](images/detail.png)'],
+    ['reference link', '[source][ref]\n\n[ref]: ../USER.md'],
+    ['HTML link', '<a href="../USER.md">source</a>'],
+    ['wiki link', '[[#second]]'],
+    ['split fragment', '# First\n[condition](#second)\n' + 'a'.repeat(15000) + '\n# Second\n' + 'b'.repeat(15000)]
+  ])('retains FACT when relocating its links cannot preserve their targets: %s', async (_name, original) => {
+    await writeFile(path.join(root, 'memory', 'FACT.md'), original)
+    expect(await migration.ensureAgent(agentId)).toBe(false)
+    expect(migration.isMigrated(agentId)).toBe(false)
+    expect(await readFile(path.join(root, 'memory', 'FACT.md'), 'utf8')).toBe(original)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+    expect(await readdir(path.join(root, '.memories'))).toEqual([])
+    const session = memory.open({ scope: { kind: 'private', agentId }, assertAuthorized: () => undefined })
+    await expect(session.read('MEMORY.md')).rejects.toThrow('migration is incomplete')
+    session.dispose()
+  })
+
+  it('preserves absolute links and literal link examples during migration', async () => {
+    const original =
+      '[source](https://example.com/guide#conditions)\n`[example](../USER.md)`\n```md\n[example](#second)\n```'
+    await writeFile(path.join(root, 'memory', 'FACT.md'), original)
+    expect(await migration.ensureAgent(agentId)).toBe(true)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(original)
+  })
+
   it.each([false, true])(
     'reconciles an interrupted marker without replaying changed output (changed=%s)',
     async (changed) => {
@@ -120,10 +147,10 @@ describe('legacy memory activation', () => {
     }
   )
 
-  it('keeps complete Markdown sections and fenced headings together when spilling into topics', () => {
+  it('keeps complete Markdown sections and fenced headings together when spilling into topics', async () => {
     const first = '# First\n' + 'a'.repeat(15000) + '\n'
     const second = '# Second\n```md\n# Not a section\n' + 'b'.repeat(15000) + '\n```\n'
-    const plan = planLegacyMemory(first + second, '', 'a'.repeat(64))
+    const plan = await planLegacyMemory(first + second, '', 'a'.repeat(64))
     expect(plan.get('MEMORY.md')).toContain(first)
     expect([...plan.values()].filter((content) => content.includes(second))).toHaveLength(1)
     expect([...plan.keys()].filter((target) => target !== 'MEMORY.md')).toHaveLength(1)

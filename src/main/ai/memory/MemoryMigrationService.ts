@@ -176,7 +176,7 @@ export class MemoryMigrationService extends BaseService {
           )
       }
       const content = original ? new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(original) : ''
-      const plan = planLegacyMemory(content, currentEntry.content ?? '', sourceHash ?? 'empty')
+      const plan = await planLegacyMemory(content, currentEntry.content ?? '', sourceHash ?? 'empty')
       const reads = new Map<string, MemoryRead>([[MEMORY_ENTRY, currentEntry]])
       for (const [target, value] of plan) {
         const read = reads.get(target) ?? (await session.read(target))

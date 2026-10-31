@@ -1,3 +1,5 @@
+import type { Nodes } from 'mdast'
+
 import {
   assertMemoryContent,
   MEMORY_ENTRY,
@@ -29,7 +31,25 @@ function sections(content: string): string[] {
   return result
 }
 
-export function planLegacyMemory(source: string, currentEntry: string, sourceHash: string): Map<string, string> {
+export async function planLegacyMemory(
+  source: string,
+  currentEntry: string,
+  sourceHash: string
+): Promise<Map<string, string>> {
+  const { fromMarkdown } = await import('mdast-util-from-markdown')
+  const inspect = (node: Nodes): void => {
+    if (
+      ('url' in node && !/^(?:[a-z][a-z\d+.-]*:|\/)/i.test(node.url)) ||
+      (node.type === 'html' && /\b(?:href|src)\s*=/i.test(node.value)) ||
+      (node.type === 'text' && /\[\[/.test(node.value))
+    )
+      throw new MemoryError(
+        'conflict',
+        'Legacy FACT links require manual review before relocation or section splitting'
+      )
+    if ('children' in node) for (const child of node.children) inspect(child)
+  }
+  inspect(fromMarkdown(source))
   const files = new Map<string, string>()
   const join = (left: string, right: string) => (left ? `${left}\n\n${right}` : right)
   if (!source.trim() || currentEntry.includes(source)) return new Map([[MEMORY_ENTRY, currentEntry]])
