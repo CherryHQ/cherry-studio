@@ -8,7 +8,13 @@
 import * as z from 'zod'
 
 import type { CursorPaginationParams } from '@shared/data/api/types'
-import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
+import type {
+  BranchMessagesResponse,
+  CherryMessagePart,
+  Message,
+  MessageData,
+  TreeResponse
+} from '@shared/data/types/message'
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -76,7 +82,14 @@ export const UpdateMessageSchema = z.strictObject({
   /** Change siblings group */
   siblingsGroupId: z.number().optional(),
   /** Update status */
-  status: MessageStatusSchema.optional()
+  status: MessageStatusSchema.optional(),
+  /**
+   * Optimistic-concurrency guard: when present, the update applies only if the
+   * stored parts still equal these parts. A concurrent writer (e.g. an in-place
+   * retry finalizing new output) changes the parts first, so this update fails
+   * with CONCURRENT_MODIFICATION instead of overwriting fresh content.
+   */
+  expectedParts: z.array(z.custom<CherryMessagePart>((value) => typeof value === 'object' && value !== null)).optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 
