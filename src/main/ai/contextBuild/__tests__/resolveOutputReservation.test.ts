@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Assistant } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+
+import { DEFAULT_MAX_TOKENS } from '../../constants'
 
 const { mockGetAssistantById, mockGetProvider, mockResolveEndpoint } = vi.hoisted(() => ({
   mockGetAssistantById: vi.fn(),
@@ -64,6 +67,40 @@ describe('resolveRequestedMaxOutputTokens', () => {
   it('does not use the model limit as an automatic cap for non-Anthropic endpoints', () => {
     expect(
       resolveRequestedMaxOutputTokens(undefined, undefined, undefined, model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    ).toBeUndefined()
+  })
+
+  it('uses the endpoint fallback when anthropic-messages requires max_tokens and the model has no catalog limit', () => {
+    const assistant = makeAssistant({ enableMaxTokens: false, maxTokens: 4_096 })
+    const provider = {
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { dialect: { requiresMaxOutputTokens: true } }
+      }
+    } as Provider
+
+    expect(
+      resolveRequestedMaxOutputTokens(
+        undefined,
+        undefined,
+        assistant,
+        makeModel({ maxOutputTokens: undefined }),
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        provider
+      )
+    ).toBe(DEFAULT_MAX_TOKENS)
+  })
+
+  it('still omits max_tokens for anthropic-messages when the endpoint does not require one', () => {
+    const assistant = makeAssistant({ enableMaxTokens: false, maxTokens: 4_096 })
+
+    expect(
+      resolveRequestedMaxOutputTokens(
+        undefined,
+        undefined,
+        assistant,
+        makeModel({ maxOutputTokens: undefined }),
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      )
     ).toBeUndefined()
   })
 })
