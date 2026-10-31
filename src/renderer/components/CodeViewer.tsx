@@ -1,4 +1,4 @@
-import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
+import { elementScroll, observeElementOffset, useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { EditorState } from '@uiw/react-codemirror'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -13,6 +13,8 @@ import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelecti
 import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
+
+import { useIsScrollRuntimeManaged } from './chat/messages/list/ScrollOwnershipContext'
 
 const logger = loggerService.withContext('CodeViewer')
 
@@ -449,6 +451,8 @@ const CodeViewer = ({
     [estimateWrappedVisualRows, getWrapContentWidth, lineHeight, rawLines]
   )
 
+  const isScrollRuntimeManaged = useIsScrollRuntimeManaged()
+
   // 创建 virtualizer 实例
   const elementVirtualizer = useVirtualizer({
     count: rawLines.length,
@@ -457,7 +461,17 @@ const CodeViewer = ({
     estimateSize,
     overscan: 20,
     scrollMargin,
-    enabled: !expanded || scrollParent !== null
+    enabled: !expanded || scrollParent !== null,
+    observeElementOffset: (instance, callback) => {
+      const element = instance.scrollElement
+      instance.shouldAdjustScrollPositionOnItemSizeChange = isScrollRuntimeManaged(element) ? () => false : undefined
+      // Attachment restores the cached offset after subscribing, so seed it from the actual viewport first.
+      if (element) callback(element.scrollTop, false)
+      return observeElementOffset(instance, callback)
+    },
+    scrollToFn: (offset, options, instance) => {
+      if (!isScrollRuntimeManaged(instance.scrollElement)) elementScroll(offset, options, instance)
+    }
   })
   const windowVirtualizer = useWindowVirtualizer({
     count: rawLines.length,
