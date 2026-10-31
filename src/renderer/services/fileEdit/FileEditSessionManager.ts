@@ -78,6 +78,8 @@ export class FileEditSessionManager {
   private readonly acquisitions = new Map<string, Promise<Session>>()
   private acquisitionEpoch = 0
   private mutationSettled?: Promise<void>
+  private readonly ownerSeals = new Map<string, { settled: Promise<void>; resolve: () => void; draining: boolean }>()
+  private readonly ownerSealEpochs = new Map<string, number>()
   private composing = false
   private readonly inventoryListeners = new Set<() => void>()
   private inventory: readonly SessionSnapshot[] = []
@@ -100,13 +102,14 @@ export class FileEditSessionManager {
   }
   async recover(sessionId: string, action: 'retry' | 'discard'): Promise<void> {
     const session = [...this.sessions.values()].find((candidate) => candidate.snapshot.sessionId === sessionId)
-    if (!session || session.attachments.size) return
+    if (!session || session.attachments.size || this.ownerSeals.has(session.snapshot.ownerId)) return
     if (action === 'discard') await this.replace(session, 'discard')
     else await this.flush(session)
   }
 
   async prepareMutation(): Promise<PreparedFileMutation> {
-    if (this.composing || this.mutationSettled) throw new Error('File editing is not ready for a transition')
+    if (this.composing || this.mutationSettled || this.ownerSeals.size)
+      throw new Error('File editing is not ready for a transition')
     const affected = [...this.sessions.values()]
     if (affected.some((session) => session.transition)) throw new Error('A file transition is already running')
     const settlement = Promise.withResolvers<void>()
@@ -153,12 +156,83 @@ export class FileEditSessionManager {
     }
   }
 
+  /**
+   * Fail-closed, owner-scoped counterpart of {@link prepareMutation} for transitions that move an
+   * owner's files underneath their sessions (notes directory relocation). Seals the owner's
+   * sessions and blocks their acquisition, then flushes EVERY one of them: conflicted or
+   * previously failed sessions are retried rather than skipped, and the first failure rejects so
+   * the caller must abort the move. The seal is HELD after the drain until {@link releaseOwner}
+   * (migration complete or aborted), so no edit or acquisition can slip between the flush
+   * acknowledgement and the filesystem move. Drafts are never discarded - a rejected drain keeps
+   * every conflicted/failed session sealed in place for recovery after release.
+   *
+   * Callers must capture live editor text (pre-flush callbacks, pending paste inserts) BEFORE
+   * invoking this: once sealed, `acceptEdit` rejects new edits. Re-entrant while the seal is
+   * held: a repeated drain re-flushes without dropping the seal.
+   */
+  async drainOwner(ownerId: string): Promise<void> {
+    if (this.composing || this.mutationSettled) throw new Error('File editing is not ready for a transition')
+    const existing = this.ownerSeals.get(ownerId)
+    if (existing?.draining) throw new Error('A file transition is already running')
+    const affected = [...this.sessions.values()].filter((session) => session.snapshot.ownerId === ownerId)
+    if (affected.some((session) => session.transition)) throw new Error('A file transition is already running')
+    let seal = existing
+    if (!seal) {
+      const gate = Promise.withResolvers<void>()
+      seal = { settled: gate.promise, resolve: gate.resolve, draining: false }
+      this.ownerSeals.set(ownerId, seal)
+      this.ownerSealEpochs.set(ownerId, this.ownerSealEpoch(ownerId) + 1)
+      for (const session of affected) {
+        session.readGeneration++
+        this.cancelTimer(session)
+        this.publish(session, { sealed: true })
+      }
+    }
+    seal.draining = true
+    try {
+      const results = await Promise.allSettled(affected.map((session) => this.flush(session)))
+      const failure = results.find((result) => result.status === 'rejected')
+      if (failure?.status === 'rejected') throw failure.reason
+      await Promise.all(affected.map((session) => session.queue))
+    } finally {
+      seal.draining = false
+    }
+  }
+
+  /**
+   * Lifts a seal held by {@link drainOwner}: unseals the owner's sessions, releases waiting
+   * acquisitions and evicts detached clean sessions. Idempotent - safe to call on migration
+   * completion whether or not a drain succeeded, and a no-op when no seal is held. Retained
+   * conflicted/failed sessions stay parked for the recovery flow.
+   */
+  releaseOwner(ownerId: string): void {
+    const seal = this.ownerSeals.get(ownerId)
+    if (!seal) return
+    this.ownerSeals.delete(ownerId)
+    seal.resolve()
+    for (const session of [...this.sessions.values()]) {
+      if (session.snapshot.ownerId !== ownerId || !session.snapshot.sealed) continue
+      this.publish(session, { sealed: false })
+      this.evict(session)
+    }
+  }
+
+  private ownerSealEpoch(ownerId: string): number {
+    return this.ownerSealEpochs.get(ownerId) ?? 0
+  }
+
   async acquire(ownerId: string, handle: FileHandle): Promise<SessionLease> {
     const locator = handle.kind === 'path' ? handle.path : handle.entryId
     const key = JSON.stringify([ownerId, handle.kind, locator])
     for (;;) {
       while (this.mutationSettled) await this.mutationSettled
+      const ownerSeal = this.ownerSeals.get(ownerId)
+      if (ownerSeal) {
+        await ownerSeal.settled
+        continue
+      }
       const epoch = this.acquisitionEpoch
+      const ownerEpoch = this.ownerSealEpoch(ownerId)
       const retained = this.sessions.get(key)
       if (retained) {
         const lease = this.attach(retained)
@@ -167,12 +241,13 @@ export class FileEditSessionManager {
       }
       let opening = this.acquisitions.get(key)
       if (!opening) {
-        opening = this.open(key, ownerId, locator, handle, epoch)
+        opening = this.open(key, ownerId, locator, handle, epoch, ownerEpoch)
         this.acquisitions.set(key, opening)
       }
       try {
         const session = await opening
-        if (this.mutationSettled || epoch !== this.acquisitionEpoch) continue
+        if (this.mutationSettled || epoch !== this.acquisitionEpoch || this.ownerSealEpoch(ownerId) !== ownerEpoch)
+          continue
         return this.attach(session)
       } catch (error) {
         if (!(error instanceof AcquisitionInterruptedError)) throw error
@@ -191,13 +266,16 @@ export class FileEditSessionManager {
     ownerId: string,
     locator: string,
     handle: FileHandle,
-    epoch: number
+    epoch: number,
+    ownerEpoch: number
   ): Promise<Session> {
+    const interrupted = () =>
+      this.mutationSettled || epoch !== this.acquisitionEpoch || this.ownerSealEpoch(ownerId) !== ownerEpoch
     const resource = await ipcApi.request('file.edit.open', { handle })
     try {
-      if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
+      if (interrupted()) throw new AcquisitionInterruptedError()
       const disk = await this.read(resource)
-      if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
+      if (interrupted()) throw new AcquisitionInterruptedError()
       const session: Session = {
         key,
         resource,

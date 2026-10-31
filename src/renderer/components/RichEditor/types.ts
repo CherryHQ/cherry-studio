@@ -60,6 +60,8 @@ export interface RichEditorProps {
   ariaLabel?: string
   /** Whether users can insert images */
   enableImageInsertion?: boolean
+  /** Coordinate in-flight image pastes with notes directory relocation */
+  trackImagePastesForRelocation?: boolean
   /** Toolbar and slash-menu commands hidden for this editor instance */
   disabledCommands?: readonly string[]
 }

@@ -25,6 +25,21 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
+vi.mock('@renderer/hooks/useNotesSettings', () => ({
+  useNotesSettings: () => ({
+    notesPath: '/mock/notes',
+    updateNotesPath: vi.fn(),
+    settings: {},
+    updateSettings: vi.fn(),
+    sortType: 'nameAsc',
+    updateSortType: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/components/notes/notesDirectoryMigration', () => ({
+  startNotesDirectoryMigration: vi.fn()
+}))
+
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: () => <hr />,
   SettingGroup: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
@@ -68,7 +83,13 @@ describe('BasicDataSettings', () => {
                 }
               ]
             }
-          : undefined
+          : route === 'app.get_info'
+            ? {
+                notesPath: '/mock/notes',
+                appDataPath: '/mock/app-data',
+                logsPath: '/mock/logs'
+              }
+            : undefined
       )
     )
   })

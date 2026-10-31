@@ -417,3 +417,218 @@ describe('file editing lifetime', () => {
     await prepared.finish()
   })
 })
+
+describe('owner drain (notes relocation barrier)', () => {
+  it('flushes captured edits, then holds the seal against post-ack edits and acquisitions until release', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('captured before seal')
+    await manager.drainOwner('notes')
+    expect(new TextDecoder().decode(disk.data)).toBe('captured before seal')
+
+    // The window between the flush acknowledgement and the filesystem move is closed.
+    expect(lease.acceptEdit('post-ack edit')).toBe(false)
+    expect(lease.getSnapshot().sealed).toBe(true)
+    let acquired = false
+    const waiting = manager
+      .acquire('notes', { kind: 'path', path: AbsoluteFilePathSchema.parse('/notes/B.md') })
+      .then((next) => {
+        acquired = true
+        return next
+      })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(acquired).toBe(false)
+
+    manager.releaseOwner('notes')
+    expect(lease.getSnapshot().sealed).toBe(false)
+    expect(lease.acceptEdit('after release')).toBe(true)
+    await lease.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('after release')
+    const next = await waiting
+    expect(acquired).toBe(true)
+    next.release()
+    lease.release()
+  })
+
+  it('leaves other owners editable and writable while notes are sealed', async () => {
+    const artifactPath = AbsoluteFilePathSchema.parse('/artifact/B.md')
+    const files = new Map<string, FileEditRead>([
+      [path, snapshot('notes base')],
+      [artifactPath, snapshot('artifact base')]
+    ])
+    const ids = new Map<string, string>()
+    vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
+      const input = args[0] as Record<string, any>
+      if (route === 'file.edit.open') {
+        const editId = crypto.randomUUID()
+        ids.set(editId, input.handle.path)
+        return { editId }
+      }
+      const target = ids.get(input?.editId)!
+      if (route === 'file.edit.read') return files.get(target)
+      if (route === 'file.edit.close') return undefined
+      if (route === 'file.edit.write') {
+        if (input.expected.contentHash !== files.get(target)!.baseline.contentHash)
+          throw new IpcError(fileErrorCodes.STALE_VERSION, 'stale')
+        files.set(target, snapshot(new TextDecoder().decode(input.data)))
+        return { baseline: files.get(target)!.baseline, metadataRecoveryPending: false }
+      }
+      throw new Error(`Unexpected request ${route}`)
+    })
+    const notesLease = await manager.acquire('notes', handle)
+    const artifactLease = await manager.acquire('artifact', { kind: 'path', path: artifactPath })
+    notesLease.acceptEdit('notes edit')
+    artifactLease.acceptEdit('artifact edit')
+
+    await manager.drainOwner('notes')
+
+    expect(new TextDecoder().decode(files.get(path)!.data)).toBe('notes edit')
+    expect(new TextDecoder().decode(files.get(artifactPath)!.data)).toBe('artifact base')
+    expect(artifactLease.getSnapshot().sealed).toBe(false)
+    expect(artifactLease.acceptEdit('more artifact edits')).toBe(true)
+    await artifactLease.flush()
+    expect(new TextDecoder().decode(files.get(artifactPath)!.data)).toBe('more artifact edits')
+
+    manager.releaseOwner('notes')
+    notesLease.release()
+    artifactLease.release()
+  })
+
+  it('retries a retained failed draft through the drain and clears it once the write recovers', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('departing draft')
+    failWrite = true
+    await expect(lease.flush()).rejects.toThrow('File save failed')
+    lease.release()
+    failWrite = false
+
+    await manager.drainOwner('notes')
+    expect(new TextDecoder().decode(disk.data)).toBe('departing draft')
+    manager.releaseOwner('notes')
+    expect(manager.listRetained()).toEqual([])
+  })
+
+  it('rejects the drain on a conflicted retained session and keeps the draft sealed for recovery', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('local draft')
+    disk = snapshot('external change')
+    await expect(lease.flush()).rejects.toThrow('external changes')
+    lease.release()
+
+    await expect(manager.drainOwner('notes')).rejects.toThrow('external changes')
+    expect(manager.listRetained()).toEqual([
+      expect.objectContaining({ draft: 'local draft', conflict: true, sealed: true })
+    ])
+
+    manager.releaseOwner('notes')
+    expect(manager.listRetained()).toEqual([
+      expect.objectContaining({ draft: 'local draft', conflict: true, sealed: false })
+    ])
+    await manager.recover(lease.getSnapshot().sessionId, 'discard')
+    expect(manager.listRetained()).toEqual([])
+  })
+
+  it('rejects the drain on a persistent save failure and ignores recovery while sealed', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('unsaved')
+    failWrite = true
+    await expect(lease.flush()).rejects.toThrow('File save failed')
+    lease.release()
+
+    await expect(manager.drainOwner('notes')).rejects.toThrow('File save failed')
+    const retained = manager.listRetained()
+    expect(retained).toEqual([expect.objectContaining({ draft: 'unsaved', saveError: expect.any(Error) })])
+
+    await manager.recover(retained[0].sessionId, 'discard')
+    expect(manager.listRetained()).toHaveLength(1)
+
+    manager.releaseOwner('notes')
+    await manager.recover(retained[0].sessionId, 'discard')
+    expect(manager.listRetained()).toEqual([])
+    failWrite = false
+  })
+
+  it('re-drains while the seal is held (repeated flush requests) without dropping it', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('first')
+    await manager.drainOwner('notes')
+    await manager.drainOwner('notes')
+    expect(new TextDecoder().decode(disk.data)).toBe('first')
+    expect(lease.getSnapshot().sealed).toBe(true)
+    manager.releaseOwner('notes')
+    lease.release()
+  })
+
+  it('rejects a concurrent drain while one is running', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('b')
+    const gate = Promise.withResolvers<void>()
+    holdWrite = gate.promise
+    const first = manager.drainOwner('notes')
+    await expect(manager.drainOwner('notes')).rejects.toThrow('already running')
+    gate.resolve()
+    await first
+    manager.releaseOwner('notes')
+    lease.release()
+  })
+
+  it('cancels pending autosaves at seal and writes exactly once through the drain', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('b')
+    await manager.drainOwner('notes')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(writes).toEqual(['b'])
+    manager.releaseOwner('notes')
+    lease.release()
+  })
+
+  it('interrupts an in-flight acquisition when the seal engages and retries it after release', async () => {
+    const reading = Promise.withResolvers<void>()
+    const gate = Promise.withResolvers<FileEditRead>()
+    const original = vi.mocked(ipcApi.request).getMockImplementation()!
+    let firstRead = true
+    vi.mocked(ipcApi.request).mockImplementation((route, ...args) => {
+      if (route === 'file.edit.read' && firstRead) {
+        firstRead = false
+        reading.resolve()
+        return gate.promise
+      }
+      return original(route, ...args)
+    })
+    const acquiring = manager.acquire('notes', handle)
+    await reading.promise
+    await manager.drainOwner('notes')
+    disk = snapshot('new')
+    gate.resolve(snapshot('stale'))
+    let settled = false
+    void acquiring.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    manager.releaseOwner('notes')
+    const lease = await acquiring
+    expect(lease.getSnapshot().draft).toBe('new')
+    expect(lease.acceptEdit('after release')).toBe(true)
+    await lease.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('after release')
+    lease.release()
+  })
+
+  it('excludes owner drains and global mutations from each other and refuses drains during composition', async () => {
+    manager.setComposing(true)
+    await expect(manager.drainOwner('notes')).rejects.toThrow('transition')
+    manager.setComposing(false)
+
+    await manager.drainOwner('notes')
+    await expect(manager.prepareMutation()).rejects.toThrow('transition')
+    manager.releaseOwner('notes')
+
+    const prepared = await manager.prepareMutation()
+    await expect(manager.drainOwner('notes')).rejects.toThrow('transition')
+    await prepared.finish()
+
+    await manager.drainOwner('notes')
+    manager.releaseOwner('notes')
+  })
+})

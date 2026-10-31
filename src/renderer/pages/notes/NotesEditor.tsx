@@ -11,6 +11,7 @@ import DictationControls from '@renderer/components/DictationControls'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { hasPendingNotesImagePastes } from '@renderer/hooks/notesFileEditFlush'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
@@ -44,6 +45,7 @@ interface NotesEditorProps {
   currentContent: string
   readOnly?: boolean
   contentLoadError?: Error
+  editsLocked?: boolean
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
@@ -58,6 +60,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     currentContent,
     readOnly = false,
     contentLoadError,
+    editsLocked = false,
     tokenCount,
     onMarkdownChange,
     editorRef,
@@ -85,9 +88,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     }, [binding])
     const acceptMarkdown = useCallback(
       (content: string) => {
-        if (bindingRef.current === binding && !readOnly) onMarkdownChange(content)
+        if (bindingRef.current === binding && !readOnly && (!editsLocked || hasPendingNotesImagePastes()))
+          onMarkdownChange(content)
       },
-      [binding, readOnly, onMarkdownChange]
+      [binding, readOnly, editsLocked, onMarkdownChange]
     )
 
     const currentViewModeRef = useRef(currentViewMode)
@@ -133,7 +137,16 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     }
 
     useEffect(() => {
-      if (!activeNodeId || !voiceNoteId || contentLoadError || tmpViewMode === 'read' || !voiceEditorReady) return
+      if (
+        !activeNodeId ||
+        !voiceNoteId ||
+        contentLoadError ||
+        readOnly ||
+        editsLocked ||
+        tmpViewMode === 'read' ||
+        !voiceEditorReady
+      )
+        return
       const isCurrent = () => voiceIdentityRef.current === voiceNoteId && activeViewModeRef.current === tmpViewMode
       return voiceTargetManager.bind({
         targetId: voiceTargetId,
@@ -155,6 +168,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     }, [
       activeNodeId,
       voiceNoteId,
+      readOnly,
+      editsLocked,
       contentLoadError,
       tmpViewMode,
       voiceEditorReady,
@@ -252,12 +267,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     value={currentContent}
                     language="markdown"
                     onChange={acceptMarkdown}
-                    readOnly={readOnly}
-                    editable={!readOnly}
                     className="h-full"
                     expanded={false}
                     height="100%"
                     fontSize={settings.fontSize}
+                    editable={!readOnly && !editsLocked}
+                    readOnly={readOnly || editsLocked}
                   />
                 </div>
               ) : (
@@ -266,8 +281,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   ref={setRichEditorRef}
                   initialContent={currentContent}
                   onMarkdownChange={tmpViewMode === 'preview' ? acceptMarkdown : undefined}
-                  showToolbar={tmpViewMode === 'preview' && !readOnly}
-                  editable={tmpViewMode === 'preview' && !readOnly}
+                  showToolbar={tmpViewMode === 'preview' && !readOnly && !editsLocked}
+                  editable={tmpViewMode === 'preview' && !readOnly && !editsLocked}
                   autoFocus={currentContent.trim().length === 0}
                   showTableOfContents={settings.showTableOfContents}
                   lineBreaks={settings.lineBreaks}
@@ -278,6 +293,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   fontFamily={settings.fontFamily}
                   fontSize={settings.fontSize}
                   enableSpellCheck={enableSpellCheck}
+                  trackImagePastesForRelocation
                   disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
                 />
               )}
@@ -296,7 +312,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               {voiceNoteId && (
                 <DictationControls
                   targetId={voiceTargetId}
-                  disabled={readOnly || tmpViewMode === 'read' || !voiceEditorReady}
+                  disabled={readOnly || editsLocked || tmpViewMode === 'read' || !voiceEditorReady}
                   focusInput={focusCurrentEditor}
                 />
               )}
@@ -331,7 +347,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               <Selector
                 value={tmpViewMode}
                 onChange={(value: EditorView) => {
-                  if (composingRef.current || readOnly) return
+                  if (composingRef.current || readOnly || editsLocked) return
                   userViewModeOverrideRef.current = true
                   setTmpViewMode(value)
                 }}

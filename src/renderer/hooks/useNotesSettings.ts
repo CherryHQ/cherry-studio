@@ -56,12 +56,12 @@ export const useNotesSettings = () => {
     })
   }
 
-  const updateNotesPath = (path: string) => {
-    void setValues({ notesPath: path }).catch((error) => {
+  const updateNotesPath = (path: string) =>
+    setValues({ notesPath: path }).catch((error) => {
       logger.error('Failed to update notes path', error as Error)
       toast.error(t('notes.settings.save_failed'))
+      throw error
     })
-  }
 
   const updateSortType = (value: NotesSortType) => {
     void setValues({ sortType: value }).catch((error) => {
