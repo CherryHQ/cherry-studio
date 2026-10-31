@@ -254,6 +254,11 @@ export const ListQuerySchema = z.strictObject({
 })
 export type ListQuery = z.infer<typeof ListQuerySchema>
 
+export const ListTasksQuerySchema = ListQuerySchema.extend({
+  status: z.enum(['active', 'paused', 'completed', 'missed']).optional()
+})
+export type ListTasksQuery = z.infer<typeof ListTasksQuerySchema>
+
 export const AGENTS_DEFAULT_PAGE = 1
 export const AGENTS_DEFAULT_LIMIT = 100
 export const AGENTS_MAX_LIMIT = 500
@@ -307,7 +312,7 @@ export type AgentSchemas = {
   /** List scheduled tasks across every agent (settings overview, paginated) */
   '/agent-tasks': {
     GET: {
-      query?: ListQuery
+      query?: ListTasksQuery
       response: OffsetPaginationResponse<ScheduledTaskListItem>
     }
   }

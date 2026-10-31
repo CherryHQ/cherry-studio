@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { agentHandlers } from '@data/api/handlers/agents'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
@@ -32,6 +33,18 @@ describe('AgentTaskService active-Agent read contract', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     }).id
   }
+
+  it('validates the public status query and returns only the requested group', async () => {
+    seedAgent('owner')
+    seedTask('active', 'owner')
+    const paused = seedTask('paused', 'owner')
+    jobScheduleService.update(paused, { enabled: false })
+    const response = await agentHandlers['/agent-tasks'].GET({
+      query: { status: 'paused', page: 1, limit: 50 }
+    } as never)
+    expect(response).toMatchObject({ total: 1, page: 1, items: [{ id: paused, status: 'paused' }] })
+    await expect(agentHandlers['/agent-tasks'].GET({ query: { status: 'unknown' } } as never)).rejects.toThrow()
+  })
 
   it('hides tasks owned by trashed or missing Agents from every normal read and shows them after restore', () => {
     seedAgent('agent-active')
@@ -128,6 +141,76 @@ describe('AgentTaskService active-Agent read contract', () => {
       ])
       .run()
     expect(agentTaskService.getTaskDetail(taskId)?.runSummary).toEqual({ status: 'running' })
+  })
+
+  it('filters before pagination and keeps consumed once schedules out of paused tasks', () => {
+    seedAgent('owner')
+    const active = new Set<string>()
+    const paused = new Set<string>()
+    for (let i = 0; i < 55; i++) {
+      active.add(seedTask(`active-${i}`, 'owner'))
+      const id = seedTask(`paused-${i}`, 'owner')
+      jobScheduleService.update(id, { enabled: false })
+      paused.add(id)
+    }
+    const once = seedTask('once', 'owner')
+    jobScheduleService.update(once, { trigger: { kind: 'once', at: 1000 }, enabled: false })
+    jobScheduleService.markFiredTx(dbh.db, once, 2000, null)
+    const missed = seedTask('missed', 'owner')
+    jobScheduleService.update(missed, { enabled: false, metadata: { missed: { reason: 'agent_archived' } } })
+    for (const [status, ids] of [
+      ['active', active],
+      ['paused', paused]
+    ] as const) {
+      const first = agentTaskService.listAllTasks({ status, limit: 50 })
+      const second = agentTaskService.listAllTasks({ status, limit: 50, offset: 50 })
+      expect(first.total).toBe(55)
+      expect(second.total).toBe(55)
+      expect(first.tasks).toHaveLength(50)
+      expect(second.tasks).toHaveLength(5)
+      expect(new Set([...first.tasks, ...second.tasks].map((task) => task.id))).toEqual(ids)
+    }
+    expect(agentTaskService.listAllTasks({ status: 'completed' }).tasks.map((task) => task.id)).toEqual([once])
+    expect(agentTaskService.listAllTasks({ status: 'missed' }).tasks.map((task) => task.id)).toEqual([missed])
+    expect(agentTaskService.listAllTasks().total).toBe(112)
+  })
+
+  it('returns later execution pages with the full total and task isolation', () => {
+    seedAgent('owner')
+    const taskId = seedTask('history', 'owner')
+    const other = seedTask('other', 'owner')
+    for (let i = 0; i < 105; i++) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: `run-${i}`,
+          type: 'agent.task',
+          queue: 'agent:owner',
+          scheduleId: taskId,
+          status: 'completed',
+          scheduledAt: i,
+          createdAt: i,
+          input: {},
+          metadata: { sessionId: `session-${i}` }
+        })
+        .run()
+    }
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: 'other-run',
+        type: 'agent.task',
+        queue: 'agent:owner',
+        scheduleId: other,
+        status: 'completed',
+        scheduledAt: 1000,
+        input: {}
+      })
+      .run()
+    const page = agentTaskService.getTaskLogs(taskId, { limit: 50, offset: 100 })
+    expect(page.total).toBe(105)
+    expect(page.logs.map((log) => log.id)).toEqual(['run-4', 'run-3', 'run-2', 'run-1', 'run-0'])
+    expect(page.logs[0].sessionId).toBe('session-4')
   })
 })
 
