@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
-import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import {
+  sessionEntryToContextMessages,
+  type AgentSession,
+  type AgentSessionEvent
+} from '@earendil-works/pi-coding-agent'
 
 import {
   runtimeId,
@@ -273,6 +277,9 @@ export class PiProjection {
 
   private async event(event: AgentSessionEvent): Promise<void> {
     if (event.type === 'compaction_end' && event.result) this.reset(this.session)
+    if (event.type === 'entry_appended' && event.entry.type === 'custom_message') {
+      for (const message of sessionEntryToContextMessages(event.entry)) this.write(message, event.entry.id, 'complete')
+    }
     if (event.type === 'message_start' || event.type === 'message_update' || event.type === 'message_end') {
       const message = event.message
       const id = this.id(message)
