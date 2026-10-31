@@ -1,10 +1,12 @@
-import { shell } from 'electron'
+import { screen, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'
+import type * as WindowRegistryModule from '../windowRegistry'
 
 /**
  * Directed main→renderer window events (reused / maximized_changed / fullscreen_changed) now
@@ -165,6 +167,10 @@ vi.mock('electron', () => {
     app: { dock: { show: () => Promise.resolve(), hide: () => {} } },
     BrowserWindow: BrowserWindowMock,
     screen: {
+      getPrimaryDisplay: vi.fn(() => ({
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      })),
       getCursorScreenPoint: vi.fn(() => ({ x: 0, y: 0 })),
       getDisplayNearestPoint: vi.fn(() => ({
         bounds: { x: 0, y: 0, width: 1920, height: 1080 },
@@ -223,8 +229,10 @@ const lazyStandbyPoolConfig = {
   warmup: 'lazy' as const
 }
 
-vi.mock('../windowRegistry', () => {
+vi.mock('../windowRegistry', async () => {
+  const actual = await vi.importActual<typeof WindowRegistryModule>('../windowRegistry')
   const registry: Record<string, unknown> = {
+    main: actual.WINDOW_TYPE_REGISTRY[WindowType.Main],
     pooled: {
       type: 'pooled',
       lifecycle: 'pooled',
@@ -349,6 +357,7 @@ vi.mock('../windowRegistry', () => {
       return meta
     },
     mergeWindowOptions: (type: string, overrides?: Record<string, unknown>) => {
+      if (type === 'main') return actual.mergeWindowOptions(WindowType.Main, overrides)
       const meta = registry[type] as { windowOptions?: Record<string, unknown> }
       return { ...meta?.windowOptions, ...overrides, webPreferences: {} }
     }
@@ -387,6 +396,42 @@ describe('WindowManager', () => {
     // Flush pending microtasks/immediates so leaked callbacks run and bail.
     await new Promise<void>((resolve) => setImmediate(resolve))
     vi.clearAllMocks()
+  })
+
+  describe('Main work area fitting with the real registry', () => {
+    beforeEach(() => {
+      application.get('CacheService').setPersist('window.bounds', {})
+    })
+
+    it('fits the real Main defaults before BrowserWindow construction on a portrait display', () => {
+      vi.mocked(screen.getPrimaryDisplay).mockReturnValue({
+        bounds: { x: 0, y: 0, width: 914, height: 1400 },
+        workArea: { x: 0, y: 0, width: 914, height: 1400 }
+      } as Electron.Display)
+      wm.open(WindowType.Main)
+      const options = createdWindows[0].constructorOptions!
+      expect(options).toMatchObject({ width: 914, height: 600, minWidth: 914, minHeight: 600, x: 0, y: 400 })
+      expect(Number(options.x)).toBeGreaterThanOrEqual(0)
+      expect(Number(options.y)).toBeGreaterThanOrEqual(0)
+      expect(Number(options.x) + Number(options.width)).toBeLessThanOrEqual(914)
+      expect(Number(options.y) + Number(options.height)).toBeLessThanOrEqual(1400)
+    })
+
+    it('preserves merged Main options on a normal display without adding an origin', async () => {
+      vi.mocked(screen.getPrimaryDisplay).mockReturnValue({
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display)
+      const actual = await vi.importActual<typeof WindowRegistryModule>('../windowRegistry')
+      const expected = actual.mergeWindowOptions(WindowType.Main)
+      wm.open(WindowType.Main)
+      const options = createdWindows[0].constructorOptions!
+      const { preload, ...webPreferences } = options.webPreferences as Electron.WebPreferences
+      expect(preload).toEqual(expect.any(String))
+      expect({ ...options, webPreferences }).toEqual({ ...expected, show: false })
+      expect(options).not.toHaveProperty('x')
+      expect(options).not.toHaveProperty('y')
+    })
   })
 
   // ─── Default lifecycle ─────────────────────────────────

@@ -62,6 +62,24 @@ beforeEach(() => {
 })
 
 describe('injectSavedBounds', () => {
+  it('returns the display matched from the saved display bounds', () => {
+    seedBounds({ [WindowType.Main]: savedRect({ displayBounds: SECONDARY.bounds }) })
+    getDisplayMatching.mockImplementation((bounds) => (bounds === SECONDARY.bounds ? SECONDARY : PRIMARY))
+    expect(injectSavedBounds(WindowType.Main, {})).toBe(SECONDARY)
+    expect(getDisplayMatching).toHaveBeenCalledWith(SECONDARY.bounds)
+  })
+
+  it.each([undefined, savedRect({ width: 0 })])(
+    'returns undefined without changing options for absent or corrupt records',
+    (saved) => {
+      seedBounds(saved ? { [WindowType.Main]: saved } : {})
+      const config: WindowOptions = { width: 960, height: 600, minWidth: 960 }
+      expect(injectSavedBounds(WindowType.Main, config)).toBeUndefined()
+      expect(config).toEqual({ width: 960, height: 600, minWidth: 960 })
+      expect(getDisplayMatching).not.toHaveBeenCalled()
+    }
+  )
+
   it('restores an in-bounds saved rect verbatim onto its display', () => {
     seedBounds({ [WindowType.Main]: savedRect({ x: 100, y: 100, width: 800, height: 600 }) })
     getDisplayMatching.mockReturnValue(PRIMARY)
