@@ -171,6 +171,12 @@ where the bytes arrive instead. The floor still catches the case that matters: a
 stub left by a killed download from before checksums existed, which would otherwise read
 as a complete model and fail at load time.
 
+FunASR Nano installs the compatibility decoder as `llm.int8.compat.onnx`. An older
+`llm.int8.onnx` does not satisfy readiness: the existing incomplete-install retry downloads
+only the new decoder and reuses the other bundle files. The old decoder remains unused
+until the bundle is removed. The compatibility decoder uses a pinned ModelScope source;
+the older Hugging Face decoder is not a fallback for it.
+
 Bundle files and shared artifacts are scanned separately, and callers compose them. A
 bundle whose weights are complete but whose runtime is missing is an offer to download
 ~40MB, not a broken install — so it reports as not-installed rather than as an error.
