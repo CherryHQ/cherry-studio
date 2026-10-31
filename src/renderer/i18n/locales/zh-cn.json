@@ -1568,6 +1568,7 @@
   "file_preview.markdown.empty.title": "文件为空",
   "file_preview.markdown.mode.preview": "预览",
   "file_preview.markdown.mode.source": "源码",
+  "file_preview.markdown.plain_fallback.description": "由于渲染会拖慢应用，此文件以纯文本显示。",
   "file_preview.markdown.read_error.title": "无法读取此文件",
   "file_preview.open_error": "无法打开此文件",
   "file_preview.pdf.navigation_error": "无法跳转到此 PDF 章节",

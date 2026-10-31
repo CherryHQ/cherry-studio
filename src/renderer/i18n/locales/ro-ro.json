@@ -1568,6 +1568,7 @@
   "file_preview.markdown.empty.title": "Fișier gol",
   "file_preview.markdown.mode.preview": "Previzualizare",
   "file_preview.markdown.mode.source": "Sursă",
+  "file_preview.markdown.plain_fallback.description": "Acest fișier este afișat ca text simplu, deoarece randarea lui ar încetini aplicația.",
   "file_preview.markdown.read_error.title": "Nu s-a putut citi acest fișier",
   "file_preview.open_error": "Nu s-a putut deschide acest fișier",
   "file_preview.pdf.navigation_error": "Nu s-a putut naviga la această secțiune din PDF",

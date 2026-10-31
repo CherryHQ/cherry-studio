@@ -8,11 +8,15 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import TextFilePreview from '../TextFilePreview'
 
 const mocks = vi.hoisted(() => ({
+  codeViewer: vi.fn(),
   readText: vi.fn()
 }))
 
-vi.mock('@renderer/components/FileEditor', () => ({
-  default: (props: { value: string }) => <div data-testid="code-viewer">{props.value}</div>
+vi.mock('@renderer/components/CodeViewer', () => ({
+  default: (props: { language: string; options?: { highlight?: boolean }; value: string; wrapped: boolean }) => {
+    mocks.codeViewer(props)
+    return <div data-testid="code-viewer">{props.value}</div>
+  }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -59,6 +63,38 @@ describe('TextFilePreview', () => {
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(
+      // CodeViewer defaults to wrapped=true; TextFilePreview must not override it with false.
+      expect.not.objectContaining({ wrapped: false })
+    )
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: true } }))
+  })
+
+  it('renders source in a viewer with a bounded scroll viewport', async () => {
+    renderPreview()
+
+    await screen.findByTestId('code-viewer')
+    // The viewer's virtualizer windows rows against its own scroller, so it must own a bounded
+    // viewport — an unbounded wrapper hands it the whole document and materializes every row.
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ expanded: false, height: '100%' }))
+  })
+
+  // Shiki tokenizes in a worker and only up to the last visible row, so a large document is free
+  // up front — only lines too long to window can still block the layout engine.
+  it('keeps syntax highlighting for a large file whose lines are ordinary', async () => {
+    renderPreview(0, 2 * 1024 * 1024 - 1)
+
+    await screen.findByTestId('code-viewer')
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: true } }))
+  })
+
+  it('drops syntax highlighting for a file dominated by very long lines', async () => {
+    mocks.readText.mockResolvedValueOnce('a'.repeat(60_000))
+
+    renderPreview(0, 60_000)
+
+    await screen.findByTestId('code-viewer')
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
   })
 
   it('shows a zero-byte empty state without reading the file', async () => {
