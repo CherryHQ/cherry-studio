@@ -23,7 +23,8 @@ const ActionIcons: FC<{
   handleAction: (action: SelectionAction) => void
   copyIconStatus: 'normal' | 'success' | 'fail'
   copyIconAnimation: 'none' | 'enter' | 'exit'
-}> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation }) => {
+  unavailableReasons?: Partial<Record<string, string>>
+}> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation, unavailableReasons }) => {
   const { t } = useTranslation()
 
   const renderCopyIcon = useCallback(() => {
@@ -66,24 +67,28 @@ const ActionIcons: FC<{
   const renderActionButton = useCallback(
     (action: SelectionAction) => {
       const displayName = action.isBuiltIn ? t(action.name) : action.name
+      const unavailableReason = unavailableReasons?.[action.id]
 
       return (
         <button
           type="button"
           key={action.id}
-          onClick={() => handleAction(action)}
+          onClick={unavailableReason ? undefined : () => handleAction(action)}
           title={isCompact ? displayName : undefined}
           aria-label={displayName}
+          aria-disabled={unavailableReason ? true : undefined}
+          aria-description={unavailableReason}
           className={cn(
             'group m-0 flex h-full cursor-pointer! flex-row items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2 py-0 shadow-none transition-colors duration-100 [-webkit-app-region:no-drag]',
             'last:rounded-r-[10px] last:py-0 last:pr-3 last:pl-2',
-            'hover:bg-accent'
+            unavailableReason ? 'cursor-default!' : 'hover:bg-accent'
           )}>
           <span
             className={cn(
               'relative flex size-4 items-center justify-center bg-transparent',
-              '[&_svg]:text-card-foreground',
-              'group-hover:[&_svg]:text-primary'
+              unavailableReason
+                ? '[&_svg]:text-foreground-disabled'
+                : ['[&_svg]:text-card-foreground', 'group-hover:[&_svg]:text-primary']
             )}>
             {action.isBuiltIn && action.id === SELECTION_BUILTIN_ACTION_ID.COPY ? (
               renderCopyIcon()
@@ -96,20 +101,34 @@ const ActionIcons: FC<{
                 )}
               />
             )}
+            {unavailableReason && isCompact && (
+              <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-warning" />
+            )}
           </span>
-          {!isCompact && (
-            <span
-              className={cn(
-                'btn-title m-0 max-w-[120px] overflow-hidden bg-transparent text-sm leading-[1.1] text-ellipsis whitespace-nowrap text-card-foreground transition-colors duration-100',
-                'group-hover:text-primary'
-              )}>
-              {displayName}
-            </span>
-          )}
+          {!isCompact &&
+            (unavailableReason ? (
+              // The toolbar window keeps its width while shown, so both labels share one cell sized to the longer.
+              <span className="btn-title m-0 grid max-w-[120px] bg-transparent text-sm leading-[1.1] whitespace-nowrap">
+                <span className="[grid-area:1/1] overflow-hidden text-ellipsis text-foreground-disabled group-hover:invisible">
+                  {displayName}
+                </span>
+                <span className="invisible [grid-area:1/1] overflow-hidden text-ellipsis text-warning group-hover:visible">
+                  {unavailableReason}
+                </span>
+              </span>
+            ) : (
+              <span
+                className={cn(
+                  'btn-title m-0 max-w-[120px] overflow-hidden bg-transparent text-sm leading-[1.1] text-ellipsis whitespace-nowrap text-card-foreground transition-colors duration-100',
+                  'group-hover:text-primary'
+                )}>
+                {displayName}
+              </span>
+            ))}
         </button>
       )
     },
-    [handleAction, isCompact, t, renderCopyIcon]
+    [handleAction, isCompact, t, renderCopyIcon, unavailableReasons]
   )
 
   return <>{actionItems?.map(renderActionButton)}</>
@@ -121,6 +140,8 @@ interface SelectionToolbarViewProps {
   handleAction: (action: SelectionAction) => void
   copyIconStatus: 'normal' | 'success' | 'fail'
   copyIconAnimation: 'none' | 'enter' | 'exit'
+  /** Localized reasons keyed by action id; those actions render disabled. */
+  unavailableReasons?: Partial<Record<string, string>>
   /**
    * Whether the logo carries the OS `[-webkit-app-region:drag]` region. The
    * real toolbar window needs it to move the frameless window; the settings
@@ -142,6 +163,7 @@ const SelectionToolbarView = ({
   handleAction,
   copyIconStatus,
   copyIconAnimation,
+  unavailableReasons,
   draggable = false,
   ref
 }: SelectionToolbarViewProps) => {
@@ -172,6 +194,7 @@ const SelectionToolbarView = ({
           handleAction={handleAction}
           copyIconStatus={copyIconStatus}
           copyIconAnimation={copyIconAnimation}
+          unavailableReasons={unavailableReasons}
         />
       </div>
     </div>

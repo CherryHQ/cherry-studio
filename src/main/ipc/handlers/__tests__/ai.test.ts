@@ -17,6 +17,7 @@ const {
   fileEntryService,
   messageService,
   createAgent,
+  createBuiltinAssistantSession,
   createBuiltinSkillSession,
   createBuiltinSupportSession,
   openRequestPath
@@ -27,6 +28,7 @@ const {
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
+  createBuiltinAssistantSession: vi.fn(),
   createBuiltinSkillSession: vi.fn(),
   createBuiltinSupportSession: vi.fn(),
   openRequestPath: vi.fn()
@@ -38,6 +40,7 @@ vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/services/file', () => ({ openRequestPath }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/createBuiltinAssistantSession', () => ({ createBuiltinAssistantSession }))
 vi.mock('@main/ai/agents/createBuiltinSkillSession', () => ({ createBuiltinSkillSession }))
 vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 vi.mock('@main/ai/agents/AgentLifecycleService', () => ({
@@ -261,6 +264,16 @@ describe('aiHandlers', () => {
 
     expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ sessionId: 'feedback-session' })
+  })
+
+  it('reports a missing workspace as a branchable Assistant-session error', async () => {
+    createBuiltinAssistantSession.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Workspace', 'gone')
+    })
+
+    await expect(
+      aiHandlers['ai.agent.assistant_session.create']({ workspace: { type: 'user', workspaceId: 'gone' } }, ctx)
+    ).rejects.toMatchObject({ code: aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND })
   })
 
   it('delegates Skill-session creation with the selected Skill and returns its id', async () => {

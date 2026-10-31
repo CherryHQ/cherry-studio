@@ -1418,7 +1418,8 @@ describe('MainWindowService', () => {
       const rebuilt = rebuildAndShow(svc, created)
       rebuilt.emit('ready-to-show')
       expect(rebuilt.show).toHaveBeenCalledTimes(1)
-      expect(dockShowMock).toHaveBeenCalledTimes(1)
+      // WindowManager owns the Dock; showing it here would override a Dock hold.
+      expect(dockShowMock).not.toHaveBeenCalled()
     })
 
     it('shows the initial window when tray-on-launch is disabled', async () => {
@@ -1733,20 +1734,23 @@ describe('MainWindowService', () => {
       vi.useRealTimers()
     })
 
-    it('routes quotes originating from a detached SubWindow into that sub window', () => {
-      const subWindow = createMockWindow()
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
-      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
-      windowManagerMock.getWindow.mockReturnValue(subWindow)
+    it.each([WindowType.SubWindow, WindowType.SelectionAgent])(
+      'routes quotes from a %s window into its own composer',
+      (type) => {
+        const subWindow = createMockWindow()
+        windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+        windowManagerMock.getWindowType.mockReturnValue(type)
+        windowManagerMock.getWindow.mockReturnValue(subWindow)
 
-      svc.quoteToMainWindow('Selected text', { id: 9001 } as any)
+        svc.quoteToMainWindow('Selected text', { id: 9001 } as any)
 
-      expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
-      // Must NOT force the main window to the front when quoting from a sub window.
-      expect(win.show).not.toHaveBeenCalled()
-      expect(win.focus).not.toHaveBeenCalled()
-      expect(win.webContents.send).not.toHaveBeenCalled()
-    })
+        expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+        // Must NOT force the main window to the front when quoting from a sub window.
+        expect(win.show).not.toHaveBeenCalled()
+        expect(win.focus).not.toHaveBeenCalled()
+        expect(win.webContents.send).not.toHaveBeenCalled()
+      }
+    )
 
     it('routes quotes from the main window back to the main window', () => {
       windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window-1')

@@ -281,6 +281,8 @@ export interface ComposerSurfaceProps {
   topContent?: React.ReactNode
   /** Custom content pinned to the left of the editor, on the same row (e.g. an add-image button). */
   leadingContent?: React.ReactNode
+  /** Drops the card frame, side gutters, and height controls, for a host whose own surface is the composer. */
+  embedded?: boolean
   compactWhenSingleLine?: boolean
   renderCompactControls?: (
     inputAdapter?: QuickPanelInputAdapter,
@@ -607,6 +609,7 @@ export default function ComposerSurfaceRuntime({
   renderBelowControls,
   topContent,
   leadingContent,
+  embedded = false,
   compactWhenSingleLine = false,
   renderCompactControls,
   sendAccessory,
@@ -2352,15 +2355,16 @@ export default function ComposerSurfaceRuntime({
       onPointerDownCapture={onVoiceTargetInteraction}
       onFocusCapture={onVoiceTargetInteraction}
       className={cn(
-        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-composer-surface shadow-sm transition-all duration-200 ease-in-out',
-        isCompact || editingState ? 'pt-0' : 'pt-2',
-        belowControls ? 'mb-0.5' : 'mb-3',
+        'inputbar-container relative transition-all duration-200 ease-in-out',
+        !embedded && 'rounded-[20px] border-[0.5px] border-border bg-composer-surface shadow-sm',
+        isCompact || editingState || embedded ? 'pt-0' : 'pt-2',
+        !embedded && (belowControls ? 'mb-0.5' : 'mb-3'),
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
           "border-2 border-dashed border-success before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
         isExpanded && 'expanded'
       )}>
-      {!isCompact ? (
+      {!isCompact && !embedded ? (
         <>
           <div
             data-composer-resize-handle=""
@@ -2470,7 +2474,7 @@ export default function ComposerSurfaceRuntime({
     // pointer events come back on.
     <NarrowLayout
       narrowMode={narrowMode}
-      withSidePadding
+      withSidePadding={!embedded}
       className="pointer-events-auto"
       // Chat wires railGutterPx (0 when the rail is away): the tight base plus the
       // gutter mirrored on both sides keeps the composer centred and aligned with

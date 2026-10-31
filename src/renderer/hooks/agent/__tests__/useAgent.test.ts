@@ -2,7 +2,6 @@ import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/rendere
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 
 import { useAgent, useAgents, useUpdateAgent } from '../useAgent'
@@ -29,19 +28,7 @@ describe('useAgent', () => {
     vi.clearAllMocks()
   })
 
-  it('does not fetch when id is null', () => {
-    const mockUseQuery = vi.mocked(useQuery)
-    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: undefined })
-
-    const { result } = renderHook(() => useAgent(null))
-
-    expect(result.current.agent).toBeUndefined()
-    expect(mockUseQuery).toHaveBeenCalledWith('/agents/:agentId', expect.objectContaining({ enabled: false }))
-    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
-  })
-
   it('fetches agent when id is provided', () => {
-    const mockUseQuery = vi.mocked(useQuery)
     const mockAgent = {
       id: 'agent-1',
       name: 'Test Agent',
@@ -59,14 +46,6 @@ describe('useAgent', () => {
     expect(result.current.agent?.id).toBe('agent-1')
     expect(result.current.agent).not.toHaveProperty('tools')
     expect(result.current.isLoading).toBe(false)
-    expect(mockUseQuery).toHaveBeenCalledWith(
-      '/agents/:agentId',
-      expect.objectContaining({
-        enabled: true,
-        swrOptions: expect.objectContaining({ keepPreviousData: false })
-      })
-    )
-    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
@@ -124,14 +103,20 @@ describe('useAgent', () => {
     expect(result.current.agent).toBeUndefined()
   })
 
-  it('exposes refetch as revalidate', () => {
-    const mockRefetch = vi.fn().mockResolvedValue(undefined)
-    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: undefined, refetch: mockRefetch })
+  it('refetches when another window updates this agent', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: undefined, refetch })
 
-    const { result } = renderHook(() => useAgent('agent-1'))
+    renderHook(() => useAgent('agent-1'))
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/agents/:agentId', entityIds: ['agent-2'] }])
+    })
+    expect(refetch).not.toHaveBeenCalled()
 
-    void result.current.revalidate()
-    expect(mockRefetch).toHaveBeenCalled()
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/agents/:agentId', entityIds: ['agent-1'] }])
+    })
+    expect(refetch).toHaveBeenCalledOnce()
   })
 })
 

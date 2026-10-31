@@ -816,6 +816,19 @@ export function isDataApiNotFoundError(error: unknown): boolean {
 }
 
 /**
+ * Check if an error is a NOT_FOUND DataApiError raised for a specific resource.
+ * @param error - Any thrown value
+ * @param resource - The resource name passed to `DataApiErrorFactory.notFound`
+ * @returns true if the error is that resource's NOT_FOUND DataApiError
+ */
+export function isDataApiResourceNotFoundError(
+  error: unknown,
+  resource: string
+): error is DataApiError<ErrorCode.NOT_FOUND> {
+  return isDataApiNotFoundError(error) && (error as DataApiError<ErrorCode.NOT_FOUND>).details?.resource === resource
+}
+
+/**
  * Check if an object is a serialized DataApiError.
  * @param error - Any object
  * @returns true if the object has DataApiError structure

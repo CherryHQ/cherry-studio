@@ -816,5 +816,59 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       // it does not contribute — Dock aggregates to hidden.
       expect(dockSpies.hide).toHaveBeenCalledTimes(1)
     })
+
+    it('hides the Dock while a window holds it, and brings it back when that window hides', () => {
+      wm.open('dockVisible' as never)
+      const holderId = wm.open('dockHidden' as never)
+      const holder = createdWindows[1]
+      dockSpies.show.mockClear()
+      dockSpies.hide.mockClear()
+
+      wm.behavior.hideMacDockWhileShown(holderId)
+      expect(dockSpies.hide).toHaveBeenCalledTimes(1)
+      expect(dockSpies.show).not.toHaveBeenCalled()
+
+      holder.emit('hide')
+      expect(dockSpies.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('releases the hold when a pooled holder returns to its pool', () => {
+      wm.open('dockVisible' as never)
+      const holderId = wm.open('action' as never)
+      wm.behavior.hideMacDockWhileShown(holderId)
+      dockSpies.show.mockClear()
+
+      wm.close(holderId)
+
+      expect(dockSpies.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the Dock hidden after the hold ends when no window wants it (tray mode)', () => {
+      wm.open('dockVisible' as never)
+      const holderId = wm.open('dockHidden' as never)
+      const holder = createdWindows[1]
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      wm.behavior.hideMacDockWhileShown(holderId)
+      dockSpies.show.mockClear()
+
+      holder.emit('hide')
+
+      expect(dockSpies.show).not.toHaveBeenCalled()
+    })
+
+    it('keeps the Dock hidden until the last holder lets go', () => {
+      wm.open('dockVisible' as never)
+      const firstId = wm.open('dockHidden' as never)
+      const secondId = wm.open('dockHidden' as never)
+      wm.behavior.hideMacDockWhileShown(firstId)
+      wm.behavior.hideMacDockWhileShown(secondId)
+      dockSpies.show.mockClear()
+
+      createdWindows[1].emit('hide')
+      expect(dockSpies.show).not.toHaveBeenCalled()
+
+      createdWindows[2].emit('hide')
+      expect(dockSpies.show).toHaveBeenCalledTimes(1)
+    })
   })
 })

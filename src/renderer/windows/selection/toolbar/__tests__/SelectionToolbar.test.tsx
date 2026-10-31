@@ -1,7 +1,10 @@
+import { mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AGENTS_DEFAULT_LIMIT, type AgentEntity, type ListAgentsQueryParams } from '@shared/data/api/schemas/agents'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import SelectionToolbar from '../SelectionToolbar'
 
@@ -17,6 +20,8 @@ const mocks = vi.hoisted(() => ({
     },
     { id: 'quote', name: 'Quote', enabled: true, isBuiltIn: true },
     { id: 'summary', name: 'Summary', enabled: true, isBuiltIn: true },
+    { id: 'ask-agent', name: 'Ask Agent', enabled: true, isBuiltIn: true },
+    { id: 'user-agent', name: 'Research', enabled: true, isBuiltIn: false, runner: 'agent', agentId: 'gone' },
     { id: 'disabled', name: 'Disabled', enabled: false, isBuiltIn: false, runner: 'default' }
   ] as SelectionActionItem[],
   clearTimeoutTimer: vi.fn(),
@@ -43,19 +48,29 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/components/selection/SelectionToolbarView', () => ({
   default: ({
     actionItems,
-    handleAction
+    handleAction,
+    unavailableReasons
   }: {
     actionItems: SelectionActionItem[]
     handleAction: (action: SelectionActionItem) => void
+    unavailableReasons?: Partial<Record<string, string>>
   }) => (
     <div>
       {actionItems.map((action) => (
-        <button key={action.id} type="button" onClick={() => handleAction(action)}>
+        <button
+          key={action.id}
+          type="button"
+          aria-description={unavailableReasons?.[action.id]}
+          onClick={() => handleAction(action)}>
           {action.name}
         </button>
       ))}
     </div>
   )
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -78,9 +93,27 @@ function pushSelection(text: string, isFullscreen = false, programName = '') {
   })
 }
 
+const agentPage = (items: AgentEntity[]) => ({ items, total: items.length, page: 1 })
+const ACTION_ITEMS = mocks.actionItems
+
+/** Answers `/agents` the way the endpoint does: filter by `ids` and `builtinRole`, then take one page. */
+function serveAgents(library: AgentEntity[]) {
+  mockUseQuery.mockImplementation((_path: string, options?: { query?: ListAgentsQueryParams; enabled?: boolean }) => {
+    const { ids, builtinRole, limit = AGENTS_DEFAULT_LIMIT } = options?.query ?? {}
+    const matches = library.filter(
+      (agent) => (!ids || ids.includes(agent.id)) && (!builtinRole || agent.configuration?.builtin_role === builtinRole)
+    )
+    const data = options?.enabled === false ? undefined : agentPage(matches.slice(0, limit))
+    return { data, isLoading: false, isRefreshing: false, refetch: vi.fn(), mutate: vi.fn() }
+  })
+}
+
 describe('SelectionToolbar actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/agents', agentPage([]))
+    mocks.actionItems = ACTION_ITEMS
     mocks.handlers.clear()
     mocks.ipcRequest.mockResolvedValue(true)
     Object.assign(window, {
@@ -139,5 +172,62 @@ describe('SelectionToolbar actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.write_to_clipboard', 'bridge text')
+  })
+
+  it('marks agent actions whose agent cannot run, once agents have loaded', () => {
+    MockUseDataApiUtils.mockQueryResult('/agents', { data: undefined, isLoading: true })
+    const { rerender } = render(<SelectionToolbar />)
+    expect(screen.getByRole('button', { name: 'Ask Agent' })).not.toHaveAttribute('aria-description')
+
+    MockUseDataApiUtils.mockQueryData(
+      '/agents',
+      agentPage([
+        { id: 'cherry', name: 'Cherry', model: null, configuration: { builtin_role: 'assistant' } } as AgentEntity
+      ])
+    )
+    rerender(<SelectionToolbar />)
+
+    expect(screen.getByRole('button', { name: 'Ask Agent' })).toHaveAttribute(
+      'aria-description',
+      'selection.action.agent_issue.no_model'
+    )
+    expect(screen.getByRole('button', { name: 'Research' })).toHaveAttribute(
+      'aria-description',
+      'selection.action.agent_issue.agent_unavailable'
+    )
+    expect(screen.getByRole('button', { name: 'Summary' })).not.toHaveAttribute('aria-description')
+  })
+
+  it('judges bound agents and Cherry Assistant even when they sit past the first page of the library', () => {
+    const library = Array.from(
+      { length: 600 },
+      (_, index) =>
+        ({
+          id: `agent-${index}`,
+          name: `Agent ${index}`,
+          model: createUniqueModelId('openai', 'gpt-5'),
+          modelName: 'GPT-5',
+          configuration: {}
+        }) as AgentEntity
+    )
+    library[599] = {
+      ...library[599],
+      id: 'cherry',
+      model: null,
+      modelName: null,
+      configuration: { builtin_role: 'assistant' }
+    }
+    serveAgents(library)
+    mocks.actionItems = ACTION_ITEMS.map((item) =>
+      item.id === 'user-agent' ? { ...item, agentId: 'agent-550' } : item
+    )
+
+    render(<SelectionToolbar />)
+
+    expect(screen.getByRole('button', { name: 'Research' })).not.toHaveAttribute('aria-description')
+    expect(screen.getByRole('button', { name: 'Ask Agent' })).toHaveAttribute(
+      'aria-description',
+      'selection.action.agent_issue.no_model'
+    )
   })
 })

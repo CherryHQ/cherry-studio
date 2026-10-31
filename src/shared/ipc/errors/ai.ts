@@ -25,6 +25,8 @@ export const aiErrorCodes = {
   /** A Session restore lost a race with another lifecycle command or referenced a missing row. */
   AI_AGENT_SESSION_NOT_FOUND: 'AI_AGENT_SESSION_NOT_FOUND',
   AI_AGENT_NOT_FOUND: 'AI_AGENT_NOT_FOUND',
+  /** A session was requested in a user workspace that no longer exists. */
+  AI_AGENT_WORKSPACE_NOT_FOUND: 'AI_AGENT_WORKSPACE_NOT_FOUND',
   /** Moving Agent Sessions to the Recycle Bin was rejected while generation is unsettled. */
   AI_AGENT_SESSION_ARCHIVE_BUSY: 'AI_AGENT_SESSION_ARCHIVE_BUSY',
   /**
@@ -78,6 +80,10 @@ export function isAgentSessionNotFoundError(e: unknown): e is IpcError {
 
 export function isAgentNotFoundError(e: unknown): e is IpcError {
   return e instanceof IpcError && e.code === aiErrorCodes.AI_AGENT_NOT_FOUND
+}
+
+export function isAgentWorkspaceNotFoundError(e: unknown): e is IpcError {
+  return e instanceof IpcError && e.code === aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND
 }
 
 export function isAgentSessionArchiveBusyError(e: unknown): e is IpcError {

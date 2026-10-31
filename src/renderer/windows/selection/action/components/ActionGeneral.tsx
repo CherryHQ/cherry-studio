@@ -14,6 +14,7 @@ import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { expandSelectionPrompt } from '@renderer/utils/selectionAction'
 import { cn } from '@renderer/utils/style'
 import { SELECTION_ACTION_RUNNER } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -76,15 +77,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
       return action.selectedText || ''
     }
 
-    if (!action.prompt) {
-      return action.selectedText || ''
-    }
-
-    if (action.prompt.includes('{{text}}')) {
-      return action.prompt.replaceAll('{{text}}', () => action.selectedText!)
-    }
-
-    return action.prompt + '\n\n' + action.selectedText
+    return expandSelectionPrompt(action.prompt, action.selectedText ?? '')
   }, [action, language, t])
 
   const [isPreparing, setIsPreparing] = useState(false)

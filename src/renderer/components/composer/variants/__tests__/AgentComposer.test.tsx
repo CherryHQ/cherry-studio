@@ -1354,6 +1354,27 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeFalsy()
   })
 
+  it('steers every busy send without queueing when the host cannot keep a queue', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        steerWhileBusy
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+    expect(mocks.surfaceProps?.steerShortcut).toBeUndefined()
+  })
+
   it('treats the steer option as a plain send when idle', async () => {
     render(
       <AgentComposer

@@ -356,6 +356,7 @@ export default defineConfig({
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
+          selectionAgent: resolve(__dirname, 'src/renderer/windows/selection/agent/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),

@@ -266,6 +266,8 @@ export const AGENTS_MAX_LIMIT = 500
  */
 export const ListAgentsQuerySchema = z.strictObject({
   ids: z.array(z.string().min(1)).min(1).max(AGENTS_MAX_LIMIT).optional(),
+  /** Only the builtin agent holding this role, which has no fixed ID except Support's. */
+  builtinRole: z.enum(BUILTIN_AGENT_ROLE).optional(),
   /** `true` lists only trashed agents; omitted/false lists active agents. */
   inTrash: z.boolean().optional(),
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */

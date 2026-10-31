@@ -30,8 +30,9 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: [
       { id: 'builtin-uuid', name: 'Cherry Assistant', configuration: { avatar: '🍒', builtin_role: 'assistant' } },
-      { id: 'agent-2', name: 'Researcher', configuration: { avatar: '🔬' } }
-    ]
+      { id: 'agent-2', name: 'Researcher', model: 'openai::gpt-5', modelName: 'GPT-5', configuration: { avatar: '🔬' } }
+    ],
+    isLoading: false
   })
 }))
 
@@ -80,5 +81,15 @@ describe('SelectionActionAskAgentModal', () => {
 
     expect(screen.getByText('Researcher')).toBeInTheDocument()
     expect(onOk).toHaveBeenCalledWith({ agentId: 'agent-2', agentWorkspace: { type: 'system' } })
+  })
+
+  it('warns while the default agent has no model', () => {
+    render(<SelectionActionAskAgentModal isModalOpen currentAction={ASK_AGENT} onOk={vi.fn()} onCancel={vi.fn()} />)
+
+    expect(screen.getByText('selection.settings.agent_issue.no_model')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'select agent 2' }))
+
+    expect(screen.queryByText('selection.settings.agent_issue.no_model')).not.toBeInTheDocument()
   })
 })

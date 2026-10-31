@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-27-selection-agent-window.md
-2026-10-27-selection-agent-window.md: 7668e27872aecf757f004046a7c49d3862e915e9
-2026-10-27-selection-agent-window.zh.md: 422102b48408953326f8eb5964bbef182b39698f
+2026-10-27-selection-agent-window.md: 8ccb75a41286d48ac97b03b99e615531517aed95
+2026-10-27-selection-agent-window.zh.md: 14161a6e6f326f1033285ba78946263b654f4d01

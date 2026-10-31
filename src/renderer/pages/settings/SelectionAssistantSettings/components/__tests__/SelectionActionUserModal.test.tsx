@@ -36,7 +36,12 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgents: () => ({ agents: [{ id: 'agent-2', name: 'Researcher', configuration: { avatar: '🔬' } }] })
+  useAgents: () => ({
+    agents: [
+      { id: 'agent-2', name: 'Researcher', model: 'openai::gpt-5', modelName: 'GPT-5', configuration: { avatar: '🔬' } }
+    ],
+    isLoading: false
+  })
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -190,5 +195,23 @@ describe('SelectionActionUserModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     expect(onOk).toHaveBeenCalledWith({ ...editingAction, runner: 'default' })
+  })
+
+  it('warns when the bound agent no longer exists', () => {
+    const editingAction: CustomSelectionAction = {
+      id: 'user-agent',
+      name: 'Research',
+      enabled: true,
+      isBuiltIn: false,
+      runner: 'agent',
+      agentId: 'deleted-agent'
+    }
+    render(<SelectionActionUserModal isModalOpen editingAction={editingAction} onOk={vi.fn()} onCancel={vi.fn()} />)
+
+    expect(screen.getByText('selection.settings.agent_issue.agent_unavailable')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'select agent 2' }))
+
+    expect(screen.queryByText('selection.settings.agent_issue.agent_unavailable')).not.toBeInTheDocument()
   })
 })

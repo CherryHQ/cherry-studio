@@ -1175,7 +1175,7 @@ describe('TasksSettings routing and creation', () => {
         sessionId: 'session-task-chat'
       })
     )
-    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create')
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create', {})
   })
 
   it('stays on the page and reports the failure when the chat session cannot be created', async () => {
