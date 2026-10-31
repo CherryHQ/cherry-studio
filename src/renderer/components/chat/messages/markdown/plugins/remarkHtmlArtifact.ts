@@ -1,3 +1,5 @@
+import { noop } from 'es-toolkit'
+import { Tokenizer } from 'htmlparser2'
 import type { Code, Html, Root, RootContent } from 'mdast'
 import remarkParse from 'remark-parse'
 import type { Plugin } from 'unified'
@@ -43,7 +45,44 @@ export function classifyHtmlArtifactSource(value: string): HtmlArtifactKind | un
 
 function isHtmlArtifact(node: Html): boolean {
   const content = stripLeadingHtmlMetadata(node.value)
-  return content.length > 0 && !/^<svg[\s>]/i.test(content)
+  if (!content || /^<svg[\s>]/i.test(content)) return false
+
+  let hasDisclosureTag = false
+  const onTagName = (start: number, end: number) => {
+    const name = content.slice(start, end).toLowerCase()
+    if (name === 'details' || name === 'summary') hasDisclosureTag = true
+const onTagName = (start: number, end: number) => {
+  const name = content.slice(start, end).toLowerCase()
+  if (name === 'details' || name === 'summary') {
+    hasDisclosureTag = true
+    tokenizer.end() // Early exit - no need to continue tokenizing
+  }
+}
+  // The tokenizer preserves unmatched closing tags; the DOM parser would discard
+  // disclosure boundaries whose opening tag lives in an earlier Markdown node.
+  const tokenizer = new Tokenizer(
+    { decodeEntities: false },
+    {
+      onopentagname: onTagName,
+      onclosetag: onTagName,
+      onattribdata: noop,
+      onattribentity: noop,
+      onattribend: noop,
+      onattribname: noop,
+      oncdata: noop,
+      oncomment: noop,
+      ondeclaration: noop,
+      onend: noop,
+      onopentagend: noop,
+      onprocessinginstruction: noop,
+      onselfclosingtag: noop,
+      ontext: noop,
+      ontextentity: noop
+    }
+  )
+  tokenizer.write(content)
+  tokenizer.end()
+  return !hasDisclosureTag
 }
 
 function isHtmlMetadataOnly(node: Html): boolean {
