@@ -1559,6 +1559,56 @@ describe('backgroundTasks', () => {
       }
     })
 
+    // Two tasks can share a workspace. A live row that carries another task's marker is that
+    // task's work even when it runs where the finished task ran: the cwd tie alone kept the
+    // finished record running, so permanent deletion of its Agent was refused until the other
+    // task exited.
+    it.skipIf(process.platform === 'win32')(
+      'completes past a row that runs in the same workspace under another task marker',
+      async () => {
+        const otherTask = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], {
+          stdio: 'ignore',
+          cwd: storageDir
+        })
+        otherTask.unref()
+        const dead = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' })
+        await new Promise((resolve) => dead.once('exit', resolve))
+        try {
+          await vi.waitFor(() => expect(isPidAlive(otherTask.pid!)).toBe(true), { timeout: 10_000 })
+          const pid = otherTask.pid!
+          const id = 'bt-other-task-in-same-workspace'
+          const argv = `${process.execPath} -e setInterval --other-task`
+          psSteer.read = (args) => {
+            if (args[0] === '-axwwo' && args[1] === 'pid=,ppid=,uid=,state=,etime=') {
+              return `${pid} 1 ${process.getuid?.()} S 00:00\n`
+            }
+            // The row exposes a different task's marker, and its cwd is the shared workspace.
+            if (args[0] === 'eww' && args[1] === '-o' && args[2] === 'pid=,command=') {
+              return `${pid} ${argv} CHERRY_BG_TASK_ID=another-task\n`
+            }
+            if (args[0] === 'ww' && args[1] === '-o') return `${argv}\n`
+            return null
+          }
+          const record: BackgroundTaskRecord = {
+            id,
+            name: id,
+            command: '--this-task-only',
+            pid: dead.pid!,
+            cwd: storageDir,
+            startedAt: new Date().toISOString(),
+            logFile: path.join(storageDir, `${id}.log`),
+            status: 'running',
+            exitCode: null,
+            signal: null
+          }
+
+          await expect(hasLiveGroupEvidence(storageDir, record)).resolves.toBe(false)
+        } finally {
+          otherTask.kill('SIGKILL')
+        }
+      }
+    )
+
     // The initial `ps -p` lookup that stamps the spawned leader is a one-shot call with a
     // one-second timeout, so a loaded runner can fail it. The task is then alive and recorded
     // while its identity was never established: the ownership map holds an empty member set, and

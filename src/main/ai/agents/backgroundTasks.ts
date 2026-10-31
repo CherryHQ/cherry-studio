@@ -1301,8 +1301,9 @@ interface MarkerHolder {
  */
 type MarkerRead = { status: 'unknown' } | { status: 'observable'; holders: MarkerHolder[] }
 
-/** What a marker read correlates a row against: when the task began, and what it ran where. */
+/** What a marker read correlates a row against: which task it is, when the task began, and what it ran where. */
 interface MarkerReadContext {
+  taskId: string
   since: Date
   command: string
   cwd: string
@@ -1417,6 +1418,11 @@ function hasUnreadableEnvironmentCandidate(readTable: CandidateTableReader, cont
     const withEnvironment = commandAndEnvironment(pid)
     const argv = commandLine(pid)
     if (withEnvironment === null || argv === null) return true
+    // A row whose environment names another task is that task's work, whatever it runs and
+    // wherever it works: two tasks can share a workspace, so cwd and even the command line tie a
+    // row to the task only while no other task claims it.
+    const rowTask = new RegExp(`${BACKGROUND_TASK_MARKER_ENV}=(\\S+)`).exec(withEnvironment)?.[1]
+    if (rowTask !== undefined && rowTask !== context.taskId) continue
     // A visible environment without the marker is not proof the row is someone else's: a launcher
     // spawning with `env={}` still leaves entries the platform adds, and the marker was never
     // passed on. Command and cwd only keep the record open; they never authorize a signal.
@@ -1486,7 +1492,7 @@ function readMarkerProcesses(taskId: string, anchorPid: number): MarkerRead {
  */
 async function markerReadContext(storageDir: string, record: BackgroundTaskRecord): Promise<MarkerReadContext> {
   const accounted = new Set((await readRecordedMembers(storageDir, record.id)).map((member) => member.pid))
-  return { since: new Date(record.startedAt), command: record.command, cwd: record.cwd, accounted }
+  return { taskId: record.id, since: new Date(record.startedAt), command: record.command, cwd: record.cwd, accounted }
 }
 
 async function hasUnsettledWork(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
