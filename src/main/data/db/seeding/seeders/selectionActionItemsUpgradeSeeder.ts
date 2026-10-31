@@ -26,11 +26,14 @@ export class SelectionActionItemsUpgradeSeeder implements ISeeder {
     // A fresh install has no row yet; PreferenceSeeder then writes the default list, which includes it.
     if (!row || !Array.isArray(row.value)) return
 
-    const items = (row.value as SelectionActionItem[]).map((item) =>
-      item.isBuiltIn || item.runner
-        ? item
-        : { ...item, runner: item.assistantId ? SELECTION_ACTION_RUNNER.ASSISTANT : SELECTION_ACTION_RUNNER.DEFAULT }
-    )
+    const items = (row.value as unknown[])
+      // An entry that is not an object holds no action, and reading its fields would fail every launch.
+      .filter((item): item is SelectionActionItem => typeof item === 'object' && item !== null)
+      .map((item) =>
+        item.isBuiltIn || item.runner
+          ? item
+          : { ...item, runner: item.assistantId ? SELECTION_ACTION_RUNNER.ASSISTANT : SELECTION_ACTION_RUNNER.DEFAULT }
+      )
     // Existing installs get Ask Agent disabled so it does not take a toolbar slot they arranged.
     if (ASK_AGENT_DEFAULT && !items.some((item) => item.id === ASK_AGENT_DEFAULT.id)) {
       items.push({ ...ASK_AGENT_DEFAULT, enabled: false })
