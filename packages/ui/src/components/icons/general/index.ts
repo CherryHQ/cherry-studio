@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-10-14T08:04:01.193Z
- * Total icons: 48
+ * Generated at: 2026-10-31T11:21:25.699Z
+ * Total icons: 45
  */
 
 export { AddCategory } from './add-category'
@@ -27,7 +27,6 @@ export { DeepagentsCli } from './deepagents-cli'
 export { DevinCli } from './devin-cli'
 export { Emoji } from './emoji'
 export { FactoryDroidCli } from './factory-droid-cli'
-export { FastAgentCli } from './fast-agent-cli'
 export { GeminiCli } from './gemini-cli'
 export { GithubCopilotCli } from './github-copilot-cli'
 export { GlmAcpAgentCli } from './glm-acp-agent-cli'
@@ -49,8 +48,6 @@ export { PoolsideCli } from './poolside-cli'
 export { QoderCli } from './qoder-cli'
 export { QwenCode } from './qwen-code'
 export { SnowCli } from './snow-cli'
-export { StakpakCli } from './stakpak-cli'
 export { TraeCli } from './trae-cli'
 export { Vector } from './vector'
-export { VtcodeCli } from './vtcode-cli'
 export { ZcodeCli } from './zcode-cli'

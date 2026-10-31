@@ -50,7 +50,7 @@ export interface LocalAgentBinaryRecipe {
 
 export function resolveInstallRecipe(
   presetId: string,
-  registry: unknown,
+  registry?: unknown,
   platform = process.platform,
   arch = process.arch
 ): LocalAgentInstallRecipe | LocalAgentBinaryRecipe | CliScriptRecipe | undefined {
@@ -62,9 +62,31 @@ export function resolveInstallRecipe(
       ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
       : undefined
   if (native) return resolveCliInstallRecipe(native, undefined, platform)
+  if (presetId === 'mistral-vibe')
+    return { manager: 'uv', package: 'mistral-vibe', args: ['tool', 'install', '--upgrade', 'mistral-vibe'] }
+  if (presetId === 'kiro' || presetId === 'trae') {
+    if (platform === 'win32')
+      return presetId === 'trae'
+        ? {
+            manager: 'script',
+            command: 'powershell.exe',
+            args: [
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              "$ErrorActionPreference = 'Stop'; irm https://trae.cn/trae-cli/install_v2.ps1 | iex"
+            ]
+          }
+        : undefined
+    if (platform !== 'darwin' && platform !== 'linux') return undefined
+    const url = presetId === 'kiro' ? 'https://cli.kiro.dev/install' : 'https://trae.cn/trae-cli/install_v2.sh'
+    return { manager: 'script', command: 'bash', args: ['-o', 'pipefail', '-c', `curl -fsSL ${url} | bash`] }
+  }
   const entry = preset.npmPackage
     ? undefined
-    : registrySchema.parse(registry).agents.find((agent) => agent.id === (registryIds[presetId] ?? presetId))
+    : registry === undefined
+      ? undefined
+      : registrySchema.parse(registry).agents.find((agent) => agent.id === (registryIds[presetId] ?? presetId))
   const npmPackage = preset.npmPackage ?? entry?.distribution.npx?.package
   if (npmPackage) {
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*(?:@[a-zA-Z0-9.+_-]+)?$/.test(npmPackage)) {

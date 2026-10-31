@@ -95,7 +95,7 @@ provider is required. “Local” refers to the CLI process, not an offline mode
 These presets use explicit published npm packages because they are absent from
 our ACP registry snapshot. Installation, upgrade and uninstall reuse the existing
 system-package lifecycle and ownership checks without requiring the registry.
-Missing Bun is reported before installing omp. Terminal actions start the interactive CLI without ACP arguments. ZCode uses the
+Missing system Bun is installed through global npm before installing omp. Terminal actions start the interactive CLI without ACP arguments. ZCode uses the
 adapter's interactive CLI, which discovers the native ZCode backend itself; its
 help link documents backend discovery and `ZCODE_BIN` overrides. Installing or
 uninstalling the adapter does not install or remove the ZCode desktop app.
@@ -152,6 +152,12 @@ installation. Package managers redirected into Cherry-managed directories are
 rejected. Existing mise installations remain discoverable and removable; no
 new Code Mate CLI is installed through mise. Hermes reuses its native Python
 installation recipe, including WebUI dependencies, without requiring a registry entry.
+Kiro and Trae use their official installers on supported platforms; Vibe uses
+`uv tool install mistral-vibe`, avoiding unsupported registry archive entries.
+Amp installation also checks its native `amp` CLI. DeepAgents checks the Anthropic
+and OpenAI model packages even when reusing an existing adapter; package discovery
+uses filesystem facts so a prior failed module lookup cannot hide a newly installed
+package.
 Binary upgrades retain prior resources for running terminal processes and record
 their ownership. Explicit uninstall removes the current bundle and verified recorded
 versions; unrecorded legacy directories are not deleted. Uninstallation verifies package
@@ -161,7 +167,17 @@ must be removed through their original installer.
 Passive discovery queries BinaryManager without starting an agent. Check/enable
 starts a bounded protocol handshake with no model prompt or automatic login.
 Handshake success does not prove credentials or model availability. Native CLI
-configuration errors remain visible during the first real request.
+configuration errors remain visible during the first real request. A saved ACP model
+missing from a non-empty current catalog is rejected before a model-change request;
+Cherry asks for a new selection rather than silently switching models.
+
+DeepSeek Harness provider routes remain in `settings.yaml`. Its shared default model
+is written to the home `cordis.patch.yml` as an `agent-default-model` override,
+so CLI profiles use the same selection. A new credential store uses `version: 1`
+and `refs`. The headless profile restores the official credential, authorization and
+account readers, so saved credentials take precedence over environment fallbacks.
+Credentials, settings, home patches and headless patches are locked and restored together;
+rollback refuses to overwrite any subsequent user edit.
 
 Startup arguments are arrays, never shell strings. Environment overrides are
 stored as user configuration; request logs and DataApi devtools redact local
@@ -182,7 +198,11 @@ without a matching item still use their own parameters.
 
 ACP declares implemented text-file and terminal callbacks. Writes and terminal
 creation require user approval; terminals belong to their connection. Working
-directories are not OS sandboxes. ACP replay during session loading is suppressed
+directories are not OS sandboxes. Argument arrays execute literally. For compatibility,
+a terminal command containing whitespace and no argument array may run as the
+approved shell command only when the entire string does not resolve to an executable.
+Existing executable paths with spaces remain direct launches. Spawn errors are
+included in terminal output. ACP replay during session loading is suppressed
 because Cherry already owns the displayed transcript.
 
 During session creation/loading, command and configuration notifications are buffered
@@ -294,7 +314,11 @@ a prompt. File references remain subject to the CLI's native access permissions.
 
 Stop first requests protocol cancellation, then closes the owned process tree if
 necessary. Pending approvals resolve as denied/cancelled. Process failures retain
-received output and do not replay a turn. Restart uses the persisted native ID;
+received output and do not replay a turn. Nested ACP error details are retained and
+redacted; missing model/key configuration gets localized guidance. Claude publishes
+the turn terminal event only after its SDK iterator and query close, preventing a
+previous turn from settling a newly admitted one. OpenClaw startup diagnostics
+retain the error tail rather than only startup banners. Restart uses the persisted native ID;
 unsupported or failed restore requires a new conversation. If crash recovery has
 invalidated the native ID, existing history is retained and sending fails rather
 than silently starting an unrelated native session. Non-resumable connections skip
@@ -324,6 +348,23 @@ Focused gateway acceptance on 2026-10-14 passed real file reads and terminal
 Unicode output with Pi ACP 0.0.34, OpenCode 1.19.0 and Kilo 7.8.8 through the
 configured Aliyun Coding Plan Kimi K2.5 model. Its provider-specific output
 ceiling was configured as 98,304; its context window remained 262,144.
+
+### Acceptance repairs: 2026-10-31
+
+macOS source-level tests with real installed CLIs verified immediate successive Claude
+turns, CodeBuddy's approved terminal command and exit status, DeepAgents model-dependency
+reuse and a gateway reply, ZCode initialization/model discovery, and a DeepSeek Harness
+headless gateway reply using the saved credential store. These checks used temporary
+workspaces/configuration and did not create or delete Cherry Agent/session records.
+
+Installation regressions cover official Kiro/Trae/Vibe recipes, required native Amp
+and Bun executables, and missing DeepAgents provider packages. Fresh installation on
+every supported OS is not certified by those tests.
+
+Remaining external conditions include account authentication, OpenClaw's native
+database maintenance, and agents that report
+model failures as successful ACP terminal states (Pi/Cortex). Cherry does not repair
+native databases, downgrade packages, or infer protocol failure from response prose.
 
 ### Acceptance refresh: 2026-10-22
 
@@ -387,17 +428,25 @@ entries, not a claim that every installed version implements the protocol.
 | GLM Agent | `glm-acp-agent ` | — | Registry launch definition checked (1.12.0); real CLI acceptance pending |
 | Grok Build | `grok agent stdio` | — | Registry launch definition checked (1.0.43); real CLI acceptance pending |
 | Cortex Code | `cortex acp serve` | — | Registry launch definition checked (1.0.73); real CLI acceptance pending |
-| fast-agent | `fast-agent-acp -x` | — | Registry launch definition checked (0.10.1); real CLI acceptance pending |
-| Stakpak | `stakpak acp` | — | Registry launch definition checked (0.3.88); real CLI acceptance pending |
-| VT Code | `vtcode acp` | — | Registry launch definition checked (0.96.14); real CLI acceptance pending |
-| Poolside | `pool acp` | — | Registry launch definition checked (1.0.16); real CLI acceptance pending |
+| Poolside | `pool acp` | 1.0.16 | Native login, native/global and Cherry gateway model selection, real text in Cherry and an independent terminal, connection release/resume and persisted-history reload passed (2026-10-31); tools and approvals remain unverified |
 | Custom ACP | Explicit executable and arguments | User selected | Controlled fixture processes tested |
 
 Gemini CLI is no longer offered in Code Mate or as an Agent Service preset. Its installation, launch and configuration entry points and bundled Code Mate skill have been removed. Existing session history is retained; retired presets are excluded from the active Agent picker. This does not remove Gemini model providers or uninstall the CLI.
 
 Antigravity advertises session loading/resuming, images, audio, embedded context, and HTTP/SSE MCP in its handshake. Text, tools, cancellation and recovery passed with the configured credentials on 2026-09-30. The earlier personal Google OAuth location/eligibility rejection remains an authentication-method finding, not a current conversation failure. Image/audio semantics and MCP integration are still unverified; advertised capabilities alone do not certify them.
 
-The 20 additional presets use the [ACP Registry](https://github.com/agentclientprotocol/registry)
+Poolside saves the native model in `agent_servers.Poolside.default_config_options.model`
+in its personal `settings.yaml`. Cherry gateway models use a separate `cherry-poolside`
+agent-server entry containing the gateway connection and model. Selecting a native model
+removes that managed entry. The original API URL, CLI account credentials and other
+agent servers remain intact. Both the terminal client and Cherry's ACP connection read
+the selected profile; an Agent without a model override follows its saved default.
+Native-model discovery uses the original account even while a gateway model is selected,
+so gateway models do not replace the native-model list.
+Poolside's terminal client still requires its own login at startup, including when a
+custom server is selected. A gateway selection does not replace that login flow.
+
+Additional presets use the [ACP Registry](https://github.com/agentclientprotocol/registry)
 launch definitions checked on 2026-09-28. Registry versions in this table are
 reference versions, not versions installed or tested by Cherry. No packages are
 silently downloaded when detecting or connecting to a preset.
@@ -405,16 +454,13 @@ silently downloaded when detecting or connecting to a preset.
 Amp requires `amp-acp`, Pi requires `pi-acp`, DeepAgents requires `deepagents-acp`,
 and GLM requires `glm-acp-agent`. Antigravity uses Google's separate
 `agy_acp_server.par` (or `agy_acp_server.exe` on Windows), not the Antigravity CLI
-already available in CodeMate. Vibe uses `vibe-acp`, and fast-agent uses
-`fast-agent-acp`. Install the ACP entry point from the preset's registry link and
+already available in CodeMate. Vibe uses `vibe-acp`. Install the ACP entry point from the preset's registry link and
 make it available on PATH, or select its explicit path in advanced settings.
 
 Antigravity uses the registry's `--uid=` argument on Linux. Auggie and Droid
-receive the registry's auto-update suppression variables, and VT Code receives
-its ACP feature flags; explicit user environment values take precedence.
-fast-agent preserves the user's model configuration instead of injecting the
-registry's suggested `FAST_AGENT_MODEL=codexplan`. Models and authentication
-must be configured in the CLI before use.
+receive the registry's auto-update suppression variables; explicit user environment
+values take precedence.
+Models and authentication must be configured in the CLI before use.
 
 Cursor's `cursor/ask_question` and `cursor/create_plan` blocking extensions use the
 existing question composer and approval flow. Question and option IDs are retained
@@ -550,13 +596,31 @@ Protocol references: [ACP](https://agentclientprotocol.com/protocol/overview),
 
 ### CLI sign-in
 
-Sign in through the Agent's native CLI. Code Mate provides a terminal entry for
-supported Agents and keeps their existing credentials and environment configuration.
-Cherry does not provide an in-app sign-in dialog, query account status, or send ACP
-`authenticate` requests.
+Code Mate shows sign-in for installed ACP Agents that advertise a protocol-driven
+`agent` authentication method. Discovery and model refresh do not start login;
+only the user's explicit action sends `authenticate` with an advertised method ID.
+Agents offering terminal-only authentication keep their native terminal/help flow;
+Cherry does not advertise ACP terminal-auth support or send `authenticate` for those methods.
+Poolside also exposes its verified native `pool login` command through the sign-in
+action and the existing system-terminal launcher. Opening the terminal is not
+reported as successful authentication; returning to Cherry refreshes the model catalog.
 
-After signing in, refresh the model list in Code Mate or the chat model selector.
-Authentication and account eligibility failures remain visible after an explicit
-check or refresh. The chat model menu links to Code Mate, where users can open the
-terminal or the Agent's help page. A successful protocol handshake does not certify
-account authentication or model access.
+The sign-in dialog supports the Agent's browser flow. Antigravity API-key methods
+collect a masked key; Agent Platform also supports a project and region with
+existing Application Default Credentials. Only environment overrides explicitly
+entered for sign-in are saved to the Agent; CLI-owned account credentials are not
+read or copied. Completing OAuth without changing overrides does not rewrite the
+Agent configuration.
+
+Cursor's native account-status command can verify an existing sign-in and show
+“Signed in”. Other Agents retain the “Sign in” action; model refresh and successful
+session creation do not change its label or icon. Neither a cached model list nor
+a protocol handshake proves account authentication or model access. Background
+checks remain quiet; explicit sign-in errors remain visible, including region
+restrictions.
+
+Authentication has a five-minute timeout. Canceling, changing the program, closing
+the panel, or application shutdown releases the owned ACP process. Late responses
+cannot report success or persist credentials after cancellation. Sign-in refreshes
+the model catalog; the chat error's settings action opens the matching Agent in
+Agent services.

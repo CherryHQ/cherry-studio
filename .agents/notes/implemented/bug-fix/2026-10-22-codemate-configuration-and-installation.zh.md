@@ -18,6 +18,10 @@ Status: implemented
 
 OpenCode 就绪检查使用配置的 Basic 认证。浏览器认证仅为运行中的自有服务的精确 origin、非代理 Basic 认证请求以及现有 WebView 会话提供凭证。凭证不进入共享状态或 URL；认证处理器由服务生命周期管理。
 
+系统安装在复用适配器之前检查必需程序依赖。Amp 需要原生 CLI，omp 需要系统 Bun。DeepAgents 通过包文件判断模型依赖是否已安装，不依赖缓存的模块解析失败结果。Kiro、Trae 使用官方脚本，Vibe 使用 Python 包，解决注册表缺项和不支持的归档条目，同时保留解压安全检查。
+
+DeepSeek Harness 的服务商路由保留在 `settings.yaml`，共享原生默认模型写入主目录下的 `cordis.patch.yml`。只更新匹配的 `agent-default-model` 覆盖项，保留其他补丁。新建凭证使用版本化的 `refs` 格式。headless profile 明确恢复官方凭证、授权和账号读取器；因此已保存凭证优先于环境变量回退。四份文件都纳入现有锁、写入回执和回滚边界；任意文件出现后续编辑时均不执行回滚。
+
 ## Alternatives considered
 
 - 保存前刷新前端快照：仍存在读写竞态，并要求各调用方分别协调。
@@ -35,3 +39,5 @@ OpenCode 就绪检查使用配置的 Basic 认证。浏览器认证仅为运行�
 - Regression — 执行生产迁移的 SQLite 与 schema 测试覆盖部分更新、模型和启用状态保留、明确清除及协议身份不可变约束。
 - Regression — 二进制安装测试覆盖 Windows 命令分隔符、路径越界拒绝、升级资源保留和历史目录回收，不跟随被替换的符号链接。
 - Regression — 环境与配置测试覆盖 Windows 混合大小写目录和重复名称；真实 HTTP 子进程验证受保护 WebUI 的就绪检查及认证作用范围。
+
+- Regression — 系统安装测试覆盖复用适配器时的依赖补齐；Harness 测试覆盖原生 profile 默认模型、新建凭证、最后一步写入失败及并发用户编辑。

@@ -171,6 +171,8 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU 未完成文档解析（状态：{{status}}）。请检查服务后重试。",
   "file_processing.errors.open_mineru_unreachable": "无法连接 Open MinerU。请确认服务正在运行且地址正确。",
   "file_processing.errors.pdf_page_limit_exceeded": "该 PDF 超过当前文档解析服务的 {{maxPages}} 页上限，请手动拆分 PDF 后重新添加。",
+  "local_agent.configuration_required": "请先在智能体终端中配置模型和 API 密钥，然后重试。",
+  "local_agent.model_unavailable": "所选模型“{{model}}”已不可用，请在智能体服务中重新选择模型。",
   "notification.action_required.agent": "智能体任务需要你的响应",
   "notification.action_required.assistant": "助手需要你的响应",
   "notification.completion.agent": "智能体任务已完成",

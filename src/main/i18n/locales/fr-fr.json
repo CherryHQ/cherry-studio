@@ -171,6 +171,8 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU n’a pas terminé le traitement du document (état : {{status}}). Vérifiez le serveur, puis réessayez.",
   "file_processing.errors.open_mineru_unreachable": "Impossible de se connecter à Open MinerU. Vérifiez que le serveur fonctionne et que l’adresse est correcte.",
   "file_processing.errors.pdf_page_limit_exceeded": "Ce PDF dépasse la limite de {{maxPages}} pages du service actuel d’analyse de documents. Fractionnez le PDF manuellement, puis ajoutez-le à nouveau.",
+  "local_agent.configuration_required": "Configurez un modèle et une clé API dans le terminal de l’agent, puis réessayez.",
+  "local_agent.model_unavailable": "Le modèle sélectionné « {{model}} » n’est plus disponible. Choisissez un autre modèle dans les services d’agents.",
   "notification.action_required.agent": "L’agent a besoin de votre intervention",
   "notification.action_required.assistant": "L’assistant a besoin de votre intervention",
   "notification.completion.agent": "Tâche de l'agent terminée",

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -8,11 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { BaseService } from '@main/core/lifecycle'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
 import { CodexConnection } from '../CodexConnection'
+import { LocalAgentAuthService } from '../LocalAgentAuthService'
 import { listLocalAgentModels } from '../LocalRuntimeDriver'
 
 const managedFiles = vi.hoisted(() => ({ read: vi.fn(), getPhysicalPath: vi.fn() }))
@@ -30,6 +32,7 @@ describe('local protocol processes', () => {
   let cwd: string
   const connections: Array<AcpConnection | CodexConnection> = []
   beforeEach(async () => {
+    BaseService.resetInstances()
     cwd = await mkdtemp(path.join(tmpdir(), 'local-agent-contract-'))
     vi.mocked(application.getPath).mockReturnValue(cwd)
   })
@@ -77,6 +80,124 @@ describe('local protocol processes', () => {
         .join('')
     return { connection, events, drained, text }
   }
+
+  it('redacts a supplied API key from native authentication failures before crossing IPC', async () => {
+    const service = new LocalAgentAuthService()
+    await expect(
+      service.authenticate(
+        'redaction-test',
+        {
+          protocol: 'acp',
+          enabled: true,
+          executableOverride: process.execPath,
+          args: [fixture, 'acp', 'auth-secret'],
+          env: { GEMINI_API_KEY: 'fixture-private-key' }
+        },
+        'oauth-personal'
+      )
+    ).rejects.toThrow('Rejected <redacted>')
+  })
+
+  it.each(['auth-terminal', 'auth-legacy-terminal'])(
+    'does not report terminal setup as completed authentication: %s',
+    async (scenario) => {
+      const { connection } = create('acp', scenario)
+      await connection.start(cwd, undefined, true)
+      expect(connection.localSessionInfo.protocolInfo?.authMethods).toEqual([
+        { id: 'oauth-personal', name: 'Google', type: 'terminal' }
+      ])
+      await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
+        'requires external setup'
+      )
+      const log = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
+      expect(log).not.toContain('"method":"authenticate"')
+    }
+  )
+
+  it('authenticates with advertised native IDs without creating a conversation', async () => {
+    const { connection } = create('acp', 'auth-success')
+    await connection.start(cwd, undefined, true)
+    await (connection as AcpConnection).authenticate('oauth-personal')
+    const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
+    expect(wire).toContain('"methodId":"oauth-personal"')
+    expect(wire).not.toContain('session/new')
+    await expect((connection as AcpConnection).authenticate('unknown')).rejects.toThrow(
+      'Unsupported authentication method'
+    )
+  })
+
+  it('preserves authentication failures and interrupts pending login when closed', async () => {
+    const { connection } = create('acp', 'auth-rejected')
+    await connection.start(cwd, undefined, true)
+    await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
+      'not available in your location'
+    )
+    const pending = create('acp', 'auth-pending').connection as AcpConnection
+    await pending.start(cwd, undefined, true)
+    const rejected = expect(pending.authenticate('oauth-personal')).rejects.toThrow()
+    await pending.close()
+    await rejected
+  })
+
+  it.each(['cancel', 'stop'])('cleans up an outstanding authentication process on %s', async (action) => {
+    const service = new LocalAgentAuthService()
+    const config: LocalAgentConfiguration = {
+      protocol: 'acp',
+      enabled: true,
+      executableOverride: process.execPath,
+      args: [fixture, 'acp', 'auth-pending'],
+      env: { FIXTURE_LOG: path.join(cwd, 'wire.jsonl') }
+    }
+    const outcome = service.authenticate('pending-test', config, 'oauth-personal').then(
+      () => false,
+      () => true
+    )
+    try {
+      await vi.waitFor(async () =>
+        expect((await readWire()).some((request) => request.method === 'authenticate')).toBe(true)
+      )
+      await expect(service.authenticate('pending-test', config, 'oauth-personal')).rejects.toThrow(
+        'already in progress'
+      )
+      if (action === 'cancel') await service.cancel('pending-test')
+      else await service._doStop()
+      expect(await outcome).toBe(true)
+      const pid = Number(await readFile(path.join(cwd, 'wire.jsonl.pid'), 'utf8'))
+      expect(() => process.kill(pid, 0)).toThrow()
+    } finally {
+      await service.cancel('pending-test')
+    }
+  })
+
+  it('times out pending authentication and releases its owned process', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const service = new LocalAgentAuthService()
+    const outcome = expect(
+      service.authenticate(
+        'timeout-test',
+        {
+          protocol: 'acp',
+          enabled: true,
+          executableOverride: process.execPath,
+          args: [fixture, 'acp', 'auth-pending'],
+          env: { FIXTURE_LOG: path.join(cwd, 'wire.jsonl') }
+        },
+        'oauth-personal'
+      )
+    ).rejects.toThrow('Authentication timed out')
+    try {
+      await vi.waitFor(async () =>
+        expect((await readWire()).some((request) => request.method === 'authenticate')).toBe(true)
+      )
+      await vi.advanceTimersByTimeAsync(300000)
+      await outcome
+      const pid = Number(await readFile(path.join(cwd, 'wire.jsonl.pid'), 'utf8'))
+      expect(() => process.kill(pid, 0)).toThrow()
+    } finally {
+      vi.useRealTimers()
+      await service.cancel('timeout-test')
+    }
+  })
 
   it.each(['normal', 'embedded-files'])('sends image bytes and native file content in order (%s)', async (scenario) => {
     const { connection } = create('acp', scenario)
@@ -557,6 +678,7 @@ describe('local protocol processes', () => {
       protocolVersion: 1,
       agent: { name: 'fixture', version: '1.0' },
       capabilities: { loadSession: true, promptCapabilities: { image: true } },
+      authMethods: [],
       verified: ['handshake']
     })
   })
@@ -958,6 +1080,54 @@ describe('local protocol processes', () => {
     expect(text()).toBe('turn 1: ')
     expect(events.filter((event) => event.type === 'error')).toHaveLength(1)
     expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+  })
+
+  it('reports a process startup failure instead of a generic closed connection', async () => {
+    const { connection } = create('acp')
+    await expect(connection.start(path.join(cwd, 'missing'))).rejects.toThrow(/ENOENT/)
+  })
+
+  it('retains redacted stderr when an ACP process exits during initialization', async () => {
+    const { connection } = create('acp', 'startup-error')
+    const started = connection.start(cwd)
+    await expect(started).rejects.toThrow('Missing native backend')
+    await expect(started).rejects.not.toThrow('fixture-secret')
+  })
+
+  it('rejects a saved model that disappeared from the catalog before sending a change request', async () => {
+    const { connection } = create('acp', 'both-models', 'retired-model')
+    await expect(connection.start(cwd)).rejects.toThrow(/retired-model/)
+    expect(
+      (await readWire()).some(
+        (message) => message.method === 'session/set_model' || message.method === 'session/set_config_option'
+      )
+    ).toBe(false)
+  })
+
+  it('preserves and redacts nested ACP failure details instead of reporting only Internal error', async () => {
+    const { connection, events } = create('acp', 'error-details')
+    await connection.start(cwd)
+    await connection.send(input)
+    const failure = events.find((event) => event.type === 'error')
+    expect(failure?.type === 'error' && String(failure.error)).toContain('No model selected')
+    expect(failure?.type === 'error' && String(failure.error)).not.toContain('private-fixture-secret')
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(0)
+  })
+
+  it.each([
+    ['terminal-command', 'command result', 0],
+    ['terminal-path', 'prefix你好🌸', 0],
+    ['terminal-literal', 'literal ; echo injected', 0],
+    ['terminal-missing', 'missing-fixture-executable', 1]
+  ])('executes %s with the approved command semantics and useful diagnostics', async (scenario, expected, exitCode) => {
+    const { connection, events, text } = create('acp', scenario)
+    if (scenario === 'terminal-path') await symlink(process.execPath, path.join(cwd, 'node with spaces'))
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const approval = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
+    await sending
+    expect(JSON.parse(text())).toMatchObject({ output: expect.stringContaining(expected), exitStatus: { exitCode } })
   })
 
   it('performs declared file and terminal callbacks only after write/execution approval', async () => {

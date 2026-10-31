@@ -917,6 +917,27 @@ describe('OpenClawService gateway status state machine', () => {
       expect(child.unref).toHaveBeenCalledOnce()
     })
 
+    it('retains the actual startup failure after verbose startup output', async () => {
+      const child = createSpawnChild()
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'unreachable',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+      const started = (service as any).startAndWaitForGateway('/usr/local/bin/openclaw', {})
+      const rejected = expect(started).rejects.toThrow('openclaw doctor --fix')
+      child.stderr.write(
+        Array.from({ length: 8 }, (_, index) => `startup ${index}`).join('\n') +
+          '\nMigration required: run openclaw doctor --fix\n'
+      )
+      child.stdout.write('startup banner\n')
+      child.emit('exit', 78)
+      await vi.advanceTimersByTimeAsync(1000)
+      await rejected
+    })
+
     it('spawns a managed OpenClaw with the refreshed environment and formal config path', async () => {
       const child = createSpawnChild()
       checkPortOpenSpy.mockResolvedValue(false)

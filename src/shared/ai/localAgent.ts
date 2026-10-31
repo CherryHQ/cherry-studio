@@ -22,6 +22,7 @@ export interface LocalAgentPreset {
   executable: string
   aliases?: readonly string[]
   terminalArgs?: readonly string[]
+  loginArgs?: readonly string[]
   terminalExecutable?: string
   args: readonly string[]
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
@@ -244,6 +245,9 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'amp-acp',
+    terminalExecutable: 'amp',
+    terminalArgs: [],
+    loginArgs: ['login'],
     name: 'Amp',
     protocol: 'acp',
     executable: 'amp-acp',
@@ -325,35 +329,9 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     helpUrl: 'https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code'
   },
   {
-    id: 'fast-agent',
-    name: 'fast-agent',
-    protocol: 'acp',
-    executable: 'fast-agent-acp',
-    args: ['-x'],
-    helpUrl: 'https://fast-agent.ai'
-  },
-  {
-    id: 'stakpak',
-    name: 'Stakpak',
-    protocol: 'acp',
-    executable: 'stakpak',
-    args: ['acp'],
-    helpUrl: 'https://stakpak.dev'
-  },
-  {
-    id: 'vtcode',
-    name: 'VT Code',
-    protocol: 'acp',
-    executable: 'vtcode',
-    args: ['acp'],
-    env: {
-      VT_ACP_ENABLED: '1',
-      VT_ACP_ZED_ENABLED: '1'
-    },
-    helpUrl: 'https://github.com/vinhnx/VTCode/blob/main/docs/guides/zed-acp.md'
-  },
-  {
     id: 'poolside',
+    terminalArgs: [],
+    loginArgs: ['login'],
     name: 'Poolside',
     protocol: 'acp',
     executable: 'pool',
@@ -370,7 +348,15 @@ export interface LocalAgentDetection {
   terminalPath?: string
 }
 
+export const LocalAgentAuthMethodSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['agent', 'terminal']).default('agent')
+})
+export type LocalAgentAuthMethod = z.infer<typeof LocalAgentAuthMethodSchema>
+
 export const LocalAgentModelCatalogSchema = z.object({
+  authMethods: z.array(LocalAgentAuthMethodSchema).optional(),
   models: z.array(z.object({ id: z.string().min(1), name: z.string() })),
   activeModel: z.object({ id: z.string(), name: z.string().optional() }).optional()
 })
@@ -380,6 +366,7 @@ export const LocalAgentProtocolInfoSchema = z.object({
   protocolVersion: z.number(),
   agent: z.object({ name: z.string(), version: z.string(), title: z.string().optional() }).optional(),
   capabilities: z.record(z.string(), z.unknown()),
+  authMethods: z.array(LocalAgentAuthMethodSchema).optional(),
   verified: z.array(z.enum(['handshake', 'session', 'prompt']))
 })
 export type LocalAgentProtocolInfo = z.infer<typeof LocalAgentProtocolInfoSchema>

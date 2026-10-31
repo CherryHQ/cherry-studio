@@ -69,6 +69,7 @@ import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 import { AgentServiceCard } from './AgentServiceCard'
 import { AgentUpgradeControl } from './AgentUpgradeControl'
 import { LocalAgentAdvancedSettings } from './LocalAgentAdvancedSettings'
+import { LocalAgentLogin } from './LocalAgentLogin'
 import { LocalAgentModelList } from './LocalAgentModelList'
 import { LocalAgentTerminalDialog } from './LocalAgentTerminalDialog'
 import { LocalAgentWebUiActions } from './LocalAgentWebUiActions'
@@ -118,11 +119,8 @@ const DEFAULT_AGENT_ORDER = new Map(
     'grok-build',
     'amp-acp',
     'deepagents',
-    'fast-agent',
     'cortex-code',
     'poolside',
-    'stakpak',
-    'vtcode',
     'snow',
     'zcode',
     'glm-acp-agent'
@@ -513,7 +511,9 @@ function LocalAgentDetails({
   >()
   const {
     catalog,
+    freshCatalog,
     loading: modelsLoading,
+    refreshError: modelsRefreshError,
     refresh: refreshModels
   } = useLocalAgentModelCatalog(
     preset?.id ?? agent?.id ?? 'custom-new',
@@ -525,6 +525,11 @@ function LocalAgentDetails({
   const [openingChat, setOpeningChat] = useState(false)
   const available = !!(detection?.path || initial.executableOverride)
   const busy = installing || busyAction !== undefined || openingChat
+  const chatDisabledReason = busy
+    ? t('local_agents.chat_busy')
+    : !agent || !initial.enabled
+      ? t('local_agents.chat_requires_enabled')
+      : undefined
   const modelSavingClass =
     busyAction === 'model' ? '[&_button:disabled]:pointer-events-auto [&_button:disabled]:opacity-100' : undefined
   const [result, setResult] = useState<{ message?: string; ok: boolean }>({ ok: false })
@@ -939,15 +944,51 @@ function LocalAgentDetails({
                     <>
                       {terminalButton}
                       <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
-                        disabled={busy || !agent || !initial.enabled}
-                        onClick={() => void goToChat()}>
-                        <MessageSquare className="lucide-custom size-3.5 text-muted-foreground" />
-                        {t('title.chat')}
-                      </Button>
+                      {initial.protocol === 'acp' && (
+                        <LocalAgentLogin
+                          config={initial}
+                          authMethods={freshCatalog?.authMethods ?? catalog?.authMethods}
+                          modelsLoading={modelsLoading}
+                          authenticationError={modelsRefreshError ?? (freshCatalog ? undefined : result.message)}
+                          onRefresh={refreshModels}
+                          available={available}
+                          disabled={busy || archived}
+                          helpUrl={preset?.helpUrl}
+                          onTerminalLogin={
+                            preset?.loginArgs
+                              ? async () => {
+                                  const response = await ipcApi.request('ai.local_agents.open_terminal', {
+                                    ...initial,
+                                    login: true
+                                  })
+                                  if (!response.success) throw new Error(response.message ?? t('common.error'))
+                                }
+                              : undefined
+                          }
+                          onAuthenticated={async (localRuntime) => {
+                            setConnection(undefined)
+                            clearResult()
+                            if (JSON.stringify(localRuntime.env) !== JSON.stringify(initial.env)) {
+                              const updated = await persistLocalRuntime({ env: localRuntime.env })
+                              if (!updated) throw new Error(t('common.error'))
+                              await onSaved(updated.id)
+                            } else await refreshModels()
+                          }}
+                        />
+                      )}
+                      <Tooltip content={chatDisabledReason} asChild>
+                        <span className="inline-flex" tabIndex={chatDisabledReason ? 0 : undefined}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
+                            disabled={!!chatDisabledReason}
+                            onClick={() => void goToChat()}>
+                            <MessageSquare className="lucide-custom size-3.5 text-muted-foreground" />
+                            {t('title.chat')}
+                          </Button>
+                        </span>
+                      </Tooltip>
                     </>
                   ) : preset ? (
                     <Button

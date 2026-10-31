@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process'
 import { access, realpath } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { valid, gt } from 'semver'
@@ -25,7 +26,7 @@ import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import { installBinaryAgent } from './installBinary'
-import { readInstalledPackageVersion } from './installedVersion'
+import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
 import { resolveInstallRecipe, resolveCliInstallRecipe } from './installRecipe'
 import { selectAvailableInstallation } from './launch'
 import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninstallBinaryAgent } from './uninstall'
@@ -160,12 +161,7 @@ export class LocalAgentInstallService extends BaseService {
   private async recipe(target: InstallTarget, targetVersion?: string) {
     const recipe = target.cli
       ? resolveCliInstallRecipe(target.cli, targetVersion)
-      : resolveInstallRecipe(
-          target.id,
-          target.protocol === 'acp' && target.id !== 'kimi' && target.id !== 'hermes' && !target.npmPackage
-            ? await this.fetchRegistry()
-            : undefined
-        )
+      : (resolveInstallRecipe(target.id) ?? resolveInstallRecipe(target.id, await this.fetchRegistry()))
     if (!recipe || !targetVersion || target.cli || recipe.manager === 'script') return recipe
     if (!valid(targetVersion)) throw new Error('Invalid agent version')
     if (recipe.manager === 'binary') {
@@ -177,7 +173,7 @@ export class LocalAgentInstallService extends BaseService {
     return {
       ...recipe,
       package: spec,
-      args: recipe.manager === 'npm' ? ['install', '--global', spec] : ['tool', 'install', '--upgrade', spec]
+      args: recipe.args.map((arg) => (arg === recipe.package ? spec : arg))
     }
   }
 
@@ -290,7 +286,26 @@ export class LocalAgentInstallService extends BaseService {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()
       const existing = await this.detect(preset)
+      let env = await getRawShellEnv(this.abort.signal)
+      const executableDependencies = [
+        ...(preset.requiredRuntime === 'bun' ? [{ executable: 'bun', package: 'bun' }] : []),
+        ...(presetId === 'amp-acp' ? [{ executable: 'amp', package: '@ampcode/cli' }] : [])
+      ]
+      for (const dependency of executableDependencies) {
+        if (await findExecutableInEnv(dependency.executable, { env })) continue
+        const failure = await this.installPackage(
+          { manager: 'npm', package: dependency.package, args: ['install', '--global', dependency.package] },
+          env
+        )
+        if (failure) return failure
+        await refreshShellEnv()
+        env = await getRawShellEnv(this.abort.signal)
+        if (!(await findExecutableInEnv(dependency.executable, { env })))
+          return { ok: false, reason: 'not_detected', manager: 'npm' }
+      }
       if (existing.source !== 'none' && !targetVersion) {
+        const failure = await this.ensureModelDependencies(preset, existing.path, env)
+        if (failure) return failure
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
         return { ok: true, reused: true, path: existing.path }
       }
@@ -326,7 +341,6 @@ export class LocalAgentInstallService extends BaseService {
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
         return { ok: true, reused: false, path: installedPath }
       }
-      const env = await getRawShellEnv(this.abort.signal)
       if (recipe.manager === 'script') {
         const command = await findExecutableInEnv(recipe.command, { env })
         if (!command) return { ok: false, reason: 'unsupported' }
@@ -338,37 +352,14 @@ export class LocalAgentInstallService extends BaseService {
           ? { ok: false, reason: 'not_detected' }
           : { ok: true, reused: false, path: installed.path }
       }
-      if (preset.requiredRuntime && !(await findExecutableInEnv(preset.requiredRuntime, { env }))) {
-        return { ok: false, reason: 'missing_runtime', manager: preset.requiredRuntime }
-      }
-      const command = await findExecutableInEnv(recipe.manager, { env })
-      if (!command) return { ok: false, reason: 'missing_runtime', manager: recipe.manager }
-      if (await this.isManagedPath(command)) return { ok: false, reason: 'managed_runtime', manager: recipe.manager }
-      // Refuse redirects into Cherry's managed environment, including package-manager config.
-      const target = await this.run(command, recipe.manager === 'npm' ? ['prefix', '--global'] : ['tool', 'dir'], env)
-      const binTarget = recipe.manager === 'uv' ? await this.run(command, ['tool', 'dir', '--bin'], env) : target
-      if ((await this.isManagedPath(target.trim())) || (await this.isManagedPath(binTarget.trim())))
-        return { ok: false, reason: 'managed_runtime', manager: recipe.manager }
-      logger.info('Installing local agent in system environment', {
-        presetId,
-        manager: recipe.manager,
-        package: recipe.package
-      })
-      const environments = await this.installEnvironments(recipe.manager, command, env)
-      for (const [index, installEnv] of environments.entries()) {
-        try {
-          await this.run(command, recipe.args, installEnv, installEnv === env ? 15 * 60_000 : 3 * 60_000)
-          break
-        } catch (error) {
-          this.abort.signal.throwIfAborted()
-          if (index === environments.length - 1) throw error
-          logger.info('Agent package mirror failed; trying next source', { presetId, manager: recipe.manager })
-        }
-      }
+      const failure = await this.installPackage(recipe, env)
+      if (failure) return failure
       await refreshShellEnv()
       const detected = await this.detect(preset)
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
       if (detected.source === 'none') return { ok: false, reason: 'not_detected', manager: recipe.manager }
+      const dependencyFailure = await this.ensureModelDependencies(preset, detected.path, env)
+      if (dependencyFailure) return dependencyFailure
       return { ok: true, reused: false, path: detected.path }
     } catch (error) {
       if (this.abort.signal.aborted) return { ok: false, reason: 'stopping' }
@@ -376,6 +367,69 @@ export class LocalAgentInstallService extends BaseService {
       logger.warn('System agent installation failed', { presetId, detail })
       return { ok: false, reason: 'failed', detail }
     }
+  }
+
+  private async ensureModelDependencies(preset: InstallTarget, executable: string, env: Record<string, string>) {
+    if (preset.id !== 'deepagents') return
+    const require = createRequire(await resolveInstalledExecutable(executable))
+    const packages = ['@langchain/anthropic', '@langchain/openai']
+    const installed = async (name: string) =>
+      (
+        await Promise.all(
+          (require.resolve.paths(name) ?? []).map((directory) =>
+            access(path.join(directory, name, 'package.json')).then(
+              () => true,
+              () => false
+            )
+          )
+        )
+      ).some(Boolean)
+    const available = await Promise.all(packages.map(installed))
+    const missing = packages.filter((_, index) => !available[index])
+    if (!missing.length) return
+    if (await this.isManagedPath(executable)) return { ok: false as const, reason: 'unsupported' as const }
+    const failure = await this.installPackage(
+      { manager: 'npm', package: missing[0], args: ['install', '--global', ...missing] },
+      env
+    )
+    if (failure) return failure
+    for (const name of missing) {
+      if (!(await installed(name))) throw new Error(`Missing model dependency after installation: ${name}`)
+    }
+    return undefined
+  }
+
+  private async installPackage(
+    recipe: { manager: 'npm' | 'uv'; package: string; args: string[] },
+    env: Record<string, string>
+  ): Promise<LocalAgentInstallResult | undefined> {
+    const command = await findExecutableInEnv(recipe.manager, { env })
+    if (!command) return { ok: false, reason: 'missing_runtime', manager: recipe.manager }
+    if (await this.isManagedPath(command)) return { ok: false, reason: 'managed_runtime', manager: recipe.manager }
+    // Refuse redirects into Cherry's managed environment, including package-manager config.
+    const target = await this.run(command, recipe.manager === 'npm' ? ['prefix', '--global'] : ['tool', 'dir'], env)
+    const binTarget = recipe.manager === 'uv' ? await this.run(command, ['tool', 'dir', '--bin'], env) : target
+    if ((await this.isManagedPath(target.trim())) || (await this.isManagedPath(binTarget.trim())))
+      return { ok: false, reason: 'managed_runtime', manager: recipe.manager }
+    logger.info('Installing local agent in system environment', {
+      manager: recipe.manager,
+      package: recipe.package
+    })
+    const environments = await this.installEnvironments(recipe.manager, command, env)
+    for (const [index, installEnv] of environments.entries()) {
+      try {
+        await this.run(command, recipe.args, installEnv, installEnv === env ? 15 * 60_000 : 3 * 60_000)
+        break
+      } catch (error) {
+        this.abort.signal.throwIfAborted()
+        if (index === environments.length - 1) throw error
+        logger.info('Agent package mirror failed; trying next source', {
+          package: recipe.package,
+          manager: recipe.manager
+        })
+      }
+    }
+    return undefined
   }
 
   private async installEnvironments(manager: 'npm' | 'uv', command: string, env: Record<string, string>) {

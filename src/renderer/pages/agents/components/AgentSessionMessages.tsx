@@ -152,6 +152,10 @@ const AgentSessionMessages = ({
     streamingLayers,
     assistantProfile,
     assistantId: agentId,
+    providerErrorSettingsPath:
+      activeAgent?.type === 'local'
+        ? `/settings/local-agents?id=${encodeURIComponent(activeAgent.configuration?.localRuntime?.presetId ?? activeAgent.id)}`
+        : undefined,
     isLoading,
     hasOlder,
     loadOlder,

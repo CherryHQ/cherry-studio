@@ -1,3 +1,4 @@
+import { mockCacheService } from '@test-mocks/renderer/CacheService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,6 +6,8 @@ import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { CodeCli } from '@shared/types/codeCli'
 
 import { useCliVersionStatuses } from '../useCliVersionStatuses'
+
+vi.unmock('@data/hooks/useCache')
 
 const snapshotRecords = vi.hoisted(() => ({ value: {} as Record<string, BinaryToolSnapshot> }))
 const ipcMocks = vi.hoisted(() => ({ snapshots: vi.fn(), latestVersions: vi.fn() }))
@@ -45,6 +48,7 @@ vi.mock('@renderer/services/LoggerService', () => ({
 describe('useCliVersionStatuses', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCacheService._resetMockState()
     ipcEventHandlers.clear()
     setSnapshots({})
     ipcMocks.snapshots.mockImplementation(async (names: string[]) =>
@@ -283,5 +287,52 @@ describe('useCliVersionStatuses', () => {
       release({ claude: miseSnapshot('claude') })
     })
     await waitFor(() => expect(result.current.resolved).toBe(true))
+  })
+
+  it('keeps installed tools available on remount while refreshing, then applies an external uninstall', async () => {
+    setSnapshots({
+      openclaw: { name: 'openclaw', availability: { source: 'system', path: '/usr/local/bin/openclaw' } },
+      dsh: { name: 'dsh', availability: { source: 'system', path: '/usr/local/bin/dsh' } }
+    })
+    const tools = [CodeCli.OPENCLAW, CodeCli.DEEPSEEK_HARNESS]
+    const first = renderHook(() => useCliVersionStatuses(tools))
+    await waitFor(() => expect(first.result.current.resolved).toBe(true))
+    first.unmount()
+
+    let release!: (value: Record<string, BinaryToolSnapshot>) => void
+    ipcMocks.snapshots.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)))
+    const { result } = renderHook(() => useCliVersionStatuses(tools))
+    expect(result.current.resolved).toBe(true)
+    expect(result.current.statuses[CodeCli.OPENCLAW]).toMatchObject({
+      installed: true,
+      resolvedPath: '/usr/local/bin/openclaw'
+    })
+    expect(result.current.statuses[CodeCli.DEEPSEEK_HARNESS]).toMatchObject({
+      installed: true,
+      resolvedPath: '/usr/local/bin/dsh'
+    })
+
+    await act(async () => release({}))
+    await waitFor(() => expect(result.current.statuses[CodeCli.OPENCLAW]?.installed).toBe(false))
+    expect(result.current.statuses[CodeCli.DEEPSEEK_HARNESS]).toMatchObject({
+      installed: false,
+      resolvedPath: undefined
+    })
+  })
+
+  it('keeps managed upgrade information on remount instead of briefly hiding the upgrade action', async () => {
+    setSnapshots({ claude: miseSnapshot('claude') })
+    ipcMocks.latestVersions.mockResolvedValue({ claude: '1.1.0' })
+    const first = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await waitFor(() => expect(first.result.current.statuses[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    first.unmount()
+
+    ipcMocks.snapshots.mockImplementationOnce(() => new Promise(() => {}))
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
+      current: '1.0.0',
+      latest: '1.1.0',
+      canUpgrade: true
+    })
   })
 })

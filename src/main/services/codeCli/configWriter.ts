@@ -47,8 +47,7 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
     'grok-config': env.GROK_HOME,
     'cortex-settings': env.SNOWFLAKE_HOME && path.join(env.SNOWFLAKE_HOME, 'cortex'),
     'cortex-mcp': env.SNOWFLAKE_HOME && path.join(env.SNOWFLAKE_HOME, 'cortex'),
-    'cortex-permissions': env.SNOWFLAKE_HOME && path.join(env.SNOWFLAKE_HOME, 'cortex'),
-    'fast-agent-config': env.FAST_AGENT_HOME
+    'cortex-permissions': env.SNOWFLAKE_HOME && path.join(env.SNOWFLAKE_HOME, 'cortex')
   }
   let filename = directories[target]
     ? path.join(directories[target], path.basename(specPath))
@@ -96,16 +95,6 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
           ? path.join(home, 'Library', 'Application Support')
           : configHome
     filename = path.join(root, 'trae_cli', 'trae_cli.yaml')
-  }
-  if (target === 'vtcode-config') {
-    const directory =
-      env.VTCODE_CONFIG ||
-      (process.platform === 'darwin'
-        ? path.join(home, 'Library', 'Application Support', 'com.vinhnx.vtcode')
-        : process.platform === 'win32'
-          ? path.join(roaming, 'vinhnx', 'vtcode', 'config')
-          : path.join(configHome, 'vtcode'))
-    filename = path.join(directory, 'vtcode.toml')
   }
   if (target === 'amp-settings' && (await readOrNull(AbsoluteFilePathSchema.parse(`${filename}c`))) !== null)
     filename += 'c'

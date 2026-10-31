@@ -77,6 +77,35 @@ describe('global local agent model selection', () => {
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('custom/new')
   })
 
+  it('keeps Poolside native and gateway defaults consistent with the saved Agent', async () => {
+    const agent = agentService.createAgentWithId('local-poolside', {
+      name: 'Poolside',
+      type: 'local',
+      model: null,
+      configuration: { localRuntime: { presetId: 'poolside', protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+    await selectLocalAgentModel(agent.id, 'poolside/laguna-xs-2.1')
+    expect((await service.readConfigFiles(['poolside-settings']))[0].content).toContain('model: poolside/laguna-xs-2.1')
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('poolside/laguna-xs-2.1')
+    const gateway =
+      'pool:\n  api_url: https://native.test/v1\n  default_agent_server: cherry-poolside\nagent_servers:\n  cherry-poolside:\n    default_config_options:\n      model: provider:test\n'
+    const selected = await selectLocalAgentModel(agent.id, undefined, {
+      sourceModelId: createUniqueModelId('provider', 'test'),
+      sourceModelViaGateway: true,
+      files: [{ target: 'poolside-settings', content: gateway }]
+    })
+    expect(selected.configuration?.localRuntime).toMatchObject({
+      nativeModel: 'provider:test',
+      sourceModelViaGateway: true
+    })
+    const restored = await selectLocalAgentModel(agent.id, 'poolside/laguna-s-2.1', {
+      files: [{ target: 'poolside-settings', content: 'pool:\n  api_url: https://native.test/v1\n' }]
+    })
+    expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+    expect((await service.readConfigFiles(['poolside-settings']))[0].content).not.toContain('cherry-poolside')
+    expect(restored.configuration?.localRuntime?.nativeModel).toBe('poolside/laguna-s-2.1')
+  })
+
   it.each([
     ['kilo', 'kilo-config', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],
     ['copilot', 'copilot-settings', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],

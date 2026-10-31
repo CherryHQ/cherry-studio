@@ -64,6 +64,7 @@ import {
   isCodexReasoningEffort,
   isOpenCodePermissionMode
 } from './permissionModes'
+import { poolsideAdapter } from './poolside'
 import {
   HERMES_API_MODES,
   type HermesApiMode,
@@ -1064,6 +1065,7 @@ const minimaxAdapter: CliConfigAdapter = {
  * Provider-configurable CLI tools require an adapter; raw-file-only agents do not.
  */
 export const CLI_CONFIG_ADAPTERS: Record<ModelConfiguredCli, CliConfigAdapter> = {
+  poolside: poolsideAdapter,
   [CodeCli.CLAUDE_CODE]: claudeAdapter,
   [CodeCli.OPENAI_CODEX]: codexAdapter,
   [CodeCli.OPEN_CODE]: createOpenCodeAdapter(CodeCli.OPEN_CODE),

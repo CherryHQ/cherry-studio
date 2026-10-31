@@ -7,6 +7,27 @@ import { resolveInstallRecipe, resolveCliInstallRecipe } from '../installRecipe'
 const registry = (id: string, distribution: unknown) => ({ agents: [{ id, distribution }] })
 
 describe('system agent install recipes', () => {
+  it('uses official Kiro, Trae and Vibe installers without requiring registry entries', () => {
+    expect(resolveInstallRecipe('kiro', undefined, 'darwin')).toMatchObject({
+      manager: 'script',
+      command: 'bash',
+      args: ['-o', 'pipefail', '-c', 'curl -fsSL https://cli.kiro.dev/install | bash']
+    })
+    expect(resolveInstallRecipe('trae', undefined, 'linux')).toMatchObject({
+      manager: 'script',
+      args: ['-o', 'pipefail', '-c', 'curl -fsSL https://trae.cn/trae-cli/install_v2.sh | bash']
+    })
+    expect(resolveInstallRecipe('trae', undefined, 'win32')).toMatchObject({
+      manager: 'script',
+      command: 'powershell.exe'
+    })
+    expect(resolveInstallRecipe('kiro', undefined, 'win32')).toBeUndefined()
+    expect(resolveInstallRecipe('mistral-vibe')).toEqual({
+      manager: 'uv',
+      package: 'mistral-vibe',
+      args: ['tool', 'install', '--upgrade', 'mistral-vibe']
+    })
+  })
   it.each([
     ['omp', '@oh-my-pi/pi-coding-agent'],
     ['snow', 'snow-ai'],
@@ -26,11 +47,14 @@ describe('system agent install recipes', () => {
     expect(resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.kimi!)).toMatchObject(expected)
   })
 
-  it('rejects retired Gemini CLI installation even when it remains in the registry', () => {
-    expect(() =>
-      resolveInstallRecipe('gemini', registry('gemini', { npx: { package: '@google/gemini-cli' } }))
-    ).toThrow('Unknown local agent preset')
-  })
+  it.each(['gemini', 'fast-agent', 'stakpak', 'vtcode'])(
+    'rejects removed preset %s even when it remains in the registry',
+    (id) => {
+      expect(() => resolveInstallRecipe(id, registry(id, { npx: { package: 'retired-agent' } }))).toThrow(
+        'Unknown local agent preset'
+      )
+    }
+  )
 
   it('turns registry runners into persistent installation, without passing ACP launch arguments', () => {
     expect(
@@ -41,11 +65,8 @@ describe('system agent install recipes', () => {
       args: ['install', '--global', '@kilocode/cli@7.8.1']
     })
     expect(
-      resolveInstallRecipe(
-        'fast-agent',
-        registry('fast-agent', { uvx: { package: 'fast-agent-acp==0.10.1', args: ['-x'] } })
-      )
-    ).toEqual({ manager: 'uv', package: 'fast-agent-acp==0.10.1', args: ['tool', 'install', 'fast-agent-acp==0.10.1'] })
+      resolveInstallRecipe('cursor', registry('cursor', { uvx: { package: 'fixture-agent==1.2.3', args: ['-x'] } }))
+    ).toEqual({ manager: 'uv', package: 'fixture-agent==1.2.3', args: ['tool', 'install', 'fixture-agent==1.2.3'] })
   })
 
   it('uses native CLIs for native drivers, not incompatible ACP adapters', () => {

@@ -22,7 +22,7 @@ export function AgentServiceCard({
   return (
     <section className="overflow-hidden rounded-xl border border-border-subtle bg-card">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-48 flex-1 items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center">{icon}</div>
           <div className="flex min-h-11 min-w-0 flex-col justify-center gap-1">
             <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>

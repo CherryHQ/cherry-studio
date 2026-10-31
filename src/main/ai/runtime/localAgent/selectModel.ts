@@ -47,7 +47,10 @@ export async function selectLocalAgentModel(
     'COPILOT_PROVIDERS_CONFIG',
     'COPILOT_MODEL',
     'VIBE_HOME',
-    'VIBE_ACTIVE_MODEL'
+    'VIBE_ACTIVE_MODEL',
+    'POOLSIDE_API_KEY',
+    'POOLSIDE_STANDALONE_BASE_URL',
+    'POOLSIDE_STANDALONE_MODEL'
   ]
   if (
     overrides.some((key) => {

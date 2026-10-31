@@ -871,8 +871,8 @@ export class OpenClawService extends BaseService {
     })
     proc.on('exit', (code) => {
       // Capture output from both streams for diagnostics
-      const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
-      const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
+      const combinedOutput = [stdoutOutput.trim(), stderrOutput.trim()].filter(Boolean).join('\n')
+      const detail = combinedOutput.split('\n').filter(Boolean).slice(-5).join('\n')
       if (code !== 0) {
         earlyExitError = detail || `gateway exited with code ${code}`
       } else {
@@ -911,8 +911,8 @@ export class OpenClawService extends BaseService {
     // Combine all available diagnostics: health check errors, stderr, and stdout
     const diagnostics = [
       lastError ? `health: ${lastError}` : '',
-      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
-      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
+      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(-5).join('\n')}` : '',
+      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(-5).join('\n')}` : ''
     ]
       .filter(Boolean)
       .join('\n')

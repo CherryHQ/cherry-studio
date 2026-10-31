@@ -18,6 +18,10 @@ Record binary bundles proved by the canonical launcher in an atomic installation
 
 OpenCode readiness uses the configured Basic authentication. Browser authentication supplies credentials only for a running owned server's exact origin, a non-proxy Basic challenge and the existing WebView session. Credentials stay out of shared status and URLs; the handler belongs to the service lifecycle.
 
+System installation recipes include required executable dependencies before reusing an adapter. Amp needs its native CLI; omp needs system Bun. DeepAgents model-package discovery reads package files rather than trusting cached module-resolution failures. Official Kiro/Trae scripts and Vibe's Python package avoid missing registry entries and unsupported archive types without weakening extraction checks.
+
+DeepSeek Harness routes stay in `settings.yaml`, while the shared native default belongs to the home `cordis.patch.yml`. Update only the matching `agent-default-model` override, preserving other patches. New credentials use the versioned `refs` layout. The headless profile explicitly restores the official credential, authorization and account readers; saved credentials therefore precede environment fallbacks. All four files participate in the existing lock, write receipt and rollback boundary; a subsequent edit to any file prevents rollback.
+
 ## Alternatives considered
 
 - Refresh a renderer snapshot before saving: leaves a read/write race and requires callers to coordinate independently.
@@ -35,3 +39,5 @@ Optional field clearing remains explicit, and callers must avoid resubmitting fi
 - Regression — Production-migrated SQLite and schema tests cover partial updates, preserved model/enablement, explicit clearing and immutable protocol identity.
 - Regression — Binary installation tests cover Windows command separators, path traversal rejection, retained upgrade resources and owned-history cleanup without following replaced symlinks.
 - Regression — Environment and configuration tests cover mixed-case Windows directories and duplicate names; a real HTTP subprocess verifies protected WebUI readiness and authentication scope.
+
+- Regression — System-install tests cover prerequisite repair on reused adapters; Harness tests cover native profile defaults, fresh credentials, failed final writes and concurrent user edits.

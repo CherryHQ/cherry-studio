@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { useCache } from '@data/hooks/useCache'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
@@ -34,18 +35,27 @@ const SNAPSHOT_MAX_ATTEMPTS = 5
 
 export interface CliVersionStatusesState {
   statuses: Record<string, VersionStatus>
-  /** False until a read settles — either successfully or at the retry cap. */
+  /** True when cached availability exists or a read settles, including the retry cap. */
   resolved: boolean
 }
 
 /** Availability and managed upgrade status for every CLI tool. */
 export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionStatusesState => {
-  const [statuses, setStatuses] = useState<Record<string, VersionStatus>>({})
-  const [resolved, setResolved] = useState(false)
+  const [cached, setCached] = useCache('code_cli.versions')
+  const [resolved, setResolved] = useState(() => toolIds.every((id) => !!cached[id]))
   const [availabilityRevision, setAvailabilityRevision] = useState(0)
-  const latestRef = useRef<Record<string, string | undefined>>({})
+  const latestRef = useRef<Record<string, string | undefined>>(
+    Object.fromEntries(Object.entries(cached).map(([id, entry]) => [id, entry.latest]))
+  )
   const toolKey = toolIds.join('|')
   const tools = useMemo(() => (toolKey ? (toolKey.split('|') as CodeCli[]) : []), [toolKey])
+  const statuses = useMemo(
+    () =>
+      Object.fromEntries(
+        tools.flatMap((id) => (cached[id] ? [[id, buildStatus(cached[id].snapshot, cached[id].latest)]] : []))
+      ),
+    [cached, tools]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -100,14 +110,14 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
       }
       if (cancelled) return
 
-      const next: Record<string, VersionStatus> = {}
+      const next: typeof cached = {}
       for (const toolId of tools) {
         const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
         const latest = latestVersions[binaryName] ?? latestRef.current[toolId]
         latestRef.current[toolId] = latest
-        next[toolId] = buildStatus(snapshots[binaryName], latest)
+        next[toolId] = { snapshot: snapshots[binaryName], latest }
       }
-      setStatuses(next)
+      setCached((previous) => ({ ...previous, ...next }))
       setResolved(true)
     }
 
@@ -116,7 +126,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
       cancelled = true
       if (retryTimer) clearTimeout(retryTimer)
     }
-  }, [availabilityRevision, toolKey, tools])
+  }, [availabilityRevision, toolKey, tools, setCached])
 
   useIpcOn('binary.availability_changed', () => {
     setAvailabilityRevision((revision) => revision + 1)

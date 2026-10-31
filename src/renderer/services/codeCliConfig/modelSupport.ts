@@ -54,6 +54,7 @@ const filterGeminiProviders = (providers: Provider[]): Provider[] =>
  * - Qoder CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (providers: Provider[]) => Provider[]> = {
+  poolside: (providers) => providers.filter(hasChat),
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
   [CodeCli.OPENAI_CODEX]: (providers) => providers.filter(hasResponses),
   [CodeCli.OPEN_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
@@ -94,6 +95,8 @@ function hasAnyModelEndpoint(model: Model, endpoints: string[]): boolean {
 
 export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, model: Model): boolean {
   switch (cliTool) {
+    case 'poolside':
+      return hasModelEndpoint(model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     case CodeCli.CLAUDE_CODE:
       return hasModelEndpoint(model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     case CodeCli.OPENAI_CODEX:

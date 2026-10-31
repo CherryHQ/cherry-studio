@@ -24,6 +24,8 @@ import { app as electronApp } from 'electron'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
+import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { AgentSessionCostSnapshotSchema } from '@shared/ai/agentSessionCost'
 import {
@@ -35,6 +37,7 @@ import {
 import type { LocalAcpTool } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeUserInput, AgentSessionUsageCapture } from '../types'
+import { acpError } from './acpError'
 import { registerCursorExtension } from './cursorExtension'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
@@ -56,6 +59,8 @@ type Terminal = {
 }
 
 export class AcpConnection extends LocalConnection {
+  private defaultModel?: string
+  private stderr = ''
   private promptCapabilities: PromptCapabilities = {}
   private messageId?: string
   readonly usageCapture: AgentSessionUsageCapture = {
@@ -83,8 +88,23 @@ export class AcpConnection extends LocalConnection {
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
+  async authenticate(methodId: string): Promise<void> {
+    const method = this.localSessionInfo.protocolInfo?.authMethods?.find((method) => method.id === methodId)
+    if (!this.connection || !method) throw new Error('Unsupported authentication method')
+    if (method.type !== 'agent') throw new Error('This authentication method requires external setup')
+    await this.connection.agent.request('authenticate', { methodId })
+  }
+
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
-    const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
+    try {
+      return await this.startConnection(cwd, resume, probe)
+    } catch (error) {
+      throw acpError(error, this.stderr)
+    }
+  }
+  private async startConnection(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
+    const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, probe === 'models' ? 'models' : false)
+    this.defaultModel = this.config.nativeModel ?? launch.nativeModel
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
       cwd,
@@ -92,8 +112,13 @@ export class AcpConnection extends LocalConnection {
       detached: process.platform !== 'win32'
     })
     this.process = child
-    child.stderr?.resume()
-    child.on('error', (error) => this.finish(error))
+    child.stderr?.setEncoding('utf8').on('data', (data: string) => {
+      this.stderr = (this.stderr + data).slice(-4000)
+    })
+    child.on('error', (error) => {
+      this.connection?.close(error)
+      this.finish(error)
+    })
     child.on('exit', () => {
       this.connection?.close(new Error('Local agent process exited'))
       this.finish(new Error('Local agent process exited'))
@@ -261,9 +286,21 @@ export class AcpConnection extends LocalConnection {
           throw new Error('Terminal execution denied')
         }
         const terminalId = randomUUID()
+        const terminalCwd = params.cwd ?? cwd
+        const env = { ...launch.env, ...Object.fromEntries((params.env ?? []).map((e) => [e.name, e.value])) }
+        const shell =
+          params.args === undefined &&
+          /\s/.test(params.command) &&
+          !(await fs.access(path.resolve(terminalCwd, params.command)).then(
+            () => true,
+            () => false
+          )) &&
+          !(await findExecutableInEnv(params.command, { env, signal }))
+        signal.throwIfAborted()
         const proc = crossPlatformSpawn(params.command, params.args ?? [], {
-          cwd: params.cwd ?? cwd,
-          env: { ...launch.env, ...Object.fromEntries((params.env ?? []).map((e) => [e.name, e.value])) },
+          cwd: terminalCwd,
+          env,
+          shell,
           detached: process.platform !== 'win32'
         })
         const terminal: Terminal = {
@@ -272,7 +309,10 @@ export class AcpConnection extends LocalConnection {
           truncated: false,
           exited: new Promise((resolve) => {
             proc.once('close', (code, signal) => resolve({ exitCode: code ?? undefined, signal: signal ?? undefined }))
-            proc.once('error', () => resolve({ exitCode: 1 }))
+            proc.once('error', (error) => {
+              receive(error.message)
+              resolve({ exitCode: 1 })
+            })
           })
         }
         const limit = Math.min(params.outputByteLimit ?? 1024 * 1024, 1024 * 1024)
@@ -362,6 +402,11 @@ export class AcpConnection extends LocalConnection {
           }
         : undefined,
       capabilities: response.agentCapabilities ?? {},
+      authMethods: (response.authMethods ?? []).map((method) => ({
+        id: method.id,
+        name: method.name,
+        type: ('type' in method && method.type === 'terminal') || method._meta?.['terminal-auth'] ? 'terminal' : 'agent'
+      })),
       verified: ['handshake']
     }
     logger.info('ACP handshake completed', {
@@ -402,23 +447,28 @@ export class AcpConnection extends LocalConnection {
       for (const pending of this.pendingUpdates.splice(0)) {
         if (pending.sessionId === this.nativeId) this.update(pending.update)
       }
-      if (this.config.nativeModel && this.localSessionInfo.activeModel?.id !== this.config.nativeModel) {
+      if (this.defaultModel && this.localSessionInfo.activeModel?.id !== this.defaultModel) {
+        if (
+          this.localSessionInfo.models?.length &&
+          !this.localSessionInfo.models.some((model) => model.id === this.defaultModel)
+        )
+          throw new Error(t('local_agent.model_unavailable', { model: this.defaultModel }))
         if (this.modelConfigId) {
           const updated = await this.connection.agent.request<SetSessionConfigOptionResponse>(
             'session/set_config_option',
             {
               sessionId: this.nativeId,
               configId: this.modelConfigId,
-              value: this.config.nativeModel
+              value: this.defaultModel
             }
           )
           this.readConfigOptions(updated.configOptions)
         } else if (this.legacyModels) {
           await this.connection.agent.request('session/set_model', {
             sessionId: this.nativeId,
-            modelId: this.config.nativeModel
+            modelId: this.defaultModel
           })
-          this.localSessionInfo.activeModel = { id: this.config.nativeModel }
+          this.localSessionInfo.activeModel = { id: this.defaultModel }
         } else throw new Error('This agent does not support model selection')
       }
       this.localSessionInfo.protocolInfo.verified.push('session')
@@ -769,7 +819,7 @@ export class AcpConnection extends LocalConnection {
       }
     }
     this.clearCompaction()
-    super.finish(error, finishReason)
+    super.finish(acpError(error, this.stderr), finishReason)
   }
   protected override dispose() {
     this.clearCompaction()

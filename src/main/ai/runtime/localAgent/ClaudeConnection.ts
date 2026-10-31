@@ -104,6 +104,8 @@ export class ClaudeConnection extends LocalConnection {
     this.begin()
     this.query = stream
     let finishReason: FinishReason = 'stop'
+    let completed = false
+    let failure: unknown
     const adapter = new ClaudeCodeStreamAdapter({
       sessionId: this.sessionId,
       streamOptions: { prompt: [] },
@@ -139,18 +141,19 @@ export class ClaudeConnection extends LocalConnection {
         if (message.type === 'assistant' && !message.parent_tool_use_id)
           this.localSessionInfo.activeModel = { id: message.message.model }
         if (adapter.handleMessage(message).type === 'result') {
-          this.finish(undefined, finishReason)
+          completed = true
           break
         }
       }
-      if (this.active) throw new Error('Claude exited before completing the turn')
+      if (!completed) throw new Error('Claude exited before completing the turn')
     } catch (error) {
       adapter.finalizeOpenTextParts()
-      this.finish(error)
+      failure = error
     } finally {
       messages.close()
       stream.close()
       if (this.query === stream) this.query = undefined
+      this.finish(failure, finishReason)
     }
   }
   protected async stop() {

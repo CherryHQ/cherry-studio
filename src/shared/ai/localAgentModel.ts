@@ -16,5 +16,6 @@ export const LOCAL_AGENT_MODEL_CONFIG: Readonly<Record<string, { tool: ModelConf
     kilo: { tool: 'kilo', target: 'kilo-config' },
     copilot: { tool: CodeCli.GITHUB_COPILOT_CLI, target: 'copilot-settings' },
     'factory-droid': { tool: 'factory-droid', target: 'factory-settings' },
-    'mistral-vibe': { tool: 'mistral-vibe', target: 'vibe-config' }
+    'mistral-vibe': { tool: 'mistral-vibe', target: 'vibe-config' },
+    poolside: { tool: 'poolside', target: 'poolside-settings' }
   }

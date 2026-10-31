@@ -65,7 +65,15 @@ vi.mock('@main/utils/shellEnv', () => ({
 }))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async (name: string) =>
-    name === 'bun' ? (state.runtimeAvailable ? '/user/bin/bun' : null) : state.manager || null
+    name === 'bun'
+      ? state.runtimeAvailable || fs.existsSync(path.join(state.root, 'bun'))
+        ? '/user/bin/bun'
+        : null
+      : name === 'amp'
+        ? fs.existsSync(path.join(state.root, 'amp'))
+          ? path.join(state.root, 'amp')
+          : null
+        : state.manager || null
 }))
 
 describe('local agent system installation', () => {
@@ -98,7 +106,13 @@ fs.appendFileSync(root + '/sources', (process.env.NPM_CONFIG_REGISTRY || process
 if (process.env.FAIL_MIRROR && (process.env.NPM_CONFIG_REGISTRY || process.env.UV_DEFAULT_INDEX)) process.exit(1);
 fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
 if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/' + process.env.INSTALL_NAME); fs.rmSync(root + '/' + process.argv[4], {recursive:true}); }
-else if (process.env.INSTALL_EXIT === '0') fs.writeFileSync(root + '/' + process.env.INSTALL_NAME, 'installed');
+else if (process.env.INSTALL_EXIT === '0') {
+fs.writeFileSync(root + '/' + process.env.INSTALL_NAME, 'installed');
+for (const name of ['bun', '@ampcode/cli']) if (process.argv.includes(name)) fs.writeFileSync(root + '/' + (name === 'bun' ? 'bun' : 'amp'), 'installed');
+for (const name of ['@langchain/anthropic', '@langchain/openai']) if (process.argv.includes(name)) {
+const directory = root + '/node_modules/' + name; fs.mkdirSync(directory, {recursive:true}); fs.writeFileSync(directory + '/package.json', '{}'); fs.writeFileSync(directory + '/index.js', 'module.exports = {}');
+}
+}
 else process.stderr.write('installation failed');
 process.exit(Number(process.env.INSTALL_EXIT)); }
 `
@@ -119,15 +133,51 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     await rm(state.root, { recursive: true, force: true })
   })
 
-  it('reports missing Bun before installing an unusable omp executable', async () => {
+  it('installs the required system Bun before omp', async () => {
     state.name = 'omp'
     state.runtimeAvailable = false
+    expect(await new LocalAgentInstallService().install('omp')).toMatchObject({ ok: true })
+    expect(
+      (await readFile(path.join(state.root, 'calls'), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+    ).toEqual([
+      ['install', '--global', 'bun'],
+      ['install', '--global', '@oh-my-pi/pi-coding-agent']
+    ])
+  })
+
+  it('requires a system package manager to install a missing runtime', async () => {
+    state.name = 'omp'
+    state.runtimeAvailable = false
+    state.manager = ''
     expect(await new LocalAgentInstallService().install('omp')).toMatchObject({
       ok: false,
       reason: 'missing_runtime',
-      manager: 'bun'
+      manager: 'npm'
     })
-    await expect(readFile(path.join(state.root, 'calls'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+  })
+
+  it('repairs a reused Amp adapter by installing its missing native CLI', async () => {
+    state.name = 'amp-acp'
+    await writeFile(path.join(state.root, state.name), 'adapter')
+    expect(await new LocalAgentInstallService().install('amp-acp')).toMatchObject({ ok: true, reused: true })
+    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe('["install","--global","@ampcode/cli"]\n')
+    expect(fs.existsSync(path.join(state.root, 'amp'))).toBe(true)
+  })
+
+  it('repairs missing DeepAgents model providers without reinstalling the adapter', async () => {
+    state.name = 'deepagents-acp'
+    await writeFile(path.join(state.root, state.name), 'adapter')
+    const service = new LocalAgentInstallService()
+    expect(await service.install('deepagents')).toMatchObject({ ok: true, reused: true })
+    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe(
+      '["install","--global","@langchain/anthropic","@langchain/openai"]\n'
+    )
+    expect(await service.install('deepagents')).toMatchObject({ ok: true, reused: true })
+    expect((await readFile(path.join(state.root, 'calls'), 'utf8')).trim().split('\n')).toHaveLength(1)
   })
 
   it.each([

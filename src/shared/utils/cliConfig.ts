@@ -44,14 +44,11 @@ export const CLI_CONFIG_TARGET_IDS = [
   'cortex-settings',
   'cortex-mcp',
   'cortex-permissions',
-  'stakpak-config',
   'cline-settings',
   'cline-providers',
   'cline-mcp',
   'antigravity-settings',
   'trae-config',
-  'fast-agent-config',
-  'vtcode-config',
   'poolside-settings'
 ] as const
 
@@ -72,6 +69,7 @@ export const QWEN_CONFIG_PATH = '~/.qwen/settings.json'
 export const KIMI_CONFIG_PATH = '~/.kimi-code/config.toml'
 export const PI_MODELS_PATH = '~/.pi/agent/models.json'
 export const PI_SETTINGS_PATH = '~/.pi/agent/settings.json'
+export const POOLSIDE_GATEWAY_SERVER = 'cherry-poolside'
 
 // Unlike the `~/…` paths above, these are relative to the runtime-resolved Hermes
 // home (HERMES_HOME or platform default) — see `pathBase: 'hermes-home'` below.
@@ -109,7 +107,6 @@ export const CLI_CONFIG_FILE_SPECS: Record<
     path: '~/.snowflake/cortex/permissions.json',
     language: 'json'
   },
-  'stakpak-config': { label: 'Stakpak config.toml', path: '~/.stakpak/config.toml', language: 'toml' },
   'cline-settings': {
     label: 'Cline global-settings.json',
     path: '~/.cline/data/settings/global-settings.json',
@@ -127,8 +124,6 @@ export const CLI_CONFIG_FILE_SPECS: Record<
     language: 'json'
   },
   'trae-config': { label: 'Trae trae_cli.yaml', path: '~/.config/trae_cli/trae_cli.yaml', language: 'yaml' },
-  'fast-agent-config': { label: 'fast-agent.yaml', path: '~/.fast-agent/fast-agent.yaml', language: 'yaml' },
-  'vtcode-config': { label: 'VT Code vtcode.toml', path: '~/.config/vtcode/vtcode.toml', language: 'toml' },
   'poolside-settings': { label: 'Poolside settings.yaml', path: '~/.config/poolside/settings.yaml', language: 'yaml' },
   'claude-settings': { label: 'Claude settings.json', path: CLAUDE_SETTINGS_PATH, language: 'json' },
   'codex-config': { label: 'Codex config.toml', path: CODEX_CONFIG_PATH, language: 'toml' },
@@ -164,7 +159,8 @@ export const MODEL_CONFIGURED_CLI_TOOL_IDS = [
   CodeCli.GITHUB_COPILOT_CLI,
   'kilo',
   'factory-droid',
-  'mistral-vibe'
+  'mistral-vibe',
+  'poolside'
 ] as const
 
 export type ModelConfiguredCli = (typeof MODEL_CONFIGURED_CLI_TOOL_IDS)[number]
@@ -181,13 +177,9 @@ export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   'amp-acp',
   'grok-build',
   'cortex-code',
-  'stakpak',
   'cline',
   CodeCli.ANTIGRAVITY_CLI,
-  'trae',
-  'fast-agent',
-  'vtcode',
-  'poolside'
+  'trae'
 ] as const
 
 export type FileConfiguredCli = (typeof FILE_CONFIGURED_CLI_TOOL_IDS)[number]
@@ -213,12 +205,9 @@ const CLI_CONFIG_TARGETS: Record<FileConfiguredCli, readonly CliConfigTarget[]> 
   'amp-acp': ['amp-settings'],
   'grok-build': ['grok-config'],
   'cortex-code': ['cortex-settings', 'cortex-mcp', 'cortex-permissions'],
-  stakpak: ['stakpak-config'],
   cline: ['cline-settings', 'cline-providers', 'cline-mcp'],
   [CodeCli.ANTIGRAVITY_CLI]: ['antigravity-settings'],
   trae: ['trae-config'],
-  'fast-agent': ['fast-agent-config'],
-  vtcode: ['vtcode-config'],
   poolside: ['poolside-settings'],
   [CodeCli.CLAUDE_CODE]: ['claude-settings'],
   [CodeCli.OPENAI_CODEX]: ['codex-config', 'codex-auth'],

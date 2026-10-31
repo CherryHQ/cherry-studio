@@ -164,6 +164,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     return
   }
   if (method === 'initialize') {
+    if (scenario === 'startup-error') {
+      process.stderr.write('Missing native backend; API_KEY=fixture-secret')
+      process.exit(1)
+    }
     if (scenario.startsWith('compaction') && !message.params.clientCapabilities?.session?.compaction)
       return emit({ id, error: { code: -32602, message: 'Compaction capability required' } })
     if (scenario === 'config-extra' && !message.params.clientCapabilities?.session?.configOptions?.boolean)
@@ -191,10 +195,35 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                 ...(scenario === 'audio' ? { audio: true } : {}),
                 ...(scenario === 'embedded-files' ? { embeddedContext: true } : {})
               }
-            }
+            },
+            authMethods: scenario.startsWith('auth-')
+              ? [
+                  {
+                    id: 'oauth-personal',
+                    name: 'Google',
+                    ...(scenario === 'auth-terminal' ? { type: 'terminal', args: ['--login'] } : {}),
+                    ...(scenario === 'auth-legacy-terminal'
+                      ? { _meta: { 'terminal-auth': { command: 'fixture' } } }
+                      : {})
+                  }
+                ]
+              : []
           }
         : { userAgent: 'fixture' }
     )
+  } else if (method === 'authenticate') {
+    if (scenario === 'auth-pending') return
+    if (scenario === 'auth-rejected' || scenario === 'auth-secret') {
+      return emit({
+        id,
+        error: {
+          code: -32000,
+          message:
+            scenario === 'auth-secret' ? `Rejected ${process.env.GEMINI_API_KEY}` : 'not available in your location'
+        }
+      })
+    }
+    reply(id, {})
   } else if (method === 'session/new' || method === 'session/load' || method === 'session/resume') {
     if (method === 'session/resume' && scenario === 'resume-error') {
       return emit({ id, error: { code: -32603, message: 'Native session was not found' } })
@@ -397,6 +426,15 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })
     promptId = id
     turn++
+    if (scenario === 'error-details')
+      return emit({
+        id,
+        error: {
+          code: -32603,
+          message: 'Internal error',
+          data: { details: 'No model selected; API_KEY=private-fixture-secret' }
+        }
+      })
     if (scenario.startsWith('request-cancel:')) {
       void (async () => {
         const kind = scenario.split(':')[1]
@@ -478,8 +516,23 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                 : 'process.stdout.write("prefix你好🌸")'
         const created = await requestClient('terminal/create', {
           sessionId: 'native-session',
-          command: process.execPath,
-          args: ['-e', script],
+          command:
+            scenario === 'terminal-command'
+              ? `"${process.execPath}" -e 'process.stdout.write("command result")'`
+              : scenario === 'terminal-missing'
+                ? 'missing-fixture-executable'
+                : scenario === 'terminal-path'
+                  ? `${cwd}/node with spaces`
+                  : process.execPath,
+          ...(scenario === 'terminal-command' || scenario === 'terminal-missing'
+            ? {}
+            : {
+                args: [
+                  '-e',
+                  scenario === 'terminal-literal' ? 'process.stdout.write(process.argv[1])' : script,
+                  ...(scenario === 'terminal-literal' ? ['literal ; echo injected'] : [])
+                ]
+              }),
           outputByteLimit: scenario.startsWith('terminal-limit:') ? Number(scenario.split(':')[1]) : 1024
         })
         const terminalId = created.result.terminalId

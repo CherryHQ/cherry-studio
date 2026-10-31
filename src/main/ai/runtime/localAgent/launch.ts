@@ -2,7 +2,10 @@ import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { parseDocument } from 'yaml'
+
 import { application } from '@application'
+import { t } from '@main/i18n'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { mergeEnvironment } from '@main/utils/env'
@@ -16,6 +19,7 @@ import {
 } from '@shared/ai/localAgent'
 import type { InputFor } from '@shared/ipc/types'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
+import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
 import { readInstalledPackageVersion } from './installedVersion'
 
@@ -87,7 +91,12 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   )
 }
 
-export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, signal?: AbortSignal, terminal = false) {
+export async function resolveLocalAgentLaunch(
+  config: LocalAgentConfiguration,
+  signal?: AbortSignal,
+  mode: boolean | 'models' = false
+) {
+  const terminal = mode === true
   const definition = LOCAL_AGENT_PRESETS.find((p) => p.id === config.presetId)
   const preset =
     terminal && definition?.terminalExecutable
@@ -125,8 +134,31 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
   const env =
     source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
   appendBundledGitPathTail(env)
+  let nativeModel: string | undefined
+  if (config.presetId === 'poolside' && !terminal) {
+    const [file] = await application.get('CodeCliService').readConfigFiles(['poolside-settings'])
+    if (file.content !== null) {
+      const document = parseDocument(file.content)
+      if (document.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+      const server =
+        mode !== 'models' && document.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER
+          ? POOLSIDE_GATEWAY_SERVER
+          : 'Poolside'
+      const model = document.getIn(['agent_servers', server, 'default_config_options', 'model'])
+      if (typeof model === 'string') nativeModel = model
+      if (server === POOLSIDE_GATEWAY_SERVER) {
+        for (const key of ['POOLSIDE_API_KEY', 'POOLSIDE_STANDALONE_BASE_URL', 'POOLSIDE_STANDALONE_MODEL']) {
+          const value = document.getIn(['agent_servers', POOLSIDE_GATEWAY_SERVER, 'env', key])
+          if (typeof value !== 'string' || !value)
+            throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+          env[key] = value
+        }
+      }
+    }
+  }
   return {
     executable,
+    ...(nativeModel ? { nativeModel } : {}),
     source,
     args: config.args.length
       ? config.args
@@ -138,6 +170,8 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
 export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.open_terminal'>) {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
   if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
+  const args = config.login ? preset.loginArgs : preset.terminalArgs
+  if (!args) throw new Error('This agent does not have a supported terminal login command')
   const launch = await resolveLocalAgentLaunch(config, undefined, true)
   const envKeys = new Set(['PATH', ...Object.keys(mergeEnvironment(preset.env, config.env))])
   const env = Object.fromEntries(
@@ -147,7 +181,7 @@ export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.o
   )
   return application.get('CodeCliService').openTerminal({
     executable: launch.executable,
-    args: preset.terminalArgs,
+    args,
     env,
     usesCherryExecutionEnv: launch.source !== 'system',
     directory: config.directory,

@@ -11,6 +11,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from '../types'
+import { acpError } from './acpError'
 import { resolveLocalAgentLaunch } from './launch'
 
 async function connection(sessionId: string, agentId: string, config: LocalAgentConfiguration) {
@@ -70,7 +71,8 @@ export async function listLocalAgentModels(config: LocalAgentConfiguration): Pro
     await startWithTimeout(live, application.getPath('cherry.bin'), undefined, 'models')
     return {
       models: live.localSessionInfo.models,
-      activeModel: live.localSessionInfo.activeModel
+      activeModel: live.localSessionInfo.activeModel,
+      authMethods: live.localSessionInfo.protocolInfo?.authMethods
     }
   } finally {
     await live.close()
@@ -127,6 +129,8 @@ async function startWithTimeout(
         timer = setTimeout(() => reject(new Error('Local agent connection timed out')), 30000)
       })
     ])
+  } catch (error) {
+    throw acpError(error)
   } finally {
     clearTimeout(timer)
   }

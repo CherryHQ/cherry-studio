@@ -54,6 +54,70 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('local agent settings navigation', () => {
+  it('keeps sign-in as an action when a background model refresh proves session readiness', async () => {
+    navigation.search = { id: 'opencode' }
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'opencode', path: '/test/opencode' }] as never
+      if (route === 'ai.local_agents.models')
+        return {
+          models: [{ id: 'opencode/model', name: 'Native test model' }],
+          authMethods: [{ id: 'opencode-login', name: 'Login with opencode', type: 'agent' }]
+        } as never
+      if (route === 'ai.local_agents.auth_status') return 'unsupported'
+      return { ok: true, protocolInfo: { authMethods: [] } } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '会话就绪' })).not.toBeInTheDocument()
+  })
+
+  it('saves sign-in credentials without overwriting the model or enablement from an earlier configuration', async () => {
+    navigation.search = { id: 'antigravity-acp' }
+    const agent = {
+      id: 'test-local',
+      name: 'Google Antigravity',
+      type: 'local' as const,
+      model: null,
+      modelName: null,
+      orderKey: 'a0',
+      createdAt: '',
+      updatedAt: '',
+      configuration: {
+        localRuntime: {
+          protocol: 'acp' as const,
+          presetId: 'antigravity-acp',
+          enabled: true,
+          nativeModel: 'existing-model',
+          args: [],
+          env: { KEEP: 'value' }
+        }
+      }
+    }
+    MockUseDataApiUtils.mockQueryData('/agents', { items: [agent], total: 1, page: 1 })
+    const update = vi.fn().mockResolvedValue(agent)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', update)
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'antigravity-acp', path: '/test/agent' }] as never
+      if (route === 'ai.local_agents.auth_status') return 'unsupported'
+      return {
+        models: [],
+        authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }]
+      } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    await userEvent.type(screen.getByLabelText('API 密钥'), 'new-test-key')
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '登录' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(update).toHaveBeenCalledWith({
+      params: { agentId: agent.id },
+      body: {
+        name: undefined,
+        configuration: { localRuntime: { env: { KEEP: 'value', GEMINI_API_KEY: 'new-test-key' } } }
+      }
+    })
+  })
+
   it('keeps failed installation discovery quiet until the user explicitly retries', async () => {
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') throw new Error('discovery unavailable')
@@ -360,6 +424,9 @@ describe('local agent settings navigation', () => {
       expect(button).toBeEnabled()
     } else {
       expect(button).toBeDisabled()
+      await userEvent.hover(button.parentElement!)
+      expect(await screen.findByRole('tooltip')).toHaveTextContent('点击右侧开关启用后，即可对话。')
+      await userEvent.unhover(button.parentElement!)
     }
     await userEvent.click(button)
     const navigationCalls = vi

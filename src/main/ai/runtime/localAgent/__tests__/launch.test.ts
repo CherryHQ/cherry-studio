@@ -14,6 +14,7 @@ import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch } fr
 
 const inventory = vi.hoisted(() => ({
   openTerminal: vi.fn(),
+  readConfigFiles: vi.fn(),
   isWin: process.platform === 'win32',
   snapshots: {} as Record<string, BinaryToolSnapshot>,
   bundledGitDir: null as string | null
@@ -29,7 +30,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     BinaryManager: { getToolSnapshots: async () => inventory.snapshots },
-    CodeCliService: { openTerminal: inventory.openTerminal }
+    CodeCliService: { openTerminal: inventory.openTerminal, readConfigFiles: inventory.readConfigFiles }
   })
 })
 vi.mock('@main/utils/shellEnv', () => ({
@@ -44,6 +45,7 @@ describe('local agent installation resolution', () => {
     directory = await mkdtemp(path.join(tmpdir(), 'local launch '))
     vi.mocked(application.getPath).mockImplementation((key) => path.join(directory, key))
     inventory.openTerminal.mockReset()
+    inventory.readConfigFiles.mockReset().mockResolvedValue([{ content: null }])
     inventory.isWin = process.platform === 'win32'
     inventory.openTerminal.mockResolvedValue({ success: true })
     inventory.snapshots = {}
@@ -51,6 +53,40 @@ describe('local agent installation resolution', () => {
   })
   afterEach(async () => {
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it('uses the saved Poolside profile for ACP while leaving native terminal account handling to the CLI', async () => {
+    inventory.snapshots.pool = { name: 'pool', availability: { source: 'system', path: '/user/bin/pool' } }
+    inventory.readConfigFiles.mockResolvedValue([
+      {
+        content: `pool:
+  default_agent_server: cherry-poolside
+agent_servers:
+  Poolside:
+    default_config_options:
+      model: poolside/native-model
+  cherry-poolside:
+    default_config_options:
+      model: gateway/model
+    env:
+      POOLSIDE_API_KEY: gateway-key
+      POOLSIDE_STANDALONE_BASE_URL: http://127.0.0.1:1234/v1
+      POOLSIDE_STANDALONE_MODEL: gateway/model
+`
+      }
+    ])
+    const selected = { ...config, presetId: 'poolside', protocol: 'acp' as const }
+    const launch = await resolveLocalAgentLaunch(selected)
+    expect(launch.nativeModel).toBe('gateway/model')
+    expect(launch.env).toMatchObject({
+      POOLSIDE_API_KEY: 'gateway-key',
+      POOLSIDE_STANDALONE_BASE_URL: 'http://127.0.0.1:1234/v1'
+    })
+    const catalog = await resolveLocalAgentLaunch(selected, undefined, 'models')
+    expect(catalog.nativeModel).toBe('poolside/native-model')
+    expect(catalog.env).not.toHaveProperty('POOLSIDE_API_KEY')
+    await openLocalAgentTerminal(selected)
+    expect(inventory.openTerminal.mock.lastCall?.[0].env).not.toHaveProperty('POOLSIDE_API_KEY')
   })
 
   it('opens the installed CLI with native terminal arguments and the selected execution environment', async () => {
@@ -145,6 +181,17 @@ describe('local agent installation resolution', () => {
     expect(inventory.openTerminal).toHaveBeenCalledWith(
       expect.objectContaining({ executable: '/user/bin/pi', args: [] })
     )
+  })
+
+  it('launches the fixed Poolside login command and rejects unsupported native login requests', async () => {
+    inventory.snapshots.pool = { name: 'pool', availability: { source: 'system', path: '/user/bin/pool' } }
+    await openLocalAgentTerminal({ ...config, presetId: 'poolside', protocol: 'acp', login: true })
+    expect(inventory.openTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ executable: '/user/bin/pool', args: ['login'] })
+    )
+    inventory.openTerminal.mockClear()
+    await expect(openLocalAgentTerminal({ ...config, login: true })).rejects.toThrow('supported terminal login')
+    expect(inventory.openTerminal).not.toHaveBeenCalled()
   })
 
   it('does not open unsupported ACP adapters or silently replace a missing explicit program', async () => {
@@ -246,9 +293,6 @@ describe('local agent installation resolution', () => {
     ['glm-acp-agent', 'glm-acp-agent', []],
     ['grok-build', 'grok', ['agent', 'stdio']],
     ['cortex-code', 'cortex', ['acp', 'serve']],
-    ['fast-agent', 'fast-agent-acp', ['-x']],
-    ['stakpak', 'stakpak', ['acp']],
-    ['vtcode', 'vtcode', ['acp']],
     ['poolside', 'pool', ['acp']]
   ] as const)('launches %s through ACP using the installed binary', async (presetId, executable, args) => {
     inventory.snapshots[executable] = {
@@ -262,15 +306,15 @@ describe('local agent installation resolution', () => {
   })
 
   it('applies required protocol environment without overriding explicit user choices', async () => {
-    inventory.snapshots.vtcode = { name: 'vtcode', availability: { source: 'system', path: '/user/bin/vtcode' } }
+    inventory.snapshots.droid = { name: 'droid', availability: { source: 'system', path: '/user/bin/droid' } }
     const launch = await resolveLocalAgentLaunch({
       ...config,
-      presetId: 'vtcode',
+      presetId: 'factory-droid',
       protocol: 'acp',
-      env: { VT_ACP_ZED_ENABLED: '0' }
+      env: { DROID_DISABLE_AUTO_UPDATE: 'false' }
     })
-    expect(launch.env.VT_ACP_ENABLED).toBe('1')
-    expect(launch.env.VT_ACP_ZED_ENABLED).toBe('0')
+    expect(launch.env.FACTORY_DROID_AUTO_UPDATE_ENABLED).toBe('false')
+    expect(launch.env.DROID_DISABLE_AUTO_UPDATE).toBe('false')
   })
 
   it('does not mistake the base CLI for a separately installed ACP adapter', async () => {

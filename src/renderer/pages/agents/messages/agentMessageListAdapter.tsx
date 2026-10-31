@@ -102,6 +102,7 @@ interface AgentMessageListParams {
   streamingLayers?: MessageStreamingLayers
   assistantProfile?: MessageUserProfile
   assistantId?: string
+  providerErrorSettingsPath?: string
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -167,6 +168,7 @@ export function useAgentMessageListProviderValue({
   streamingLayers,
   assistantProfile,
   assistantId,
+  providerErrorSettingsPath,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -284,6 +286,14 @@ export function useAgentMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  const { navigateErrorTarget: navigateToErrorTarget } = errorActions
+  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
+    (target) =>
+      navigateToErrorTarget?.(
+        providerErrorSettingsPath && target.split('?')[0] === '/settings/provider' ? providerErrorSettingsPath : target
+      ),
+    [navigateToErrorTarget, providerErrorSettingsPath]
+  )
 
   // Raw path to main, which resolves workspace-relative input against the session's workspace: the
   // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
@@ -491,6 +501,7 @@ export function useAgentMessageListProviderValue({
       deleteMessage,
       ...exportActions,
       ...errorActions,
+      navigateErrorTarget: providerErrorSettingsPath ? navigateErrorTarget : errorActions.navigateErrorTarget,
       ...pickMessageLeafActions(leafCapabilities),
       openBrowserUrl,
       openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
@@ -526,6 +537,8 @@ export function useAgentMessageListProviderValue({
       bindMessageRuntime,
       deleteMessage,
       errorActions,
+      navigateErrorTarget,
+      providerErrorSettingsPath,
       exportActions,
       headerCapabilities,
       isDirectory,

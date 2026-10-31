@@ -412,6 +412,15 @@ export const aiRequestSchemas = {
     input: z.object({ presetId: z.string().min(1), targetVersion: z.string().optional() }),
     output: LocalAgentInstallResultSchema
   }),
+  'ai.local_agents.auth_status': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: z.enum(['signed-in', 'signed-out', 'unknown', 'unsupported'])
+  }),
+  'ai.local_agents.authenticate': defineRoute({
+    input: z.strictObject({ requestId: z.uuid(), config: LocalAgentConfigurationSchema, methodId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
   'ai.local_agents.select_model': defineRoute({
     input: z.strictObject({
       agentId: z.string().min(1),
@@ -426,6 +435,7 @@ export const aiRequestSchemas = {
   'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
   'ai.local_agents.open_terminal': defineRoute({
     input: LocalAgentConfigurationSchema.extend({
+      login: z.boolean().optional(),
       directory: AbsoluteFilePathSchema.optional(),
       terminal: z.string().optional()
     }),

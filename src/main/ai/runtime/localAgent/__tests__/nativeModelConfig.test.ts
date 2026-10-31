@@ -8,6 +8,21 @@ import { application } from '@application'
 import { readNativeModelConfig, updateNativeModelConfig } from '../nativeModelConfig'
 
 describe('native model defaults', () => {
+  it('persists Poolside native defaults without replacing the saved account or other agent servers', () => {
+    const original =
+      '# keep\npool:\n  api_url: https://native.test/v1\nagent_servers:\n  other:\n    command: other-agent\n'
+    const saved = updateNativeModelConfig('poolside-settings', original, 'poolside/laguna-xs-2.1')
+    expect(readNativeModelConfig('poolside-settings', saved)).toBe('poolside/laguna-xs-2.1')
+    expect(parseYaml(saved)).toMatchObject({
+      pool: { api_url: 'https://native.test/v1', default_agent_server: 'Poolside' },
+      agent_servers: { Poolside: { command: 'pool', args: ['acp'] }, other: { command: 'other-agent' } }
+    })
+    expect(saved).toContain('# keep')
+    const cleared = updateNativeModelConfig('poolside-settings', saved)
+    expect(readNativeModelConfig('poolside-settings', cleared)).toBeUndefined()
+    expect(parseYaml(cleared).pool.api_url).toBe('https://native.test/v1')
+  })
+
   it.each(['kilo-config', 'copilot-settings'] as const)(
     'persists and clears %s without dropping JSONC settings',
     (target) => {

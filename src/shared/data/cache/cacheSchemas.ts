@@ -7,6 +7,7 @@ import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CodeBuddyWebUiStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import type { StorageHealth } from '@shared/types/storageMonitor'
@@ -170,6 +171,7 @@ export type UseCacheSchema = {
   'agent.session.waiting_id_map': Record<string, boolean>
   'agent.session.local_options': Record<string, Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>>
   'local_agent.versions': Record<string, { path: string; current?: string; latest?: string; canUpgrade: boolean }>
+  'code_cli.versions': Record<string, { snapshot?: BinaryToolSnapshot; latest?: string }>
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
@@ -267,6 +269,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'agent.session.waiting_id_map': {},
   'agent.session.local_options': {},
   'local_agent.versions': {},
+  'code_cli.versions': {},
   'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],

@@ -171,6 +171,8 @@
   "file_processing.errors.open_mineru_task_failed": "O Open MinerU não concluiu o processamento do documento (estado: {{status}}). Verifique o servidor e tente novamente.",
   "file_processing.errors.open_mineru_unreachable": "Não foi possível ligar ao Open MinerU. Verifique se o servidor está em execução e se o endereço está correto.",
   "file_processing.errors.pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente.",
+  "local_agent.configuration_required": "Configure um modelo e uma chave API no terminal do agente e tente novamente.",
+  "local_agent.model_unavailable": "O modelo selecionado «{{model}}» já não está disponível. Escolha outro modelo nos Serviços de agentes.",
   "notification.action_required.agent": "O agente precisa da sua intervenção",
   "notification.action_required.assistant": "O assistente precisa da sua intervenção",
   "notification.completion.agent": "Tarefa do agente concluída",

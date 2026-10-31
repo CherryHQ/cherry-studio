@@ -6,14 +6,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { ClaudeConnection } from '../ClaudeConnection'
 
-const sdk = vi.hoisted(() => ({ messages: [] as SDKMessage[] }))
+const sdk = vi.hoisted(() => ({
+  messages: [] as SDKMessage[],
+  returning: false,
+  returnGate: undefined as Promise<void> | undefined
+}))
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: () => ({
     supportedCommands: async () => [],
     supportedModels: async () => [],
     close() {},
     async *[Symbol.asyncIterator]() {
-      yield* sdk.messages
+      try {
+        yield* sdk.messages
+      } finally {
+        sdk.returning = true
+        await sdk.returnGate
+      }
     }
   })
 }))
@@ -64,9 +73,44 @@ async function run() {
 
 beforeEach(() => {
   sdk.messages = []
+  sdk.returning = false
+  sdk.returnGate = undefined
 })
 
 describe('native Claude protocol mapping', () => {
+  it('admits the next turn only after the previous SDK iterator has closed', async () => {
+    sdk.messages = [result()]
+    let release!: () => void
+    sdk.returnGate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const connection = new ClaudeConnection('session', 'agent', {
+      protocol: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    const events: AgentRuntimeEvent[] = []
+    const drained = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      await connection.start('/tmp')
+      const first = connection.send(input)
+      await vi.waitFor(() => expect(sdk.returning).toBe(true))
+      expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(0)
+      release()
+      await first
+      await connection.send(input)
+      await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(2))
+      expect(events.filter((event) => event.type === 'error')).toHaveLength(0)
+    } finally {
+      release()
+      await connection.close()
+      await drained
+    }
+  })
+
   it('preserves thinking and child tool ownership without stamping a provider model identity', async () => {
     sdk.messages = [
       stream({

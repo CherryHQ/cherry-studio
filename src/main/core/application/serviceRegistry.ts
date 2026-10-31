@@ -23,6 +23,7 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { LocalAgentAuthService } from '@main/ai/runtime/localAgent/LocalAgentAuthService'
 import { LocalAgentInstallService } from '@main/ai/runtime/localAgent/LocalAgentInstallService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
@@ -139,6 +140,7 @@ export const services = {
   CodeBuddyWebUiService,
   LocalAgentWebUiService,
   LocalAgentInstallService,
+  LocalAgentAuthService,
   FileManager,
   FileEditService,
   AttachmentPresenceService,

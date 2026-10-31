@@ -171,6 +171,8 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU ประมวลผลเอกสารไม่เสร็จ (สถานะ: {{status}}) ตรวจเซิร์ฟเวอร์แล้วลองใหม่",
   "file_processing.errors.open_mineru_unreachable": "เชื่อมต่อ Open MinerU ไม่ได้ ตรวจว่าเซิร์ฟเวอร์ทำงานอยู่และที่อยู่ถูกต้อง",
   "file_processing.errors.pdf_page_limit_exceeded": "PDF นี้เกินขีดจำกัด {{maxPages}} หน้าสำหรับบริการประมวลผลเอกสารปัจจุบัน โปรดแบ่ง PDF ด้วยตนเองแล้วเพิ่มใหม่อีกครั้ง",
+  "local_agent.configuration_required": "ตั้งค่าโมเดลและคีย์ API ในเทอร์มินัลของเอเจนต์ แล้วลองอีกครั้ง",
+  "local_agent.model_unavailable": "โมเดล “{{model}}” ที่เลือกไม่พร้อมใช้งานแล้ว โปรดเลือกโมเดลอื่นในบริการเอเจนต์",
   "notification.action_required.agent": "เอเจนต์ต้องการข้อมูลจากคุณ",
   "notification.action_required.assistant": "ผู้ช่วยต้องการข้อมูลจากคุณ",
   "notification.completion.agent": "งานของเอเจนต์เสร็จสมบูรณ์",
