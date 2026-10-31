@@ -1,0 +1,90 @@
+name: Synchronize website documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website-docs/content/**"
+      - "website-docs/locales.json"
+      - "website-docs/page-aliases.json"
+      - "website-docs/shadowed-baseline.json"
+  repository_dispatch:
+    types: [website-docs-changed]
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Create synchronization PRs or update the checkpoint
+        type: boolean
+        default: false
+      bootstrap:
+        description: Initialize the baseline only if both content trees are identical
+        type: boolean
+        default: false
+      resume:
+        description: Explicitly resume a direction paused by a closed PR
+        type: choice
+        options: [none, desktop, website, all]
+        default: none
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-docs-coordinator
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.WEBSITE_DOCS_SYNC_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Accept notifications without caller-selected revisions
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH));
+            if (Object.keys(event.client_payload ?? {}).length) throw new Error("Only an empty reconciliation notification is accepted");
+          '
+      - name: Create a token for both fixed repositories
+        id: app
+        if: github.event_name != 'workflow_dispatch' || inputs.apply
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.WEBSITE_DOCS_APP_ID }}
+          private-key: ${{ secrets.WEBSITE_DOCS_APP_PRIVATE_KEY }}
+          owner: CherryHQ
+          repositories: |
+            cherry-studio
+            cherry-studio-website
+          permission-contents: write
+          permission-pull-requests: write
+          permission-statuses: write
+      - name: Authenticate Git pushes through the App
+        if: steps.app.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: gh auth setup-git
+      - name: Reconcile shared content
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          DOCS_SYNC_BOT_LOGIN: ${{ steps.app.outputs.app-slug && format('{0}[bot]', steps.app.outputs.app-slug) || '' }}
+          DOCS_SYNC_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
+          DOCS_SYNC_BOOTSTRAP: ${{ inputs.bootstrap || false }}
+          DOCS_SYNC_RESUME: ${{ inputs.resume || 'none' }}
+        run: |
+          args=()
+          if [[ "$DOCS_SYNC_APPLY" == true ]]; then args+=(--apply); fi
+          if [[ "$DOCS_SYNC_BOOTSTRAP" == true ]]; then args+=(--bootstrap); fi
+          if [[ "$DOCS_SYNC_RESUME" != none ]]; then args+=(--resume "$DOCS_SYNC_RESUME"); fi
+          node scripts/websiteDocs/sync.mjs "${args[@]}"
