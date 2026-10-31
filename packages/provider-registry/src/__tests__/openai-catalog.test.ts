@@ -16,6 +16,70 @@ const loader = new RegistryLoader({
 })
 
 describe('OpenAI catalog', () => {
+  it('resolves GPT-6.1 Terra with official API pricing, limits, and reasoning', () => {
+    expect(loader.findModel('gpt-6.1-terra')).toMatchObject({
+      name: 'GPT-6.1 Terra',
+      ownedBy: 'openai',
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      capabilities: expect.arrayContaining([
+        'reasoning',
+        'function-call',
+        'image-recognition',
+        'structured-output',
+        'file-search'
+      ]),
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 1 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.05 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 1.25 },
+        output: { currency: 'USD', perMillionTokens: 5 }
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        stopSequences: false
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    })
+    expect(isServerToolModelEligible('gpt-6.1-terra', 'openai', 'web-search')).toBe(true)
+  })
+
+  it.each(['gpt-6.1-terra', 'gpt-6-1-terra', 'openai/gpt-6.1-terra'])(
+    'infers the API reasoning ladder for custom model %s',
+    (id) => {
+      expect(inferReasoningControls(id)).toEqual([
+        { kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }
+      ])
+    }
+  )
+
+  it('offers GPT-6.1 Terra on Codex with its own limits and supported wire efforts', () => {
+    expect(loader.findOverride('openai-codex', 'gpt-6.1-terra')).toMatchObject({
+      apiModelId: 'gpt-6.1-terra',
+      endpointTypes: ['openai-responses'],
+      limits: { contextWindow: 500000, maxInputTokens: 372000 },
+      supportsFastMode: true,
+      reasoningContracts: {
+        'openai-responses': {
+          support: {
+            controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'low' }],
+            defaultEffort: 'low'
+          }
+        }
+      }
+    })
+  })
+
   it.each(['gpt-image-2-5-flare', 'gpt-image-2-5-sunburst'])(
     'offers only generate quality and size for %s within the API limits',
     (id) => {
@@ -193,6 +257,7 @@ describe('OpenAI catalog', () => {
   )
 
   it.each([
+    ['gpt-6-1-terra', 2, 0.1, 2.5, 7.5],
     ['gpt-6-1-sol', 4, 0.2, 5, 15],
     ['gpt-6-sol', 4, 0.4, 5, 15],
     ['gpt-6-luna', 0.2, 0.02, 0.25, 0.75]

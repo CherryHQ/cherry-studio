@@ -12,7 +12,9 @@ const CATALOG_DIRECTORIES = ['src/renderer/i18n/locales', 'src/main/i18n/locales
 const ALLOWED_EMPTY_SOURCE_KEYS = new Set(['src/renderer/i18n/locales:settings.provider.oauth.provided_by_suffix'])
 
 const interpolations = (text: string) => (text.match(/{{[^}]*}}/g) ?? []).sort()
-const tagPlaceholders = (text: string) => (text.match(/<\/?[\w-]+\s*\/?>/g) ?? []).sort()
+// The name stays [\w-]+ so numeric Trans tags like <0> are still compared; [^>]* keeps
+// attribute-bearing tags like <a href="..."> in the comparison too.
+const tagPlaceholders = (text: string) => (text.match(/<\/?[\w-]+(?:\s[^>]*)?\/?>/g) ?? []).sort()
 const nestedKeys = (text: string) => (text.match(/\$t\([^)]*\)/g) ?? []).sort()
 
 /** Case and separators vary legitimately: "Github", "Cherry-Studio-Diagnose". Spelling does not. */

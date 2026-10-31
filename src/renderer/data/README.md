@@ -54,7 +54,7 @@ of `useMutation`.
 ```tsx
 const { data } = useQuery('/mcp-servers')
 const { applyReorderedList } = useReorder('/mcp-servers')
-return <DraggableList items={data?.items ?? []} onReorder={applyReorderedList} />
+return <ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
 ```
 
 The full end-to-end design — database schema helpers, API endpoint composition,

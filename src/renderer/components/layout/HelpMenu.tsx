@@ -1,60 +1,47 @@
-import { BookOpen, CircleQuestionMark, FileArchive, MessageSquareText, Sparkles, Stethoscope } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import {
+  BookOpen,
+  ChevronRight,
+  CircleQuestionMark,
+  FileArchive,
+  MessageSquareText,
+  Sparkles,
+  Stethoscope
+} from 'lucide-react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { DoctorPopup } from '@renderer/components/doctor'
-import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
+import { useAccountSubmenu } from '@renderer/hooks/useAccountSubmenu'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
 
 const logger = loggerService.withContext('HelpMenu')
 
 export function HelpMenu({
-  layout,
   onFeedbackClick,
-  onOverlayOpenChange,
-  placement = 'right'
+  onRequestClose
 }: {
-  layout: SidebarVisibleLayout
   onFeedbackClick: () => void
-  onOverlayOpenChange?: (open: boolean) => void
-  placement?: 'right' | 'bottom'
+  onRequestClose?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const openReleaseNotes = useOpenReleaseNotes()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const firstActionRef = useRef<HTMLButtonElement>(null)
-  const menuOpenRef = useRef(false)
-  const onOverlayOpenChangeRef = useRef(onOverlayOpenChange)
+  const {
+    open: menuOpen,
+    onOpenChange: setMenuOpen,
+    initialFocusRef: firstActionRef,
+    triggerProps,
+    contentProps
+  } = useAccountSubmenu()
   const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null)
-  const isHeader = placement === 'bottom'
-
-  useEffect(() => {
-    onOverlayOpenChangeRef.current = onOverlayOpenChange
-  }, [onOverlayOpenChange])
-
-  useEffect(
-    () => () => {
-      if (menuOpenRef.current) {
-        onOverlayOpenChangeRef.current?.(false)
-      }
-    },
-    []
-  )
-
-  const handleMenuOpenChange = (open: boolean) => {
-    menuOpenRef.current = open
-    setMenuOpen(open)
-    onOverlayOpenChange?.(open)
-  }
 
   const runAfterClose = (action: () => void | Promise<void>) => {
     pendingActionRef.current = action
-    handleMenuOpenChange(false)
+    setMenuOpen(false)
   }
 
   const openDocs = () => {
@@ -71,64 +58,47 @@ export function HelpMenu({
     })
   }
 
-  const trigger =
-    layout === 'icon' ? (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={t('help.title')}
-        className={
-          isHeader
-            ? 'flex size-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground'
-            : 'sidebar-action size-9 rounded-full transition-colors duration-150'
-        }>
-        <CircleQuestionMark className={isHeader ? 'size-4' : 'size-4.5'} strokeWidth={isHeader ? 1.8 : 1.6} />
-      </Button>
-    ) : (
-      <Button
-        type="button"
-        variant="ghost"
-        aria-label={t('help.title')}
-        className="sidebar-action flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
-        <CircleQuestionMark size={16} strokeWidth={1.6} />
-        <span className="min-w-0 truncate">{t('help.title')}</span>
-      </Button>
-    )
+  const trigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={t('help.title')}
+      size="sm"
+      {...triggerProps}
+      className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5">
+      <CircleQuestionMark className="!text-muted-foreground size-4" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-left">{t('help.title')}</span>
+      <ChevronRight className="!text-muted-foreground size-4" aria-hidden />
+    </Button>
+  )
 
   return (
     <>
-      <Popover open={menuOpen} onOpenChange={handleMenuOpenChange}>
-        <Tooltip
-          content={t('help.title')}
-          placement={placement}
-          delay={isHeader ? 800 : 400}
-          fullWidthTrigger={layout !== 'icon'}
-          isDisabled={layout !== 'icon'}>
-          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-        </Tooltip>
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
           align="end"
-          side={placement}
+          side="right"
           sideOffset={8}
-          className="w-52 rounded-xl p-1.5"
+          className="w-52 rounded-md p-1.5"
+          {...contentProps}
           onCloseAutoFocus={(event) => {
+            contentProps.onCloseAutoFocus(event)
             const action = pendingActionRef.current
             if (!action) return
             pendingActionRef.current = null
             event.preventDefault()
             void Promise.resolve()
-              .then(action)
+              .then(() => {
+                onRequestClose?.()
+                return action()
+              })
               .catch((error) => logger.error('Failed to run help menu action', error as Error))
-          }}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-            firstActionRef.current?.focus()
           }}>
-          <MenuList>
+          <MenuList className="gap-0.5">
             <MenuItem
               size="sm"
-              className="h-8"
+              className="h-8 gap-2 rounded-md border-0 bg-transparent px-2 py-0 text-[13px] leading-5 [&_svg]:text-muted-foreground"
               ref={firstActionRef}
               icon={<Sparkles size={16} />}
               label={t('help.whats_new')}
@@ -136,14 +106,14 @@ export function HelpMenu({
             />
             <MenuItem
               size="sm"
-              className="h-8"
+              className="h-8 gap-2 rounded-md border-0 bg-transparent px-2 py-0 text-[13px] leading-5 [&_svg]:text-muted-foreground"
               icon={<BookOpen size={16} />}
               label={t('help.guide')}
               onClick={() => runAfterClose(openDocs)}
             />
             <MenuItem
               size="sm"
-              className="h-8"
+              className="h-8 gap-2 rounded-md border-0 bg-transparent px-2 py-0 text-[13px] leading-5 [&_svg]:text-muted-foreground"
               icon={<FileArchive size={16} />}
               label={t('settings.about.feedback.diagnostics.title')}
               onClick={() =>
@@ -154,14 +124,14 @@ export function HelpMenu({
             />
             <MenuItem
               size="sm"
-              className="h-8"
+              className="h-8 gap-2 rounded-md border-0 bg-transparent px-2 py-0 text-[13px] leading-5 [&_svg]:text-muted-foreground"
               icon={<MessageSquareText size={16} />}
               label={t('help.feedback')}
               onClick={() => runAfterClose(onFeedbackClick)}
             />
             <MenuItem
               size="sm"
-              className="h-8"
+              className="h-8 gap-2 rounded-md border-0 bg-transparent px-2 py-0 text-[13px] leading-5 [&_svg]:text-muted-foreground"
               icon={<Stethoscope size={16} />}
               label={t('settings.doctor.entry.title')}
               onClick={() =>

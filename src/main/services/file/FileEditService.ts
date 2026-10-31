@@ -12,12 +12,11 @@ import {
   type FileEditRead,
   type FileEditResource,
   type FileEditWrite,
-  type FileWriteOutcome
+  type FileEditWriteResult
 } from '@shared/ipc/schemas/fileEdit'
 import type { WindowId } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
 
-import { EditWriteLedger } from './edit/EditWriteLedger'
 import { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 import { runPathMutationExclusive } from './pathMutationLock'
 import { readEditSnapshot } from './utils/editSnapshot'
@@ -30,8 +29,7 @@ interface EditLease {
   resource: FileEditResource
   path: AbsoluteFilePath
   handle: FileHandle
-  ledger: EditWriteLedger
-  reads: Set<Promise<FileEditRead>>
+  pending: Set<Promise<unknown>>
   retention?: Disposable
   closing?: Promise<void>
 }
@@ -81,8 +79,7 @@ export class FileEditService extends BaseService {
         resource,
         path,
         handle: { ...handle },
-        ledger: new EditWriteLedger(),
-        reads: new Set(),
+        pending: new Set(),
         retention
       })
       return resource
@@ -101,7 +98,7 @@ export class FileEditService extends BaseService {
             await this.validateTarget(lease)
             return readEditSnapshot(lease.path)
           })
-    lease.reads.add(task)
+    lease.pending.add(task)
     try {
       const snapshot = await task
       this.require(owner, editId)
@@ -109,24 +106,16 @@ export class FileEditService extends BaseService {
     } catch (error) {
       throw this.normalize(error)
     } finally {
-      lease.reads.delete(task)
+      lease.pending.delete(task)
     }
   }
 
-  write(owner: WindowId, input: FileEditWrite): Promise<FileWriteOutcome> {
+  async write(owner: WindowId, input: FileEditWrite): Promise<FileEditWriteResult> {
     const lease = this.require(owner, input.editId)
-    const sequence = input.sequence
-    const editId = input.editId
     const data = new Uint8Array(input.data)
-    const expected = { version: { ...input.expected.version }, contentHash: input.expected.contentHash }
+    const { expected } = input
     const contentHash = hashContent(data)
-    const fingerprint = JSON.stringify([
-      expected.version.mtime,
-      expected.version.size,
-      expected.contentHash,
-      contentHash
-    ])
-    return lease.ledger.write(sequence, fingerprint, async () => {
+    const task = (async (): Promise<FileEditWriteResult> => {
       try {
         const version =
           lease.handle.kind === 'entry'
@@ -137,34 +126,22 @@ export class FileEditService extends BaseService {
                 await this.validateTarget(lease)
                 return atomicWriteIfUnchanged(lease.path, data, expected.version, expected.contentHash)
               })
-        return {
-          kind: 'committed',
-          sequence: sequence,
-          baseline: { version, contentHash },
-          metadataRecoveryPending: false
-        }
+        return { baseline: { version, contentHash }, metadataRecoveryPending: false }
       } catch (error) {
         if (error instanceof ContentCommittedMetadataPendingError) {
-          return {
-            kind: 'committed',
-            sequence: sequence,
-            baseline: { version: error.version, contentHash },
-            metadataRecoveryPending: true
-          }
+          return { baseline: { version: error.version, contentHash }, metadataRecoveryPending: true }
         }
         const failure = this.normalize(error)
-        logger.warn('File edit write did not commit', {
-          editId: editId,
-          sequence: sequence,
-          code: failure.code
-        })
-        return { kind: 'not-committed', sequence: sequence, code: failure.code }
+        logger.warn('File edit write did not commit', { editId: input.editId, code: failure.code })
+        throw failure
       }
-    })
-  }
-
-  settleWrite(owner: WindowId, editId: string, sequence: number): Promise<FileWriteOutcome> {
-    return this.require(owner, editId).ledger.settle(sequence)
+    })()
+    lease.pending.add(task)
+    try {
+      return await task
+    } finally {
+      lease.pending.delete(task)
+    }
   }
 
   async close(owner: WindowId, editId: string): Promise<void> {
@@ -172,7 +149,7 @@ export class FileEditService extends BaseService {
     if (!lease) return
     if (lease.owner !== owner) throw this.closed()
     lease.closing ??= (async () => {
-      await Promise.allSettled([...lease.reads, lease.ledger.drain()])
+      await Promise.allSettled(lease.pending)
       this.leases.delete(editId)
       lease.retention?.dispose()
     })()

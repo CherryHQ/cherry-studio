@@ -1525,6 +1525,28 @@ describe('edit dialogs', () => {
     expect(updateAgentMock).not.toHaveBeenCalled()
   })
 
+  it('cancels Full Access on authoritative editor refresh without losing other edits (inv_787184d14a5afca7)', async () => {
+    const user = userEvent.setup()
+    const agent = { ...AGENT, configuration: { ...AGENT.configuration, permission_mode: 'auto' as const } }
+    const props = { open: true, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} resource={agent} />)
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Local name' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    updateAgentMock.mockClear()
+    await user.click(screen.getByRole('combobox', { name: 'Permission mode' }))
+    await user.click(screen.getByRole('option', { name: /Full Access/ }))
+    expect(screen.getByText('Enable Full Access?')).toBeInTheDocument()
+    rerender(
+      <AgentEditDialog
+        {...props}
+        resource={{ ...agent, configuration: { ...agent.configuration, permission_mode: 'plan' } }}
+      />
+    )
+    await waitFor(() => expect(screen.queryByText('Enable Full Access?')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Avatar and name')).toHaveValue('Local name')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
   it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
     const props = { open: true, onOpenChange: vi.fn() }
     const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)

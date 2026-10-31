@@ -58,6 +58,7 @@ import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -290,22 +291,7 @@ export function Topics({
   const tabs = useOptionalTabsContext()
   const conversationNav = useConversationNavigation('assistants')
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [groupNow, setGroupNow] = useState(() => dayjs())
-
-  useEffect(() => {
-    const updateGroupNow = () => setGroupNow(dayjs())
-    const intervalId = window.setInterval(updateGroupNow, 60_000)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') updateGroupNow()
-    }
-    window.addEventListener('focus', updateGroupNow)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      window.clearInterval(intervalId)
-      window.removeEventListener('focus', updateGroupNow)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [])
+  const groupNow = useCurrentDayStart()
 
   const { notesPath } = useNotesSettings()
   const {

@@ -1,10 +1,13 @@
 import type { Page } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { MessageSchema } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { selectChatModel, sendChatMarker } from './chat'
@@ -139,6 +142,72 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
   const partialText = 'Sunlight enters a raindrop and separates into colors.'
   let page = mainWindow
   let assistantId: string | undefined
+  const diagnostics: Record<string, unknown> = { observations: [] }
+  const observations = diagnostics.observations as unknown[]
+  const observe = async (messageId: string, topicId: string) => {
+    const renderer = await page.evaluate(() => ({
+      cache: Object.fromEntries(
+        [
+          'ui.tab.normal_tabs',
+          'ui.tab.pinned_tabs',
+          'ui.tab.active_tab_id',
+          'ui.chat.last_used_topic_id',
+          'ui.chat.last_used_assistant_id'
+        ].map((key) => [key, JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')[key] ?? null])
+      ),
+      options: Array.from(document.querySelectorAll<HTMLElement>('[data-ui~="chat.view"] [role="option"]'))
+        .filter((element) => element.checkVisibility())
+        .map((element) => ({
+          id: element.id,
+          selected: element.getAttribute('aria-selected'),
+          text: element.innerText
+        })),
+      visibleMessageIds: Array.from(
+        document.querySelectorAll<HTMLElement>('[data-ui~="chat.message"][data-message-id]')
+      )
+        .filter((element) => element.checkVisibility())
+        .map((element) => element.dataset.messageId),
+      busyHistory: Array.from(document.querySelectorAll<HTMLElement>('[aria-busy="true"]')).map((element) => ({
+        id: element.id,
+        ui: element.getAttribute('data-ui'),
+        visible: element.checkVisibility()
+      }))
+    }))
+    const row = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
+    const rows = await row.evaluateAll((elements) =>
+      elements.map((element) => ({
+        visible: element.checkVisibility(),
+        innerText: (element as HTMLElement).innerText,
+        textContent: element.textContent
+      }))
+    )
+    const branch = await page.evaluate(
+      (topicId) =>
+        window.api.dataApi.request({
+          id: 'stream-failure-branch-diagnostic',
+          method: 'GET',
+          path: `/topics/${topicId}/messages`,
+          params: { includeSiblings: true }
+        }),
+      topicId
+    )
+    const membership = (branch.data as BranchMessagesResponse | undefined)?.items.map((entry) => ({
+      primaryId: entry.message.id,
+      isPrimary: entry.message.id === messageId,
+      siblingIds: entry.siblingsGroup?.map((message) => message.id) ?? [],
+      isSibling: entry.siblingsGroup?.some((message) => message.id === messageId) ?? false
+    }))
+    return {
+      timestamp: new Date().toISOString(),
+      ...renderer,
+      rows,
+      rowCount: rows.length,
+      rowExactTextCount: await row.getByText(partialText, { exact: true }).count(),
+      exactTextCount: await page.getByText(partialText, { exact: true }).count(),
+      branch,
+      membership
+    }
+  }
   const namingEnabled = await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))
 
   try {
@@ -225,6 +294,7 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     if (!messageId) throw new Error('Streaming response has no message ID')
 
     // Disconnect only after the renderer has consumed the text, without a finish chunk or [DONE].
+    let topicId = ''
     request.disconnect()
     await expect
       .poll(async () => {
@@ -233,7 +303,9 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
           messageId
         )
         expect(stored.status).toBe(200)
-        return MessageSchema.parse(stored.data)
+        const message = MessageSchema.parse(stored.data)
+        topicId = message.topicId
+        return message
       })
       .toMatchObject({
         id: messageId,
@@ -248,15 +320,86 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     await expect(page.locator('[data-ui~="chat.composer.action.pause"]')).toBeHidden()
     await expect(response.getByText(partialText, { exact: true })).toBeVisible()
 
+    await expect
+      .poll(
+        async () => {
+          const cache = (await page.evaluate(() => JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}'))) as {
+            'ui.tab.normal_tabs'?: { url: string; isDormant?: boolean }[]
+            'ui.chat.last_used_topic_id'?: string | null
+          }
+          const tabs = cache['ui.tab.normal_tabs'] ?? []
+          const lastUsedTopicId = cache['ui.chat.last_used_topic_id'] ?? null
+          return lastUsedTopicId === topicId &&
+            tabs.some((tab) => !tab.isDormant && tab.url.includes(`topicId=${topicId}`))
+            ? 'ready'
+            : JSON.stringify({ 'ui.chat.last_used_topic_id': lastUsedTopicId, tabUrls: tabs.map((tab) => tab.url) })
+        },
+        {
+          timeout: 5_000,
+          intervals: [100],
+          message: `C-03 serialized conversation selection did not catch up to topic ${topicId} before restart`
+        }
+      )
+      .toBe('ready')
+
+    const beforeRestart = await page
+      .evaluate(
+        (id) =>
+          window.api.dataApi.request({ id: 'stream-failure-before-restart', method: 'GET', path: `/messages/${id}` }),
+        messageId
+      )
+      .catch((error) => ({ status: 0, data: undefined, error: String(error) }))
+    diagnostics.beforeRestartMessage = beforeRestart
+    diagnostics.identity = { messageId, topicId, assistantId }
+    diagnostics.beforeRestart = await observe(messageId, topicId).catch((error) => ({ error: String(error) }))
+
     page = await app.restart('authenticated')
+    let stored: typeof beforeRestart
+    try {
+      stored = await page.evaluate(
+        (id) => window.api.dataApi.request({ id: 'stream-failure-reloaded', method: 'GET', path: `/messages/${id}` }),
+        messageId
+      )
+      diagnostics.afterRestartMessage = stored
+    } catch (error) {
+      diagnostics.afterRestartMessage = { error: String(error) }
+      throw error
+    }
     await dismissOnboarding(page)
     await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
     const restored = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]:visible`)
-    await expect(restored.getByText(partialText, { exact: true })).toBeVisible()
-    const stored = await page.evaluate(
-      (id) => window.api.dataApi.request({ id: 'stream-failure-reloaded', method: 'GET', path: `/messages/${id}` }),
-      messageId
-    )
+    let stopObserving!: () => void
+    const stopped = new Promise<void>((resolve) => {
+      stopObserving = resolve
+    })
+    const observationDeadline = Date.now() + 30_000
+    const observationLoop = (async () => {
+      while (Date.now() < observationDeadline) {
+        const observation = await Promise.race([
+          observe(messageId, topicId).catch((error) => ({ timestamp: new Date().toISOString(), error: String(error) })),
+          stopped
+        ])
+        if (!observation) break
+        observations.push(observation)
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, 250)
+          }),
+          stopped
+        ])
+        clearTimeout(timer)
+        if (Date.now() >= observationDeadline) break
+      }
+    })()
+    try {
+      await expect(restored.getByText(partialText, { exact: true })).toBeVisible({
+        timeout: Math.max(1, observationDeadline - Date.now())
+      })
+    } finally {
+      stopObserving()
+      await observationLoop
+    }
     expect(stored.status).toBe(200)
     expect(MessageSchema.parse(stored.data)).toMatchObject({
       id: messageId,
@@ -290,6 +433,25 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       body: await page.screenshot(),
       contentType: 'image/png'
     })
+  } catch (error) {
+    diagnostics.failure = String(error)
+    try {
+      await testInfo.attach('C-03 restart diagnostics', {
+        body: JSON.stringify(diagnostics, null, 2),
+        contentType: 'application/json'
+      })
+    } catch {
+      // Evidence failures must preserve the original assertion failure.
+    }
+    try {
+      await testInfo.attach('C-03 before cleanup', {
+        body: await captureMaskedScreenshot(page, getSensitiveConfigValues()),
+        contentType: 'image/png'
+      })
+    } catch {
+      // Evidence failures must preserve the original assertion failure.
+    }
+    throw error
   } finally {
     await server.close()
     page = await app.mainWindow()

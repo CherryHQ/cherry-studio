@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 48ea06eecf6397b44f4176acea05664541cc4e1f..db1d7990251082aeac231384d18f8cd1549915ef 100644
+index 48ea06eecf6397b44f4176acea05664541cc4e1f..db73fa5fff904f31419a3173d2f165f4d3bb5275 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
@@ -140,6 +140,32 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..db1d7990251082aeac231384d18f8cd1
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4199,10 +4227,10 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+       }),
+       import_v422.z.object({
+         type: import_v422.z.literal("response.failed"),
+-        sequence_number: import_v422.z.number(),
++        sequence_number: import_v422.z.number().optional(),
+         response: import_v422.z.object({
+           error: import_v422.z.object({
+-            code: import_v422.z.string().nullish(),
++            code: import_v422.z.union([import_v422.z.string(), import_v422.z.number()]).nullish(),
+             message: import_v422.z.string()
+           }).nullish(),
+           incomplete_details: import_v422.z.object({ reason: import_v422.z.string() }).nullish(),
+@@ -4216,9 +4244,9 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+       import_v422.z.object({
+         type: import_v422.z.literal("response.created"),
+         response: import_v422.z.object({
+-          id: import_v422.z.string(),
+-          created_at: import_v422.z.number(),
+-          model: import_v422.z.string(),
++          id: import_v422.z.string().optional(),
++          created_at: import_v422.z.number().optional(),
++          model: import_v422.z.string().optional(),
+           service_tier: import_v422.z.string().nullish()
+         })
+       }),
 @@ -4241,7 +4269,7 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
              id: import_v422.z.string(),
              call_id: import_v422.z.string(),
@@ -201,6 +227,20 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..db1d7990251082aeac231384d18f8cd1
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
+@@ -7353,11 +7386,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
 @@ -7411,6 +7444,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -220,7 +260,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..db1d7990251082aeac231384d18f8cd1
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 26483821603be3057bd67afc71143f97e8c33ac9..57d68be8d0a40fff271f331b5bcdb663976c5c3f 100644
+index 26483821603be3057bd67afc71143f97e8c33ac9..a12f01682502b4131d2c713e016b37a673eb9dc4 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1008,7 +1008,7 @@ var OpenAIChatLanguageModel = class {
@@ -361,6 +401,32 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..57d68be8d0a40fff271f331b5bcdb663
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4300,10 +4328,10 @@ var openaiResponsesChunkSchema = lazySchema20(
+       }),
+       z22.object({
+         type: z22.literal("response.failed"),
+-        sequence_number: z22.number(),
++        sequence_number: z22.number().optional(),
+         response: z22.object({
+           error: z22.object({
+-            code: z22.string().nullish(),
++            code: z22.union([z22.string(), z22.number()]).nullish(),
+             message: z22.string()
+           }).nullish(),
+           incomplete_details: z22.object({ reason: z22.string() }).nullish(),
+@@ -4317,9 +4345,9 @@ var openaiResponsesChunkSchema = lazySchema20(
+       z22.object({
+         type: z22.literal("response.created"),
+         response: z22.object({
+-          id: z22.string(),
+-          created_at: z22.number(),
+-          model: z22.string(),
++          id: z22.string().optional(),
++          created_at: z22.number().optional(),
++          model: z22.string().optional(),
+           service_tier: z22.string().nullish()
+         })
+       }),
 @@ -4342,7 +4370,7 @@ var openaiResponsesChunkSchema = lazySchema20(
              id: z22.string(),
              call_id: z22.string(),
@@ -422,6 +488,20 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..57d68be8d0a40fff271f331b5bcdb663
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
+@@ -7459,11 +7492,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
 @@ -7517,6 +7550,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -441,7 +521,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..57d68be8d0a40fff271f331b5bcdb663
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..ad4e7d2d7bdfa1df1bfcca9b6fd7ad5d3ad859c6 100644
+index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..874a4baabcf3a6eefae4707ce9df3716b24e06e0 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1047,7 +1047,7 @@ var OpenAIChatLanguageModel = class {
@@ -582,6 +662,32 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..ad4e7d2d7bdfa1df1bfcca9b6fd7ad5d
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4143,10 +4171,10 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+       }),
+       import_v418.z.object({
+         type: import_v418.z.literal("response.failed"),
+-        sequence_number: import_v418.z.number(),
++        sequence_number: import_v418.z.number().optional(),
+         response: import_v418.z.object({
+           error: import_v418.z.object({
+-            code: import_v418.z.string().nullish(),
++            code: import_v418.z.union([import_v418.z.string(), import_v418.z.number()]).nullish(),
+             message: import_v418.z.string()
+           }).nullish(),
+           incomplete_details: import_v418.z.object({ reason: import_v418.z.string() }).nullish(),
+@@ -4160,9 +4188,9 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+       import_v418.z.object({
+         type: import_v418.z.literal("response.created"),
+         response: import_v418.z.object({
+-          id: import_v418.z.string(),
+-          created_at: import_v418.z.number(),
+-          model: import_v418.z.string(),
++          id: import_v418.z.string().optional(),
++          created_at: import_v418.z.number().optional(),
++          model: import_v418.z.string().optional(),
+           service_tier: import_v418.z.string().nullish()
+         })
+       }),
 @@ -4185,7 +4213,7 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
              id: import_v418.z.string(),
              call_id: import_v418.z.string(),
@@ -643,6 +749,20 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..ad4e7d2d7bdfa1df1bfcca9b6fd7ad5d
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
+@@ -7621,11 +7654,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
 @@ -7679,6 +7712,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -662,7 +782,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..ad4e7d2d7bdfa1df1bfcca9b6fd7ad5d
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..f30c3d53fe52e54c00329ab5563d4634112d1567 100644
+index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..741ae6851845be782fa31f8d99151e9a9ea34e8f 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1000,7 +1000,7 @@ var OpenAIChatLanguageModel = class {
@@ -803,6 +923,32 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..f30c3d53fe52e54c00329ab5563d4634
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4191,10 +4219,10 @@ var openaiResponsesChunkSchema = lazySchema16(
+       }),
+       z18.object({
+         type: z18.literal("response.failed"),
+-        sequence_number: z18.number(),
++        sequence_number: z18.number().optional(),
+         response: z18.object({
+           error: z18.object({
+-            code: z18.string().nullish(),
++            code: z18.union([z18.string(), z18.number()]).nullish(),
+             message: z18.string()
+           }).nullish(),
+           incomplete_details: z18.object({ reason: z18.string() }).nullish(),
+@@ -4208,9 +4236,9 @@ var openaiResponsesChunkSchema = lazySchema16(
+       z18.object({
+         type: z18.literal("response.created"),
+         response: z18.object({
+-          id: z18.string(),
+-          created_at: z18.number(),
+-          model: z18.string(),
++          id: z18.string().optional(),
++          created_at: z18.number().optional(),
++          model: z18.string().optional(),
+           service_tier: z18.string().nullish()
+         })
+       }),
 @@ -4233,7 +4261,7 @@ var openaiResponsesChunkSchema = lazySchema16(
              id: z18.string(),
              call_id: z18.string(),
@@ -864,6 +1010,20 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..f30c3d53fe52e54c00329ab5563d4634
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
+@@ -7702,11 +7735,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
 @@ -7760,6 +7793,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -1058,9 +1218,36 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..dfa4a0500e26fd95370c2cc55d31d383
  
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index aef872bfbed2218f104c6cf864cde8005173ff6d..d897f346a29e0f9f6a3a18896e02cd0f266debd8 100644
+index aef872bfbed2218f104c6cf864cde8005173ff6d..a7b2776f0dd160ee01c3b403530f3a21c2b44ec5 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
+@@ -725,11 +725,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+       }),
+       z.object({
+         type: z.literal('response.failed'),
+-        sequence_number: z.number(),
++        sequence_number: z.number().optional(),
+         response: z.object({
+           error: z
+             .object({
+-              code: z.string().nullish(),
++              code: z.union([z.string(), z.number()]).nullish(),
+               message: z.string(),
+             })
+             .nullish(),
+@@ -746,9 +746,9 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+       z.object({
+         type: z.literal('response.created'),
+         response: z.object({
+-          id: z.string(),
+-          created_at: z.number(),
+-          model: z.string(),
++          id: z.string().optional(),
++          created_at: z.number().optional(),
++          model: z.string().optional(),
+           service_tier: z.string().nullish(),
+         }),
+       }),
 @@ -771,7 +771,7 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
              id: z.string(),
              call_id: z.string(),
@@ -1114,7 +1301,7 @@ index aef872bfbed2218f104c6cf864cde8005173ff6d..d897f346a29e0f9f6a3a18896e02cd0f
                ),
              }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index 485880b51bbb55f9bf2b563afe24330f5a309c37..e25dd4f5cc5f793bbcc71d1c70983bb0c122221f 100644
+index 485880b51bbb55f9bf2b563afe24330f5a309c37..a19917c4e42353bcb58de514aeac846270cb44d9 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
 @@ -436,7 +436,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
@@ -1126,7 +1313,24 @@ index 485880b51bbb55f9bf2b563afe24330f5a309c37..e25dd4f5cc5f793bbcc71d1c70983bb0
        // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
-@@ -2243,6 +2243,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+@@ -2169,11 +2169,14 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = value.response.id ?? null;
+               controller.enqueue({
+                 type: 'response-metadata',
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1000),
++                timestamp:
++                  typeof value.response.created_at === 'number'
++                    ? new Date(value.response.created_at * 1000)
++                    : undefined,
+                 modelId: value.response.model,
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -2243,6 +2246,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },
                });

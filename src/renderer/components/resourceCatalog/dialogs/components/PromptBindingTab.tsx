@@ -229,8 +229,6 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  {...state.dragHandleProps?.attributes}
-                  {...state.dragHandleProps?.listeners}
                   aria-label={t('settings.prompts.reorder', { title: prompt.title })}
                   className="shrink-0 cursor-grab text-foreground-tertiary active:cursor-grabbing">
                   <GripVertical size={12} />

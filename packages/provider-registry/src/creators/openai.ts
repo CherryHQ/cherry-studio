@@ -99,6 +99,46 @@ export default defineCreator({
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
     {
+      id: 'gpt-6.1-terra',
+      name: 'GPT-6.1 Terra',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 1 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.05 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 1.25 },
+        output: { currency: 'USD', perMillionTokens: 5 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 2 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.1 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 2.5 },
+            output: { currency: 'USD', perMillionTokens: 7.5 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: false,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    },
+    {
       id: 'gpt-6.1-sol',
       name: 'GPT-6.1 Sol',
       family: 'gpt',

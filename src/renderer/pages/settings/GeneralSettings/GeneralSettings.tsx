@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, FocusEvent } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,10 +20,12 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import type { OutputFor } from '@shared/ipc/types'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
@@ -72,6 +74,12 @@ const GeneralSettings: FC = () => {
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
   const developerSettingsSaving = useRef(false)
+  const [proxyTestLoading, setProxyTestLoading] = useState(false)
+  const [proxyTestResult, setProxyTestResult] = useState<OutputFor<'proxy.test_connection'> | null>(null)
+  const proxyTestGeneration = useRef(0)
+  const proxyTestInput = useRef({ mode: storeProxyMode, url: storeProxyUrl, bypassRules: storeProxyBypassRules })
+  const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
+  const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -96,7 +104,10 @@ const GeneralSettings: FC = () => {
     void setTrayPreferences(isLaunchToTray && !tray ? { enabled: true, onLaunch: true } : { onLaunch: isLaunchToTray })
   }
 
-  const onSetProxyUrl = () => {
+  const isProxyTestAction = (event: FocusEvent<HTMLInputElement>) =>
+    event.relatedTarget instanceof Node && proxyTestButtonRef.current?.contains(event.relatedTarget)
+
+  const saveProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       toast.error(t('message.error.invalid.proxy.url'))
       return
@@ -105,8 +116,99 @@ const GeneralSettings: FC = () => {
     void _setProxyUrl(proxyUrl)
   }
 
-  const onSetProxyBypassRules = () => {
+  const onSetProxyUrl = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) {
+      pendingProxyPreferenceSave.current = saveProxyUrl
+      return
+    }
+
+    saveProxyUrl()
+  }
+
+  const saveProxyBypassRules = () => {
     void _setProxyBypassRules(proxyBypassRules)
+  }
+
+  const onSetProxyBypassRules = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) {
+      pendingProxyPreferenceSave.current = saveProxyBypassRules
+      return
+    }
+
+    saveProxyBypassRules()
+  }
+
+  const updateProxyTestInput = (nextInput: typeof proxyTestInput.current) => {
+    proxyTestInput.current = nextInput
+    proxyTestGeneration.current += 1
+    setProxyTestLoading(false)
+    setProxyTestResult(null)
+  }
+
+  const handleProxyTest = async () => {
+    pendingProxyPreferenceSave.current = null
+    const input = { ...proxyTestInput.current }
+    const generation = ++proxyTestGeneration.current
+    const isCurrent = () =>
+      generation === proxyTestGeneration.current &&
+      input.mode === proxyTestInput.current.mode &&
+      input.url === proxyTestInput.current.url &&
+      input.bypassRules === proxyTestInput.current.bypassRules
+
+    setProxyTestLoading(true)
+    setProxyTestResult(null)
+    try {
+      const result = await ipcApi.request('proxy.test_connection', input)
+      if (isCurrent()) setProxyTestResult(result)
+    } catch (error) {
+      if (isCurrent()) toast.error(formatErrorMessage(error))
+    } finally {
+      if (isCurrent()) setProxyTestLoading(false)
+    }
+  }
+
+  const getProxyTestRouteLabel = (route: OutputFor<'proxy.test_connection'>['route']) => {
+    switch (route) {
+      case 'proxy':
+        return t('settings.proxy.test.route.proxy')
+      case 'bypassed':
+        return t('settings.proxy.test.route.bypassed')
+      case 'direct':
+        return t('settings.proxy.test.route.direct')
+      case 'fallback':
+        return t('settings.proxy.test.route.fallback')
+    }
+  }
+
+  const getProxyTestErrorLabel = (error: NonNullable<OutputFor<'proxy.test_connection'>['error']>) => {
+    switch (error) {
+      case 'invalid_config':
+        return t('settings.proxy.test.error.invalid_config')
+      case 'authentication_required':
+        return t('settings.proxy.test.error.authentication_required')
+      case 'timeout':
+        return t('settings.proxy.test.error.timeout')
+      case 'unreachable':
+        return t('settings.proxy.test.error.unreachable')
+      case 'http_error':
+        return t('settings.proxy.test.error.http_error')
+      case 'connection_failed':
+        return t('settings.proxy.test.error.connection_failed')
+    }
+  }
+
+  const getProxyTestDescription = () => {
+    if (!proxyTestResult) {
+      return null
+    }
+
+    const values = {
+      target: proxyTestResult.target,
+      route: getProxyTestRouteLabel(proxyTestResult.route),
+      reason: proxyTestResult.error ? getProxyTestErrorLabel(proxyTestResult.error) : ''
+    }
+
+    return proxyTestResult.success ? t('settings.proxy.test.success', values) : t('settings.proxy.test.failure', values)
   }
 
   const handleHardwareAccelerationChange = async (checked: boolean) => {
@@ -131,7 +233,7 @@ const GeneralSettings: FC = () => {
     setTimeoutTimer(
       'handleHardwareAccelerationChange',
       () => {
-        void window.api.application.relaunch()
+        void ipcApi.request('app.relaunch')
       },
       500
     )
@@ -201,13 +303,38 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
         <SettingDivider />
-        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6 items-start gap-6">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-            <SettingDescription className="mt-1.5 leading-5">{t('settings.proxy.mode.description')}</SettingDescription>
+        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              ref={proxyTestButtonRef}
+              type="button"
+              variant="outline"
+              loading={proxyTestLoading}
+              aria-busy={proxyTestLoading}
+              onBlur={() => {
+                const savePreference = pendingProxyPreferenceSave.current
+                pendingProxyPreferenceSave.current = null
+                savePreference?.()
+              }}
+              onClick={() => void handleProxyTest()}>
+              {t('settings.proxy.test.action')}
+            </Button>
+            <Selector
+              value={storeProxyMode}
+              onChange={(mode) => {
+                updateProxyTestInput({ ...proxyTestInput.current, mode })
+                void setProxyMode(mode)
+              }}
+              options={proxyModeOptions}
+            />
           </div>
-          <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
         </SettingRow>
+        {proxyTestResult && (
+          <SettingDescription role="status" className="mt-1.5 leading-5">
+            {getProxyTestDescription()}
+          </SettingDescription>
+        )}
         {storeProxyMode === 'custom' && (
           <>
             <SettingDivider />
@@ -217,7 +344,10 @@ const GeneralSettings: FC = () => {
                 spellCheck={false}
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
-                onChange={(e) => setProxyUrl(e.target.value)}
+                onChange={(e) => {
+                  setProxyUrl(e.target.value)
+                  updateProxyTestInput({ ...proxyTestInput.current, url: e.target.value })
+                }}
                 style={{ width: 220 }}
                 onBlur={onSetProxyUrl}
                 type="url"
@@ -237,7 +367,10 @@ const GeneralSettings: FC = () => {
                 spellCheck={false}
                 placeholder={defaultByPassRules}
                 value={proxyBypassRules}
-                onChange={(e) => setProxyBypassRules(e.target.value)}
+                onChange={(e) => {
+                  setProxyBypassRules(e.target.value)
+                  updateProxyTestInput({ ...proxyTestInput.current, bypassRules: e.target.value })
+                }}
                 style={{ width: 220 }}
                 onBlur={onSetProxyBypassRules}
               />

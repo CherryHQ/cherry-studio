@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SheetRenderModel } from '../renderModel'
@@ -6,13 +6,21 @@ import XlsxGrid from '../XlsxGrid'
 
 // Supply only browser geometry; retain the real React virtualizer and its measurement cache.
 beforeEach(() => {
+  vi.useFakeTimers()
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(500)
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
 })
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(async () => {
+  cleanup()
+  // The virtualizer's scroll-end debounce can outlive unmount and jsdom teardown.
+  await act(() => vi.runOnlyPendingTimers())
+  expect(vi.getTimerCount()).toBe(0)
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 const makeSheet = (rowSize: number, colSize: number): SheetRenderModel => ({
   name: 'Sheet',

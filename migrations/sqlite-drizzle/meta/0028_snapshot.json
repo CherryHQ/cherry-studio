@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d42d8fe8-d4de-4e4b-b497-e7b997ab546c",
+  "id": "e7952537-a5dd-47cb-a0e9-8246c1c27187",
   "prevId": "d7821b2f-98c4-4781-a3fb-0afaea036bdb",
   "tables": {
     "agent": {
@@ -645,13 +645,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -769,19 +762,6 @@
           "tableTo": "agent",
           "columnsFrom": [
             "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_model_user_model_id_fk": {
-          "name": "agent_session_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": [
-            "model"
           ],
           "columnsTo": [
             "id"
@@ -4036,7 +4016,7 @@
         },
         "knowledge_item_type_status_check": {
           "name": "knowledge_item_type_status_check",
-          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
+          "value": "\n        (\"knowledge_item\".\"type\" IN ('url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'file' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
         },
         "knowledge_item_status_error_check": {
           "name": "knowledge_item_status_error_check",

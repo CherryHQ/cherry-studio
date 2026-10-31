@@ -177,7 +177,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       if (toolCall.type !== 'function') continue
       let input: unknown
       try {
-        input = JSON.parse(toolCall.function.arguments)
+        input = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {}
       } catch {
         input = { raw: toolCall.function.arguments }
       }

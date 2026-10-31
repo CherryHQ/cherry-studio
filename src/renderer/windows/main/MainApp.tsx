@@ -30,6 +30,7 @@ import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitor
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
+import { WindowFileEditRecovery } from '@renderer/windows/WindowFileEditRecovery'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
@@ -133,6 +134,7 @@ export function MainWindowContent(): React.ReactElement {
           <McpInteractionHost />
           <PopupHost />
           <ToastHost />
+          <WindowFileEditRecovery />
           <DictationShortcutHost />
           <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
