@@ -82,9 +82,7 @@ describe('HtmlArtifactsCard', () => {
 
     await user.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('chat.artifacts.preview.openExternal.error.content: open failed')
-    )
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat.artifacts.preview.openExternal.error.content'))
   })
 
   it('downloads the HTML artifact with its document title', async () => {
@@ -104,7 +102,7 @@ describe('HtmlArtifactsCard', () => {
 
     await user.click(screen.getByRole('button', { name: 'code_block.download.label' }))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('message.download.failed: save failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('message.download.failed'))
   })
 
   it('opens the titled artifact preview', async () => {

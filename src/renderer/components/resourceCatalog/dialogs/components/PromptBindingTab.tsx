@@ -7,7 +7,7 @@ import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, localizedErrorDetail } from '@renderer/utils/error'
 import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 
 import { PromptEditDialog } from '../edit'
@@ -191,7 +191,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
             type="error"
             showIcon
             message={t('settings.prompts.errors.loadFailed')}
-            description={error.message}
+            description={localizedErrorDetail(error)}
             action={
               <Button
                 variant="outline"

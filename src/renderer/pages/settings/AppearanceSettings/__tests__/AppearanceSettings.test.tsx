@@ -209,9 +209,6 @@ vi.mock('../components/ThemeColorPicker', () => ({
     </button>
   )
 }))
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
-}))
 
 describe('AppearanceSettings menu presentation mode', () => {
   const setMenuPresentationMode = vi.fn<(mode: MenuPresentationMode) => Promise<void>>()
@@ -277,7 +274,7 @@ describe('AppearanceSettings menu presentation mode', () => {
       })
     ).rejects.toThrow('save failed')
 
-    expect(toast.error).toHaveBeenCalledWith('save failed')
+    expect(toast.error).toHaveBeenCalledWith('common.save_failed: save failed')
     expect(setTimeoutTimer).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalledWith('app.relaunch')
   })

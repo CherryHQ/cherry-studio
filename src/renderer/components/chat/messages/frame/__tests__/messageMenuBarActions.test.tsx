@@ -1105,7 +1105,7 @@ describe('messageMenuBarActions', () => {
 
     expect(getRenderedMessageElement).toHaveBeenCalledWith(context.message.id)
     expect(copyImage).not.toHaveBeenCalled()
-    expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('Message is no longer available'))
+    expect(notifyError).toHaveBeenCalledWith('message.error.action_failed')
     expect(releaseLease).toHaveBeenCalledTimes(1)
   })
 
@@ -1222,7 +1222,7 @@ describe('messageMenuBarActions', () => {
 
     await expect(executeMessageMenuBarAction('copy', context)).resolves.toBe(false)
 
-    expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('clipboard denied'))
+    expect(notifyError).toHaveBeenCalledWith('message.error.action_failed')
     expect(setCopied).not.toHaveBeenCalled()
   })
 })

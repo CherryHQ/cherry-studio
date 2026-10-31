@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { LocalizedError } from '@renderer/utils/error'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/ai/prompts'
 import {
@@ -51,11 +52,11 @@ export const detectLanguageByLLM = async (
   const listLangText = JSON.stringify(langCodes)
 
   if (!model) {
-    throw new Error(i18n.t('error.model.not_exists'))
+    throw new LocalizedError(i18n.t('error.model.not_exists'))
   }
 
   if (isQwenMTModel(model)) {
-    throw new Error(i18n.t('translate.error.detect.qwen_mt'))
+    throw new LocalizedError(i18n.t('translate.error.detect.qwen_mt'))
   }
 
   const systemPrompt = LANG_DETECT_PROMPT.replaceAll(/{{list_lang}}|{{input}}/g, (placeholder) =>
@@ -71,12 +72,12 @@ export const detectLanguageByLLM = async (
 
   const trimmed = result.trim()
   if (!trimmed) {
-    throw new Error(i18n.t('translate.error.detect.empty'))
+    throw new LocalizedError(i18n.t('translate.error.detect.empty'))
   }
 
   if (!isTranslateLangCode(trimmed)) {
     logger.error(`Invalid language code: ${trimmed}`)
-    throw new Error(i18n.t('translate.error.detect.invalid'))
+    throw new LocalizedError(i18n.t('translate.error.detect.invalid'))
   }
 
   return trimmed

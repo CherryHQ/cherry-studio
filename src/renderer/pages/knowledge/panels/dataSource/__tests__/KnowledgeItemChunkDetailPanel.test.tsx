@@ -261,15 +261,16 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     expect(capturedVirtualListProps?.itemContainerStyle).toEqual({ paddingBottom: 8 })
   })
 
-  it('logs chunk list failures and shows the original error message', async () => {
+  it('logs chunk list failures and shows the translated failure without the English cause', async () => {
     const listError = new Error('list failed')
     mockIpcRequest.mockRejectedValueOnce(listError)
 
     renderPanel()
 
     await waitFor(() => {
-      expect(screen.getByText('list failed')).toBeInTheDocument()
+      expect(screen.getAllByText('common.load_failed').length).toBeGreaterThan(0)
     })
+    expect(screen.queryByText(/list failed/)).not.toBeInTheDocument()
     expect(mockLogger.error).toHaveBeenCalledWith('Failed to list knowledge item chunks', listError, {
       baseId: 'base-1',
       itemId: 'file-1'

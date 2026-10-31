@@ -2,6 +2,7 @@ import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import type { PaintingGenerationGuardReason } from '../hooks/usePaintingGenerationGuard'
@@ -33,7 +34,7 @@ export async function presentPaintingGenerationGuardFeedback(
     return
   }
   if (reason === 'catalog_error') {
-    toast.error(error?.message || i18n.t('paintings.req_error_model'))
+    toast.error(formatErrorMessageWithPrefix(error, i18n.t('paintings.req_error_model')))
     return
   }
   if (reason === 'model_unavailable') {

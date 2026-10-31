@@ -7,6 +7,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import { toast, type ErrorToastContext } from '@renderer/services/toast'
+import { LocalizedError } from '@renderer/utils/error'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -221,7 +222,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
         success: !event.isAbort,
         error:
           !event.isAbort && (event.isError || error)
-            ? (error ?? new Error(i18n.t('error.diagnosis.stream')))
+            ? (error ?? new LocalizedError(i18n.t('error.diagnosis.stream')))
             : undefined
       }
       attempt.message ??= { ...event.message, parts: [] }

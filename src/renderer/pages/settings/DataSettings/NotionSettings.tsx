@@ -16,7 +16,7 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('NotionSettings')
 
@@ -64,7 +64,7 @@ const NotionSettings: FC = () => {
       }
     } catch (error) {
       logger.error('Failed to check Notion connection', error as Error)
-      toast.error(formatErrorMessage(error) || t('settings.data.notion.check.error'))
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.data.notion.check.error')))
     }
   }
 

@@ -5,6 +5,7 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
@@ -88,7 +89,7 @@ export function useDeepSeekHarnessController({
         ...settings
       })
       if (!result.success) {
-        toast.error(result.message)
+        toast.error(formatErrorMessageWithPrefix(result.message, t('code.launch.error')))
         return
       }
       openWebUi(result.url)
@@ -105,7 +106,7 @@ export function useDeepSeekHarnessController({
       setStopping(true)
       const result = await ipcApi.request('deepseek_harness.stop')
       if (!result.success) {
-        toast.error(result.message)
+        toast.error(formatErrorMessageWithPrefix(result.message, t('code.stop_failed')))
         return false
       }
       return true

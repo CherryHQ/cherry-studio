@@ -804,7 +804,7 @@ describe('ResourceGrid group toolbar management', () => {
     await user.type(input, 'renamed')
     await user.click(screen.getByRole('button', { name: '保存' }))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('rename failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('library.group_sync_failed: rename failed'))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(input).toHaveValue('renamed')
     await waitFor(() => expect(input).not.toBeDisabled())
@@ -826,7 +826,7 @@ describe('ResourceGrid group toolbar management', () => {
     await user.click(screen.getByRole('button', { name: '删除分组' }))
     await user.click(screen.getByRole('button', { name: '删除' }))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('delete failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('library.group_sync_failed: delete failed'))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onGroupFilter).not.toHaveBeenCalled()
 

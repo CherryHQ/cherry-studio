@@ -179,7 +179,7 @@
   "paintings.generate_failed": "Generazione dell'immagine non riuscita",
   "paintings.image_mix_failed": "Fusione delle immagini non riuscita",
   "selection.name": "Assistente di selezione",
-  "settings.mcp.oauth.callback.listen_error": "Impossibile ascoltare il callback OAuth su 127.0.0.1:{{port}} ({{reason}}). Verifica che la porta sia disponibile e riprova.",
+  "settings.mcp.oauth.callback.listen_error": "Impossibile ascoltare il callback OAuth su 127.0.0.1:{{port}}. Verifica che la porta sia disponibile e riprova.",
   "settings.mcp.oauth.callback.message": "Puoi chiudere questa pagina e tornare a Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autenticazione riuscita",
   "settings.mcp.oauth.cancelled": "Autorizzazione annullata.",

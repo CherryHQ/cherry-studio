@@ -213,14 +213,9 @@ export async function createExternalMcpConnection({
     try {
       await callbackServer.getServer
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code
-      throw new Error(
-        t('settings.mcp.oauth.callback.listen_error', {
-          port: authProvider.config.callbackPort,
-          reason: code ?? (error instanceof Error ? error.message : String(error))
-        }),
-        { cause: error }
-      )
+      throw new Error(t('settings.mcp.oauth.callback.listen_error', { port: authProvider.config.callbackPort }), {
+        cause: error
+      })
     }
   }
 

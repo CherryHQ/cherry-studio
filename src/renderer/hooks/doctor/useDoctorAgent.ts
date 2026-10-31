@@ -5,6 +5,7 @@ import { useSharedCacheValue } from '@data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { DoctorScopeKey } from '@shared/types/doctor'
 import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
 import { doctorAgentKey, doctorAgentStateCacheKey } from '@shared/utils/doctor'
@@ -78,10 +79,10 @@ export function useDoctorAgent({
             )
           )
         } else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
-        else toast.error(t('settings.doctor.agent.messages.apply_failed', { message: result.message }))
+        else toast.error(formatErrorMessageWithPrefix(result.message, t('settings.doctor.agent.messages.apply_failed')))
       } catch (error) {
         logger.error('Failed to apply a doctor proposal', error as Error)
-        toast.error(t('settings.doctor.agent.messages.apply_failed', { message: String(error) }))
+        toast.error(formatErrorMessageWithPrefix(error, t('settings.doctor.agent.messages.apply_failed')))
       } finally {
         setBusy(null)
       }
@@ -97,10 +98,10 @@ export function useDoctorAgent({
         const result = await ipcApi.request('diagnostics.doctor.agent.undo', { key, runId: state.runId, changeId })
         if (result.status === 'undone') toast.success(t('settings.doctor.agent.messages.undone'))
         else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
-        else toast.error(t('settings.doctor.agent.messages.undo_failed', { message: result.message }))
+        else toast.error(formatErrorMessageWithPrefix(result.message, t('settings.doctor.agent.messages.undo_failed')))
       } catch (error) {
         logger.error('Failed to undo a doctor change', error as Error)
-        toast.error(t('settings.doctor.agent.messages.undo_failed', { message: String(error) }))
+        toast.error(formatErrorMessageWithPrefix(error, t('settings.doctor.agent.messages.undo_failed')))
       } finally {
         setBusy(null)
       }

@@ -23,6 +23,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 
@@ -54,7 +55,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     }
   }
 
@@ -64,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     }
   }
 
@@ -80,7 +81,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     }
   }
 

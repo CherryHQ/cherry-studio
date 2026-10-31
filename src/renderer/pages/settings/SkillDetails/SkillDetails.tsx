@@ -24,6 +24,7 @@ import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useSkillLauncher } from '@renderer/hooks/useSkillLauncher'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix, localizedErrorDetail } from '@renderer/utils/error'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillRemoteUpdateCheck } from '@shared/types/skill'
@@ -79,7 +80,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       setDeleteOpen(false)
       goBack()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.delete_failed')))
     } finally {
       setDeleting(false)
     }
@@ -165,7 +166,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         <EmptyState
           preset="no-resource"
           title={t('settings.skills.notFound')}
-          description={error?.message}
+          description={localizedErrorDetail(error)}
           actionLabel={t('common.back')}
           onAction={goBack}
           className="min-h-80"

@@ -8,6 +8,7 @@ import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/co
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { Group } from '@shared/data/types/group'
 
@@ -67,7 +68,7 @@ function useResourceCardMenuItems({
       } catch (e) {
         // Roll back optimistic state on failure.
         setLocalGroupId(previousGroupId)
-        const message = e instanceof Error ? e.message : t('library.group_sync_failed')
+        const message = formatErrorMessageWithPrefix(e, t('library.group_sync_failed'))
         toast.error(message)
         logger.error('Failed to sync resource group', e instanceof Error ? e : new Error(String(e)), {
           resourceId: resource.id,

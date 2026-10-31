@@ -2037,7 +2037,7 @@ describe('Topics', () => {
     })
 
     expect(await findByRowText('Alpha topic')).toBeInTheDocument()
-    expect(toast.error).toHaveBeenCalledWith('Error: rename failed')
+    expect(toast.error).toHaveBeenCalledWith('chat.topics.manage.rename.error')
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -2070,7 +2070,7 @@ describe('Topics', () => {
       await Promise.resolve()
     })
 
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Automatic rename failed'))
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Save failed'))
     await vi.waitFor(() => expect(topicRenameMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-a'))
     expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
@@ -4232,7 +4232,7 @@ describe('Topics', () => {
       }
     })
 
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed'))
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to reorder assistants'))
     expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
   })
 

@@ -1,6 +1,6 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import { isAbortError, providerErrorText } from '@renderer/utils/error'
+import { isAbortError, localizedErrorDetail, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import { type ErrorToastAction, errorToastPresentations, serializeToastError } from '@renderer/utils/errorToast'
 import type { Provider } from '@shared/data/types/provider'
@@ -63,10 +63,12 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
+  // An unknown cause titles the toast only when it reads in the UI language; otherwise it moves into details.
+  const unknownTitle = category === 'unknown' ? localizedErrorDetail(details) : undefined
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
-    title: category === 'unknown' ? details || i18n.t('error.unknown') : i18n.t(diagnosisKey),
+    title: category === 'unknown' ? (unknownTitle ?? i18n.t('error.unknown')) : i18n.t(diagnosisKey),
     description:
       [
         context.mcpServer?.name ?? provider?.name,
@@ -77,7 +79,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    details: unknownTitle ? undefined : details || undefined,
     action:
       run && actionKind
         ? {

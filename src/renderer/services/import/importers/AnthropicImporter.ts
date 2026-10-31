@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { LocalizedError } from '@renderer/utils/error'
 import type { DynamicToolUIPart, ModelSnapshot, ReasoningUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 
@@ -131,7 +132,7 @@ export class AnthropicImporter implements ConversationImporter {
     const conversations = (Array.isArray(parsed) ? parsed : [parsed]) as AnthropicConversation[]
 
     if (conversations.length === 0) {
-      throw new Error(i18n.t('import.claude.error.no_conversations'))
+      throw new LocalizedError(i18n.t('import.claude.error.no_conversations'))
     }
 
     logger.info(`Found ${conversations.length} conversations`)
@@ -148,7 +149,7 @@ export class AnthropicImporter implements ConversationImporter {
     }
 
     if (importedConversations.length === 0) {
-      throw new Error(i18n.t('import.claude.error.no_valid_conversations'))
+      throw new LocalizedError(i18n.t('import.claude.error.no_valid_conversations'))
     }
 
     return {

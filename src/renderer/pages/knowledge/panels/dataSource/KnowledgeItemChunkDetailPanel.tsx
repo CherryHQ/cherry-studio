@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
@@ -158,9 +159,15 @@ const KnowledgeItemChunkDetailPanel = ({
       ) : (
         <Scrollbar autoHideScrollbar={false} className="min-h-0 flex-1 px-4 py-3">
           {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
-          {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
+          {!isItemLoading && itemError ? (
+            <KnowledgeItemChunkState>
+              {formatErrorMessageWithPrefix(itemError, t('common.load_failed'))}
+            </KnowledgeItemChunkState>
+          ) : null}
           {!isItemLoading && !isLoading && !itemError && error ? (
-            <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
+            <KnowledgeItemChunkState>
+              {formatErrorMessageWithPrefix(error, t('common.load_failed'))}
+            </KnowledgeItemChunkState>
           ) : null}
           {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
             <EmptyState

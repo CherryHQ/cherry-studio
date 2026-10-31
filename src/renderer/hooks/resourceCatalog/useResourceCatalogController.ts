@@ -18,6 +18,7 @@ import type {
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
@@ -160,7 +161,7 @@ export function useResourceCatalogController(
           await duplicateAssistant(resource.raw)
           refetch()
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : t('library.duplicate_assistant_failed'))
+          toast.error(formatErrorMessageWithPrefix(error, t('library.duplicate_assistant_failed')))
         }
       }
     },
@@ -185,7 +186,7 @@ export function useResourceCatalogController(
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
+        toast.error(formatErrorMessageWithPrefix(error, t('library.export_assistant_failed')))
       }
     },
     [groupById, t]

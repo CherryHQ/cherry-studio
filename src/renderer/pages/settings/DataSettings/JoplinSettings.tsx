@@ -15,7 +15,7 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('JoplinSettings')
 
@@ -66,7 +66,7 @@ const JoplinSettings: FC = () => {
       toast.success(t('settings.data.joplin.check.success'))
     } catch (error) {
       logger.error('Failed to check Joplin connection', error as Error)
-      toast.error(`${t('settings.data.joplin.check.fail')}: ${formatErrorMessage(error)}`)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.data.joplin.check.fail')))
     }
   }
 

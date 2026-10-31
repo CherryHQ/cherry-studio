@@ -61,7 +61,7 @@ describe('buildDiagnosticReportDescription', () => {
       })
     ).toEqual([
       { id: 'location', value: 'Home conversation' },
-      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置 (Unauthorized)' }
+      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置' }
     ])
 
     expect(

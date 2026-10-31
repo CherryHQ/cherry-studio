@@ -26,7 +26,7 @@ import { v4 as uuid } from 'uuid'
 
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, isAbortError, LocalizedError } from '@renderer/utils/error'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -39,7 +39,7 @@ function localizeTranslateError(error: unknown, t: (key: string) => string): unk
   const key = error.message.match(TRANSLATE_ERROR_KEY_PATTERN)?.[0]
   if (!key) return error
 
-  const localizedError = new Error(t(key))
+  const localizedError = new LocalizedError(t(key))
   localizedError.name = error.name
   localizedError.stack = error.stack
   localizedError.cause = error.cause

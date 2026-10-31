@@ -184,6 +184,6 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
-    expect(mocks.toastError).toHaveBeenCalledWith(validationMessage)
+    expect(mocks.toastError).toHaveBeenCalledWith(`code.apply_failed: ${validationMessage}`)
   })
 })

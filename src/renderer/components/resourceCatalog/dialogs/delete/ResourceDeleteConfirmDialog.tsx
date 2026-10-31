@@ -17,6 +17,7 @@ import { ipcApi } from '@renderer/ipc'
 import { restoreRecycleBinUndoGroup, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
@@ -207,7 +208,7 @@ const DeleteDialogContent: FC<{
     try {
       await onDelete()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.delete_failed')))
       throw error
     } finally {
       setPending(false)
@@ -253,7 +254,7 @@ const ConversationOwnerDeleteDialogContent: FC<{
         onClose()
       } catch (error) {
         if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+        else toast.error(formatErrorMessageWithPrefix(error, t('common.delete_failed')))
         throw error
       } finally {
         setPending(false)

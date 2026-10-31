@@ -611,7 +611,7 @@ describe('WebSearchSettings', () => {
     fireEvent.click(within(getKeywordProviderSection()).getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.check_failed: check failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.check_failed')
     })
   })
 

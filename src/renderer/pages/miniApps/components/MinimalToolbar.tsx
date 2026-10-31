@@ -14,6 +14,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -92,7 +93,7 @@ const MinimalToolbar: FC<Props> = ({
       const e = toDataApiError(err)
       if (isDataApiError(e)) {
         logger.error('togglePin failed', { code: e.code, message: e.message })
-        toast.error(e.message || t(fallbackKey))
+        toast.error(formatErrorMessageWithPrefix(e, t(fallbackKey)))
       } else {
         logger.error('togglePin failed', err as Error)
         toast.error(t(fallbackKey))

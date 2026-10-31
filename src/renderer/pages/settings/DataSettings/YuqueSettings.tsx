@@ -14,7 +14,7 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('YuqueSettings')
 
@@ -81,7 +81,7 @@ const YuqueSettings: FC = () => {
       toast.success(t('settings.data.yuque.check.success'))
     } catch (error) {
       logger.error('Failed to check Yuque connection', error as Error)
-      toast.error(formatErrorMessage(error) || t('settings.data.yuque.check.fail'))
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.data.yuque.check.fail')))
     }
   }
 

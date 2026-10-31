@@ -11,6 +11,7 @@ import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { localizedErrorDetail } from '@renderer/utils/error'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDir, type TreeMutationEvent, type TreeNode } from '@shared/utils/file'
 
@@ -288,7 +289,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
       <EmptyState
         preset="no-resource"
         title={t('library.skill_detail.no_files')}
-        description={error.message}
+        description={localizedErrorDetail(error)}
         className="min-h-80"
       />
     )

@@ -14,6 +14,7 @@ export type InstallPreview = OutputFor<'mini_app.install.preview_url'>
 export interface PreviewError {
   key: string
   params?: Record<string, string>
+  cause?: unknown
 }
 
 /** The card's answer. */
@@ -100,7 +101,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
       } catch (e) {
         if (closedRef.current || /superseded/i.test(errorMessage(e))) return
         logger.error('Failed to preview mini app', e as Error)
-        setError({ key: errorKey, params: { message: errorMessage(e) } })
+        setError({ key: errorKey, cause: e })
       } finally {
         if (!closedRef.current) setBusy(false)
       }
@@ -149,7 +150,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
     } catch (e) {
       logger.error('Failed to install mini app package', e as Error)
       setPreview(null)
-      setError({ key: 'miniApp.install.install_error', params: { message: errorMessage(e) } })
+      setError({ key: 'miniApp.install.install_error', cause: e })
     } finally {
       if (!closedRef.current) setBusy(false)
     }

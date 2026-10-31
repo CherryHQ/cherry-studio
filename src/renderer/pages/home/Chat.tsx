@@ -178,7 +178,7 @@ const Chat: FC<Props> = (props) => {
       try {
         await clearTopicMessages(activeTopic.id)
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+        toast.error(formatErrorMessageWithPrefix(error, t('chat.input.clear.failed')))
       }
     },
     { enabled: showConversation && isActiveTab }
