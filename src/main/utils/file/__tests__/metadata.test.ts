@@ -69,6 +69,46 @@ describe('getFileType', () => {
     await writeFile(f, TEXT_SAMPLE)
     expect(await getFileType(f as AbsoluteFilePath)).toBe('image')
   })
+
+  // MapInfo MIF/MID pairs: `.mid` holds the CSV-like attribute table as plain
+  // text. The extension catalogs deliberately do not claim `.mid` (same
+  // contract as `.dts` — see fileExtensions.ts), so the content sniff must
+  // classify it as text and the chat attach gate keeps accepting it.
+  it('classifies a MapInfo .mid attribute file as text by content', async () => {
+    const f = path.join(tmp, 'cities.mid')
+    const mid = Array.from({ length: 8 }, (_, i) => `"Place ${i}","${10 + i} Main St",Springfield,${10000 + i}`).join(
+      '\n'
+    )
+    await writeFile(f, mid)
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('text')
+  })
+
+  // Acclaim motion-capture skeletons (CMU Graphics Lab) use `.asf` as plain
+  // text. The extension catalogs deliberately do not claim `.asf` (same
+  // contract as `.mid` — see fileExtensions.ts), so the content sniff must
+  // classify it as text and the chat attach gate keeps accepting it.
+  it('classifies an Acclaim .asf motion-capture file as text by content', async () => {
+    const f = path.join(tmp, '01.asf')
+    const asf = [
+      '#!OML:ASF V01.03',
+      ':Units',
+      '   angle  deg',
+      '   length cm',
+      ':Root',
+      '   order TXTYTZ',
+      '   position 0 0 0',
+      ':bonedata',
+      '   begin',
+      '   id 1',
+      '   name lhipjoint',
+      '   direction 0.1 0.2 0.3',
+      '   length 12.5',
+      '   axis 0 0 1 90',
+      '   end'
+    ].join('\n')
+    await writeFile(f, asf)
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('text')
+  })
 })
 
 describe('isTextByContent', () => {

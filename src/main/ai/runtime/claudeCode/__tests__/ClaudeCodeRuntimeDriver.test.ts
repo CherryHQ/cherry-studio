@@ -1299,6 +1299,73 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('delivers the managed path of a vision-model image whose inline materialization failed', async () => {
+    // A base64 conversion past the runtime string limit (a large TIFF) fails shared
+    // routing's native materialization. The mock mirrors the fixed contract: the part
+    // survives for a path-forwarding caller instead of collapsing into a "could not
+    // read" note, and the driver must still forward its managed path to the agent.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]: any[], ctx: any) =>
+      ctx.keepUnroutableFileParts
+        ? [message]
+        : [
+            {
+              ...message,
+              parts: [
+                ...message.parts.filter((part: any) => part.type !== 'file'),
+                { type: 'text', text: 'Attached file "scan.tiff": [could not read this file].' }
+              ]
+            }
+          ]
+    )
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this scan' },
+            {
+              type: 'file',
+              url: 'file:///tmp/scan.tiff',
+              mediaType: 'image/tiff',
+              filename: 'scan.tiff',
+              providerMetadata: { cherry: { fileEntryId: 'entry-tiff' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          content:
+            'inspect this scan\n\nAttached files (read them with your tools using these absolute paths):\n- "scan.tiff": /managed/entry-tiff'
+        }
+      },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'user-1', role: 'user' })],
+      expect.objectContaining({
+        nativeSupport: { image: true, pdf: false, audio: false, video: false },
+        keepUnroutableFileParts: true
+      })
+    )
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
   it.each([
     ['PDF', 'spec.pdf', 'application/pdf'],
     ['HTML', 'page.html', 'text/html'],
