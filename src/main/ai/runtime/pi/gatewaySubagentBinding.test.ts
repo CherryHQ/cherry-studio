@@ -1,12 +1,12 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { createTestBinding } from '@test-helpers/piGateway'
+import { finish, MODEL, gatewayModel, tempDir, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
 
 import { recordingSubagentPort, routedModel, subagentCall, toolResultOf } from './gatewaySubagentSupport'
-import { createTestBinding } from './gatewaySupport'
-import { finish, MODEL, gatewayModel, tempDir, textParts } from './gatewaySupport'
 
 /** Native validation must reject a non-string path before executing this tool. */
 function listFilesTool(calls: unknown[]) {

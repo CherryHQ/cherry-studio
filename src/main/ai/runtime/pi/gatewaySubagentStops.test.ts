@@ -1,6 +1,8 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
+import type { TestModel } from '@test-helpers/piGateway'
+import { createTestSession, finish, lastAssistant, MODEL, gatewayModel, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import type { SubagentPort } from '@cherrystudio/agent-runtime-pi'
@@ -15,8 +17,6 @@ import {
   toolResultOf,
   toolResults
 } from './gatewaySubagentSupport'
-import type { TestModel } from './gatewaySupport'
-import { createTestSession, finish, lastAssistant, MODEL, gatewayModel, textParts } from './gatewaySupport'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const upstreamError = { type: 'error' as const, error: new Error('upstream exploded') }
