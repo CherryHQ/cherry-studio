@@ -897,6 +897,8 @@ export class AiStreamManager extends BaseService {
     contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
+    fastMode?: boolean
     /** Idle-chunk timeout (ms); resets per chunk. Inherits `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min) when omitted. */
     idleTimeoutMs?: number
     /** In-process agent correlation for gateway-owned provider-request records. */
@@ -924,6 +926,8 @@ export class AiStreamManager extends BaseService {
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
+      serviceTier: input.serviceTier,
+      fastMode: input.fastMode,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       source: input.source,

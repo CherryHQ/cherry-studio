@@ -61,7 +61,7 @@ export async function createAgentRuntimeSession(
 ): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
   const { modelRuntime, model } = options
-  const settingsManager = SettingsManager.inMemory(options.settings)
+  const settingsManager = SettingsManager.inMemory(options.settings ?? {})
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -72,7 +72,7 @@ export async function createAgentRuntimeSession(
     noThemes: true,
     noContextFiles: !options.contextFiles,
     additionalSkillPaths: options.skillPaths,
-    extensionFactories: options.extensionFactories,
+    extensionFactories: options.extensionFactories ?? [],
     // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
     appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
