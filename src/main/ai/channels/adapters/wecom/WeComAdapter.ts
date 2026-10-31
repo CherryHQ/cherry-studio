@@ -32,10 +32,12 @@ import { sanitizeFilename } from '@shared/utils/file'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
+  type ChannelCommandEvent,
   type ChannelStreamErrorOptions,
   type ChannelStreamOutcome,
   type SendMessageOptions
 } from '../../ChannelAdapter'
+import { SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
 
 // Conservative limits until the deployed bot's stream/markdown limits are verified.
@@ -383,12 +385,15 @@ export class WeComAdapter extends ChannelAdapter {
       userName: body.from.userid,
       messageId: body.msgid
     }
-    const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text.trim())
+    const command = new RegExp(
+      `^/(${SLASH_COMMANDS.map((command) => command.name).join('|')})(?:\\s+(.*))?$`,
+      's'
+    ).exec(text.trim())
     if (command && body.msgtype !== MessageType.Voice && !images.length && !files.length) {
       if (command[1] === 'whoami') {
         await this.sendMessage(chatId, t('common.wecom_identity', { chatId, userId: body.from.userid }), opts)
       } else {
-        this.emit('command', { ...identity, command: command[1] as 'new' | 'compact' | 'help', args: command[2] })
+        this.emit('command', { ...identity, command: command[1] as ChannelCommandEvent['command'], args: command[2] })
       }
     } else if (text.trim() || images.length || files.length) {
       this.emit('message', { ...identity, text, images, files })
