@@ -51,6 +51,7 @@ const providerKeyMap = {
   jina: 'provider.jina',
   lanyun: 'provider.lanyun',
   litellm: 'provider.litellm',
+  llamay: 'provider.llamay',
   lmstudio: 'provider.lmstudio',
   minimax: 'provider.minimax',
   mistral: 'provider.mistral',

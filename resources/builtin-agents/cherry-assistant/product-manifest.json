@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "e1952ef3858002a8",
-    "count": 67,
+    "version": "3890564839b31f05",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -598,6 +598,10 @@
       {
         "id": "litellm",
         "name": "LiteLLM"
+      },
+      {
+        "id": "llamay",
+        "name": "llamay"
       },
       {
         "id": "anthropic",

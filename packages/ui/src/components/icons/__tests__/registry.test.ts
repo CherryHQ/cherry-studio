@@ -16,6 +16,7 @@ describe('resolveProviderIconRef', () => {
     { providerId: 'aionly', expectedToExist: true },
     { providerId: 'gitee-ai', expectedToExist: true },
     { providerId: 'litellm', expectedToExist: true },
+    { providerId: 'llamay', expectedToExist: true },
     { providerId: 'desearch', expectedToExist: true }
   ]
 
