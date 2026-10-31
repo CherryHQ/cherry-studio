@@ -67,6 +67,8 @@ function buildGate(
     nonBypassableApprovalTools: ReadonlySet<string>
     delegationTools: ReadonlySet<string>
     admitToolCall: PiApprovalContext['admitToolCall']
+    isToolCallLimitReached: PiApprovalContext['isToolCallLimitReached']
+    markToolCallLimitReached: PiApprovalContext['markToolCallLimitReached']
   }> = {}
 ) {
   const emitted: any[] = []
@@ -85,6 +87,8 @@ function buildGate(
     nonBypassableApprovalTools: new Set(),
     delegationTools: new Set(),
     admitToolCall: () => true,
+    isToolCallLimitReached: () => false,
+    markToolCallLimitReached: () => {},
     ...overrides
   }
   const factory = createPiApprovalExtension(context)
@@ -140,8 +144,24 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
     await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toEqual({
       block: true,
-      reason: 'The Pi agent reached its tool-call limit for this turn.'
+      reason: 'The Pi agent reached its tool-call limit for this turn.',
+      terminate: true
     })
+  })
+
+  it('refuses post-limit calls before any policy check or approval prompt', async () => {
+    const { handler, emitted } = buildGate({
+      approvalRequiredTools: new Set(['codemode']),
+      isToolCallLimitReached: () => true
+    })
+
+    await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'The Pi agent reached its tool-call limit for this turn.',
+      terminate: true
+    })
+    // No approval request was emitted for a call the turn could never admit.
+    expect(emitted).toHaveLength(0)
   })
 
   it('gates a bash call in default mode: emits a pi-agent approval request and blocks until dispatched', async () => {

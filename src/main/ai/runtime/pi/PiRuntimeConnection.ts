@@ -361,7 +361,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             .filter(({ approval }) => approval === 'delegation')
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
         ),
-        admitToolCall: () => this.admitToolCall()
+        admitToolCall: () => this.admitToolCall(),
+        isToolCallLimitReached: () => this.toolCallLimitReached || this.toolCallsThisTurn >= PI_TOOL_CALL_LIMIT,
+        markToolCallLimitReached: () => {
+          this.toolCallLimitReached = true
+        }
       }
       const mcpServers = buildAgentMcpServers(
         session,
@@ -685,7 +689,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     if (event.type === 'tool_execution_end') {
       this.endToolSpan(event)
-      if (this.toolCallsThisTurn >= PI_TOOL_CALL_LIMIT) this.stopAtToolCallLimit()
     }
 
     if (event.type === 'turn_end') {
@@ -768,19 +771,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private admitToolCall(): boolean {
     if (this.toolCallLimitReached || this.toolCallsThisTurn >= PI_TOOL_CALL_LIMIT) {
-      this.stopAtToolCallLimit()
+      // Refuse WITHOUT aborting: admitted in-flight calls must settle. The approval
+      // extension pairs this refusal with the SDK's terminate hint - honored once every
+      // finalized result in the batch carries it, so a mixed batch can cost one extra
+      // assistant round-trip - and the turn-end path reports the limit.
+      this.toolCallLimitReached = true
       return false
     }
     this.toolCallsThisTurn += 1
     return true
-  }
-
-  private stopAtToolCallLimit(): void {
-    if (this.toolCallLimitReached) return
-    this.toolCallLimitReached = true
-    void Promise.resolve(this.session?.abort()).catch((error) => {
-      logger.warn('Failed to abort Pi agent after reaching the tool-call limit', { error })
-    })
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */

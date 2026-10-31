@@ -173,7 +173,9 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
           approvalRequiredTools: new Set(),
           nonBypassableApprovalTools: new Set(),
           delegationTools: new Set(),
-          admitToolCall: () => true
+          admitToolCall: () => true,
+          isToolCallLimitReached: () => false,
+          markToolCallLimitReached: () => {}
         })
       ]
     })

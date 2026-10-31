@@ -1067,7 +1067,7 @@ describe('PiRuntimeConnection', () => {
     expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_ID)).toBe(true)
   })
 
-  it('aborts a turn after the Pi tool-call limit and reports the limit to the user', async () => {
+  it('blocks the 21st sequential tool call and reports the limit to the user without aborting admitted work', async () => {
     const prompt = createDeferred<void>()
     mocks.prompt.mockReturnValueOnce(prompt.promise)
     const conn = await new PiRuntimeConnection(input).start()
@@ -1077,7 +1077,7 @@ describe('PiRuntimeConnection', () => {
     for (let index = 0; index < 20; index += 1) {
       const toolCallId = `tool-${index}`
       const event = { type: 'tool_call', toolName: 'codemode', toolCallId, input: { code: 'return 1' } }
-      await authorize(event, {})
+      await expect(authorize(event, {})).resolves.toBeUndefined()
       mocks.subscribeCb!({
         type: 'tool_execution_start',
         toolCallId,
@@ -1093,11 +1093,92 @@ describe('PiRuntimeConnection', () => {
       } as unknown as AgentSessionEvent)
     }
 
-    expect(mocks.abort).toHaveBeenCalledOnce()
+    expect(mocks.abort).not.toHaveBeenCalled()
     await expect(
       authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: 'tool-20', input: { code: 'return 1' } }, {})
-    ).resolves.toMatchObject({ block: true })
+    ).resolves.toMatchObject({ block: true, terminate: true })
 
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('tool-call limit') }
+    })
+  })
+
+  it('settles an exactly-at-limit parallel batch without aborting or erroring', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('parallel batch'))
+    const authorize = approvalGateHandler()
+
+    // The SDK prepares every approval before executing: all 20 admissions happen up front.
+    for (let index = 0; index < 20; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `p-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+    // Then the batch executes and every admitted call runs to completion.
+    for (let index = 0; index < 20; index += 1) {
+      mocks.subscribeCb!({
+        type: 'tool_execution_start',
+        toolCallId: `p-${index}`,
+        toolName: 'codemode',
+        args: {}
+      } as unknown as AgentSessionEvent)
+      mocks.subscribeCb!({
+        type: 'tool_execution_end',
+        toolCallId: `p-${index}`,
+        toolName: 'codemode',
+        result: 'ok',
+        isError: false
+      } as unknown as AgentSessionEvent)
+    }
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)?.type).toBe('turn-complete')
+  })
+
+  it('blocks over-limit admissions but lets the admitted parallel batch settle before reporting the limit', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('oversized parallel batch'))
+    const authorize = approvalGateHandler()
+
+    // 21 admissions prepared up front: the first 20 are admitted, the 21st is refused.
+    for (let index = 0; index < 20; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `q-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+    await expect(
+      authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: 'q-20', input: {} }, {})
+    ).resolves.toMatchObject({ block: true, terminate: true })
+
+    // The 20 admitted calls all run to completion - no abort, no synthesized errors.
+    for (let index = 0; index < 20; index += 1) {
+      mocks.subscribeCb!({
+        type: 'tool_execution_start',
+        toolCallId: `q-${index}`,
+        toolName: 'codemode',
+        args: {}
+      } as unknown as AgentSessionEvent)
+      mocks.subscribeCb!({
+        type: 'tool_execution_end',
+        toolCallId: `q-${index}`,
+        toolName: 'codemode',
+        result: 'ok',
+        isError: false
+      } as unknown as AgentSessionEvent)
+    }
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
     prompt.resolve()
     const events = await collectUntilTerminal(conn.events)
     expect(events.at(-1)).toMatchObject({
