@@ -1,4 +1,5 @@
 import { Mutex } from 'async-mutex'
+import { app } from 'electron'
 
 import { application } from '@application'
 import {
@@ -13,6 +14,12 @@ import {
 } from '@cherrystudio/computer-use'
 import { loggerService } from '@logger'
 import { BaseService, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isMac } from '@main/core/platform'
+import {
+  getScreenCapturePermissionStatus,
+  openScreenCaptureSettings,
+  requestScreenCapturePermission
+} from '@main/utils/screenCapturePermission'
 
 const logger = loggerService.withContext('ComputerUseService')
 
@@ -475,11 +482,60 @@ export class ComputerUseService extends BaseService {
   }
 
   getPermissionStatus(): Promise<PermissionStatus> {
-    return this.withPermissionSession((client) => client.getPermissionStatus({ signal: this.shutdown.signal }))
+    return this.withPermissionSession(async (client) => {
+      const status = await client.getPermissionStatus({ signal: this.shutdown.signal })
+      this.shutdown.signal.throwIfAborted()
+      return this.mergeHostScreenPermission(status)
+    })
   }
 
   requestPermissions(ids: [string, ...string[]]): Promise<PermissionStatus> {
-    return this.withPermissionSession((client) => client.requestPermissions({ ids }, { signal: this.shutdown.signal }))
+    return this.withPermissionSession(async (client) => {
+      if (!isMac || !app.isPackaged) {
+        return client.requestPermissions({ ids }, { signal: this.shutdown.signal })
+      }
+      const helperIds = ids.filter((id) => id !== 'screenRecording')
+      const status = await (helperIds.length
+        ? client.requestPermissions({ ids: helperIds as [string, ...string[]] }, { signal: this.shutdown.signal })
+        : client.getPermissionStatus({ signal: this.shutdown.signal }))
+      this.shutdown.signal.throwIfAborted()
+      if (ids.includes('screenRecording')) {
+        await this.requestHostScreenPermission()
+        this.shutdown.signal.throwIfAborted()
+      }
+      return this.mergeHostScreenPermission(status)
+    })
+  }
+
+  private mergeHostScreenPermission(status: PermissionStatus): PermissionStatus {
+    if (!isMac || !app.isPackaged) return status
+    const hostStatus = getScreenCapturePermissionStatus()
+    const projection = {
+      authorized: { status: 'granted', interaction: 'none' },
+      'not-determined': { status: 'notDetermined', interaction: 'systemPrompt' },
+      denied: { status: 'denied', interaction: 'systemSettings' },
+      restricted: { status: 'unavailable', interaction: 'none' }
+    } as const
+    return {
+      ...status,
+      permissions: status.permissions.map((permission) =>
+        permission.id === 'screenRecording' ? { ...permission, ...projection[hostStatus] } : permission
+      )
+    }
+  }
+
+  private async requestHostScreenPermission(): Promise<void> {
+    this.shutdown.signal.throwIfAborted()
+    let status = getScreenCapturePermissionStatus()
+    if (status === 'not-determined') {
+      await requestScreenCapturePermission()
+      this.shutdown.signal.throwIfAborted()
+      status = getScreenCapturePermissionStatus()
+    }
+    if (status === 'denied') {
+      this.shutdown.signal.throwIfAborted()
+      openScreenCaptureSettings()
+    }
   }
 
   protected async onStop(): Promise<void> {
@@ -502,7 +558,10 @@ export class ComputerUseService extends BaseService {
         { signal: this.shutdown.signal }
       )
       try {
-        return await run(client)
+        this.shutdown.signal.throwIfAborted()
+        const status = await run(client)
+        this.shutdown.signal.throwIfAborted()
+        return status
       } finally {
         await client.close()
       }

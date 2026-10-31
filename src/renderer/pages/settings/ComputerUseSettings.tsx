@@ -15,6 +15,7 @@ import {
   SettingsContentColumn
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
 
 const logger = loggerService.withContext('ComputerUseSettings')
 const PERMISSION_KEY = 'computer_use.get_permission_status'
@@ -51,6 +52,10 @@ export function ComputerUseSettings() {
       onError: (cause) => logger.warn('Permission request failed', cause)
     }
   )
+  const { data: appInfo } = useSWR('app.get_info', () => ipcApi.request('app.get_info'), {
+    shouldRetryOnError: false,
+    onError: (cause) => logger.warn('App info query failed', cause)
+  })
   const busy = isLoading || isValidating || isMutating
 
   return (
@@ -113,6 +118,16 @@ export function ComputerUseSettings() {
                           `settings.computerUse.status.${permission.status === 'notDetermined' ? 'unknown' : permission.status}`
                         )}
                       </SettingDescription>
+                      {isMac &&
+                        appInfo?.isPackaged &&
+                        permission.id === 'screenRecording' &&
+                        permission.status !== 'granted' &&
+                        permission.status !== 'unavailable' &&
+                        permission.interaction !== 'none' && (
+                          <SettingDescription className="mt-1">
+                            {t('settings.computerUse.screenRecordingHint')}
+                          </SettingDescription>
+                        )}
                     </div>
                     {known &&
                       permission.status !== 'granted' &&
