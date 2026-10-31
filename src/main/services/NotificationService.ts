@@ -415,7 +415,7 @@ export class NotificationService extends BaseService {
             : `${conversationName}\n${lastSentence}`
           : conversationName,
         createdAt: completedAt,
-        target: { kind: 'conversation', ...target }
+        target: { kind: 'conversation', ...target, replyPreview: lastSentence ?? '' }
       },
       { source: 'assistant', completion: true }
     )

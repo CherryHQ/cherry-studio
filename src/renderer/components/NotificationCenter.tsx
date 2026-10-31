@@ -55,9 +55,10 @@ function NotificationItem({
       (record.kind === 'task-completion' || record.kind === 'queue-completion' || !!record.target.result))
   const resultStatus = record.target?.result?.status ?? 'succeeded'
   const replyPreview =
-    record.kind === 'task-completion' || record.kind === 'queue-completion'
+    (record.target?.kind === 'conversation' ? record.target.replyPreview : undefined) ??
+    (record.kind === 'task-completion' || record.kind === 'queue-completion'
       ? record.message.split('\n').slice(1).join('\n').trim()
-      : record.message.trim()
+      : record.message.trim())
   const showReplyPreview =
     task && record.target?.kind === 'conversation' && resultStatus === 'succeeded' && !!replyPreview
   const resultLabels = {

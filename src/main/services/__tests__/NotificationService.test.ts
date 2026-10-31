@@ -1237,7 +1237,12 @@ describe('NotificationService', () => {
         category: 'system',
         title: 'Assistant response complete',
         message: 'Research notes\nHere is the final answer.',
-        target: { kind: 'conversation', conversationType: 'assistant', conversationId: 'topic-1' }
+        target: {
+          kind: 'conversation',
+          conversationType: 'assistant',
+          conversationId: 'topic-1',
+          replyPreview: 'Here is the final answer.'
+        }
       })
     )
     expect(mocks.electronNotifications).toHaveLength(0)
@@ -1326,6 +1331,9 @@ describe('NotificationService', () => {
       title: 'Assistant response complete',
       body: `Research notes\n${expected}`
     })
+    expect(NotificationRecordSchema.parse(notificationRecordService.list({}).items[0]).target).toMatchObject({
+      replyPreview: expected
+    })
   })
 
   it.each([
@@ -1336,11 +1344,17 @@ describe('NotificationService', () => {
     mocks.agentSessionGetById.mockReturnValue({ name: '' })
     emitCompletion({ topicId })
     expect(mocks.electronNotifications[0].options).toEqual({ title, body: 'Here is the final answer.' })
+    expect(NotificationRecordSchema.parse(notificationRecordService.list({}).items[0]).target).toMatchObject({
+      replyPreview: 'Here is the final answer.'
+    })
   })
 
   it.each([undefined, '', '   '])('falls back to the conversation name without reply text (%s)', (responseText) => {
     emitCompletion({ responseText })
     expect(mocks.electronNotifications[0].options.body).toBe('Research notes')
+    expect(NotificationRecordSchema.parse(notificationRecordService.list({}).items[0]).target).toMatchObject({
+      replyPreview: ''
+    })
   })
 
   it('logs a name lookup failure and keeps notifying with the localized generic name', () => {

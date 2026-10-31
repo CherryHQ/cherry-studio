@@ -57,13 +57,26 @@ describe('NotificationCenter reading', () => {
   })
 
   it.each([
-    ['assistant', true],
-    ['agent', true],
-    ['assistant', false],
-    ['agent', false]
+    ['assistant', 'prefixed'],
+    ['agent', 'prefixed'],
+    ['assistant', 'reply-only'],
+    ['agent', 'reply-only'],
+    ['assistant', 'name-only'],
+    ['agent', 'name-only'],
+    ['assistant', 'legacy-prefixed'],
+    ['agent', 'legacy-prefixed'],
+    ['assistant', 'legacy-name-only'],
+    ['agent', 'legacy-name-only']
   ] as const)(
-    'shows the %s success excerpt while keeping failed and scheduled outcomes compact',
-    async (source, hasReply) => {
+    'shows the %s %s success excerpt while keeping failed and scheduled outcomes compact',
+    async (source, shape) => {
+      const hasReply = shape === 'prefixed' || shape === 'reply-only' || shape === 'legacy-prefixed'
+      const message =
+        shape === 'reply-only'
+          ? 'Brief reply excerpt'
+          : hasReply
+            ? 'Conversation name to hide\nBrief reply excerpt'
+            : 'Conversation name to hide'
       const records: NotificationRecord[] = [
         {
           id: 'c4519cf1-0405-4eb1-a18c-17b263872413',
@@ -95,11 +108,16 @@ describe('NotificationCenter reading', () => {
           category: 'system',
           kind: 'queue-completion',
           title: 'Hidden batch count',
-          message: hasReply ? 'Conversation name to hide\nBrief reply excerpt' : 'Conversation name to hide',
+          message,
           createdAt: Date.now() - 1000,
           readAt: null,
           dismissedAt: null,
-          target: { kind: 'conversation', conversationType: source, conversationId: 'topic' }
+          target: {
+            kind: 'conversation',
+            conversationType: source,
+            conversationId: 'topic',
+            ...(shape.startsWith('legacy-') ? {} : { replyPreview: hasReply ? 'Brief reply excerpt' : '' })
+          }
         },
         {
           id: 'c4519cf1-0405-4eb1-a18c-17b263872415',

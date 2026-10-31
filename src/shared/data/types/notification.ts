@@ -19,6 +19,8 @@ export const NotificationTargetSchema = z
       kind: z.literal('conversation'),
       conversationType: z.enum(['assistant', 'agent']),
       conversationId: z.string().min(1),
+      // Empty means no reply; absent means a legacy record without a separate preview.
+      replyPreview: z.string().optional(),
       messageId: z.string().min(1).nullable().optional()
     }),
     z.object({ kind: z.literal('scheduled-task'), taskId: z.string().min(1) }),
