@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
 import { SkillImportError } from '@main/ai/skills/SkillImportError'
+import { t } from '@main/i18n'
 import en from '@main/i18n/locales/en-us.json'
 import zh from '@main/i18n/locales/zh-cn.json'
+import { IpcRouter } from '@main/ipc/IpcRouter'
 import { PluginError } from '@main/utils/markdownParser'
+import { skillRequestSchemas } from '@shared/ipc/schemas/skill'
 
 const {
   installMock,
@@ -21,7 +24,9 @@ const {
   reconcileMock,
   reconcileSkillMock,
   checkRemoteUpdateMock,
-  applyRemoteUpdateMock
+  applyRemoteUpdateMock,
+  previewImportMock,
+  applyImportMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
@@ -35,6 +40,8 @@ const {
   reconcileMock: vi.fn(),
   reconcileSkillMock: vi.fn(),
   checkRemoteUpdateMock: vi.fn(),
+  previewImportMock: vi.fn(),
+  applyImportMock: vi.fn(),
   applyRemoteUpdateMock: vi.fn()
 }))
 
@@ -60,6 +67,8 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     reconcileSkills: reconcileMock,
     reconcileSkill: reconcileSkillMock,
     checkRemoteUpdate: checkRemoteUpdateMock,
+    previewImport: previewImportMock,
+    applyImport: applyImportMock,
     applyRemoteUpdate: applyRemoteUpdateMock
   }
 }))
@@ -329,6 +338,103 @@ describe('skillHandlers', () => {
 
     await expect(skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)).rejects.toThrow(
       'import failed'
+    )
+  })
+})
+
+describe('batch skill IPC', () => {
+  const router = new IpcRouter(skillRequestSchemas, skillHandlers)
+  const items = [
+    { id: 'one', kind: 'directory', path: '/skills/one' },
+    { id: 'two', kind: 'zip', path: '/skills/two.zip' }
+  ]
+
+  it.each([
+    { items: [], policy: 'skip' },
+    { items: [{ id: '', kind: 'directory', path: '/skills/one' }], policy: 'skip' },
+    { items: [items[0], items[0]], policy: 'update' },
+    { items: [{ ...items[0], path: 'relative/path' }], policy: 'skip' },
+    { items: [{ ...items[0], kind: 'remote' }], policy: 'skip' },
+    { items, policy: 'overwrite' },
+    { items, policy: 'skip', targetId: 'renderer-authority' }
+  ])('rejects malformed Preview requests through native IPC validation: %j', async (request) => {
+    await expect(router.dispatch('skill.import.preview', request, ctx)).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED'
+    })
+  })
+
+  it.each(['', undefined])('requires a non-empty Apply revision (%s)', async (revision) => {
+    await expect(router.dispatch('skill.import.apply', { items, policy: 'skip', revision }, ctx)).rejects.toMatchObject(
+      { code: 'VALIDATION_FAILED' }
+    )
+  })
+
+  it('allows separate input ids for the same path and returns ordered native batch results', async () => {
+    const preview = {
+      items: [
+        { id: 'one', status: 'new' },
+        { id: 'two', status: 'invalid', code: 'invalid_input' }
+      ],
+      revision: 'revision'
+    }
+    previewImportMock.mockResolvedValue(preview)
+    const result = await router.dispatch(
+      'skill.import.preview',
+      { items: [items[0], { ...items[0], id: 'two' }], policy: 'skip' },
+      ctx
+    )
+    expect(result).toEqual({
+      ...preview,
+      items: [preview.items[0], { ...preview.items[1], message: zh['skill.import.batch_invalid'] }]
+    })
+    applyImportMock.mockResolvedValue([
+      { id: 'one', status: 'installed', skillId: 'actual', folderName: 'one' },
+      { id: 'two', status: 'blocked', code: 'builtin_target', retryable: false }
+    ])
+    expect(await router.dispatch('skill.import.apply', { items, policy: 'update', revision: 'revision' }, ctx)).toEqual(
+      [
+        { id: 'one', status: 'installed', skillId: 'actual', folderName: 'one' },
+        {
+          id: 'two',
+          status: 'blocked',
+          code: 'builtin_target',
+          retryable: false,
+          message: zh['skill.import.batch_blocked']
+        }
+      ]
+    )
+  })
+
+  it('preserves the localized missing-SKILL.md ZIP reason in preview and non-retryable apply errors', async () => {
+    const items = [{ id: 'no-skill', kind: 'zip', path: '/skills/no-skill.zip' }]
+    const failure = { id: 'no-skill', code: 'zip_missing_skill_md' }
+    previewImportMock.mockResolvedValue({ items: [{ ...failure, status: 'invalid' }], revision: 'revision' })
+    expect(await router.dispatch('skill.import.preview', { items, policy: 'skip' }, ctx)).toEqual({
+      items: [{ ...failure, status: 'invalid', message: t('skill.import.zip_missing_skill_md') }],
+      revision: 'revision'
+    })
+    applyImportMock.mockResolvedValue([{ ...failure, status: 'error', retryable: false }])
+    expect(await router.dispatch('skill.import.apply', { items, policy: 'skip', revision: 'revision' }, ctx)).toEqual([
+      { ...failure, status: 'error', retryable: false, message: t('skill.import.zip_missing_skill_md') }
+    ])
+  })
+
+  it('returns stale failures per item but propagates unexpected service errors', async () => {
+    applyImportMock.mockResolvedValue(
+      items.map((item) => ({ id: item.id, status: 'error', code: 'stale_plan', retryable: true }))
+    )
+    expect(await router.dispatch('skill.import.apply', { items, policy: 'update', revision: 'old' }, ctx)).toEqual(
+      items.map((item) => ({
+        id: item.id,
+        status: 'error',
+        code: 'stale_plan',
+        retryable: true,
+        message: zh['skill.import.batch_stale']
+      }))
+    )
+    previewImportMock.mockRejectedValue(new Error('unexpected scan failure'))
+    await expect(router.dispatch('skill.import.preview', { items, policy: 'skip' }, ctx)).rejects.toThrow(
+      'unexpected scan failure'
     )
   })
 })
