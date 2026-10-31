@@ -46,7 +46,13 @@ vi.mock('./piMcpExtension', async (importOriginal) => ({
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: async () => ({}),
-  getPathFromEnvironment: () => undefined
+  getRawShellEnv: async () => ({}),
+  getPathFromEnvironment: () => undefined,
+  getMiseEnvEntries: () => [],
+  hasUserMiseEnv: () => false,
+  resolveCherryPathTailDirs: () => [],
+  applyUserMiseContract: () => {},
+  withCherryShellEnv: (env: Record<string, string>) => ({ ...env })
 }))
 vi.mock('@main/utils/commandResolver', () => ({
   autoDiscoverGitBash: () => null,
