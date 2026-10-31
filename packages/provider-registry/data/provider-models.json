@@ -48023,6 +48023,9 @@
     },
     {
       "apiModelId": "gemma-4-26b-a4b-it",
+      "limits": {
+        "contextWindow": 131072
+      },
       "modelId": "gemma-4-26b-a4b-it",
       "pricing": {
         "input": {
@@ -48053,6 +48056,9 @@
     },
     {
       "apiModelId": "qwen/qwen3-30b-a3b-instruct-2507",
+      "limits": {
+        "contextWindow": 98304
+      },
       "modelId": "qwen3-30b-a3b-instruct",
       "pricing": {
         "input": {
@@ -48068,6 +48074,9 @@
     },
     {
       "apiModelId": "qwen3-coder-30b",
+      "limits": {
+        "contextWindow": 98304
+      },
       "modelId": "qwen3-coder-30b-a3b-instruct",
       "pricing": {
         "input": {
@@ -48083,6 +48092,9 @@
     },
     {
       "apiModelId": "qwen/qwen3-vl-30b-a3b-instruct",
+      "limits": {
+        "contextWindow": 65536
+      },
       "modelId": "qwen3-vl-30b-a3b-instruct",
       "pricing": {
         "input": {
@@ -50070,5 +50082,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "2d5e3bf266b9eaab"
+  "version": "ed04d1cfdcc0f850"
 }

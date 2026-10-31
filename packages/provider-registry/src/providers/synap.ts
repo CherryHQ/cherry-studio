@@ -3,7 +3,7 @@ import { openaiCompatible } from './types'
 /**
  * Synap serves its 5 self-hosted fleet models exclusively on Linkrra-operated GPUs (refused with
  * a 503 rather than routed to any third-party backend if no fleet node is online). The pricing
- * below mirrors the live feed at pool.linkrra.com/v1/models.
+ * and context windows below mirror the live feed at pool.linkrra.com/v1/models.
  */
 export default openaiCompatible({
   id: 'synap',
@@ -27,6 +27,7 @@ export default openaiCompatible({
     },
     {
       apiModelId: 'gemma-4-26b-a4b-it',
+      limits: { contextWindow: 131072 },
       modelId: 'gemma-4-26b-a4b-it',
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.04 },
@@ -35,6 +36,7 @@ export default openaiCompatible({
     },
     {
       apiModelId: 'qwen3-coder-30b',
+      limits: { contextWindow: 98304 },
       modelId: 'qwen3-coder-30b-a3b-instruct',
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.0675 },
@@ -43,6 +45,7 @@ export default openaiCompatible({
     },
     {
       apiModelId: 'qwen/qwen3-30b-a3b-instruct-2507',
+      limits: { contextWindow: 98304 },
       modelId: 'qwen3-30b-a3b-instruct',
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.085 },
@@ -51,6 +54,7 @@ export default openaiCompatible({
     },
     {
       apiModelId: 'qwen/qwen3-vl-30b-a3b-instruct',
+      limits: { contextWindow: 65536 },
       modelId: 'qwen3-vl-30b-a3b-instruct',
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.14 },
