@@ -104,7 +104,7 @@ test('shows a collapsed version timeline for the upgrade range in About and the 
     files: [],
     path: '',
     sha512: '',
-    releaseNotes: 'Target fallback'
+    releaseNotes: '- Old fix'
   }
   await electronApp.evaluate(
     ({ BrowserWindow }, { channel, info }) => {
@@ -114,8 +114,9 @@ test('shows a collapsed version timeline for the upgrade range in About and the 
     },
     { channel: IpcChannel.IpcApi_Event, info }
   )
-  await expect(settings.getByText(`${installed} → ${target}`)).toBeVisible()
-  await expect(settings.getByText('Versions loaded: 2')).toBeVisible()
+  await expect(settings.getByText(`${installed} → ${target}`)).toHaveCount(0)
+  await expect(settings.getByRole('button', { name: `v${intermediate}`, exact: true })).toBeVisible()
+  await expect(settings.getByText(/Versions loaded/)).toHaveCount(0)
   const targetRow = settings.getByRole('button', { name: `v${target}`, exact: true })
   const intermediateRow = settings.getByRole('button', { name: `v${intermediate}`, exact: true })
   await expect(targetRow).toHaveAttribute('aria-expanded', 'false')
@@ -135,29 +136,40 @@ test('shows a collapsed version timeline for the upgrade range in About and the 
   await expect(settings.getByText('Fourth', { exact: true })).toHaveCount(0)
   await expect(settings.getByText('Intermediate feature', { exact: true })).toBeVisible()
 
-  await serveHistory(
-    electronApp,
-    releases.filter(({ version }) => version === target)
-  )
+  const corrected = [{ version: target, releaseNotes: bilingual('- New fix', '- 新的修复') }]
+  await serveHistory(electronApp, corrected)
   await settings.getByRole('button', { name: en['settings.about.checkUpdate.available'], exact: true }).click()
   const singleDialog = mainWindow.getByRole('dialog', { name: en['update.title'], exact: true })
-  await expect(singleDialog.getByText('Fourth', { exact: true })).toBeVisible()
+  await expect(singleDialog.getByText('New fix', { exact: true })).toBeVisible()
+  await expect(singleDialog.getByText('Old fix', { exact: true })).toHaveCount(0)
   await expect(singleDialog.getByRole('button', { name: `v${target}`, exact: true })).toHaveCount(0)
   await expect(singleDialog.getByText(/Versions loaded|Current version/)).toHaveCount(0)
   await expect(singleDialog.getByText(`${installed} → ${target}`)).toHaveCount(0)
   await saveWindowScreenshot(electronApp, mainWindow, testInfo.outputPath('upgrade-notes-single.png'))
   await singleDialog.getByRole('button', { name: en['update.later'], exact: true }).click()
+  await expect(singleDialog).toHaveCount(0)
 
   await serveHistory(electronApp, null)
   await settings.getByRole('button', { name: en['settings.about.checkUpdate.available'], exact: true }).click()
   const dialog = mainWindow.getByRole('dialog', { name: en['update.title'], exact: true })
   await expect(dialog.getByText(en['update.history.unavailable'])).toBeVisible()
-  await expect(dialog.getByText('Target fallback')).toBeVisible()
+  await expect(dialog.getByText('Old fix')).toBeVisible()
   const install = dialog.getByRole('button', { name: en['update.install'], exact: true })
   await expect(install).toBeEnabled()
-  await serveHistory(electronApp, releases)
+  await serveHistory(electronApp, corrected)
   await dialog.getByRole('button', { name: en['common.retry'], exact: true }).click()
-  await expect(dialog.getByText('Versions loaded: 2')).toBeVisible()
+  await expect(dialog.getByText('New fix', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Old fix', { exact: true })).toHaveCount(0)
+  await expect(install).toBeEnabled()
+  await dialog.getByRole('button', { name: en['update.later'], exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  await serveHistory(electronApp, releases)
+  await expect(async () => {
+    await settings.getByRole('button', { name: en['settings.about.checkUpdate.available'], exact: true }).click()
+    await expect(dialog).toBeVisible({ timeout: 500 })
+  }).toPass({ intervals: [2100], timeout: 7000 })
+  await expect(dialog.getByRole('button', { name: `v${intermediate}`, exact: true })).toBeVisible()
+  await expect(dialog.getByText(/Versions loaded/)).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: `v${target}`, exact: true })).toHaveAttribute(
     'aria-expanded',
     'false'

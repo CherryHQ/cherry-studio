@@ -51,6 +51,7 @@ export const ReleaseNotes: FC<ReleaseNotesProps> = ({ content, className }) => {
   const { t } = useTranslation()
   return (
     <Markdown
+      key={content}
       id={id}
       footnoteLabel={t('common.footnotes')}
       remarkPlugins={remarkPlugins}

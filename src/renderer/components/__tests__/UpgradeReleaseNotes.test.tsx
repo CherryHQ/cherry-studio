@@ -63,8 +63,9 @@ describe('UpgradeReleaseNotes', () => {
     request.mockResolvedValue(response)
     const user = userEvent.setup()
     render(view())
-    expect(await screen.findByText('Versions loaded: 2')).toBeVisible()
-    expect(screen.getByText('2.1.6 → 2.1.9')).toBeVisible()
+    expect(await screen.findByRole('button', { name: 'v2.1.8' })).toBeVisible()
+    expect(screen.queryByText(/Versions loaded/)).not.toBeInTheDocument()
+    expect(screen.queryByText('2.1.6 → 2.1.9')).not.toBeInTheDocument()
     expect(screen.getByText('v2.1.6 · Current version')).toBeVisible()
     expect(screen.queryByRole('button', { name: /v2.1.6/ })).not.toBeInTheDocument()
     const target = screen.getByRole('button', { name: 'v2.1.9' })
@@ -106,6 +107,39 @@ describe('UpgradeReleaseNotes', () => {
     expect(screen.queryByRole('button', { name: en['common.retry'] })).not.toBeInTheDocument()
   })
 
+  it.each(['initial fetch', 'retry'] as const)(
+    'replaces same-length single-version fallback text after %s',
+    async (attempt) => {
+      let resolveHistory!: (value: typeof response) => void
+      const pending = new Promise<typeof response>((resolve) => {
+        resolveHistory = resolve
+      })
+      if (attempt === 'retry') request.mockRejectedValueOnce(new Error('offline'))
+      request.mockReturnValueOnce(pending)
+      const user = userEvent.setup()
+      render(view({ ...info(), releaseNotes: '- Old fix' }))
+      expect(screen.getByText('Old fix')).toBeVisible()
+      if (attempt === 'retry') {
+        await user.click(await screen.findByRole('button', { name: en['common.retry'] }))
+      }
+      await act(async () =>
+        resolveHistory({
+          ...response,
+          releases: [
+            {
+              version: '2.1.9',
+              releaseNotes: '<!--LANG:en-->- New fix<!--LANG:zh-CN-->- 新的修复<!--LANG:END-->'
+            }
+          ]
+        })
+      )
+      await waitFor(() => expect(screen.queryByText(en['update.history.loading'])).not.toBeInTheDocument())
+      expect(screen.getByText('New fix')).toBeVisible()
+      expect(screen.queryByText('Old fix')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'v2.1.9' })).not.toBeInTheDocument()
+    }
+  )
+
   it('ignores an old response after the upgrade target changes', async () => {
     let resolveOld!: (value: typeof response) => void
     request.mockReturnValueOnce(
@@ -126,7 +160,8 @@ describe('UpgradeReleaseNotes', () => {
     await userEvent.click(target)
     expect(await screen.findByText('New target')).toBeVisible()
     await act(async () => resolveOld(response))
-    await waitFor(() => expect(screen.getByText('2.1.6 → 2.1.10')).toBeVisible())
+    expect(screen.getByText('New target')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'v2.1.10' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.queryByText('Rotate keys')).not.toBeInTheDocument()
   })
 
@@ -175,7 +210,7 @@ describe('UpgradeReleaseNotes', () => {
     })
     const { container } = render(view())
     const user = userEvent.setup()
-    await screen.findByText('Versions loaded: 2')
+    await screen.findByRole('button', { name: 'v2.1.8' })
     await user.click(screen.getByRole('button', { name: 'v2.1.9' }))
     await user.click(screen.getByRole('button', { name: 'v2.1.8' }))
     const links = screen.getAllByRole('button', { name: 'Details' })

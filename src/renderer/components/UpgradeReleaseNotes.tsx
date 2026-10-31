@@ -34,13 +34,6 @@ function UpgradeNotesContent({ releaseInfo }: { releaseInfo: UpdateInfo }) {
   const missingTarget = !releases.some(({ version }) => version === releaseInfo.version)
   return (
     <div className="min-w-0 space-y-4 break-words [overflow-wrap:anywhere]">
-      {showTimeline && (
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span>{t('update.history.range', { from: fromVersion, to: releaseInfo.version })}</span>
-          <span aria-hidden="true">·</span>
-          <span>{t('update.history.loaded', { count: releases.length })}</span>
-        </div>
-      )}
       {status !== 'available' && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <p role="status">{status === 'loading' ? t('update.history.loading') : t('update.history.unavailable')}</p>
