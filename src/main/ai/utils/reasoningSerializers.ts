@@ -14,7 +14,7 @@ import type {
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 const logger = loggerService.withContext('reasoningSerializers')
@@ -181,8 +181,16 @@ function resolveModeBudget(
 
 export function resolveReasoningInvocation(input: ResolveReasoningInvocationInput): ResolvedReasoningInvocation {
   const requested = input.selection ?? 'default'
-  if (!input.model.reasoning || input.profile.disabled) {
-    return omit('the model declares no reasoning, or its profile is disabled', input.model, requested)
+  if (
+    !input.model.capabilities?.includes(MODEL_CAPABILITY.REASONING) ||
+    !input.model.reasoning ||
+    input.profile.disabled
+  ) {
+    return omit(
+      'the model has reasoning disabled, declares no reasoning, or its profile is disabled',
+      input.model,
+      requested
+    )
   }
 
   const selection = resolveSelection(input.selection, input.model)
