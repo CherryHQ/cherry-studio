@@ -537,6 +537,53 @@ describe('projectCompletedMessageParts', () => {
     })
   })
 
+  it('keeps an attachment notice visible when an OCR-noticed reply completes and after reload', () => {
+    const notice = {
+      type: 'data-attachment-notice',
+      data: { kind: 'image-ocr', fileNames: ['screenshot.png'] }
+    }
+    // Both cases use the completed projection (isActive=false), which is what a
+    // reloaded message renders too.
+    const completed = projectCompletedMessageParts(entries([notice, { type: 'text', text: 'Answer' }]))
+    expect(indexes(completed.resultEntries)).toEqual([0, 1])
+    expect(completed.historyEntries).toEqual([])
+
+    const reloaded = projectCompletedMessageParts(entries([notice, { type: 'text', text: 'Answer', state: 'done' }]))
+    expect(indexes(reloaded.resultEntries)).toEqual([0, 1])
+    expect(reloaded.historyEntries).toEqual([])
+  })
+
+  it.each([false, true])(
+    'keeps an OCR notice outside live process history (intermediate text=%s)',
+    (keepIntermediateAssistantText) => {
+      const layout = projectLiveMessageParts(
+        entries([
+          { type: 'data-attachment-notice', data: { kind: 'image-ocr', fileNames: ['screenshot.png'] } },
+          { type: 'reasoning', text: 'Reading the image', state: 'streaming' },
+          { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'input-available' }
+        ]),
+        { keepIntermediateAssistantText }
+      )
+      expect(layout[0]).toMatchObject({ kind: 'part', key: 0, entry: { index: 0 } })
+      expect(layout[1]).toMatchObject({ kind: 'process', key: 1 })
+      expect(layout.flatMap((item) => (item.kind === 'process' ? indexes(item.entries) : []))).toEqual([1, 2])
+    }
+  )
+
+  it('keeps an attachment notice outside collapsed process history when reasoning and tools follow it', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'data-attachment-notice', data: { kind: 'image-ocr', fileNames: ['screenshot.png'] } },
+        { type: 'reasoning', text: 'Reading the image', state: 'done' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Final answer', state: 'done' }
+      ])
+    )
+
+    expect(indexes(layout.resultEntries)).toEqual([0, 3])
+    expect(indexes(layout.historyEntries)).toEqual([1, 2])
+  })
+
   it('keeps the last substantive answer and associated values outside history despite trailing tools', () => {
     const layout = projectCompletedMessageParts(
       entries([

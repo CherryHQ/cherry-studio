@@ -122,6 +122,33 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
   })
 
+  it('reports each image sent as OCR text, and never a native image (#21446)', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('ocr body')
+    const onImageOcrFallback = vi.fn()
+    const messages = [userMessage([fileWithEntry('e1', 'a.png', 'image/png')])] as UIMessage[]
+
+    await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true,
+      onImageOcrFallback
+    })
+
+    expect(onImageOcrFallback).toHaveBeenCalledExactlyOnceWith({ messageId: messages[0].id, displayName: 'a.png' })
+
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    resolveMock.mockImplementation(async (part) => part)
+    onImageOcrFallback.mockClear()
+    await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: ALL,
+      isToolCapable: true,
+      onImageOcrFallback
+    })
+    expect(onImageOcrFallback).not.toHaveBeenCalled()
+  })
+
   it('OCRs a modern non-vision image whose composer token matches its source id', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockResolvedValueOnce('ocr body')
