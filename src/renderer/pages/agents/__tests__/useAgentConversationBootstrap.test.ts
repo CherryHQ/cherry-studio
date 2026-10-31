@@ -57,6 +57,7 @@ describe('useAgentConversationBootstrap', () => {
   })
 
   it('switches the model key to the canonical agent result', () => {
+    mocks.agentLoading = true
     const { rerender, result } = renderHook(() =>
       useAgentConversationBootstrap({
         session,
@@ -85,5 +86,64 @@ describe('useAgentConversationBootstrap', () => {
     )
 
     expect(mocks.modelLookupId).toBeUndefined()
+  })
+
+  it('prefers a per-session model override over the agent default', () => {
+    mocks.agent = { id: 'agent-1', model: 'provider-canonical::model-canonical' }
+
+    const { result } = renderHook(() =>
+      useAgentConversationBootstrap({
+        session: { ...session, model: 'provider-session::model-session' },
+        sessionLoading: false,
+        sessionSource: 'query',
+        agentHint: { id: 'agent-1', model: 'provider-hint::model-hint' }
+      })
+    )
+
+    expect(mocks.modelLookupId).toBe('provider-session::model-session')
+    expect(result.current.resources.model?.id).toBe('provider-session::model-session')
+  })
+
+  it('keeps sibling sessions of the same agent on independent models', () => {
+    mocks.agent = { id: 'agent-1', model: 'provider-canonical::model-canonical' }
+    const base = {
+      sessionLoading: false as const,
+      sessionSource: 'query' as const,
+      agentHint: { id: 'agent-1', model: 'provider-hint::model-hint' as const }
+    }
+
+    const first = renderHook(() =>
+      useAgentConversationBootstrap({
+        ...base,
+        sessionSource: 'query',
+        session: { ...session, id: 'session-a', model: 'provider-a::model-a' }
+      })
+    )
+    const second = renderHook(() =>
+      useAgentConversationBootstrap({
+        ...base,
+        sessionSource: 'query',
+        session: { ...session, id: 'session-b', model: 'provider-b::model-b' }
+      })
+    )
+
+    expect(first.result.current.resources.model?.id).toBe('provider-a::model-a')
+    expect(second.result.current.resources.model?.id).toBe('provider-b::model-b')
+  })
+
+  it('does not revive the hint once the agent resolves without a model', () => {
+    mocks.agent = { id: 'agent-1', model: null }
+
+    const { result } = renderHook(() =>
+      useAgentConversationBootstrap({
+        session,
+        sessionLoading: false,
+        sessionSource: 'query',
+        agentHint: { id: 'agent-1', model: 'provider-hint::model-hint' }
+      })
+    )
+
+    expect(mocks.modelLookupId).toBeNull()
+    expect(result.current.resources.model).toBeUndefined()
   })
 })

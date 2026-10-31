@@ -34,6 +34,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateAgentSchema } from '@shared/data/api/schemas/agents'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -661,6 +662,51 @@ describe('AgentService', () => {
           reasoning_effort: 'default'
         }
       })
+    })
+
+    it('validates a reasoning patch against the caller-supplied session model (inv_98911732422a84bf)', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      // The agent's own model stays TEST_MODEL_ID (which supports only the
+      // default effort); the session steering this edit overrides to Kimi K3,
+      // so `high` must validate against the override, not the agent default
+      // (cherry-pr-review inv_98911732422a84bf).
+      const parsed = UpdateAgentSchema.parse({
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(parsed.reasoningValidationModelId).toBe(kimiK3ModelId)
+      const created = await insertAgent({ model: TEST_MODEL_ID, configuration: { reasoning_effort: 'low' } })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(updated?.configuration?.reasoning_effort).toBe('high')
+
+      // Without the hint the agent's unchanged model remains the basis.
+      const updatedWithoutHint = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+      expect(updatedWithoutHint?.configuration?.reasoning_effort).toBe('default')
     })
 
     it('preserves an explicit reasoning tombstone while changing the model', async () => {

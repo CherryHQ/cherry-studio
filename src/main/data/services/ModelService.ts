@@ -31,6 +31,7 @@ import {
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
 import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/utils/modelDeletionEffects'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -1155,11 +1156,15 @@ class ModelService {
     const dbService = application.get('DbService')
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const deletedIds: string[] = []
+    const affectedSessionIds: string[] = []
     const rows = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
           for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            // Read affected session overrides before the rows go: the FK clears
+            // agent_session.model on delete and only these ids know which sessions re-fetched.
+            affectedSessionIds.push(...selectSessionsUsingModelsTx(tx, chunk))
             const deletedRows = tx
               .delete(userModelTable)
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
@@ -1195,6 +1200,7 @@ class ModelService {
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()
+    notifyModelsDeleted(deletedIds, affectedSessionIds)
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
@@ -1208,9 +1214,11 @@ class ModelService {
     const uniqueModelId = createUniqueModelId(providerId, modelId)
     assertModelNotUsedAsDefaultModel(uniqueModelId, `delete model ${uniqueModelId}`)
 
+    let affectedSessionIds: string[] = []
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, [uniqueModelId])
           const rows = tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
@@ -1226,6 +1234,7 @@ class ModelService {
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
     pinService.notifyPurged()
+    notifyModelsDeleted([uniqueModelId], affectedSessionIds)
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1253,6 +1262,7 @@ class ModelService {
     }
 
     const ids = [...uniqueItems.keys()]
+    let affectedSessionIds: string[] = []
 
     withSqliteErrors(
       () =>
@@ -1273,6 +1283,7 @@ class ModelService {
             throw DataApiErrorFactory.notFound('Model', missingId)
           }
 
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, ids)
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
             const deletedRows = tx
@@ -1293,6 +1304,7 @@ class ModelService {
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
     pinService.notifyPurged()
+    notifyModelsDeleted(ids, affectedSessionIds)
 
     logger.info('Bulk deleted models', {
       count: ids.length,

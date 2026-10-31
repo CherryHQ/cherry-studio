@@ -20,6 +20,7 @@ import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/utils/modelDeletionEffects'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
@@ -965,6 +966,8 @@ class ProviderService {
   delete(providerId: string): void {
     assertManagedCherryProviderMutationAllowed(providerId, `delete provider ${providerId}`)
 
+    const providerModelIds: string[] = []
+    let affectedSessionIds: string[] = []
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({
@@ -996,11 +999,15 @@ class ProviderService {
         .where(eq(userModelTable.providerId, providerId))
         .all()
 
+      providerModelIds.push(...models.map((model) => model.id))
       pinService.purgeForEntitiesTx(
         tx,
         'model',
         models.map((model) => model.id)
       )
+      // Read affected session overrides before the provider-row delete: the FK
+      // cascade clears agent_session.model (via user_model) inside this same tx.
+      affectedSessionIds = selectSessionsUsingModelsTx(tx, providerModelIds)
 
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
@@ -1021,6 +1028,7 @@ class ProviderService {
     })
 
     if (deletedModelCount > 0) pinService.notifyPurged()
+    notifyModelsDeleted(providerModelIds, affectedSessionIds)
 
     logger.info('Deleted provider', { providerId })
   }

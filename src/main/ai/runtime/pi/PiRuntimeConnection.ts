@@ -317,7 +317,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         agentDataPath,
         agent,
         citationsGuidance,
-        effectiveLanguage: initialSnapshot.effectiveLanguage
+        effectiveLanguage: initialSnapshot.effectiveLanguage,
+        modelName: initialSnapshot.model.name ?? initialSnapshot.model.id
       })
       const mountedServers = resolveMountedMcpServers(agent, {
         browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
@@ -364,7 +365,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         initialSnapshot.mcpServerSnapshots,
         linkedChannel,
         agentDataPath,
-        this.input.knowledgeBaseIds
+        this.input.knowledgeBaseIds,
+        undefined,
+        this.input.modelId
       )
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,

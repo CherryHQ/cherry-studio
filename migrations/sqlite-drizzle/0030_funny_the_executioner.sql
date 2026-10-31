@@ -1,0 +1,1 @@
+ALTER TABLE `agent_session` ADD `model` text REFERENCES user_model(id) ON DELETE SET NULL;
