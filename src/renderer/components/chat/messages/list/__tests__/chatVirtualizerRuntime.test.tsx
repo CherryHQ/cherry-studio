@@ -3072,6 +3072,93 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it.each<{
+    name: string
+    initialWheelDeltaY: number
+    initialOffset: number
+    nextInput: { wheelDeltaY: number } | { direction: 'up' | 'down' | 'none' }
+    nextOffset: number
+    following: boolean
+    offsetAfterGrowth: number
+  }>([
+    {
+      name: 'yields to an upward pointer scroll after wheeling down to the bottom',
+      initialWheelDeltaY: 600,
+      initialOffset: 800,
+      nextInput: { direction: 'none' },
+      nextOffset: 700,
+      following: false,
+      offsetAfterGrowth: 700
+    },
+    {
+      name: 'resumes following on a downward scroll key after wheeling up',
+      initialWheelDeltaY: -300,
+      initialOffset: 500,
+      nextInput: { direction: 'down' },
+      nextOffset: 800,
+      following: true,
+      offsetAfterGrowth: 1000
+    },
+    {
+      name: 'keeps following when a scroll event after an upward wheel has no viewport movement',
+      initialWheelDeltaY: 600,
+      initialOffset: 800,
+      nextInput: { wheelDeltaY: -40 },
+      nextOffset: 800,
+      following: true,
+      offsetAfterGrowth: 1000
+    }
+  ])('$name', ({ initialWheelDeltaY, initialOffset, nextInput, nextOffset, following, offsetAfterGrowth }) => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      let scrollHeight = 1200
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={(nextHandle) => {
+            handle = nextHandle
+          }}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime!.vlistHandleRef.current = createHandle()
+      act(() => runtime!.scrollToBottom())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+      act(() => {
+        runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: initialWheelDeltaY }))
+        scroller.scrollTop = initialOffset
+        runtime!.scrollerProps.onScroll(initialOffset)
+      })
+      act(() => {
+        if ('wheelDeltaY' in nextInput) {
+          runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: nextInput.wheelDeltaY }))
+        } else {
+          runtime!.markUserInput(nextInput.direction)
+        }
+        scroller.scrollTop = nextOffset
+        runtime!.scrollerProps.onScroll(nextOffset)
+      })
+      expect(handle!.isFollowing()).toBe(following)
+
+      scrollHeight = 1400
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(10)
+      expect(scroller.scrollTop).toBe(offsetAfterGrowth)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it('reasserts bottom when virtua drifts backward just after a downward return gesture', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

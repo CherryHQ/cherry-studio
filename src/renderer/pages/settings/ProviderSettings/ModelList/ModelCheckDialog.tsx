@@ -191,7 +191,7 @@ function ApiKeyScopeField({
     return (
       <div className="space-y-2">
         <Label id={labelId}>{t('settings.models.check.key_scope')}</Label>
-        <p className="text-muted-foreground text-sm">{t('settings.models.check.no_api_keys')}</p>
+        <p className="text-muted-foreground text-sm">{t('message.error.enter.api.label')}</p>
       </div>
     )
   }

@@ -23,6 +23,7 @@ import type {
   InferUseCacheValue,
   IsTemplateKey,
   ProcessKey,
+  RendererPersistCacheSchema,
   SharedCacheKey,
   UseCacheCasualKey,
   UseCacheKey
@@ -382,7 +383,7 @@ type PersistPrev<K extends Parameters<typeof usePersistCache>[0]> = Parameters<U
 
 // Representative value types
 type SelectedIds = InferUseCacheValue<'chat.selected_message_ids'> // string[]
-type KeepAlive = InferUseCacheValue<'mini_app.opened_keep_alive'> // CacheMiniAppType[]
+type PinnedTabs = RendererPersistCacheSchema['ui.tab.pinned_tabs']
 type GatewayRunning = InferSharedCacheValue<'feature.api_gateway.running'> // boolean
 type JobProgress = InferSharedCacheValue<'jobs.progress.job-1'> // { progress: number, ... }
 
@@ -410,7 +411,7 @@ describe('readonly updater (static guarantees)', () => {
     it('shallow only — array elements are NOT deep-frozen', () => {
       // Element type stays the mutable value's element (we intentionally avoid a
       // recursive DeepReadonly, which caused filter/map assignability friction).
-      expectTypeOf<MemoryPrev<'mini_app.opened_keep_alive'>[number]>().toEqualTypeOf<KeepAlive[number]>()
+      expectTypeOf<PersistPrev<'ui.tab.pinned_tabs'>[number]>().toEqualTypeOf<PinnedTabs[number]>()
       expect(true).toBe(true)
     })
   })

@@ -6,10 +6,7 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 const WEB_SEARCH_DESCRIPTION =
-  'Performs a web search using the Brave Search API, ideal for general queries, news, articles, and online content. ' +
-  'Use this for broad information gathering, recent events, or when you need diverse web sources. ' +
-  'Supports pagination, content filtering, and freshness controls. ' +
-  'Maximum 20 results per request, with offset for pagination. '
+  'Search the web with Brave for news, current events, and broad research. Up to 20 results per call.'
 
 const WebSearchArgsSchema = z.object({
   query: z.string().describe('Search query (max 400 chars, 50 words)'),
@@ -18,14 +15,7 @@ const WebSearchArgsSchema = z.object({
 })
 
 const LOCAL_SEARCH_DESCRIPTION =
-  "Searches for local businesses and places using Brave's Local Search API. " +
-  'Best for queries related to physical locations, businesses, restaurants, services, etc. ' +
-  'Returns detailed information including:\n' +
-  '- Business names and addresses\n' +
-  '- Ratings and review counts\n' +
-  '- Phone numbers and opening hours\n' +
-  "Use this when the query implies 'near me' or mentions specific locations. " +
-  'Automatically falls back to web search if no local results are found.'
+  'Search local businesses and places (name, address, rating, hours). Falls back to web search when empty.'
 
 const LocalSearchArgsSchema = z.object({
   query: z.string().describe("Local search query (e.g. 'pizza near Central Park')"),

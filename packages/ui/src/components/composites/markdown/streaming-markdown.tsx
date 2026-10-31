@@ -22,12 +22,18 @@ export interface StreamingMarkdownProps {
   parseMarkdownIntoBlocksFn?: (source: string) => string[]
   /** Preserve local file hrefs for a custom anchor while retaining URL hardening. */
   preserveFileLinkHrefs?: boolean
+  /** Extra href schemes permitted by the caller. */
+  additionalLinkProtocols?: readonly string[]
+  /** Preserve relative image destinations for a custom image renderer. */
+  preserveRelativeImageSrcs?: boolean
 }
 
 const DEFAULT_ANIMATED: AnimateOptions = {
   animation: 'fadeIn',
   duration: 250,
-  easing: 'ease-out'
+  easing: 'ease-out',
+  // Per-word delays can hide a long paragraph after later blocks are already visible.
+  stagger: 0
 }
 
 export function StreamingMarkdown({
@@ -43,7 +49,9 @@ export function StreamingMarkdown({
   animated,
   parseIncompleteMarkdown = true,
   parseMarkdownIntoBlocksFn,
-  preserveFileLinkHrefs
+  preserveFileLinkHrefs,
+  additionalLinkProtocols,
+  preserveRelativeImageSrcs
 }: StreamingMarkdownProps): ReactElement {
   // Stable reference so Streamdown's internal memo on JSON.stringify(animated)
   // sees the same identity across renders.
@@ -64,9 +72,16 @@ export function StreamingMarkdown({
       extraRemarkPlugins={remarkPlugins}
       animated={resolvedAnimated}
       disallowedElements={disallowedElements}
-      className={className}
+      className={[
+        className,
+        (!resolvedAnimated || (resolvedAnimated.animation ?? 'fadeIn') === 'fadeIn') && 'markdown-fade-in'
+      ]
+        .filter(Boolean)
+        .join(' ')}
       footnoteLabel={footnoteLabel}
-      preserveFileLinkHrefs={preserveFileLinkHrefs}>
+      preserveFileLinkHrefs={preserveFileLinkHrefs}
+      additionalLinkProtocols={additionalLinkProtocols}
+      preserveRelativeImageSrcs={preserveRelativeImageSrcs}>
       {children}
     </MarkdownCore>
   )

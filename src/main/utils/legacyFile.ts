@@ -82,40 +82,6 @@ export async function hasWritePermission(dir: string) {
   }
 }
 
-/**
- * Check if a path is inside another path (proper parent-child relationship)
- * This function correctly handles edge cases that string.startsWith() cannot handle,
- * such as distinguishing between '/root/test' and '/root/test aaa'
- *
- * @param childPath - The path that might be inside the parent path
- * @param parentPath - The path that might contain the child path
- * @returns true if childPath is inside parentPath, false otherwise
- */
-export function isPathInside(childPath: string, parentPath: string): boolean {
-  try {
-    const resolvedChild = path.resolve(childPath)
-    const resolvedParent = path.resolve(parentPath)
-
-    // Normalize paths to handle different separators
-    const normalizedChild = path.normalize(resolvedChild)
-    const normalizedParent = path.normalize(resolvedParent)
-
-    // Check if they are the same path
-    if (normalizedChild === normalizedParent) {
-      return true
-    }
-
-    const relativePath = path.relative(normalizedParent, normalizedChild)
-    const firstSegment = relativePath.split(/[/\\]/).filter(Boolean)[0]
-
-    // Reject only real parent traversal (`..` as a segment), not legal names like `..archive`.
-    return relativePath !== '' && firstSegment !== '..' && !path.isAbsolute(relativePath)
-  } catch (error) {
-    logger.error('Failed to check path relationship:', error as Error)
-    return false
-  }
-}
-
 export function getFileType(ext: string): FileType {
   ext = ext.toLowerCase()
   return fileTypeMap.get(ext) || FILE_TYPE.OTHER

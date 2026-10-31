@@ -1,646 +1,185 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import useSWR, { useSWRConfig } from 'swr'
+import {
+  createContext,
+  useCallback,
+  use,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 
-import { loggerService } from '@logger'
-import { trackDepartingNotesFileWrite } from '@renderer/hooks/notesFileEditFlush'
-import { ipcApi } from '@renderer/ipc'
-import type { FileTextLineEnding, UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
-import { decodeFileText, encodeFileText, UnsupportedFileTextError } from '@renderer/utils/fileTextSnapshot'
+import type {
+  FileEditSessionManager,
+  PreparedFileMutation,
+  SessionLease
+} from '@renderer/services/fileEdit/FileEditSessionManager'
+import { UnsupportedFileTextError, type UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { FileVersion } from '@shared/types/file'
-import { debounce, SingleFlight } from '@shared/utils/async'
 
-const logger = loggerService.withContext('useFileEditSession')
-
-const AUTOSAVE_DEBOUNCE_MS = 800
-
-/** Bound on rebase-and-retry rounds within one write loop (pathological touch loops). */
-const MAX_STALE_REBASES = 3
-
-/** Largest file we load into memory for editing. */
-export const FILE_EDIT_MAX_SIZE_BYTES = 2 * 1024 * 1024
-
+export { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 export type { UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 
-const keyOf = (handle: FileHandle) =>
-  handle.kind === 'entry' ? `file-edit-session/entry/${handle.entryId}` : `file-edit-session/path/${handle.path}`
-
-/** A disk snapshot decoded for editing — the SWR-cached value for a path. */
-interface FileEditSnapshot {
-  content: string
-  version: FileVersion
-  lineEnding: FileTextLineEnding
-  hasBom: boolean
-}
-
-/**
- * The mutable per-file edit model (VS Code's TextFileEditorModel shape). Held
- * behind a ref and captured by reference into async writers, so a write that
- * outlives a file switch still rebases/settles against ITS OWN baseline —
- * never against the next file's React state.
- *
- * Invariant: `snapshot.content` is the last content known to be on disk;
- * `draft !== snapshot.content` ⇔ dirty.
- */
-interface FileEditModel {
-  readonly handle: FileHandle
-  readonly key: string
-  snapshot: FileEditSnapshot
-  draft: string
-  conflict: boolean
-  saving: boolean
-  notifyActive?: () => void
-  /** Last non-stale write failure (disk full, permissions…); cleared on success. */
-  lastWriteError: Error | null
-  /** Serialized writer: at most one write loop runs per model at a time. */
-  writeTask: SingleFlight<void>
-}
-
-// A departing relocation save may fail after its editor has unmounted. Keep
-// that exact model reachable when the note is reopened, including its draft,
-// conflict and serialized writer. Never replace it with a fresh disk snapshot.
-const retainedNotesModels = new Map<string, FileEditModel>()
-
-export function resetRetainedNotesModelsForTests(): void {
-  retainedNotesModels.clear()
-}
+export const FileEditSessionContext = createContext<FileEditSessionManager | null>(null)
 
 export interface FileEditSession {
   status: 'idle' | 'loading' | 'ready' | 'unsupported' | 'error'
-  /** Last content known to be on disk (feeds an uncontrolled editor on load/reload). */
+  sessionId?: string
+  documentEpoch: number
+  readOnly: boolean
   savedContent: string
-  /** Exact byte size reported by the latest successful read or write. */
   savedSizeBytes?: number
-  /** Current editable content (the controlled editor value). */
   draft: string
   isDirty: boolean
   isSaving: boolean
-  /** A genuine external change collided with local edits — autosave is paused until `reload`. */
   conflict: boolean
-  /** Last autosave I/O failure while still dirty (disk full, permissions…); cleared once a write lands. */
   saveError?: Error
-  /** Bytes were saved, but Main left derived metadata null for background recovery. */
   metadataRecoveryPending: boolean
   unsupportedReason?: UnsupportedFileTextReason
   error?: Error
-  setDraft: (next: string) => void
-  /** Drop the in-memory draft back to the last snapshot known to be on disk. */
-  discard: () => void
-  /** Discard local edits, load disk content, resume autosave. */
-  reload: () => Promise<void>
-  /** Rebase the current draft onto the latest disk version, then save it. */
-  keepDraft: () => Promise<void>
+  setDraft(next: string): void
+  discard(): Promise<void>
+  reload(): Promise<void>
+  keepDraft(): Promise<void>
+  flush(): Promise<void>
+  notifyExternalChange(): void
   /**
-   * Write the pending edit immediately (e.g. before a file operation).
-   * Rejects if the draft could not be persisted (I/O failure or conflict) so
-   * callers must not proceed with operations that would lose it.
+   * Awaitable disk revalidation (notes tree reconnects). Never clobbers a dirty
+   * draft: a clean session adopts the latest disk content, while a dirty one
+   * only surfaces a conflict when the on-disk baseline moved.
    */
-  flush: () => Promise<void>
-  /** Drops a scheduled debounced autosave without writing. */
-  cancelPendingAutosave: () => void
-  /** Re-schedules an autosave dropped by `cancelPendingAutosave` if its draft is still dirty and current. */
-  resumePendingAutosave: () => void
-  /**
-   * A watcher observed a change on this file. Pass the event's mtime (ms) when
-   * available so a self-save echo is dismissed without any IPC. Dirty models are
-   * never reloaded (VS Code semantics) — a real external change surfaces at the
-   * next autosave through the optimistic write's version check.
-   */
-  notifyExternalChange: (eventMtimeMs?: number) => void
-  /** Reload from disk when the model is clean (e.g. after the notes tree reconnects). */
-  refreshFromDiskIfIdle: () => Promise<void>
+  refreshFromDiskIfIdle(): Promise<void>
+  prepareMutation(): Promise<PreparedFileMutation>
 }
 
-async function readFile(handle: FileHandle): Promise<FileEditSnapshot> {
-  const { content, version } = await ipcApi.request('file.read', {
-    handle,
-    options: { mode: 'full', encoding: 'binary' }
-  })
-  if (content.byteLength > FILE_EDIT_MAX_SIZE_BYTES) throw new UnsupportedFileTextError('size')
-  const decoded = decodeFileText(content)
-  return { content: decoded.content, version, lineEnding: decoded.lineEnding, hasBom: decoded.hasBom }
-}
+const emptySubscription = () => () => {}
+const emptySnapshot = () => null
+const keyOf = (handle: FileHandle) => (handle.kind === 'entry' ? `entry:${handle.entryId}` : `path:${handle.path}`)
 
-/**
- * FileVersion.mtime is floored ms; whole-second values (`% 1000 === 0`) are how
- * second-precision filesystems (FAT32/SMB/NFS) surface, where equal mtimes do
- * not prove equal content. Mirrors main's ambiguity predicate in
- * `atomicWriteIfUnchanged`.
- */
-const isAmbiguousMtime = (mtime: number) => mtime % 1000 === 0
-
-/**
- * One file's edit session: SWR-backed read + debounced autosave through the
- * `file.write_if_unchanged` optimistic lock, with encoding/BOM/CRLF preserved
- * (via `fileTextSnapshot`). Pass `undefined` for no active file.
- *
- * Follows the VS Code text-file model:
- * - Writes are **serialized** — one in flight per file, later edits coalesce
- *   into the next write with the rebased baseline (no self-stale races).
- * - Watcher events **never reload a dirty model**; while idle, an event whose
- *   mtime matches our last on-disk version is a self-save echo (no IPC).
- * - **Conflict is decided at write time only**: a stale write is verified
- *   against disk (identical content → adopt; metadata-only touch → rebase and
- *   retry) before pausing autosave and surfacing the reload dialog.
- *
- * The hook holds one path's state, so call it at a level stable across the
- * consuming view's remounts.
- */
 export function useFileEditSession(
   handle: FileHandle | undefined,
-  options?: { suppressAutosave?: () => boolean; trackDepartingWritesForRelocation?: boolean }
+  ownerId: string,
+  { autoSave = true }: { autoSave?: boolean } = {}
 ): FileEditSession {
-  const suppressAutosaveRef = useRef(options?.suppressAutosave)
-  suppressAutosaveRef.current = options?.suppressAutosave
-  const trackDepartingWritesForRelocation = options?.trackDepartingWritesForRelocation ?? false
-  const { cache, mutate } = useSWRConfig()
-  const handleKey = handle ? keyOf(handle) : null
-  const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(handleKey, () => readFile(handle!), {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    errorRetryCount: 0
-  })
-
-  const [draft, setDraftState] = useState('')
-  const [savedContent, setSavedContentState] = useState('')
-  const [savedSizeBytes, setSavedSizeBytes] = useState<number | undefined>(undefined)
-  const [conflict, setConflictState] = useState(false)
-  const [saveError, setSaveErrorState] = useState<Error | undefined>(undefined)
-  const [isSaving, setIsSaving] = useState(false)
-  const [ready, setReady] = useState(false)
-
-  const modelRef = useRef<FileEditModel | null>(null)
-
-  const cacheSnapshotIfActive = useCallback(
-    (model: FileEditModel, snapshot: FileEditSnapshot) => {
-      if (modelRef.current !== model) {
-        return
-      }
-      void mutate(model.key, snapshot, { revalidate: false })
-    },
-    [mutate]
+  const manager = use(FileEditSessionContext)
+  if (!manager) throw new Error('File editing requires a window session provider')
+  const entryId = handle?.kind === 'entry' ? handle.entryId : undefined
+  const path = handle?.kind === 'path' ? handle.path : undefined
+  const stableHandle = useMemo<FileHandle | undefined>(
+    () => (entryId ? { kind: 'entry', entryId } : path ? { kind: 'path', path } : undefined),
+    [entryId, path]
   )
-
-  // A completed write owns the saved bytes even after its editor leaves. Publish
-  // only over its own cached baseline, never over another model's newer snapshot.
-  const cacheCompletedWrite = useCallback(
-    async (model: FileEditModel, snapshot: FileEditSnapshot, baseline: FileEditSnapshot) => {
-      const replaceBaseline = (cached: FileEditSnapshot | undefined) => {
-        const isBaseline =
-          !cached ||
-          (cached.content === baseline.content &&
-            cached.version.mtime === baseline.version.mtime &&
-            cached.version.size === baseline.version.size &&
-            cached.lineEnding === baseline.lineEnding &&
-            cached.hasBom === baseline.hasBom)
-        return isBaseline ? snapshot : cached
-      }
-      try {
-        await mutate(model.key, replaceBaseline, { revalidate: false })
-      } catch (error) {
-        // A provider can be disposed while its final disk write is pending.
-        // Its retained cache still needs the committed snapshot on re-mount.
-        const cachedState = cache.get(model.key)
-        const next = replaceBaseline(cachedState?.data as FileEditSnapshot | undefined)
-        cache.set(model.key, { ...cachedState, data: next })
-        logger.warn('Saved file cache notification failed after departure', error as Error)
-      }
-    },
-    [cache, mutate]
-  )
-
-  // Mirror a model into React state — only while it is still the active model.
-  const syncFromModel = useCallback((model: FileEditModel) => {
-    if (!model.conflict && model.draft === model.snapshot.content && retainedNotesModels.get(model.key) === model) {
-      retainedNotesModels.delete(model.key)
-    }
-    if (modelRef.current !== model) {
-      model.notifyActive?.()
-      return
-    }
-    setIsSaving(model.saving)
-    setDraftState(model.draft)
-    setSavedContentState(model.snapshot.content)
-    setSavedSizeBytes(model.snapshot.version.size)
-    setConflictState(model.conflict)
-    setSaveErrorState(model.lastWriteError ?? undefined)
-    setReady(true)
-  }, [])
-
-  // The write loop is rebuilt every render (capturing the current `mutate`) but
-  // invoked through a ref so the stable `requestWrite` never goes stale.
-  const runWritesRef = useRef<(model: FileEditModel) => Promise<void>>(undefined)
-  runWritesRef.current = async (model) => {
-    let rebases = 0
-    model.saving = true
-    syncFromModel(model)
-    try {
-      // Re-reads `model.draft` every round: edits made while a write was in
-      // flight coalesce into one follow-up write with the rebased baseline.
-      while (!model.conflict && model.draft !== model.snapshot.content) {
-        const writeDraft = model.draft
-        const baseline = model.snapshot
-        try {
-          const encoded = encodeFileText(writeDraft, baseline.lineEnding, baseline.hasBom)
-          const version = await ipcApi.request('file.write_if_unchanged', {
-            handle: model.handle,
-            data: encoded,
-            expectedVersion: baseline.version
-          })
-          model.snapshot = { ...baseline, content: writeDraft, version }
-          model.lastWriteError = null
-          syncFromModel(model)
-          // Keep the SWR cache in step so a later reopen sees the saved bytes.
-          await cacheCompletedWrite(model, model.snapshot, baseline)
-        } catch (writeError) {
-          if (writeError instanceof IpcError && writeError.code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
-            logger.warn('Autosave bytes committed; metadata recovery is pending', {
-              handle: model.handle,
-              data: writeError.data
-            })
-            try {
-              const disk = await readFile(model.handle)
-              model.snapshot = disk
-              model.lastWriteError = writeError
-              syncFromModel(model)
-              await cacheCompletedWrite(model, disk, baseline)
-              // The bytes did land. Stop this write loop so the same payload
-              // is never retried merely because metadata finalization failed.
-              // A later user edit may start a new save against the refreshed
-              // on-disk version.
-              break
-            } catch (refreshError) {
-              model.lastWriteError = refreshError as Error
-              syncFromModel(model)
-              break
-            }
-          }
-          if (!(writeError instanceof IpcError) || writeError.code !== fileErrorCodes.STALE_VERSION) {
-            // I/O error (disk full, permissions…): surface it and pause
-            // autosave. The consumer decides whether to retry or discard.
-            logger.error('Autosave failed', writeError as Error)
-            model.lastWriteError = writeError as Error
-            syncFromModel(model)
-            break
-          }
-          // Stale write — verify against disk before declaring a conflict
-          // (VS Code's validateWriteFile content-equality escape).
-          try {
-            const disk = await readFile(model.handle)
-            if (disk.content === writeDraft) {
-              // Disk already holds exactly what we tried to write.
-              model.snapshot = disk
-              syncFromModel(model)
-              await cacheCompletedWrite(model, disk, baseline)
-              continue
-            }
-            if (disk.content === baseline.content && ++rebases <= MAX_STALE_REBASES) {
-              // Metadata-only touch (mtime advanced, content identical) —
-              // rebase onto the new version and retry the write.
-              model.snapshot = disk
-              await cacheCompletedWrite(model, disk, baseline)
-              continue
-            }
-            model.conflict = true
-            syncFromModel(model)
-          } catch (verifyError) {
-            logger.error('Stale-write verification failed', verifyError as Error)
-            model.conflict = true
-            syncFromModel(model)
-          }
+  const key = stableHandle ? keyOf(stableHandle) : undefined
+  const request = useMemo(() => ({ key, manager, ownerId }), [key, manager, ownerId])
+  const [acquired, setAcquired] = useState<{ request: typeof request; lease?: SessionLease; error?: Error }>()
+  useLayoutEffect(() => {
+    if (!stableHandle || !key) return
+    let cancelled = false
+    let lease: SessionLease | undefined
+    void manager.acquire(ownerId, stableHandle).then(
+      (result) => {
+        if (cancelled) result.release()
+        else {
+          lease = result
+          setAcquired({ request, lease })
         }
+      },
+      (error: unknown) => {
+        if (!cancelled) setAcquired({ request, error: error instanceof Error ? error : new Error(String(error)) })
       }
-    } finally {
-      model.saving = false
-      syncFromModel(model)
-    }
-  }
-
-  // The running loop re-reads the latest draft, so concurrent requests join it.
-  const requestWrite = useCallback((model: FileEditModel, writeOptions?: { force?: boolean }) => {
-    if (!writeOptions?.force && suppressAutosaveRef.current?.()) {
-      return
-    }
-    if (model.conflict) return
-    void model.writeTask.run(() => runWritesRef.current?.(model) ?? Promise.resolve())
-  }, [])
-
-  // The model whose debounced autosave is scheduled and has not fired yet. Lets a relocation barrier that
-  // cancels the timer (and then aborts) put back exactly the save it dropped.
-  const scheduledAutosaveModelRef = useRef<FileEditModel | null>(null)
-  const debouncedWrite = useMemo(
-    () =>
-      debounce((model: FileEditModel) => {
-        if (scheduledAutosaveModelRef.current === model) scheduledAutosaveModelRef.current = null
-        requestWrite(model)
-      }, AUTOSAVE_DEBOUNCE_MS),
-    [requestWrite]
-  )
-
-  // Adopt SWR data: first load creates the model; a later revalidation only
-  // applies when idle, deduped by content/version and guarded by mtime monotonicity.
-  useEffect(() => {
-    if (!handle || !handleKey) return
-    const model = modelRef.current
-    const retained = trackDepartingWritesForRelocation ? retainedNotesModels.get(handleKey) : undefined
-    if (retained && model !== retained) {
-      modelRef.current = retained
-      retained.notifyActive = () => syncFromModel(retained)
-      syncFromModel(retained)
-      return
-    }
-    if (!data) return
-    if (model?.key === handleKey) {
-      if (
-        data.content === model.snapshot.content &&
-        data.lineEnding === model.snapshot.lineEnding &&
-        data.hasBom === model.snapshot.hasBom &&
-        data.version.mtime === model.snapshot.version.mtime &&
-        data.version.size === model.snapshot.version.size
-      ) {
-        return
-      }
-      if (model.draft !== model.snapshot.content) return // never clobber a dirty model
-      if (data.version.mtime < model.snapshot.version.mtime) return // stale read
-      model.snapshot = data
-      model.draft = data.content
-      syncFromModel(model)
-      return
-    }
-    const next: FileEditModel = {
-      handle,
-      key: handleKey,
-      snapshot: data,
-      draft: data.content,
-      conflict: false,
-      saving: false,
-      lastWriteError: null,
-      writeTask: new SingleFlight<void>()
-    }
-    modelRef.current = next
-    next.notifyActive = () => syncFromModel(next)
-    syncFromModel(next)
-  }, [data, handle, handleKey, syncFromModel, trackDepartingWritesForRelocation])
-
-  // Path switch / unmount: hand the leaving model its final write (serialized
-  // on its own chain, against its own rebased baseline — safe even if a write
-  // is still in flight), then detach it and reset the mirrors.
-  useEffect(() => {
+    )
     return () => {
-      debouncedWrite.cancel()
-      const model = modelRef.current
-      if (model && (model.conflict || model.draft !== model.snapshot.content)) {
-        const persistDepartingEdits = async () => {
-          if (!model.conflict && model.draft !== model.snapshot.content) {
-            requestWrite(model, { force: true })
-          }
-          await model.writeTask.promise
-          if (model.conflict || model.draft !== model.snapshot.content) {
-            throw model.lastWriteError ?? new Error('Pending edit could not be saved')
-          }
-          if (retainedNotesModels.get(model.key) === model) retainedNotesModels.delete(model.key)
-        }
-        if (trackDepartingWritesForRelocation) {
-          retainedNotesModels.set(model.key, model)
-          // Start the final write now; relocation flushes rejoin it in flight and
-          // retry it after failures until it lands (tracked attempt, see
-          // notesFileEditFlush). Discarding the draft resolves the model here
-          // first, so a discarded clean model never registers anything.
-          void persistDepartingEdits().catch(() => undefined)
-          trackDepartingNotesFileWrite(persistDepartingEdits)
-        } else {
-          void persistDepartingEdits().catch(() => undefined)
-        }
-      }
-      if (model) model.notifyActive = undefined
-      modelRef.current = null
-      setDraftState('')
-      setSavedContentState('')
-      setSavedSizeBytes(undefined)
-      setConflictState(false)
-      setSaveErrorState(undefined)
-      setIsSaving(false)
-      setReady(false)
+      cancelled = true
+      lease?.release()
     }
-  }, [handleKey, debouncedWrite, requestWrite, trackDepartingWritesForRelocation])
+  }, [manager, ownerId, key, stableHandle, request])
 
+  const lease = acquired?.request === request ? acquired?.lease : undefined
+  const acquisitionError = acquired?.request === request ? acquired?.error : undefined
+  const snapshot = useSyncExternalStore(lease?.subscribe ?? emptySubscription, lease?.getSnapshot ?? emptySnapshot)
+  const activatedLease = useRef<SessionLease | undefined>(undefined)
+  useEffect(() => {
+    if (!lease) return
+    const refresh = () => {
+      void lease.invalidate()
+    }
+    const visible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', visible)
+    if (activatedLease.current === lease) refresh()
+    activatedLease.current = lease
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', visible)
+    }
+  }, [lease])
+  useEffect(() => {
+    lease?.setAutoSave(autoSave)
+  }, [lease, autoSave])
+  const epoch = snapshot?.documentEpoch
+  const bindingEpoch = snapshot?.bindingEpoch
   const setDraft = useCallback(
-    (next: string) => {
-      const model = modelRef.current
-      if (!model) return
-      if (suppressAutosaveRef.current?.()) {
-        model.draft = next
-        setDraftState(next)
-        // An in-flight editor update can arrive after the barrier engaged,
-        // even when there was no earlier timer to cancel. Retain its save for
-        // unlock; resume re-checks current ownership, dirtiness and errors.
-        scheduledAutosaveModelRef.current = model
-        return
-      }
-      model.draft = next
-      setDraftState(next)
-      if (
-        model.lastWriteError instanceof IpcError &&
-        model.lastWriteError.code === fileErrorCodes.COMMITTED_METADATA_PENDING
-      ) {
-        // The prior payload already landed; this is a distinct user edit,
-        // not an automatic replay of the uncertain operation. A new managed
-        // commit can also complete the still-null metadata with its own bytes.
-        model.lastWriteError = null
-        setSaveErrorState(undefined)
-      }
-      // A persistent I/O failure must not turn every keystroke into another
-      // doomed write. Keep accepting edits in memory and wait for an explicit
-      // retry (`flush`) or discard from the consumer.
-      if (!model.lastWriteError) {
-        scheduledAutosaveModelRef.current = model
-        debouncedWrite(model)
-      }
+    (text: string) => {
+      lease?.acceptEdit(text, epoch, bindingEpoch)
     },
-    [debouncedWrite]
+    [lease, epoch, bindingEpoch]
+  )
+  const invoke = useCallback(
+    (command: 'flush' | 'discard' | 'reload' | 'keepLocal') => {
+      if (!lease) {
+        if (acquisitionError && (command === 'flush' || command === 'discard')) return Promise.resolve()
+        return Promise.reject(new Error('File session is not ready'))
+      }
+      return lease[command]()
+    },
+    [lease, acquisitionError]
   )
 
-  const discard = useCallback(() => {
-    const model = modelRef.current
-    // An IPC write that has already started cannot be cancelled safely. Keep
-    // the draft stable until it settles; consumers also disable discard while
-    // `isSaving` is true, and this guard protects future callers.
-    if (!model || model.writeTask.isRunning) return
-    debouncedWrite.cancel()
-    model.draft = model.snapshot.content
-    model.lastWriteError = null
-    // Dropping the draft also resolves the conflict: the model is back to the
-    // exact disk state, so a departing model must not surface a rejected
-    // departing save for content the user explicitly threw away.
-    model.conflict = false
-    syncFromModel(model)
-  }, [debouncedWrite, syncFromModel])
-
-  const reload = useCallback(async () => {
-    const model = modelRef.current
-    if (!model) return
-    debouncedWrite.cancel()
-    await model.writeTask.promise
-    const disk = await readFile(model.handle)
-    if (modelRef.current !== model) return
-    model.snapshot = disk
-    model.draft = disk.content
-    model.conflict = false
-    model.lastWriteError = null
-    syncFromModel(model)
-    void mutate(model.key, disk, { revalidate: false })
-  }, [debouncedWrite, mutate, syncFromModel])
-
-  const keepDraft = useCallback(async () => {
-    const model = modelRef.current
-    if (!model) return
-    debouncedWrite.cancel()
-    await model.writeTask.promise
-    const disk = await readFile(model.handle)
-    if (modelRef.current !== model) return
-    model.snapshot = disk
-    model.conflict = false
-    model.lastWriteError = null
-    syncFromModel(model)
-    void mutate(model.key, disk, { revalidate: false })
-    requestWrite(model)
-    await model.writeTask.promise
-    if (model.draft !== model.snapshot.content) {
-      throw model.lastWriteError ?? new Error('Current draft could not be saved')
-    }
-  }, [debouncedWrite, mutate, requestWrite, syncFromModel])
-
-  const cancelPendingAutosave = useCallback(() => {
-    debouncedWrite.cancel()
-  }, [debouncedWrite])
-
-  const resumePendingAutosave = useCallback(() => {
-    const model = scheduledAutosaveModelRef.current
-    scheduledAutosaveModelRef.current = null
-    if (!model || model !== modelRef.current) return // switched files or departed: that model owns its own save
-    if (model.draft === model.snapshot.content || model.conflict || model.lastWriteError) return // saved, discarded or blocked
-    // Do not read the suppression flag here: it still reflects the pre-unlock render. The debounced write
-    // re-checks it when the timer fires, by which time the unlock has re-rendered.
-    scheduledAutosaveModelRef.current = model
-    debouncedWrite(model)
-  }, [debouncedWrite])
-
-  const flush = useCallback(async () => {
-    const model = modelRef.current
-    debouncedWrite.cancel()
-    if (!model) return
-    requestWrite(model, { force: true })
-    await model.writeTask.promise
-    // I/O failures and conflicts leave the draft dirty after the writer settles.
-    // Reject so callers abort the operation that prompted the flush.
-    if (model.draft !== model.snapshot.content) {
-      throw model.lastWriteError ?? new Error('Pending edit could not be saved')
-    }
-  }, [debouncedWrite, requestWrite])
-
-  const refreshFromDiskIfIdle = useCallback(async () => {
-    const model = modelRef.current
-    if (!model || model.draft !== model.snapshot.content) return
-    const draftBefore = model.draft
-    try {
-      const disk = await readFile(model.handle)
-      if (modelRef.current !== model) return
-      if (model.draft !== draftBefore || model.draft !== model.snapshot.content) return
-      if (disk.version.mtime < model.snapshot.version.mtime) return
-      if (disk.content === model.snapshot.content) {
-        const baseline = model.snapshot
-        model.snapshot = disk
-        await cacheCompletedWrite(model, disk, baseline)
-        return
-      }
-      model.snapshot = disk
-      model.draft = disk.content
-      syncFromModel(model)
-      cacheSnapshotIfActive(model, disk)
-    } catch (reloadError) {
-      logger.error('Idle disk refresh failed', reloadError as Error)
-    }
-  }, [cacheCompletedWrite, cacheSnapshotIfActive, syncFromModel])
-
-  const notifyExternalChange = useCallback(
-    (eventMtimeMs?: number) => {
-      const model = modelRef.current
-      if (!model) return
-      // Never reload a dirty model from a watcher event — a genuine external
-      // change surfaces at the next autosave via the write's version check.
-      if (model.draft !== model.snapshot.content) return
-      // Self-save echo fast path (etag equivalent): the event carries the same
-      // mtime our last write/read produced → nothing changed on disk. Skipped
-      // for whole-second mtimes where equality does not prove identity.
-      if (eventMtimeMs !== undefined) {
-        const floored = Math.floor(eventMtimeMs)
-        if (floored === model.snapshot.version.mtime && !isAmbiguousMtime(floored)) return
-      }
-      void refreshFromDiskIfIdle()
-    },
-    [refreshFromDiskIfIdle]
+  const commands = useMemo(
+    () => ({
+      discard: () => invoke('discard'),
+      reload: () => invoke('reload'),
+      keepDraft: () => invoke('keepLocal'),
+      flush: () => invoke('flush'),
+      notifyExternalChange: () => {
+        void lease?.invalidate()
+      },
+      refreshFromDiskIfIdle: () => (lease ? lease.invalidate() : Promise.resolve()),
+      prepareMutation: () => manager.prepareMutation()
+    }),
+    [invoke, manager, lease]
   )
 
   return useMemo(() => {
-    let status: FileEditSession['status']
-    let unsupportedReason: UnsupportedFileTextReason | undefined
-    if (!handle) {
-      status = 'idle'
-    } else if (error instanceof UnsupportedFileTextError) {
-      status = 'unsupported'
-      unsupportedReason = error.reason
-    } else if (error) {
-      status = 'error'
-    } else if (!ready || isLoading) {
-      status = 'loading'
-    } else {
-      status = 'ready'
-    }
-
+    const error = snapshot?.readError ?? acquisitionError
+    const unsupportedReason =
+      error instanceof UnsupportedFileTextError
+        ? error.reason
+        : error instanceof IpcError && error.code === fileErrorCodes.EDIT_UNSUPPORTED
+          ? 'size'
+          : undefined
     return {
-      status,
-      savedContent,
-      savedSizeBytes,
-      draft,
-      isDirty: draft !== savedContent,
-      isSaving,
-      conflict,
-      saveError,
-      metadataRecoveryPending:
-        saveError instanceof IpcError && saveError.code === fileErrorCodes.COMMITTED_METADATA_PENDING,
+      status: !handle ? 'idle' : unsupportedReason ? 'unsupported' : error ? 'error' : snapshot ? 'ready' : 'loading',
+      sessionId: snapshot?.sessionId,
+      documentEpoch: snapshot?.documentEpoch ?? 0,
+      readOnly: !lease?.writable || !!snapshot?.sealed || !!snapshot?.readError,
+      savedContent: snapshot?.savedContent ?? '',
+      savedSizeBytes: snapshot?.savedSizeBytes,
+      draft: snapshot?.draft ?? '',
+      isDirty: snapshot?.isDirty ?? false,
+      isSaving: snapshot?.isSaving ?? false,
+      conflict: snapshot?.conflict ?? false,
+      saveError: snapshot?.saveError,
+      metadataRecoveryPending: snapshot?.metadataRecoveryPending ?? false,
       unsupportedReason,
-      error: error && !(error instanceof UnsupportedFileTextError) ? error : undefined,
+      error,
       setDraft,
-      discard,
-      reload,
-      keepDraft,
-      flush,
-      cancelPendingAutosave,
-      resumePendingAutosave,
-      notifyExternalChange,
-      refreshFromDiskIfIdle
+      ...commands
     }
-  }, [
-    handle,
-    error,
-    ready,
-    isLoading,
-    savedContent,
-    savedSizeBytes,
-    draft,
-    isSaving,
-    conflict,
-    saveError,
-    setDraft,
-    discard,
-    reload,
-    keepDraft,
-    flush,
-    cancelPendingAutosave,
-    resumePendingAutosave,
-    notifyExternalChange,
-    refreshFromDiskIfIdle
-  ])
+  }, [acquisitionError, handle, lease, snapshot, setDraft, commands])
 }

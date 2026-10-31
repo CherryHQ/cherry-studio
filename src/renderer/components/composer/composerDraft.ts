@@ -17,10 +17,9 @@ import { getComposerInputLeafText } from './quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
-const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
+export { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
 
-/** Upper bound on a serialized draft's text — enforced by every path that grows the composer. */
-export const COMPOSER_INPUT_MAX_LENGTH = 40000
+const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 type PersistedComposerSerializedToken = ComposerSerializedToken & {
@@ -166,12 +165,12 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
   return createComposerContent(text, composer?.tokens ?? [], isComposerMessageTokenKind)
 }
 
-export function createComposerDraftContent(draft: {
-  text: string
-  tokens: readonly ComposerSerializedToken[]
-}): JSONContent {
+export function createComposerDraftContent(
+  draft: { text: string; tokens: readonly ComposerSerializedToken[] },
+  options: { tokenizeVariables?: boolean } = {}
+): JSONContent {
   const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
-  if (!inputTokens.length) return createPromptVariableContent(draft.text)
+  if (!inputTokens.length && options.tokenizeVariables !== false) return createPromptVariableContent(draft.text)
 
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
 }

@@ -13,7 +13,11 @@ const searchMock = vi.fn()
 const clearMock = vi.fn()
 const installMock = vi.fn()
 const isInstallingMock = vi.fn()
-const { toastSuccess, toastError } = vi.hoisted(() => ({ toastSuccess: vi.fn(), toastError: vi.fn() }))
+const { toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  virtualRowKeysMock: vi.fn()
+}))
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { success: toastSuccess, error: toastError }
@@ -156,19 +160,25 @@ vi.mock('@renderer/components/VirtualList', () => ({
     children,
     className,
     role,
-    list
+    list,
+    getItemKey
   }: {
     children: (item: SkillSearchResult, index: number) => ReactNode
     className?: string
     list: SkillSearchResult[]
     role?: string
-  }) => (
-    <div className={className} data-testid="skill-results-virtual-list" role={role}>
-      {list.map((item, index) => (
-        <div key={item.installSource}>{children(item, index)}</div>
-      ))}
-    </div>
-  )
+    getItemKey: (index: number) => string | number
+  }) => {
+    const keys = list.map((_, index) => getItemKey(index))
+    virtualRowKeysMock(keys)
+    return (
+      <div className={className} data-testid="skill-results-virtual-list" role={role}>
+        {list.map((item, index) => (
+          <div key={keys[index]}>{children(item, index)}</div>
+        ))}
+      </div>
+    )
+  }
 }))
 
 beforeEach(() => {
@@ -211,6 +221,30 @@ function sourceSelect() {
 }
 
 describe('SkillMarketplaceDialog', () => {
+  it('gives same-slug ClawHub publishers independent virtual rows', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = ['first-publisher', 'second-publisher'].map<SkillSearchResult>((author) => ({
+      slug: 'shared-skill',
+      name: 'Shared Skill',
+      description: null,
+      author,
+      stars: 0,
+      downloads: 0,
+      sourceRegistry: 'clawhub.ai',
+      sourceUrl: `https://clawhub.ai/${author}/skills/shared-skill`,
+      installSource: `clawhub:${author}/shared-skill`
+    }))
+    renderDialog()
+
+    typeSearchQuery('shared')
+    await user.selectOptions(sourceSelect(), 'clawhub.ai')
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    const keys = virtualRowKeysMock.mock.lastCall?.[0]
+    expect(keys).toHaveLength(2)
+    expect(new Set(keys).size).toBe(2)
+  })
+
   it('renders every source option and filters results by the selected one', async () => {
     const user = userEvent.setup()
     skillSearchState.results = [

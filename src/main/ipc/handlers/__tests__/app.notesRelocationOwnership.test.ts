@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 
 import { it, expect, vi } from 'vitest'
-const m = vi.hoisted(() => ({ windows: new Map<string, any>(), broadcast: vi.fn() }))
+const m = vi.hoisted(() => ({ windows: new Map<string, any>(), broadcast: vi.fn(), migrate: vi.fn() }))
 vi.mock('@application', () => ({
   application: {
     get: (name: string) =>
@@ -26,7 +26,7 @@ vi.mock('@main/services/notesRelocation', async () => ({
   ...(await import('../../../services/notesRelocation/notesRelocationOwnerLifecycle')),
   ...(await import('../../../services/notesRelocation/requestRendererNotesEditsFlush')),
   inspectNotesRelocation: vi.fn(),
-  migrateNotesDirectory: vi.fn(),
+  migrateNotesDirectory: m.migrate,
   resolveNotesRelocationSourcePathFromPreference: vi.fn()
 }))
 import { resetNotesRelocationOwnerLifecycleForTests } from '../../../services/notesRelocation/notesRelocationOwnerLifecycle'
@@ -119,3 +119,45 @@ it('releases and clears the matching current owner when its flush times out', as
     vi.useRealTimers()
   }
 })
+
+for (const fail of [false, true]) {
+  it(`keeps a live owner sealed through migrate ${fail ? 'failure' : 'success'} until explicit completion`, async () => {
+    resetNotesRelocationSessionForTests()
+    resetNotesRelocationOwnerLifecycleForTests()
+    m.broadcast.mockClear()
+    const current = win('current')
+    m.windows.set('current', current)
+    registerRendererNotesEditsFlushWindow('current')
+    try {
+      const barrier = appHandlers['app.notes_relocation.begin_barrier'](undefined, { senderId: 'current' })
+      const events = m.broadcast.mock.calls.map(([event]) => event)
+      expect(events).toEqual(['app.notes_relocation.barrier_engaged', 'app.notes_relocation.flush_edits'])
+      const request = m.broadcast.mock.calls[1][1].requestId
+      acknowledgeRendererNotesEditsFlush(request, 'current', true)
+      const { sessionEpoch } = await barrier
+      const stats = { source: {}, target: {} }
+      if (fail) m.migrate.mockRejectedValueOnce(new Error('move failed'))
+      else m.migrate.mockResolvedValueOnce(stats)
+      const migration = appHandlers['app.notes_relocation.migrate'](
+        { sourcePath: '/notes', targetPath: '/moved', merge: false, sessionEpoch },
+        { senderId: 'current' }
+      )
+      if (fail) await expect(migration).rejects.toThrow('move failed')
+      else await expect(migration).resolves.toEqual(stats)
+      expect(getActiveNotesRelocationSession()?.ownerId).toBe('current')
+      expect(
+        m.broadcast.mock.calls.filter(([event]) => event === 'app.notes_relocation.migrate_complete')
+      ).toHaveLength(0)
+      await appHandlers['app.notes_relocation.complete']({ sessionEpoch }, { senderId: 'current' })
+      expect(getActiveNotesRelocationSession()).toBe(null)
+      expect(
+        m.broadcast.mock.calls.filter(([event]) => event === 'app.notes_relocation.migrate_complete')
+      ).toHaveLength(1)
+    } finally {
+      unregisterRendererNotesEditsFlushWindow('current')
+      m.windows.clear()
+      resetNotesRelocationOwnerLifecycleForTests()
+      resetNotesRelocationSessionForTests()
+    }
+  })
+}

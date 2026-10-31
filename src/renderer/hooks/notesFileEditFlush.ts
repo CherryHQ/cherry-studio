@@ -2,21 +2,9 @@ import { useSyncExternalStore } from 'react'
 
 type NotesEditFlush = () => Promise<void>
 
-/**
- * One departing editor save. Re-invoked by every flush while it has not yet
- * succeeded: the first invocation starts the save at departure, later ones
- * rejoin it in flight or retry it after a failure, so a recovered environment
- * (e.g. freed disk space) resolves the record instead of blocking migrations
- * forever. A still-failing departure keeps rejecting every flush.
- */
-type DepartingWriteAttempt = () => Promise<void>
-
 const flushCallbacks = new Set<NotesEditFlush>()
 const preFlushCallbacks = new Set<() => void | Promise<void>>()
-const departingWriteAttempts = new Set<DepartingWriteAttempt>()
 const pendingImagePasteOperations = new Set<Promise<void>>()
-const autosaveCancelCallbacks = new Set<() => void>()
-const autosaveResumeCallbacks = new Set<() => void>()
 const relocationEditLockListeners = new Set<() => void>()
 let relocationEditLockDepth = 0
 let relocationBarrierEpoch = 0
@@ -47,37 +35,8 @@ function notifyStructuralWriteIdleWaiters(): void {
 }
 
 export function lockNotesEditsForRelocation(): void {
-  if (relocationEditLockDepth === 0) {
-    for (const cancel of autosaveCancelCallbacks) {
-      cancel()
-    }
-  }
   relocationEditLockDepth += 1
   notifyRelocationEditLockChanged()
-}
-
-/**
- * `cancel` drops a scheduled autosave when the barrier engages. `resume` (optional) re-schedules the autosave
- * that `cancel` dropped, called once the lock is fully released; it must itself re-check that the draft is
- * still dirty and current, so a barrier that aborted (or a flush that already saved it) never loses or duplicates a write.
- */
-export function registerNotesRelocationAutosaveCancel(cancel: () => void, resume?: () => void): () => void {
-  autosaveCancelCallbacks.add(cancel)
-  if (resume) {
-    autosaveResumeCallbacks.add(resume)
-  }
-  return () => {
-    autosaveCancelCallbacks.delete(cancel)
-    if (resume) {
-      autosaveResumeCallbacks.delete(resume)
-    }
-  }
-}
-
-function resumeAutosavesAfterRelocationUnlock(): void {
-  for (const resume of autosaveResumeCallbacks) {
-    resume()
-  }
 }
 
 export function releaseOneNotesRelocationEditLock(): void {
@@ -86,9 +45,6 @@ export function releaseOneNotesRelocationEditLock(): void {
   }
   relocationEditLockDepth -= 1
   notifyRelocationEditLockChanged()
-  if (relocationEditLockDepth === 0) {
-    resumeAutosavesAfterRelocationUnlock()
-  }
 }
 
 export function getNotesRelocationBarrierEpoch(): number {
@@ -102,7 +58,6 @@ export function unlockNotesEditsForRelocation(): void {
   relocationEditLockDepth = 0
   relocationBarrierEpoch += 1
   notifyRelocationEditLockChanged()
-  resumeAutosavesAfterRelocationUnlock()
 }
 
 export function areNotesEditsLockedForRelocation(): boolean {
@@ -154,7 +109,6 @@ export function registerNotesEditFlush(flush: NotesEditFlush): () => void {
 export function resetNotesEditFlushTrackingForTests(): void {
   flushCallbacks.clear()
   preFlushCallbacks.clear()
-  departingWriteAttempts.clear()
   pendingImagePasteOperations.clear()
 }
 
@@ -163,10 +117,6 @@ export function registerNotesEditPreFlush(preFlush: () => void | Promise<void>):
   return () => {
     preFlushCallbacks.delete(preFlush)
   }
-}
-
-export function trackDepartingNotesFileWrite(attempt: DepartingWriteAttempt): void {
-  departingWriteAttempts.add(attempt)
 }
 
 export function trackPendingNotesImagePaste<T>(operation: Promise<T>): Promise<T> {
@@ -191,18 +141,17 @@ export async function waitForPendingNotesImagePastes(): Promise<void> {
   }
 }
 
+/**
+ * Capture-then-drain, in an order that never loses content: in-flight image
+ * pastes settle first (their final markdown insert must land in the draft),
+ * then pre-flush callbacks pull live editor text, and only then the registered
+ * drains seal the session manager and flush every notes draft. Any failure
+ * rejects so the relocation aborts instead of proceeding past unsaved content.
+ */
 export async function flushAllNotesEdits(): Promise<void> {
   await waitForPendingNotesImagePastes()
   for (const preFlush of preFlushCallbacks) {
     await preFlush()
   }
-  // A departing attempt leaves the set only once its save has succeeded. A failed departing save stays
-  // tracked and keeps rejecting every later flush, so a retried migration can't proceed past unsaved
-  // content — but each flush re-attempts the save, and success (now or after recovery) resolves the record.
-  const departing = [...departingWriteAttempts].map((attempt) =>
-    attempt().then(() => {
-      departingWriteAttempts.delete(attempt)
-    })
-  )
-  await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...departing])
+  await Promise.all([...flushCallbacks].map((flush) => flush()))
 }

@@ -140,10 +140,10 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
   })
 
-  it('shows the localized install prefix with the original ZIP error', async () => {
+  it('展示主进程返回的本地化 ZIP 原因', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    const originalError = 'No skill directory found in /tmp/CherryStudio/skill-install/zip-install-123'
+    const originalError = '未找到可安装的技能。技能 ZIP 压缩包必须在根目录或某个子目录里包含 SKILL.md。'
     installFromZip.mockRejectedValue(new Error(originalError))
 
     render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
@@ -151,14 +151,21 @@ describe('ImportSkillDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
     expect(await screen.findByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toBeInTheDocument()
+    expect(screen.getByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toHaveAttribute(
+      'title',
+      `settings.skills.installFailed:broken.zip: ${originalError}`
+    )
+    expect(screen.getByTestId('skill-import-results')).not.toHaveTextContent(
+      /skill-install|zip[-_]install[-_]|[\\/]tmp[\\/]|[\\/]Temp[\\/]/
+    )
     expect(screen.queryByText('settings.skills.batchInstallPartialFailed:0:1:1')).not.toBeInTheDocument()
     expect(toast.error).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('shows the localized install prefix with the original directory error', async () => {
+  it('展示主进程返回的本地化目录原因', async () => {
     const user = userEvent.setup()
-    const originalError = 'SKILL.md or skill.md not found in skill folder'
+    const originalError = '未在所选文件夹中找到 SKILL.md。请选择直接包含 SKILL.md 的文件夹。'
     vi.mocked(window.api.file.select).mockResolvedValue([{ name: 'broken-skill', path: '/tmp/broken-skill' }] as any)
     installFromDirectory.mockRejectedValue(new Error(originalError))
 
@@ -167,6 +174,13 @@ describe('ImportSkillDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromDirectory' }))
 
     expect(await screen.findByText(`settings.skills.installFailed:broken-skill: ${originalError}`)).toBeInTheDocument()
+    expect(screen.getByText(`settings.skills.installFailed:broken-skill: ${originalError}`)).toHaveAttribute(
+      'title',
+      `settings.skills.installFailed:broken-skill: ${originalError}`
+    )
+    expect(screen.getByTestId('skill-import-results')).not.toHaveTextContent(
+      /skill-install|zip[-_]install[-_]|[\\/]tmp[\\/]|[\\/]Temp[\\/]/
+    )
     expect(toast.error).not.toHaveBeenCalled()
   })
 

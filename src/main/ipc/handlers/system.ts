@@ -1,11 +1,10 @@
-import { nativeTheme, shell, systemPreferences } from 'electron'
+import { nativeTheme, systemPreferences } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
 import { openRequestPath } from '@main/services/file'
 import { regionService } from '@main/services/RegionService'
-import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import {
   getScreenCapturePermissionStatus,
   openScreenCaptureSettings,
@@ -35,8 +34,8 @@ const logger = loggerService.withContext('systemHandlers')
  *
  * The `system.shell.*` routes act on app-level OS resources and ignore `IpcContext` (they are not
  * scoped to the caller's window). `open_path` goes through the file module's `openRequestPath` so an
- * unusable path can never reach Electron's Linux `shell.openPath`; `open_website` drops a URL that
- * fails the scheme guard with a warning instead of opening it externally.
+ * unusable path can never reach Electron's Linux `shell.openPath`. Both URL routes delegate
+ * validation and external-application confirmation to MainWindowService.openWebsite.
  */
 export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.get_device_type': async () => getDeviceType(),
@@ -67,14 +66,11 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.shell.open_path': async (path) => {
     await openRequestPath(path)
   },
-  'system.shell.open_external_website': async (url) => {
-    if (isSafeExternalUrl(url)) await shell.openExternal(url)
+  'system.shell.open_external_website': async (input) => {
+    const { url, options } = typeof input === 'string' ? { url: input, options: undefined } : input
+    await application.get('MainWindowService').openWebsite(url, true, options)
   },
   'system.shell.open_website': async (url) => {
-    if (!isSafeExternalUrl(url)) {
-      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
-      return
-    }
     await application.get('MainWindowService').openWebsite(url)
   }
 }

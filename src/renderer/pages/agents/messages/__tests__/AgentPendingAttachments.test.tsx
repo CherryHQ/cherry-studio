@@ -85,7 +85,7 @@ describe('remote pending attachments', () => {
     request.mockResolvedValue([row])
     const { rerender } = render(view())
     expect(await screen.findByText('report.pdf')).toBeInTheDocument()
-    expect(screen.getByText('2 KB · PDF')).toBeInTheDocument()
+    expect(screen.getByText('PDF')).toBeInTheDocument()
     expect(screen.getByText('50')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'report.pdf' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'common.preview' })).not.toBeInTheDocument()

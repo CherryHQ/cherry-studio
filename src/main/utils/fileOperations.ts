@@ -3,8 +3,7 @@ import { constants } from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
-
-import { isPathInside } from './legacyFile'
+import { isOutsidePath } from '@main/utils/file'
 
 const logger = loggerService.withContext('Utils:FileOperations')
 
@@ -77,10 +76,10 @@ export async function copyDirectoryRecursive(
 
   const allowedSourceBasePath = options?.allowedSourceBasePath ?? options?.allowedBasePath
   const allowedDestinationBasePath = options?.allowedDestinationBasePath ?? options?.allowedBasePath
-  if (allowedSourceBasePath && !isPathInside(source, allowedSourceBasePath)) {
+  if (allowedSourceBasePath && isOutsidePath(path.relative(allowedSourceBasePath, source))) {
     throw new Error(`Source path is outside allowed directory: ${source}`)
   }
-  if (allowedDestinationBasePath && !isPathInside(destination, allowedDestinationBasePath)) {
+  if (allowedDestinationBasePath && isOutsidePath(path.relative(allowedDestinationBasePath, destination))) {
     throw new Error(`Destination path is outside allowed directory: ${destination}`)
   }
   if (allowedDestinationBasePath) {
@@ -189,7 +188,7 @@ export async function deleteDirectoryRecursive(dirPath: string, options?: { allo
 
   // Path validation - ensure operations stay within allowed boundaries
   if (options?.allowedBasePath) {
-    if (!isPathInside(dirPath, options.allowedBasePath)) {
+    if (isOutsidePath(path.relative(options.allowedBasePath, dirPath))) {
       throw new Error(`Path is outside allowed directory: ${dirPath}`)
     }
   }
@@ -247,7 +246,7 @@ export async function getDirectorySize(
 
   // Path validation - ensure operations stay within allowed boundaries
   if (options?.allowedBasePath) {
-    if (!isPathInside(dirPath, options.allowedBasePath)) {
+    if (isOutsidePath(path.relative(options.allowedBasePath, dirPath))) {
       throw new Error(`Path is outside allowed directory: ${dirPath}`)
     }
   }

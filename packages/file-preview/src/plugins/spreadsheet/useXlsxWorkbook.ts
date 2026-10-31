@@ -10,7 +10,7 @@ export const XLSX_PREVIEW_MAX_SIZE_BYTES = 20 * 1024 * 1024
 
 export type XlsxWorkbookState =
   | { status: 'idle' }
-  | { status: 'loading' }
+  | { status: 'loading'; model?: WorkbookRenderModel }
   | { status: 'ready'; model: WorkbookRenderModel }
   | { status: 'error'; message: string }
   | { status: 'oversize'; sizeBytes: number }
@@ -22,7 +22,7 @@ type XlsxWorker = Pick<Worker, 'postMessage' | 'terminate'> & {
 
 export function useXlsxWorkbook(document: PreviewDocument, fileName: string): XlsxWorkbookState {
   const logger = usePreviewLogger('useXlsxWorkbook')
-  const { failDocument, resources } = usePreviewHost()
+  const { failDocument, resources, isCurrentDocument } = usePreviewHost()
   const { baseUrl, createWorker } = resources ?? {}
   const [state, setState] = useState<XlsxWorkbookState>({ status: 'idle' })
   const workerRef = useRef<XlsxWorker | null>(null)
@@ -33,6 +33,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
     let cancelled = false
     const controller = new AbortController()
     const requestId = ++requestIdRef.current
+    const isCurrent = () => !cancelled && requestId === requestIdRef.current && isCurrentDocument?.() !== false
 
     if (document.size > XLSX_PREVIEW_MAX_SIZE_BYTES) {
       failDocument?.(new PreviewError('too_large', 'Workbook exceeds the preview size limit'))
@@ -40,16 +41,16 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       return
     }
 
-    setState({ status: 'loading' })
+    setState((current) => ({ status: 'loading', model: 'model' in current ? current.model : undefined }))
 
     void (async () => {
       let bytes: ArrayBuffer
       try {
         const raw = await readPreviewDocument(document, XLSX_PREVIEW_MAX_SIZE_BYTES, controller.signal)
-        if (cancelled || requestId !== requestIdRef.current) return
+        if (!isCurrent()) return
         bytes = raw.slice().buffer
       } catch (error) {
-        if (cancelled || requestId !== requestIdRef.current) return
+        if (!isCurrent()) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
@@ -60,14 +61,14 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       try {
         worker = createXlsxWorker(baseUrl, createWorker)
       } catch (error) {
-        if (cancelled || requestId !== requestIdRef.current) return
+        if (!isCurrent()) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
         return
       }
       // A newer request superseded this one while the worker was spawning; terminate the orphan instead of leaking it.
-      if (cancelled || requestId !== requestIdRef.current) {
+      if (!isCurrent()) {
         worker.terminate()
         return
       }
@@ -78,6 +79,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
         // The response is this worker's only job — free the isolate now instead of holding it until cleanup.
         worker.terminate()
         if (workerRef.current === worker) workerRef.current = null
+        if (!isCurrent()) return
         if (event.data.ok) {
           for (const warning of event.data.model.warnings) {
             if (loggedWarningsRef.current.has(warning)) continue
@@ -94,6 +96,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
         if (cancelled || requestId !== requestIdRef.current) return
         worker.terminate()
         if (workerRef.current === worker) workerRef.current = null
+        if (!isCurrent()) return
         failDocument?.(event.error instanceof Error ? event.error : new Error(event.message))
         setState({ status: 'error', message: event.message })
       }
@@ -104,7 +107,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       } catch (error) {
         worker.terminate()
         if (workerRef.current === worker) workerRef.current = null
-        if (cancelled || requestId !== requestIdRef.current) return
+        if (!isCurrent()) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
@@ -119,7 +122,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       workerRef.current?.terminate()
       workerRef.current = null
     }
-  }, [document, fileName, logger, failDocument, baseUrl, createWorker])
+  }, [document, fileName, logger, failDocument, baseUrl, createWorker, isCurrentDocument])
 
   return state
 }

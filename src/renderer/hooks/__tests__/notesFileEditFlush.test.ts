@@ -8,10 +8,9 @@ import {
   lockNotesEditsForRelocation,
   registerNotesEditFlush,
   registerNotesEditPreFlush,
-  registerNotesRelocationAutosaveCancel,
   releaseOneNotesRelocationEditLock,
+  resetNotesEditFlushTrackingForTests,
   runStructuralNotesFilesystemWrite,
-  trackDepartingNotesFileWrite,
   trackPendingNotesImagePaste,
   unlockNotesEditsForRelocation,
   waitForPendingNotesImagePastes,
@@ -36,27 +35,6 @@ describe('notesFileEditFlush structural writes', () => {
 
     await Promise.all([writePromise, settlePromise])
     expect(settled).toBe(true)
-  })
-
-  it('waits for departing file writes during flush', async () => {
-    unlockNotesEditsForRelocation()
-
-    let departingFinished = false
-    const departing = () =>
-      new Promise<void>((resolve) => {
-        setTimeout(() => {
-          departingFinished = true
-          resolve()
-        }, 20)
-      })
-    trackDepartingNotesFileWrite(departing)
-
-    const flush = vi.fn().mockResolvedValue(undefined)
-    registerNotesEditFlush(flush)
-
-    await flushAllNotesEdits()
-    expect(departingFinished).toBe(true)
-    expect(flush).toHaveBeenCalledOnce()
   })
 
   it('reports pending image pastes until the tracked operation settles', async () => {
@@ -113,6 +91,16 @@ describe('notesFileEditFlush structural writes', () => {
     expect(order).toEqual(['pre', 'flush'])
   })
 
+  it('rejects the flush when any registered drain fails, so relocation aborts', async () => {
+    unlockNotesEditsForRelocation()
+    resetNotesEditFlushTrackingForTests()
+
+    registerNotesEditFlush(vi.fn().mockResolvedValue(undefined))
+    registerNotesEditFlush(vi.fn().mockRejectedValue(new Error('conflicted draft')))
+
+    await expect(flushAllNotesEdits()).rejects.toThrow('conflicted draft')
+  })
+
   it('bumps the barrier epoch when relocation edits unlock', () => {
     unlockNotesEditsForRelocation()
     lockNotesEditsForRelocation()
@@ -145,81 +133,5 @@ describe('notesFileEditFlush structural writes', () => {
 
     expect(ran).toBe(false)
     unlockNotesEditsForRelocation()
-  })
-})
-
-describe('notesFileEditFlush failed departing writes', () => {
-  it('keeps rejecting repeated flushes after a departing save fails', async () => {
-    vi.resetModules()
-    const flushModule = await import('../notesFileEditFlush')
-    const failed = Promise.reject(new Error('departing save failed'))
-    failed.catch(() => undefined)
-    flushModule.trackDepartingNotesFileWrite(() => failed)
-
-    await expect(flushModule.flushAllNotesEdits()).rejects.toThrow('departing save failed')
-    // A retried migration must not proceed past the unresolved failure.
-    await expect(flushModule.flushAllNotesEdits()).rejects.toThrow('departing save failed')
-  })
-
-  it('drops a departing write once it has succeeded', async () => {
-    vi.resetModules()
-    const flushModule = await import('../notesFileEditFlush')
-    const departing = vi.fn(async () => undefined)
-    flushModule.trackDepartingNotesFileWrite(departing)
-
-    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
-    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
-    // Once resolved, the record is removed and later flushes stop invoking it.
-    expect(departing).toHaveBeenCalledOnce()
-  })
-
-  it('re-attempts a failed departing save on later flushes and releases it after success', async () => {
-    vi.resetModules()
-    const flushModule = await import('../notesFileEditFlush')
-    const diskFull = new Error('disk full')
-    let attempt = 0
-    flushModule.trackDepartingNotesFileWrite(async () => {
-      attempt += 1
-      if (attempt === 1) {
-        throw diskFull
-      }
-    })
-
-    await expect(flushModule.flushAllNotesEdits()).rejects.toBe(diskFull)
-    // A recovered environment (e.g. freed disk space) lets the retry resolve
-    // the record instead of blocking every later migration forever.
-    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
-    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
-    expect(attempt).toBe(2)
-  })
-})
-
-describe('notesFileEditFlush autosave resume', () => {
-  it('cancels on first lock and resumes only when the lock is fully released', () => {
-    unlockNotesEditsForRelocation()
-    const cancel = vi.fn()
-    const resume = vi.fn()
-    const unregister = registerNotesRelocationAutosaveCancel(cancel, resume)
-
-    lockNotesEditsForRelocation()
-    lockNotesEditsForRelocation()
-    expect(cancel).toHaveBeenCalledTimes(1)
-
-    releaseOneNotesRelocationEditLock()
-    expect(resume).not.toHaveBeenCalled()
-    releaseOneNotesRelocationEditLock()
-    expect(resume).toHaveBeenCalledTimes(1)
-
-    lockNotesEditsForRelocation()
-    unlockNotesEditsForRelocation()
-    expect(resume).toHaveBeenCalledTimes(2)
-
-    unlockNotesEditsForRelocation() // no lock held: no resume
-    expect(resume).toHaveBeenCalledTimes(2)
-
-    unregister()
-    lockNotesEditsForRelocation()
-    unlockNotesEditsForRelocation()
-    expect(resume).toHaveBeenCalledTimes(2)
   })
 })

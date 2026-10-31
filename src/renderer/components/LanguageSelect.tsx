@@ -110,7 +110,7 @@ const LanguageSelect = (props: Props) => {
 
       return {
         value: lang.langCode,
-        label: searchText,
+        label: `${lang.emoji} ${label}`,
         searchText,
         content
       }

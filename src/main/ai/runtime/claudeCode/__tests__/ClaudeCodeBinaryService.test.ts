@@ -269,7 +269,8 @@ describe('Claude runtime acquisition', () => {
     expect(vi.mocked(net.fetch).mock.calls).toHaveLength(2)
     vi.mocked(net.fetch).mockImplementation(async () => new Response(new Uint8Array(archive)))
     service.ensure(true)
-    expect((await settled()).phase).toBe('ready')
+    await service.ensureExecutable()
+    expect(service.getStatus().phase).toBe('ready')
     expect((await readdir(root)).filter((name) => name.startsWith('.download-'))).toEqual([])
   })
 

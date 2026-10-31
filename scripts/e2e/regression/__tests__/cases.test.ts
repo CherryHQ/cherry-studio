@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
 
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
 import { parse } from 'yaml'
@@ -43,10 +44,15 @@ describe('regression execution plan', () => {
     }
   })
 
-  it('allows only manual runs from the trusted main controller', () => {
+  it.each([
+    { event_name: 'workflow_dispatch', ref_type: 'branch', ref: 'refs/heads/main', allowed: true },
+    { event_name: 'workflow_dispatch', ref_type: 'branch', ref: 'refs/heads/feature/e2e-fix', allowed: true },
+    { event_name: 'workflow_dispatch', ref_type: 'tag', ref: 'refs/tags/v2.0.8', allowed: false },
+    { event_name: 'pull_request', ref_type: 'branch', ref: 'refs/pull/123/merge', allowed: false }
+  ])('gates controller execution for $event_name on $ref', ({ allowed, ...github }) => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
-    expect(workflow.jobs.resolve.if).toBe("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'")
+    expect(runInNewContext(workflow.jobs.resolve.if, { github })).toBe(allowed)
     expect(workflow.concurrency['cancel-in-progress']).toBe(false)
   })
 
