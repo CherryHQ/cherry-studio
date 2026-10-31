@@ -259,6 +259,8 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     scope.sdkConfig.providerId !== 'google-vertex-maas' &&
     (scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ||
       (scope.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+        scope.model !== undefined &&
+        scope.provider !== undefined &&
         isGeminiModel(scope.model) &&
         isNewApiProvider(scope.provider)))
 
