@@ -1067,6 +1067,45 @@ describe('PiRuntimeConnection', () => {
     expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_ID)).toBe(true)
   })
 
+  it('aborts a turn after the Pi tool-call limit and reports the limit to the user', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('repeat tools'))
+    const authorize = approvalGateHandler()
+
+    for (let index = 0; index < 20; index += 1) {
+      const toolCallId = `tool-${index}`
+      const event = { type: 'tool_call', toolName: 'codemode', toolCallId, input: { code: 'return 1' } }
+      await authorize(event, {})
+      mocks.subscribeCb!({
+        type: 'tool_execution_start',
+        toolCallId,
+        toolName: 'codemode',
+        args: { code: 'return 1' }
+      } as unknown as AgentSessionEvent)
+      mocks.subscribeCb!({
+        type: 'tool_execution_end',
+        toolCallId,
+        toolName: 'codemode',
+        result: 'ok',
+        isError: false
+      } as unknown as AgentSessionEvent)
+    }
+
+    expect(mocks.abort).toHaveBeenCalledOnce()
+    await expect(
+      authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: 'tool-20', input: { code: 'return 1' } }, {})
+    ).resolves.toMatchObject({ block: true })
+
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('tool-call limit') }
+    })
+  })
+
   it('captures a successful provider invocation without relying on turn_end (including compaction)', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     expect(conn.usageCapture).toMatchObject({ owner: 'agent-sdk', providerId: 'p' })

@@ -195,7 +195,8 @@ it.each([
           autoApprovedTools: new Set(),
           approvalRequiredTools: new Set(),
           nonBypassableApprovalTools: new Set(),
-          delegationTools: new Set()
+          delegationTools: new Set(),
+          admitToolCall: () => true
         }),
         piVccExtension
       ]

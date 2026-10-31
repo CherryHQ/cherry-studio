@@ -6,7 +6,9 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { mcpServerService } from '@data/services/McpServerService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
+import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -51,12 +53,21 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    const builtins: Tool[] = PI_BUILTIN_TOOLS.map((tool) => ({
-      id: tool.name,
-      name: tool.name,
-      origin: 'builtin',
-      approval: tool.approval
-    }))
+    const builtins: Tool[] = [
+      ...PI_BUILTIN_TOOLS.map((tool) => ({
+        id: tool.name,
+        name: tool.name,
+        origin: 'builtin' as const,
+        approval: tool.approval
+      })),
+      {
+        id: buildPiMcpToolName(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME),
+        name: SESSION_SEND_TOOL_NAME,
+        description: 'Send a durable message to another Agent Session.',
+        origin: 'internal',
+        approval: 'prompt'
+      }
+    ]
     // Bridged MCP tools, read cache-only from the same catalog the session bridge uses
     // (piMcpExtension warms it). Third-party, so they prompt in the default mode.
     const catalog = application.get('McpCatalogService')
