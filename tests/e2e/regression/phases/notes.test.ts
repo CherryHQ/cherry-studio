@@ -164,7 +164,13 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   await attachScreenshot('MP-75 application before Markdown import')
-  const source = app.fixturesPath('documents/sample-note.md')
+  const directory = join(app.paths.evidence, 'MP-75')
+  const notesDirectory = join(directory, 'notes')
+  // The case recreates its own notes folder; a previous run's notes would break the exact-one-file check.
+  await rm(directory, { recursive: true, force: true })
+  await mkdir(notesDirectory, { recursive: true })
+  const source = join(directory, 'sample-note.md')
+  await writeFile(source, `${await readFile(app.fixturesPath('documents/sample-note.md'), 'utf8')}\nMP-75 single import\n`)
   const vault = app.fixturesPath('imports/obsidian-vault')
   const readMarkdown = async (directory: string): Promise<{ path: string; content: string }[]> => {
     const files: { path: string; content: string }[] = []
@@ -182,11 +188,6 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
     [...content.matchAll(/\]\(((?:file:\/\/|\/)[^)]+)\)/g)].map((match) => match[1])
   )
   expect(absoluteLinks.length, 'Fixtures must exercise absolute path links').toBeGreaterThan(0)
-  const directory = join(app.paths.evidence, 'MP-75')
-  const notesDirectory = join(directory, 'notes')
-  // The case recreates its own notes folder; a previous run's notes would break the exact-one-file check.
-  await rm(directory, { recursive: true, force: true })
-  await mkdir(notesDirectory, { recursive: true })
   const invalidPath = join(directory, 'MP-75-invalid.txt')
   await writeFile(invalidPath, 'MP-75 unsupported text file')
   const original = await page.evaluate(async () => ({
