@@ -482,6 +482,23 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
+  it.each([
+    { configuration: undefined, expected: 'default' },
+    { configuration: {}, expected: 'default' },
+    { configuration: { permission_mode: 'auto' }, expected: 'auto' }
+  ])(
+    'keeps the Cherry permission policy when SDK defaults change: $configuration',
+    async ({ configuration, expected }) => {
+      mocks.getAgent.mockReturnValue({ ...mocks.getAgent(), configuration })
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+
+      expect(settings.permissionMode).toBe(expected)
+    }
+  )
+
   it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {

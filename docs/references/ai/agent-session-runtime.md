@@ -609,6 +609,10 @@ The query may come from `ClaudeCodeWarmQueryManager.consume(...)` if a
 prewarmed query is available. Otherwise the driver starts a new SDK
 query with `createClaudeQuery({ prompt: driverSdkInputQueue, options })`.
 
+The settings builder explicitly passes `permissionMode: 'default'` when the Agent
+has no configured mode, preserving manual approval independently of SDK defaults.
+An explicitly configured mode, including `auto`, takes precedence.
+
 Starting a query (warm or cold) registers the agent's MCP servers and lists
 their tools. That listing is **cache-only** — it never connects to an upstream
 MCP server — so a dead or slow server cannot block startup. See

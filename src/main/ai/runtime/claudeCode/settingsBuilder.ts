@@ -352,7 +352,7 @@ export async function buildClaudeCodeSessionSettings(
     includePartialMessages: true,
     agentProgressSummaries: true,
     forwardSubagentText: true,
-    permissionMode: agentConfig?.permission_mode,
+    permissionMode: agentConfig?.permission_mode ?? 'default',
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,

@@ -8,7 +8,7 @@ Status: proposed
 
 Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次提交观察工作，并释放资源。要求所有 harness 采用 Cherry 的会话引擎，会重复实现原生调度和恢复；庞大的能力矩阵则会迫使每个消费者自行解释差异。
 
-本文接替栈中的 Runtime 所有权与行为设计，记录已实现的 v0 访问边界及其理由，以及接入时仍需履行的宿主责任。[公共类型](../../../../packages/agent-runtime/src/contracts.ts)、[Pi 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)和 [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)维护精确签名。包代码已存在，Pi 根会话的桌面调用现已使用公共 Runtime；独立 child 投影、Durable 桌面接入及下述完整验收仍未完成。[Harness 边界](2026-10-17-agent-harness-boundaries.md)维护更上层的职责划分。
+本文接替栈中的 Runtime 所有权与行为设计，记录已实现的 v0 访问边界及其理由，以及接入时仍需履行的宿主责任。[公共类型](../../../../packages/agent-runtime/src/contracts.ts)、[Pi 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)和 [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)维护精确签名。Pi 和 Pi Durable 的桌面调用现已使用公共 Runtime 和独立 child 投影。下述完整验收仍未完成；接线已经交付不代表所有恢复或性能保证都已成立。[Harness 边界](2026-10-17-agent-harness-boundaries.md)维护更上层的职责划分。
 
 [SDK 内容协议方案](../simplification/2026-10-29-agent-runtime-content-protocol.md)现在维护替换 `ContentItem`、将 SDK 内容累积迁入共享观察来源的后续设计。下文的 item 事件和 Main reader 在迁移完成前仍是当前实现；访问、输入接纳、生命周期、原生恢复和产品所有权继续由本文维护。
 
@@ -645,7 +645,7 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 
 #### P3 实现切片与验收
 
-下表区分 P3 的实现与验收边界；A/B/C 在 Pi 桌面接入层之上的同一个 PR 中交付。下方证据区分核心检查与桌面检查。除非有适配器证据支持的消费者证明契约缺失，否则保持公共访问接口不变。Claude Code 迁移另写 Spec/PR，使用这里的消费规则；Durable 桌面接入仍属于 P4。通用 spawn/stop、跨 harness 委派、配置协调，以及与 `topic`/`message` 物理合表都不是 P3 前置工作。
+下表区分 P3 的实现与验收边界；A/B/C 在 Pi 桌面接入层之上的同一个 PR 中交付。下方证据区分核心检查与桌面检查。除非有适配器证据支持的消费者证明契约缺失，否则保持公共访问接口不变。[Claude Code 迁移 Spec](2026-10-27-agent-runtime-claude-code.md) 在独立 PR 中沿用这里的消费规则；Durable 桌面接入仍属于 P4。通用 spawn/stop、跨 harness 委派、配置协调，以及与 `topic`/`message` 物理合表都不是 P3 前置工作。
 
 | 切片 | 改动边界 | 切换前所需证据 |
 | --- | --- | --- |
