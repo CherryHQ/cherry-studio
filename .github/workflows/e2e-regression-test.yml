@@ -18,24 +18,44 @@ on:
           - startup-smoke
           - mini-app
           - notes
+          - settings
+          - assistants
+          - error-recovery
+          - chat-core
+          - translation
+          - system-integration
+          - knowledge
+          - mcp-skills
+          - code-tools
+          - paintings
+          - agents
+          - topics
+          - files
+          - data-backup
+          - browser
+          - mini-app-smoke
+          - notes-smoke
+          - mini-app-pinning
           - custom-provider-chat
           - provider-model-scroll
           - custom-assistant
           - chat-stream-failure
-          - about
-          - settings
-          - translation
+          - clear-chat-messages
+          - chat-error-recovery
+          - translation-smoke
           - quick-assistant
-          - knowledge
+          - knowledge-smoke
           - everything-mcp
           - skill-import
           - code-cli
           - openclaw
+          - code-cli-permissions
           - cherryin-chat
           - image-generation
+          - agent-basic-task
           - claude-agent-runtime
           - pi-runtime
-          - agent-basic-task
+          - translation-settings
       provider_mode:
         description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true
@@ -181,7 +201,7 @@ jobs:
           openclaw --version
 
       - name: Prepare Everything MCP package
-        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp'
+        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mcp-skills' || needs.resolve.outputs.task == 'everything-mcp'
         shell: bash
         run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
 
@@ -202,47 +222,15 @@ jobs:
           --sha "$TEST_SHA"
           --runner "$TEST_RUNNER"
           --task "$TEST_TASK"
+          --provider-mode "${{ inputs.provider_mode }}"
 
       - name: Start in-job mock provider
         id: mock
         if: inputs.provider_mode == 'mock'
         shell: bash
-        run: |
-          set -euo pipefail
-          # The fixtures in scripts/e2e/regression/mock-fixtures cover the provider prompts of the
-          # tasks below. Every other task needs the real provider — knowledge asserts semantic
-          # retrieval, the agent runtimes drive multi-leg tool loops, CherryIn and the image case
-          # call their own upstream models — so refuse the run here instead of failing phases that
-          # cannot pass whatever the application does.
-          case "${{ inputs.task }}" in
-            startup-smoke|mini-app|notes|custom-provider-chat|provider-model-scroll|custom-assistant|chat-stream-failure|translation|quick-assistant) ;;
-            *)
-              echo "::error::provider_mode=mock supports: startup-smoke, mini-app, notes, custom-provider-chat, provider-model-scroll, custom-assistant, chat-stream-failure, translation, quick-assistant. Task '${{ inputs.task }}' needs provider_mode=real (see scripts/e2e/regression/mock-fixtures/README.md)."
-              exit 1
-              ;;
-          esac
-          PORT=4010
-          LOG="$RUNNER_TEMP/aimock.log"
-          npx --yes --package=@copilotkit/aimock llmock -p "$PORT" -h 127.0.0.1 \
-            -f scripts/e2e/regression/mock-fixtures > "$LOG" 2>&1 &
-          up=0
-          for _ in $(seq 1 60); do
-            if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$PORT/__aimock/routes"; then up=1; break; fi
-            sleep 2
-          done
-          if [ "$up" != "1" ]; then
-            echo "Mock provider did not come up on port $PORT"
-            tail -40 "$LOG" || true
-            exit 1
-          fi
-          {
-            echo "base_url=http://127.0.0.1:$PORT/v1"
-            echo "anthropic_base_url=http://127.0.0.1:$PORT"
-            echo "api_key=mock-key-not-checked"
-            echo "chat_model=mock-chat"
-            echo "embedding_model=mock-embedding"
-          } >> "$GITHUB_OUTPUT"
-          echo "Mock provider listening on 127.0.0.1:$PORT (fixtures: scripts/e2e/regression/mock-fixtures)"
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts mock-start
+          --run-dir "$RUN_DIR"
 
       - name: Validate test configuration
         shell: bash
@@ -258,7 +246,7 @@ jobs:
           CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
           CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --task '${{ needs.resolve.outputs.task }}'
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --run-dir "$RUN_DIR" --task '${{ needs.resolve.outputs.task }}'
 
       - name: Install application dependencies
         if: needs.resolve.outputs.mode == 'branch'
@@ -327,27 +315,7 @@ jobs:
             printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
           done
 
-      - name: Phase 01 - Application startup smoke
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 10
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase 01-startup
-
-      - name: Phase 02 - Mini Apps and Notes
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 20
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase 02-basic-features
-
-      - name: Phase 03 - Models and Custom Assistants
+      - name: Phase - Startup
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -355,19 +323,8 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 03-models-and-assistants
-
-      - name: Phase 04 - Translation
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 20
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase 04-translation
-
-      - name: Phase 05 - Quick Assistant and Selection Assistant
+          --phase startup
+      - name: Phase - Basic Features
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
@@ -375,57 +332,178 @@ jobs:
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 05-desktop-assistants
-
-      - name: Phase 06 - Knowledge Base
+          --phase basicFeatures
+      - name: Phase - Models And Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
-        timeout-minutes: 35
+        timeout-minutes: 25
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 06-knowledge
-
-      - name: Phase 07 - MCP and Skills
+          --phase modelsAndAssistants
+      - name: Phase - Translation Smoke
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
-        timeout-minutes: 35
+        timeout-minutes: 25
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 07-integrations
-
-      - name: Phase 08 - Code Tools
+          --phase translationSmoke
+      - name: Phase - Desktop Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
-        timeout-minutes: 30
+        timeout-minutes: 25
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 08-code-tools
-
-      - name: Phase 09 - CherryIN and Image Generation
+          --phase desktopAssistants
+      - name: Phase - Knowledge
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
-        timeout-minutes: 45
+        timeout-minutes: 25
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 09-cherryin-and-images
-
-      - name: Phase 10 - Agent Runtimes
+          --phase knowledge
+      - name: Phase - Integrations
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
-        timeout-minutes: 55
+        timeout-minutes: 25
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
-          --phase 10-agent-runtimes
+          --phase integrations
+      - name: Phase - Code Tools
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase codeTools
+      - name: Phase - CherryIN
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase cherryIn
+      - name: Phase - Images
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase images
+      - name: Phase - Agent Runtimes
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase agentRuntimes
+      - name: Phase - Topics
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase topics
+      - name: Phase - Chat Core
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase chatCore
+      - name: Phase - Notes
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase notes
+      - name: Phase - Translation
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase translation
+      - name: Phase - Settings
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase settings
+      - name: Phase - Assistants
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase assistants
+      - name: Phase - Files
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase files
+      - name: Phase - Data Management
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase dataManagement
+      - name: Phase - Browser
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase browser
+      - name: Phase - System
+        if: "!cancelled() && steps.launch.outcome == 'success'"
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase system
 
       - name: Clear end-to-end test configuration
         if: always()
@@ -547,6 +625,7 @@ jobs:
           --input platform-reports
           --output combined-report
           --mode "${{ needs.resolve.outputs.mode }}"
+          --provider-mode "${{ inputs.provider_mode }}"
 
       - name: Merge detailed Playwright reports
         env:

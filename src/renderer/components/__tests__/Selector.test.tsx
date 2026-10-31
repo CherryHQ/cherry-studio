@@ -26,6 +26,21 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 describe('Selector', () => {
+  it('keeps the field name when its selected value changes', () => {
+    const props = {
+      'aria-label': 'Auto Backup',
+      onChange: vi.fn(),
+      options: [
+        { label: 'Off', value: 0 },
+        { label: 'Every minute', value: 1 }
+      ]
+    }
+    const { rerender } = render(<Selector {...props} value={0} />)
+    expect(screen.getByRole('combobox', { name: 'Auto Backup' })).toHaveTextContent('Off')
+    rerender(<Selector {...props} value={1} />)
+    expect(screen.getByRole('combobox', { name: 'Auto Backup' })).toHaveTextContent('Every minute')
+  })
+
   it('renders the selected single option and emits the original option value', async () => {
     const onChange = vi.fn()
 

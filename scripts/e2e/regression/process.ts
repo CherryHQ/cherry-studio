@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { join } from 'node:path'
+import { posix, win32 } from 'node:path'
 
 import type { AppRecord } from './lifecycle'
 import type { Platform } from './types'
@@ -22,7 +22,7 @@ export function isAlive(pid: number): boolean {
   }
 }
 
-function processCommand(pid: number, platform: Platform): string {
+export function processCommand(pid: number, platform: Platform): string {
   try {
     return platform === 'windows'
       ? execFileSync(
@@ -67,7 +67,12 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
       ? record.executablePath
       : kind === 'electron'
         ? record.targetRoot
-        : join(record.targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')
+        : (record.platform === 'windows' ? win32 : posix).join(
+            record.targetRoot,
+            'node_modules',
+            'dotenv-cli',
+            'cli.js'
+          )
   if (!expected || !command.toLowerCase().includes(expected.toLowerCase())) {
     throw new Error(`Refusing to terminate stale ${kind} PID ${pid}; its command no longer matches the owned run`)
   }
@@ -92,7 +97,14 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
     }
   } else {
     const expected = record.mode === 'tag' ? record.executablePath : record.targetRoot
-    if (!expected || !members.some((member) => member[3].includes(expected))) {
+    const appContents =
+      record.mode === 'tag' ? record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1] : undefined
+    if (
+      !expected ||
+      !members.some(
+        (member) => member[3].includes(expected) || (appContents && member[3].startsWith(`${appContents}/Frameworks/`))
+      )
+    ) {
       throw new Error('Refusing cleanup: orphaned process group does not match the owned application')
     }
   }
@@ -100,16 +112,18 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
   process.kill(-record.runnerPid, signal)
 }
 
+export function hasLiveMacProcessGroupMembers(groupId: number): boolean {
+  return execFileSync('ps', ['-axo', 'pgid=,stat='], { encoding: 'utf8', timeout: 10_000 })
+    .split(/\r?\n/)
+    .some((line) => {
+      const [group, state] = line.trim().split(/\s+/)
+      return Number(group) === groupId && Boolean(state) && !state.startsWith('Z')
+    })
+}
+
 export async function waitForMacProcessGroupExit(groupId: number, timeoutMs = 8_000): Promise<boolean> {
-  const hasLiveMembers = () =>
-    execFileSync('ps', ['-axo', 'pgid=,stat='], { encoding: 'utf8', timeout: 10_000 })
-      .split(/\r?\n/)
-      .some((line) => {
-        const [group, state] = line.trim().split(/\s+/)
-        return Number(group) === groupId && Boolean(state) && !state.startsWith('Z')
-      })
   const deadline = Date.now() + timeoutMs
-  while (hasLiveMembers()) {
+  while (hasLiveMacProcessGroupMembers(groupId)) {
     if (Date.now() >= deadline) return false
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
   }
@@ -201,4 +215,17 @@ export function findListeningPid(platform: Platform, port: number): number | und
 
 export function findCdpPid(platform: Platform): number | undefined {
   return findListeningPid(platform, CDP_PORT)
+}
+
+/** Process group of a live process; the group is what macOS cleanup signals. */
+export function findProcessGroupId(pid: number, platform: Platform): number | undefined {
+  if (platform === 'windows') return undefined
+  try {
+    const groupId = Number(
+      execFileSync('ps', ['-o', 'pgid=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
+    )
+    return Number.isSafeInteger(groupId) && groupId > 0 ? groupId : undefined
+  } catch {
+    return undefined
+  }
 }

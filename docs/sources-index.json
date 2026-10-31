@@ -175,7 +175,7 @@
     },
     {
       "path": "docs/references/binary-manager/README.md",
-      "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/binaryManager/BinaryManager.ts","src/main/services/binaryManager/pythonRuntime.ts","src/shared/data/presets/binaryTools.ts"]
+      "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/binaryManager/BinaryManager.ts","src/main/services/binaryManager/claudeNpm.ts","src/main/services/binaryManager/pythonRuntime.ts","src/shared/data/presets/binaryTools.ts"]
     },
     {
       "path": "docs/references/chat/composer-rich-clipboard.md",

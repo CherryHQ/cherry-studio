@@ -105,7 +105,7 @@ export function ComputerUseSettings() {
               return (
                 <Fragment key={id}>
                   {index > 0 && <SettingDivider />}
-                  <SettingRow className="flex-nowrap">
+                  <SettingRow className="flex-nowrap" data-testid={`computer-use-permission-${id}`}>
                     <div className="min-w-0 flex-1">
                       <SettingRowTitle>{label}</SettingRowTitle>
                       <SettingDescription className="mt-1">

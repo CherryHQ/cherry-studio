@@ -16,6 +16,7 @@ interface SelectorOption<V = string | number> {
 }
 
 interface BaseSelectorProps<V = string | number> {
+  'aria-label'?: string
   options: SelectorOption<V>[]
   placeholder?: string
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom'
@@ -60,6 +61,7 @@ const placementMap: Record<
 const isSameValue = <V extends string | number>(left: V, right: V) => left === right || String(left) === String(right)
 
 const Selector = <V extends string | number>({
+  'aria-label': ariaLabel,
   options,
   value,
   onChange,
@@ -177,7 +179,7 @@ const Selector = <V extends string | number>({
           variant="secondary"
           size="sm"
           role="combobox"
-          aria-label={accessibleLabel || undefined}
+          aria-label={ariaLabel || accessibleLabel || undefined}
           aria-expanded={open && !disabled}
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}

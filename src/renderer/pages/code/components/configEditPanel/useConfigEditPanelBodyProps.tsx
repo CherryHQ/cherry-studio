@@ -92,7 +92,13 @@ export function useConfigEditPanelBodyProps({
         filter={modelFilter}
         showTagFilter
         onSettingsNavigate={onSettingsNavigate}
-        trigger={<ModelSelectorTrigger value={draft.modelId} placeholder={t('settings.models.empty')} />}
+        trigger={
+          <ModelSelectorTrigger
+            aria-label={t('code.model_selection')}
+            value={draft.modelId}
+            placeholder={t('settings.models.empty')}
+          />
+        }
       />
     </>
   )

@@ -1,10 +1,16 @@
 import type * as ChildProcess from 'node:child_process'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
 import { createContext as createVmContext, runInContext } from 'node:vm'
 
 import { afterEach, vi } from 'vitest'
 
-import { captureCherryInAuthorizationUrl, sendCherryInCallbackToOwnedApp } from '../debugBridge'
+import {
+  assertOwnedAppIsolation,
+  captureCherryInAuthorizationUrl,
+  sendCherryInCallbackToOwnedApp,
+  setOwnedMainWindowFocus
+} from '../debugBridge'
 import type { AppRecord } from '../lifecycle'
 
 const { evaluateCdpExpressionMock, execFileSyncMock } = vi.hoisted(() => ({
@@ -80,6 +86,68 @@ const authorizationUrl = 'https://open.cherryin.ai/oauth2/auth?state=test-state'
 const callback = 'http://127.0.0.1:29873/oauth/callback?code=test-code&state=test-state'
 
 describe('owned application debug bridge', () => {
+  it.each([false, true])('sets main-window focus to %s when another owned window is listed first', async (focused) => {
+    const record = ownedApp('windows')
+    mainInspector()
+    let mainFocused = !focused
+    const window = (pathname: string, setFocus: (value: boolean) => void, isFocused: () => boolean) => ({
+      webContents: { getURL: () => `http://localhost:5173${pathname}`, focus: () => {} },
+      focus: () => setFocus(true),
+      blur: () => setFocus(false),
+      isFocused
+    })
+    const main = window(
+      '/windows/main/index.html',
+      (value) => (mainFocused = value),
+      () => mainFocused
+    )
+    const secondary = window(
+      '/windows/selection/index.html',
+      () => {},
+      () => true
+    )
+    const context = createVmContext({
+      URL,
+      process: { mainModule: { require: () => ({ BrowserWindow: { getAllWindows: () => [secondary, main] } }) } }
+    })
+    evaluateCdpExpressionMock.mockImplementation(async (_url: string, expression: string) =>
+      runInContext(expression, context)
+    )
+    expect(await setOwnedMainWindowFocus(record, focused)).toEqual({ focused })
+    expect(mainFocused).toBe(focused)
+  })
+
+  it.each(['macos', 'windows'] as const)(
+    'accepts profile-owned %s paths before connecting the UI',
+    async (platform) => {
+      const record = ownedApp(platform)
+      mainInspector()
+      const homeDirectory = join(process.cwd(), 'isolated-profile', 'home')
+      evaluateCdpExpressionMock.mockResolvedValue({
+        home: homeDirectory,
+        temp: join(homeDirectory, 'temp'),
+        appData: join(homeDirectory, 'AppData'),
+        claude: join(homeDirectory, '.claude'),
+        codex: join(homeDirectory, '.codex')
+      })
+      await expect(assertOwnedAppIsolation(record, homeDirectory)).resolves.toBeUndefined()
+    }
+  )
+
+  it.each(['home', 'temp', 'appData', 'claude', 'codex'])(
+    'rejects a reused instance whose %s path still points outside the test profile',
+    async (key) => {
+      const record = ownedApp('windows')
+      mainInspector()
+      const homeDirectory = join(process.cwd(), 'isolated-profile', 'home')
+      evaluateCdpExpressionMock.mockResolvedValue({
+        ...Object.fromEntries(['home', 'temp', 'appData', 'claude', 'codex'].map((key) => [key, homeDirectory])),
+        [key]: join(process.cwd(), 'personal-home')
+      })
+      await expect(assertOwnedAppIsolation(record, homeDirectory)).rejects.toThrow(`Regression ${key} directory`)
+    }
+  )
+
   it.each(['macos', 'windows'] as const)(
     'captures main-process authorization and restores the browser opener on %s',
     async (platform) => {

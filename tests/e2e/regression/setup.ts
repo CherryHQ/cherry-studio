@@ -1,6 +1,6 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
-import { dismissTransientDialogs, selectSidebarApp } from './navigation'
+import { dismissTransientDialogs, selectSidebarApp } from './helpers/navigation'
 
 export async function prepareScenario(page: Page): Promise<void> {
   await dismissTransientDialogs(page)
@@ -9,9 +9,15 @@ export async function prepareScenario(page: Page): Promise<void> {
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped',
       'app.privacy.data_collection.enabled': false,
+      'topic.tab.show': true,
       'feature.quick_assistant.enabled': false,
       'feature.selection.enabled': false
     })
   })
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
   await selectSidebarApp(page, 'Chat')
+  const chat = page.locator('[data-ui~="chat.view"]:visible').first()
+  const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+  if (await showSidebar.isVisible()) await showSidebar.click()
+  await expect(chat.getByRole('button', { name: 'Hide Sidebar', exact: true })).toBeVisible()
 }

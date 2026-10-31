@@ -1,17 +1,57 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { execFile, execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { readAppRecord } from './lifecycle'
+import { readAppRecord, readOwnedRecord } from './lifecycle'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
+import { assertOwnedProcess, findCdpPid, isDescendant } from './process'
 import type { Platform } from './types'
 
-const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
+const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'c', 'e', 'k', 's'])
 let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
 let macProductMajor: number | undefined
+
+export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = `on run argv
+    tell application "System Events" to tell process "NotificationCenter"
+      try
+      repeat with windowIndex from 1 to count of windows
+        set windowElements to entire contents of window windowIndex
+        repeat with groupReference in windowElements
+          set notificationGroup to contents of groupReference
+          if role of notificationGroup is "AXGroup" and subrole of notificationGroup is "AXNotificationCenterAlert" then
+            set alertElements to entire contents of notificationGroup
+            repeat with elementReference in alertElements
+              set element to contents of elementReference
+              if role of element is "AXStaticText" then
+                if value of element as text is item 1 of argv then
+                  if item 2 of argv is "click" then perform action "AXPress" of notificationGroup
+                  return "found"
+                end if
+              end if
+            end repeat
+          end if
+        end repeat
+      end repeat
+      on error errorMessage number errorNumber
+        if errorNumber is not -1728 then error errorMessage number errorNumber
+      end try
+    end tell
+    return "absent"
+  end run`
+  return (
+    execFileSync('osascript', ['-e', script, '--', text, click ? 'click' : 'read'], {
+      encoding: 'utf8',
+      timeout: 10_000
+    }).trim() === 'found'
+  )
+}
 
 export function closeExternalText(platform: Platform): void {
   if (platform === 'macos' && activeMacTextFixturePath) {
@@ -142,8 +182,92 @@ export function sendSystemHotkey(platform: Platform, keys: string[]): void {
   else runWindowsHotkey(keys)
 }
 
+function runAsync(file: string, args: string[], timeout: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { timeout, windowsHide: true }, (error) => (error ? reject(error) : resolve()))
+  })
+}
+
+/**
+ * Acknowledge a native message box raised by the main process itself. The process is
+ * blocked inside the modal call, so nothing inside the page can dismiss it: click the
+ * box's default button from the desktop instead. Resolves once the box is gone.
+ */
+export async function dismissNativeMessageBox(platform: Platform, paths: RunPaths, title: string): Promise<void> {
+  const record = readOwnedRecord(paths)
+  let electronPid = record.electronPid
+  const deadline = Date.now() + 60_000
+  while (!electronPid && Date.now() < deadline) {
+    electronPid = findCdpPid(platform)
+    if (!electronPid) await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  if (!electronPid) throw new Error('Owned application did not open its CDP port before the native dialog')
+  assertOwnedProcess(record, electronPid, 'electron')
+  if (!isDescendant(electronPid, record.runnerPid, platform))
+    throw new Error('Native dialog process is outside the owned run')
+  if (platform === 'macos') {
+    const script = [
+      'on run argv',
+      'set targetPid to item 2 of argv as integer',
+      'tell application "System Events"',
+      'repeat 240 times',
+      'if exists (first application process whose unix id is targetPid) then',
+      'tell (first application process whose unix id is targetPid)',
+      'repeat with w in windows',
+      'if exists button "OK" of w then',
+      'click button "OK" of w',
+      'return "window"',
+      'end if',
+      'if (count of sheets of w) > 0 then',
+      'repeat with s in sheets of w',
+      'if exists button "OK" of s then',
+      'click button "OK" of s',
+      'return "sheet"',
+      'end if',
+      'end repeat',
+      'end if',
+      'end repeat',
+      'end tell',
+      'end if',
+      'delay 0.25',
+      'end repeat',
+      'error "Native message box was not found"',
+      'end tell',
+      'end run'
+    ].join('\n')
+    return runAsync('osascript', ['-e', script, '--', title, String(electronPid)], 90_000)
+  }
+  const script = [
+    'Set-StrictMode -Version Latest',
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeMessageBox { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+    '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+    `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
+    '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
+    '$dialog = $null',
+    'do {',
+    '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+    `  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq '${escapePowerShell(title)}' } | Select-Object -Last 1`,
+    '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
+    '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
+    'if (-not $dialog) { throw "Native message box was not found" }',
+    '$buttonCondition = [System.Windows.Automation.OrCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CommandButton_1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"))',
+    '$button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
+    'if (-not $button -or -not $button.Current.NativeWindowHandle) { throw "Native message box confirmation button was not found" }',
+    '$null = [NativeMessageBox]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+    'Start-Sleep -Milliseconds 500'
+  ].join('\n')
+  return runAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+    90_000
+  )
+}
+
 export function openExternalText(platform: Platform, paths: RunPaths, candidatePath: string): string {
-  const filePath = resolveAllowedPath(candidatePath, [paths.fixtures])
+  const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`External text fixture does not exist: ${filePath}`)
   if (platform === 'macos') {
     closeExternalText(platform)
@@ -216,6 +340,33 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
   return filePath
 }
 
+export async function inspectImageInExternalBrowser(
+  paths: RunPaths,
+  candidatePath: string
+): Promise<{ width: number; height: number; screenshot: string }> {
+  const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
+  const { chromium } = await import('@playwright/test')
+  const browser = await chromium.launchPersistentContext(join(paths.private, 'external-image-viewer'), {
+    channel: 'msedge',
+    headless: false
+  })
+  try {
+    const page = await browser.newPage()
+    await page.goto(pathToFileURL(filePath).href)
+    const image = page.locator('img')
+    await image.waitFor({ state: 'visible' })
+    const dimensions = await image.evaluate((element) => ({
+      width: (element as HTMLImageElement).naturalWidth,
+      height: (element as HTMLImageElement).naturalHeight
+    }))
+    const screenshot = join(paths.evidence, 'external-image-viewer.png')
+    await page.screenshot({ path: screenshot })
+    return { ...dimensions, screenshot }
+  } finally {
+    await browser.close()
+  }
+}
+
 export function chooseNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)
@@ -242,6 +393,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'repeat 100 times',
       'if not (exists sheet 1 of window 1) then exit repeat',
       'delay 0.1',
+      'if exists text field 1 of sheet 1 of window 1 then key code 36',
       'end repeat',
       'if exists sheet 1 of window 1 then error "Go to Folder did not finish"',
       'repeat 100 times',
@@ -380,93 +532,412 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       '$ErrorActionPreference = "Stop"',
       'Add-Type -AssemblyName UIAutomationClient',
       'Add-Type -AssemblyName UIAutomationTypes',
-      'Add-Type -AssemblyName System.Windows.Forms',
-      `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeDialog { [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+      `Add-Type -TypeDefinition '
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class NativeDialog {
+  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string value);
+  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder value);
+}'`,
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
       `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
       '$dialog = $null',
       'do {',
       '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
+      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen -and $_.Current.IsEnabled } | Select-Object -Last 1',
       '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
-      'if (-not $dialog) { throw "Native file dialog was not found" }',
-      '$shell = New-Object -ComObject WScript.Shell',
-      `if (-not $shell.AppActivate(${electronPid})) { throw "Native file dialog could not be activated" }`,
-      'Start-Sleep -Milliseconds 300',
+      'if (-not $dialog) {',
+      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen } | Select-Object -Last 1',
+      '}',
+      'if (-not $dialog) {',
+      '  $all = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)',
+      '  $seen = ($all | Select-Object -First 25 | ForEach-Object { "$($_.Current.ProcessId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
+      '  throw ("Native file dialog was not found for pid ' + electronPid + '. Top-level windows: " + $seen)',
+      '}',
       ...(isDirectory
         ? [
-            '[System.Windows.Forms.SendKeys]::SendWait("^l")',
-            'Start-Sleep -Milliseconds 200',
-            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
-            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
-            'Start-Sleep -Milliseconds 750',
-            '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-            '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" } | Select-Object -Last 1',
-            'if (-not $dialog) { throw "Native folder dialog closed before selection" }',
-            '$acceptHandle = [NativeDialog]::GetDlgItem([IntPtr]$dialog.Current.NativeWindowHandle, 1)',
-            'if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native folder accept button was not found" }',
-            '$null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-            'Start-Sleep -Milliseconds 500'
+            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
+            '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
+            '$shell = New-Object -ComObject WScript.Shell',
+            `$null = $shell.AppActivate(${electronPid})`,
+            '$focused = $false',
+            'do {',
+            '  $null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
+            '  $focused = [NativeDialog]::GetForegroundWindow() -eq $dialogHandle',
+            '  if (-not $focused) { Start-Sleep -Milliseconds 100 }',
+            '} while (-not $focused -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $focused) { throw "Native folder dialog could not receive focus" }',
+            '[NativeDialog]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x4C, 0, 0, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x4C, 0, 2, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)',
+            '$addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
+            '$addressCondition = [System.Windows.Automation.AndCondition]::new($addressCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
+            'do {',
+            '  $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+            '  if ($address -and -not [NativeDialog]::IsWindowVisible([IntPtr]$address.Current.NativeWindowHandle)) { $address = $null }',
+            '  if (-not $address) { Start-Sleep -Milliseconds 100 }',
+            '} while (-not $address -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $address) { throw "Native folder address input was not found" }',
+            '$addressHandle = [IntPtr]$address.Current.NativeWindowHandle',
+            `$null = [NativeDialog]::SetText($addressHandle, 0x000C, [IntPtr]::Zero, '${escapePowerShell(filePath)}')`,
+            '$value = [System.Text.StringBuilder]::new(32768)',
+            '$null = [NativeDialog]::ReadText($addressHandle, 0x000D, [IntPtr]::new($value.Capacity), $value)',
+            `if ($value.ToString() -ne '${escapePowerShell(filePath)}') { throw "Native folder address readback mismatch" }`,
+            'if ([NativeDialog]::GetForegroundWindow() -ne $dialogHandle) { throw "Native folder dialog lost foreground ownership" }',
+            '[NativeDialog]::keybd_event(0x0D, 0, 0, [UIntPtr]::Zero)',
+            '[NativeDialog]::keybd_event(0x0D, 0, 2, [UIntPtr]::Zero)',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
+            'do {',
+            '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+            '  $dialog = $windows | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle } | Select-Object -First 1',
+            '  if (-not $dialog) { break }',
+            '  $editing = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+            '  if ($editing -and -not [NativeDialog]::IsWindowVisible([IntPtr]$editing.Current.NativeWindowHandle)) { $editing = $null }',
+            '  if (-not $editing) { break }',
+            '  Start-Sleep -Milliseconds 100',
+            '} while ([DateTime]::UtcNow -lt $deadline)',
+            'if ($dialog) {',
+            '  if ($editing) { throw "Native folder navigation did not finish" }',
+            '  $acceptHandle = [NativeDialog]::GetDlgItem([IntPtr]$dialogHandle, 1)',
+            '  if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native folder accept button was not found" }',
+            '  $null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+            '}'
           ]
         : [
-            '[System.Windows.Forms.SendKeys]::SendWait("%n")',
-            'Start-Sleep -Milliseconds 200',
-            `[System.Windows.Forms.SendKeys]::SendWait('${escapePowerShell(filePath)}')`,
-            '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")'
+            // Typing into the dialog depends on focus the runner cannot guarantee, so set the name
+            // field directly and accept through the dialog's own default button. The file name
+            // control is populated after the dialog is created, so wait for it before failing.
+            '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
+            '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+            '$fileInput = $null',
+            'do {',
+            '  $fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
+            '  if (-not $fileInput) { Start-Sleep -Milliseconds 200 }',
+            '} while (-not $fileInput -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $fileInput) {',
+            '  $editCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
+            '  $fileInput = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition) | Where-Object { -not $_.Current.IsOffscreen } | Select-Object -Last 1',
+            '}',
+            'if (-not $fileInput) {',
+            '  $all = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+            '  $seen = ($all | Select-Object -First 40 | ForEach-Object { "$($_.Current.AutomationId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
+            '  throw ("Native file name input was not found. Dialog descendants: " + $seen)',
+            '}',
+            `$requested = '${escapePowerShell(filePath)}'`,
+            '$valuePattern = $null',
+            'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
+            'if ($valuePattern) {',
+            '  $valuePattern.SetValue($requested)',
+            '} else {',
+            '  $null = [NativeDialog]::SetText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $requested)',
+            '}',
+            '$current = $null',
+            'if ($valuePattern) { $current = $valuePattern.Current.Value } else {',
+            '  $buffer = [System.Text.StringBuilder]::new(32768)',
+            '  $null = [NativeDialog]::ReadText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000D, [IntPtr]::new($buffer.Capacity), $buffer)',
+            '  $current = $buffer.ToString()',
+            '}',
+            'if ($current -ne $requested) { throw "Native file name readback mismatch" }',
+            '$acceptHandle = [NativeDialog]::GetDlgItem($dialogHandle, 1)',
+            'if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native file dialog accept button was not found" }',
+            '$null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+            '$closed = $false',
+            'do {',
+            '  $remaining = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+            '  $closed = -not ($remaining | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle })',
+            '  if (-not $closed) { Start-Sleep -Milliseconds 100 }',
+            '} while (-not $closed -and [DateTime]::UtcNow -lt $deadline)',
+            'if (-not $closed) { throw "Native file dialog did not close after accepting the file name" }'
           ])
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       stdio: ['ignore', 'ignore', 'pipe'],
-      timeout: 15_000
+      timeout: 30_000
     })
   }
   return filePath
 }
 
-export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
-  const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
+export async function cancelNativeFileDialogs(platform: Platform, paths: RunPaths): Promise<void> {
+  if (platform !== 'windows') return
+  const record = readAppRecord(paths)
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeFileDialog { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+    '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+    `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
+    '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
+    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$cancelCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "2"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
+    '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+    '$dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" })',
+    'foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+    'foreach ($dialog in $dialogs) {',
+    `  if ($dialog.Current.ProcessId -ne ${record.electronPid}) { continue }`,
+    '  if (-not $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)) { continue }',
+    '  $cancel = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cancelCondition)',
+    '  if ($cancel -and $cancel.Current.NativeWindowHandle) { $null = [NativeFileDialog]::SendMessage([IntPtr]$cancel.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
+    '}'
+  ].join('\n')
+  await runAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+    15_000
+  )
+}
+
+export type NativeSaveOutcome = { filePath: string; suggestedName: string }
+
+export async function saveNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): Promise<string> {
+  const outcome = await saveNativeFileKeepingName(platform, paths, candidatePath)
+  return outcome.filePath
+}
+
+/**
+ * Drive the native save panel for `candidatePath` and report the file name the application proposed.
+ * `keepSuggestedName` accepts that name unchanged, so a caller can assert what the product offered
+ * instead of guessing it; the file that actually appears in the directory is then returned.
+ */
+export async function saveNativeFileKeepingName(
+  platform: Platform,
+  paths: RunPaths,
+  candidatePath: string,
+  keepSuggestedName = false
+): Promise<NativeSaveOutcome> {
+  // `private` holds credential-bearing artifacts that are never uploaded, so unredacted saves stay there.
+  const filePath = resolveAllowedPath(candidatePath, [paths.evidence, paths.private])
   const directory = dirname(filePath)
   mkdirSync(directory, { recursive: true })
-  const electronPid = readAppRecord(paths).electronPid
-  if (platform === 'macos') {
-    const script = [
+  const record = readAppRecord(paths)
+  const electronPid = record.electronPid
+  assertOwnedProcess(record, electronPid, 'electron')
+  if (platform !== 'macos') {
+    return saveNativeFileWindows(filePath, electronPid, keepSuggestedName)
+  }
+
+  macProductMajor ??= Number.parseInt(
+    execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8', timeout: 5_000 }).trim(),
+    10
+  )
+  if (!Number.isInteger(macProductMajor)) throw new Error('Could not determine macOS product version')
+  const existingNames = new Set(readdirSync(directory))
+  const extension = extname(filePath)
+  const saveName = macProductMajor >= 27 || !extension ? basename(filePath) : basename(filePath, extension)
+  // macOS 27 is app-owned and refuses `entire contents` walks, so the panel is driven by keystrokes only:
+  // Go to Folder takes the destination, then either the suggested name is accepted or ours is typed.
+  const acceptScript = () =>
+    [
       'on run argv',
+      'set directoryPath to item 1 of argv',
+      'set keepName to item 2 of argv',
+      'set fileName to item 3 of argv',
+      'set pidArg to item 4 of argv as integer',
       'tell application "System Events"',
-      'set frontmost of first application process whose unix id is (item 3 of argv as integer) to true',
+      'tell (first application process whose unix id is pidArg)',
+      'set frontmost to true',
       'delay 2',
       'keystroke "g" using {command down, shift down}',
+      'delay 2',
+      'keystroke directoryPath',
       'delay 1',
-      'keystroke (item 1 of argv)',
       'key code 36',
-      'delay 1',
+      'delay 2',
+      'if keepName is "no" then',
       'keystroke "a" using command down',
-      'keystroke (item 2 of argv)',
+      'delay 0.2',
+      'keystroke fileName',
+      'delay 0.3',
       'key code 36',
+      'else',
+      'key code 36',
+      'end if',
+      'end tell',
       'end tell',
       'end run'
     ].join('\n')
-    const extension = extname(filePath)
-    const saveName = extension ? basename(filePath, extension) : basename(filePath)
-    execFileSync('osascript', ['-e', script, '--', directory, saveName, String(electronPid)], {
-      stdio: 'ignore',
-      timeout: 15_000
-    })
-  } else {
-    const script = [
-      '$shell = New-Object -ComObject WScript.Shell',
-      `$null = $shell.AppActivate(${electronPid})`,
-      'Start-Sleep -Milliseconds 500',
-      '$shell.SendKeys("%n")',
-      'Start-Sleep -Milliseconds 250',
-      `$shell.SendKeys('${escapePowerShell(filePath)}')`,
-      '$shell.SendKeys("{ENTER}")'
-    ].join('; ')
-    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-      stdio: 'ignore',
-      timeout: 15_000
-    })
+
+  const createdSince = () => {
+    if (!keepSuggestedName) return existsSync(filePath) ? [filePath] : []
+    return readdirSync(directory)
+      .filter((name) => !existingNames.has(name) && !name.startsWith('.'))
+      .map((name) => join(directory, name))
   }
-  return filePath
+
+  // The app owns the panel, so keystroke timing through the window server is not deterministic:
+  // retry the whole sequence once (dismissing any half-open sheet first) before calling it a failure.
+  const firstAttemptDeadline = Date.now() + 12_000
+  const overallDeadline = Date.now() + 40_000
+  let attempt = 0
+  await runAsync(
+    'osascript',
+    ['-e', acceptScript(), '--', directory, keepSuggestedName ? 'yes' : 'no', saveName, String(electronPid)],
+    45_000
+  ).catch(() => undefined)
+  let created = createdSince()
+  while (created.length === 0 && Date.now() < overallDeadline) {
+    if (attempt === 0 && Date.now() > firstAttemptDeadline) {
+      attempt = 1
+      await runAsync(
+        'osascript',
+        [
+          '-e',
+          `tell application "System Events" to tell (first application process whose unix id is ${electronPid}) to key code 53`
+        ],
+        10_000
+      ).catch(() => undefined)
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      await runAsync(
+        'osascript',
+        ['-e', acceptScript(), '--', directory, keepSuggestedName ? 'yes' : 'no', saveName, String(electronPid)],
+        45_000
+      ).catch(() => undefined)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    created = createdSince()
+  }
+  if (created.length > 0) {
+    const savedPath = keepSuggestedName ? newestFile(created) : filePath
+    return { filePath: savedPath, suggestedName: keepSuggestedName ? basename(savedPath) : basename(filePath) }
+  }
+  throw new Error(
+    keepSuggestedName
+      ? `Native save panel did not write a file with its suggested name into ${directory}`
+      : `Native save panel did not create ${filePath}`
+  )
+}
+
+function newestFile(candidates: string[]): string {
+  return candidates
+    .map((file) => ({ file, modified: statSync(file).mtimeMs }))
+    .sort((left, right) => right.modified - left.modified)[0].file
+}
+
+async function saveNativeFileWindows(
+  filePath: string,
+  electronPid: number,
+  keepSuggestedName: boolean
+): Promise<NativeSaveOutcome> {
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'try {',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class NativeSaveDialog { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+    '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+    `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
+    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
+    '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
+    '$dialog = $null',
+    'do {',
+    '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+    '  $dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" })',
+    '  foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+    `  $dialog = $dialogs | Where-Object { $_.Current.ProcessId -eq ${electronPid} -and $_.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition) } | Select-Object -Last 1`,
+    '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
+    '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
+    'if (-not $dialog) { throw "Native save dialog was not found" }',
+    '$null = [NativeSaveDialog]::SetForegroundWindow([IntPtr]$dialog.Current.NativeWindowHandle)',
+    '$filenameControl = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
+    '$buttonCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
+    '$button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
+    'if (-not $filenameControl.Current.NativeWindowHandle -or -not $button -or -not $button.Current.NativeWindowHandle) { throw "Native save controls are unavailable" }',
+    '$initial = [System.Text.StringBuilder]::new(32768)',
+    '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$initial.Capacity, $initial)',
+    'if (-not $initial.ToString()) { throw "Native save dialog proposed no file name" }',
+    `$filePath = '${escapePowerShell(filePath)}'`,
+    `$keepName = $${keepSuggestedName ? 'true' : 'false'}`,
+    '$directory = Split-Path -Parent $filePath',
+    '$target = if ($keepName) { Join-Path $directory ($initial.ToString()) } else { $filePath }',
+    'if ([NativeSaveDialog]::SetText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $target) -eq [IntPtr]::Zero) { throw "Native save filename could not be set" }',
+    '$readback = [System.Text.StringBuilder]::new(32768)',
+    '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$readback.Capacity, $readback)',
+    'if ($readback.ToString() -cne $target) { throw "Native save filename does not match the requested path" }',
+    '$dialogHandle = $dialog.Current.NativeWindowHandle',
+    '$null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+    // The dialog is asynchronous: wait for the file the dialog actually wrote. The window may append
+    // the extension from the application's filter, so accept the proposed name with or without one.
+    '$base = [IO.Path]::GetFileName($target)',
+    '$clickedAt = [DateTime]::UtcNow',
+    '$notes = @()',
+    '$written = $null',
+    '$writeDeadline = [DateTime]::UtcNow.AddSeconds(30)',
+    'while (-not $written -and [DateTime]::UtcNow -lt $writeDeadline) {',
+    '  $candidates = @(Get-ChildItem -LiteralPath $directory -ErrorAction SilentlyContinue | Where-Object { ($_.Name -eq $base -or $_.Name.StartsWith($base + ".")) -and $_.LastWriteTime.ToUniversalTime() -ge $clickedAt.AddSeconds(-2) })',
+    '  if ($candidates.Count -gt 0) { $written = ($candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName; break }',
+    '  $others = @($root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition) | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.NativeWindowHandle -ne $dialogHandle })',
+    '  foreach ($prompt in $others) {',
+    '    if ($prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)) { continue }',
+    '    $textCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)',
+    '    $text = @($prompt.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition) | ForEach-Object { $_.Current.Name }) -join " "',
+    '    $notes += ("prompt " + $prompt.Current.Name + ": " + $text)',
+    '    $answer = $prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "6"))',
+    '    if (-not $answer) { $answer = $prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1")) }',
+    '    if ($answer -and $answer.Current.NativeWindowHandle) { $null = [NativeSaveDialog]::SendMessage([IntPtr]$answer.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
+    '  }',
+    '  Start-Sleep -Milliseconds 250',
+    '}',
+    'if (-not $written) {',
+    '  $open = @()',
+    '  $files = @()',
+    '  try { $open = @($root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition) | ForEach-Object { $_.Current.ClassName + ":" + $_.Current.Name }) } catch { $open = @("unavailable") }',
+    '  try { $files = @(Get-ChildItem -LiteralPath $directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) } catch { $files = @("unavailable") }',
+    `  throw ("Native save dialog did not write {0}. Windows: {1}. Prompts: {2}. Directory: {3}" -f $target, ($open -join " ; "), ($notes -join " ; "), ($files -join ", "))`,
+    '}',
+    'Write-Output $written',
+    '} catch {',
+    '  Write-Output ("ERROR: " + $_.Exception.Message)',
+    '}'
+  ].join('\n')
+  const output = await runAsyncCapture(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+    125_000
+  )
+  // PowerShell writes thrown messages to the CLIXML error stream, which is unreadable in CI logs.
+  // The script reports them on stdout instead so a failing run names the step that failed.
+  const reported = output
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('ERROR: '))
+  if (reported) throw new Error(`Native save dialog failed: ${reported.slice('ERROR: '.length)}`)
+  const savedPath = output.trim()
+  const resolved = savedPath.length > 0 ? savedPath : filePath
+  return { filePath: resolved, suggestedName: basename(resolved) }
+}
+
+function runAsyncCapture(file: string, args: string[], timeout: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { timeout, windowsHide: true, encoding: 'utf8' }, (error, stdout, stderr) =>
+      error
+        ? reject(new Error(`${file} exited with ${error.code ?? 'error'}: ${decodePowerShellError(stderr)}`))
+        : resolve(stdout ?? '')
+    )
+  })
+}
+
+function decodePowerShellError(stderr: string): string {
+  const text = (stderr ?? '')
+    .replace(/^#<\s*CLIXML\s*/m, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/_x([0-9A-Fa-f]{4})_/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length > 0 ? text : '(no stderr)'
 }

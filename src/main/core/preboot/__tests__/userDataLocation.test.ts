@@ -321,8 +321,9 @@ describe('resolveUserDataLocation', () => {
       resolveUserDataLocation()
 
       expect(mkdirSync).toHaveBeenCalledWith('/private/tmp/cherry-profile/userData', { recursive: true })
+      expect(mkdirSync).toHaveBeenCalledWith('/private/tmp/cherry-profile/home/temp', { recursive: true })
+      expect(setPathMock).toHaveBeenCalledWith('temp', '/private/tmp/cherry-profile/home/temp')
       expect(setPathMock).toHaveBeenCalledWith('userData', '/private/tmp/cherry-profile/userData')
-      expect(setPathMock).toHaveBeenCalledTimes(1)
       expect(bootConfigGetMock).not.toHaveBeenCalled()
     })
 
