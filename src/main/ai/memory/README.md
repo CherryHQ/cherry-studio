@@ -8,7 +8,7 @@
 - `memoryPrompt.ts`：按当前权限读取入口，标明截断和未加载的主题。加载后释放会话，组装引用前再次检查权限。
 - `memoryTarget.ts`：识别请求路径和真实目标中的受管理文件，阻止通过普通文件工具读取恢复备份。
 - `MemoryEditorService.ts`：把编辑会话绑定到主窗口。窗口关闭后释放会话，其他窗口不能复用凭据。
-- `MemoryMigrationService.ts`：串行迁移私有 FACT，备份原文并核对目标后才启用。`legacyMemoryPlan.ts` 保留完整 Markdown 小节，不能安全拆分时停止迁移。
+- `MemoryMigrationService.ts`：串行迁移私有 FACT，备份原文并核对目标后才启用。`legacyMemoryPlan.ts` 保留完整 Markdown 小节，不能安全拆分时停止迁移。含引用式链接或图片的 FACT 超出入口容量时保留原文件并停止迁移，避免引用与定义分离；能完整放入入口时仍按原文迁移。
 - `memoryFiles.ts`：管理文件白名单、真实路径、完整读取、容量检查和文件替换。
 - `memoryBackups.ts`：保存原始字节、预期哈希和逐项结果。备份位于活动目录之外。
 

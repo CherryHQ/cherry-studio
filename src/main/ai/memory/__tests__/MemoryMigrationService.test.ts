@@ -100,6 +100,22 @@ describe('legacy memory activation', () => {
   })
 
   it.each([
+    [
+      'split absolute reference',
+      '# First\n[source][ref]\n' +
+        'a'.repeat(15000) +
+        '\n# Second\n' +
+        'b'.repeat(15000) +
+        '\n\n[ref]: https://example.com/conditions'
+    ],
+    [
+      'split absolute image reference',
+      '# First\n![ref][]\n' +
+        'a'.repeat(15000) +
+        '\n# Second\n' +
+        'b'.repeat(15000) +
+        '\n\n[ref]: https://example.com/image.png'
+    ],
     ['relative link', '[source](../USER.md)'],
     ['relative image', '![source](images/detail.png)'],
     ['reference link', '[source][ref]\n\n[ref]: ../USER.md'],
@@ -120,7 +136,7 @@ describe('legacy memory activation', () => {
 
   it('preserves absolute links and literal link examples during migration', async () => {
     const original =
-      '[source](https://example.com/guide#conditions)\n`[example](../USER.md)`\n```md\n[example](#second)\n```'
+      '[source][ref]\n\n[ref]: https://example.com/conditions\n\n[source](https://example.com/guide#conditions)\n`[example](../USER.md)`\n```md\n[example](#second)\n```'
     await writeFile(path.join(root, 'memory', 'FACT.md'), original)
     expect(await migration.ensureAgent(agentId)).toBe(true)
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(original)

@@ -37,7 +37,9 @@ export async function planLegacyMemory(
   sourceHash: string
 ): Promise<Map<string, string>> {
   const { fromMarkdown } = await import('mdast-util-from-markdown')
+  let hasReferences = false
   const inspect = (node: Nodes): void => {
+    if (node.type === 'linkReference' || node.type === 'imageReference') hasReferences = true
     if (
       ('url' in node && !/^(?:[a-z][a-z\d+.-]*:|\/)/i.test(node.url)) ||
       (node.type === 'html' && /\b(?:href|src)\s*=/i.test(node.value)) ||
@@ -56,6 +58,9 @@ export async function planLegacyMemory(
   const combined = join(currentEntry, source)
   if (Buffer.byteLength(combined, 'utf8') <= MEMORY_MAX_BYTES && memoryLineCount(combined) <= MEMORY_MAX_LINES)
     return new Map([[MEMORY_ENTRY, combined]])
+
+  if (hasReferences)
+    throw new MemoryError('conflict', 'Legacy FACT references require manual review before section splitting')
 
   let entry = currentEntry
   let topic = ''
