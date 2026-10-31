@@ -50,7 +50,7 @@ as required by the behavior adapter's request accounting.
   behavior instance, all native sessions and projections.
 
 This is an opt-in migration path: omitting `behavior` retains the existing native extension path.
-Combining it with legacy `subagents`, `offload`, `recall` or a direct compaction summarizer is rejected.
+Combining it with legacy `subagents`, `offload` or a direct compaction summarizer is rejected.
 Host extensions must not install duplicate behavior tools or start native runs themselves.
 The desktop connection opts in through `src/main/ai/runtime/pi/piBehaviorHost.ts`; its production
 approval, question, model, summary, verifier and output ports use existing Cherry services.
@@ -199,15 +199,10 @@ Host obligation: let `read` open the store's paths without an approval prompt.
 
 ## Recall
 
-`recall: true` registers `vcc_recall`, with pi-vcc's tool name and parameters (`query`, `range`,
-`expand`, `page`, `scope`, `mode`), so existing tool settings and approvals apply; the host
-disables it by name like any tool. It reads the native active branch, including messages a
-compaction folded into its summary and the running turn. `#N` is an entry's position among the
-branch's user, assistant, tool-result and custom messages, so it stays the same once the session
-is reopened.
-`query` is a keyword search (entries matching more of the words first, 5 per page), `range:
-[from, to]` lists entries in order (20 per page), `expand: [N]` returns full text, and no argument
-lists the latest entries. `scope: 'all'` is the same as `'lineage'`.
+`vcc_recall` is installed by `PiSessionOptions.behavior` through the shared
+[`agent-behavior`](../agent-behavior/README.md#installing-the-package) rules. The Pi adapter supplies the native
+active lineage, including compaction-folded messages and the running turn. Recall is not an option on the
+standalone session builder.
 
 ## Interaction extensions
 
@@ -249,7 +244,7 @@ fork?, background?, model? })` with DSH's name, so Cherry's renderer shows it as
 [background subagent note](../../.agents/notes/proposed/feature/2026-10-14-agent-runtime-background-subagent.md).
 
 Each call builds a session in-process from the parent's options (model runtime, model, prompts,
-tools, compaction, offload, recall, settings) plus the extensions, native event listener and
+tools, compaction, offload, settings) plus the extensions, native event listener and
 live-session callback the host returns from `SubagentPort.configure(subagent)`, and starts it with
 `session.prompt()`, so `before_agent_start` handlers run as in any turn. A continuation run
 (`message_subagent`) starts with a custom message, so those handlers see it with

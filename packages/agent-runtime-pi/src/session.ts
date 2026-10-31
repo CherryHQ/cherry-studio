@@ -14,7 +14,6 @@ import {
 
 import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
 import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
-import { recallExtension } from './recall'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
 import { createSubagentExtension, type SubagentPort, type SubagentMessageDetails } from './subagent'
 
@@ -44,7 +43,6 @@ export interface AgentRuntimeSessionOptions {
   onEvent?: (event: AgentRuntimeEvent) => void
   compaction?: AgentRuntimeCompaction
   offload?: ToolOutputOffload
-  recall?: boolean
   subagents?: SubagentPort
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
@@ -152,7 +150,6 @@ async function buildSession(
   const extensionFactories = [
     // First, so the watch covers every other extension's agent_settled handler.
     settleWatch,
-    ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
     ...(subagents ? [subagents.extension] : []),
     ...(options.extensionFactories ?? []),
     ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),

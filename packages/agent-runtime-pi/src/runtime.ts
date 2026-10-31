@@ -196,7 +196,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   }
 
   async function buildBehavior(config: PiSessionOptions, behavior: PiRuntimeBehavior): Promise<OperationResult<Entry>> {
-    if (config.subagents || config.offload || config.recall || config.compaction?.summarize)
+    if (config.subagents || config.offload || config.compaction?.summarize)
       return rejected('open', 'conflicting-behavior')
     if (
       config
