@@ -146,7 +146,7 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 ### Code Organization
 
 - `src/main/ai/memory/` owns memory-file storage, caller authority, lifecycle admission, editor sessions, backups, and recovery. Runtime integration is still pending.
-- `src/renderer/components/memory/` owns the memory editor; `src/renderer/pages/settings/MemorySettings.tsx` exposes shared and selected Agent scopes.
+- `src/renderer/components/memory/` owns shared-memory controls; `src/renderer/pages/settings/MemorySettings.tsx` exposes shared-scope settings without a file preview or Agent-private entry point.
 - `src/main/core/paths/` registers the shared memory and backup roots.
 
 Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/references/architecture/naming-conventions.md)).
