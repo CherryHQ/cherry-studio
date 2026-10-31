@@ -22,7 +22,8 @@ import {
   buildModelCapabilities,
   buildModelInputModalities,
   getInitialModelClassification,
-  getModelApiId
+  getModelApiId,
+  resolveEndpointTypesForClassification
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
@@ -183,16 +184,22 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
             )
           : null
 
+      // Classification changes in purpose mode must rewrite endpointTypes too —
+      // embedding/rerank own openai-embeddings / jina-rerank; leaving chat stuck
+      // makes model check probe /chat/completions (Cloudflare Workers AI → 400).
+      const resolvedEndpointTypes = shouldApplyPurpose
+        ? resolveEndpointTypesForClassification(
+            effectiveClassification.primaryType,
+            resolvedPurposeFields?.endpointTypes ?? nextPurposeFields.endpointTypes ?? model.endpointTypes
+          )
+        : hasEndpointTypesOverride && mode === 'endpoint-types'
+          ? [...(overrides.endpointTypes ?? [])]
+          : undefined
+
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
-        ...(hasPurposeFieldsOverride && resolvedPurposeFields
-          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
-          : hasEndpointTypesOverride
-            ? {
-                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
-              }
-            : {}),
+        ...(resolvedEndpointTypes ? { endpointTypes: resolvedEndpointTypes } : {}),
         ...(resolvedPurposeFields
           ? {
               capabilities: resolvedPurposeFields.capabilities,
