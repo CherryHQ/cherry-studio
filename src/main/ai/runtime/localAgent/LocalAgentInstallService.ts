@@ -8,8 +8,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { regionService } from '@main/services/RegionService'
-import { isPathWithin } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
+import { isOutsidePath } from '@main/utils/file'
 import { CHINA_NPM_REGISTRY, CHINA_PIP_INDEXES } from '@main/utils/packageRegistry'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -423,7 +423,7 @@ export class LocalAgentInstallService extends BaseService {
     if (!path.isAbsolute(candidate)) throw new Error('Package manager returned an invalid system path')
     const resolved = await realpath(candidate).catch(() => candidate)
     return [application.getPath('cherry.home'), application.getPath('feature.binary.data')].some(
-      (root) => isPathWithin(root, candidate) || isPathWithin(root, resolved)
+      (root) => !isOutsidePath(path.relative(root, candidate)) || !isOutsidePath(path.relative(root, resolved))
     )
   }
 

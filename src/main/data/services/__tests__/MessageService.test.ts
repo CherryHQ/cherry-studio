@@ -2696,6 +2696,323 @@ describe('MessageService', () => {
     })
   })
 
+  describe('deleteBranch', () => {
+    const topicId = 'topic-delete-branch'
+
+    async function seedBranch(activeNodeId = 'L') {
+      const rootId = await seedTopicWithRoot(topicId)
+      dbh.db
+        .insert(messageTable)
+        .values([
+          treeRow(topicId, 'P', rootId, 0),
+          treeRow(topicId, 'F', 'P', 1),
+          treeRow(topicId, 'A', 'F', 2),
+          treeRow(topicId, 'B', 'A', 3),
+          treeRow(topicId, 'L', 'B', 4),
+          treeRow(topicId, 'O', 'F', 5)
+        ])
+        .run()
+      dbh.db
+        .update(messageTable)
+        .set({
+          stats: { contextTokens: 42 },
+          compactionSummary: 'retained summary'
+        })
+        .where(inArray(messageTable.id, ['P', 'F', 'O']))
+        .run()
+      topicService.setActiveNode(topicId, activeNodeId)
+      notifyDataApiDataChangeMock.mockClear()
+      return rootId
+    }
+
+    function expectRejected(id: string, expectedTopicId: string, reason?: string, awaitingInputOnly = false) {
+      const before = dbh.sqlite.serialize()
+      notifyDataApiDataChangeMock.mockClear()
+      const run = () =>
+        awaitingInputOnly
+          ? messageService.delete(id, false, 'parent', true)
+          : messageService.deleteBranch(id, expectedTopicId)
+      expect(run).toThrowError(
+        expect.objectContaining({
+          code: reason ? ErrorCode.INVALID_OPERATION : ErrorCode.NOT_FOUND,
+          ...(reason ? { message: expect.stringContaining(reason) } : {})
+        })
+      )
+      expect(dbh.sqlite.serialize().equals(before)).toBe(true)
+      expect(notifyDataApiDataChangeMock.mock.calls).toEqual([])
+    }
+
+    // Catches suffix truncation, ancestor over-deletion, and unintended survivor rewrites.
+    it.each(['L', 'A'])('deletes exactly A, B, L when selecting %s', async (selectedId) => {
+      const rootId = await seedBranch()
+      const retainedIds = [rootId, 'P', 'F', 'O']
+      const before = retainedIds.map((id) => messageService.getById(id))
+      const result = messageService.deleteBranch(selectedId, topicId)
+      expect(result.deletedIds.slice().sort()).toEqual(['A', 'B', 'L'])
+      expect(result.reparentedIds ?? []).toEqual([])
+      for (const id of ['A', 'B', 'L']) {
+        expect(() => messageService.getById(id)).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+      }
+      expect(retainedIds.map((id) => messageService.getById(id))).toEqual(before)
+      expect(topicService.getById(topicId).activeNodeId).toBe('O')
+      expect(result.newActiveNodeId).toBe('O')
+      expect(messageService.getPathToNode('O').map((row) => row.id)).toEqual(['P', 'F', 'O'])
+    })
+
+    it('rejects a selected subtree with two live leaves without changing any database byte', async () => {
+      await seedBranch()
+      expectRejected('F', topicId, 'select a branch that leads to a single path')
+    })
+
+    it('rejects the only path and keeps its active pointer', async () => {
+      await seedBranch()
+      dbh.db.delete(messageTable).where(eq(messageTable.id, 'O')).run()
+      expectRejected('L', topicId, 'the only conversation path cannot be deleted as a branch')
+      expect(topicService.getById(topicId).activeNodeId).toBe('L')
+    })
+
+    it('rejects the virtual root before reservation validation', async () => {
+      const rootId = await seedBranch()
+      expectRejected(rootId, topicId, 'the virtual root cannot be deleted', true)
+    })
+
+    it('keeps an active node on a retained path unchanged', async () => {
+      await seedBranch('O')
+      const before = topicService.getById(topicId)
+      expect(messageService.deleteBranch('L', topicId).newActiveNodeId).toBeUndefined()
+      expect(topicService.getById(topicId)).toEqual(before)
+      expect(messageService.getById('O').parentId).toBe('F')
+    })
+
+    it('preserves regeneration membership, parents and content down to a single surviving member', async () => {
+      await seedBranch()
+      dbh.db
+        .update(messageTable)
+        .set({ role: 'assistant', siblingsGroupId: 7 })
+        .where(inArray(messageTable.id, ['A', 'O']))
+        .run()
+      dbh.db
+        .insert(messageTable)
+        .values([
+          { ...treeRow(topicId, 'R', 'F', 6), role: 'assistant', siblingsGroupId: 7 },
+          treeRow(topicId, 'R-leaf', 'R', 7),
+          treeRow(topicId, 'O-leaf', 'O', 8)
+        ])
+        .run()
+      const survivors = ['O', 'O-leaf', 'R', 'R-leaf'].map((id) => messageService.getById(id))
+      expect(messageService.deleteBranch('L', topicId).deletedIds.slice().sort()).toEqual(['A', 'B', 'L'])
+      expect(['O', 'O-leaf', 'R', 'R-leaf'].map((id) => messageService.getById(id))).toEqual(survivors)
+      expect(messageService.deleteBranch('R-leaf', topicId).deletedIds.slice().sort()).toEqual(['R', 'R-leaf'])
+      expect(['O', 'O-leaf'].map((id) => messageService.getById(id))).toEqual(survivors.slice(0, 2))
+      expect(messageService.getById('O').siblingsGroupId).toBe(7)
+    })
+
+    it('rejects a pending ancestor even when the selected descendant is complete', async () => {
+      await seedBranch()
+      dbh.db.update(messageTable).set({ status: 'pending' }).where(eq(messageTable.id, 'A')).run()
+      expectRejected('L', topicId, 'a message in this branch is still running')
+    })
+
+    it('rejects an approval-requested tool part on an ancestor', async () => {
+      await seedBranch()
+      const data: MessageData = {
+        parts: [
+          {
+            type: 'tool-fetch_url',
+            toolCallId: 'branch-call',
+            state: 'approval-requested',
+            input: {},
+            approval: { id: 'branch-approval' }
+          }
+        ]
+      }
+      dbh.db.update(messageTable).set({ data }).where(eq(messageTable.id, 'B')).run()
+      expectRejected('L', topicId, 'a message in this branch is still running')
+    })
+
+    it('allows deletion while a retained path is pending', async () => {
+      await seedBranch()
+      dbh.db.update(messageTable).set({ status: 'pending' }).where(eq(messageTable.id, 'O')).run()
+      expect(messageService.deleteBranch('L', topicId).deletedIds.slice().sort()).toEqual(['A', 'B', 'L'])
+      expect(messageService.getById('O')).toMatchObject({ status: 'pending', parentId: 'F' })
+    })
+
+    it('deletes only a reservation and keeps its assistant anchor and other reservation', async () => {
+      const { anchor, awaitingInput } = await seedAwaitingInputBranch(topicId)
+      const reservation = messageService.reserveBranch(anchor.id)
+      const before = [anchor.id, awaitingInput.id].map((id) => messageService.getById(id))
+      const result = messageService.delete(reservation.id, false, 'parent', true)
+      expect(result.deletedIds).toEqual([reservation.id])
+      expect([anchor.id, awaitingInput.id].map((id) => messageService.getById(id))).toEqual(before)
+      expect(() => messageService.getById(reservation.id)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+      expect(topicService.getById(topicId).activeNodeId).toBe(awaitingInput.id)
+    })
+
+    it.each(['content', 'child'])('rejects a reservation that gained %s', async (change) => {
+      const { anchor } = await seedAwaitingInputBranch(topicId)
+      const reservation = messageService.reserveBranch(anchor.id)
+      if (change === 'content') {
+        messageService.update(reservation.id, { data: mainText('filled') })
+      } else {
+        dbh.db
+          .insert(messageTable)
+          .values(treeRow(topicId, 'reservation-child', reservation.id, 0))
+          .run()
+      }
+      expectRejected(reservation.id, topicId, 'the message is no longer an empty user leaf', true)
+    })
+
+    it('deletes an empty reservation on the only path while preserving its ancestors', async () => {
+      const { anchor, awaitingInput } = await seedAwaitingInputBranch(topicId)
+      const before = messageService.getById(anchor.id)
+      expect(messageService.delete(awaitingInput.id, false, 'parent', true)).toMatchObject({
+        deletedIds: [awaitingInput.id],
+        newActiveNodeId: anchor.id
+      })
+      expect(messageService.getById(anchor.id)).toEqual(before)
+      expect(topicService.getById(topicId).activeNodeId).toBe(anchor.id)
+    })
+
+    it('clears the pointer when deleting the only first-turn reservation', async () => {
+      const rootId = await seedTopicWithRoot(topicId)
+      const reservation = messageService.create(topicId, {
+        parentId: rootId,
+        role: 'user',
+        data: { parts: [] },
+        status: 'success'
+      })
+      expect(messageService.delete(reservation.id, false, 'parent', true)).toMatchObject({
+        deletedIds: [reservation.id],
+        newActiveNodeId: null
+      })
+      expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId)).get()?.activeNodeId).toBeNull()
+      expect(messageService.getById(rootId).role).toBe('root')
+    })
+
+    it('rejects wrong-topic, missing and repeated requests without touching either topic', async () => {
+      await seedBranch()
+      const otherRoot = await seedTopicWithRoot('other-topic')
+      const otherTopic = topicService.getById('other-topic')
+      expectRejected('L', 'other-topic')
+      expectRejected('missing', topicId)
+      messageService.deleteBranch('L', topicId)
+      expectRejected('L', topicId)
+      expect(messageService.getById(otherRoot).topicId).toBe('other-topic')
+      expect(topicService.getById('other-topic')).toEqual(otherTopic)
+    })
+
+    it.each(['message', 'topic'])('rejects a trashed %s', async (target) => {
+      await seedBranch()
+      if (target === 'message') {
+        dbh.db.update(messageTable).set({ deletedAt: 999 }).where(eq(messageTable.id, 'L')).run()
+      } else {
+        topicService.delete(topicId)
+      }
+      expectRejected('L', topicId)
+    })
+
+    it.each([false, true])(
+      'rejects cross-topic descendants before mutation (other topic trashed=%s)',
+      async (trashed) => {
+        await seedBranch()
+        await seedTopicWithRoot('other-topic')
+        dbh.db.update(messageTable).set({ topicId: 'other-topic' }).where(eq(messageTable.id, 'B')).run()
+        if (trashed) topicService.delete('other-topic')
+        expectRejected('L', topicId, 'the branch crosses topic boundaries')
+      }
+    )
+
+    it('allows a fork directly under the virtual root without deleting the root', async () => {
+      const rootId = await seedTopicWithRoot(topicId)
+      dbh.db
+        .insert(messageTable)
+        .values([treeRow(topicId, 'first', rootId, 0), treeRow(topicId, 'other', rootId, 1)])
+        .run()
+      expect(messageService.deleteBranch('first', topicId).deletedIds).toEqual(['first'])
+      expect(messageService.getById(rootId).role).toBe('root')
+      expect(messageService.getById('other').parentId).toBe(rootId)
+    })
+
+    it('ignores soft-deleted children when counting leaves and finding the fork', async () => {
+      await seedBranch()
+      dbh.db
+        .insert(messageTable)
+        .values({ ...treeRow(topicId, 'trashed-child', 'A', 6), deletedAt: 999 })
+        .run()
+      expect(messageService.deleteBranch('A', topicId).deletedIds.slice().sort()).toEqual(['A', 'B', 'L'])
+      expect(messageService.getById('O').parentId).toBe('F')
+    })
+
+    // Catches SQLite FK cascade depth and parameter-limit failures across 500-ID chunks.
+    it.each([502, 1101])('deletes a %i-message exclusive chain and keeps the other path', async (length) => {
+      const rootId = await seedTopicWithRoot(topicId)
+      dbh.db
+        .insert(messageTable)
+        .values([treeRow(topicId, 'F', rootId, 0), treeRow(topicId, 'O', 'F', 1)])
+        .run()
+      for (let offset = 0; offset < length; offset += 100) {
+        dbh.db
+          .insert(messageTable)
+          .values(
+            Array.from({ length: Math.min(100, length - offset) }, (_, index) => {
+              const i = offset + index
+              return treeRow(topicId, `deep-${i}`, i === 0 ? 'F' : `deep-${i - 1}`, i + 2)
+            })
+          )
+          .run()
+      }
+      topicService.setActiveNode(topicId, `deep-${length - 1}`)
+      const result = messageService.deleteBranch(`deep-${length - 1}`, topicId)
+      expect(result.deletedIds.slice().sort()).toEqual(Array.from({ length }, (_, i) => `deep-${i}`).sort())
+      expect(
+        dbh.db
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .all()
+          .map((row) => row.id)
+          .sort()
+      ).toEqual(['F', 'O', rootId].sort())
+      expect(messageService.getById('O').parentId).toBe('F')
+      expect(topicService.getById(topicId).activeNodeId).toBe('O')
+    })
+
+    it.each(['L', 'O'])(
+      'publishes the committed deleted IDs and conditional topic effects (active=%s)',
+      async (activeId) => {
+        await seedBranch(activeId)
+        notifyDataApiDataChangeMock.mockImplementationOnce(() => {
+          expect(dbh.sqlite.inTransaction).toBe(false)
+          expect(() => messageService.getById('A')).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+          expect(messageService.getById('O').parentId).toBe('F')
+          expect(topicService.getById(topicId).activeNodeId).toBe('O')
+        })
+        const result = messageService.deleteBranch('L', topicId)
+        expect(notifyDataApiDataChangeMock.mock.calls).toEqual([
+          [
+            [
+              {
+                endpoint: '/topics/:topicId/messages',
+                kind: 'membership',
+                routeParams: { topicId },
+                entityIds: result.deletedIds
+              },
+              { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: result.deletedIds },
+              { endpoint: '/messages/:id', entityIds: result.deletedIds },
+              ...(activeId === 'L'
+                ? [
+                    { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+                    { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+                  ]
+                : [])
+            ]
+          ]
+        ])
+      }
+    )
+  })
+
   describe('delete — chain longer than the SQLite trigger-recursion limit', () => {
     // A long chat is one parent chain, and SQLite aborts a self-FK cascade deeper than
     // SQLITE_MAX_TRIGGER_DEPTH (1000) with "too many levels of trigger recursion".

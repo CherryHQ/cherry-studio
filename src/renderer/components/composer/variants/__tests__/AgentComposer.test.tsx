@@ -1147,6 +1147,35 @@ describe('AgentComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
   })
 
+  it('consumes queued items without swapping the edited message into the queue', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        launchOptions={{
+          initialDraft: { text: 'message under edit', tokens: [] },
+          editing: { messageId: 'message-1', onCancel: vi.fn() }
+        }}
+      />
+    )
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued A', tokens: [] })
+    })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued B', tokens: [] })
+    })
+    const [queuedA, queuedB] = getQueueDock().props.items
+
+    await act(async () => getQueueDock().props.onEdit(queuedA.id))
+    await act(async () => getQueueDock().props.onEdit(queuedB.id))
+
+    expect(mocks.surfaceProps?.text).toBe('queued B')
+    expect(getQueueDock()).toBeUndefined()
+  })
+
   it('captures Fast in the submitted Work Agent turn', async () => {
     mocks.modelResult = { ...model, supportsFastMode: true }
     render(
@@ -1706,6 +1735,99 @@ describe('AgentComposer', () => {
     })
 
     expect(mocks.speedControlProps?.reasoningEffort).toBe('medium')
+  })
+
+  describe('when saving a reasoning edit fails', () => {
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      canChangeModel: true,
+      isStreaming: false
+    }
+
+    beforeEach(() => {
+      mocks.agentConfiguration = { reasoning_effort: 'low' }
+      mocks.modelResult = {
+        ...model,
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+          selectableEfforts: ['low', 'medium', 'high']
+        }
+      }
+    })
+
+    it('sends the next message with the saved effort', async () => {
+      mocks.updateAgent.mockResolvedValueOnce(undefined)
+      render(<AgentComposer {...props} />)
+
+      await act(async () => mocks.speedControlProps?.onReasoningEffortChange('high'))
+
+      expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      })
+      expect(mocks.sendMessage).toHaveBeenCalledWith(
+        { text: 'hello' },
+        { body: expect.objectContaining({ reasoningEffort: 'low' }) }
+      )
+    })
+
+    it('does not write the failed effort through the next model update', async () => {
+      mocks.updateAgent.mockResolvedValueOnce(undefined)
+      render(<AgentComposer {...props} />)
+
+      await act(async () => mocks.speedControlProps?.onReasoningEffortChange('high'))
+      fireEvent.click(screen.getByText('select model 2'))
+
+      expect(mocks.updateModel).toHaveBeenCalledWith(
+        { agentId: 'agent-1', modelId: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    })
+
+    it('keeps a newer edit when an older one fails', async () => {
+      const olderUpdate = createDeferred<undefined>()
+      mocks.updateAgent.mockReturnValueOnce(olderUpdate.promise)
+      mocks.updateAgent.mockReturnValueOnce(new Promise(() => undefined))
+      render(<AgentComposer {...props} />)
+
+      act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+      act(() => mocks.speedControlProps?.onReasoningEffortChange('medium'))
+      await act(async () => {
+        olderUpdate.resolve(undefined)
+        await olderUpdate.promise
+      })
+
+      expect(mocks.speedControlProps?.reasoningEffort).toBe('medium')
+      fireEvent.click(screen.getByText('select model 2'))
+      expect(mocks.updateModel).toHaveBeenCalledWith(
+        { agentId: 'agent-1', modelId: 'anthropic::claude-opus-4', reasoningEffort: 'medium' },
+        { showSuccessToast: false }
+      )
+    })
+
+    it('does not restore the failed effort when an overlapping model update fails afterwards', async () => {
+      const reasoningUpdate = createDeferred<undefined>()
+      const modelUpdate = createDeferred<undefined>()
+      mocks.updateAgent.mockReturnValueOnce(reasoningUpdate.promise)
+      mocks.updateModel.mockReturnValueOnce(modelUpdate.promise)
+      render(<AgentComposer {...props} />)
+
+      act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+      fireEvent.click(screen.getByText('select model 2'))
+      await act(async () => {
+        reasoningUpdate.resolve(undefined)
+        await reasoningUpdate.promise
+      })
+      await act(async () => {
+        modelUpdate.resolve(undefined)
+        await modelUpdate.promise
+      })
+
+      expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
+    })
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {
@@ -5204,6 +5326,54 @@ describe('AgentComposer', () => {
 
     expect(mocks.insertToken).toHaveBeenCalledWith(token)
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
+  })
+
+  it('attaches a file or folder from the file pane once, and only in its own session', async () => {
+    const composer = () => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const { rerender } = render(composer())
+    mocks.insertToken.mockClear()
+    const attach = (payload: { topicId: string; path: string; kind: 'file' | 'directory'; name?: string }) =>
+      act(async () => {
+        await EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, payload)
+      })
+
+    await attach({ topicId: 'agent-session:other-session', path: '/ws/a.ts', kind: 'file' })
+    expect(mocks.files).toEqual([])
+
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/a.ts', kind: 'file' })
+    // The mocked file store does not re-render; the real one does after each attachment.
+    rerender(composer())
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/a.ts', kind: 'file' })
+    expect(mocks.files).toEqual([expect.objectContaining({ path: '/ws/a.ts' })])
+    expect(mocks.insertToken).toHaveBeenCalledTimes(1)
+
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/src', kind: 'directory' })
+    expect(mocks.insertToken).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'folder', promptText: '/ws/src' })
+    )
+    expect(mocks.files).toHaveLength(1)
+
+    // An attachment's managed copy is labelled with the name the user sent.
+    await attach({ topicId: 'agent-session:session-1', path: '/managed/entry-1.md', kind: 'file', name: 'report.md' })
+    expect(mocks.files.at(-1)).toMatchObject({ path: '/managed/entry-1.md', origin_name: 'report.md' })
+    expect(mocks.insertToken).toHaveBeenLastCalledWith(expect.objectContaining({ label: 'report.md' }))
+
+    // A folder already in the draft, e.g. from an @-mention, is not attached again.
+    mocks.insertToken.mockClear()
+    mocks.getDraft.mockReturnValue({
+      text: '',
+      tokens: [{ id: 'folder-token:1', kind: 'folder', label: 'src', promptText: '/ws/src/' }]
+    })
+    await attach({ topicId: 'agent-session:session-1', path: '/ws/src', kind: 'directory' })
+    expect(mocks.insertToken).not.toHaveBeenCalled()
   })
 
   it('opens the agent edit dialog for a session with history', async () => {

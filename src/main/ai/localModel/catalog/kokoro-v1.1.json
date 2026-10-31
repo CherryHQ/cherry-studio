@@ -8,6 +8,11 @@
       "sizeBytes": 59154
     },
     {
+      "relPath": "espeak-ng-data/cmn_dict",
+      "sha256": "109aaa7708d3727382acb3ae41d8e2094a7e2bb9f651a81835be22a6f08071fe",
+      "sizeBytes": 1566335
+    },
+    {
       "relPath": "espeak-ng-data/en_dict",
       "sha256": "71bd330ba8a2e3e8076e631508208ef49449d6147c17b7bd2b4b1e1468292e35",
       "sizeBytes": 166944
@@ -26,6 +31,11 @@
       "relPath": "espeak-ng-data/lang/gmw/en-US",
       "sha256": "41534c2a22df5dd4f1052ff9e1a33a3ea7bff5a26b5c02bdad5ba8ddb7524704",
       "sizeBytes": 257
+    },
+    {
+      "relPath": "espeak-ng-data/lang/sit/cmn",
+      "sha256": "a130a38e3b622735c2401cb37f6719f46995e84a133729185cef9a543ec0b072",
+      "sizeBytes": 686
     },
     {
       "relPath": "espeak-ng-data/phondata",

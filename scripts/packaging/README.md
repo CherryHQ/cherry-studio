@@ -9,6 +9,7 @@
 - `win-sign.js`: validates and signs Windows artifacts.
 - `artifact-build-completed.js`: normalizes public release artifact names.
 
-Native source compilation belongs alongside its platform code in `native/<platform>/`.
+Native source compilation belongs alongside its code in `native/`. The file-association
+addon lives in `native/external-app/`, with a shared Node-API bridge and platform adapters.
 Shared binary download and Linux compatibility tooling remain in `scripts/download-binaries.js`
 and `scripts/linux-native/`, since development and standalone validation also use them.

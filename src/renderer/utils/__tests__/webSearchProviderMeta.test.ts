@@ -61,6 +61,9 @@ describe('webSearchProviderMeta', () => {
     expect(getWebSearchProviderIconRef('serply')).toMatchObject({ kind: 'provider', key: 'serply' })
     expect(getWebSearchProviderOfficialWebsite('serply')).toBe('https://serply.io')
     expect(getWebSearchProviderApiKeyWebsite('serply')).toBe('https://serply.io')
+    expect(getWebSearchProviderIconRef('desearch')).toMatchObject({ kind: 'provider', key: 'desearch' })
+    expect(getWebSearchProviderOfficialWebsite('desearch')).toBe('https://desearch.ai')
+    expect(getWebSearchProviderApiKeyWebsite('desearch')).toBe('https://console.desearch.ai/api-keys')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 

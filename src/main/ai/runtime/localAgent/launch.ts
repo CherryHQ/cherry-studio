@@ -3,9 +3,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import { appendBundledGitPathTail, isPathWithin, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { mergeEnvironment } from '@main/utils/env'
+import { isOutsidePath } from '@main/utils/file'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
   LOCAL_AGENT_PRESETS,
@@ -106,7 +107,7 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
     if (!(await fs.stat(executable)).isFile()) throw new Error('Local agent executable is not a file')
     await fs.access(executable, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
     const root = application.getPath('feature.binary.data')
-    if (isPathWithin(root, executable)) source = 'mise'
+    if (!isOutsidePath(path.relative(root, executable))) source = 'mise'
   } else if (preset) {
     const snapshots = await application
       .get('BinaryManager')

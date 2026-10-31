@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.8",
+    "version": "2.1.9",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -501,7 +501,7 @@
     }
   ],
   "providers": {
-    "version": "5e1a39c021b56ec0",
+    "version": "e1952ef3858002a8",
     "count": 67,
     "entries": [
       {

@@ -116,13 +116,13 @@ it.each([
   render(<LocalAgentDirectory renderCli={() => null} />)
   await waitFor(() => {
     const names = within(screen.getByRole('complementary'))
-      .getAllByRole('button', { pressed: false })
+      .getAllByRole('button', { name: / · |^(OpenClaw|DeepSeek Harness)$/ })
       .map((button) => button.textContent)
     expect(names.slice(0, 4)).toEqual(expected)
   })
-  const rows = within(screen.getByRole('complementary'))
-    .getAllByRole('button')
-    .filter((button) => button.hasAttribute('aria-pressed'))
+  const rows = within(screen.getByRole('complementary')).getAllByRole('button', {
+    name: / · |^(OpenClaw|DeepSeek Harness)$/
+  })
   expect(rows[4]).toHaveAccessibleName(/^Claude Code ·/)
 })
 
@@ -131,9 +131,9 @@ it('places popular CLI-only and ACP agents together in the default order', async
   vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
   render(<LocalAgentDirectory renderCli={() => null} />)
   await waitFor(() => {
-    const rows = within(screen.getByRole('complementary'))
-      .getAllByRole('button')
-      .filter((button) => button.hasAttribute('aria-pressed'))
+    const rows = within(screen.getByRole('complementary')).getAllByRole('button', {
+      name: / · |^(OpenClaw|DeepSeek Harness)$/
+    })
     expect(rows.slice(0, 9).map((button) => button.getAttribute('aria-label')?.split(' · ')[0])).toEqual([
       'Claude Code',
       'Codex',

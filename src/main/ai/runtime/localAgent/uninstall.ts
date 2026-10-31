@@ -6,7 +6,7 @@ import readCmdShim from 'read-cmd-shim'
 import { parse as parseToml } from 'smol-toml'
 
 import { application } from '@application'
-import { isPathWithin } from '@main/utils/binaryEnv'
+import { isOutsidePath } from '@main/utils/file'
 
 import { systemAgentEntry, systemAgentWrapper } from './launch'
 
@@ -56,8 +56,8 @@ export async function getBinaryAgentInstallation(executable: string, detectedPat
   const relative = path.relative(installationRoot, command).split(path.sep)
   if (relative.length < 3 || !relative[0].startsWith(`${executable}-`) || relative[1] !== 'files') return undefined
   const bundle = path.join(root, relative[0])
-  if (!isPathWithin(root, bundle) || (await fs.realpath(bundle)) !== bundle) return undefined
-  if (!isPathWithin(path.join(bundle, 'files'), resolvedCommand)) return undefined
+  if (isOutsidePath(path.relative(root, bundle)) || (await fs.realpath(bundle)) !== bundle) return undefined
+  if (isOutsidePath(path.relative(path.join(bundle, 'files'), resolvedCommand))) return undefined
   const manifest = await readBinaryManifest(bundle)
   return { entry, bundle, wrapper, retired: manifest?.executable === executable ? manifest.retired : [] }
 }
@@ -69,7 +69,7 @@ export async function uninstallBinaryAgent(executable: string, detectedPath: str
   for (const name of new Set(installed.retired)) {
     if (name !== path.basename(name) || !name.startsWith(`${executable}-`)) continue
     const bundle = path.join(root, name)
-    if (bundle === installed.bundle || !isPathWithin(root, bundle)) continue
+    if (bundle === installed.bundle || isOutsidePath(path.relative(root, bundle))) continue
     const stat = await fs.lstat(bundle).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error
     })
@@ -96,7 +96,7 @@ export async function ownsNpmExecutable(root: string, packageName: string, execu
     for (const bin of bins) {
       if (typeof bin !== 'string') continue
       const target = path.resolve(directory, bin)
-      if (isPathWithin(directory, target) && (await fs.realpath(target)) === resolved) return true
+      if (!isOutsidePath(path.relative(directory, target)) && (await fs.realpath(target)) === resolved) return true
     }
     return false
   } catch {
@@ -110,7 +110,7 @@ export async function ownsUvExecutable(root: string, packageName: string, execut
     const receipt = parseToml(await fs.readFile(path.join(toolRoot, 'uv-receipt.toml'), 'utf8'))
     const tool = receipt.tool as { entrypoints?: Array<{ 'install-path'?: string }> } | undefined
     if (!tool?.entrypoints?.some((entry) => entry['install-path'] === executable)) return false
-    if (isPathWithin(await fs.realpath(toolRoot), await fs.realpath(executable))) return true
+    if (!isOutsidePath(path.relative(await fs.realpath(toolRoot), await fs.realpath(executable)))) return true
     // uv copies Windows entrypoints instead of linking them into the environment.
     if (process.platform !== 'win32') return false
     const original = path.join(toolRoot, 'Scripts', path.basename(executable))

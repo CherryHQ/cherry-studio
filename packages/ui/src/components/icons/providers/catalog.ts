@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-10-28T16:20:14.303Z
- * Total icons: 165
+ * Total icons: 166
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -47,6 +47,7 @@ import { DashscopeIcon } from './dashscope'
 import { DatabricksIcon } from './databricks'
 import { DeepcogitoIcon } from './deepcogito'
 import { DeepseekIcon } from './deepseek'
+import { DesearchIcon } from './desearch/desearch'
 import { DevvIcon } from './devv'
 import { DifyIcon } from './dify'
 import { DmxapiIcon } from './dmxapi'
@@ -215,6 +216,7 @@ export const PROVIDER_ICON_CATALOG = {
   databricks: DatabricksIcon,
   deepcogito: DeepcogitoIcon,
   deepseek: DeepseekIcon,
+  desearch: DesearchIcon,
   devv: DevvIcon,
   dify: DifyIcon,
   dmxapi: DmxapiIcon,

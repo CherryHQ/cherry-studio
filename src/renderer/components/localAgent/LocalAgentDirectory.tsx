@@ -335,16 +335,16 @@ export function LocalAgentDirectory({
                 accessibility={{
                   screenReaderInstructions: { draggable: t('local_agents.drag.instructions') },
                   announcements: {
-                    onDragStart: ({ active }) => t('local_agents.drag.picked_up', { name: dragName(active.id) }),
-                    onDragOver: ({ active, over }) =>
-                      over
+                    onDragStart: ({ activeId }) => t('local_agents.drag.picked_up', { name: dragName(activeId) }),
+                    onDragOver: ({ activeId, overId }) =>
+                      overId !== null
                         ? t('local_agents.drag.over', {
-                            name: dragName(active.id),
-                            over: dragName(over.id)
+                            name: dragName(activeId),
+                            over: dragName(overId)
                           })
                         : undefined,
-                    onDragEnd: ({ active }) => t('local_agents.drag.dropped', { name: dragName(active.id) }),
-                    onDragCancel: ({ active }) => t('local_agents.drag.cancelled', { name: dragName(active.id) })
+                    onDragEnd: ({ activeId }) => t('local_agents.drag.dropped', { name: dragName(activeId) }),
+                    onDragCancel: ({ activeId }) => t('local_agents.drag.cancelled', { name: dragName(activeId) })
                   }
                 }}
                 onReorder={async (nextItems) => {
@@ -403,8 +403,6 @@ export function LocalAgentDirectory({
                       {dragHandleProps && (
                         <Button
                           ref={dragHandleProps.ref}
-                          {...dragHandleProps.attributes}
-                          {...dragHandleProps.listeners}
                           variant="ghost"
                           size="icon-sm"
                           className="absolute top-0 left-[3px] h-8 w-2.5 cursor-grab rounded-none p-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-transparent focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-0"

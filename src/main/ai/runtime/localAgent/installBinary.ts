@@ -11,7 +11,7 @@ import * as tar from 'tar'
 import unbzip2 from 'unbzip2-stream'
 
 import { application } from '@application'
-import { isPathWithin } from '@main/utils/binaryEnv'
+import { isOutsidePath } from '@main/utils/file'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 
 import type { LocalAgentBinaryRecipe } from './installRecipe'
@@ -24,7 +24,7 @@ function inside(root: string, name: string): string {
   if (name.includes('\\') || path.posix.isAbsolute(name) || /^[a-z]:/i.test(name))
     throw new Error('Invalid archive path')
   const target = path.resolve(root, name)
-  if (!isPathWithin(root, target)) throw new Error('Archive path escapes installation directory')
+  if (isOutsidePath(path.relative(root, target))) throw new Error('Archive path escapes installation directory')
   return target
 }
 

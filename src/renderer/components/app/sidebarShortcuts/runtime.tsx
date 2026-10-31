@@ -14,7 +14,6 @@ import { useQuery, useDataChange } from '@renderer/data/hooks/useDataApi'
 import { useTabs } from '@renderer/hooks/tab'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { findConversationTab } from '@renderer/utils/conversationNavigation'
-import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes'
@@ -294,17 +293,6 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
           return
         }
         if (activeTab && !activeTab.isPinned) {
-          if (miniAppIdFromTabUrl(activeTab.url)) {
-            // Keep this tab alive for the WebView pool, so the destination gets its own tab. Reuse was
-            // already resolved above for destinations that declare an identity.
-            openTab(destination.url, {
-              forceNew: true,
-              title: destination.title,
-              icon: destination.icon,
-              metadata: destination.metadata
-            })
-            return
-          }
           updateTab(activeTab.id, {
             url: destination.url,
             title: destination.title,

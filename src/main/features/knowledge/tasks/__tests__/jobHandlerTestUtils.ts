@@ -15,9 +15,10 @@ import type * as UrlSnapshot from '../../pipeline/sources/urlSnapshot'
 
 const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
+  cancelFileProcessingTaskMock: vi.fn(),
   getIndexStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
-  getJobMock: vi.fn(),
+  getFileProcessingTaskMock: vi.fn(),
   getIndexStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
@@ -55,9 +56,10 @@ const mocks = vi.hoisted(() => ({
 
 export const {
   cancelMock,
+  cancelFileProcessingTaskMock,
   getIndexStoreMock,
   enqueueMock,
-  getJobMock,
+  getFileProcessingTaskMock,
   getIndexStoreIfExistsMock,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
@@ -110,10 +112,13 @@ export function fakeEmbedVector(text: string): number[] {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    FileProcessingService: {
+      cancelTask: cancelFileProcessingTaskMock,
+      getTask: getFileProcessingTaskMock
+    },
     JobManager: {
       cancel: cancelMock,
       enqueue: enqueueMock,
-      get: getJobMock,
       list: listMock
     },
     KnowledgeVectorStoreService: {
@@ -459,7 +464,7 @@ beforeEach(() => {
   )
   refineLocalEmbeddingChunksMock.mockImplementation(async (_base: KnowledgeBase, chunked) => chunked)
   listMock.mockResolvedValue([])
-  getJobMock.mockResolvedValue(null)
+  getFileProcessingTaskMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
   knowledgeItemUpdateIndexedRelativePathMock.mockReturnValue(createFileItem())
   deleteItemsByIdsMock.mockReturnValue(undefined)
@@ -468,6 +473,7 @@ beforeEach(() => {
   probeKnowledgeFileMock.mockResolvedValue('readable')
   probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
+  cancelFileProcessingTaskMock.mockResolvedValue('cancelled')
   ingestionService.scheduleIndexing.mockResolvedValue(undefined)
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
 })

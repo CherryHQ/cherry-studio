@@ -29,6 +29,7 @@ const logger = loggerService.withContext('AgentSessionMessages')
 type Props = {
   agentId?: string
   sessionId: string
+  workspacePath?: string
   messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -58,6 +59,7 @@ type Props = {
 const AgentSessionMessages = ({
   agentId,
   sessionId,
+  workspacePath,
   messages,
   activeAgent,
   partsByMessageId,
@@ -168,7 +170,7 @@ const AgentSessionMessages = ({
     editBusy,
     respondToolApproval,
     messageNavigation,
-    workspacePath: session?.workspace?.path,
+    workspacePath: workspacePath ?? session?.workspace?.path,
     messageTail,
     afterMessages
   })

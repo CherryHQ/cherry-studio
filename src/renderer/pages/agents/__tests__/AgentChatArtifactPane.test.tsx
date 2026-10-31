@@ -181,9 +181,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
           const next = new Set(ids)
           next.delete(workspaceRootId)
           onExpandedIdsChange(next)
-        },
-        reloadExpandedDirectories: () => {},
-        refresh: () => {}
+        }
       }
     }
   }
