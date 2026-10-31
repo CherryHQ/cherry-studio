@@ -23,7 +23,8 @@ const {
   const windowManagerMock = {
     getWindowsByType: vi.fn(() => []),
     getWindowId: vi.fn(),
-    getWindowType: vi.fn()
+    getWindowType: vi.fn(),
+    center: vi.fn(() => true)
   }
 
   return {
@@ -45,7 +46,7 @@ const {
       buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => ({ template })),
       setApplicationMenu: vi.fn()
     },
-    browserWindowMock: { getFocusedWindow: vi.fn(() => null) },
+    browserWindowMock: { getFocusedWindow: vi.fn<() => BrowserWindow | null>(() => null) },
     shellMock: {
       openExternal: vi.fn()
     },
@@ -106,6 +107,7 @@ describe('AppMenuService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    browserWindowMock.getFocusedWindow.mockReturnValue(null)
     // AppMenuService is darwin-only; pin the platform so platform-gated
     // accelerators resolve identically on every CI runner.
     Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
@@ -174,6 +176,36 @@ describe('AppMenuService', () => {
 
     expect(copyItem).toMatchObject({ role: 'copy', label: 'Copy' })
     expect(quitItem).toMatchObject({ role: 'quit', label: 'Quit Cherry Studio' })
+  })
+
+  it('centers the focused managed window from the Window menu', async () => {
+    await (service as any).onInit()
+
+    const focused = { id: 42 } as BrowserWindow
+    browserWindowMock.getFocusedWindow.mockReturnValue(focused)
+    windowManagerMock.getWindowId.mockReturnValue('win-1')
+
+    const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
+    const centerItem = windowSubmenu.find((item) => item.label === 'Center')
+
+    expect(centerItem).toBeTruthy()
+    centerItem?.click?.(undefined as never, undefined, undefined as never)
+
+    expect(windowManagerMock.getWindowId).toHaveBeenCalledWith(focused)
+    expect(windowManagerMock.center).toHaveBeenCalledWith('win-1')
+  })
+
+  it('does not call center when the focused window is unmanaged', async () => {
+    await (service as any).onInit()
+
+    browserWindowMock.getFocusedWindow.mockReturnValue({ id: 7 } as BrowserWindow)
+    windowManagerMock.getWindowId.mockReturnValue(undefined)
+
+    const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
+    const centerItem = windowSubmenu.find((item) => item.label === 'Center')
+    centerItem?.click?.(undefined as never, undefined, undefined as never)
+
+    expect(windowManagerMock.center).not.toHaveBeenCalled()
   })
 
   it('moves the window-close accelerator off CommandOrControl+W so the tab bar can claim it', async () => {

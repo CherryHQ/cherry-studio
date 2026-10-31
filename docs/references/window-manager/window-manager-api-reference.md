@@ -29,6 +29,7 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 | `minimize` | `(windowId: string) => boolean` | Minimize a window. |
 | `maximize` | `(windowId: string) => boolean` | Maximize a window. |
 | `unmaximize` | `(windowId: string) => boolean` | Unmaximize a window. |
+| `center` | `(windowId: string) => boolean` | Center a window on the display it currently occupies (multi-monitor). Uses normal (pre-maximize) size; exits fullscreen/maximized/minimized first. macOS uses `display.bounds`; Windows/Linux use `display.workArea`. |
 | `isMaximized` | `(windowId: string) => boolean` | Return whether a window is maximized. |
 | `setFullScreen` | `(windowId: string, value: boolean) => boolean` | Enter or leave full-screen mode. |
 | `isFullScreen` | `(windowId: string) => boolean` | Return whether a window is in full-screen mode. |
