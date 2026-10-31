@@ -83,8 +83,8 @@ export async function probeClaudeExecutable(executablePath: string, cwd?: string
         : executablePath
   // Discovery resolves system binaries on the login-shell PATH and the terminal
   // launches with that same env; probe with it too, not the stale process env.
-  const env = await getRawShellEnv()
   try {
+    const env = await getRawShellEnv()
     await execFileAsync(command, ['--version'], {
       timeout: PROBE_TIMEOUT_MS,
       windowsHide: true,

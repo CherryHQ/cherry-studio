@@ -194,3 +194,15 @@ describe('probeClaudeExecutable', () => {
     expect(result).toEqual({ ok: false, failure: expect.objectContaining({ reason: 'timeout' }) })
   })
 })
+
+it('returns an actionable failure when login-shell environment discovery rejects', async () => {
+  shellEnvMock.getRawShellEnv.mockRejectedValueOnce(new Error('login shell unavailable'))
+  execFileMock.mockClear()
+  const result = await probeClaudeExecutable('/custom/bin/claude')
+  expect(result).toEqual({ ok: false, failure: { reason: 'exit', detail: 'login shell unavailable' } })
+  expect(execFileMock).not.toHaveBeenCalled()
+  if (result.ok) throw new Error('Expected an environment discovery failure')
+  expect(describeClaudeStartupFailure('/custom/bin/claude', result.failure)).toContain('/custom/bin/claude')
+  expect(describeClaudeStartupFailure('/custom/bin/claude', result.failure)).toContain('login shell unavailable')
+  expect(describeClaudeStartupFailure('/custom/bin/claude', result.failure)).toContain('managed Claude binary')
+})
