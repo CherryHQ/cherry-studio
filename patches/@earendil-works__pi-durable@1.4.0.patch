@@ -145,6 +145,64 @@ index c088f3c..5ba7218 100644
 -//# sourceMappingURL=generation.js.map
 +//# sourceMappingURL=generation.js.map
 \ No newline at end of file
+diff --git a/dist/harness/harness.js b/dist/harness/harness.js
+index 1c763bb..4366cd4 100644
+--- a/dist/harness/harness.js
++++ b/dist/harness/harness.js
+@@ -6,8 +6,8 @@ import { contained, SessionImpl } from "../session/session.js";
+ import { hostTimers } from "../timers.js";
+ import { ROOT_CONVERSATION_ID } from "../types.js";
+ import { AgentDoc, configure, createAgent, resolveAgent, resolveSettings } from "./agent.js";
+-import { createCompaction } from "./compaction.js";
+-import { readContext } from "./context.js";
++import { createCompaction, estimateContext } from "./compaction.js";
++import { readContext, readContextFrom } from "./context.js";
+ import { InboxDoc, withdrawQueuedInputs } from "./inbox.js";
+ import { LiveDoc, settleSchedulerOutcome } from "./live.js";
+ import { ProviderDoc } from "./provider.js";
+@@ -25,6 +25,7 @@ export const SCHEDULER_INDEX_SIZES = Symbol.for("pi-durable.schedulerIndexSizes"
+ class ConversationImpl {
+     id;
+     #host;
++    #contextRange;
+     constructor(id, host) {
+         this.id = id;
+         this.#host = host;
+@@ -56,6 +57,25 @@ class ConversationImpl {
+     context(context, options) {
+         return readContext(this.#host.harness, this.#host.storage, this.id, context, options?.at);
+     }
++    async contextUsage(context) {
++        const before = await this.agent(context);
++        const model = before.model && this.#host.models.getModel(before.model.provider, before.model.modelId);
++        if (!model || model.contextWindow <= 0) return undefined;
++        const { view, range } = await readContextFrom(this.#host.harness, this.#host.storage, this.id, context, undefined, this.#contextRange);
++        const after = await this.agent(context);
++        if (JSON.stringify(before) !== JSON.stringify(after)) return undefined;
++        this.#contextRange = range;
++        const policy = this.#host.settings().compaction;
++        return {
++            model: before.model,
++            revision: JSON.stringify([range?.bounds.head?.id, range?.bounds.tail, before, policy]),
++            contextWindow: model.contextWindow,
++            tokens: estimateContext(view, []),
++            ...(policy.enabled ? { compactionThreshold: Math.max(0, model.contextWindow - policy.reserveTokens) } : {}),
++            messages: view.messages,
++            deferred: [...before.deferred, ...before.callable.filter(tool => !before.tools.some(loaded => loaded.name === tool.name) && !before.deferred.some(deferred => deferred.name === tool.name))],
++        };
++    }
+     entries(query, limit, cursor, context) {
+         const bounded = {
+             conversationId: this.id,
+@@ -154,6 +174,8 @@ class HarnessImpl extends SessionImpl {
+             tasks: this.#tasks,
+             submissions: this.#submissions,
+             views: new ConversationViews(this, storage),
++            models: options.models,
++            settings,
+             now,
+             create: (target, createOptions, context) => this.#create(target, createOptions, context),
+         };
 diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
 index 0fe5579..307527f 100644
 --- a/dist/harness/live.d.ts
@@ -158,11 +216,121 @@ index 0fe5579..307527f 100644
          taskId: TaskId;
          inputs: SubmissionId[];
      };
+diff --git a/dist/harness/prompt.js b/dist/harness/prompt.js
+index de77eda..e689c17 100644
+--- a/dist/harness/prompt.js
++++ b/dist/harness/prompt.js
+@@ -1,8 +1,9 @@
+-import { declarationsEqual, getCurrentTools, toToolDeclaration } from "@earendil-works/pi-ai/utils/transcript";
++import { getCurrentSystemMessage, declarationsEqual, getCurrentTools, toToolDeclaration } from "@earendil-works/pi-ai/utils/transcript";
+ import { SystemEntry } from "../entries.js";
+ /** Sections in effect after replaying system messages in order: set in place, `null` deletes, re-adding appends. */
+ export function replaySections(messages) {
+     const shown = new Map();
++    shown.sources = getCurrentSystemMessage(messages)?.contextSources?.sections ?? {};
+     for (const message of messages) {
+         if (message.role !== "system" || message.sections === undefined)
+             continue;
+@@ -21,6 +22,7 @@ export function replaySections(messages) {
+  */
+ export async function renderSections(sections, input, shown, report, context) {
+     const desired = new Map();
++    desired.sources = {};
+     for (const section of sections) {
+         let text;
+         try {
+@@ -31,12 +33,18 @@ export async function renderSections(sections, input, shown, report, context) {
+                 throw error;
+             report(error, section);
+             const kept = shown.get(section.key);
+-            if (kept !== undefined)
++            if (kept !== undefined) {
+                 desired.set(section.key, kept);
++                if (shown.sources?.[section.key]) desired.sources[section.key] = shown.sources[section.key];
++            }
+             continue;
+         }
+         if (text === undefined)
+             continue;
++        if (typeof text === "object") {
++            desired.sources[section.key] = text.source;
++            text = text.text;
++        }
+         desired.set(section.key, section.tag === false ? text : `<${section.key}>\n${text}\n</${section.key}>`);
+     }
+     return desired;
+@@ -54,6 +62,16 @@ export async function renderSections(sections, input, shown, report, context) {
+  * Tool changes ride on the last planned entry, or on one entry of their own.
+  */
+ export function planSystemEntries(view, desired, tools, timestamp) {
++    const entries = planEntries(view, desired, tools, timestamp);
++    const contextSources = { sections: desired.sources ?? {}, tools: Object.fromEntries(tools.map(tool => [tool.name,
++        tool.contextSource ?? { kind: "system-tools" }])) };
++    const current = getCurrentSystemMessage(view.messages)?.contextSources;
++    if (entries.length === 0 && JSON.stringify(current) !== JSON.stringify(contextSources))
++        entries.push(systemEntry(undefined, undefined, timestamp));
++    if (entries.length) entries.at(-1).model[0].contextSources = contextSources;
++    return entries;
++}
++function planEntries(view, desired, tools, timestamp) {
+     const head = view.head;
+     if (head !== undefined && !view.entries.some((entry) => SystemEntry.is(entry) && entry.id > head.id)) {
+         const edits = view.entries
 diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
-index faf4ae4..d4007bf 100644
+index faf4ae4..cfe9f3c 100644
 --- a/dist/harness/types.d.ts
 +++ b/dist/harness/types.d.ts
-@@ -830,6 +830,8 @@ export interface CompactionHooks {
+@@ -240,6 +240,7 @@ export interface ToolExecutionApi<TDetails extends JsonValue = JsonValue> extend
+  * `parameters`, which the Harness validates them against before `execute()`; `defineTool()` infers both generics.
+  */
+ export type ToolRegistration<TParameters extends TSchema = TSchema, TDetails extends JsonValue = JsonValue> = Tool<TParameters> & {
++    readonly contextSource?: import("@earendil-works/pi-ai").ContextSource;
+     /** Whether an interrupted execution may rerun on recovery. Default `unsafe`. */
+     readonly replay?: "safe" | "unsafe";
+     /** Default: the settings' `toolExecution`. One sequential call makes its whole round sequential. */
+@@ -285,10 +286,11 @@ export type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
+     /** Committed document reads. */
+     readonly read: DocumentReader;
+ };
++export type PromptSectionContent = string | undefined | { text: string; source: import("@earendil-works/pi-ai").ContextSource };
+ /** One system prompt section; the agent's sections render in order before each request. */
+ export type PromptSection<Tool extends ToolRegistration = ToolRegistration> = {
+     readonly key: string;
+-    render(input: PromptInput<Tool>, context: Context): string | undefined | Promise<string | undefined>;
++    render(input: PromptInput<Tool>, context: Context): PromptSectionContent | Promise<PromptSectionContent>;
+     /** Default true: wrap the text as `<key>\n...\n</key>`. */
+     readonly tag?: boolean;
+ };
+@@ -407,7 +409,7 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
+     /** The tools nested calls (`executeTool()`) resolve among, in order: enabled and callable by tools. */
+     readonly callable: readonly Tool[];
+     /** Enabled deferred tools the model may call and is not offered yet, in registry order: what `tool_search` loads. */
+-    readonly deferred: readonly Tool[];
++    readonly deferred: readonly ToolRegistration[];
+     /** Extension sections, then `instructions` when set. */
+     readonly sections: readonly PromptSection<Tool>[];
+     readonly instructions?: string;
+@@ -668,8 +670,19 @@ export type ContextView = {
+     readonly messages: readonly Message[];
+ };
+ /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
++export interface ConversationContextUsage {
++    readonly model: { readonly provider: string; readonly modelId: string };
++    readonly revision: string;
++    readonly contextWindow: number;
++    readonly tokens: number;
++    readonly compactionThreshold?: number;
++    readonly deferred: readonly ToolRegistration[];
++    readonly messages: readonly Message[];
++}
+ export interface Conversation {
+     readonly id: ConversationId;
++    /** Passive committed-context estimate, using the same accounting as threshold compaction. Does not resume tasks. */
++    contextUsage(context: Context): Promise<ConversationContextUsage | undefined>;
+     /** Resolved with the current registry snapshot and settings. */
+     agent(context: Context): Promise<Agent>;
+     /** `configure()` in its own commit. */
+@@ -830,6 +843,8 @@ export interface CompactionHooks {
          readonly decline: true;
      } | {
          readonly summary: string;

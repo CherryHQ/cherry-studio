@@ -60,6 +60,7 @@ export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
   settings: ClaudeCodeSettings
   sdkModelId: string
+  contextWindow?: { model: string; tokens: number }
   usageCapture: AgentSessionUsageCapture
 }
 
@@ -575,6 +576,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
     sdkModelId,
+    ...(route.branch === 'gateway' && contextWindow
+      ? { contextWindow: { model: sdkModelId, tokens: contextWindow } }
+      : {}),
     usageCapture: route.usageCapture
   }
 }

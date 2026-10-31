@@ -58,6 +58,25 @@ driver internals behind the same host contract.
 | Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
 
+## Context usage
+
+Each runtime package implements passive `ThreadHandle.contextUsage()` and publishes the same
+result through `context.changed` and snapshots. Main forwards the common result into a
+thread-scoped cache; renderer code does not parse native SDK categories or infer model capacity.
+Connection replacement, model changes and compaction invalidate cached readings. Late reads
+from an old connection cannot overwrite the new context, and child caches use child handles.
+
+The full model window is distinct from input limits and compaction thresholds. Counts state
+whether they are reported or estimated. Partial breakdowns are not rescaled to match a total,
+and deferred resources do not occupy current context. Unknown reserves or free capacity stay
+absent. Context reads neither submit input nor add billable usage records.
+
+Pi and Pi Durable record section and tool provenance while preparing native context. Their
+adapters expose individual memory-file fragments, skill catalog entries and tool schemas;
+MCP classification uses explicit origin metadata. Codemode-only tools are deferred, and skill
+bodies subsequently loaded through tools count as messages. Reads use committed provenance,
+not a new filesystem scan or prompt render. Older unannotated sections remain prompt estimates.
+
 ## Heartbeat execution deadline
 
 In the agent's heartbeat settings, **Maximum Execution Time (minutes)** controls
@@ -660,10 +679,9 @@ The driver converts Claude SDK messages into runtime events:
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
 - `system/init` -> `resume-token`;
-- a top-level `message_start` -> a live `context-usage` projected from the
-  request's input usage (the occupancy at that provider call), so the usage
-  indicator advances mid-turn; the host's post-turn `getContextUsage()` pull
-  stays the authoritative reading;
+- top-level input usage -> the package publishes a common `context.changed` reading
+  marked `last-request`, excluding output and cumulative billing; the host's post-turn
+  `getContextUsage()` pull replaces it with the native current-context estimate;
 - a successful `result` -> flush pending per-request usage, then `resume-token`, a
   cumulative usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
 - a `result` stamped `origin.kind === 'task-notification'` -> resume token only, never

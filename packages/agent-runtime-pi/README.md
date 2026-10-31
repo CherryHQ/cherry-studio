@@ -127,9 +127,20 @@ existence and verify the native session ID instead of silently replacing it.
 turns. These events are for observation; storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
 
+## Context usage
+
+Common `contextUsage()` reads native `getContextUsage()` and the selected native projection.
+Counts and partial categories use Pi's estimator; deferred tools are listed separately. After
+compaction, Pi may leave occupancy unknown until its next request establishes a new baseline.
+Section and tool provenance is recorded with the prepared native prompt. Memory files and skill
+catalog entries carry individual estimates; reading skill bodies later contributes to messages.
+Explicit tool origins separate MCP schemas from system tools without name heuristics. Old opaque
+sections remain system prompt estimates. Reading does not reload files, submit input, change the
+selected branch, or write history.
+
 ## Pi-specific access
 
-The handle's `pi` facet provides native branch history, context usage, tool metadata and opaque
+The handle's `pi` facet provides native branch history, tool metadata and opaque
 item-to-tool-call lookup. These remain Pi-specific, without enlarging the common contract.
 `compact(instructions?)` serializes with input admission and rejects an actively streaming root;
 it does not abort that turn to compact. `cancelQueuedInputs()` is owner-only and idle-only: it clears

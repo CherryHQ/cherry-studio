@@ -107,9 +107,18 @@ index e4d2720..950c1c6 100644
      private _appendCustomMessage;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 2c1e998..7ed9461 100644
+index 2c1e998..163d289 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
+@@ -40,7 +40,7 @@ import { exportSessionToJsonl } from "./session-export.js";
+ import { getLatestCompactionEntry, SessionManager, } from "./session-manager.js";
+ import { applyToolModifiers, DEFAULT_TOOL_NAMES, } from "./settings-manager.js";
+ import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath } from "./source-info.js";
+-import { buildSystemPrompt, buildSystemPromptSections, diffSystemPromptSections, normalizeBuildSystemPromptOptions, } from "./system-prompt.js";
++import { buildSystemContextSources, buildSystemPrompt, buildSystemPromptSections, diffSystemPromptSections, normalizeBuildSystemPromptOptions, } from "./system-prompt.js";
+ import { createLocalBashOperations } from "./tools/bash.js";
+ import { createAllToolDefinitions } from "./tools/index.js";
+ import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.js";
 @@ -95,6 +95,10 @@ export class AgentSession {
      _steeringMessages = [];
      /** Tracks pending follow-up messages for UI display. Removed when delivered. */
@@ -207,7 +216,30 @@ index 2c1e998..7ed9461 100644
                  this._lastAssistantMessage = assistantMsg;
                  if (assistantMsg.stopReason !== "error" && assistantMsg.stopReason !== "length") {
                      this._overflowRecoveryAttempted = false;
-@@ -1420,12 +1428,12 @@ export class AgentSession {
+@@ -1096,6 +1104,7 @@ export class AgentSession {
+      */
+     getAllTools() {
+         return Array.from(this._toolDefinitions.values()).map(({ definition, sourceInfo }) => ({
++            contextSource: definition.contextSource,
+             name: definition.name,
+             description: definition.description,
+             parameters: definition.parameters,
+@@ -1324,8 +1333,12 @@ export class AgentSession {
+         options.selectedTools = this._applyToolLoadout(options.selectedTools).map((tool) => tool.name);
+         // The tool list and rules must match the declarations the request carries.
+         options.hiddenTools = [...this._hiddenDeclarations];
+-        const sections = diffSystemPromptSections(getCurrentSystemMessage(messages)?.sections ?? {}, buildSystemPromptSections(options));
+-        return sections ? { role: "system", content: "", sections, timestamp: Date.now() } : undefined;
++        const current = getCurrentSystemMessage(messages);
++        const desired = buildSystemPromptSections(options);
++        const sections = diffSystemPromptSections(current?.sections ?? {}, desired);
++        const contextSources = buildSystemContextSources(options, desired, this.getAllTools());
++        if (!sections && JSON.stringify(current?.contextSources) === JSON.stringify(contextSources)) return undefined;
++        return { role: "system", content: "", ...(sections ? { sections } : {}), contextSources, timestamp: Date.now() };
+     }
+     /**
+      * Send a forced prompt as the provider's leading system prompt without recording it.
+@@ -1420,12 +1433,12 @@ export class AgentSession {
       * starting another, and an abort requested meanwhile aborts the run as soon as it exists.
       * @param onStarted Called once the run's messages are prepared, before the first request.
       */
@@ -222,7 +254,7 @@ index 2c1e998..7ed9461 100644
          }
          catch (error) {
              this._isAgentRunActive = false;
-@@ -1477,7 +1485,7 @@ export class AgentSession {
+@@ -1477,7 +1490,7 @@ export class AgentSession {
       * message followed by pending nextTurn messages (consumed here) and handler messages, with a
       * system patch first when the prompt changed.
       */
@@ -231,7 +263,7 @@ index 2c1e998..7ed9461 100644
          // Check if we need to compact before sending (catches aborted responses).
          // The starting message is sent below, so do not call agent.continue() here.
          const lastAssistant = this._findLastAssistantMessage();
-@@ -1502,11 +1510,7 @@ export class AgentSession {
+@@ -1502,11 +1515,7 @@ export class AgentSession {
              // determines the resize profile used for the request and history.
              const normalized = await this._normalizePromptImages(trigger.images);
              const text = normalized.hints.length > 0 ? `${trigger.prompt}\n\n${normalized.hints.join("\n")}` : trigger.prompt;
@@ -244,7 +276,7 @@ index 2c1e998..7ed9461 100644
          }
          // Inject any pending "nextTurn" messages as context alongside the starting message
          messages.push(...this._pendingNextTurnMessages);
-@@ -1638,7 +1642,7 @@ export class AgentSession {
+@@ -1638,7 +1647,7 @@ export class AgentSession {
          // Handle extension commands first (execute immediately, even during streaming)
          // Extension commands manage their own LLM interaction via pi.sendMessage()
          if (expandPromptTemplates && text.startsWith("/")) {
@@ -253,7 +285,7 @@ index 2c1e998..7ed9461 100644
              if (handled) {
                  // Extension command executed, no prompt to send
                  preflightResult?.("handled");
-@@ -1651,6 +1655,7 @@ export class AgentSession {
+@@ -1651,6 +1660,7 @@ export class AgentSession {
          // Emit input event for extension interception (before skill/template expansion)
          const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
          if (!processedInput) {
@@ -261,7 +293,7 @@ index 2c1e998..7ed9461 100644
              preflightResult?.("handled");
              return;
          }
-@@ -1667,10 +1672,10 @@ export class AgentSession {
+@@ -1667,10 +1677,10 @@ export class AgentSession {
                  throw new Error("Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message.");
              }
              if (options.streamingBehavior === "followUp") {
@@ -274,7 +306,7 @@ index 2c1e998..7ed9461 100644
              }
              preflightResult?.("queued");
              return;
-@@ -1690,12 +1695,12 @@ export class AgentSession {
+@@ -1690,12 +1700,12 @@ export class AgentSession {
              }
              throw new Error(formatNoApiKeyFoundMessage(this.model.provider));
          }
@@ -289,7 +321,7 @@ index 2c1e998..7ed9461 100644
          // Parse command name and args
          const spaceIndex = text.indexOf(" ");
          const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
-@@ -1707,17 +1712,42 @@ export class AgentSession {
+@@ -1707,17 +1717,42 @@ export class AgentSession {
          const ctx = this._extensionRunner.createCommandContext();
          try {
              await command.handler(args, ctx);
@@ -334,7 +366,7 @@ index 2c1e998..7ed9461 100644
      }
      /**
       * Expand skill commands (/skill:name args) to their full content.
-@@ -1749,20 +1779,22 @@ export class AgentSession {
+@@ -1749,20 +1784,22 @@ export class AgentSession {
              return text; // Return original on error
          }
      }
@@ -361,7 +393,7 @@ index 2c1e998..7ed9461 100644
          }
          return "queued";
      }
-@@ -1776,7 +1808,7 @@ export class AgentSession {
+@@ -1776,7 +1813,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -370,7 +402,7 @@ index 2c1e998..7ed9461 100644
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1787,35 +1819,35 @@ export class AgentSession {
+@@ -1787,35 +1824,35 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -425,7 +457,7 @@ index 2c1e998..7ed9461 100644
      }
      /**
       * Throw an error if the text is an extension command.
-@@ -1840,6 +1872,7 @@ export class AgentSession {
+@@ -1840,6 +1877,7 @@ export class AgentSession {
       * @param message Custom message with customType, content, display, details
       * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
       * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
@@ -433,7 +465,7 @@ index 2c1e998..7ed9461 100644
       */
      async sendCustomMessage(message, options) {
          const appMessage = {
-@@ -1851,6 +1884,8 @@ export class AgentSession {
+@@ -1851,6 +1889,8 @@ export class AgentSession {
              details: message.details,
              timestamp: Date.now(),
          };
@@ -442,7 +474,7 @@ index 2c1e998..7ed9461 100644
          if (options?.deliverAs === "nextTurn") {
              this._pendingNextTurnMessages.push(appMessage);
          }
-@@ -1881,10 +1916,11 @@ export class AgentSession {
+@@ -1881,10 +1921,11 @@ export class AgentSession {
          }
      }
      _appendCustomMessage(appMessage) {
@@ -455,7 +487,7 @@ index 2c1e998..7ed9461 100644
      }
      /**
       * Append custom messages queued while the agent was running.
-@@ -1942,8 +1978,8 @@ export class AgentSession {
+@@ -1942,8 +1983,8 @@ export class AgentSession {
       * @returns Object with steering and followUp arrays
       */
      clearQueue() {
@@ -466,7 +498,7 @@ index 2c1e998..7ed9461 100644
          this._steeringMessages = [];
          this._followUpMessages = [];
          this.agent.clearAllQueues();
-@@ -1956,11 +1992,11 @@ export class AgentSession {
+@@ -1956,11 +1997,11 @@ export class AgentSession {
      }
      /** Get pending steering messages (read-only) */
      getSteeringMessages() {
@@ -480,8 +512,40 @@ index 2c1e998..7ed9461 100644
      }
      get resourceLoader() {
          return this._resourceLoader;
+diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
+index 748b06f..4c3fc17 100644
+--- a/dist/core/compaction/compaction.d.ts
++++ b/dist/core/compaction/compaction.d.ts
+@@ -143,3 +143,4 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+  */
+ export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string): Promise<CompactionResult>;
+ //# sourceMappingURL=compaction.d.ts.map
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
+diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
+index e1ce6ec..57cf799 100644
+--- a/dist/core/compaction/compaction.js
++++ b/dist/core/compaction/compaction.js
+@@ -198,6 +198,9 @@ function estimateTextAndImageContentChars(content) {
+  * Estimate token count for a message using chars/4 heuristic.
+  * This is conservative (overestimates tokens).
+  */
++export function estimateSystemCharacters(promptCharacters, toolCharacters) {
++    return Math.ceil((promptCharacters + toolCharacters) / 4);
++}
+ export function estimateTokens(message) {
+     let chars = 0;
+     switch (message.role) {
+@@ -212,7 +215,7 @@ export function estimateTokens(message) {
+             }
+             if (system.toolsAdded)
+                 chars += JSON.stringify(system.toolsAdded).length;
+-            return Math.ceil(chars / 4);
++            return estimateSystemCharacters(chars, 0);
+         }
+         case "user": {
+             chars = estimateTextAndImageContentChars(message.content);
 diff --git a/dist/core/extensions/types.d.ts b/dist/core/extensions/types.d.ts
-index a97c822..a8bdfed 100644
+index a97c822..33f2948 100644
 --- a/dist/core/extensions/types.d.ts
 +++ b/dist/core/extensions/types.d.ts
 @@ -330,6 +330,7 @@ export interface ReplacedSessionContext extends ExtensionCommandContext {
@@ -492,7 +556,15 @@ index a97c822..a8bdfed 100644
      }): Promise<void>;
      sendUserMessage(content: string | (TextContent | ImageContent)[], options?: {
          deliverAs?: "steer" | "followUp";
-@@ -1254,10 +1255,11 @@ export interface ExtensionAPI {
+@@ -479,6 +480,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
+      */
+     exposure?: ToolExposure;
+     /** Group the tool belongs to, for example its MCP server. */
++    contextSource?: import("@earendil-works/pi-ai").ContextSource;
+     namespace?: ToolNamespace;
+     /**
+      * For tools that reach other tools (such as `codemode`, which calls them, and `tool_search`, which
+@@ -1254,10 +1256,11 @@ export interface ExtensionAPI {
      registerEntryRenderer<T = unknown>(customType: string, renderer: EntryRenderer<T>): void;
      /** Choose how tool calls are drawn. Resolvers run in extension load order. */
      registerToolRenderer(resolver: ToolRendererResolver): void;
@@ -505,7 +577,7 @@ index a97c822..a8bdfed 100644
      }): void;
      /**
       * Send a user message to the agent. Always triggers a turn.
-@@ -1564,6 +1566,7 @@ type HandlerFn = (...args: unknown[]) => Promise<unknown>;
+@@ -1564,6 +1567,7 @@ type HandlerFn = (...args: unknown[]) => Promise<unknown>;
  export type SendMessageHandler = <T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
      triggerTurn?: boolean;
      deliverAs?: "steer" | "followUp" | "nextTurn";
@@ -513,6 +585,14 @@ index a97c822..a8bdfed 100644
  }) => void;
  export type SendUserMessageHandler = (content: string | (TextContent | ImageContent)[], options?: {
      deliverAs?: "steer" | "followUp";
+@@ -1576,6 +1580,7 @@ export type GetActiveToolsHandler = () => string[];
+ /** Tool info with name, description, parameter schema, prompt guidelines, and source metadata. */
+ export type ToolInfo = Pick<ToolDefinition, "name" | "description" | "parameters" | "promptGuidelines" | "reachesTools"> & {
+     exposure: ToolExposure;
++    contextSource?: import("@earendil-works/pi-ai").ContextSource;
+     namespace?: ToolNamespace;
+     annotations?: ToolAnnotations;
+     sourceInfo: SourceInfo;
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
 index be4a613..68e6769 100644
 --- a/dist/core/session-manager.d.ts
@@ -562,3 +642,169 @@ index 179c991..fbfd56f 100644
      static open(path, sessionDir, cwdOverride) {
          const resolvedPath = resolvePath(path);
          let header = null;
+diff --git a/dist/core/skills.d.ts b/dist/core/skills.d.ts
+index f5eb067..9122621 100644
+--- a/dist/core/skills.d.ts
++++ b/dist/core/skills.d.ts
+@@ -61,3 +61,4 @@ export interface LoadSkillsOptions {
+  */
+ export declare function loadSkills(options: LoadSkillsOptions): LoadSkillsResult;
+ //# sourceMappingURL=skills.d.ts.map
++export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
+diff --git a/dist/core/skills.js b/dist/core/skills.js
+index 0256ca7..8cf3889 100644
+--- a/dist/core/skills.js
++++ b/dist/core/skills.js
+@@ -292,11 +292,7 @@ export function formatSkillsForPrompt(skills, fileReadTool = "read") {
+         "<available_skills>",
+     ];
+     for (const skill of visibleSkills) {
+-        lines.push("  <skill>");
+-        lines.push(`    <name>${escapeXml(skill.name)}</name>`);
+-        lines.push(`    <description>${escapeXml(skill.description)}</description>`);
+-        lines.push(`    <location>${escapeXml(skill.filePath)}</location>`);
+-        lines.push("  </skill>");
++        lines.push(formatSkillEntry(skill));
+     }
+     lines.push("</available_skills>");
+     return lines.join("\n");
+@@ -410,3 +406,12 @@ export function loadSkills(options) {
+     };
+ }
+ //# sourceMappingURL=skills.js.map
++function formatSkillEntry(skill) {
++    return ["  <skill>", `    <name>${escapeXml(skill.name)}</name>`,
++        `    <description>${escapeXml(skill.description)}</description>`,
++        `    <location>${escapeXml(skill.filePath)}</location>`, "  </skill>"].join("\n");
++}
++export function skillPromptResources(skills) {
++    return skills.filter(skill => !skill.disableModelInvocation).map(skill => ({ id: skill.filePath,
++        name: skill.name, source: skill.filePath, characters: formatSkillEntry(skill).length }));
++}
+diff --git a/dist/core/system-prompt.d.ts b/dist/core/system-prompt.d.ts
+index f14a60e..386ea11 100644
+--- a/dist/core/system-prompt.d.ts
++++ b/dist/core/system-prompt.d.ts
+@@ -1,6 +1,7 @@
+ /**
+  * System prompt construction and project context loading
+  */
++import type { SystemContextSources, ContextSource } from "@earendil-works/pi-ai";
+ import { type Skill } from "./skills.ts";
+ export interface BuildSystemPromptOptions {
+     /** Custom system prompt (replaces the default prefix). */
+@@ -24,6 +25,7 @@ export interface BuildSystemPromptOptions {
+     appendSystemPrompt?: string;
+     /** Additional XML-wrapped prompt sections keyed by tag name. */
+     sections?: Record<string, string>;
++    sectionSources?: Record<string, ContextSource>;
+     /** Working directory. */
+     cwd: string;
+     /** Pre-loaded context files. */
+diff --git a/dist/core/system-prompt.js b/dist/core/system-prompt.js
+index 0d6b33d..47abe00 100644
+--- a/dist/core/system-prompt.js
++++ b/dist/core/system-prompt.js
+@@ -3,7 +3,7 @@
+  */
+ import { getSystemMessageText } from "@earendil-works/pi-ai";
+ import { getDocsPath, getExamplesPath, getReadmePath } from "../config.js";
+-import { formatSkillsForPrompt } from "./skills.js";
++import { formatSkillsForPrompt, skillPromptResources } from "./skills.js";
+ const SYSTEM_PROMPT_SECTION_NAME = /^[a-z][a-z0-9_-]*$/;
+ /** Normalize prompt input into the mutable, collection-complete shape exposed to extensions. */
+ export function normalizeBuildSystemPromptOptions(input) {
+@@ -17,15 +17,19 @@ export function normalizeBuildSystemPromptOptions(input) {
+         promptGuidelines: [...(input.promptGuidelines ?? [])],
+         appendSystemPrompt: input.appendSystemPrompt ?? "",
+         sections: { ...(input.sections ?? {}) },
++        sectionSources: { ...(input.sectionSources ?? {}) },
+         cwd: input.cwd,
+         contextFiles: (input.contextFiles ?? []).map((file) => ({ ...file })),
+         skills: (input.skills ?? []).map((skill) => ({ ...skill })),
+     };
+ }
++function renderProjectFile({ path, content }) {
++    return `<project_instructions path="${path}">\n${content}\n</project_instructions>`;
++}
+ function renderProjectContext(contextFiles) {
+     return [
+         "Project-specific instructions and guidelines:",
+-        ...contextFiles.map(({ path, content }) => `<project_instructions path="${path}">\n${content}\n</project_instructions>`),
++        ...contextFiles.map(renderProjectFile),
+     ].join("\n\n");
+ }
+ function buildRules(selectedTools, toolGuidelines, promptGuidelines) {
+@@ -150,3 +154,16 @@ export function diffSystemPromptSections(previous, current) {
+     return Object.keys(patch).length > 0 ? patch : undefined;
+ }
+ //# sourceMappingURL=system-prompt.js.map
++export function buildSystemContextSources(input, sections, tools) {
++    const sources = {};
++    for (const key of Object.keys(sections)) {
++        sources[key] = input.sectionSources?.[key] ?? { kind: "system-prompt" };
++        if (input.sections?.[key]) continue;
++        if (key === "project_context") sources[key] = { kind: "memory-files", resources: (input.contextFiles ?? []).map(file => ({
++            id: file.path, name: file.path, source: file.path, characters: renderProjectFile(file).length
++        })) };
++        if (key === "skills") sources[key] = { kind: "skills", resources: skillPromptResources(input.skills ?? []) };
++    }
++    return { sections: sources, tools: Object.fromEntries(tools.map(tool => [tool.name,
++        tool.contextSource ?? { kind: "system-tools", source: tool.sourceInfo?.path }])) };
++}
+diff --git a/dist/extensions/mcp/tools.js b/dist/extensions/mcp/tools.js
+index 7e9e718..11a9d84 100644
+--- a/dist/extensions/mcp/tools.js
++++ b/dist/extensions/mcp/tools.js
+@@ -250,6 +250,7 @@ export function createMcpToolDefinition(options) {
+         outputSchema: createMcpResultSchema(tool.outputSchema),
+         exposure: toToolExposure(options.exposure),
+         namespace: options.namespace,
++        contextSource: { kind: "mcp-tools", source: server },
+         ...(annotations ? { annotations } : {}),
+         ...createMcpToolRenderers(label),
+         async execute(_toolCallId, params, signal, onUpdate) {
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index ab955ad..7cfef68 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
+ export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
+ export { readStoredCredential } from "./core/auth-storage.ts";
+ export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
+-export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
++export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateSystemCharacters, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
+ export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
+ export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
+ export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
+@@ -20,7 +20,7 @@ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-
+ export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
+ export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
+ export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
+-export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
++export { skillPromptResources, formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
+ export { createSyntheticSourceInfo } from "./core/source-info.ts";
+ export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
+ export { type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, formatSize, type GrepOperations, type GrepToolDetails, type GrepToolInput, type GrepToolOptions, type LsOperations, type LsToolDetails, type LsToolInput, type LsToolOptions, type PowerShellOperations, type PowerShellSpawnContext, type PowerShellSpawnHook, type PowerShellToolDetails, type PowerShellToolInput, type PowerShellToolOptions, type ReadOperations, type ReadToolDetails, type ReadToolInput, type ReadToolOptions, type ToolsOptions, type TruncationOptions, type TruncationResult, truncateHead, truncateLine, truncateTail, type WriteOperations, type WriteToolInput, type WriteToolOptions, withFileMutationQueue, } from "./core/tools/index.ts";
+diff --git a/dist/index.js b/dist/index.js
+index 64863bb..05e7c32 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
+ export { AgentSession, parseSkillBlock, } from "./core/agent-session.js";
+ export { readStoredCredential } from "./core/auth-storage.js";
+ // Compaction
+-export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
++export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateSystemCharacters, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
+ export { createEventBus } from "./core/event-bus.js";
+ export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
+ export { convertToLlm } from "./core/messages.js";
+@@ -23,7 +23,7 @@ createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool,
+ export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
+ export { SettingsManager, } from "./core/settings-manager.js";
+ // Skills
+-export { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, } from "./core/skills.js";
++export { skillPromptResources, formatSkillsForPrompt, loadSkills, loadSkillsFromDir, } from "./core/skills.js";
+ export { createSyntheticSourceInfo } from "./core/source-info.js";
+ export { generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.js";
+ // Tools

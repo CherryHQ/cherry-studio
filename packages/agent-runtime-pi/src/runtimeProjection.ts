@@ -18,6 +18,8 @@ import {
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import { readContextUsage } from './contextUsage'
+
 type PiMessage = AgentSession['messages'][number]
 type PiContext = { message: PiMessage; id: string }[]
 
@@ -59,6 +61,7 @@ export class PiProjection {
       report
     )
     this.bind(session)
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
     for (const message of this.currentMessages()) this.write(message, this.id(message), 'complete')
   }
 
@@ -86,6 +89,7 @@ export class PiProjection {
       activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
     })
     this.snapshotMessages = undefined
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
   }
 
   private captureContext(): PiContext {
@@ -390,6 +394,8 @@ export class PiProjection {
   }
 
   private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
+    if (event.type === 'message_end' || event.type === 'compaction_end' || event.type === 'agent_settled')
+      this.feed.publish({ type: 'context.changed', result: readContextUsage(this.session) })
     if (event.type === 'input_settled') {
       const reason = event.aborted ? 'aborted' : event.message.stopReason
       const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')

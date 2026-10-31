@@ -21,6 +21,7 @@ import {
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
+import { createScriptedHost } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime, type PiDurableRuntimeOptions, type PiDurableThreadHandle } from '../src'
@@ -77,7 +78,7 @@ async function setup(openStorage: PiDurableRuntimeOptions['openStorage'] = async
   onTestFinished(async () => {
     await runtime.shutdown()
   })
-  return { runtime, faux, options, errors, registry }
+  return { runtime, faux, options, errors, registry, models }
 }
 async function observe(access: PiDurableThreadHandle) {
   const events: ObservationPayload[] = []
@@ -594,4 +595,148 @@ describe('Pi Durable runtime contract', () => {
     })
     expect(faux.state.callCount).toBe(before + 1)
   })
+})
+
+it('reads the native compaction estimate passively without resuming the scheduler or writing usage', async () => {
+  const { runtime, models } = await setup()
+  const access = confirmed(await runtime.create(sessionOptions))
+  const events = await observe(access)
+  const before = confirmed(await access.contextUsage())
+  expect(before).toMatchObject({
+    model: 'faux-1',
+    basis: 'current-context',
+    used: { tokens: 0, precision: 'estimated' }
+  })
+  expect(before.contextWindow).toBe(models.getModel('faux', 'faux-1')!.contextWindow)
+  const archive = confirmed(await access.archive())
+  expect(confirmed(await access.contextUsage())).toEqual(before)
+  expect(confirmed(await access.archive())).toEqual(archive)
+  expect(events.filter((event) => event.type === 'input.changed')).toEqual([])
+  expect(events.filter((event) => event.type === 'snapshot').every((event) => event.activity.state === 'idle')).toBe(
+    true
+  )
+  await access.release()
+  expect(await access.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+})
+
+it('measures committed prompt sources and codemode-only tools without executing them', async () => {
+  const { runtime, faux, registry } = await setup()
+  let memory = 'Memory snapshot'
+  registry.install(
+    defineExtension({
+      name: 'context-detail',
+      sections: [
+        {
+          key: 'identity',
+          render: () => ({
+            text: memory,
+            source: {
+              kind: 'memory-files',
+              resources: [{ id: 'SOUL.md', name: 'SOUL.md', source: '/agent/SOUL.md', characters: memory.length }]
+            }
+          })
+        },
+        { key: 'skills', render: () => ({ text: 'Only the skill summary', source: { kind: 'skills' } }) }
+      ],
+      tools: [
+        defineTool({
+          name: 'external_lookup',
+          description: 'Only callable from codemode',
+          contextSource: { kind: 'mcp-tools', source: 'server' },
+          callers: ['tools'],
+          parameters: Type.Object({}),
+          execute: async () => {
+            throw new Error('Measurement must not execute tools')
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([fauxAssistantMessage('ready')])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  const events = await observe(handle)
+  await handle.input.submit(draft('measure prepared context'))
+  await expect
+    .poll(() =>
+      current(events)?.messages.some(
+        (message) => message.role === 'assistant' && message.metadata?.completeness === 'complete'
+      )
+    )
+    .toBe(true)
+  await expect.poll(() => current(events)?.activity.state).toBe('idle')
+  const before = confirmed(await handle.contextUsage())
+  expect(before.resources).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        name: 'SOUL.md',
+        category: 'memory-files',
+        source: '/agent/SOUL.md',
+        count: { tokens: 5, precision: 'estimated' }
+      }),
+      expect.objectContaining({ name: 'external_lookup', category: 'mcp-tools', source: 'server', state: 'deferred' })
+    ])
+  )
+  expect(before.breakdown?.categories.some((row) => row.key === 'mcp-tools' && row.occupancy === 'included')).toBe(
+    false
+  )
+  memory = 'Uncommitted new memory '.repeat(100)
+  expect(confirmed(await handle.contextUsage())).toEqual(before)
+})
+
+// Catches eagerly capturing a registry factory or dropping request metering when native models are refreshed.
+it('resolves a fresh model registry for each request with shared behavior enabled', async () => {
+  const first = fauxProvider()
+  first.setResponses([fauxAssistantMessage('first registry')])
+  const second = fauxProvider()
+  second.setResponses([fauxAssistantMessage('replacement registry')])
+  let models = createModels()
+  models.setProvider(first.provider)
+  const host = createScriptedHost({
+    settings: {
+      goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+      autonomy: 'auto',
+      permissionMode: 'default',
+      attendance: 'stream',
+      maxBackground: 2,
+      offloadThreshold: 4000
+    }
+  })
+  const runtime = confirmed(
+    await createPiDurableRuntime({
+      backendId: runtimeId('dynamic-models'),
+      openStorage: async () => new MemoryStorage(),
+      harness: { models: () => models, registry: createRegistry() },
+      behavior: { host, configureChild: () => ({ model: sessionOptions.agent.model }) }
+    })
+  )
+  onTestFinished(async () => {
+    await runtime.shutdown()
+  })
+  const access = confirmed(await runtime.create(sessionOptions))
+  const events = await observe(access)
+  confirmed(await runtime.resume())
+  await access.input.submit(draft('first request'))
+  await expect
+    .poll(() =>
+      current(events)?.messages.some(
+        (message) =>
+          message.parts.some((part) => part.type === 'text' && part.text === 'first registry') &&
+          message.metadata?.completeness === 'complete'
+      )
+    )
+    .toBe(true)
+  models = createModels()
+  models.setProvider(second.provider)
+  await access.input.submit(draft('second request', 'follow-up'))
+  await expect
+    .poll(() =>
+      current(events)?.messages.some(
+        (message) =>
+          message.parts.some((part) => part.type === 'text' && part.text === 'replacement registry') &&
+          message.metadata?.completeness === 'complete'
+      )
+    )
+    .toBe(true)
+  expect(first.state.callCount).toBe(1)
+  expect(second.state.callCount).toBe(1)
 })

@@ -58,6 +58,7 @@ import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harn
 import { readFacts } from './behavior/history'
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
+import { readContextUsage } from './contextUsage'
 import { DurableProjection } from './projection'
 
 export interface PiDurableRuntimeOptions {
@@ -111,6 +112,9 @@ interface Entry {
   conversation: Conversation
   projection: DurableProjection
   admission: Promise<void>
+  contextEpoch: number
+  contextRead?: Promise<void>
+  contextDirty?: boolean
 }
 const context = BACKGROUND_CONTEXT
 const error = (operation: string, code: string): RuntimeError => ({
@@ -323,7 +327,16 @@ export async function createPiDurableRuntime(
     })
   }
   const unsubscribe = native.subscribeCommits((publication) => {
+    const changed = new Set<number>()
     for (const change of publication.changes) {
+      if (change.type === 'entry' && (change.value.model || change.value.head || change.value.edits))
+        changed.add(change.value.conversationId)
+      if (
+        (change.type === 'document' || change.type === 'document.copy') &&
+        change.record.kind === 'pi.agent' &&
+        change.conversationId !== undefined
+      )
+        changed.add(change.conversationId)
       if (change.type === 'submission' && change.value.type === 'input') {
         const record = change.value
         if (record.status === 'placed' && inputs.get(record.id)?.status !== 'placed') {
@@ -345,6 +358,17 @@ export async function createPiDurableRuntime(
         void track(publishInput(record)).catch(report)
       }
       if (change.type === 'conversation') publishRelation(change.value)
+    }
+    for (const id of changed) {
+      const entry = live.get(id)
+      if (entry) {
+        entry.contextEpoch++
+        entry.projection.feed.publish({
+          type: 'context.changed',
+          result: { status: 'unknown', error: error('contextUsage', 'context-changed') }
+        })
+        refreshContext(entry)
+      }
     }
   })
   let graph: TaskGraphWatch
@@ -388,6 +412,30 @@ export async function createPiDurableRuntime(
     )
     return operation
   }
+  function refreshContext(entry: Entry): void {
+    entry.contextDirty = true
+    if (entry.contextRead || closing) return
+    entry.contextRead = track(
+      (async () => {
+        while (entry.contextDirty && !closing) {
+          entry.contextDirty = false
+          const result = await readContextUsage(entry.conversation)
+          if (!entry.contextDirty && !closing) entry.projection.feed.publish({ type: 'context.changed', result })
+        }
+      })()
+        .catch((cause) => {
+          report(cause)
+          entry.projection.feed.publish({
+            type: 'context.changed',
+            result: { status: 'unknown', error: error('contextUsage', 'native-error') }
+          })
+        })
+        .finally(() => {
+          entry.contextRead = undefined
+          if (entry.contextDirty && !closing) refreshContext(entry)
+        })
+    )
+  }
   function load(conversation: Conversation): Promise<OperationResult<Entry>> {
     const existing = entries.get(conversation.id)
     if (existing) return existing
@@ -408,9 +456,11 @@ export async function createPiDurableRuntime(
           ref: refFor(conversation.id),
           conversation,
           projection: new DurableProjection(refFor(conversation.id), watch, report),
-          admission: Promise.resolve()
+          admission: Promise.resolve(),
+          contextEpoch: 0
         }
         live.set(conversation.id, entry)
+        refreshContext(entry)
         for (const record of inputs.values()) if (record.conversationId === conversation.id) await publishInput(record)
         for (const record of relations.values())
           if (record.owner?.conversationId === conversation.id) publishRelation(record)
@@ -433,6 +483,21 @@ export async function createPiDurableRuntime(
     const sameSession = (ref: Thread) => ref.backendId === entry.ref.backendId && ref.id === entry.ref.id
     return {
       thread: entry.ref,
+      async contextUsage() {
+        if (unavailable()) return rejected('contextUsage', 'released')
+        try {
+          const epoch = entry.contextEpoch
+          const result = await track(readContextUsage(entry.conversation))
+          if (epoch !== entry.contextEpoch)
+            return { status: 'unknown', error: error('contextUsage', 'context-changed') }
+          if (unavailable()) return rejected('contextUsage', 'released')
+          entry.projection.feed.publish({ type: 'context.changed', result })
+          return result
+        } catch (cause) {
+          report(cause)
+          return { status: 'unknown', error: error('contextUsage', 'native-error') }
+        }
+      },
       durable: {
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
         facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id), context),

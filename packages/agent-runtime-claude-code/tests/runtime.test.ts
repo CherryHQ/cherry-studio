@@ -572,3 +572,34 @@ it('closes stale admission on clear and binds the new native session to the same
     await test.close()
   }
 }, 30000)
+
+it('does not spawn a CLI for context reads and normalizes the real native reading after a turn', async () => {
+  const test = await fixture()
+  try {
+    const runtime = test.runtime()
+    const root = confirmed(await runtime.create(test.options))
+    expect(await root.contextUsage()).toMatchObject({ status: 'unknown', error: { code: 'not-connected' } })
+    expect(test.children).toHaveLength(0)
+    const view = await observe(root)
+    const id = inputId()
+    await root.input!.submit({ inputId: id, text: 'Context reading', whenBusy: 'steer' })
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: 'A native response' })
+    request.reply.finish()
+    await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === id)?.outcome).toBe('completed')
+    const requests = test.requestCount
+    const usage = confirmed(await root.contextUsage())
+    expect(usage.contextWindow).toBeGreaterThan(0)
+    expect(usage.used?.tokens).toBeGreaterThan(0)
+    expect(usage.breakdown?.categories.some((row) => row.key === 'system-prompt')).toBe(true)
+    const archive = confirmed(await root.claude.archive())
+    await root.contextUsage()
+    expect(test.requestCount).toBe(requests)
+    expect(confirmed(await root.claude.archive())).toEqual(archive)
+    expect(test.children).toHaveLength(1)
+    await root.release()
+    expect(await root.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+  } finally {
+    await test.close()
+  }
+}, 30000)

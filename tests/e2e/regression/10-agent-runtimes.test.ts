@@ -1,5 +1,6 @@
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { createAgent, runAgentFileTask, selectAgentWorkspace, startBuiltinAssistantTask } from './agents'
+import { assertAgentContextDetails, assertAgentContextUsage } from './contextUsage'
 import { expect, test } from './fixture'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
 import { dismissOnboarding, selectSidebarApp } from './navigation'
@@ -27,6 +28,8 @@ test(...caseDefinition('A-03'), async ({ app, mainWindow: page }) => {
   await agentView.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(agentView.getByText(marker, { exact: true }).last()).toBeVisible({ timeout: 2 * 60_000 })
 
+  await assertAgentContextUsage(page)
+
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await selectSidebarApp(page, 'Work')
@@ -45,6 +48,8 @@ test(...caseDefinition('A-04'), async ({ app, mainWindow: page }) => {
   })
   await selectAgentWorkspace(app, page)
   await runAgentFileTask(app, page, 'pi-agent-result.txt', true)
+  await assertAgentContextUsage(page)
+  await assertAgentContextDetails(page)
 })
 
 test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {

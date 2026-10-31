@@ -153,6 +153,9 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
     options,
     errors,
     children,
+    get requestCount() {
+      return count
+    },
     runtime,
     async request() {
       await expect.poll(() => pending.length, { timeout: 15000 }).toBeGreaterThan(0)

@@ -9,6 +9,13 @@ with observation and release operations. Its optional `input` groups `submit` wi
 busy `policies`; observation-only access omits it. Releasing an access does not delete the thread
 or abort its work. The host stores product-session relationships separately from native context storage.
 
+Every handle exposes passive `contextUsage()`. Confirmed readings distinguish full context
+window, known input/compaction limits, estimated or reported occupancy, and optional reserve/free
+counts. Partial category breakdowns need not sum to the total; deferred resources do not occupy
+current context. Reads never submit input or resume work. `context.changed` and snapshots carry
+the same result, including unknown or unsupported capability. Revisions belong to their native
+thread and must not be compared across backends. Context occupancy is not billable turn usage.
+
 `Subagent { id, parent, child? }` describes an observed relationship. Its ID is scoped to the
 parent and survives child continuation; it is not an assignment ID or completion status. A child
 without an accessible context omits `child`. Snapshots expose `subagents`, and `subagent.upsert`
