@@ -163,6 +163,7 @@ export class AgentSessionService {
     if (effects.length === 0) return
     if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
     notifyDataApiDataChange(effects)
+    if (kind === 'membership') for (const sessionId of new Set(sessionIds)) this.sessionUpdated.fire({ sessionId })
   }
 
   notifyPurged(sessionIds: readonly string[]): void {

@@ -794,6 +794,16 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.finalizeSessionDelivery).not.toHaveBeenCalled()
     })
 
+    it.each([false, true])('limits memory source identity to interactive input (headless: %s)', (headless) => {
+      const service = new AgentSessionRuntimeService()
+      const events: Array<{ memoryUserMessageId?: string }> = []
+      service.onTurnTerminal((event) => events.push(event))
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('real-input'), headless })
+      service.markTurnTerminal('session-1', 'success')
+      expect(events).toHaveLength(1)
+      expect(events[0].memoryUserMessageId).toBe(headless ? undefined : 'real-input')
+    })
+
     it('stays busy throughout the next-turn drain, closing the clobber window', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -5982,6 +5992,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(onTurnTerminal).toHaveBeenCalledWith({
         sessionId: 'session-1',
         assistantMessageId: reservedContext?.assistantMessageId,
+        memoryUserMessageId: 'user-2',
         status: 'success',
         boundary: 'turn'
       })
