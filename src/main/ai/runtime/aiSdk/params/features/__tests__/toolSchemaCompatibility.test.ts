@@ -14,7 +14,6 @@ import { createToolInspectTool } from '@main/ai/tools/adapters/aiSdk/meta/toolIn
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
-
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Model } from '@shared/data/types/model'
