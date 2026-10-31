@@ -148,6 +148,13 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     install: 'npm',
     // The optional better-sqlite3 dependency builds from source via lifecycle scripts.
     npmAllowBuilds: ['@minimax-ai/code', 'better-sqlite3']
+  }),
+  defineCodeCliTool({
+    id: CodeCli.COMMAND_CODE,
+    executable: 'command-code',
+    skillFolderName: 'code-mate-command-code',
+    packageName: 'command-code',
+    install: 'npm'
   })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 

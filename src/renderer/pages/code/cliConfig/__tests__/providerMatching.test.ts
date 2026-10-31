@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import { cliConfigConnectionMatchesProvider } from '../providerMatching'
 
@@ -95,6 +95,54 @@ describe('cliConfigConnectionMatchesProvider', () => {
         apiKeys
       )
     ).toBe(true)
+  })
+
+  it('matches Command Code with the env-reference key the files carry', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.COMMAND_CODE,
+        { baseUrl: 'https://express-ent-admin.cherryin.ai/v1', apiKey: undefined },
+        openAIChatProvider,
+        apiKeys
+      )
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.COMMAND_CODE,
+        { baseUrl: 'https://api.anthropic.com', apiKey: undefined },
+        anthropicProvider,
+        apiKeys
+      )
+    ).toBe(true)
+  })
+
+  it('decides by the managed provider key when two providers share endpoint and model', () => {
+    // Command Code never stores a usable key (env reference only), so URL and
+    // model matching alone would hide provider A's configuration as provider
+    // B's "current" connection. The managed key is the identity claim.
+    const sharedConnection = {
+      baseUrl: 'https://express-ent-admin.cherryin.ai/v1',
+      apiKey: undefined,
+      model: 'deepseek-chat'
+    }
+    expect(
+      cliConfigConnectionMatchesProvider(CodeCli.COMMAND_CODE, { ...sharedConnection, providerKey: 'cherry-deepseek' }, openAIProvider, apiKeys, 'deepseek-chat')
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(CodeCli.COMMAND_CODE, { ...sharedConnection, providerKey: 'cherry-deepseek-chat' }, openAIProvider, apiKeys, 'deepseek-chat')
+    ).toBe(false)
+    // The gateway keeps its reserved key; a real provider's key never matches it.
+    const gatewayProvider = {
+      id: CLI_API_GATEWAY_PROVIDER_ID,
+      name: 'Cherry Gateway',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.ai/v1' } }
+    } as unknown as Provider
+    expect(
+      cliConfigConnectionMatchesProvider(CodeCli.COMMAND_CODE, { ...sharedConnection, providerKey: 'cherry-gateway' }, gatewayProvider, [], 'deepseek-chat')
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(CodeCli.COMMAND_CODE, { ...sharedConnection, providerKey: 'cherry-deepseek' }, gatewayProvider, [], 'deepseek-chat')
+    ).toBe(false)
   })
 
   it('matches Codex and OpenCode against formatted /v1 endpoints', () => {
