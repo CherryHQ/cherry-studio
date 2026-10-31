@@ -92,13 +92,35 @@ function resolveSupportedEndpointType(
   )
 }
 
+/** V1 configs stored the bare AI SDK package under `npm` (no `aisdk:` prefix). Accepted on read so a
+ * config-only edit against a V1-written file re-derives the right providerType and re-renders the
+ * normalized V2 package value. */
+const OPEN_CODE_V1_NPM_ENTRIES: Array<Pick<OpenCodeNpmInfo, 'package' | 'providerType'>> = [
+  { package: '@ai-sdk/google', providerType: 'google' },
+  { package: '@ai-sdk/anthropic', providerType: 'anthropic' },
+  { package: '@ai-sdk/openai', providerType: 'openai' }
+]
+
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */
 export function openCodeNpmInfoFromPackage(pkg: string): OpenCodeNpmInfo {
   const entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.package === pkg)
+  if (entry) {
+    return { package: pkg, providerType: entry.providerType, endpointType: entry.endpointType }
+  }
+  const v1Entry = OPEN_CODE_V1_NPM_ENTRIES.find((e) => e.package === pkg)
+  if (v1Entry || pkg.startsWith('@ai-sdk/')) {
+    const providerType = v1Entry?.providerType ?? OPEN_CODE_DEFAULT_NPM_INFO.providerType
+    const v2Entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.providerType === providerType)
+    return {
+      package: `aisdk:${pkg}`,
+      providerType,
+      endpointType: v2Entry?.endpointType ?? 'openai-chat-completions'
+    }
+  }
   return {
     package: pkg,
-    providerType: entry?.providerType ?? OPEN_CODE_DEFAULT_NPM_INFO.providerType,
-    endpointType: entry?.endpointType ?? 'openai-chat-completions'
+    providerType: OPEN_CODE_DEFAULT_NPM_INFO.providerType,
+    endpointType: 'openai-chat-completions'
   }
 }
 

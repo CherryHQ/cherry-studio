@@ -161,6 +161,11 @@ export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<
   return null
 }
 
+// Native V2 model shape: these are provider package options, so they go in `settings`
+// (the anthropic/google packages transform them into the wire format). Model `body` is
+// raw request JSON, only correct for raw-JSON providers (e.g. DeepSeek/Moonshot), which
+// Cherry does not special-case here. The V1 boolean `reasoning` model field is
+// accepted-but-unsupported in V2 (ignored with a warning), so it is no longer written.
 function buildOpenCodeModelOptions(
   modelConfig: Record<string, any>,
   npmInfo: OpenCodeNpmInfo,
@@ -168,16 +173,14 @@ function buildOpenCodeModelOptions(
 ): void {
   if (npmInfo.providerType === 'anthropic') {
     if (options.reasoning === true) {
-      modelConfig.reasoning = true
-      modelConfig.options = { thinking: { budgetTokens: 10000, type: 'enabled' } }
+      modelConfig.settings = { thinking: { budgetTokens: 10000, type: 'enabled' } }
     }
     return
   }
 
   if (npmInfo.providerType === 'google') {
     if (options.reasoning === true) {
-      modelConfig.reasoning = true
-      modelConfig.options = {
+      modelConfig.settings = {
         thinkingConfig: { includeThoughts: true, thinkingBudget: -1 }
       }
     }
@@ -185,8 +188,7 @@ function buildOpenCodeModelOptions(
   }
 
   if (options.reasoning === true && options.supportsReasoningEffort === true) {
-    modelConfig.reasoning = true
-    modelConfig.options = { reasoningEffort: 'medium' }
+    modelConfig.settings = { reasoningEffort: 'medium' }
   }
 }
 

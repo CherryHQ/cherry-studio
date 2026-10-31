@@ -1059,8 +1059,12 @@ describe('writeCliConfigDraft', () => {
       const provider = parsed.providers['cherry-Anthropic']
       expect(provider.settings.baseURL).toBe('https://api.anthropic.com/v1')
       const model = provider.models['claude-sonnet-4-5']
-      expect(model.reasoning).toBe(true)
-      expect(model.options.thinking).toEqual({ budgetTokens: 10000, type: 'enabled' })
+      // Native V2 model shape: package options in `settings`, no V1 boolean `reasoning`,
+      // no raw-request `body` (the anthropic package transforms settings itself).
+      expect(model).not.toHaveProperty('reasoning')
+      expect(model).not.toHaveProperty('options')
+      expect(model).not.toHaveProperty('body')
+      expect(model.settings.thinking).toEqual({ budgetTokens: 10000, type: 'enabled' })
     })
 
     it('injects a placeholder auth token for Ollama, which needs no real API key', async () => {
@@ -1097,8 +1101,9 @@ describe('writeCliConfigDraft', () => {
 
       const parsed = JSON.parse(opencodeWrite().content)
       const model = parsed.providers['cherry-DeepSeek'].models['deepseek-chat']
-      expect(model.reasoning).toBe(true)
-      expect(model.options.reasoningEffort).toBe('medium')
+      expect(model).not.toHaveProperty('reasoning')
+      expect(model).not.toHaveProperty('options')
+      expect(model.settings.reasoningEffort).toBe('medium')
       // Non-gateway mode also prefers the record's display name over the raw model id.
       expect(model.name).toBe('DeepSeek Chat')
     })
