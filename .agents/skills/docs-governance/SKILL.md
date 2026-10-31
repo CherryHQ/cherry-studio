@@ -9,8 +9,8 @@ Require an explicit scope. Read the applicable `AGENTS.md`, then the owning sour
 
 ## Place the fact
 
-- Cross-cutting and multi-module behavior belongs under `docs/references/<domain>/`.
-- Repository process belongs under `docs/contrib/`.
+- Cross-cutting and multi-module behavior belongs under `docs/dev/references/<domain>/`.
+- Repository process belongs under `docs/dev/contrib/`.
 - Module-private behavior belongs beside the module.
 - Durable rationale and rejected alternatives belong in Agent Notes.
 - Standing agent orders belong in the narrowest applicable `AGENTS.md` and link their rationale.
@@ -25,9 +25,9 @@ Reference docs describe current reality. Preserve behavior, failure, timing, own
 
 ## Generated and paired docs
 
-Reference docs carry `description` and `sources`; contrib and governance docs carry `description`. Never hand-edit `docs/README.md`, `docs/sources-index.json`, or `docs/i18n/terminology.md`.
+Reference docs carry `description` and `sources`; contrib and governance docs carry `description`. Never hand-edit `docs/dev/README.md`, `docs/dev/sources-index.json`, or `docs/dev/i18n/terminology.md`.
 
-For an in-scope pair, read [the pairing contract](../../../docs/i18n/README.md), [translation rules](../../../docs/i18n/translation-rules.md), and [terminology](../../../docs/i18n/terminology.md). Update the counterpart minimally and re-record only after semantic review. Use `translate-docs` for new pairs or batch translation.
+For an in-scope pair, read [the pairing contract](../../../docs/dev/i18n/README.md), [translation rules](../../../docs/dev/i18n/translation-rules.md), and [terminology](../../../docs/dev/i18n/terminology.md). Update the counterpart minimally and re-record only after semantic review. Use `translate-docs` for new pairs or batch translation.
 
 ## Validation
 

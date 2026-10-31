@@ -4,10 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "website-docs/content/**"
-      - "website-docs/locales.json"
-      - "website-docs/page-aliases.json"
-      - "website-docs/shadowed-baseline.json"
+      - "docs/website/content/**"
+      - "docs/website/locales.json"
+      - "docs/website/page-aliases.json"
+      - "docs/website/shadowed-baseline.json"
   repository_dispatch:
     types: [website-docs-changed]
   schedule:

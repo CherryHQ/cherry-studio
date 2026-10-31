@@ -87,7 +87,7 @@ Status: proposed
 - 给共享函数加 `platform` 参数，让 `isSameOrWithin` 和 `isSameOrInsidePath` 并入其中：其他所有调用方都要带上一个只为两个测试接缝而存在的参数，而这两个函数在 POSIX 主机上仍然需要 `path.win32`。
 - 把 `legacyFile.isPathInside` 的调用方映射到严格的 `isPathInside` 以保留函数名：这些调用方依赖「路径相等算在内」。那样一来，恰好设为 userData 目录本身的备份目录就会被接受。
 - 处处精确比较、不做大小写折叠：「在内就拒绝」的守卫（备份目录、缓存清理、数据迁移）需要折叠才能在默认大小写不敏感的卷上识别同一目录。
-- 处处做大小写折叠（本 Spec 的第一版）：在大小写敏感的 macOS 卷上，「在内就放行」的守卫会开始信任名字与根目录只差大小写的同级目录。对 `isAppRendererUrl` 来说，这意味着信任应用包之外的 HTML 文件，而 `docs/references/ipc/ipc-overview.md` 中的来源信任关卡禁止这样做。
+- 处处做大小写折叠（本 Spec 的第一版）：在大小写敏感的 macOS 卷上，「在内就放行」的守卫会开始信任名字与根目录只差大小写的同级目录。对 `isAppRendererUrl` 来说，这意味着信任应用包之外的 HTML 文件，而 `docs/dev/references/ipc/ipc-overview.md` 中的来源信任关卡禁止这样做。
 - 在 `isPathInside` 和 `isSameOrInside` 旁边再导出一个具名的精确判断函数：`isOutsidePath` 已经是导出且有文档的精确原语，第三个包含判断的名字会把本 Spec 要消除的命名问题带回来。
 - 保留各个副本，只修两处失败时放行的地方：同名但语义相反的函数对仍然存在，下一个调用方会选中自动补全给出的第一个 import。
 - 加一条禁止 `relative(...).startsWith('..')` 的 lint 规则：剩下的五处内联判断都是失败时关闭，而且语法规则抓不到用字符串前缀判断写出的同类错误。

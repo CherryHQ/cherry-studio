@@ -83,7 +83,7 @@ run as tracked, cancellable operations of this lifecycle service. Cookie decrypt
 keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWallet. Helpers are
 bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned
 cookies remain unsupported, with per-reason counts. See the
-[import support matrix](../../../../docs/references/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
+[import support matrix](../../../../docs/dev/references/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
 `list_web_tools` / `call_web_tool` use native CDP WebMCP in managed and Agent-bound guests.
 `GuestSession` owns the memory-only `WebMcpTools` registry; document changes invalidate tool IDs.
 Invocation results and metadata are untrusted, input schemas use the MCP SDK validator, and

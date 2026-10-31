@@ -57,7 +57,7 @@ const consumers = {
 
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
-  if (file.startsWith('website-docs/')) return 'docs'
+  if (file.startsWith('docs/website/')) return 'docs'
   if (file === '.github/website-docs-sync-plan.json') return 'docs'
   if (
     file === 'CONTRIBUTING.i18n.yaml' ||

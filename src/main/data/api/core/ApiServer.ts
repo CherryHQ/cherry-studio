@@ -179,7 +179,7 @@ export class ApiServer {
   // function, including for greedy captures. Path params (IDs) in this project
   // are raw strings — keeping them untouched acts as implicit validation and
   // preserves embedded `/`, `::`, `%`, etc. verbatim. See also the docs at
-  // docs/references/data/api-design-guidelines.md § "Greedy Tail Parameters".
+  // docs/dev/references/data/api-design-guidelines.md § "Greedy Tail Parameters".
   private extractPathParams(pattern: string, path: string): Record<string, string> | null {
     const patternParts = pattern.split('/')
     const pathParts = path.split('/')

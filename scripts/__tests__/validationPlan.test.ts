@@ -14,12 +14,12 @@ afterEach(() => {
 
 describe('validation selection', () => {
   it.each([
-    'docs/contrib/development.md',
+    'docs/dev/contrib/development.md',
     'src/main/core/README.md',
     'packages/ui/README.md',
-    'website-docs/content/pre-basic/settings/README.md',
-    'website-docs/content/assets/screenshot.webp',
-    'website-docs/locales.json',
+    'docs/website/content/pre-basic/settings/README.md',
+    'docs/website/content/assets/screenshot.webp',
+    'docs/website/locales.json',
     '.github/website-docs-sync-plan.json',
     '.agents/notes/proposed/process/plan.zh.md'
   ])('keeps ordinary documentation out of code tests: %s', (file) => {
@@ -31,7 +31,7 @@ describe('validation selection', () => {
     const runtime = createPlan(['resources/skills/tool/SKILL.md'])
     expect(runtime.projects).toContain('scripts')
     expect(runtime.projects).toContain('main')
-    const mixed = createPlan(['docs/README.md', 'src/renderer/components/Thing.tsx'])
+    const mixed = createPlan(['docs/dev/README.md', 'src/renderer/components/Thing.tsx'])
     expect(mixed.projects).toContain('renderer')
     expect(mixed.tasks).toContain('types-web')
     expect(mixed.projects).not.toContain('main')
@@ -264,7 +264,7 @@ describe('validation execution', () => {
       ...process.env,
       npm_execpath: pnpm,
       COMMAND_LOG: log,
-      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/contrib/development.md']))
+      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/dev/contrib/development.md']))
     }
     const invoke = (...args: string[]) =>
       spawnSync(process.execPath, ['scripts/validation/run.mjs', ...args], { env, encoding: 'utf8' })

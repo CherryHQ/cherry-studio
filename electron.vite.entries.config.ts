@@ -12,7 +12,7 @@ import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
  * Run by `pnpm build` and `pnpm dev`; entries do NOT hot-reload — re-run
  * `pnpm build:utility-process` after changing one.
  *
- * See docs/references/utility-process/README.md.
+ * See docs/dev/references/utility-process/README.md.
  */
 export default {
   main: {

@@ -82,7 +82,7 @@ CI 和本地 coding agent 花费时间检查无关代码，但各自维护的任
 
 不同 worktree 主要竞争 CPU、内存和 I/O。同一 worktree 内并发执行还会共享可变构建产物、缓存及 native binary。本轮没有进行本地多 agent 负载基准或冲突复现；资源竞争机制由命令结构支持，但本机减速比例尚未测量。
 
-Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文件，不能把“启用增量”当作缺失功能。[二进制下载器](../../../../scripts/download-binaries.js)已有按版本共享的缓存，不能未经测量就假设每次都重复下载。Native 边界见 [ABI 契约](../../../../docs/references/testing/database-testing.md#better-sqlite3-native-module-abi)。
+Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文件，不能把“启用增量”当作缺失功能。[二进制下载器](../../../../scripts/download-binaries.js)已有按版本共享的缓存，不能未经测量就假设每次都重复下载。Native 边界见 [ABI 契约](../../../../docs/dev/references/testing/database-testing.md#better-sqlite3-native-module-abi)。
 
 ## Proposal
 

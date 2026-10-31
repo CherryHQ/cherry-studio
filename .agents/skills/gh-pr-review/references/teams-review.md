@@ -114,7 +114,7 @@ Suggested module boundaries for this project:
 - `src/shared/` — Cross-process primitives, DataApi/IpcApi schemas, types, pure utilities
 - `packages/ui/` — Shared UI primitives
 - `src/shared/ipc/`, `src/main/ipc/`, `src/preload/`, `src/renderer/ipc/` — IpcApi contract and bridge
-- `docs/references/data/` — Data architecture documentation
+- `docs/dev/references/data/` — Data architecture documentation
 - `.agents/skills/` — Agent skills and review instructions
 
 ### Issue tracking

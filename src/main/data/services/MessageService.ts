@@ -124,7 +124,7 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
  *
  * Expects camelCase keys — only ORM-channel results match.
  * Raw SQL via `db.all(sql\`...\`)` returns snake_case columns and CANNOT be
- * passed here directly. See docs/references/data/database-patterns.md →
+ * passed here directly. See docs/dev/references/data/database-patterns.md →
  * "Raw SQL Queries & Recursive CTEs" for the recommended CTE-for-IDs +
  * ORM-for-rows pattern used by getBranchMessages, getPathToNode.
  *

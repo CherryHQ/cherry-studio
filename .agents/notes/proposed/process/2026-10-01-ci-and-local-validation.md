@@ -82,7 +82,7 @@ The root package contains 105 scripts, including 18 platform/architecture/editio
 
 Different worktrees primarily compete for CPU, memory, and I/O. Concurrent commands in one worktree additionally share mutable build output, caches, and native binaries. No local multi-agent load benchmark or collision reproduction was performed; the contention mechanism is a hypothesis supported by command structure, not a quantified local slowdown.
 
-Node and web tsconfigs already enable incremental compilation and use distinct `.tsbuildinfo` files. Recommending incremental compilation as a missing feature would be incorrect. The [binary downloader](../../../../scripts/download-binaries.js) already has a shared versioned cache, so repeated downloads must be measured rather than assumed. See the [native ABI contract](../../../../docs/references/testing/database-testing.md#better-sqlite3-native-module-abi).
+Node and web tsconfigs already enable incremental compilation and use distinct `.tsbuildinfo` files. Recommending incremental compilation as a missing feature would be incorrect. The [binary downloader](../../../../scripts/download-binaries.js) already has a shared versioned cache, so repeated downloads must be measured rather than assumed. See the [native ABI contract](../../../../docs/dev/references/testing/database-testing.md#better-sqlite3-native-module-abi).
 
 ## Proposal
 

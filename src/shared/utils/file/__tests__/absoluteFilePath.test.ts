@@ -4,7 +4,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
  * `AbsoluteFilePathSchema` is declared in `@shared/types/file/common` — a purely
- * declarative Zod chain, which [shared-layer-architecture §3.1](../../../../../docs/references/architecture/shared-layer.md)
+ * declarative Zod chain, which [shared-layer-architecture §3.1](../../../../../docs/dev/references/architecture/shared-layer.md)
  * permits to stay in `types/`. Its *behavioral* test cannot live there, though:
  * the same section allows only type-level tests under `types/`. So the suite
  * sits here, next to `canonicalize.test.ts`, which pins the `CanonicalFilePath`
@@ -47,7 +47,7 @@ describe('AbsoluteFilePathSchema', () => {
   // UNC is accepted because the brand gates "safe to hand to `fs`", and Node
   // reads UNC natively on Windows. It is NOT canonicalizable — that half of the
   // contract is pinned in `canonicalize.test.ts`. See
-  // `docs/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
+  // `docs/dev/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
   it('accepts a UNC path and returns it unchanged', () => {
     expect(AbsoluteFilePathSchema.parse('\\\\server\\share\\doc.pdf')).toBe('\\\\server\\share\\doc.pdf')
   })

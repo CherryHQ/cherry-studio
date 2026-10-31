@@ -1,5 +1,5 @@
 /**
- * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
+ * Streaming agent loop. See `docs/dev/references/ai/agent-loop.md`.
  */
 
 import {

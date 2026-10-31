@@ -29,7 +29,7 @@ interface TimeoutEntry {
  * nothing about what the callback does. JobManager is its primary consumer but
  * any business module can use it directly for simple cron/interval/once needs.
  *
- * See `docs/references/job-and-scheduler/scheduler-usage.md` for the decision
+ * See `docs/dev/references/job-and-scheduler/scheduler-usage.md` for the decision
  * tree on when to use this vs `BaseService.registerInterval` vs raw setInterval.
  *
  * Internals:

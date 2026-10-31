@@ -10,7 +10,7 @@ Classify each reviewed module before looking for issues:
 
 | Area | Common files | Review focus |
 | --- | --- | --- |
-| Data system | `src/main/data/`, `src/shared/data/`, `src/renderer/data/`, `docs/references/data/` | Correct system choice, DataApi scope, migrations, row/entity boundaries |
+| Data system | `src/main/data/`, `src/shared/data/`, `src/renderer/data/`, `docs/dev/references/data/` | Correct system choice, DataApi scope, migrations, row/entity boundaries |
 | Service boundary | `src/main/data/services/`, `src/main/services/` | Owning service, cross-service calls, transactions, side effects |
 | IPC / preload | `src/shared/ipc/`, `src/main/ipc/`, `src/preload/`, `src/renderer/ipc/`, legacy `src/shared/IpcChannel.ts` | IpcApi routing, input validation, exposure, compatibility, migration completeness |
 | Lifecycle / windows / paths | `src/main/core/`, window services, path access | Lifecycle ownership, cleanup, `application.getPath`, WindowManager |
@@ -52,7 +52,7 @@ Instance-keyed behavior added to the engine side is entity leakage — at any
 module depth, cross-module (features into `core/`, `data/`, `shared/`) and
 intra-module (a module's own generic layer) alike.
 
-The renderer (`docs/references/architecture/renderer.md`) expresses the same
+The renderer (`docs/dev/references/architecture/renderer.md`) expresses the same
 rule as a **type × domain grid with strictly downward edges**: the shared row
 (`components/`, `hooks/`, `services/`, `utils/`, `data/`, `ipc/`, `workers/`)
 and the primitives below it are **domain-blind by definition**; domain
@@ -85,7 +85,7 @@ engine/declaration and domain-blind tests above):
 | Renderer infra cells (`data/`, `ipc/`, `workers/`) | the generic query/mutation layer hard-coding one feature's refresh graph; the IPC facade special-casing one route; a worker encoding one domain's payload shape |
 | Sibling domains (`features/<domain>/`, `pages/<domain>/`) | one domain branching on another domain's ids/types/state — the sideways edge the doc routes up (app-layer composition) or down (extract the shared piece); a shared "coordinator" hook that names both domains is the same edge hidden in the shared row |
 | Renderer app layer (`windows/`, `routes/`, top-level `pages/`) | cross-domain orchestration pushed down into one feature or a shared hook instead of being composed at the app layer |
-| Renderer top-level / capability placement | a capability landing as a blob — a new top-level directory, or a cross-cutting capability (command/keybinding-style) dressed as a peer domain feature — instead of decomposing by shape across existing cells (`docs/references/architecture/renderer.md` §6) |
+| Renderer top-level / capability placement | a capability landing as a blob — a new top-level directory, or a cross-cutting capability (command/keybinding-style) dressed as a peer domain feature — instead of decomposing by shape across existing cells (`docs/dev/references/architecture/renderer.md` §6) |
 | `packages/ui` primitives | a primitive acquiring a business prop, domain rendering branch, or data-layer knowledge instead of a render-prop/slot injection point |
 | `src/shared/` contracts | shared types/enums/utils gaining fields or members only one process or domain consumes |
 
@@ -277,11 +277,11 @@ context:
 
 | Doc | When |
 | --- | --- |
-| `docs/references/architecture/naming-conventions.md` | Always |
-| `docs/references/architecture/main-process.md` (follow the subsystem references it routes to for touched subsystems) | Diff touches `src/main/` |
-| `docs/references/architecture/renderer.md` | Diff touches `src/renderer/` |
-| `docs/references/architecture/shared-layer.md` | Diff touches `src/shared/` |
-| `docs/references/data/README.md` (follow its routing into the subsystem rows below) | Diff touches any data surface: DB schemas, DataApi, Cache, Preference, BootConfig, or their renderer hooks |
+| `docs/dev/references/architecture/naming-conventions.md` | Always |
+| `docs/dev/references/architecture/main-process.md` (follow the subsystem references it routes to for touched subsystems) | Diff touches `src/main/` |
+| `docs/dev/references/architecture/renderer.md` | Diff touches `src/renderer/` |
+| `docs/dev/references/architecture/shared-layer.md` | Diff touches `src/shared/` |
+| `docs/dev/references/data/README.md` (follow its routing into the subsystem rows below) | Diff touches any data surface: DB schemas, DataApi, Cache, Preference, BootConfig, or their renderer hooks |
 
 On-demand docs carry the same authority when their area is touched: the
 lifecycle, IpcApi, window, and job-and-scheduler rows in the table below.
@@ -296,28 +296,28 @@ violation is migration residue, not precedent.
 
 | Changed area | Consult |
 | --- | --- |
-| DataApi contracts, schemas, types, or errors | `docs/references/data/data-api-overview.md`, `docs/references/data/api-design-guidelines.md`, `docs/references/data/api-types.md` |
-| DataApi handlers, services, or renderer hooks | Add `docs/references/data/data-api-in-main.md` for main handlers/services and `docs/references/data/data-api-in-renderer.md` for renderer consumers |
-| Cache storage, hooks, service calls, or keys | `docs/references/data/cache-overview.md`; add `docs/references/data/cache-usage.md` for consumers and `docs/references/data/cache-schema-guide.md` only when keys/schemas change |
-| Preference storage, hooks, service calls, or keys | `docs/references/data/preference-overview.md`; add `docs/references/data/preference-usage.md` for consumers and `docs/references/data/preference-schema-guide.md` only when keys/schemas change |
-| BootConfig behavior, access, or keys | `docs/references/data/boot-config-overview.md`; add `docs/references/data/boot-config-schema-guide.md` only when keys/schemas/mappings change |
-| Internal startup continuity markers | `docs/references/data/app-state-overview.md` |
-| v1-to-v2 migrators or migration mappings | `docs/references/data/v2-migration-guide.md` plus the affected target subsystem guide |
-| SQLite schemas, transactions, migrations, defaults, or nullability | `docs/references/data/database-patterns.md`; add `docs/references/data/database-construction.md` for migration/custom-SQL/FTS build changes and `docs/references/data/best-practice-default-values-and-nullability.md` for default/nullability changes |
-| Sortable resources or order keys | `docs/references/data/data-ordering-guide.md` |
-| Offset/cursor pagination or paginated hooks | `docs/references/data/data-pagination-guide.md` |
-| Database seeders or seeding policies | `docs/references/data/database-seeding-guide.md` |
-| Static presets with user overrides | `docs/references/data/best-practice-layered-preset-pattern.md` |
-| Main-process services and long-lived resources | `docs/references/lifecycle/README.md`, `docs/references/lifecycle/lifecycle-usage.md`, `docs/references/lifecycle/lifecycle-decision-guide.md` |
-| Jobs, scheduled tasks, or scheduler handlers | `docs/references/job-and-scheduler/README.md`; add `docs/references/job-and-scheduler/scheduler-usage.md` for consumers, `docs/references/job-and-scheduler/handler-authoring.md` for new/changed handlers, `docs/references/job-and-scheduler/concurrency-and-locks.md` for locking/concurrency changes |
-| IpcApi routes/events, preload exposure, main handlers, renderer calls, or legacy IPC migration | `docs/references/ipc/README.md`; then `docs/references/ipc/ipc-usage.md` for implementation, `docs/references/ipc/ipc-schema-guide.md` for contracts/naming, and `docs/references/ipc/ipc-migration-guide.md` when legacy IPC is touched |
-| Windows | `docs/references/window-manager/README.md` |
+| DataApi contracts, schemas, types, or errors | `docs/dev/references/data/data-api-overview.md`, `docs/dev/references/data/api-design-guidelines.md`, `docs/dev/references/data/api-types.md` |
+| DataApi handlers, services, or renderer hooks | Add `docs/dev/references/data/data-api-in-main.md` for main handlers/services and `docs/dev/references/data/data-api-in-renderer.md` for renderer consumers |
+| Cache storage, hooks, service calls, or keys | `docs/dev/references/data/cache-overview.md`; add `docs/dev/references/data/cache-usage.md` for consumers and `docs/dev/references/data/cache-schema-guide.md` only when keys/schemas change |
+| Preference storage, hooks, service calls, or keys | `docs/dev/references/data/preference-overview.md`; add `docs/dev/references/data/preference-usage.md` for consumers and `docs/dev/references/data/preference-schema-guide.md` only when keys/schemas change |
+| BootConfig behavior, access, or keys | `docs/dev/references/data/boot-config-overview.md`; add `docs/dev/references/data/boot-config-schema-guide.md` only when keys/schemas/mappings change |
+| Internal startup continuity markers | `docs/dev/references/data/app-state-overview.md` |
+| v1-to-v2 migrators or migration mappings | `docs/dev/references/data/v2-migration-guide.md` plus the affected target subsystem guide |
+| SQLite schemas, transactions, migrations, defaults, or nullability | `docs/dev/references/data/database-patterns.md`; add `docs/dev/references/data/database-construction.md` for migration/custom-SQL/FTS build changes and `docs/dev/references/data/best-practice-default-values-and-nullability.md` for default/nullability changes |
+| Sortable resources or order keys | `docs/dev/references/data/data-ordering-guide.md` |
+| Offset/cursor pagination or paginated hooks | `docs/dev/references/data/data-pagination-guide.md` |
+| Database seeders or seeding policies | `docs/dev/references/data/database-seeding-guide.md` |
+| Static presets with user overrides | `docs/dev/references/data/best-practice-layered-preset-pattern.md` |
+| Main-process services and long-lived resources | `docs/dev/references/lifecycle/README.md`, `docs/dev/references/lifecycle/lifecycle-usage.md`, `docs/dev/references/lifecycle/lifecycle-decision-guide.md` |
+| Jobs, scheduled tasks, or scheduler handlers | `docs/dev/references/job-and-scheduler/README.md`; add `docs/dev/references/job-and-scheduler/scheduler-usage.md` for consumers, `docs/dev/references/job-and-scheduler/handler-authoring.md` for new/changed handlers, `docs/dev/references/job-and-scheduler/concurrency-and-locks.md` for locking/concurrency changes |
+| IpcApi routes/events, preload exposure, main handlers, renderer calls, or legacy IPC migration | `docs/dev/references/ipc/README.md`; then `docs/dev/references/ipc/ipc-usage.md` for implementation, `docs/dev/references/ipc/ipc-schema-guide.md` for contracts/naming, and `docs/dev/references/ipc/ipc-migration-guide.md` when legacy IPC is touched |
+| Windows | `docs/dev/references/window-manager/README.md` |
 | Main-process filesystem paths | `src/main/core/paths/README.md` |
-| SQLite services, handlers, seeders, migrations | `docs/references/testing/database-testing.md`, `tests/__mocks__/README.md` |
+| SQLite services, handlers, seeders, migrations | `docs/dev/references/testing/database-testing.md`, `tests/__mocks__/README.md` |
 | UI and shared components | `DESIGN.md`, `packages/ui/`, component usage near the diff |
 | Repository skills | `.agents/skills/README.md`, `.agents/skills/create-skill/SKILL.md`, `.agents/skills/gh-pr-review/SKILL.md` |
 | Agent Notes, Specs, lifecycle transitions, or supersession | `.agents/notes/README.md`, `.agents/skills/agent-notes/SKILL.md` |
-| Repository documentation, bilingual pairs, or `sources` impact | `docs/AGENTS.md`, `.agents/skills/docs-governance/SKILL.md`, `docs/i18n/README.md` |
+| Repository documentation, bilingual pairs, or `sources` impact | `docs/dev/AGENTS.md`, `.agents/skills/docs-governance/SKILL.md`, `docs/dev/i18n/README.md` |
 
 Treat the listed architecture documents as the authority for their scopes.
 Read the relevant sections before judging placement or dependency direction;
@@ -359,7 +359,7 @@ source prefers a different style.
 
 ## Naming And Module Shape
 
-Use `docs/references/architecture/naming-conventions.md` as the authority when the diff adds,
+Use `docs/dev/references/architecture/naming-conventions.md` as the authority when the diff adds,
 renames, or moves a path, changes a primary export's role, or creates a module
 boundary. Do not infer the rule from whichever nearby legacy file is easiest to
 copy.
