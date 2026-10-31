@@ -88,6 +88,34 @@ describe('canonicalizePathForContainment', () => {
       canonicalizePathForContainment(path.join(root, 'dangling-dir', 'new.txt'), { allowMissing: true })
     ).resolves.toBeUndefined()
   })
+
+  it('canonicalizes an entry that appears between realpath and lstat (concurrent create race)', async () => {
+    const target = path.join(root, 'appeared.txt')
+    await writeFile(target, 'second')
+    const resolvedTarget = path.resolve(target)
+
+    vi.resetModules()
+    let staleReads = 0
+    vi.doMock('node:fs/promises', async (importOriginal) => {
+      const actual = await importOriginal<typeof nodeFsPromises>()
+      return {
+        ...actual,
+        realpath: async (p: Parameters<typeof actual.realpath>[0], options?: Parameters<typeof actual.realpath>[1]) => {
+          // First read observes the target as still missing (the Windows
+          // concurrent-create window); the retry after lstat sees it.
+          if (path.resolve(String(p)) === resolvedTarget && staleReads++ === 0) {
+            throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+          }
+          return actual.realpath(p, options)
+        }
+      }
+    })
+    const { canonicalizePathForContainment: canonicalizeWithMockedRealpath } = await import('../path')
+
+    await expect(canonicalizeWithMockedRealpath(target, { allowMissing: true })).resolves.toBe(resolvedTarget)
+    vi.doUnmock('node:fs/promises')
+    vi.resetModules()
+  })
 })
 
 describe('normalizePathForComparison', () => {

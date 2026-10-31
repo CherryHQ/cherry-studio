@@ -123,7 +123,18 @@ export async function canonicalizePathForContainment(
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
     try {
       await lstat(target)
-      return undefined
+      // realpath reported ENOENT yet lstat sees the entry: either a dangling
+      // link (lstat reads the link itself; resolving it still yields ENOENT)
+      // or the entry appeared between the two calls (a concurrent create).
+      // One retry separates the two: a dangling link keeps failing with
+      // ENOENT and is still refused, while an appeared entry now
+      // canonicalizes and faces the same containment comparison as any
+      // other path, so no admission is weakened.
+      try {
+        return normalizeRealpathResult(await realpath(target))
+      } catch {
+        return undefined
+      }
     } catch (statError) {
       if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
     }
@@ -137,7 +148,12 @@ export async function canonicalizePathForContainment(
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
       try {
         await lstat(parent)
-        return undefined
+        // Same appeared-vs-dangling distinction for a parent directory.
+        try {
+          return normalizeRealpathResult(path.resolve(await realpath(parent), path.relative(parent, target)))
+        } catch {
+          return undefined
+        }
       } catch (statError) {
         if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
       }
