@@ -222,6 +222,20 @@ describe('MessageService', () => {
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
 
+  it('persists ordered text/file parts and metadata without regrouping them', async () => {
+    const parentId = await seedTopicWithRoot('ordered-topic')
+    const providerMetadata = { cherry: { contentFormat: 'ordered-parts-v1', fileTokenSourceId: 'image-source' } }
+    const data: MessageData = {
+      parts: [
+        { type: 'text', text: '中文😀  ', providerMetadata },
+        { type: 'file', filename: 'image.png', mediaType: 'image/png', url: 'file:///tmp/image.png', providerMetadata },
+        { type: 'text', text: '\nAfter', providerMetadata }
+      ]
+    }
+    const created = messageService.create('ordered-topic', { parentId, role: 'user', data, status: 'success' })
+    expect(messageService.getById(created.id).data).toEqual(data)
+  })
+
   describe('trashed Topic message addressability', () => {
     const topicId = 'topic-message-gate'
     const attachmentFileId = '019606a0-0000-7000-8000-00000000fd01'

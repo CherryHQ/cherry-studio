@@ -370,3 +370,9 @@ describe('withCherryMeta', () => {
     expect(true).toBe(true)
   })
 })
+
+// Reject unsupported contracts instead of silently interpreting their attachment membership.
+it.each([CherryTextMetaSchema, CherryFileMetaSchema])('validates the ordered content marker', (schema) => {
+  expect(schema.parse({ contentFormat: 'ordered-parts-v1' }).contentFormat).toBe('ordered-parts-v1')
+  expect(schema.safeParse({ contentFormat: 'ordered-parts-v2' }).success).toBe(false)
+})

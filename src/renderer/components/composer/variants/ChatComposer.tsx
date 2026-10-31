@@ -63,7 +63,7 @@ import {
 } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { FileUIPart, CherryMessagePart } from '@shared/data/types/message'
 import {
   type Model,
   type ReasoningSummary,
@@ -75,6 +75,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
+import { createOrderedComposerParts } from '../composerOrderedParts'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -1378,7 +1379,7 @@ const ChatComposerInner = ({
         const fileParts = await buildFilePartsForAttachments(attachments)
         const sent = await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
-          userMessageParts: [...payload.userMessageParts, ...fileParts],
+          userMessageParts: createOrderedComposerParts(payload.userMessageParts, fileParts),
           reasoningEffort: payload.reasoningEffort,
           serviceTier: payload.serviceTier,
           ...(payload.fastMode ? { fastMode: true } : {}),
@@ -1515,9 +1516,20 @@ const ChatComposerInner = ({
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
-      return { draft: normalizedDraft, parts: withKnowledgeScopePart(messageParts, knowledgeBaseIds) }
+      return {
+        draft: normalizedDraft,
+        parts: withKnowledgeScopePart(
+          editingMessageForCurrentTopic?.message.role === 'assistant'
+            ? messageParts
+            : createOrderedComposerParts(
+                [textPart],
+                messageParts.filter((part): part is FileUIPart => part.type === 'file')
+              ),
+          knowledgeBaseIds
+        )
+      }
     },
-    [files, selectedKnowledgeBasesInScope]
+    [files, selectedKnowledgeBasesInScope, editingMessageForCurrentTopic]
   )
 
   /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */

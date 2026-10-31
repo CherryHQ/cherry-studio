@@ -2,6 +2,7 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import { isComposerMessageTextTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type ComposerMessageSnapshot, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
+import { hasOrderedContent } from '@shared/utils/orderedMessageParts'
 
 const SKILL_TOKEN_ID_PREFIX = 'skill:'
 const KNOWLEDGE_TOKEN_ID_PREFIX = 'knowledge:'
@@ -88,6 +89,22 @@ export function getComposerTextFromParts(
   parts: CherryMessagePart[],
   getTokenText?: (token: ComposerMessageToken, index: number) => string
 ): string {
+  if (hasOrderedContent(parts)) {
+    return parts
+      .map((part, index) => {
+        if (part.type === 'file') {
+          const label = part.filename ?? part.url
+          const sourceId = readCherryMeta(part)?.fileTokenSourceId
+          return getTokenText && sourceId
+            ? getTokenText({ id: `file:${sourceId}`, kind: 'file', label, index, textOffset: 0 }, index)
+            : label
+        }
+        if (part.type !== 'text') return ''
+        const composer = readCherryMeta(part)?.composer
+        return composer ? replaceComposerTokenPromptText(part.text, composer, getTokenText) : part.text
+      })
+      .join('')
+  }
   return parts
     .filter(isTextPart)
     .map((part) => {

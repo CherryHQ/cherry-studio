@@ -379,6 +379,21 @@ describe('hydrateDeferredImageOutputs', () => {
 // --- serializeMessagesWithImages ---
 
 describe('serializeMessagesWithImages', () => {
+  it('preserves ordered text whitespace and document positions around embedded images', async () => {
+    const providerMetadata = { cherry: { contentFormat: 'ordered-parts-v1' } }
+    const message = view([
+      { type: 'text', text: '中文😀  ', providerMetadata },
+      { ...imageFilePart(PNG_1PX), providerMetadata },
+      { type: 'text', text: '\n    middle\n', providerMetadata },
+      { type: 'file', mediaType: 'text/plain', filename: 'notes.txt', url: 'file:///tmp/notes.txt', providerMetadata },
+      { type: 'text', text: '  ', providerMetadata }
+    ])
+    const { refs } = await collectExportableImages([message])
+    const { overrides } = await serializeMessagesWithImages([message], 'embed', refs)
+    expect(overrides.get(message.id)).toBe(`中文😀  ![photo.png](${PNG_1PX})\n    middle\nnotes.txt  `)
+    expect(await messageToMarkdown(message)).toContain('中文😀 photo.png\n middle\nnotes.txt')
+  })
+
   it('interleaves images with text in parts order and inlines data URIs (embed)', async () => {
     const message = view([
       { type: 'text', text: 'before the image' },
