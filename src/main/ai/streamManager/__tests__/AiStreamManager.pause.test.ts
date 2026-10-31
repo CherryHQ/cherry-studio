@@ -46,12 +46,11 @@ vi.mock('../context/dispatch', () => ({
 }))
 
 // Boot-sweep reconcile reads/writes through MessageService.
-const findPendingAssistantMessageIds = vi.fn<() => string[]>(() => [])
-const markMessagesError = vi.fn<(ids: string[]) => void>(() => undefined)
+const findPendingAssistantMessages = vi.fn<() => Array<{ id: string }>>(() => [])
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
-    findPendingAssistantMessageIds: () => findPendingAssistantMessageIds(),
-    markMessagesError: (ids: string[]) => markMessagesError(ids)
+    findPendingAssistantMessages: () => findPendingAssistantMessages(),
+    resolveInterruptedAssistantMessages: () => undefined
   }
 }))
 
@@ -184,7 +183,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     vi.clearAllMocks()
     dispatchResolvers.length = 0
     namingWrites.clear()
-    findPendingAssistantMessageIds.mockReturnValue([])
+    findPendingAssistantMessages.mockReturnValue([])
     mgr = createManager()
     // `startAgentSessionRun` resolves the manager via the container.
     ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {

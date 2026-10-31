@@ -1,5 +1,8 @@
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 
+/** `ipcRenderer.send` channel on which the page reports its color scheme (`ThemeMode`). */
+export const NATIVE_THEME_CHANNEL = 'web:native-theme'
+
 export interface OpenResult {
   path: string
   openMs: number
@@ -10,6 +13,10 @@ export interface OpenResult {
 export interface CoreCommands {
   open: { payload: { account: string; handoverTimeoutMs?: number }; result: OpenResult }
   request: { payload: DataRequest; result: DataResponse }
+  /** The page's `ipcRenderer.invoke`: runs the `ipcMain.handle` handler for `channel`. */
+  'ipc-invoke': { payload: { channel: string; args: unknown[] }; result: unknown }
+  /** The page's `ipcRenderer.send`: runs the `ipcMain.on` listeners for `channel`. */
+  'ipc-send': { payload: { channel: string; args: unknown[] }; result: void }
   close: { payload: undefined; result: void }
 }
 
@@ -29,11 +36,11 @@ export type ReplyMessage =
   | { kind: 'reply'; id: number; ok: true; result: unknown }
   | { kind: 'reply'; id: number; ok: false; error: SerializedError }
 
-/** A main-process broadcast (e.g. `DataApi_DataChanged`) forwarded to the page. */
+/** A `webContents.send` to the page (e.g. `DataApi_DataChanged`), with its arguments. */
 export interface BroadcastMessage {
   kind: 'broadcast'
   channel: string
-  payload: unknown
+  args: unknown[]
 }
 
 export type WorkerMessage = ReplyMessage | BroadcastMessage

@@ -38,6 +38,8 @@ export const checkTasks = {
   'types-web-core': { group: 'types', args: ['--filter', '@cherrystudio/web-core', 'typecheck'] },
   // Bundles the Core Worker, failing when a data service it serves starts importing Node or Electron.
   'bundle-web-core': { group: 'types', args: ['--filter', '@cherrystudio/web-core', 'build:harness'] },
+  // Bundles the Web app: the desktop main window and preload over the Core Worker.
+  'bundle-web-core-app': { group: 'types', args: ['--filter', '@cherrystudio/web-core', 'build:app'] },
   'i18n-catalog': { group: 'i18n', args: ['i18n:check'] },
   'i18n-unused': { group: 'i18n', args: ['i18n:unused:check'] },
   'i18n-hardcoded': { group: 'i18n', args: ['i18n:hardcoded:strict'] }
@@ -152,6 +154,11 @@ export function createPlan(files, fullReason) {
     if (scope === 'web-core' || affected.includes('main') || affected.includes('sqlite-wasm-compat')) {
       add('types-web-core', file)
       add('bundle-web-core', file)
+    }
+    // The Web app bundles the desktop renderer and preload, whose page files web-core typechecks.
+    if (scope === 'web-core' || affected.includes('main') || affected.includes('renderer')) {
+      add('types-web-core', file)
+      add('bundle-web-core-app', file)
     }
     if (scope === 'main' || scope === 'shared') add('migrations', file)
     const inTestDirectory = file.split('/').includes('__tests__')

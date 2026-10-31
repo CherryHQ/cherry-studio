@@ -93,7 +93,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId'),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.streamCheckpoint'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -291,6 +291,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   const result = { ...data }
   delete result.runtimeAnchor
   delete result.nativeSessionId
+  delete result.streamCheckpoint
   return result
 }
 
@@ -851,7 +852,7 @@ export class AgentSessionMessageService {
   findCrashOrphanedAssistantMessages(): Array<{
     id: string
     sessionId: string
-    data: AgentSessionMessageEntity['data']
+    data: SessionMessageRow['data']
   }> {
     const database = application.get('DbService').getDb()
     return database
@@ -907,6 +908,20 @@ export class AgentSessionMessageService {
           .run()
       }
     })
+  }
+
+  /**
+   * Keep the latest parts of a reply still streaming beside the placeholder's `parts`, which live
+   * readers seed from. The terminal save rebuilds `data` and drops them. No-op once settled.
+   */
+  saveStreamCheckpoint(messageId: string, parts: CherryMessagePart[]): void {
+    application
+      .get('DbService')
+      .getDb()
+      .update(sessionMessagesTable)
+      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.streamCheckpoint', json(${JSON.stringify(parts)}))` })
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.status, 'pending')))
+      .run()
   }
 
   /** Best-effort terminalization after a live assistant persistence failure. */

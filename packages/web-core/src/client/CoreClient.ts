@@ -18,7 +18,7 @@ type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => vo
 export class CoreClient {
   readonly #worker: Worker
   readonly #pending = new Map<number, Pending>()
-  readonly #listeners = new Set<(channel: string, payload: unknown) => void>()
+  readonly #listeners = new Set<(channel: string, args: unknown[]) => void>()
   #nextId = 1
 
   constructor(worker: Worker) {
@@ -26,7 +26,7 @@ export class CoreClient {
     worker.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
       const message = event.data
       if (message.kind === 'broadcast') {
-        for (const listener of this.#listeners) listener(message.channel, message.payload)
+        for (const listener of this.#listeners) listener(message.channel, message.args)
         return
       }
       const pending = this.#pending.get(message.id)
@@ -68,8 +68,8 @@ export class CoreClient {
     return this.send('request', { id: crypto.randomUUID(), method, path, ...options }) as Promise<DataResponse<T>>
   }
 
-  /** Subscribes to forwarded main-process broadcasts such as `DataApi_DataChanged`. */
-  onBroadcast(listener: (channel: string, payload: unknown) => void): () => void {
+  /** Subscribes to what the Worker sends the page, such as `DataApi_DataChanged`. */
+  onBroadcast(listener: (channel: string, args: unknown[]) => void): () => void {
     this.#listeners.add(listener)
     return () => this.#listeners.delete(listener)
   }

@@ -2,7 +2,7 @@
 
 import { messageService } from '@main/data/services/MessageService'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
-import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 import { trimOversizedToolOutputs } from '../trimToolOutputs'
@@ -41,6 +41,10 @@ export class MessageServiceBackend implements PersistenceBackend {
       status,
       runtimeStats
     })
+  }
+
+  checkpoint(parts: CherryMessagePart[]): void {
+    messageService.saveStreamCheckpoint(this.opts.assistantMessageId, parts)
   }
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */

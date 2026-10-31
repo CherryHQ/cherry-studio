@@ -1088,6 +1088,31 @@ describe('AgentSessionMessageService', () => {
       expect(session.lastActivityAt).toBe(1_000)
     })
 
+    it('keeps a streaming checkpoint for the reconcile without showing it to readers or a settled reply', () => {
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d015'
+      const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d016'
+      const soFar = [{ type: 'text' as const, text: 'so far' }]
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: DONE, role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'done' }] } }
+      })
+
+      agentSessionMessageService.saveStreamCheckpoint(PENDING, soFar)
+      agentSessionMessageService.saveStreamCheckpoint(DONE, soFar)
+
+      expect(agentSessionMessageService.findCrashOrphanedAssistantMessages()).toEqual([
+        { id: PENDING, sessionId: SESSION_ID, data: { parts: [], streamCheckpoint: soFar } }
+      ])
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, PENDING).data).toEqual({ parts: [] })
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, DONE).data).toEqual({
+        parts: [{ type: 'text', text: 'done' }]
+      })
+    })
+
     it('finds settled assistant rows whose approval registry was lost on restart', () => {
       const ORPHANED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d013'
       const COMPLETE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d014'

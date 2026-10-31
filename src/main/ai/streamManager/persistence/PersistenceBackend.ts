@@ -117,6 +117,23 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   return filtered.length === parts.length ? parts : filtered
 }
 
+/**
+ * Settle the parts of a reply the app stopped in the middle of (crash, quit, closed tab), as found at
+ * the next start: close its live parts and say why it ended, so history shows what had arrived.
+ */
+export function interruptedReplyParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const interrupted: CherryMessagePart = {
+    type: 'data-error',
+    data: {
+      name: 'ReplyInterruptedError',
+      message: 'The app closed before this reply finished',
+      stack: null,
+      i18nKey: 'reply_interrupted'
+    }
+  }
+  return [...finalizeInterruptedParts(parts, 'error'), interrupted]
+}
+
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage
@@ -146,6 +163,12 @@ export interface PersistenceBackend {
   readonly canPersistEmptySuccessTerminal?: boolean
 
   persistAssistant(input: PersistAssistantInput): PersistedAssistant | void | Promise<PersistedAssistant | void>
+
+  /**
+   * Save the partial parts of a reply still streaming, next to (not in) the placeholder's parts, so
+   * the boot-time reconcile can keep them after a crash. Must be a no-op once the row has settled.
+   */
+  checkpoint?(parts: CherryMessagePart[]): void
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing

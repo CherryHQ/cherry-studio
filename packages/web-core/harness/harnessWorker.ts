@@ -1,6 +1,8 @@
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
 import { messageService } from '@data/services/MessageService'
+import type { StreamListener } from '@main/ai/streamManager/types'
 
+import { application } from '../src/runtime/application'
 import { type CommandHandler, startCoreWorker, type WorkerScope } from '../src/worker/startCoreWorker'
 
 // Test-only commands next to the core ones: raw SQL, bulk seeding and integrity checks.
@@ -114,4 +116,43 @@ const searchMessages: CommandHandler = ({ q, topicId }: { q: string; topicId?: s
   return messageService.search({ q, topicId, limit: 20 })
 }
 
-startCoreWorker(self as unknown as WorkerScope, { sql, seedMessages, integrity, bootBreakdown, searchMessages })
+interface ChatOptions {
+  topicId: string
+  text: string
+  /** The topic's active tip; omitted for the first message. */
+  parentAnchorId?: string
+}
+
+/** Sends one user message the way the chat composer does and waits until the reply is persisted. */
+const chat: CommandHandler = async ({ topicId, text, parentAnchorId }: ChatOptions, context) => {
+  context.database()
+  const deltas: string[] = []
+  let settle!: (outcome: { status: string; error?: string }) => void
+  const settled = new Promise<{ status: string; error?: string }>((resolve) => (settle = resolve))
+  const listener: StreamListener = {
+    id: `harness-chat-${crypto.randomUUID()}`,
+    onChunk: (chunk) => {
+      if (chunk.type === 'text-delta') deltas.push(chunk.delta)
+    },
+    onDone: () => settle({ status: 'success' }),
+    onPaused: () => settle({ status: 'paused' }),
+    onError: ({ error }) => settle({ status: 'error', error: error.message ?? undefined }),
+    isAlive: () => true
+  }
+  const admission = await application.get('AiStreamManager').dispatch(listener, {
+    topicId,
+    trigger: 'submit-message',
+    parentAnchorId,
+    userMessageParts: [{ type: 'text', text }]
+  })
+  return { admission, ...(await settled), deltas }
+}
+
+startCoreWorker(self as unknown as WorkerScope, {
+  sql,
+  seedMessages,
+  integrity,
+  bootBreakdown,
+  searchMessages,
+  chat
+})
