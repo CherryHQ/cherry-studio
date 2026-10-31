@@ -6,13 +6,13 @@ Status: proposed
 
 ## Problem
 
-现有定时任务可从设置页访问，但缺少一个从全局侧边栏进入、可选择任务并继续关联对话的独立页面。
+规划基线中，定时任务可从设置页访问，但缺少一个从全局侧边栏进入、可选择任务并继续关联对话的独立页面。
 目标流程应与“对话”和“智能体”一致：左侧列任务，右侧显示现有对话。
 右侧必须保留对话和输入框，不改成任务详情或执行日志页面。
 
 当前实现已有共享创建表单、任务命令、派生任务状态，以及执行与会话的关联。
-需要补齐的是页面集成、正确的分组分页，以及可靠的关联会话选择。
-本 Spec 描述待实现方案。页面尚未实现，产品验收标准尚未验证。
+本 Spec 约束页面集成、正确的分组分页，以及可靠的关联会话选择。
+实现分支现已包含该页面。完整产品验收确认前，Spec 保持 proposed；本地 UI 和定向检查不代表所有验收项均已完成。
 
 ## Proposal
 
@@ -53,6 +53,10 @@ Status: proposed
 任务行显示名称、所属智能体和简短计划摘要，选中态沿用现有列表样式。
 执行状态只作辅助信息，不决定任务属于活跃组还是已暂停组。
 
+沿用智能体侧栏的共享背景、间距和列表样式。任务正文与操作按钮共用悬停和选中背景。小字按内容使用可用宽度，保持单行，仅在空间不足时截断；悬停可查看完整值。
+两组分别提供折叠控件，不改变选中的对话。本页任务顶栏替代智能体、模型和工作目录控件，消息发送者信息和输入框保持原样。
+全局入口选中时使用填充日历和反色时钟细节，不直接对原有重叠线框整体填充。
+
 ### 入口与选择
 
 1. 从全局入口进入建议路由 `/app/scheduled-tasks`，保持该入口高亮。
@@ -74,7 +78,7 @@ Status: proposed
 5. 创建后不额外调用立即执行命令。任务继续按现有计划规则运行。
 
 新任务尚未执行时，右侧显示 `等待首次执行`。
-共享弹窗当前中文标题为 `新建定时任务`；将其 i18n 值改为要求的 `建立定时任务`，不复制表单。
+共享弹窗的中文创建标题为 `建立定时任务`；沿用共享表单及其 i18n 值，不复制表单。
 独立入口按钮使用 `添加定时任务`。
 焦点进入表单并保持在弹窗内。非提交期间可用 Esc 或取消关闭，关闭后焦点返回触发按钮。
 提交期间保留共享表单的 `saving` 保护，不允许关闭。
@@ -83,6 +87,7 @@ Status: proposed
 ### 暂停、恢复与分组变化
 
 任务行通过 `useSetTaskEnabled` 提供暂停或恢复，不另设写入 `enabled` 的路径。
+使用三点菜单，依次提供继续或暂停、立即执行、编辑和红色删除。只有主动选择立即执行才启动手动运行。复用 `useRunTask`、共享编辑表单及 `useUpdateTask`，删除通过确认弹窗调用 `useDeleteTask`。删除失败时保留弹窗供重试。删除成功后，仅在被删除任务为选中项时清除路由选择。
 暂停影响后续调度，不终止已开始的执行，沿用 `JobManager.pauseJobScheduleById` 的语义。
 操作处理中禁止重复命令。成功后刷新两组及总数；失败时保留原状态并显示错误。
 任务跨组移动时保持选中及当前对话，不因分类变化而重建输入框。
@@ -107,7 +112,7 @@ Status: proposed
 主进程先按现有派生规则筛选，再计算 `total` 和截取当页。
 不得只过滤当前 50 条、把全部任务传给渲染进程，或拼接逐智能体查询。
 
-待评审默认：`completed / missed` 保留在现有设置入口，不新增第三组。
+已确认：`completed / missed` 保留在现有设置入口，不新增第三组。
 这个去向需要 Spec 评审，不是额外确认过的产品要求。
 已选任务进入结束状态时更新列表，但不强制关闭已经打开的对话。
 
@@ -128,9 +133,8 @@ Status: proposed
 使用现有会话读取接口和类型检查，不绕过已删除、无权访问或 `background` 会话的边界。
 明确选择的历史会话不可用时，显示该选择的错误，不悄悄替换为其他执行。
 
-`useTaskLogs` 当前只向调用方提供前 50 条记录，但其 DataApi 接口已经支持分页。
-扩展所选任务的日志 hook，暴露该分页能力，每页最多 50 条。
-待评审默认：自动查找最多两页，共 100 条，然后提供继续查找更早对话的操作。
+`useTaskLogs` 通过原有 DataApi 接口提供分页，每页最多 50 条。
+已确认的查找预算为自动最多两页，共 100 条；之后通过显式操作查找更早对话。
 每次主动继续最多加载 50 条。历史执行选择器也按需加载分页。
 只有读到记录末尾，才能确认没有关联对话；达到自动查找预算不能得出这个结论。
 
@@ -167,19 +171,19 @@ Status: proposed
 | 现有职责入口或建议位置 | 改动 |
 | --- | --- |
 | `src/renderer/utils/sidebar.ts`、`src/renderer/components/app/sidebarIcons.tsx` | 注册建议 app ID `scheduled_tasks`、标题、图标和路由前缀 |
-| `src/renderer/utils/routeTitle.ts`、`src/renderer/utils/tabIcons.ts` | 注册路由的标签页标题和图标 |
+| `src/renderer/utils/routeTitle.ts`、`src/renderer/components/layout/tabIcons.ts` | 注册路由的标签页标题和图标 |
 | `src/shared/data/preference/preferenceTypes.ts`、`scripts/data-classify/data/target-key-definitions.json` | 通过现有生成流程扩展 app ID 和 `ui.sidebar_shortcut` 默认值 |
-| `src/main/data/db/seeding/seeders/sidebarShortcutMigrationSeeder.ts` | 参考现有升级机制，一次性幂等补齐入口 |
+| `src/main/data/db/seeding/seeders/scheduledTasksShortcutSeeder.ts` | 通过现有带版本记录的 seeding 机制一次性补齐入口 |
 | `src/renderer/routes/app/agents.tsx`、建议新增 `src/renderer/routes/app/scheduled-tasks.tsx` | 使用独立的选择与导航适配，组合相同的智能体对话页面 |
-| `src/renderer/pages/agents/AgentPage.tsx`、建议新增 `src/renderer/pages/agents/components/ScheduledTaskSidebar.tsx` | 隔离硬编码路由访问，增加任务导航模式或左栏 slot |
+| `src/renderer/pages/agents/ScheduledTasksPage.tsx`、`src/renderer/pages/agents/AgentChat.tsx`、`src/renderer/pages/agents/components/ScheduledTaskSidebar.tsx` | 组合任务页内选择、共享对话渲染和任务侧栏 |
 | `src/renderer/hooks/agent/useTasks.ts` | 增加按状态分页和日志分页，保留命令及失效刷新 |
 | `src/shared/data/api/schemas/agents.ts`、`src/main/data/api/handlers/agents.ts`、`src/main/data/services/AgentTaskService.ts` | 定义、校验并传递可选状态筛选，在分页前执行 |
 
 `AgentPage` 当前直接读取 `/app/agents` 的 route API，仅替换左栏还不够。
 让两个路由复用其对话组合层，`AgentChat` 与运行时组件仍留在 agents 内。
 不从兄弟页面 `pages/scheduledTasks` 导入 `pages/agents/AgentChat`，也不为此功能搬迁整个对话模块。
-`useConversationNavigationOwner` 当前通过 `findConversationTab` 查找普通智能体标签页；现有跳转行为不能直接驱动任务页内选择。
-扩展所有权识别时，只接受已校验的任务与会话关联，绝不接受任意 URL `sessionId`，并覆盖两个视图及多个窗口。
+`useConversationNavigationOwner` 通过 `findConversationTab` 识别普通智能体标签页，以及具有已校验内存任务与会话绑定的任务标签页。
+只有该有效绑定可证明任务标签页的会话归属，绝不接受任意 URL `sessionId`；验证必须覆盖两个视图及多个窗口。
 
 新安装通过 `core.app` 快捷方式提供方，把默认入口放在对话和智能体附近。
 升级时只向 `ui.sidebar_shortcut` 补入一次，保留固定项及其相对顺序。
@@ -199,7 +203,7 @@ Status: proposed
 ### 数据流与性能预算
 
 读取继续走 DataApi：`/agent-tasks`、`/agent-tasks/:taskId` 和 `/agents/:agentId/tasks/:taskId/logs`。
-创建、暂停、恢复继续走 IpcApi `ai.agent.task.create / pause / resume`。
+创建、暂停、恢复、手动执行、编辑和删除继续走现有 IpcApi `ai.agent.task.*` 命令。
 复用命令成功后的失效刷新及任务数据变化事件，更新两组、总数和所选任务。
 
 - 各组每页最多返回 50 个任务，只读取所选任务的会话与日志。
@@ -209,7 +213,7 @@ Status: proposed
 - 复用批量展示数据及运行摘要，不增加逐行日志请求或逐智能体 N+1 查询。
 
 `queryTasks` 当前先读取候选任务，在主进程筛选、排序后切片，不是 SQL 层分页。
-`getTaskLogs` 也先调用 `jobService.list({ scheduleId })` 再切片。限制返回量不等于限制底层扫描。
+`getTaskLogs` 现向 `jobService.list` 传递 `limit` 和 `offset`，另行计数取得总数。这限制了加载的日志行数，但不代表计数或任务状态扫描的成本有界。
 使用大量任务及长执行历史，与现有列表比较主进程耗时、请求数和渲染项数量。
 若重复分组扫描造成明显卡顿，在所属服务内处理，不改为向渲染进程传全部任务，也不重做调度器。
 
@@ -244,6 +248,8 @@ Status: proposed
 - AC9 — 现有智能体页、设置页、外部链接及已落地的任务面板保持可用；离开任务页不停止调度或正在执行的任务。 (verification: renderer + Electron; owner: feature implementer)
 - AC10 — 浅色、深色、键盘和小窗口操作正常；分组与日志请求遵守预算，不增加轮询或逐行 N+1 工作，并测量大数据量下的扫描成本。 (verification: renderer + Electron + performance measurement; owner: feature implementer)
 
+- AC11 — 两组独立折叠且保留对话选择；任务顶栏仅在本页替代智能体控件。行菜单提供继续/暂停、立即执行、编辑和红色删除；打开菜单不执行命令，编辑保留原值，删除需确认且失败后可重试。 (verification: renderer + Electron; owner: feature implementer)
+
 实现验证覆盖 `AgentTaskService`、agents handler、入口 seeder、表单、路由适配、关联解析竞态及受影响的现有调用方。
 数据库测试使用 `setupTestDatabase()`。按明确文件路径运行定向测试，并验证超过 50 条任务及历史、两个视图和多个窗口的桌面行为。
 本次文档改动只运行文档检查，不声称上述任何产品验收项已经通过。
@@ -251,6 +257,6 @@ Status: proposed
 ## Risks
 
 - 路由耦合：`AgentPage` 和导航所有权假定使用智能体路由。不完整的适配可能造成选择跳转或重复消息流；保持抽取范围小，并验证两个视图和多个窗口。
-- 扫描成本：两个筛选组可能重复现有任务扫描，每页日志也可能重读长历史。测量实际成本，不能把返回分页描述成底层数据库工作有界。
-- 结束状态去向：`completed / missed` 暂留设置页是待评审默认。评审若修改该选择，同步更新本 Spec 与分页契约，不悄悄增加分组或关闭已打开的对话。
+- 扫描成本：两个筛选组可能重复现有任务扫描，日志总数也需要计数。测量实际成本，不能把限制日志加载行数描述成数据库工作为固定成本。
+- 结束状态去向：已确认将 `completed / missed` 留在设置页。若后续修改该选择，同步更新本 Spec 与分页契约，不悄悄增加分组或关闭已打开的对话。
 - 定时执行与用户输入可能复用同一会话。保留现有并发、忙碌状态和审批规则；新页面不能绕过这些规则，也不能让暂停看起来会取消正在执行的工作。
