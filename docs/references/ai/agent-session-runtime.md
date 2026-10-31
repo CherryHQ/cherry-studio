@@ -673,7 +673,10 @@ Allowed in v1:
   ambiguous, so startup closes all bridge clients and fails materialization.
   The approval extension still distinguishes Cherry-owned
   safe tools, Cherry tools that always require approval, and third-party MCP
-  tools; `disabledTools` hard-blocks every class.
+  tools; `disabledTools` hard-blocks every class. Pi admits at most 20 approved
+  tool calls per prompt; reaching the limit aborts the run and emits a terminal
+  error. Its available-tool catalog also includes Cherry's `session_send`
+  delegation tool.
 - New pi agents start in `acceptEdits`: reads and writes inside the selected
   workspace and current agent data directory do not prompt repeatedly. Shell,
   third-party MCP, Cherry approval-required mutations, external paths, and

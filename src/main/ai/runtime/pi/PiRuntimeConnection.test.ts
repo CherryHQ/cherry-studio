@@ -1106,6 +1106,27 @@ describe('PiRuntimeConnection', () => {
     })
   })
 
+  it('resets the Pi tool-call count for each new prompt', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const authorize = approvalGateHandler()
+
+    conn.send(userInput('first turn'))
+    for (let index = 0; index < 10; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `first-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+
+    conn.send(userInput('second turn'))
+    for (let index = 0; index < 11; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `second-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+  })
+
   it('captures a successful provider invocation without relying on turn_end (including compaction)', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     expect(conn.usageCapture).toMatchObject({ owner: 'agent-sdk', providerId: 'p' })

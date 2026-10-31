@@ -74,7 +74,7 @@ describe('PiRuntimeDriver.listAvailableTools', () => {
 
     const tools = await new PiRuntimeDriver().listAvailableTools(['gone'])
 
-    expect(tools.every((tool) => tool.origin === 'builtin')).toBe(true)
+    expect(tools.every((tool) => tool.origin !== 'mcp')).toBe(true)
     expect(mocks.listTools).not.toHaveBeenCalled()
   })
 })
