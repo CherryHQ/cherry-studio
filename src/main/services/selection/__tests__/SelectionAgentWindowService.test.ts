@@ -388,5 +388,24 @@ describe('SelectionAgentWindowService', () => {
       expect(stack(1)?.map((capsule) => capsule.windowId)).toEqual(['w1'])
       expect(stack(2)).toEqual([])
     })
+
+    it('gives a capsule back to its display when that display returns, restorable from there', async () => {
+      await svc._doInit()
+      openStarted('w1', { ...RUNNING, status: 'done' }, 2)
+      svc.collapse('w1')
+      const listener = (event: string) =>
+        vi.mocked(screen.on).mock.calls.find(([name]) => name === event)?.[1] as (() => void) | undefined
+
+      displays = [DISPLAYS[0]]
+      listener('display-removed')?.()
+      displays = DISPLAYS
+      listener('display-added')?.()
+
+      expect(stack(1)).toEqual([])
+      expect(stack(2)?.map((capsule) => capsule.windowId)).toEqual(['w1'])
+      // host-1 left with the display, and host-2 held the capsule on the primary one meanwhile.
+      svc.restore('host-3', 'w1')
+      expect(windows.w1.visible).toBe(true)
+    })
   })
 })
