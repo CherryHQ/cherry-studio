@@ -14,14 +14,34 @@ const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/path.${op}: not implemented (deferred to Phase 2)`)
 }
 
+/** Strip Win32 extended-length prefixes so containment checks compare like paths. */
+export function stripExtendedPathPrefix(value: string): string {
+  if (isWin && value.startsWith('\\\\?\\')) {
+    return value.slice(4)
+  }
+  return value
+}
+
+/** Normalize a realpath result for containment comparisons and stable lock keys. */
+export function normalizeRealpathResult(value: string): string {
+  return path.resolve(stripExtendedPathPrefix(value))
+}
+
 /** Resolve a relative path against a base directory. */
 export function resolvePath(_base: string, _relative: string): string {
   return notImplemented('resolvePath')
 }
 
-function normalizePathForComparison(value: string): string {
+/** Returns a platform-folded comparison key, not a path to use for filesystem I/O. */
+export function normalizePathForComparison(value: string): string {
   const resolved = path.resolve(value)
-  return isMac || isWin ? resolved.toLowerCase() : resolved
+  if (isMac) {
+    return resolved.normalize('NFC').toLowerCase()
+  }
+  if (isWin) {
+    return resolved.toLowerCase()
+  }
+  return resolved
 }
 
 /**
@@ -97,12 +117,24 @@ export async function canonicalizePathForContainment(
   { allowMissing }: { allowMissing: boolean }
 ): Promise<string | undefined> {
   try {
-    return await realpath(target)
+    return normalizeRealpathResult(await realpath(target))
   } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    if (!allowMissing) return undefined
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
     try {
       await lstat(target)
-      return undefined
+      // realpath reported ENOENT yet lstat sees the entry: either a dangling
+      // link (lstat reads the link itself; resolving it still yields ENOENT)
+      // or the entry appeared between the two calls (a concurrent create).
+      // One retry separates the two: a dangling link keeps failing with
+      // ENOENT and is still refused, while an appeared entry now
+      // canonicalizes and faces the same containment comparison as any
+      // other path, so no admission is weakened.
+      try {
+        return normalizeRealpathResult(await realpath(target))
+      } catch {
+        return undefined
+      }
     } catch (statError) {
       if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
     }
@@ -111,12 +143,17 @@ export async function canonicalizePathForContainment(
   let parent = path.dirname(target)
   while (true) {
     try {
-      return path.resolve(await realpath(parent), path.relative(parent, target))
+      return normalizeRealpathResult(path.resolve(await realpath(parent), path.relative(parent, target)))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
       try {
         await lstat(parent)
-        return undefined
+        // Same appeared-vs-dangling distinction for a parent directory.
+        try {
+          return normalizeRealpathResult(path.resolve(await realpath(parent), path.relative(parent, target)))
+        } catch {
+          return undefined
+        }
       } catch (statError) {
         if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
       }
