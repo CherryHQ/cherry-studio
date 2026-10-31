@@ -52,6 +52,7 @@ import {
   BACKGROUND_TASK_EVIDENCE_EXT,
   BACKGROUND_TASK_RECORD_EXT,
   BACKGROUND_TASK_SENTINEL_EXT,
+  hasLiveGroupEvidence,
   hasLiveTaskEvidence,
   MAX_BACKGROUND_TASK_COMMAND_LENGTH,
   type BackgroundTaskRecord,
@@ -1303,6 +1304,63 @@ describe('backgroundTasks', () => {
       40_000
     )
 
+    // A pulse that verifies a new group member rewrites the ledger from the members it watched.
+    // An escaped worker an earlier observation recorded is not in that set, and replacing the file
+    // with the pulse's map dropped the only identity a stop could sweep it by while it kept running.
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps an observed member the next membership pulse does not see',
+      async () => {
+        const pidFile = path.join(storageDir, 'pulse-ledger.pid')
+        // The launcher waits for the test to seed the ledger, then starts a worker that stays in
+        // the group long enough for a pulse to verify it and trigger the rewrite.
+        const command = `python3 -c "import subprocess,sys,time; time.sleep(0.8); p=subprocess.Popen(['python3','-c','import os,time;time.sleep(1);os.setsid();time.sleep(60)'], close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={}); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"`
+        const record = await startDetachedBackgroundTask({ storageDir, command, cwd: storageDir })
+        // A live worker an earlier marker read established, in no group this app watches.
+        const observed = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], { stdio: 'ignore' })
+        observed.unref()
+        let workerPid = 0
+        try {
+          await vi.waitFor(() => expect(isPidAlive(observed.pid!)).toBe(true), { timeout: 10_000 })
+          const lstart = execFileSync('ps', ['-p', String(observed.pid), '-o', 'lstart='], {
+            encoding: 'utf8',
+            env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' }
+          })
+            .trim()
+            .replace(/\s+/g, ' ')
+          await new Promise((resolve) => setTimeout(resolve, 200))
+          await writeFile(
+            path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`),
+            JSON.stringify({
+              members: [{ pid: observed.pid, lstart }]
+            })
+          )
+
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(isPidAlive(workerPid)).toBe(true)
+            },
+            { timeout: 10_000 }
+          )
+          // Long enough for the pulse that verifies the in-group worker, and the one behind its exit.
+          await new Promise((resolve) => setTimeout(resolve, 1_500))
+
+          const ledger = JSON.parse(
+            await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+          ) as { members: Array<{ pid: number }> }
+          expect(ledger.members.map((member) => member.pid)).toContain(observed.pid)
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          observed.kill('SIGKILL')
+        }
+      },
+      40_000
+    )
+
     // A worker can detach before any scan: the command starts it and exits immediately, so no pulse
     // ever sees the parent tie and no identity reaches the ledger. Its row is all that is left, and
     // `ps` prints no environment for it — an absent marker there is not an exit.
@@ -1455,6 +1513,50 @@ describe('backgroundTasks', () => {
 
     afterEach(() => {
       psSteer.read = null
+    })
+
+    // A launcher spawning with `env={}` leaves a row whose environment the table still prints —
+    // the platform adds entries — but without the task marker. Reading that as "not this task's"
+    // skipped the command/cwd tie and let completion land while the worker ran in the workspace.
+    it.skipIf(process.platform === 'win32')('keeps a markerless orphan whose command ties it to the task', async () => {
+      const bystander = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], {
+        stdio: 'ignore',
+        cwd: storageDir
+      })
+      bystander.unref()
+      const dead = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' })
+      await new Promise((resolve) => dead.once('exit', resolve))
+      try {
+        await vi.waitFor(() => expect(isPidAlive(bystander.pid!)).toBe(true), { timeout: 10_000 })
+        const pid = bystander.pid!
+        const id = 'bt-markerless-visible-environment'
+        const argv = `${process.execPath} -e setInterval --cherry-bg-tie`
+        psSteer.read = (args) => {
+          if (args[0] === '-axwwo' && args[1] === 'pid=,ppid=,uid=,state=,etime=') {
+            return `${pid} 1 ${process.getuid?.()} S 00:00\n`
+          }
+          // The environment is visible, and the marker is not in it.
+          if (args[0] === 'eww' && args[1] === '-o' && args[2] === 'pid=,command=') return `${pid} ${argv} PLATFORM=1\n`
+          if (args[0] === 'ww' && args[1] === '-o') return `${argv}\n`
+          return null
+        }
+        const record: BackgroundTaskRecord = {
+          id,
+          name: id,
+          command: '--cherry-bg-tie',
+          pid: dead.pid!,
+          cwd: storageDir,
+          startedAt: new Date().toISOString(),
+          logFile: path.join(storageDir, `${id}.log`),
+          status: 'running',
+          exitCode: null,
+          signal: null
+        }
+
+        await expect(hasLiveGroupEvidence(storageDir, record)).resolves.toBe(true)
+      } finally {
+        bystander.kill('SIGKILL')
+      }
     })
 
     // The initial `ps -p` lookup that stamps the spawned leader is a one-shot call with a

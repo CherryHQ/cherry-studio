@@ -38,6 +38,7 @@ const execFileAsync = promisify(execFile)
  */
 const ownedTaskGroups = new Map<string, OwnedGroup>()
 const recordLocks = new Map<string, Promise<void>>()
+const ledgerLocks = new Map<string, Promise<void>>()
 
 interface OwnedGroup {
   pgid: number
@@ -73,7 +74,8 @@ function trackVerifiedMembers(taskId: string, storageDir?: string): void {
   // A member verified while it is still in the group is written down at that moment: it may leave
   // the group before the next pulse, and then only its recorded identity says it is live work.
   if ((adopted || verified || adoptedDescendant) && storageDir && process.platform !== 'win32') {
-    owned.persisting = persistMemberIdentities(storageDir, taskId, liveMemberIdentities(owned, table))
+    const liveByPid = new Map(table.filter((row) => !row.zombie).map((row) => [row.pid, row.lstart]))
+    owned.persisting = persistMemberIdentities(storageDir, taskId, liveMemberIdentities(owned, table), liveByPid)
   }
 }
 
@@ -211,16 +213,42 @@ async function readRecordedMembers(storageDir: string, taskId: string): Promise<
   }
 }
 
-async function persistMemberIdentities(storageDir: string, taskId: string, members: RecordedMember[]): Promise<void> {
-  const target = memberIdentitiesPath(storageDir, taskId)
-  const staging = `${target}.${process.pid}.tmp`
-  try {
-    await writeFile(staging, JSON.stringify({ members }), { mode: 0o600 })
-    await rename(staging, target)
-  } catch (error) {
-    await rm(staging, { force: true })
-    logger.warn('Failed to persist detached background task member identities', { taskId, error })
-  }
+async function persistMemberIdentities(
+  storageDir: string,
+  taskId: string,
+  members: RecordedMember[],
+  live?: Map<number, string> | null
+): Promise<void> {
+  await withLedgerLock(taskId, async () => {
+    const target = memberIdentitiesPath(storageDir, taskId)
+    const staging = `${target}.${process.pid}.tmp`
+    try {
+      // A pulse only knows the group it watched. Identities an earlier observation established —
+      // a worker past setsid() it saw through its parent — stay in the ledger until the process
+      // exits or the number is shown carrying another start stamp.
+      const recorded = await readRecordedMembers(storageDir, taskId)
+      const table = live === undefined ? readProcessTable() : null
+      const byPid =
+        live !== undefined
+          ? live
+          : table === null
+            ? null
+            : new Map(table.filter((row) => !row.zombie).map((row) => [row.pid, row.lstart]))
+      const merged = new Map<number, string>()
+      for (const member of recorded) {
+        if (byPid !== null && byPid.get(member.pid) !== member.lstart) continue
+        merged.set(member.pid, member.lstart)
+      }
+      for (const member of members) merged.set(member.pid, member.lstart)
+      await writeFile(staging, JSON.stringify({ members: [...merged].map(([pid, lstart]) => ({ pid, lstart })) }), {
+        mode: 0o600
+      })
+      await rename(staging, target)
+    } catch (error) {
+      await rm(staging, { force: true })
+      logger.warn('Failed to persist detached background task member identities', { taskId, error })
+    }
+  })
 }
 
 /** Records holders a marker read named, so a later read that cannot show their environment still sees them. */
@@ -404,6 +432,24 @@ async function withRecordLock<T>(taskId: string, operation: () => Promise<T>): P
   } finally {
     release()
     if (recordLocks.get(taskId) === current) recordLocks.delete(taskId)
+  }
+}
+
+/** Serializes the identity ledger's read-merge-write, so a pulse and an observation cannot drop
+ * each other's members. Kept apart from the record lock: a stop holds that one across its sweep. */
+async function withLedgerLock<T>(taskId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = ledgerLocks.get(taskId)
+  let release!: () => void
+  const current = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  ledgerLocks.set(taskId, current)
+  if (previous) await previous
+  try {
+    return await operation()
+  } finally {
+    release()
+    if (ledgerLocks.get(taskId) === current) ledgerLocks.delete(taskId)
   }
 }
 
@@ -1371,8 +1417,9 @@ function hasUnreadableEnvironmentCandidate(readTable: CandidateTableReader, cont
     const withEnvironment = commandAndEnvironment(pid)
     const argv = commandLine(pid)
     if (withEnvironment === null || argv === null) return true
-    // The environment section starts after the argv; nothing after it means none was printed.
-    if (withEnvironment !== argv) continue
+    // A visible environment without the marker is not proof the row is someone else's: a launcher
+    // spawning with `env={}` still leaves entries the platform adds, and the marker was never
+    // passed on. Command and cwd only keep the record open; they never authorize a signal.
     const commandLineText = argv.replace(/\s+/g, ' ')
     if (command && commandLineText.includes(command)) return true
     const cwd = processWorkingDirectory(pid)
