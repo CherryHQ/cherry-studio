@@ -135,4 +135,25 @@ describe('buildModelListSyncPreview', () => {
     expect(preview.missing.map((item) => item.model.id)).toEqual(['openai::gpt-4o'])
     expect(preview.missing.map((item) => item.removalReason)).toEqual(['missing_from_provider'])
   })
+
+  it('passes the provider preset identity to the model list fetch', async () => {
+    const duplicateId = '6f1c2a9e-3b7d-4c58-9a10-2d4e8b5f7c31'
+    vi.mocked(dataApiService.get).mockResolvedValue([])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue({ models: [] })
+
+    await buildModelListSyncPreview({ providerId: duplicateId, presetProviderId: 'dothoosh' })
+
+    expect(fetchResolvedProviderModels).toHaveBeenCalledWith(duplicateId, 'dothoosh')
+  })
+
+  it('leaves the preset undefined when none is supplied', async () => {
+    vi.mocked(dataApiService.get).mockResolvedValue([])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue({ models: [] })
+
+    await buildModelListSyncPreview({ providerId: 'openai' })
+
+    const call = vi.mocked(fetchResolvedProviderModels).mock.calls[0]
+    expect(call[0]).toBe('openai')
+    expect(call[1]).toBeUndefined()
+  })
 })

@@ -19,6 +19,13 @@ import {
 } from '@ai-sdk/provider-utils'
 import * as z from 'zod'
 
+import {
+  countListedModels,
+  DOTHOOSH_API_URL,
+  DOTHOOSH_MIRROR_URL,
+  parseDotHooshListings,
+  readAnthropicListing
+} from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -1029,6 +1036,114 @@ const openAICompatibleFetcher: ModelFetcher = {
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
 }
 
+// With a key (or a custom host) the lists come from the user's host; without one, from the keyless public
+// mirror, as the Iran-hosted API is unreachable abroad. The mirror gets no headers; the key is Bearer only.
+const DotHooshListingSchema = z.looseObject({ data: z.array(z.unknown()) })
+
+const dothooshRowCount = (raw: unknown): number => {
+  const rows = (raw as { data?: unknown } | undefined)?.data
+  return Array.isArray(rows) ? rows.length : 0
+}
+
+/** An empty route is valid on the user's own host (keyed or custom; a model allow-list) but an outage on the public mirror. */
+function assertUsableDotHooshListings(
+  listings: ReadonlyArray<{ route: 'openai' | 'anthropic'; raw: unknown; publicMirror: boolean }>
+): void {
+  const counts = listings.map(({ route, raw, publicMirror }) => ({
+    route,
+    publicMirror,
+    rows: dothooshRowCount(raw),
+    usable: countListedModels(raw)
+  }))
+  for (const { route, publicMirror, rows, usable } of counts) {
+    if (rows > 0 && usable === 0) throw new Error(`DotHoosh ${route} listing has ${rows} rows but none usable`)
+    if (publicMirror && usable === 0) throw new Error(`DotHoosh public ${route} listing is empty`)
+  }
+  if (counts.every(({ usable }) => usable === 0)) throw new Error('DotHoosh listing has no models on any route')
+}
+
+/** The default Anthropic-messages base of the DotHoosh preset (`packages/provider-registry/src/providers/dothoosh.ts`). */
+const DOTHOOSH_ANTHROPIC_API_URL = `${DOTHOOSH_API_URL}/anthropic`
+
+const DOTHOOSH_MIRROR_HOSTNAME = new URL(DOTHOOSH_MIRROR_URL).hostname
+// The apex host only redirects to the mirror, so it counts as the mirror too.
+const DOTHOOSH_MIRROR_HOSTS = new Set([DOTHOOSH_MIRROR_HOSTNAME, DOTHOOSH_MIRROR_HOSTNAME.replace(/^www\./, '')])
+
+/** The public mirror (and its apex, which redirects to it) is a static, header-free listing, however the base URL led there. */
+const isDotHooshMirrorUrl = (url: string): boolean => {
+  try {
+    return DOTHOOSH_MIRROR_HOSTS.has(new URL(url).hostname.replace(/\.$/, ''))
+  } catch {
+    return false
+  }
+}
+
+const dothooshFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, 'dothoosh'),
+  fetch: async (provider, signal, options) => {
+    const apiKey = providerService.getRotatedApiKey(provider.id)
+    const base = (endpoint: EndpointType) => withoutTrailingSlash(getBaseUrl(provider, endpoint))
+    const chatBase = base(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    const anthropicBase = base(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    // Each route picks the public mirror or its own host independently: a keyless user may
+    // keep the default OpenAI host while pointing Anthropic at a custom host, or the reverse.
+    const openaiMirror = !apiKey && (!chatBase || chatBase === DOTHOOSH_API_URL)
+    const anthropicMirror = !apiKey && (!anthropicBase || anthropicBase === DOTHOOSH_ANTHROPIC_API_URL)
+    const openaiUrl = openaiMirror ? `${DOTHOOSH_MIRROR_URL}/v1/models` : `${formatApiHost(chatBase)}/models`
+    const anthropicUrl = anthropicMirror
+      ? `${DOTHOOSH_MIRROR_URL}/anthropic/v1/models`
+      : `${formatApiHost(anthropicBase)}/models`
+    const hostHeaders = mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
+    // The public mirror never receives provider headers; a route on the user's own host keeps them.
+    const openaiHeaders = isDotHooshMirrorUrl(openaiUrl) ? {} : hostHeaders
+    const anthropicHeaders = isDotHooshMirrorUrl(anthropicUrl) ? {} : hostHeaders
+    const openaiPublic = !apiKey && isDotHooshMirrorUrl(openaiUrl)
+    const anthropicPublic = !apiKey && isDotHooshMirrorUrl(anthropicUrl)
+    const [openai, anthropic] = await Promise.all([
+      getFromApi({
+        url: openaiUrl,
+        headers: apiKey ? mergeHeaders(openaiHeaders, { Authorization: `Bearer ${apiKey}` }) : openaiHeaders,
+        responseSchema: DotHooshListingSchema,
+        abortSignal: signal
+      }),
+      readAnthropicListing((afterId) =>
+        getFromApi({
+          url: afterId ? `${anthropicUrl}?after_id=${encodeURIComponent(afterId)}` : anthropicUrl,
+          headers: apiKey ? mergeHeaders(anthropicHeaders, { 'X-Api-Key': apiKey }) : anthropicHeaders,
+          responseSchema: DotHooshListingSchema,
+          abortSignal: signal
+        })
+      ).catch((error): undefined => {
+        // A failed Anthropic listing leaves its models out; it never lists half of them.
+        handleOptionalModelListFailure<unknown>(error, options, {
+          providerId: provider.id,
+          endpoint: 'dothoosh-anthropic-models'
+        })
+        return undefined
+      })
+    ])
+    assertUsableDotHooshListings([
+      { route: 'openai', raw: openai, publicMirror: openaiPublic },
+      ...(anthropic ? [{ route: 'anthropic' as const, raw: anthropic, publicMirror: anthropicPublic }] : [])
+    ])
+    return listing(
+      parseDotHooshListings({ openai, anthropic }).map((model) =>
+        toModel(model.id, provider, {
+          name: model.name,
+          ownedBy: 'dothoosh',
+          endpointTypes: model.endpointTypes,
+          capabilities: model.capabilities.add,
+          inputModalities: model.inputModalities,
+          outputModalities: model.outputModalities,
+          ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+          ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
+          ...(model.pricing ? { pricing: model.pricing } : {})
+        })
+      )
+    )
+  }
+}
+
 const omlxFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.omlx),
   fetch: async (provider, signal) => {
@@ -1206,6 +1321,7 @@ const fetchers: ModelFetcher[] = [
   togetherFetcher,
   newApiFetcher,
   tokenDanceFetcher,
+  dothooshFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
