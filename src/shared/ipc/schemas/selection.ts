@@ -40,6 +40,8 @@ export const selectionRequestSchemas = {
   }),
   'selection.pin_action_window': defineRoute({ input: z.boolean(), output: z.void() }),
   'selection.resize_agent_window': defineRoute({ input: SelectionAgentWindowLayoutSchema, output: z.void() }),
+  // An empty compose bar or a settled, unpinned window with no draft: the next selection trigger closes it.
+  'selection.set_agent_window_replaceable': defineRoute({ input: z.boolean(), output: z.void() }),
   'selection.get_linux_env_info': defineRoute({ input: z.void(), output: linuxEnvInfoSchema })
 }
 

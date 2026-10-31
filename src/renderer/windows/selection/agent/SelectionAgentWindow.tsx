@@ -6,10 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import {
-  createComposerUserMessageParts,
-  trimComposerDraftBoundaryBlankLines
-} from '@renderer/components/composer/composerDraft'
+import { trimComposerDraftBoundaryBlankLines } from '@renderer/components/composer/composerDraft'
 import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
@@ -22,7 +19,7 @@ import { cn } from '@renderer/utils/style'
 import { type AgentSelectionAction, isAgentSelectionAction, type SelectionActionSession } from '@shared/types/selection'
 
 import { SelectionAgentComposeBar } from './components/SelectionAgentComposeBar'
-import { SelectionAgentConversation, type SelectionAgentFirstMessage } from './components/SelectionAgentConversation'
+import { SelectionAgentConversation } from './components/SelectionAgentConversation'
 import { SelectionAgentHeader } from './components/SelectionAgentHeader'
 import {
   createSelectionAgentSession,
@@ -30,6 +27,7 @@ import {
   isSelectionWorkspaceUnavailableError,
   type SelectionAgentTarget
 } from './selectionAgentSession'
+import { useSelectionAgentWindowRules } from './useSelectionAgentWindowRules'
 
 const logger = loggerService.withContext('SelectionAgentWindow')
 
@@ -40,7 +38,7 @@ type Stage =
   | { kind: 'compose'; sending: boolean; error: string | null }
   | { kind: 'starting' }
   | { kind: 'failed'; message: string }
-  | { kind: 'conversation'; sessionId: string; firstMessage: SelectionAgentFirstMessage }
+  | { kind: 'conversation'; sessionId: string; firstMessage: ComposerSerializedDraft }
 
 /** Pulls each open's payload; a fresh `sessionId` remounts the content so no state leaks between opens. */
 const SelectionAgentWindow: FC = () => {
@@ -64,6 +62,7 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
   const [stage, setStage] = useState<Stage>(() =>
     action.isBuiltIn ? { kind: 'compose', sending: false, error: null } : { kind: 'starting' }
   )
+  const [composeText, setComposeText] = useState('')
   const shellRef = useRef<HTMLDivElement>(null)
   const selectedText = action.selectedText ?? ''
   const actionName = action.isBuiltIn ? t(action.name) : action.name
@@ -87,7 +86,7 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
 
   /** Resolves to a user-facing message when the session could not be created. */
   const start = useCallback(
-    async (target: SelectionAgentTarget, firstMessage: SelectionAgentFirstMessage): Promise<string | null> => {
+    async (target: SelectionAgentTarget, firstMessage: ComposerSerializedDraft): Promise<string | null> => {
       try {
         const sessionId = await createSelectionAgentSession(target)
         setStage({ kind: 'conversation', sessionId, firstMessage })
@@ -107,9 +106,8 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
   const startCustomAction = () => {
     if (action.isBuiltIn) return
     setStage({ kind: 'starting' })
-    const source = action.programName ? t('selection.agent.source', { app: action.programName }) : ''
-    const text = [expandSelectionPrompt(action.prompt, selectedText), source].filter(Boolean).join('\n\n')
-    void start(target, { text }).then((message) => message && setStage({ kind: 'failed', message }))
+    const text = expandSelectionPrompt(action.prompt, selectedText)
+    void start(target, { text, tokens: [] }).then((message) => message && setStage({ kind: 'failed', message }))
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(startCustomAction, [])
@@ -119,13 +117,20 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
       const normalized = trimComposerDraftBoundaryBlankLines(draft)
       if (!normalized.text.trim()) return
       setStage({ kind: 'compose', sending: true, error: null })
-      const message = await start(target, {
-        text: normalized.text,
-        userMessageParts: createComposerUserMessageParts(normalized)
-      })
+      const message = await start(target, normalized)
       if (message) setStage({ kind: 'compose', sending: false, error: message })
     },
     [start, target]
+  )
+
+  // The conversation applies its own rules, since only it knows the turn and the composer draft.
+  useSelectionAgentWindowRules(
+    stage.kind === 'conversation'
+      ? null
+      : {
+          idle: stage.kind === 'failed' || (stage.kind === 'compose' && !stage.sending && !composeText.trim()),
+          pinned: isPinned
+        }
   )
 
   const isCompose = stage.kind === 'compose'
@@ -163,6 +168,8 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
           selectedText={selectedText}
           programName={action.programName}
           target={target}
+          text={composeText}
+          onTextChange={setComposeText}
           sending={stage.sending}
           error={stage.error}
           onSend={(draft) => void handleComposeSend(draft)}

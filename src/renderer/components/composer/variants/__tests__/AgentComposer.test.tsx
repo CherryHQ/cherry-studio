@@ -10,7 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
@@ -984,6 +986,22 @@ describe('AgentComposer', () => {
       deliveryId: 'agent-capture',
       accepted: true
     })
+  })
+
+  it('keeps the composer aligned with a message column a compact window narrows', () => {
+    render(
+      <ChatSidePaddingProvider sidePaddingPx={12}>
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      </ChatSidePaddingProvider>
+    )
+
+    expect(mocks.surfaceProps?.sidePaddingPx).toBe(12)
   })
 
   it('uses the page-resolved model', () => {
@@ -2478,6 +2496,91 @@ describe('AgentComposer', () => {
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('long in-progress agent draft'))
     expect(drafts.get(draftCacheKey)).toMatchObject({ text: 'long in-progress agent draft' })
+  })
+
+  describe('draft handed over from another window', () => {
+    const draftCacheKey = 'agent.composer_draft.session_session-1'
+    const quote = {
+      id: 'quote:1',
+      kind: 'quote' as const,
+      label: 'Quote',
+      promptText: '<blockquote>x</blockquote>',
+      index: 0,
+      textOffset: 0
+    }
+    const handedOver = {
+      text: '<blockquote>x</blockquote>\nAnd the tests?',
+      tokens: [quote],
+      files: [
+        {
+          fileTokenSourceId: 'pasted-1',
+          bytes: new Uint8Array([1, 2, 3]),
+          mimeType: 'image/png',
+          name: 'shot.png',
+          origin_name: 'shot.png',
+          ext: '.png',
+          size: 3,
+          type: 'image' as const
+        }
+      ],
+      knowledgeBaseIds: []
+    }
+    let drafts: Map<string, unknown>
+
+    beforeEach(() => {
+      drafts = new Map<string, unknown>([
+        [
+          draftCacheKey,
+          {
+            text: 'Already here',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            workspaceKey: 'workspace-1\0/workspace',
+            agentId: 'agent-1'
+          }
+        ]
+      ])
+      vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+      vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+        drafts.set(key, value)
+      })
+      mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    })
+
+    const renderComposer = () =>
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+
+    it('appends it after the draft already in an open composer', async () => {
+      renderComposer()
+
+      act(() => handOffAgentDraft('session-1', handedOver))
+
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe(`Already here\n${handedOver.text}`))
+      expect(mocks.surfaceProps?.draftTokens).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'quote:1', textOffset: 'Already here\n'.length })])
+      )
+      expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: 'file:pasted-1' })])
+      const saved = drafts.get(draftCacheKey) as { text: string; files: { blob?: Blob }[] }
+      expect(saved.text).toBe(`Already here\n${handedOver.text}`)
+      expect(saved.files[0].blob).toMatchObject({ size: 3, type: 'image/png' })
+    })
+
+    it('takes one that arrived before the composer mounted', async () => {
+      handOffAgentDraft('session-1', handedOver)
+
+      renderComposer()
+
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe(`Already here\n${handedOver.text}`))
+    })
   })
 
   it('cancels the delayed post-send clear when recalling input history', async () => {

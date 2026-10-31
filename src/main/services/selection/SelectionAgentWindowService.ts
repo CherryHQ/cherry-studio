@@ -30,14 +30,16 @@ export interface SelectionAgentWindowPlacement {
 }
 
 /**
- * Owns selection agent windows: opening one per agent action, and sizing it as it moves
- * from the compose bar to the conversation window.
+ * Owns selection agent windows: opening one per agent action, sizing it as it moves from the
+ * compose bar to the conversation window, and replacing windows that hold nothing to lose.
  */
 @Injectable('SelectionAgentWindowService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
 export class SelectionAgentWindowService extends BaseService {
   private readonly layouts = new Map<string, LayoutMode>()
+  /** Windows whose renderer reports nothing to lose, so the next trigger closes them. */
+  private readonly replaceable = new Set<string>()
   private nativePanel?: {
     configurePanel(handle: Buffer): void
     moveToActiveSpace(handle: Buffer): void
@@ -54,7 +56,12 @@ export class SelectionAgentWindowService extends BaseService {
         if (isMac) this.getNativePanel().configurePanel(window.getNativeWindowHandle())
       })
     )
-    this.registerDisposable(wm.onWindowDestroyedByType(WindowType.SelectionAgent, ({ id }) => this.layouts.delete(id)))
+    this.registerDisposable(
+      wm.onWindowDestroyedByType(WindowType.SelectionAgent, ({ id }) => {
+        this.layouts.delete(id)
+        this.replaceable.delete(id)
+      })
+    )
   }
 
   /** Built-in `ask-agent` opens the compose bar; an agent-bound custom action opens straight into the conversation. */
@@ -62,6 +69,12 @@ export class SelectionAgentWindowService extends BaseService {
     const wm = application.get('WindowManager')
     const mode: LayoutMode = action.isBuiltIn ? 'compose' : 'conversation'
     const size = mode === 'compose' ? { width: COMPOSE_WIDTH, height: COMPOSE_INITIAL_HEIGHT } : CONVERSATION_SIZE
+
+    for (const id of this.replaceable) {
+      // A hidden one already went back to the pool.
+      if (wm.getWindow(id)?.isVisible()) wm.close(id)
+    }
+    this.replaceable.clear()
 
     const windowId = wm.open(WindowType.SelectionAgent, {
       initData: { ...action, sessionId: randomUUID() } satisfies SelectionActionSession
@@ -81,6 +94,12 @@ export class SelectionAgentWindowService extends BaseService {
     this.show(window, isFullScreen)
     // Without this, the IME candidate panel stays out of the full-screen Space and never appears.
     if (isMac && isFullScreen) wm.behavior.hideMacDockWhileShown(windowId)
+  }
+
+  setReplaceable(windowId: string, replaceable: boolean): void {
+    if (!this.layouts.has(windowId)) return
+    if (replaceable) this.replaceable.add(windowId)
+    else this.replaceable.delete(windowId)
   }
 
   /** Fits the compose bar to its content, or expands it once into the conversation window. */

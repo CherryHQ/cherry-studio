@@ -1,4 +1,5 @@
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,9 +12,9 @@ import type { SelectionActionSession } from '@shared/types/selection'
 
 const mocks = vi.hoisted(() => ({
   action: null as SelectionActionSession | null,
-  actionItems: [] as SelectionActionItem[],
   ipcRequest: vi.fn(),
-  composeSend: null as ((draft: ComposerSerializedDraft) => void) | null
+  composeSend: null as ((draft: ComposerSerializedDraft) => void) | null,
+  composeType: null as ((text: string) => void) | null
 }))
 
 vi.mock('react-i18next', () => ({
@@ -21,18 +22,20 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => (options?.app ? `${key}:${options.app}` : key)
   })
 }))
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [key === 'feature.selection.action_items' ? mocks.actionItems : 100]
-}))
 vi.mock('@renderer/hooks/useWindowInitData', () => ({ useWindowInitData: () => mocks.action }))
 vi.mock('@renderer/hooks/agent/useAgent', () => ({ useAgent: () => ({ agent: undefined }) }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
 
 // The real composers throw without a quick panel context, so the stand-ins require one too.
 vi.mock('../components/SelectionAgentComposeBar', () => ({
-  SelectionAgentComposeBar: (props: { error: string | null; onSend: (draft: ComposerSerializedDraft) => void }) => {
+  SelectionAgentComposeBar: (props: {
+    error: string | null
+    onSend: (draft: ComposerSerializedDraft) => void
+    onTextChange: (text: string) => void
+  }) => {
     useQuickPanel()
     mocks.composeSend = props.onSend
+    mocks.composeType = props.onTextChange
     return <div data-testid="compose-bar">{props.error}</div>
   }
 }))
@@ -68,8 +71,10 @@ describe('SelectionAgentWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockDataApiUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('feature.selection.action_items', [])
     mocks.composeSend = null
-    mocks.actionItems = []
+    mocks.composeType = null
     mocks.ipcRequest.mockImplementation(async (route: string) =>
       route === 'ai.agent.assistant_session.create' ? { sessionId: 'assistant-session' } : undefined
     )
@@ -94,10 +99,7 @@ describe('SelectionAgentWindow', () => {
       ['ai.agent.assistant_session.create', { workspace: { type: 'system' } }]
     ])
     expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.resize_agent_window', { mode: 'conversation' })
-    const { sessionId, firstMessage } = conversationProps()
-    expect(sessionId).toBe('assistant-session')
-    expect(firstMessage.text).toBe(QUOTE_DRAFT.text)
-    expect(firstMessage.userMessageParts).toEqual([expect.objectContaining({ type: 'text', text: QUOTE_DRAFT.text })])
+    expect(conversationProps()).toMatchObject({ sessionId: 'assistant-session', firstMessage: QUOTE_DRAFT })
   })
 
   it('creates the session under a bound agent and workspace through the session API', async () => {
@@ -116,7 +118,7 @@ describe('SelectionAgentWindow', () => {
   it('sends to the binding as the selection settings hold it now, not as it was when the window opened', async () => {
     MockDataApiUtils.setCustomResponse('/agent-sessions', 'POST', { id: 'rebound-session' })
     mocks.action = ASK_AGENT
-    mocks.actionItems = [
+    MockUsePreferenceUtils.setPreferenceValue('feature.selection.action_items', [
       {
         id: 'ask-agent',
         name: ASK_AGENT.name,
@@ -125,7 +127,7 @@ describe('SelectionAgentWindow', () => {
         agentId: 'agent-1',
         agentWorkspace: BOUND_WORKSPACE
       }
-    ]
+    ] satisfies SelectionActionItem[])
     render(<SelectionAgentWindow />)
 
     await act(async () => mocks.composeSend?.(QUOTE_DRAFT))
@@ -167,7 +169,7 @@ describe('SelectionAgentWindow', () => {
     expect(screen.queryByTestId('compose-bar')).not.toBeInTheDocument()
     expect(conversationProps()).toMatchObject({
       sessionId: 'custom-session',
-      firstMessage: { text: 'Add the hard words in ubiquity to my list\n\nselection.agent.source:Chrome' }
+      firstMessage: { text: 'Add the hard words in ubiquity to my list', tokens: [] }
     })
   })
 
@@ -203,5 +205,124 @@ describe('SelectionAgentWindow', () => {
     await act(async () => mocks.composeSend?.({ text: '\n \n', tokens: [] }))
 
     expect(requestsTo('ai.agent.assistant_session.create')).toHaveLength(0)
+  })
+
+  describe('state rules', () => {
+    const CUSTOM_AGENT_ACTION: SelectionActionSession = {
+      id: 'user-1',
+      name: 'Vocabulary',
+      enabled: true,
+      isBuiltIn: false,
+      runner: 'agent',
+      agentId: 'agent-1',
+      prompt: 'Explain {{text}}',
+      selectedText: 'ubiquity',
+      sessionId: 'open-4'
+    }
+    const closeRequests = () => requestsTo('window.close').length
+    const lastReplaceable = () => requestsTo('selection.set_agent_window_replaceable').at(-1)?.[1]
+    const pressEscape = ({ handled = false, isComposing = false } = {}) => {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, isComposing })
+      // A popover, the quick panel, or an approval prompt took the key before it reached the window.
+      if (handled) event.preventDefault()
+      act(() => void window.dispatchEvent(event))
+    }
+
+    beforeEach(() => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_close', true)
+      MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_pin', false)
+    })
+
+    it('closes an empty compose bar on blur and keeps one holding an instruction', () => {
+      mocks.action = ASK_AGENT
+      render(<SelectionAgentWindow />)
+
+      act(() => mocks.composeType?.('Why does this throw?'))
+      fireEvent.blur(window)
+      expect(closeRequests()).toBe(0)
+
+      act(() => mocks.composeType?.('  '))
+      fireEvent.blur(window)
+      expect(closeRequests()).toBe(1)
+    })
+
+    it('ignores blur while pinned or with auto-close off', () => {
+      mocks.action = ASK_AGENT
+      MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_pin', true)
+      const { unmount } = render(<SelectionAgentWindow />)
+      fireEvent.blur(window)
+      unmount()
+
+      MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_pin', false)
+      MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_close', false)
+      render(<SelectionAgentWindow />)
+      fireEvent.blur(window)
+
+      expect(closeRequests()).toBe(0)
+    })
+
+    it('lets the next trigger replace it only while it is empty and unpinned', () => {
+      mocks.action = ASK_AGENT
+      const { unmount } = render(<SelectionAgentWindow />)
+      expect(lastReplaceable()).toBe(true)
+
+      act(() => mocks.composeType?.('Why?'))
+      expect(lastReplaceable()).toBe(false)
+      unmount()
+
+      MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_pin', true)
+      render(<SelectionAgentWindow />)
+      expect(lastReplaceable()).toBe(false)
+    })
+
+    it('closes an empty compose bar on Esc unless something else handled the key', () => {
+      mocks.action = ASK_AGENT
+      render(<SelectionAgentWindow />)
+
+      pressEscape({ isComposing: true })
+      pressEscape({ handled: true })
+      act(() => mocks.composeType?.('Why?'))
+      pressEscape()
+      expect(closeRequests()).toBe(0)
+
+      act(() => mocks.composeType?.(''))
+      pressEscape()
+      expect(closeRequests()).toBe(1)
+    })
+
+    it('keeps a quote-only send open while its session is being created', () => {
+      mocks.ipcRequest.mockImplementation((route: string) =>
+        route === 'ai.agent.assistant_session.create' ? new Promise(() => undefined) : Promise.resolve()
+      )
+      mocks.action = ASK_AGENT
+      render(<SelectionAgentWindow />)
+
+      // The quote alone is a message, though the instruction the window tracks stays empty.
+      act(() => mocks.composeSend?.({ text: '<blockquote>\n\nTypeError: x is undefined\n</blockquote>\n', tokens: [] }))
+      fireEvent.blur(window)
+      pressEscape()
+
+      expect(closeRequests()).toBe(0)
+      expect(lastReplaceable()).toBe(false)
+    })
+
+    it('keeps a starting custom action open, and closes one that failed to start', async () => {
+      vi.mocked(dataApiService.post).mockReturnValueOnce(new Promise(() => undefined))
+      mocks.action = CUSTOM_AGENT_ACTION
+      const { unmount } = render(<SelectionAgentWindow />)
+      fireEvent.blur(window)
+      pressEscape()
+      expect(closeRequests()).toBe(0)
+      expect(lastReplaceable()).toBe(false)
+      unmount()
+
+      MockDataApiUtils.setErrorResponse('/agent-sessions', 'POST', new Error('database is locked'))
+      await act(async () => {
+        render(<SelectionAgentWindow />)
+      })
+      expect(lastReplaceable()).toBe(true)
+      fireEvent.blur(window)
+      expect(closeRequests()).toBe(1)
+    })
   })
 })

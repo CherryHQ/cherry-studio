@@ -1,5 +1,5 @@
-import { Bot, CircleSlash, Folder, X } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
+import { Bot, CircleSlash, Folder, TextQuote, X } from 'lucide-react'
+import type { Dispatch, FC, ReactNode, SetStateAction } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -55,6 +55,9 @@ interface SelectionAgentComposeBarProps {
   programName?: string
   /** Where the instruction goes, as bound in the selection settings. */
   target: SelectionAgentTarget
+  /** The instruction typed so far, owned by the window because it decides whether closing loses anything. */
+  text: string
+  onTextChange: Dispatch<SetStateAction<string>>
   sending: boolean
   /** A send failure shown under the input, e.g. a workspace that no longer exists. */
   error: string | null
@@ -66,6 +69,8 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
   selectedText,
   programName,
   target,
+  text,
+  onTextChange,
   sending,
   error,
   onSend
@@ -74,7 +79,6 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [text, setText] = useState('')
   const [hasQuote, setHasQuote] = useState(Boolean(selectedText))
   const focusedRef = useRef(false)
   const focusOnce = useCallback((actions: ComposerSurfaceActions) => {
@@ -98,9 +102,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
 
   const handleSendDraft = (draft: ComposerSerializedDraft) => {
     if (!hasQuote) return onSend(draft)
-    const quote = createQuoteToken(selectedText, t('selection.action.builtin.quote'))
-    const source = programName ? `\n${t('selection.agent.source', { app: programName })}` : ''
-    onSend(prependQuoteToken(draft, { ...quote, promptText: `${quote.promptText}${source}` }))
+    onSend(prependQuoteToken(draft, createQuoteToken(selectedText, t('selection.action.builtin.quote'))))
   }
   const selectionLines = selectedText.trim().split('\n').length
   const selectionSize =
@@ -176,7 +178,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
         {binary.blocked && <ClaudeCodeDownloadStatus status={binary.status} onRetry={binary.retry} />}
         <ComposerSurface
           text={text}
-          onTextChange={setText}
+          onTextChange={onTextChange}
           tokens={[]}
           draftTokens={[]}
           managedTokenKinds={UNMANAGED_TOKEN_KINDS}
@@ -243,11 +245,12 @@ interface SelectionQuoteProps {
   onRemove: () => void
 }
 
-/** The selection on one line in the reference colors; hover shows it whole and reveals the remove button. */
+/** The selection on one line behind the composer's quote icon; hover shows it whole and reveals the remove button. */
 const SelectionQuote: FC<SelectionQuoteProps> = ({ text, onRemove }) => {
   const { t } = useTranslation()
   return (
-    <div className="group/quote flex min-w-0 items-center gap-1 [-webkit-app-region:no-drag]">
+    // Fits its content so the rest of the title row stays a drag handle.
+    <div className="group/quote flex w-fit min-w-0 max-w-full items-center gap-1 [-webkit-app-region:no-drag]">
       <NormalTooltip
         content={<div className={QUOTE_TOOLTIP_BODY_CLASS_NAME}>{text}</div>}
         side="bottom"
@@ -256,10 +259,9 @@ const SelectionQuote: FC<SelectionQuoteProps> = ({ text, onRemove }) => {
         showArrow={false}
         contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}
         triggerProps={{ tabIndex: 0, 'aria-label': t('selection.action.builtin.quote') }}>
-        <div className="min-w-0 truncate text-sm">
-          <mark className="box-decoration-clone rounded-xs bg-(--reference) px-0.75 py-0.5 text-(--reference-foreground)">
-            {text.replace(/\s+/g, ' ').trim()}
-          </mark>
+        <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-sm">
+          <TextQuote className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">{text.replace(/\s+/g, ' ').trim()}</span>
         </div>
       </NormalTooltip>
       <Button
