@@ -22,7 +22,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   const visible: State = state.key === key ? state : { key, loading: !!task }
   const result = visible.result
   const retry = useCallback(() => setRevision((value) => value + 1), [])
-  const resumeConversation = useRef(() => false)
+  const resumeConversation = useRef<() => boolean>(() => false)
   resumeConversation.current = () => {
     if (!result?.session) return false
     // Activity retains the selection while disconnecting effects; only history needs refreshing.
