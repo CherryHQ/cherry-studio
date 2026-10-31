@@ -162,9 +162,11 @@ export class SelectionAgentWindowService extends BaseService {
     this.syncCapsules()
   }
 
-  /** Closes or collapses a window that lost focus, unless it already went into a capsule. */
+  /** Closes or collapses a window that lost focus, unless it already went into a capsule or something else hid it. */
   dismissBlurred(windowId: string, dismissal: 'close' | 'collapse'): void {
     if (this.collapsed.has(windowId)) return
+    // A screenshot from the composer hides the window and shows it again; closing it meanwhile strands it.
+    if (!application.get('WindowManager').getWindow(windowId)?.isVisible()) return
     if (dismissal === 'collapse') this.collapse(windowId)
     else application.get('WindowManager').close(windowId)
   }
