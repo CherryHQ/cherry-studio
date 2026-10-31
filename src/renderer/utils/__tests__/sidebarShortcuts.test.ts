@@ -7,6 +7,7 @@ import {
   createSidebarShortcutTarget,
   getSidebarDefaultLandingUrl,
   getOrderedLaunchpadApps,
+  getSidebarShortcutResourceIds,
   getVisibleSidebarShortcutItems,
   normalizeSidebarShortcutItems,
   removeSidebarShortcut,
@@ -82,6 +83,16 @@ describe('sidebar shortcut storage transforms', () => {
 
     expect(removeSidebarShortcut(stored, assistant.target)).toEqual([agent, future, topic])
     expect(reorderSidebarShortcuts(stored, [topic, assistant, agent])).toEqual([topic, future, assistant, agent])
+  })
+
+  it('collects resource ids for one provider only', () => {
+    const stored = [
+      shortcut('core.topic', 'topic-1'),
+      shortcut('core.agent-session', 'topic-2'),
+      shortcut('core.topic', 'topic-3')
+    ]
+
+    expect(getSidebarShortcutResourceIds(stored, 'core.topic')).toEqual(new Set(['topic-1', 'topic-3']))
   })
 
   it('uses the first built-in app shortcut as the startup destination', () => {
