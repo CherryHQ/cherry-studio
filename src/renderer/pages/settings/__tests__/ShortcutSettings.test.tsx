@@ -232,6 +232,42 @@ describe('ShortcutSettings shortcut recorder', () => {
     })
   })
 
+  it('records the produced character when the layout changes its physical key', async () => {
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+    fireEvent.keyDown(recorder, { key: 'c', code: 'KeyI', ctrlKey: true, bubbles: true })
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
+        binding: ['CommandOrControl', 'C'],
+        enabled: true
+      })
+    })
+  })
+
+  it.each([
+    [{ key: 'Enter', code: 'NumpadEnter' }, ['CommandOrControl', 'Shift', 'numenter']],
+    [{ key: '-', code: 'NumpadSubtract' }, ['CommandOrControl', 'Shift', 'numsub']],
+    [{ key: '+', code: 'NumpadAdd' }, ['CommandOrControl', 'Shift', 'numadd']]
+  ])('preserves keypad identity when recording %j', async (event, binding) => {
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+    fireEvent.keyDown(recorder, { ...event, ctrlKey: true, shiftKey: true, bubbles: true })
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
+        binding,
+        enabled: true
+      })
+    })
+  })
+
   it('ignores IME composing keydown while recording', () => {
     renderShortcutSettings()
 

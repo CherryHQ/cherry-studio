@@ -51,6 +51,7 @@ import {
   convertKeyToAccelerator,
   formatKeyDisplay,
   formatShortcutDisplay,
+  isShortcutCharacterToken,
   isValidShortcut,
   normalizeShortcutToken,
   type ShortcutBinding,
@@ -79,7 +80,15 @@ const keyCodeToAccelerator: Record<string, ShortcutToken> = {
 const passthrough =
   /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
 
-const usableEndKeys = (code: string): ShortcutToken | null => {
+const usableEndKeys = (event: Pick<ReactKeyboardEvent, 'key' | 'code'>): ShortcutToken | null => {
+  const { code } = event
+  const fromKey = convertKeyToAccelerator(event.key)
+  const fromCode = convertKeyToAccelerator(code)
+
+  if (isShortcutCharacterToken(fromKey) && (fromCode === undefined || isShortcutCharacterToken(fromCode))) {
+    return fromKey
+  }
+
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
   if (keyCodeToAccelerator[code]) return keyCodeToAccelerator[code]
   if (passthrough.test(code)) return convertKeyToAccelerator(code) ?? null
@@ -317,7 +326,7 @@ const ShortcutSettings: FC = () => {
     if (event.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta')
     if (event.shiftKey) keys.push('Shift')
 
-    const endKey = usableEndKeys(event.code)
+    const endKey = usableEndKeys(event)
     if (endKey) {
       keys.push(endKey)
     }
