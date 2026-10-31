@@ -292,17 +292,52 @@ describe('ApiGatewayService internal gateway', () => {
     expect(service.isInternalRequest(headers(second.apiKey))).toBe(true)
   })
 
+  // A delayed summary request must retain its initiator when the active turn changes.
+  it('freezes auxiliary ownership and rejects released or cross-session captures', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service)
+    const original = {
+      agentSessionId: 'session-1',
+      assistantMessageId: 'original-message',
+      source: { type: 'agent', id: 'agent-1', name: 'Original', icon: null }
+    }
+    mockGetActiveUsageContext.mockReturnValue(original)
+    const root = service.captureAgentSessionUsage('session-1')
+    const child = service.captureAgentSessionUsage('session-1', 'child-session')
+    mockGetActiveUsageContext.mockReturnValue({ ...original, assistantMessageId: 'next-message' })
+    const headers = (capture: typeof root, apiKey = internal.apiKey) =>
+      new Headers({ ...capture.headers, 'x-api-key': apiKey })
+    expect(service.resolveAgentSessionUsage(headers(root), 'late-response')).toEqual(original)
+    expect(service.resolveAgentSessionUsage(headers(child), 'child-summary')).toEqual({
+      agentSessionId: 'child-session',
+      source: original.source
+    })
+    const crossed = headers(root)
+    crossed.set('x-cherry-agent-session-id', 'another-session')
+    expect(service.resolveAgentSessionUsage(crossed)).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(headers(root, 'existing-key'))).toBeUndefined()
+    root.release()
+    child.release()
+    expect(service.resolveAgentSessionUsage(headers(root))).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(headers(child))).toBeUndefined()
+  })
+
   it('attributes usage to an Agent session only for the unrestricted internal key', async () => {
     const service = new ApiGatewayService()
     const internal = await startInternalGateway(service)
     const scoped = await service.createScopedCredential(CHAT_SCOPE)
     const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
 
-    expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }))).toEqual({
+    expect(
+      service.resolveAgentSessionUsage(
+        new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }),
+        'native-response'
+      )
+    ).toEqual({
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     })
-    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
+    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1', 'native-response')
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
   })

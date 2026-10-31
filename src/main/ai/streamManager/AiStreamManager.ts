@@ -44,6 +44,7 @@ import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
+import type { AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
 import type {
   AiStreamRequest,
@@ -61,9 +62,11 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { pipeMessageStream } from './pipeMessageStream'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import { TopicMessageProjection } from './TopicMessageProjection'
+import type { AiStreamSource } from './types'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -96,6 +99,7 @@ const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
+  resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
 }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
@@ -970,6 +974,8 @@ export class AiStreamManager extends BaseService {
   streamPrompt(input: {
     streamId: string
     uniqueModelId: UniqueModelId
+    /** Trusted caller's admitted model snapshot, including its selected wire endpoint. */
+    resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
@@ -1004,6 +1010,7 @@ export class AiStreamManager extends BaseService {
       },
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
+      ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
@@ -1253,6 +1260,7 @@ export class AiStreamManager extends BaseService {
       for (const chunk of exec.buffer) {
         listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId, chunk.sequence)
       }
+      if (exec.finalMessage) listener.onMessage?.(exec.finalMessage, exec.modelId, exec.sourceKind)
     }
     return true
   }
@@ -2078,13 +2086,41 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
+    const publishMessage = (message: CherryUIMessage) => {
+      exec.finalMessage = withResolvedApprovals(withCompactionAnchors(message, exec), exec)
+      this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
+      const active = this.activeStreams.get(topicId)
+      if (!active || active.executions.get(modelId) !== exec) return
+      const hadPending = !!exec.pendingApprovalToolCallIds?.size
+      for (const part of message.parts) {
+        if (
+          isToolUIPart(part) &&
+          (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied')
+        ) {
+          exec.pendingApprovalToolCallIds?.delete(part.toolCallId)
+          exec.runtimeTiming.finishApproval({ toolCallId: part.toolCallId })
+        }
+      }
+      if (hadPending && !exec.pendingApprovalToolCallIds?.size) active.lifecycle.onApprovalPendingChanged(active)
+      for (const [id, listener] of active.listeners) {
+        if (!listener.isAlive()) {
+          active.listeners.delete(id)
+          continue
+        }
+        try {
+          listener.onMessage?.(exec.finalMessage, modelId, exec.sourceKind)
+        } catch (err) {
+          logger.warn('Listener threw', { topicId, listenerId: id, event: 'onMessage', err })
+        }
+      }
+    }
 
-    let rawStream: ReadableStream<UIMessageChunk>
+    let source: AiStreamSource
     try {
       // Pre-stream rejection (model resolution, param build) routes through
       // the error path with no half-open stream to tear down.
       // `signal` is injected here because it's not IPC-serialisable.
-      rawStream = await aiService.streamText({
+      source = await aiService.streamText({
         ...request,
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
@@ -2113,37 +2149,40 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    // Abort the upstream request on parsed-chunk inactivity, using the dedicated chat bound
-    // unless the caller supplies `requestOptions.timeout`.
+    exec.sourceKind = source.kind
+
+    // Idle-chunk timer; on timeout aborts `exec.abortController`, which the
+    // upstream AI SDK request is already wired to. Caller override via
+    // `requestOptions.timeout`; otherwise `CHAT_STREAM_IDLE_TIMEOUT_MS`.
     const timeoutMs = request.requestOptions?.timeout ?? CHAT_STREAM_IDLE_TIMEOUT_MS
-    const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
-    // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
-    // thinkingMs measurement (see withReasoningTimingMetadata).
-    const stream = withReasoningTimingMetadata(idleStream)
-
-    // `continue-conversation` chunks reference toolCallIds on the anchor
-    // assistant message; without seeding, `readUIMessageStream`'s
-    // `getToolInvocation` throws and silently halts the accumulator.
-    const lastIncoming = request.messages?.at(-1)
-    const accumulatorSeed: CherryUIMessage | undefined =
-      lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
-
-    const result = await pipeStreamLoop(stream, signal, {
-      onChunk: (chunk) => {
-        this.onChunk(topicId, modelId, chunk, exec)
-        // A tool awaiting human approval emits no chunks while it waits, so the normal (short) idle
-        // timeout would kill a legitimate deliberation. Re-arm with the generous approval bound
-        // instead of pausing entirely — an unresponsive renderer still can't hang the stream forever.
-        // Keyed off the pending-approval set (`onChunk` updated it above), so a parallel tool's output
-        // clearing its own id keeps the generous bound while any approval is still outstanding.
-        if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
-      },
-      accumulatorSeed,
-      onAccumulatedSnapshot: (msg) => {
-        exec.finalMessage = withResolvedApprovals(withCompactionAnchors(msg, exec), exec)
-        this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
-      }
-    })
+    let result: Awaited<ReturnType<typeof pipeStreamLoop>>
+    if (source.kind === 'messages') {
+      const { stream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
+      result = await pipeMessageStream(
+        stream,
+        signal,
+        ensureTerminalFinalMessage(exec),
+        (message) => {
+          publishMessage(message)
+          if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
+        },
+        (chunk) => {
+          this.onChunk(topicId, modelId, chunk, exec)
+          if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
+        }
+      )
+    } else {
+      const { stream: idleStream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
+      const lastIncoming = request.messages?.at(-1)
+      result = await pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
+        onChunk: (chunk) => {
+          this.onChunk(topicId, modelId, chunk, exec)
+          if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
+        },
+        accumulatorSeed: lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined,
+        onAccumulatedSnapshot: publishMessage
+      })
+    }
 
     exec.timings.completedAt = result.broadcastCompletedAt
 

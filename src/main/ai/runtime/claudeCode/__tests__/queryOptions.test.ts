@@ -25,7 +25,6 @@ describe('createClaudeCodeQueryOptions', () => {
       settings: {
         resume: 'sdk-1',
         approvalEmitter: {},
-        steerHolder: { pending: [], dispose: vi.fn() },
         warmQueryKey: 'session-1',
         toolPolicySnapshot: {},
         warmQueryInitializeTimeoutMs: 100,
@@ -36,7 +35,6 @@ describe('createClaudeCodeQueryOptions', () => {
 
     expect(opts).toMatchObject({ model: 'sonnet', resume: 'sdk-1' })
     expect(opts).not.toHaveProperty('approvalEmitter')
-    expect(opts).not.toHaveProperty('steerHolder')
     expect(opts).not.toHaveProperty('warmQueryKey')
     expect(opts).not.toHaveProperty('toolPolicySnapshot')
     expect(opts).not.toHaveProperty('warmQueryInitializeTimeoutMs')

@@ -89,7 +89,8 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
-      transformChunk: (chunk: UIMessageChunk) => {
+      getMessageId: () => 'gateway-response',
+    transformChunk: (chunk: UIMessageChunk) => {
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
       },
@@ -592,7 +593,7 @@ describe('processMessage (streaming)', () => {
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
-    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
+    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders, 'gateway-response')
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
 
     commit(captured.listener!)

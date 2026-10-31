@@ -8,6 +8,7 @@
  */
 
 import type { InputState } from '@cherrystudio/agent-runtime'
+import type { RootProjectionCheckpoint } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -30,6 +31,7 @@ export interface AgentSessionMessageBackendOptions {
   runtimeResumeToken?: string | (() => string | undefined)
   forkAnchor?: () => RuntimeForkAnchor | undefined
   inputResponses?: () => readonly InputState[]
+  projection?: (message?: CherryUIMessage) => RootProjectionCheckpoint | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -57,6 +59,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       }
     }
     const inputResponses = this.opts.inputResponses?.()
+    const projection = this.opts.projection?.(finalMessage)
+    const parts = finalMessage?.parts ?? []
     const save = (runtimeAnchor?: RuntimeForkAnchor) =>
       agentSessionMessageService.saveMessage(
         {
@@ -68,11 +72,15 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
             id: finalMessage?.id ?? this.opts.assistantMessageId,
             role: 'assistant',
             status,
-            data: { parts: finalMessage?.parts ?? [] },
+            data: { parts },
             modelId: this.opts.modelId
           }
         },
-        { publishDataChange: true, ...(inputResponses?.length ? { inputResponses } : {}) }
+        {
+          publishDataChange: true,
+          projection,
+          ...(inputResponses?.length ? { inputResponses } : {})
+        }
       )
     let saved
     try {

@@ -20,6 +20,7 @@ import { t } from '@main/i18n'
 import { FileManager } from '@main/services/file'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
@@ -126,14 +127,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
   }
 }))
 
-/**
- * Helper: configure mockStartAgentSessionRun to simulate streaming chunks to ALL
- * registered listeners (both the `channel-completion:` sentinel and the
- * `ChannelAdapterListener` that owns delivery), then call onDone on each so the
- * `executionDone` promise inside `collectStreamResponse` resolves and the listener
- * finalizes delivery. `text-delta` chunks carry the payload on `delta` (AI SDK
- * `UIMessageChunk`), not `text`.
- */
+// Each consumer receives the same complete view before terminal delivery.
 function simulateStream(parts: Array<{ type: string; delta?: string }>) {
   mockStartAgentSessionRun.mockImplementationOnce(
     async ({
@@ -143,16 +137,21 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
       onPersist?: () => void
       listeners: Array<{
         id: string
-        onChunk: (chunk: unknown) => void
-        onDone: (result: { status: string }) => void | Promise<void>
+        onMessage?: (message: CherryUIMessage) => void
+        onDone: (result: { status: string; finalMessage: CherryUIMessage }) => void | Promise<void>
       }>
     }) => {
       onPersist?.()
       for (const listener of listeners) {
-        for (const part of parts) {
-          listener.onChunk(part)
+        const finalMessage: CherryUIMessage = {
+          id: 'reply',
+          role: 'assistant',
+          parts: parts.flatMap((part) =>
+            part.type === 'text-delta' ? [{ type: 'text' as const, text: part.delta ?? '' }] : []
+          )
         }
-        await listener.onDone({ status: 'success' })
+        listener.onMessage?.(finalMessage)
+        await listener.onDone({ status: 'success', finalMessage })
       }
       return { mode: 'started' }
     }
@@ -254,7 +253,7 @@ describe('ChannelMessageHandler', () => {
     })
 
     // Delivery is owned by ChannelAdapterListener (the handler no longer post-sends);
-    // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
+    // It extracts the final message text, trims it, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
   })

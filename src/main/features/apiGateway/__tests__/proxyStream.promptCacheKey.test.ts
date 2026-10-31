@@ -57,6 +57,7 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'test-response',
       transformChunk: () => [],
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })

@@ -45,7 +45,7 @@ to enable it. It is disabled by default.
 | Use case | When the gateway is needed |
 |---|---|
 | Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
-| An Agent needs a model bridge | Agent traffic uses the internal loopback listener, started on demand independently of the public gateway setting. Pi registers its native providers against this listener. |
+| An Agent uses a Cherry-managed model | Pi, Pi Durable and Claude Code use the internal loopback listener, started on demand independently of the public gateway setting. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
 | A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
 
@@ -248,6 +248,13 @@ internal requests; which Cloud models a feature may use is decided where the
 model is chosen, not here. Gateway requests run without Cherry's retries or
 fallback models, so a request is served only by the model it named.
 
+Internal Anthropic requests prefer Anthropic Messages when the model declares
+that endpoint and the provider configures it. This preserves native thinking
+signatures and tool replay for multi-protocol models. Otherwise normal endpoint
+resolution applies; public requests keep their configured default. Conversion
+and execution share the selected provider/model snapshot without changing the
+stored model catalog.
+
 ## Request flow (generation routes)
 
 The OpenAI, Anthropic, and Gemini generation routes call
@@ -282,7 +289,7 @@ The OpenAI, Anthropic, and Gemini generation routes call
    turns `UIMessageChunk`s into dialect events) and the `ISseFormatter` (event →
    SSE string).
 6. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
-   `AiStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
+   `AiStreamManager.streamPrompt({ streamId, uniqueModelId, resolvedModel, messages, listener,
    callOverrides, contextOwner: 'caller', idleTimeoutMs })`. Caller ownership
    keeps externally managed history out of Cherry's context-build and in-loop
    compaction middleware. This uses the **`promptStreamLifecycle`** — no status

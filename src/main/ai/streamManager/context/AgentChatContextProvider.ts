@@ -345,7 +345,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
           },
           'edit'
         )
-        agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+        agentSessionMessageService.setEditRuntimeTx(
+          tx,
+          validated.sessionId,
+          validated.userMessageId,
+          nativeSessionId,
+          validated.agentType
+        )
         return result
       })
       notifyDataApiDataChange([

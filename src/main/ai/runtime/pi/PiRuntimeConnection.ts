@@ -8,7 +8,13 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation, type ObservationPayload } from '@cherrystudio/agent-runtime'
+import {
+  runtimeId,
+  type InputState,
+  type Observation,
+  type ObservationPayload,
+  type RuntimeMessage
+} from '@cherrystudio/agent-runtime'
 import type { AgentRuntimeEvent as PiEvent, PiRuntime, PiThreadHandle } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -66,9 +72,9 @@ import {
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
+import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
-import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { resolvePiThinkingLevel } from './piThinkingLevel'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -113,41 +119,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private checkpoint?: string
   private reasoningTokens: number | undefined
   private usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-  private readonly adapter = new PiStreamAdapter(
-    { enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) },
-    (name) => this.resolveMcpToolMetadata(name)
-  )
-  private readonly projection = new ThreadProjection(
-    (chunk) => this.eventQueue.push({ type: 'chunk', chunk }),
-    (part) => {
-      const id = part.toolCallId
-      if (!this.toolNames.has(id)) {
-        const span = startAgentRuntimeChildSpan(this.input.trace, 'pi.execute_tool', SpanKind.INTERNAL, {
-          'gen_ai.operation.name': 'execute_tool',
-          'gen_ai.tool.name': part.toolName,
-          'gen_ai.tool.call.id': id
-        })
-        if (span) this.toolSpans.set(id, span)
-        this.toolNames.set(id, part.toolName)
-        this.adapter.handleToolStart(id, part.toolName, part.input)
-      }
-      if (part.state !== 'output-available' && part.state !== 'output-error') return
-      const failed = part.state === 'output-error'
-      const output = failed ? (part.resultProviderMetadata?.pi?.result ?? part.errorText) : part.output
-      const preliminary = part.state === 'output-available' && part.preliminary === true
-      this.adapter.handleToolEnd(id, part.toolName, output, failed, preliminary)
-      if (preliminary) return
-      if (part.toolName === 'subagent') {
-        const result = childResultSchema.safeParse(output)
-        if (result.success)
-          this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))
-      }
-      const span = this.toolSpans.get(id)
-      if (span) endAgentRuntimeSpan(span, { code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK })
-      this.toolSpans.delete(id)
-      this.toolNames.delete(id)
-    }
-  )
+  private readonly adapter = new PiMessageMetadata((name) => this.resolveMcpToolMetadata(name))
+  private projection?: ThreadProjection
+  private readonly completedTools = new Set<string>()
 
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
@@ -288,8 +262,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input,
       initialSnapshot.provider,
       initialSnapshot.model,
-      (usage, sessionId) => {
-        if (sessionId === nativeId) this.recordUsage(usage)
+      (usage, sessionId, responseId) => {
+        if (sessionId === nativeId) {
+          if (responseId) this.eventQueue.push({ type: 'response-start', responseId })
+          this.recordUsage(usage)
+        }
       }
     )
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
@@ -316,7 +293,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       approval: approvalContext,
       emit: (event) => this.eventQueue.push(event),
       observe: (event) => this.handleBehaviorEvent(event),
-      toolCallId
+      toolCallId,
+      usageSessionId: async (thread) => {
+        if (thread === nativeId) return this.input.sessionId
+        this.observeChild(thread)
+        await this.childHandles.get(thread)
+        const child = this.childProjections.get(thread)
+        if (!child) throw new Error('Native child usage context is unavailable')
+        return child.context.sessionId
+      }
     })
     const options = {
       ...binding,
@@ -437,9 +422,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private handleObservation(event: ObservationPayload): void {
+  private async handleObservation(event: ObservationPayload): Promise<void> {
     try {
-      this.projection.accept(event)
+      this.projection ??= new ThreadProjection(
+        this.handle!.thread,
+        this.context!.id,
+        (projection) => this.eventQueue.push({ type: 'message-projection', projection }),
+        (message) => this.adapter.decorate(message)
+      )
+      await this.projection.accept(event)
+      if (event.type === 'message.upsert') this.observeTools(event.message)
       if (event.type === 'snapshot') {
         for (const input of event.inputs) this.captureInput(input)
         for (const relation of event.subagents ?? []) if (relation.child) this.observeChild(relation.child.id)
@@ -482,14 +474,39 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  private observeTools(message: RuntimeMessage): void {
+    for (const part of message.parts) {
+      if (part.type !== 'dynamic-tool' || this.completedTools.has(part.toolCallId)) continue
+      const id = part.toolCallId
+      if (!this.toolNames.has(id) && part.state !== 'input-streaming') {
+        const span = startAgentRuntimeChildSpan(this.input.trace, 'pi.execute_tool', SpanKind.INTERNAL, {
+          'gen_ai.operation.name': 'execute_tool',
+          'gen_ai.tool.name': part.toolName,
+          'gen_ai.tool.call.id': id
+        })
+        if (span) this.toolSpans.set(id, span)
+        this.toolNames.set(id, part.toolName)
+      }
+      if (part.state !== 'output-error' && (part.state !== 'output-available' || part.preliminary)) continue
+      if (part.toolName === 'subagent' && part.state === 'output-available') {
+        const result = childResultSchema.safeParse(part.output)
+        if (result.success)
+          this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))
+      }
+      const span = this.toolSpans.get(id)
+      if (span)
+        endAgentRuntimeSpan(span, { code: part.state === 'output-error' ? SpanStatusCode.ERROR : SpanStatusCode.OK })
+      this.toolSpans.delete(id)
+      this.toolNames.delete(id)
+      this.completedTools.add(id)
+    }
+  }
+
   private handleBehaviorEvent(event: BehaviorEvent): void {
     if (this.handle && event.thread !== this.handle.thread.id) return
     if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
     else if (event.type === 'goal-notice') {
-      const id = randomUUID()
-      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-delta', id, delta: event.notice.text } })
-      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
+      this.projection?.notice(event.notice.text)
     } else if (event.type === 'subagents') {
       for (const view of event.views) {
         this.publishChildTask(
@@ -508,7 +525,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           toolCallId: this.childOrigins.get(view.sessionId)?.parentToolCallId
         }))
       })
-      this.eventQueue.push({ type: 'background-work-state', active: running.length > 0 })
+      this.eventQueue.push({ type: 'background-work-state', active: running.length > 0, awaitingReply: false })
     }
   }
 
@@ -564,7 +581,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
                 if (event.type === 'subagent.upsert' && event.subagent.child) this.observeChild(event.subagent.child.id)
               })
           },
-          () => handle.pi.archive()
+          () => handle.pi.archive(),
+          (message) => this.adapter.decorate(message),
+          (responseId, messageId) =>
+            this.eventQueue.push({ type: 'response-start', responseId, messageId, sessionId: context.sessionId })
         )
         this.childProjections.set(id, projection)
         await projection.attach()
@@ -878,6 +898,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     await Promise.all([...this.childProjections.values()].map((projection) => projection.stop()))
     await this.observation?.stop()
+    await this.projection?.close()
     this.flushInputs()
     await this.handle?.release()
     await Promise.all([...this.childHandles.values()].map(async (child) => (await child)?.release()))

@@ -201,14 +201,13 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 
 1. **Open normal user turn + a driver that can steer** — calls
    `connection.redirect({ message, systemReminder: true })`. The driver
-   stashes the steer and injects it into the running turn (Claude Code
-   does this via a `PreToolUse` hook, as `additionalContext` before the
-   next tool runs). The message is folded into the current turn — no new
-   turn, no queue entry. If the turn ends before the steer is injected
-   (it called no tool after the steer arrived), the connection emits
-   `steer-undelivered` and the host queues it as the next turn. Pi consumes its own
-   queue: unplaced inputs remaining after stop/error become aborted submission
-   facts and are not automatically resent.
+   submits the immutable input to the native queue. Claude Code uses SDK
+   `priority: 'next'`: native admission either folds it into the running turn
+   or starts a later turn. The host does not resend an accepted input. Its
+   `steer-boundary` arrives when native command-start evidence is followed by
+   root output, even if the preceding product turn has already settled.
+   Pi consumes its own queue: unplaced inputs remaining after stop/error
+   become aborted submission facts and are not automatically resent.
 2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
    appends the message to the session entry's `pendingTurns` (recording its id in
    `steerMessageIds` so the next turn wraps it in a steer system-reminder)
@@ -519,7 +518,7 @@ When a completed runtime turn still has queued follow-ups (or a
    - seed messages containing the user row and empty assistant row.
 
 The runtime connection may stay on the entry. What that means is driver
-specific: Claude Code keeps its SDK query/input queue, while another
+specific: Claude Code's adapter package keeps its SDK Query/input queue, while another
 driver could keep a websocket or reconnect per turn.
 
 If a queued successor or steer continuation cannot save its assistant
@@ -605,9 +604,43 @@ The builder uses the first available value:
    `agentSessionMessageService.getLastRuntimeResumeToken(session.id)`;
 3. no resume id for a brand-new SDK session.
 
-The query may come from `ClaudeCodeWarmQueryManager.consume(...)` if a
-prewarmed query is available. Otherwise the driver starts a new SDK
-query with `createClaudeQuery({ prompt: driverSdkInputQueue, options })`.
+The driver uses `@cherrystudio/agent-runtime-claude-code`. The package owns
+one SDK Query and input queue per native root. A prewarmed Query transfers
+from `ClaudeCodeWarmQueryManager.consume(...)` to that owner with its captured
+credentials and process-exit barrier; otherwise the package starts it.
+The desktop reserves or restores a Claude backend/context before dispatch.
+It consumes paired native/common observations without a second Query iterator.
+
+Cherry-managed models always use the internal gateway, including Anthropic
+models and same-provider background model slots. The subprocess receives only
+the gateway credential and provider-prefixed model IDs. Provider execution owns
+upstream credentials, headers, key rotation and billing; editing those upstream
+settings does not invalidate a warm Query's gateway identity. Explicit external
+CLI subscription login retains native authentication. See the gateway's
+[internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
+
+Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
+Native replacements retain product ownership across steer boundaries; explicit
+retractions persist with the context checkpoint. The runtime adapter preserves ordered
+AI SDK message parts, including tool output, reasoning signatures, files and citations.
+Main adds Cherry display metadata before publishing `CherryUIMessage`.
+The driver selects the `messages` source for the entire execution. `pipeMessageStream`
+applies host approval, data-part and status metadata to that view; it never accumulates
+a second text/tool body. Publishing, listeners and persistence receive the same
+`CherryUIMessage`. `ClaudeRuntimeState` owns native lifecycle events, while
+`ClaudeMessageMetadata` decorates normalized SDK messages. No Claude chunk adapter remains.
+Child attachment reads the native archive once to recover its actual prompt, which the live SDK
+feed omits. Subsequent content follows the observer; there is no transcript polling loop.
+
+Each child uses its own `ChildThreadProjection`, context and archive, including
+nested children under their immediate parent. Parent completion and window detach
+do not stop child persistence. Claude no longer writes child bodies into the
+parent's background-flow parts; saved historical flows remain readable.
+Root and child views both use `ai.projection.*`, without a renderer runtime allowlist.
+The child view's `canSubmit` comes from native `ThreadHandle.input` availability.
+Claude children remain observation-only; parent Agent/SendMessage tools own their continuation.
+Root projection also retains compact task lifecycle state on the spawning tool's
+message, so completion can update a settled parent without copying the child report.
 
 The settings builder explicitly passes `permissionMode: 'default'` when the Agent
 has no configured mode, preserving manual approval independently of SDK defaults.
@@ -620,8 +653,9 @@ MCP server — so a dead or slow server cannot block startup. See
 
 The driver converts Claude SDK messages into runtime events:
 
-- `stream_event` / assistant/user messages -> `chunk`;
-- direct/external `stream_event` messages establish one invocation per
+- `stream_event` / assistant/user messages -> replacement-aware root
+  `message-projection`; child bodies go directly to their independent projection;
+- external-CLI subscription `stream_event` messages establish one invocation per
   message id and provide terminal usage plus per-request timing; complete
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
@@ -642,9 +676,9 @@ The driver converts Claude SDK messages into runtime events:
   tear down the connection. This includes SDK envelopes whose subtype is `success` but
   whose `is_error`, `terminal_reason: 'api_error'`, or `api_error_status` fields report
   an API failure;
-- a `PreToolUse` steer injection (armed by `redirect()`) -> `steer-boundary`
-  before the post-steer assistant message; a steer the turn never injected
-  -> `steer-undelivered`;
+- native `command_lifecycle: started` for a submitted steer, followed by root
+  assistant output -> `steer-boundary`; correlated result UUIDs associate every
+  consumed input with the same native answer where appropriate;
 - `system/status status: 'compacting'` -> `compaction-start`;
   `system/compact_boundary` -> `compaction-complete` (with anchor);
   `system/status compact_result: 'success'` with no boundary ->
@@ -659,18 +693,18 @@ from assistant/user chunks and it excludes the permission prompt. A hook that
 fires with no active UI turn is not attached to the last message.
 
 The result's cumulative `modelUsage`, duration, and total cost are
-reconciliation-only and are never divided across requests. For direct/external
+reconciliation-only and are never divided across requests. For external-CLI subscription
 calls, `SDKPartialAssistantMessage.ttft_ms` supplies per-request TTFT.
 Completion is TTFT plus the monotonic interval from `message_start` to the
 terminal delta/stop; reasoning duration is measured between reasoning and the
 first non-reasoning output. If a step omits `ttft_ms`, TTFT and completion stay
 null rather than treating stream-only duration as the whole provider call.
-Before a steer boundary the driver flushes pending usage, so the host binds
-that invocation to the pre-steer assistant row; the next invocation binds to
-the continuation row. Gateway-backed connections additionally reserve the
-continuation message id synchronously at injection time, before the SDK can
-issue that invocation through the local gateway; A2 later reuses the reserved
-id when the boundary arrives. See
+Both native subscription and gateway invocations join to product messages through the
+native API response ID. The gateway freezes credentials, prices and source at
+request start, but waits for native response ownership before recording its
+message association. Usage and ownership may arrive in either order. If the
+connection closes without ownership evidence, usage is retained without a
+message association. See
 [AI Usage Records](./ai-usage-records.md#agent-runtime-ownership).
 
 Tool timing and provider usage have separate owners: the post-tool hooks never
@@ -830,6 +864,19 @@ parts. Environment facts (disabled tools, protected paths, delegation attendance
 and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
 whether to run, ask or block. No new approval table is required.
 
+Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
+the adapter source; Durable materializes its authoritative watch snapshots directly.
+Tool results and preliminary progress update the originating tool part, while activity
+and input outcomes remain separate facts.
+Local `/goal` answers publish complete host message projections. They remain visible
+outside native model history, including when no model turn starts.
+
+Child reply composition belongs to Main: only observed user-message placement starts
+a new reply boundary. Queued inputs do not split the current reply. Existing split
+archive rows retain their IDs and branch edges; a versioned checkpoint composes them
+using native-proven part mappings. Missing native evidence leaves saved rows readable.
+Renderer and reopened views consume the same composition through shared projection.
+
 The Pi facet resolves behavior call keys to native tool ids. Each child has one
 Main observation owner and an independent product archive. Its panel receives a
 snapshot and ordered message/part patches through IpcApi and uses the shared message
@@ -838,7 +885,7 @@ carry child output. Foreground completion can continue the same child in the bac
 User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
 
 `PiRuntimeConnection` remains responsible for product branch bindings, input
-persistence, UI chunks and configuration reconciliation. It can retire after
+persistence, product message views and configuration reconciliation. It can retire after
 `AgentSessionRuntimeService` consumes the common Runtime directly; enabling
 shared behavior does not by itself replace those responsibilities. A reopened root
 restores identity-checked child files without starting execution. Saved output remains
@@ -951,8 +998,8 @@ The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
 and model. The original assistant attachment is preserved and the caller's params
 are not mutated. The continuation is never written to the database, the SDK
-transcript's user-visible history, or the renderer. Direct Anthropic requests do
-not enter the gateway, and external gateway requests remain unchanged so their
+transcript's user-visible history, or the renderer. Native subscription requests
+bypass the gateway, and external gateway requests remain unchanged so their
 callers can intentionally use assistant prefill.
 
 ## Native resume failures
@@ -1057,7 +1104,8 @@ Focused tests:
 - `src/main/ai/agentSession/__tests__/AgentSessionDeliveryService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`
 - `src/main/ai/__tests__/AiService.test.ts`
-- `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeRuntimeState.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/transcriptReplay.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
 - `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`
 

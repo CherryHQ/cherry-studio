@@ -1,9 +1,7 @@
-import type { UIMessageChunk } from 'ai'
-
 import { loggerService } from '@logger'
 import { type ChannelAdapter, sanitizeChannelOutput, type SendMessageOptions } from '@main/ai/channels'
 import { t } from '@main/i18n'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -45,32 +43,28 @@ export class ChannelAdapterListener implements StreamListener {
     return this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
   }
 
-  // oxlint-disable-next-line no-unused-vars
-  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
+  onChunk(): void {}
+
+  onMessage(message: CherryUIMessage): void {
     if (this.settled) return
-    if (chunk.type === 'text-delta' && chunk.delta) {
-      this.accumulatedText += chunk.delta
-      // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
-      // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
-      // be redacted before they leave.
-      const { text } = sanitizeChannelOutput(this.accumulatedText)
-      const update = this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
-      void update.catch(() => {})
-    }
+    this.accumulatedText = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+    const { text } = sanitizeChannelOutput(this.accumulatedText)
+    void this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, '')).catch(() => {})
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-    await this.finish(result.status)
+    await this.finish(result.status, result.finalMessage)
   }
 
-  // oxlint-disable-next-line no-unused-vars
-  async onPaused(_result: StreamPausedResult): Promise<void> {
-    await this.finish('paused')
+  async onPaused(result: StreamPausedResult): Promise<void> {
+    await this.finish('paused', result.finalMessage)
   }
 
-  private async finish(status: 'success' | 'paused'): Promise<void> {
+  private async finish(status: 'success' | 'paused', message?: CherryUIMessage): Promise<void> {
     if (this.settled) return
     this.settled = true
+    if (message)
+      this.accumulatedText = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
 
     try {

@@ -92,7 +92,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `chunk` for streamed content, `turn-complete` to settle the
+     mapping: `chunk` for chunk-source content or `message-projection` for a driver
+     declaring `messageSource: 'projection'`, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
      never emits it strands the turn), `resume-token` whenever the runtime
      learns a recovery handle, `error` on failure.
@@ -111,10 +112,12 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        `steer-boundary` when a steer is injected. A driver that returns unplaced inputs
        for the next turn emits `steer-undelivered`; Pi instead records native queued
        inputs as aborted when execution ends without placing them, without automatic resend.
+       Claude uses native next-priority admission across the turn boundary and never
+       returns an accepted input for host resend.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` with `awaitingReply: false` — retain independent background
-       work without holding the parent's reply open. Durable uses this for child projections;
+       work without holding the parent's reply open. Durable and Claude use this for child projections;
        later result delivery announces an autonomous turn.
      - `childProjection(toolCallId)` — expose a child snapshot and subscription
        through the root owner. `messageChild(contextId, text)` dispatches child input
@@ -135,10 +138,14 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Stream adapter** — convert runtime-native events into
-   `UIMessageChunk`s. Import your transport constant from the descriptor
-   (single source), never re-declare the string. Reference implementations:
-   `claudeCode/streamAdapter.ts` and `pi/piStreamAdapter.ts`.
+4. **Content producer** — choose one source per execution. Common runtime adapters
+   expose AI SDK `RuntimeMessage` values through observation. Native deltas use
+   `RuntimeMessageStream` before observer fanout; authoritative native snapshots
+   can produce messages directly. Main uses `ThreadMessageProjection` and product
+   decorators such as `pi/PiMessageMetadata.ts` and `claudeCode/ClaudeMessageMetadata.ts`,
+   then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
+   do not produce the same text and tools through both sources. Import the transport
+   constant from the descriptor rather than re-declaring its string.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a

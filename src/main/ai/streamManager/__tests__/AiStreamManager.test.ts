@@ -4,6 +4,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
@@ -16,6 +17,7 @@ import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
 import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
+import type { AiStreamSource, MessageStreamEvent } from '../types'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -130,9 +132,9 @@ function controlledStream(): {
   }
 }
 
-const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>>(async () =>
-  pendingStream()
-)
+const mockStreamText = vi.fn<
+  (request: Parameters<AiService['streamText']>[0]) => Promise<ReadableStream<UIMessageChunk> | AiStreamSource>
+>(async () => pendingStream())
 
 /**
  * In-memory stand-in for Main's `CacheService`. `AiStreamManager` writes
@@ -159,7 +161,12 @@ vi.mock('@application', async () => {
   // and the mock factory's lookup is keyed by string so the extra entry
   // is wired up regardless of the type.
   return mockApplicationFactory({
-    AiService: { streamText: mockStreamText },
+    AiService: {
+      streamText: async (request: Parameters<AiService['streamText']>[0]) => {
+        const source = await mockStreamText(request)
+        return source instanceof ReadableStream ? { kind: 'chunks', stream: source } : source
+      }
+    },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
     AgentSessionRuntimeService: {
@@ -346,6 +353,44 @@ describe('AiStreamManager', () => {
     expect(view?.messages[0].parts[0]).toMatchObject({ text: 'visible before completion' })
     if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
     mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  // A replacement must reach subscribers and terminal persistence without reintroducing withdrawn text.
+  it('publishes authoritative replacements and drains the final update before completion', async () => {
+    let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+    mockStreamText.mockResolvedValueOnce({
+      kind: 'messages',
+      stream: new ReadableStream({
+        start: (value) => {
+          controller = value
+        }
+      })
+    })
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'native-topic', 'native-subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    const listener = new FakeListener('native-result')
+    startSingle(mgr, { topicId: 'native-topic', modelId: 'p::m', request: req('native-topic'), listeners: [listener] })
+    controller.enqueue({ type: 'control', chunk: { type: 'start' } })
+    controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Withdrawn body' }] })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Withdrawn body' }))
+    const replay: CherryUIMessage[] = []
+    const late = Object.assign(new FakeListener('late-reader'), {
+      onMessage: (message: CherryUIMessage) => replay.push(message)
+    })
+    expect(mgr.addListener('native-topic', late)).toBe(true)
+    expect(replay.at(-1)?.parts).toEqual([{ type: 'text', text: 'Withdrawn body' }])
+    const replacement: CherryUIMessage['parts'] = [{ type: 'text', text: 'Replacement', state: 'done' }]
+    controller.enqueue({ type: 'message', parts: replacement })
+    controller.close()
+    await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    expect(listener.doneResults[0].finalMessage?.parts).toEqual(replacement)
+    expect(replay.at(-1)?.parts).toEqual(replacement)
+    expect(view?.messages[0].parts).toEqual(replacement)
+    mgr.detachProjection(sender, 'native-subscription')
     sender.emit('destroyed')
   })
 

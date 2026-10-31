@@ -57,6 +57,13 @@ only changes the stored view; it does not run the harness. The next send resolve
 that branch's native context. An idle connection on another branch is closed
 before connecting; an active connection prevents a cross-branch send.
 
+Claude Code **Edit and resend** reserves the new branch identity in the same
+transaction as its sibling input. Editing the first input starts an empty native
+session under that reserved identity. Startup resumes only a verified native
+history token from the captured branch; an allocated identity alone is not proof
+that native history exists. Other edits publish their verified native fork before
+startup, and switching the UI selection does not change the captured branch.
+
 The additive schema migration supplies parent/selection and binding fields.
 `AgentSessionMessageTreeSeeder` converts old flat archives into one selected
 path, preserving existing IDs and message facts. Previously deleted tails cannot

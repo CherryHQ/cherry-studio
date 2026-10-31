@@ -104,6 +104,7 @@ export interface AiUsageCaptureContext {
   credentialReceipt: AiUsageCredentialReceipt
   source: SourceSnapshot | null
   messageRef: MessageRef | null
+  agentSessionId?: string | null
 }
 
 export interface RecordAiInvocationInput {
@@ -277,6 +278,7 @@ function rowToRecord(row: AiUsageRecordRow): AiUsageRecordEntry {
     requestCount: row.requestCount,
     messageKind: row.messageKind,
     messageId: row.messageId,
+    agentSessionId: row.agentSessionId,
     providerId: row.providerId,
     providerName: row.providerName,
     sourceType: row.sourceType,
@@ -529,6 +531,8 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
   const sortOrder = query.sortOrder ?? 'desc'
 
   const filterConditions: SQL[] = []
+  if (query.agentSessionId !== undefined)
+    filterConditions.push(eq(aiUsageRecordTable.agentSessionId, query.agentSessionId))
   if (query.from !== undefined) filterConditions.push(gte(aiUsageRecordTable.createdAt, query.from))
   if (query.to !== undefined) filterConditions.push(lte(aiUsageRecordTable.createdAt, query.to))
   if (query.messageKind !== undefined && query.messageId !== undefined) {
@@ -1208,6 +1212,7 @@ function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow
     requestCount: 1,
     messageKind: context.messageRef?.kind ?? null,
     messageId: context.messageRef?.id ?? null,
+    agentSessionId: context.agentSessionId ?? null,
     providerId: context.providerId,
     providerName: context.providerName,
     modelId: context.modelId,
@@ -1377,6 +1382,32 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
 }
 
 export class AiUsageRecordService {
+  associateInvocation(requestId: string, messageId: string, agentSessionId?: string): void {
+    try {
+      const result = application.get('DbService').withWriteTx((tx) => {
+        const row = tx.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, requestId)).get()
+        if (!row) return
+        if (row.messageId) {
+          if (row.messageKind !== 'agent-session' || row.messageId !== messageId)
+            throw new Error('Provider invocation already belongs to another message')
+          return
+        }
+        tx.update(aiUsageRecordTable)
+          .set({ messageKind: 'agent-session', messageId, agentSessionId: agentSessionId ?? row.agentSessionId })
+          .where(eq(aiUsageRecordTable.id, row.id))
+          .run()
+        return { target: rebuildMessageUsageProjectionTx(tx, { kind: 'agent-session', id: messageId })?.target }
+      })
+      if (!result) return
+      notifyDataApiDataChange([
+        ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
+        ...messageReadModelEffects(result.target ? [result.target] : [])
+      ])
+    } catch (error) {
+      logger.error('associateInvocation failed', error as Error, { requestId, messageId })
+    }
+  }
+
   recordInvocation(input: RecordAiInvocationInput): void {
     this.recordInvocations([input])
   }

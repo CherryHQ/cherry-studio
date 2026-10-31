@@ -23,6 +23,7 @@ import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
+import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -234,9 +235,9 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   )
 }))
 
-vi.mock('@renderer/ipc', async (importOriginal) => ({
-  ...(await importOriginal()),
-  ipcApi: { request: ipcRequestMock }
+vi.mock('@renderer/ipc', async (importActual) => ({
+  ...(await importActual<typeof RendererIpc>()),
+  ipcApi: { ...(await importActual<typeof RendererIpc>()).ipcApi, request: ipcRequestMock }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -733,6 +734,7 @@ describe('AgentRightPane', () => {
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
+      if (route === 'ai.projection.attach') return null
       return {
         kind: 'file',
         type: 'text',
@@ -2289,6 +2291,40 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
     expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the common child projection for Claude and displays its availability diagnostic', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.projection.attach'
+        ? {
+            kind: 'child',
+            sessionId: 'child-archive',
+            contextId: 'child-context',
+            revision: 1,
+            messages: [],
+            active: false,
+            available: true,
+            canSubmit: false,
+            diagnostic: 'Native child transcript is unavailable'
+          }
+        : undefined
+    )
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="claude-owner" runtimeType="claude-code" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton toolCallId="native-agent-tool" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
+    expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {
+      target: { kind: 'child', sessionId: 'claude-owner', toolCallId: 'native-agent-tool' },
+      subscriptionId: expect.any(String)
+    })
   })
 
   it('keeps the full flow title for the panel header to truncate by available width', () => {

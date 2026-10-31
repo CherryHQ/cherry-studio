@@ -3,34 +3,22 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { packWorkspaceDirectory, unpackWorkspaceArchive } from '@main/ai/agents/agentWorkspaceStorage'
 import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
-const {
-  startupMock,
-  buildWarmRequestMock,
-  applicationGetMock,
-  traceModeEnabledMock,
-  prepareTraceMock,
-  ensureTraceIdMock
-} = vi.hoisted(() => ({
+const { startupMock, buildWarmRequestMock, traceModeEnabledMock, prepareTraceMock } = vi.hoisted(() => ({
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
-  applicationGetMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
-  prepareTraceMock: vi.fn(),
-  ensureTraceIdMock: vi.fn()
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { ensureTraceId: ensureTraceIdMock }
-}))
-
-vi.mock('@application', () => ({
-  application: { get: applicationGetMock }
+  prepareTraceMock: vi.fn()
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -39,12 +27,6 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeWarmQueryRequestForAgentSession: buildWarmRequestMock
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
-  }
 }))
 
 const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
@@ -71,22 +53,32 @@ function createDeferred<T>() {
 }
 
 describe('ClaudeCodeWarmQueryManager', () => {
+  const dbh = setupTestDatabase()
   beforeEach(() => {
     LifecycleManager.reset()
     ServiceContainer.reset()
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
-    applicationGetMock.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeTraceBridgeService') {
-        return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
-      }
-      throw new Error(`Unexpected application.get(${name})`)
+    MockApplicationUtils.setService('ClaudeCodeTraceBridgeService', {
+      isTraceModeEnabled: traceModeEnabledMock,
+      prepareTrace: prepareTraceMock
     })
+    startupMock.mockReset()
+    buildWarmRequestMock.mockReset()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace-1', name: 'Work', type: 'user', path: '/test/work', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session-1', workspaceId: 'workspace-1', name: 'Root', orderKey: 'a0' })
+      .run()
     traceModeEnabledMock.mockReturnValue(false)
   })
 
   afterEach(() => {
+    MockApplicationUtils.resetServices()
     vi.useRealTimers()
   })
 
@@ -261,17 +253,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const withoutAbort = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' })
 
     expect(withAbort).toBe(withoutAbort)
-  })
-
-  it('uses the same signature with or without the session steer holder', () => {
-    const withHolder = createClaudeCodeWarmQuerySignature({
-      model: 'sonnet',
-      resume: 'sdk-1',
-      steerHolder: { pending: [], dispose: vi.fn() }
-    } as any)
-    const withoutHolder = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' })
-
-    expect(withHolder).toBe(withoutHolder)
   })
 
   it('uses the same signature across rotated credential env values', () => {
@@ -593,7 +574,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   it('bakes the session trace env into the park so a traced turn can consume it', async () => {
     traceModeEnabledMock.mockReturnValue(true)
     const traceId = '0'.repeat(31) + 'a'
-    ensureTraceIdMock.mockReturnValue(traceId)
+    dbh.db.update(agentSessionTable).set({ traceId }).where(eq(agentSessionTable.id, 'session-1')).run()
     const traceEnv = {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       TRACEPARENT: `00-${traceId}-${deriveRootSpanId(traceId)}-01`

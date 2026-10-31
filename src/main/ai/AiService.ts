@@ -7,8 +7,7 @@ import {
   type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessageChunk
+  type ModelMessage
 } from 'ai'
 
 import { application } from '@application'
@@ -84,6 +83,7 @@ import {
   readRetryPolicy
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
+import type { AiStreamSource } from './streamManager'
 import { type MessageRuntimeTimingSink } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -191,6 +191,7 @@ function createCaptureContext(input: {
   credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
+  agentSessionId?: string | null
 }): () => AiUsageCaptureContext {
   return () => {
     const modelId = parseUniqueModelId(input.model.id).modelId
@@ -217,7 +218,8 @@ function createCaptureContext(input: {
       reportedCostCurrency: input.provider.reportedCostCurrency,
       credentialReceipt: input.credentialReceipt,
       source: input.source,
-      messageRef: input.messageRef
+      messageRef: input.messageRef,
+      agentSessionId: input.agentSessionId
     })
   }
 }
@@ -584,15 +586,15 @@ export class AiService extends BaseService {
   // ── Streaming chat (agent.stream) ──
 
   /**
-   * Raw `UIMessageChunk` stream from `Agent.stream`. Caller (usually
-   * `AiStreamManager`) owns read/multicast/accumulation/terminal dispatch.
+   * One content source per execution: SDK chunks or authoritative message views.
+   * `AiStreamManager` owns consumption, publication and terminal dispatch.
    * Pre-stream errors reject the Promise; mid-stream errors come through
    * the stream itself.
    */
   async streamText(
     request: AsInProcessChat<AiStreamRequest>,
     extraFeatures: readonly RequestFeature[] = []
-  ): Promise<ReadableStream<UIMessageChunk>> {
+  ): Promise<AiStreamSource> {
     logger.info('streamText started', { chatId: request.conversation.topicId })
     const signal = request.requestOptions?.signal
     if (!signal) {
@@ -636,13 +638,16 @@ export class AiService extends BaseService {
       source: request.usageContext
         ? request.usageContext.source
         : (request.source ?? sourceSnapshotForAssistant(assistant)),
+      agentSessionId: request.usageContext?.agentSessionId,
       messageRef: request.usageContext
-        ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+        ? request.usageContext.assistantMessageId
+          ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+          : null
         : request.messageId
           ? { kind: 'chat', id: request.messageId }
           : null
     })
-    const usagePlugin = createAiUsagePlugin(usageContext)
+    const usagePlugin = createAiUsagePlugin(usageContext, request.usageContext?.recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
@@ -691,8 +696,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(() =>
-            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          createAiUsagePlugin(
+            () => createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt }),
+            request.usageContext?.recordInvocation
           )
       })
       const retryPolicy = resolveTextRetryPolicy(
@@ -725,8 +731,10 @@ export class AiService extends BaseService {
                 sdkModelId,
                 credentialReceipt,
                 source: usageContext().source,
-                messageRef: usageContext().messageRef
-              })
+                messageRef: usageContext().messageRef,
+                agentSessionId: usageContext().agentSessionId
+              }),
+              request.usageContext?.recordInvocation
             )
         }),
         onFallbackActivated: (fallback) => {
@@ -773,7 +781,7 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return agent.stream(preparedMessages, signal)
+    return { kind: 'chunks', stream: agent.stream(preparedMessages, signal) }
   }
 
   private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {

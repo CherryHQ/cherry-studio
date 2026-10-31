@@ -31,8 +31,8 @@ interrupted association write without guessing by history or replacing a missing
 Creation is exclusive; reopening checks identity and never creates a new SQLite file.
 
 Pi Durable owns its transcript, task graph, submissions and behavior records. Product
-messages remain display projections. Root output passes through `ThreadProjection` and
-the normal stream manager. Every child has an independent `ChildThreadProjection`,
+messages remain display projections. The driver declares the projection source; root SDK message
+views pass through `ThreadProjection` and the stream manager's message consumer. Every child has an independent `ChildThreadProjection`,
 archive and shared `ai.projection.*` subscription. Parent parts contain task metadata
 and navigation, not the child's streamed body. Accepted child text remains the user's
 text even when shared behavior wraps its native input.

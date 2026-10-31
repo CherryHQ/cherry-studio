@@ -1,8 +1,8 @@
-import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import { t } from '@main/i18n'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { ChannelAdapterListener } from '../ChannelAdapterListener'
 
@@ -21,8 +21,8 @@ function makeAdapter(overrides: Partial<ChannelAdapter> = {}): ChannelAdapter {
   } as unknown as ChannelAdapter
 }
 
-function delta(text: string): UIMessageChunk {
-  return { type: 'text-delta', id: 't', delta: text }
+function message(text: string): CherryUIMessage {
+  return { id: 'reply', role: 'assistant', parts: [{ type: 'text', text }] }
 }
 
 describe('ChannelAdapterListener', () => {
@@ -30,12 +30,12 @@ describe('ChannelAdapterListener', () => {
     vi.clearAllMocks()
   })
 
-  it('accumulates text-delta via .delta and redacts secrets before live onTextUpdate', () => {
+  it('publishes authoritative text and redacts secrets before live onTextUpdate', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('here is the key: '))
-    listener.onChunk(delta(SECRET))
+    listener.onMessage(message('here is the key: '))
+    listener.onMessage(message(`here is the key: ${SECRET}`))
 
     const lastCall = vi.mocked(adapter.onTextUpdate).mock.calls.at(-1)
     expect(lastCall?.[0]).toBe('chat-1')
@@ -47,7 +47,7 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta(`final answer ${SECRET} done`))
+    listener.onMessage(message(`final answer ${SECRET} done`))
     await listener.onDone({ status: 'success' })
 
     // onStreamComplete (finalize UI) gets the sanitized text; sendMessage falls back since it returned false.
@@ -60,11 +60,11 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('Claim '))
-    listener.onChunk(delta('[ci'))
-    listener.onChunk(delta('te:source-'))
-    listener.onChunk(delta('1]'))
-    listener.onChunk(delta(' confirmed'))
+    listener.onMessage(message('Claim '))
+    listener.onMessage(message('Claim [ci'))
+    listener.onMessage(message('Claim [cite:source-'))
+    listener.onMessage(message('Claim [cite:source-1]'))
+    listener.onMessage(message('Claim [cite:source-1] confirmed'))
 
     const updates = vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)
     expect(updates).toEqual(['Claim ', 'Claim', 'Claim', 'Claim', 'Claim confirmed'])
@@ -74,7 +74,7 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('Array [city'))
+    listener.onMessage(message('Array [city'))
 
     expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', undefined)
   })
@@ -83,7 +83,7 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('Literal [cite:unfinished'))
+    listener.onMessage(message('Literal [cite:unfinished'))
     await listener.onDone({ status: 'success' })
 
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished', undefined)
@@ -103,7 +103,7 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('partial answer'))
+    listener.onMessage(message('partial answer'))
     await listener.onPaused({ status: 'paused' })
 
     // onStreamComplete (finalize UI) gets the plain text; sendMessage falls back
@@ -125,7 +125,7 @@ describe('ChannelAdapterListener', () => {
   it('delivers a terminal response only once even when terminal callbacks repeat', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
-    listener.onChunk(delta('Answer'))
+    listener.onMessage(message('Answer'))
     await listener.onDone({ status: 'success' })
     await listener.onDone({ status: 'success' })
     await listener.onError({ status: 'error', error: { stack: '', name: 'Error', message: 'late error' } })

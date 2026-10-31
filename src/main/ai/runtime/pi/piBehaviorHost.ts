@@ -18,7 +18,7 @@ import { getRawModelId } from '@shared/utils/model'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
-import { PI_TRANSPORT } from './piStreamAdapter'
+import { PI_TRANSPORT } from './PiMessageMetadata'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type HostOptions = {
@@ -28,6 +28,7 @@ type HostOptions = {
   model: Model
   bindModel?: (model: Model) => Promise<Binding>
   approval: PiApprovalContext
+  usageSessionId(thread: ThreadId): Promise<string>
   toolCallId(call: CallRef): Promise<string>
   emit(event: AgentRuntimeEvent): void
   observe(event: BehaviorEvent): void
@@ -54,14 +55,19 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   const threads = new Map<ThreadId, string>([[options.root, rootKey]])
   async function complete(thread: ThreadId, system: string, value: JsonValue, signal: AbortSignal) {
     const selected = bindings.get(threads.get(thread) ?? rootKey)!
-    const result = await selected.modelRuntime.completeSimple(
-      selected.model,
-      {
-        systemPrompt: system,
-        messages: [{ role: 'user', content: JSON.stringify(value), timestamp: Date.now() }]
-      },
-      { signal, maxTokens: Math.min(4096, selected.model.maxTokens) }
-    )
+    const usage = application
+      .get('ApiGatewayService')
+      .captureAgentSessionUsage(input.sessionId, await options.usageSessionId(thread))
+    const result = await selected.modelRuntime
+      .completeSimple(
+        selected.model,
+        {
+          systemPrompt: system,
+          messages: [{ role: 'user', content: JSON.stringify(value), timestamp: Date.now() }]
+        },
+        { signal, maxTokens: Math.min(4096, selected.model.maxTokens), headers: usage.headers }
+      )
+      .finally(usage.release)
     signal.throwIfAborted()
     if (result.stopReason !== 'stop')
       throw new Error(result.errorMessage ?? `Model request ended: ${result.stopReason}`)

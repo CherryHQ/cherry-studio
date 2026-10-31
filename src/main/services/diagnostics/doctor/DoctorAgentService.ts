@@ -340,6 +340,16 @@ export class DoctorAgentService extends BaseService {
           scheduleFlush()
         }
       },
+      onMessage(message, _model, kind) {
+        if (kind !== 'messages') return
+        text = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+        toolCalls.splice(
+          0,
+          toolCalls.length,
+          ...message.parts.flatMap((part) => (part.type === 'dynamic-tool' ? [part.toolName] : []))
+        )
+        scheduleFlush()
+      },
       onDone: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),
       onPaused: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),
       onError: (result) => settle('failed', result.error.message ?? 'Execution failed'),

@@ -24,7 +24,7 @@ import { buildAgentUserContent } from '../agentUserContent'
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
-import { PiStreamAdapter } from '../pi/piStreamAdapter'
+import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -66,25 +66,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly childProjections = new Map<string, ChildThreadProjection>()
   private readonly childOrigins = new Map<string, { parent: string; origin: SubagentOrigin; toolCallId?: string }>()
   private readonly childStates = new Map<string, AgentTaskEventPartData>()
-  private readonly adapter = new PiStreamAdapter(
-    { enqueue: (chunk) => this.events.push({ type: 'chunk', chunk }) },
-    (name) => this.desktop?.mcp.metadata.get(name)
-  )
-  private readonly projection = new ThreadProjection(
-    (chunk) => this.events.push({ type: 'chunk', chunk }),
-    (part) => {
-      this.adapter.handleToolStart(part.toolCallId, part.toolName, part.input)
-      if (part.state === 'output-available')
-        this.adapter.handleToolEnd(part.toolCallId, part.toolName, part.output, false, part.preliminary)
-      else if (part.state === 'output-error')
-        this.adapter.handleToolEnd(
-          part.toolCallId,
-          part.toolName,
-          part.resultProviderMetadata?.pi?.result ?? part.errorText,
-          true
-        )
-    }
-  )
+  private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
+  private projection?: ThreadProjection
 
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
@@ -97,13 +80,17 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         this.input,
         desktop.snapshot.provider,
         desktop.snapshot.model,
-        (usage, sessionId) => {
-          if (sessionId === this.providerSessionId) this.recordUsage(usage)
+        (usage, sessionId, responseId) => {
+          if (sessionId === this.providerSessionId) {
+            if (responseId) this.events.push({ type: 'response-start', responseId })
+            this.recordUsage(usage)
+          }
         }
       )
+      const behaviorRoot = runtimeId<'thread'>(this.context.nativeThreadId ?? '0')
       const behavior = await createPiBehaviorHost({
         input: this.input,
-        root: runtimeId(this.context.nativeThreadId ?? '0'),
+        root: behaviorRoot,
         binding,
         model: desktop.snapshot.model,
         approval: desktop.approval,
@@ -117,6 +104,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           ),
         emit: (event) => this.events.push(event),
         observe: (event) => this.onBehavior(event),
+        usageSessionId: async (thread) => {
+          if (thread === this.handle?.thread.id || thread === behaviorRoot) return this.input.sessionId
+          await this.observeChild(thread)
+          return this.childProjections.get(thread)!.context.sessionId
+        },
         toolCallId: (call) => this.behaviorToolCallId(call)
       })
       const root = await prepareDurableRoot(this.context.id)
@@ -237,23 +229,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     try {
       if (event.type === 'snapshot') {
         const initial = !this.baseline
-        const aliases = this.handle!.durable.aliases()
-        const content = event.messages.map((message) => ({ ...message, id: aliases[message.id] ?? message.id }))
         const nowActive = event.activity.state === 'active'
         if (nowActive && !this.sending) this.beginAutonomous()
-        if (!this.baseline) {
-          this.projection.accept({
-            ...event,
-            messages: content.filter((message) => message.metadata?.completeness === 'complete')
-          })
-          this.baseline = true
-        }
-        for (const message of content) this.projection.accept({ type: 'message.upsert', message })
-        this.active = nowActive
         for (const input of event.inputs) {
           if (initial && input.inputId && !input.outcome) this.pendingInputs.add(input.inputId)
           this.captureInput(input, !initial)
         }
+        this.projection ??= new ThreadProjection(
+          this.handle!.thread,
+          this.context!.id,
+          (projection) => this.events.push({ type: 'message-projection', projection }),
+          (message) => this.adapter.decorate(message)
+        )
+        await this.projection.accept(event, !initial, this.handle!.durable.aliases())
+        this.baseline = true
+        this.active = nowActive
         for (const relation of event.subagents ?? [])
           if (relation.child) void this.observeChild(relation.child.id).catch((error) => this.fail(error))
         await this.finishIfIdle()
@@ -355,10 +345,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
       if (event.type === 'goal-notice') {
-        const id = randomUUID()
-        this.events.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-        this.events.push({ type: 'chunk', chunk: { type: 'text-delta', id, delta: event.notice.text } })
-        this.events.push({ type: 'chunk', chunk: { type: 'text-end', id } })
+        this.projection?.notice(event.notice.text)
       }
     }
   }
@@ -438,7 +425,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         const archive = await handle.archive()
         if (archive.status !== 'confirmed') throw new Error(archive.error.message)
         return archive.value
-      }
+      },
+      (message) => this.adapter.decorate(message),
+      (responseId, messageId) =>
+        this.events.push({ type: 'response-start', responseId, messageId, sessionId: childContext.sessionId })
     )
     this.childProjections.set(id, projection)
     await projection.attach()
@@ -559,6 +549,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     await Promise.all([...this.childHandles.values()].map((handle) => handle.catch(() => undefined)))
     await Promise.all([...this.childProjections.values()].map((projection) => projection.stop()))
     await this.observation?.stop()
+    await this.projection?.close()
     await this.handle?.release()
     for (const handle of this.childHandles.values()) await (await handle.catch(() => undefined))?.release()
     await this.desktop?.close()

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createAssistantMessageEventStream, type AssistantMessage } from '@earendil-works/pi-ai'
@@ -46,6 +46,7 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
@@ -190,9 +191,23 @@ describe('desktop Pi Durable connection', () => {
   async function done(events: AgentRuntimeEvent[]) {
     await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
   }
+  function projected(events: AgentRuntimeEvent[]) {
+    const messages = new Map<
+      string,
+      Extract<AgentRuntimeEvent, { type: 'message-projection' }>['projection']['messages'][number]
+    >()
+    for (const event of events) {
+      if (event.type !== 'message-projection') continue
+      for (const old of [...Object.keys(event.projection.replaces), ...event.projection.removed]) messages.delete(old)
+      for (const message of event.projection.messages)
+        if (event.projection.live.includes(message.id)) messages.set(message.id, message)
+    }
+    return [...messages.values()]
+  }
   const text = (events: AgentRuntimeEvent[]) =>
-    events
-      .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
+    projected(events)
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
@@ -261,6 +276,53 @@ describe('desktop Pi Durable connection', () => {
     expect(text(events)).toBe('No summary was committed; the conversation is unchanged.')
     expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([{ type: 'compaction-complete' }])
     expect(script.calls).toHaveLength(0)
+  })
+
+  // A freshly allocated Durable root must not resolve the verifier's initialization ID as a child.
+  it('verifies and completes a goal in a newly created native root', async () => {
+    script = respondingModel((call) => {
+      if (call.systemPrompt.startsWith('Evaluate whether the objective'))
+        return assistantReply('{"verdict":"met","reason":"Output is present"}')
+      const results = call.messages.filter((entry) => entry.role === 'toolResult')
+      const completed = results.find((entry) => entry.toolName === 'update_goal')
+      if (completed) return assistantReply('GOAL_VERIFIED')
+      const lookup = results.find((entry) => entry.toolName === 'get_goal')
+      if (!lookup) return assistantReply([toolCallPart('get-goal', 'get_goal', {})], 'toolUse')
+      const body = lookup.content.find((part) => part.type === 'text')!
+      if (body.type !== 'text') throw new Error('Goal result has no text')
+      const { goal } = JSON.parse(body.text.split('\n')[0])
+      return assistantReply(
+        [
+          toolCallPart('complete-goal', 'update_goal', {
+            goal_id: goal.id,
+            revision: goal.revision,
+            action: 'complete',
+            evidence: 'The requested output has been produced.'
+          })
+        ],
+        'toolUse'
+      )
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal Produce the requested output') })
+    await expect.poll(() => text(events)).toContain('GOAL_VERIFIED')
+    expect(script.calls.filter((call) => call.systemPrompt.startsWith('Evaluate whether the objective'))).toHaveLength(
+      1
+    )
+    const completion = projected(events)
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
+    expect(completion).toMatchObject({ state: 'output-available' })
+  })
+
+  // Locally handled commands must keep their answer when the desktop consumes message projections.
+  it('shows the goal command answer without starting a model turn', async () => {
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal') })
+    await done(events)
+    expect(text(events)).toBe('No goal is set. Use /goal <objective> to create one.')
+    expect(script.calls).toHaveLength(0)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
   // Catches approval edits being shown in the UI but the original write still executing.
@@ -373,8 +435,8 @@ describe('desktop Pi Durable connection', () => {
         child = call.sessionId!
         childRuns++
         return childRuns === 1
-          ? held.wait(assistantReply('child first answer'))
-          : assistantReply('child continued answer')
+          ? held.wait({ ...assistantReply('child first answer'), responseId: 'child-response-1' })
+          : { ...assistantReply('child continued answer'), responseId: 'child-response-2' }
       }
       if (!call.messages.some((entry) => entry.role === 'toolResult'))
         return assistantReply(
@@ -397,6 +459,7 @@ describe('desktop Pi Durable connection', () => {
     await done(events)
     const view = await connection.childProjection('spawn')
     expect(view).toBeDefined()
+    expect(view!.snapshot().canSubmit).toBe(true)
     expect(text(events)).not.toContain('child first')
     held.open()
     await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child first answer')
@@ -406,6 +469,19 @@ describe('desktop Pi Durable connection', () => {
     await connection.messageChild(contextId, 'continue research')
     await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child continued answer')
     expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
+    const childMessage = view!
+      .snapshot()
+      .messages.find((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
+      )!
+    await expect
+      .poll(() => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'))
+      .toContainEqual({
+        type: 'response-start',
+        responseId: 'child-response-2',
+        messageId: childMessage.id,
+        sessionId: contexts.context(view!.snapshot().contextId).sessionId
+      })
     expect(child).not.toBe(root)
     expect(text(events)).not.toContain('child continued answer')
     expect(events.filter((event) => event.type === 'error')).toEqual([])
@@ -416,6 +492,107 @@ describe('desktop Pi Durable connection', () => {
     expect(restored?.snapshot().contextId).toBe(contextId)
     expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
     expect(reopened.events.filter((event) => event.type === 'input-response')).toEqual([])
+  })
+
+  it('streams child text and tool progress after the parent finishes', async () => {
+    let root = ''
+    const releaseTool = join(directory, 'release-tool')
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root)
+        return assistantReply(
+          [
+            toolCallPart('child-bash', 'bash', {
+              command: `printf 'TOOL-FIRST'; while [ ! -f '${releaseTool}' ]; do /bin/sleep 0.05; done; printf 'TOOL-LAST'`
+            })
+          ],
+          'toolUse'
+        )
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'streaming child', prompt: 'work', background: true })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const fallback = script.model
+    let append!: () => void
+    let finish!: () => void
+    script.model = (model, context, options) => {
+      if (
+        !root ||
+        options?.sessionId === root ||
+        !context.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-bash')
+      )
+        return fallback(model, context, options)
+      const stream = createAssistantMessageEventStream()
+      const partial = { ...assistantReply('child prefix'), model: model.id, api: model.api, provider: model.provider }
+      stream.push({ type: 'start', partial })
+      stream.push({ type: 'text_delta', contentIndex: 0, delta: 'child prefix', partial })
+      append = () => {
+        partial.content = [{ type: 'text', text: 'child prefix suffix' }]
+        stream.push({ type: 'text_delta', contentIndex: 0, delta: ' suffix', partial })
+      }
+      const abort = () => {
+        partial.stopReason = 'aborted'
+        stream.push({ type: 'error', reason: 'aborted', error: partial })
+        stream.end(partial)
+      }
+      options?.signal?.addEventListener('abort', abort, { once: true })
+      finish = () => {
+        options?.signal?.removeEventListener('abort', abort)
+        stream.push({ type: 'done', reason: 'stop', message: partial })
+        stream.end(partial)
+      }
+      return stream
+    }
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events)
+    const view = await connection.childProjection('spawn')
+    expect(view).toBeDefined()
+    const tool = () =>
+      view!
+        .snapshot()
+        .messages.flatMap((message) => message.parts)
+        .find((part) => part.type === 'dynamic-tool')
+    await expect.poll(() => JSON.stringify(tool()?.output)).toContain('TOOL-FIRST')
+    expect(view!.snapshot().active).toBe(true)
+    expect(tool()).toMatchObject({
+      toolCallId: 'child-bash',
+      toolName: 'bash',
+      state: 'output-available',
+      preliminary: true,
+      callProviderMetadata: { cherry: { transport: 'pi-agent' } }
+    })
+    expect(JSON.stringify(tool()?.output)).not.toContain('TOOL-LAST')
+
+    writeFileSync(releaseTool, '')
+    const answer = () =>
+      view!
+        .snapshot()
+        .messages.find((message) =>
+          message.parts.some((part) => part.type === 'text' && part.text.startsWith('child prefix'))
+        )
+    await expect.poll(answer).toMatchObject({
+      metadata: { status: 'pending' },
+      parts: expect.arrayContaining([{ type: 'text', text: 'child prefix', state: 'streaming' }])
+    })
+    const id = answer()!.id
+    append()
+    await expect.poll(answer).toMatchObject({
+      id,
+      metadata: { status: 'pending' },
+      parts: expect.arrayContaining([{ type: 'text', text: 'child prefix suffix', state: 'streaming' }])
+    })
+    expect(view!.snapshot().active).toBe(true)
+    expect(JSON.stringify(tool()?.output)).toContain('TOOL-LAST')
+    expect(tool()).toMatchObject({ preliminary: false })
+    finish()
+    await expect.poll(() => view!.snapshot().active).toBe(false)
+    expect(answer()).toMatchObject({ id, metadata: { status: 'success' } })
+    expect(text(events)).not.toContain('child prefix')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
   it.each(['shutdown', 'stop'] as const)('distinguishes %s from durable cancellation', async (action) => {
