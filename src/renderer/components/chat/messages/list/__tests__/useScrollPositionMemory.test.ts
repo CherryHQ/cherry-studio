@@ -153,6 +153,17 @@ describe('useScrollPositionMemory', () => {
     vi.unstubAllGlobals()
   })
 
+  it('keeps explicit navigation when it takes ownership before the initial restore frame', () => {
+    let ownsInitialRestore = true
+    renderHook(() => useScrollPositionMemory(buildInputs({ shouldRestore: () => ownsInitialRestore })))
+    scroller.scrollTop = 250
+    ownsInitialRestore = false
+    flushRaf()
+    expect(scroller.scrollTop).toBe(250)
+    expect(handle.scrollToIndex).not.toHaveBeenCalled()
+    expect(enterFollowingAfterRestore).not.toHaveBeenCalled()
+  })
+
   it('restores a saved anchor via scrollToIndex on mount', () => {
     cacheService.set('chat.scroll_anchor.t1', { key: 'g2', offset: 80 })
 

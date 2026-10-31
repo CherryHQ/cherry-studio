@@ -1565,6 +1565,42 @@ describe('ChatContent', () => {
     })
   })
 
+  it.each([false, true])(
+    'scrolls to the end after history settles for a missing anchor or explicit end (%s)',
+    async (explicit) => {
+      const scrollToBottom = vi.fn()
+      const onLocateMessageHandled = vi.fn()
+      const history = {
+        uiMessages: [createUiMessage('latest', 'assistant')],
+        siblingsMap: {},
+        isLoading: true,
+        isStale: true,
+        refresh: vi.fn().mockResolvedValue([]),
+        activeNodeId: 'latest',
+        loadOlder: vi.fn(),
+        hasOlder: false,
+        mutate: vi.fn()
+      }
+      mockUseTopicMessages.mockReturnValue(history)
+      const props = {
+        topic,
+        locateMessageId: explicit ? undefined : 'deleted-anchor',
+        locateToEnd: explicit,
+        onLocateMessageHandled
+      }
+      const view = render(<ChatContent {...props} />)
+      await act(async () => {
+        mockMessageListValue.current.actions.bindRuntime({ scrollToBottom })
+      })
+      expect(onLocateMessageHandled).not.toHaveBeenCalled()
+      mockUseTopicMessages.mockReturnValue({ ...history, isLoading: false, isStale: false })
+      view.rerender(<ChatContent {...props} />)
+      await waitFor(() => expect(scrollToBottom).toHaveBeenCalledOnce())
+      expect(onLocateMessageHandled).toHaveBeenCalledOnce()
+      expect(history.loadOlder).not.toHaveBeenCalled()
+    }
+  )
+
   it('keeps pending locate requests while target history is still loading', () => {
     const loadOlder = vi.fn()
     const onLocateMessageHandled = vi.fn()
@@ -1623,9 +1659,8 @@ describe('ChatContent', () => {
       <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
     )
 
-    await waitFor(() => {
-      expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
-      expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
-    })
+    // Waiting another frame here lets the initial scroll restoration overwrite the requested target.
+    expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
+    expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
   })
 })

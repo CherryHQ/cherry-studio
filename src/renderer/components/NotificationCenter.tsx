@@ -12,6 +12,7 @@ import type { NotificationRecord } from '@shared/data/types/notification'
 
 import NotificationAnnouncement from './NotificationAnnouncement'
 import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
+import { NotificationTaskIdentity } from './NotificationTaskIdentity'
 import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('NotificationCenter')
@@ -48,6 +49,24 @@ function NotificationItem({
   const announcementUrl = announcement?.url
   const expandable = !!(release || announcement)
   const Icon = notificationCategoryIcons[record.category]
+  const task =
+    record.target?.kind === 'scheduled-task' ||
+    (record.target?.kind === 'conversation' &&
+      (record.kind === 'task-completion' || record.kind === 'queue-completion' || !!record.target.result))
+  const resultStatus = record.target?.result?.status ?? 'succeeded'
+  const replyPreview =
+    (record.target?.kind === 'conversation' ? record.target.replyPreview : undefined) ??
+    (record.kind === 'task-completion' || record.kind === 'queue-completion'
+      ? record.message.split('\n').slice(1).join('\n').trim()
+      : record.message.trim())
+  const showReplyPreview =
+    task && record.target?.kind === 'conversation' && resultStatus === 'succeeded' && !!replyPreview
+  const resultLabels = {
+    succeeded: t('notification.center.result.succeeded'),
+    failed: t('notification.center.result.failed'),
+    cancelled: t('notification.center.result.cancelled'),
+    interrupted: t('notification.center.result.interrupted')
+  }
   const created = new Date(record.createdAt)
   const timeLabel = created.toLocaleString(i18n.language, {
     ...(created.toDateString() === new Date().toDateString() ? {} : { dateStyle: 'short' as const }),
@@ -78,7 +97,7 @@ function NotificationItem({
       <div className="relative py-2">
         <Button
           variant="ghost"
-          aria-label={record.title}
+          aria-label={task ? undefined : record.title}
           aria-describedby={record.readAt === null ? unreadDescriptionId : undefined}
           aria-expanded={expandable ? expanded : undefined}
           className="block h-auto w-full min-w-0 whitespace-normal px-0 py-2 text-left"
@@ -92,17 +111,30 @@ function NotificationItem({
                 </span>
               </span>
             )}
-            <>
-              <span className="flex size-5 shrink-0 items-center justify-center">
-                <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
-              </span>
-              <span className="min-w-0 flex-1 truncate">
-                <NotificationTitle record={record} />
-              </span>
-            </>
+            {task ? (
+              <NotificationTaskIdentity record={record} />
+            ) : (
+              <>
+                <span className="flex size-5 shrink-0 items-center justify-center">
+                  <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  <NotificationTitle record={record} />
+                </span>
+              </>
+            )}
           </span>
           <span className="block pl-7">
-            {announcement ? (
+            {task ? (
+              <span
+                className={
+                  resultStatus === 'failed' || resultStatus === 'interrupted'
+                    ? 'block text-sm text-error'
+                    : 'block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground'
+                }>
+                {showReplyPreview ? notificationPreview(replyPreview) : resultLabels[resultStatus]}
+              </span>
+            ) : announcement ? (
               <NotificationAnnouncement id={record.id} announcement={announcement} expanded={expanded} />
             ) : (
               <span className="block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground">
