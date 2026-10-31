@@ -7,6 +7,10 @@
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import {
+  EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
+  EMPTY_SUCCESS_NO_RESPONSE_MESSAGE
+} from '@shared/ai/agentSessionNoResponse'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
@@ -64,6 +68,24 @@ export class PersistenceListener implements StreamListener {
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming, result)
+  }
+
+  /**
+   * Terminal dispatch hands every listener the same result object, so the claim has to be recorded
+   * on it: the row was written as `error` while the SDK finished cleanly, and terminal dispatch
+   * picks callbacks from that classification.
+   */
+  private claimDowngradedOutcome(result: StreamDoneResult): void {
+    const error: SerializedError = result.downgradedTo?.error ?? {
+      name: 'AgentRuntimeError',
+      message: EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
+      stack: null,
+      i18nKey: EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY
+    }
+    result.downgradedTo = {
+      error,
+      failure: result.downgradedTo?.failure ?? toExecutionFailure(error, result.modelId, 'runtime')
+    }
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
@@ -134,7 +156,15 @@ export class PersistenceListener implements StreamListener {
         modelId: this.opts.modelId,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
-      if (saved) result.persistence = { status: 'saved', message: saved }
+      if (saved) {
+        const { downgradedToError, ...message } = saved
+        result.persistence = {
+          status: 'saved',
+          message,
+          ...(downgradedToError ? { downgradedToError } : {})
+        }
+        if (downgradedToError && status === 'success') this.claimDowngradedOutcome(result as StreamDoneResult)
+      }
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,

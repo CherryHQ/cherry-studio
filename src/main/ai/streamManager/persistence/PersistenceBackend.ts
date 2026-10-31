@@ -130,6 +130,12 @@ export interface PersistedAssistant {
   messageId: string
   messageRevision: string
   historyRevision: string
+  /**
+   * Set when the backend stored the row worse than the status it was handed — an agent turn that
+   * reached `success` without renderable content is written as `error`. The row decides the
+   * outcome, so terminal dispatch must reclassify instead of still publishing success.
+   */
+  downgradedToError?: boolean
 }
 
 export interface PersistenceBackend {

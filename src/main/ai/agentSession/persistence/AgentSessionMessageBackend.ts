@@ -11,12 +11,26 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import {
+  appendNoResponseErrorPart,
+  EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
+  EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
+  hasVisibleAgentSessionPart,
+  type NoResponseErrorPartOptions
+} from '@shared/ai/agentSessionNoResponse'
+import type { CherryUIMessage, MessageData } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
 
 const logger = loggerService.withContext('AgentSessionMessageBackend')
+
+/** Folded into turns that reach `success` without any renderable content (renderer-visible rule). */
+const EMPTY_SUCCESS_NO_RESPONSE_ERROR: NoResponseErrorPartOptions = {
+  message: EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
+  i18nKey: EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
+  reason: 'empty-success-terminal'
+}
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
@@ -35,16 +49,44 @@ export interface AgentSessionMessageBackendOptions {
 export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly kind = 'agents-db'
   readonly canPersistEmptyTerminal = true
+  // This gates the `finalMessage === undefined` terminal (see PersistenceListener: a terminal event with
+  // no message object at all), NOT "an empty successful response is acceptable". This backend downgrades
+  // a success terminal whose parts are all non-visible to an error below, so the two must not be read
+  // as the same claim. Flipping this to `false` would strand zero-chunk turns as `pending` forever.
   readonly canPersistEmptySuccessTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
+  private persistedSuccess = false
 
   constructor(private readonly opts: AgentSessionMessageBackendOptions) {
     this.afterPersist = opts.afterPersist
+      ? async (message) => {
+          if (this.persistedSuccess) await opts.afterPersist?.(message)
+        }
+      : undefined
   }
 
   persistAssistant(input: PersistAssistantInput): PersistedAssistant {
     const { finalMessage, status, runtimeStats } = input
+    const parts = finalMessage?.parts ?? []
+    // A `success` terminal without any renderer-visible part would render as a misleading empty
+    // bubble on an OK turn; persist it as an error so the UI and delivery outcome reflect reality.
+    const isEmptySuccessTerminal = status === 'success' && !hasVisibleAgentSessionPart(parts)
+    const isEmptyPausedTerminal = status === 'paused' && !hasVisibleAgentSessionPart(parts)
+    if (isEmptySuccessTerminal) {
+      logger.warn('Downgrading empty successful agent turn to terminal error', {
+        sessionId: this.opts.sessionId,
+        assistantMessageId: this.opts.assistantMessageId
+      })
+    }
     const runtimeResumeToken = this.getRuntimeResumeToken()
+    const persistedStatus = isEmptySuccessTerminal ? 'error' : status
+    const persistedParts = (
+      isEmptySuccessTerminal
+        ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
+        : isEmptyPausedTerminal
+          ? { parts: [...parts, { type: 'data-agent-paused', data: {} }] }
+          : { parts }
+    ) satisfies MessageData
     let forkAnchor: RuntimeForkAnchor | undefined
     if (status === 'success') {
       try {
@@ -64,8 +106,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
           message: {
             id: finalMessage?.id ?? this.opts.assistantMessageId,
             role: 'assistant',
-            status,
-            data: { parts: finalMessage?.parts ?? [] },
+            status: persistedStatus,
+            data: persistedParts,
             modelId: this.opts.modelId
           }
         },
@@ -79,10 +121,16 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
       saved = save()
     }
+    // Set before returning: `afterPersist` reads it once this method resolves, so a downgraded
+    // empty success must not run the success-only naming hook.
+    this.persistedSuccess = status === 'success' && !isEmptySuccessTerminal
     return {
       messageId: saved.id,
       messageRevision: String(Date.parse(saved.updatedAt)),
-      historyRevision: String(Date.parse(agentSessionService.getById(this.opts.sessionId).updatedAt))
+      historyRevision: String(Date.parse(agentSessionService.getById(this.opts.sessionId).updatedAt)),
+      // Report the downgrade so terminal dispatch can reclassify the event: subscribers otherwise
+      // publish a completed execution for a row this backend just wrote as failed.
+      ...(isEmptySuccessTerminal ? { downgradedToError: true } : {})
     }
   }
 
