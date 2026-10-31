@@ -164,6 +164,35 @@ describe('shared memory file controls', () => {
     expect(disk.get('MEMORY.md')).toBe('Recovered fact')
   })
 
+  it.each([true, false])('reports unchanged targets only when clearing fails (failed=%s)', async (failed) => {
+    const user = userEvent.setup()
+    render(<MemoryFileControls />)
+    await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '清除全局记忆' }))
+    vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        batchId: 'partial-clear',
+        ...(failed ? { error: 'write failed' } : {}),
+        files: [
+          { path: '.memories/topic.md', hash: null, outcome: 'applied' },
+          { path: 'MEMORY.md', hash: 'original', outcome: 'unchanged' }
+        ]
+      }
+    })
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
+    if (failed) {
+      expect(await screen.findByRole('alert')).toBeVisible()
+      const results = screen.getByRole('list', { name: '文件结果' })
+      expect(results).toHaveTextContent('MEMORY.md')
+      expect(results).not.toHaveTextContent('.memories/topic.md')
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    } else {
+      expect(await screen.findByRole('status')).toHaveTextContent('清除成功')
+      expect(screen.queryByRole('list', { name: '文件结果' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    }
+  })
   it('reports when there is no recoverable operation without claiming a save', async () => {
     const user = userEvent.setup()
     render(<MemoryFileControls />)

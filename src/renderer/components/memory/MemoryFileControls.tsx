@@ -21,7 +21,9 @@ export function MemoryFileControls() {
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string>()
   const [result, setResult] = useState<OutputFor<'memory.clear.confirm'>>()
-  const incomplete = result?.files.filter((file) => file.outcome !== 'applied' && file.outcome !== 'unchanged')
+  const incomplete = result?.files.filter(
+    (file) => file.outcome !== 'applied' && (file.outcome !== 'unchanged' || !!error)
+  )
 
   function reportError(cause: unknown) {
     logger.warn('Memory file operation failed', { error: cause })
