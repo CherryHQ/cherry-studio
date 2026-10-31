@@ -38,29 +38,40 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  */
 export async function computeModelFieldReset(input: {
   providerId: string
+  /**
+   * The provider the new model lives under when it differs from `providerId` —
+   * equal model ids on two providers carry no constraint guarantee (AiHubMix
+   * `numImages` 1–10 vs DashScope 1–4), so the equal-model skip must not fire and
+   * the two supports are fetched from their own providers.
+   */
+  newProviderId?: string
   oldModelId: string | undefined
   newModelId: string
   mode: ImageGenerationMode | undefined
   currentValues?: Record<string, unknown>
 }): Promise<Record<string, unknown>> {
-  const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
-  if (oldModelId && oldModelId === newModelId) return {}
+  const { providerId, newProviderId, oldModelId, newModelId, mode, currentValues = {} } = input
+  const crossProvider = newProviderId !== undefined && newProviderId !== providerId
+  if (!crossProvider && oldModelId && oldModelId === newModelId) return {}
 
-  const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
+  const fetchSupport = async (
+    supportProviderId: string,
+    modelId: string
+  ): Promise<ImageGenerationSupport | undefined> => {
     try {
       const result = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
-        params: { providerId, modelId }
+        params: { providerId: supportProviderId, modelId }
       })
       return result ?? undefined
     } catch (error) {
-      logger.warn('Failed to prefetch image-generation-support', { providerId, modelId, error })
+      logger.warn('Failed to prefetch image-generation-support', { providerId: supportProviderId, modelId, error })
       return undefined
     }
   }
 
   const [oldSupport, newSupport] = await Promise.all([
-    oldModelId ? fetchSupport(oldModelId) : Promise.resolve(undefined),
-    fetchSupport(newModelId)
+    oldModelId ? fetchSupport(providerId, oldModelId) : Promise.resolve(undefined),
+    fetchSupport(newProviderId ?? providerId, newModelId)
   ])
 
   const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
