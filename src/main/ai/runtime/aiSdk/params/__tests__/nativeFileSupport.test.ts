@@ -13,8 +13,9 @@ describe('resolveNativeFileSupport', () => {
       makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
       { aiSdkProviderId: 'openai', runtimeProviderId: 'openai' }
     )
+    expect(ns.imageFormatPolicy).toBe('reject-bmp')
     expect(ns.pdf).toBe(true)
-    expect(typeof ns.image).toBe('boolean')
+    expect(ns.image).toBe(false)
   })
 
   it('native PDF on an Anthropic model', () => {
@@ -23,6 +24,7 @@ describe('resolveNativeFileSupport', () => {
       makeModel({ id: 'anthropic::claude', apiModelId: 'claude-3-5-sonnet-20241022', name: 'claude-3-5-sonnet' }),
       { aiSdkProviderId: 'anthropic', runtimeProviderId: 'anthropic' }
     )
+    expect(ns.imageFormatPolicy).toBe('reject-bmp')
     expect(ns.pdf).toBe(true)
   })
 
@@ -32,6 +34,7 @@ describe('resolveNativeFileSupport', () => {
       makeModel({ id: 'somehub::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
       { aiSdkProviderId: 'openai-compatible', runtimeProviderId: 'openai-compatible' }
     )
+    expect(ns.imageFormatPolicy).toBe('reject-bmp')
     expect(ns.pdf).toBe(false)
     // audio/video gate on model capability — a plain gpt-4o is neither.
     expect(ns.audio).toBe(false)
@@ -64,6 +67,7 @@ describe('resolveNativeFileSupport', () => {
       endpointType
     })
 
+    expect(ns.imageFormatPolicy).toBe('reject-bmp')
     expect(ns.audio).toBe(audio)
     expect(ns.video).toBe(video)
   })
@@ -82,6 +86,7 @@ describe('resolveNativeFileSupport', () => {
         { aiSdkProviderId: 'openrouter', runtimeProviderId: 'openrouter', endpointType }
       )
 
+      expect(ns.imageFormatPolicy).toBe('reject-bmp')
       expect(ns.audio).toBe(false)
       expect(ns.video).toBe(false)
     }
@@ -104,6 +109,7 @@ describe('resolveNativeFileSupport', () => {
       { aiSdkProviderId: 'aihubmix', runtimeProviderId: 'aihubmix', endpointType }
     )
 
+    expect(ns.imageFormatPolicy).toBe('reject-bmp')
     expect(ns.audio).toBe(audio)
     expect(ns.video).toBe(video)
   })
@@ -124,6 +130,7 @@ describe('resolveNativeFileSupport', () => {
       }
     )
 
+    expect(ns.imageFormatPolicy).toBe('reject-bmp')
     expect(ns.audio).toBe(true)
     expect(ns.video).toBe(false)
   })
@@ -134,16 +141,16 @@ describe('resolveNativeFileSupport', () => {
       makeModel({ id: 'qiniu::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
       { aiSdkProviderId: 'openai', runtimeProviderId: 'openai' }
     )
+    expect(ns.imageFormatPolicy).toBe('reject-bmp')
     expect(ns.pdf).toBe(false)
   })
 
-  it('image rides on the vision model regardless of provider', () => {
-    // isVisionModel is the gate; assert it's a boolean independent of the provider set.
+  it.each([false, true])('keeps the BMP policy when vision is %s', (vision) => {
     const ns = resolveNativeFileSupport(
       makeProvider({ id: 'somehub' }),
-      makeModel({ id: 'somehub::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
+      makeModel({ capabilities: vision ? [MODEL_CAPABILITY.IMAGE_RECOGNITION] : [] }),
       { aiSdkProviderId: 'openai-compatible', runtimeProviderId: 'openai-compatible' }
     )
-    expect(typeof ns.image).toBe('boolean')
+    expect(ns).toEqual({ image: vision, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' })
   })
 })

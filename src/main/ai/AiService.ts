@@ -74,7 +74,7 @@ import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { resolveSdkConfig } from './provider/sdkConfig'
-import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, NativeFileRequirements, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
   buildAgentParams,
@@ -112,7 +112,7 @@ const logger = loggerService.withContext('AiService')
  */
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
-const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
+const NO_NATIVE_FILE_REQUIREMENTS: NativeFileRequirements = { image: false, pdf: false, audio: false, video: false }
 
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
@@ -121,15 +121,15 @@ const PROBE_INPUT_IMAGE_BASE64 = PROBE_INPUT_IMAGE_DATA_URL.slice('data:image/pn
 
 /** Edit-only probes pick the first mode the model declares, in painting-tab preference order. */
 const EDIT_ONLY_PROBE_FALLBACK_MODES: readonly ImageGenerationMode[] = ['edit', 'remix', 'upscale', 'merge']
-type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
+type MutableNativeFileRequirements = { -readonly [K in keyof NativeFileRequirements]: NativeFileRequirements[K] }
 
 /** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
 export function resolveRequiredNativeFileSupport(
   messages: ReadonlyArray<unknown> | undefined,
   primarySupport: NativeFileSupport
-): NativeFileSupport {
+): NativeFileRequirements {
   if (!messages) return NO_NATIVE_FILE_REQUIREMENTS
-  const required: MutableNativeFileSupport = { ...NO_NATIVE_FILE_REQUIREMENTS }
+  const required: MutableNativeFileRequirements = { ...NO_NATIVE_FILE_REQUIREMENTS }
   for (const message of messages) {
     const m = message as { parts?: unknown[]; content?: unknown }
     const parts = Array.isArray(m.parts) ? m.parts : Array.isArray(m.content) ? m.content : []

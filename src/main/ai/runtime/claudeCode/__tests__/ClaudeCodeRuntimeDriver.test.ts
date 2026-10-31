@@ -1613,7 +1613,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.getModelByKey).toHaveBeenCalledWith('claude-code', 'sonnet')
     expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
       attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
-      nativeSupport: { image: false, pdf: false, audio: false, video: false },
+      nativeSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'passthrough' },
       isToolCapable: false,
       keepUnroutableFileParts: true
     })

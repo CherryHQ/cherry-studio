@@ -339,7 +339,7 @@ describe('AiService', () => {
           plugins: [],
           options: {},
           hookParts: [],
-          nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+          nativeFileSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' }
         }
         vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue(transport)
         vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue(transport)
@@ -623,7 +623,13 @@ describe('AiService', () => {
   })
 
   it('detects only native attachment shapes that the primary model preserves', () => {
-    const primarySupport = { image: true, pdf: true, audio: false, video: true }
+    const primarySupport = {
+      image: true,
+      pdf: true,
+      audio: false,
+      video: true,
+      imageFormatPolicy: 'reject-bmp'
+    } as const
     const messages = [
       {
         parts: [
@@ -1705,6 +1711,58 @@ describe('AiService tool approval', () => {
     expect(mockRerank.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 0 }))
   })
 
+  it('rejects a BMP chat before starting the provider or retry/fallback path', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: {
+        id: 'test-provider::test-model',
+        name: 'Test Model',
+        capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+      },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: true, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' },
+      fileAttachments: [{ fileEntryId: 'entry-bmp', handle: 'a.bmp', displayName: 'a.bmp' }]
+    })
+
+    await expect(
+      service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        contextOwner: 'caller',
+        trigger: 'submit-message',
+        messages: [
+          {
+            id: 'user-1',
+            role: 'user',
+            parts: [
+              {
+                type: 'file',
+                filename: 'a.bmp',
+                mediaType: 'image/bmp',
+                url: 'file:///x/a.bmp',
+                providerMetadata: { cherry: { fileEntryId: 'entry-bmp' } }
+              }
+            ]
+          }
+        ],
+        requestOptions: { signal: new AbortController().signal }
+      })
+    ).rejects.toMatchObject({ name: 'UnsupportedImageFormatError', i18nKey: 'unsupported_bmp_image' })
+
+    expect(mockCreateAgent).not.toHaveBeenCalled()
+    expect(mockAgentGenerate).not.toHaveBeenCalled()
+    expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
+    expect(mockBuildFallbackModels).not.toHaveBeenCalled()
+  })
+
   it('disables the chat retry wrapper when requestOptions.maxRetries is 0', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
@@ -1718,7 +1776,7 @@ describe('AiService tool approval', () => {
       options: {},
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' },
       fileAttachments: []
     })
 
@@ -1756,7 +1814,7 @@ describe('AiService tool approval', () => {
       options: {},
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' },
       fileAttachments: []
     })
 
@@ -1803,7 +1861,7 @@ describe('AiService tool approval', () => {
       options: { maxRetries: 0.5 },
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' },
       fileAttachments: []
     })
 
@@ -1859,7 +1917,7 @@ describe('AiService tool approval', () => {
       options: { repairToolCall: primaryRepair },
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' }
     })
 
     await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' } as never)
@@ -1897,7 +1955,7 @@ describe('AiService tool approval', () => {
       options: {},
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' }
     })
 
     await service.generateText({
@@ -1930,7 +1988,7 @@ describe('AiService tool approval', () => {
       options: {},
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: true, pdf: false, audio: false, video: false },
+      nativeFileSupport: { image: true, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' },
       fileAttachments: []
     })
 
@@ -1972,7 +2030,7 @@ describe('AiService tool approval', () => {
       options: {},
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' }
     })
 
     await service.generateText({
@@ -2006,7 +2064,7 @@ describe('AiService tool approval', () => {
       options: {},
       hookParts: [],
       assistant: undefined,
-      nativeFileSupport: { image: true, pdf: false, audio: false, video: false }
+      nativeFileSupport: { image: true, pdf: false, audio: false, video: false, imageFormatPolicy: 'reject-bmp' }
     })
 
     await service.generateText({
