@@ -338,9 +338,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       writable: true,
       value: {
         file: {
-          openPath: vi.fn(),
-          select: vi.fn(),
-          showInFolder: vi.fn()
+          select: vi.fn()
         },
         mcp: {
           abortTool: vi.fn()

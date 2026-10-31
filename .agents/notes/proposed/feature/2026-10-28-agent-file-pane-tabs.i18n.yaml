@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-28-agent-file-pane-tabs.md
+2026-10-28-agent-file-pane-tabs.md: 0450e7126ea7433e7bfbf2646e83c27db11cc368
+2026-10-28-agent-file-pane-tabs.zh.md: b84f5843fa1e50b09a020727e7bd7e6590cb6c91

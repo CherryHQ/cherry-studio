@@ -157,6 +157,10 @@ type StreamContext = {
    * Reconciled at completion, when the stream has had its last chance to deliver the suffix itself.
    */
   pendingReasoningSnapshots: Map<string, string>
+  /** Hold only an ambiguous same-message reasoning prefix; release immediately on divergence. */
+  pendingReasoningText:
+    | { id: string; text: string; candidates: string[]; parentToolUseId: SdkParentToolUseId }
+    | undefined
 }
 
 /**
@@ -563,7 +567,8 @@ export class ClaudeCodeStreamAdapter {
       streamMessageId: '',
       reasoningBuffers: new Map(),
       reasoningTextsByMessageId: new Map(),
-      pendingReasoningSnapshots: new Map()
+      pendingReasoningSnapshots: new Map(),
+      pendingReasoningText: undefined
     }
   }
 
@@ -808,6 +813,7 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        this.closeActiveTextPart(ctx)
         ctx.streamMessageId = event.message?.id ?? ''
         break
       case 'message_stop':
@@ -902,6 +908,15 @@ export class ClaudeCodeStreamAdapter {
   ): void {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
+    const candidates =
+      !sdkParentToolUseId && ctx.options.responseFormat?.type !== 'json'
+        ? [...(ctx.reasoningTextsByMessageId.get(ctx.streamMessageId) ?? [])]
+        : []
+    if (candidates.length > 0) {
+      ctx.pendingReasoningText = { id: partId, text: '', candidates, parentToolUseId: sdkParentToolUseId }
+      ctx.textStreamedViaContentBlock = true
+      return
+    }
     ctx.textPartId = partId
     ctx.sink.enqueue({
       type: 'text-start',
@@ -952,6 +967,20 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.options.responseFormat?.type === 'json') {
       ctx.accumulatedText += text
       ctx.streamedTextLength += text.length
+      return
+    }
+
+    const pending = ctx.pendingReasoningText
+    if (pending) {
+      pending.text += text
+      ctx.accumulatedText += text
+      ctx.streamedTextLength += text.length
+      const normalized = pending.text.trimStart()
+      if (
+        pending.candidates.some((candidate) => candidate.startsWith(normalized) || candidate === normalized.trimEnd())
+      )
+        return
+      this.settlePendingReasoningText(ctx, false)
       return
     }
 
@@ -1008,6 +1037,11 @@ export class ClaudeCodeStreamAdapter {
 
     const textId = ctx.textBlocksByIndex.get(blockIndex)
     if (textId) {
+      this.settlePendingReasoningText(ctx, true)
+      if (ctx.textPartId !== textId) {
+        ctx.textBlocksByIndex.delete(blockIndex)
+        return
+      }
       ctx.sink.enqueue({ type: 'text-end', id: textId })
       ctx.textBlocksByIndex.delete(blockIndex)
       if (ctx.textPartId === textId) ctx.textPartId = undefined
@@ -1409,6 +1443,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
+    this.settlePendingReasoningText(ctx, true)
     this.reconcilePendingReasoningSnapshots(ctx)
     const finalUsage = convertClaudeCodeUsage(message.usage)
     ctx.usage = {
@@ -2091,7 +2126,29 @@ export class ClaudeCodeStreamAdapter {
     return null
   }
 
+  private settlePendingReasoningText(ctx: StreamContext, completed: boolean): void {
+    const pending = ctx.pendingReasoningText
+    if (!pending) return
+    ctx.pendingReasoningText = undefined
+    if (completed && pending.candidates.includes(pending.text.trim())) {
+      // These bytes never reached the sink. A later different assistant snapshot must not
+      // treat them as emitted output and slice a legitimate answer at their length.
+      ctx.streamedTextLength = Math.max(0, ctx.streamedTextLength - pending.text.length)
+      ctx.accumulatedText = ctx.accumulatedText.slice(0, Math.max(0, ctx.accumulatedText.length - pending.text.length))
+      return
+    }
+    if (!pending.text) return
+    ctx.textPartId = pending.id
+    ctx.sink.enqueue({
+      type: 'text-start',
+      id: pending.id,
+      providerMetadata: this.buildParentProviderMetadata(pending.parentToolUseId)
+    })
+    ctx.sink.enqueue({ type: 'text-delta', id: pending.id, delta: pending.text })
+  }
+
   private closeActiveTextPart(ctx: StreamContext): void {
+    this.settlePendingReasoningText(ctx, true)
     if (!ctx.textPartId) return
     const closedTextId = ctx.textPartId
     ctx.sink.enqueue({ type: 'text-end', id: closedTextId })

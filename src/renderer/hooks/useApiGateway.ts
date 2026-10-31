@@ -59,10 +59,10 @@ export const useApiGateway = () => {
         toast.success(t('apiGateway.messages.startSuccess'))
         return true
       }
-      toast.error(t('apiGateway.messages.startError') + result.error)
+      toast.error({ title: t('apiGateway.messages.startError').trim(), description: result.error })
       return false
     } catch (error: any) {
-      toast.error(t('apiGateway.messages.startError') + (error.message || error))
+      toast.error({ title: t('apiGateway.messages.startError').trim(), description: error.message || String(error) })
       return false
     } finally {
       setApiGatewayLoading(false)

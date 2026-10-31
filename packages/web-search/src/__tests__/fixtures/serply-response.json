@@ -1,0 +1,16 @@
+{
+  "results": [
+    {
+      "title": " Serply Title ",
+      "description": " Serply Description ",
+      "link": "https://serply.example/result",
+      "position": 1,
+      "realPosition": 1,
+      "result_type": "organic"
+    }
+  ],
+  "total": null,
+  "related_questions": [],
+  "answers": [],
+  "knowledge_graph": ""
+}

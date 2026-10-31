@@ -96,14 +96,14 @@ import { useReorder } from '@data/hooks/useReorder'
 function McpServerList() {
   const { data } = useQuery('/mcp-servers')
   const { applyReorderedList, isPending } = useReorder('/mcp-servers')
-  return <DraggableList items={data?.items ?? []} onReorder={applyReorderedList} />
+  return <ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
 }
 
 // Flat-array collection — the response *is* the list.
 function PinList() {
   const { data } = useQuery('/pins')
   const { applyReorderedList } = useReorder('/pins')
-  return <DraggableList items={data ?? []} onReorder={applyReorderedList} />
+  return <ReorderableList items={data ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
 }
 
 // Non-`id` primary key (e.g. miniapp.appId):
@@ -345,7 +345,7 @@ useEffect(() => { setList(data?.items ?? []) }, [data])
 
 // RIGHT — render straight from SWR; optimistic updates go to the cache
 const { data } = useQuery('/mcp-servers')
-<DraggableList items={data?.items ?? []} onReorder={applyReorderedList} />
+<ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
 ```
 
 The cached list is the source of truth. Every subscriber of the same key stays in sync automatically.

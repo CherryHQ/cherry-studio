@@ -1,5 +1,25 @@
 # @cherrystudio/remote-transport
 
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [[`bc570d2`](https://github.com/CherryHQ/cherry-studio/commit/bc570d2b98f81be7922fbc1f879b8db530c5b60d)]:
+  - @cherrystudio/remote-protocol@0.7.0
+
+## 0.2.4
+
+### Patch Changes
+
+- [#21979](https://github.com/CherryHQ/cherry-studio/pull/21979) [`332717f`](https://github.com/CherryHQ/cherry-studio/commit/332717fa06c47f361d85039e7e9a16693ffd66b1) Thanks [@drakeo338](https://github.com/drakeo338)! - Apply backpressure when a remote socket's queued bytes reach the cap instead of aborting the stream; the stream waits for the buffer to drain and aborts only if it stays congested past the idle timeout.
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`8bf2fe2`](https://github.com/CherryHQ/cherry-studio/commit/8bf2fe28d50170eb7b04c99dd5f8bfcf1913f2ae)]:
+  - @cherrystudio/remote-protocol@0.6.0
+
 ## 0.2.2
 
 ### Patch Changes

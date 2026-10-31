@@ -301,3 +301,17 @@ export function planReadableText(
 
   return { status: 'ready', normalizedLength, chunks: chunkReadableText(normalized) }
 }
+
+/** Retain the last Markdown block; only plain prose can commit at sentence boundaries. */
+export function stableReadableTextEnd(input: string): number {
+  const tree = markdownParser.parse(input)
+  const last = tree.children.at(-1)
+  if (!last) return 0
+  const start = last.position?.start.offset ?? 0
+  if (last.type !== 'paragraph' || last.children.some((node) => node.type !== 'text')) return start
+  const tail = input.slice(start)
+  if (/[[\]`*_~<>$\\]/u.test(tail)) return start
+  let end = start
+  for (const match of tail.matchAll(/[。！？；]|[.!?;](?=\s)/gu)) end = start + match.index + match[0].length
+  return end
+}

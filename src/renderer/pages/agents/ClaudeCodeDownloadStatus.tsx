@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, CircularProgress, Spinner } from '@cherrystudio/ui'
@@ -15,6 +16,9 @@ const errorKeys = {
   installation: 'agent.runtime_download.errors.installation'
 } as const
 
+/** An installed runtime answers within one IPC round trip; only a slower check is worth showing. */
+const CHECKING_DELAY_MS = 200
+
 export function ClaudeCodeDownloadStatus({
   status,
   onRetry
@@ -26,6 +30,16 @@ export function ClaudeCodeDownloadStatus({
   const runtime = t('library.config.agent.field.runtime.option.claude_code')
   const { railGutterPx } = useChatLayoutMode()
   const [narrowMode] = usePreference('chat.narrow_mode')
+  const checking = status === undefined
+  const [checkingVisible, setCheckingVisible] = useState(false)
+
+  useEffect(() => {
+    if (!checking) return
+    const timer = window.setTimeout(() => setCheckingVisible(true), CHECKING_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [checking])
+
+  if (checking && !checkingVisible) return null
   const percent = status?.totalBytes
     ? Math.min(100, Math.floor((status.receivedBytes / status.totalBytes) * 100))
     : undefined

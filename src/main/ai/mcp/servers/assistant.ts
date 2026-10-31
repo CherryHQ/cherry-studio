@@ -699,7 +699,7 @@ const ASSISTANT_TOOLS: Record<AssistantToolName, (server: McpServer, defaultMode
       'navigate',
       {
         description:
-          'Create a clickable entry for a route returned by product_info. Use this in the same turn whenever answering where to find, open, configure, or use a Cherry Studio page or feature; written UI steps are not a substitute.',
+          'Create a clickable link to a Cherry Studio route from product_info. Prefer it over written UI steps.',
         inputSchema: NavigateInputSchema
       },
       async (args) => navigate(args)
@@ -709,7 +709,7 @@ const ASSISTANT_TOOLS: Record<AssistantToolName, (server: McpServer, defaultMode
       'diagnose',
       {
         description:
-          'Read Cherry Studio runtime state for troubleshooting. Use this to inspect app info, provider config, connectivity, logs, and MCP server status.',
+          'Read Cherry Studio runtime state for troubleshooting: app info, providers, connectivity, logs, MCP status.',
         inputSchema: DiagnoseInputSchema
       },
       async (args, ctx) => diagnose(args, ctx.mcpReq.signal)
@@ -718,8 +718,7 @@ const ASSISTANT_TOOLS: Record<AssistantToolName, (server: McpServer, defaultMode
     server.registerTool(
       'product_info',
       {
-        description:
-          'Read current Cherry Studio product facts from the installed package manifest. Request only the relevant section to keep context small.',
+        description: 'Read Cherry Studio product facts from the installed manifest. Request only the section you need.',
         inputSchema: ProductInfoInputSchema
       },
       async (args) => productInfo(args)
@@ -728,7 +727,7 @@ const ASSISTANT_TOOLS: Record<AssistantToolName, (server: McpServer, defaultMode
     server.registerTool(
       'apply_setting',
       {
-        description: `Apply a low-risk Cherry Studio setting change directly. Only the whitelist below is supported; destructive operations are never exposed here.
+        description: `Apply a low-risk setting from the whitelist below; destructive changes are never exposed.
 
 Supported settings:
 ${Object.values(APPLY_SETTING_REGISTRY)
@@ -742,14 +741,7 @@ ${Object.values(APPLY_SETTING_REGISTRY)
     server.registerTool(
       'create_agent',
       {
-        description: `Create a new Cherry Studio Agent on behalf of the user. Use this when the user explicitly asks to create / build / make a new agent (e.g. "帮我建一个专门做 Python 代码 review 的 Agent"). MUST collect requirements via conversation first, then SHOW the proposed config to the user for confirmation, and only call this tool after explicit user agreement.
-
-Safety rules:
-- type is fixed to 'claude-code' (channel-backed agents are out of scope here)
-- a workspace is selected when the user opens a session for the new agent
-- permission_mode defaults to 'default' (read-mostly); user can change later in the UI
-
-The tool returns the new agent details, and Cherry Studio presents a Go to chat action. Do not call navigate after a successful creation.`,
+        description: `Create an Agent only after the user asks for one and confirms the proposed config. type is fixed to claude-code.`,
         inputSchema: CreateAgentInputSchema,
         outputSchema: CreateAgentOutputSchema
       },
@@ -760,7 +752,7 @@ The tool returns the new agent details, and Cherry Studio presents a Go to chat 
       'prepare_diagnostic_report',
       {
         description:
-          'Prepare an editable diagnostic report description for Cherry Studio to present as a user-clickable review action. This tool only prepares draft data; it DOES NOT open UI, acknowledge user consent, collect diagnostics, write files, or submit a report.',
+          'Prepare an editable diagnostic report draft for the user to review and submit; never opens UI or submits itself.',
         inputSchema: PrepareDiagnosticReportInputSchema,
         outputSchema: PrepareDiagnosticReportOutputSchema
       },

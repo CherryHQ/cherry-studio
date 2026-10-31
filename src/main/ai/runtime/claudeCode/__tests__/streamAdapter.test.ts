@@ -618,6 +618,210 @@ describe('ClaudeCodeStreamAdapter', () => {
       adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     }
 
+    it('drops a streamed parentless text copy before it reaches the output sink', () => {
+      const { adapter, parts } = createAdapter()
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'text_delta', text: monologue.slice(0, 20) }
+        })
+      )
+      // An ambiguous prefix must not leak before the block can be classified.
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: monologue.slice(20) } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+      adapter.handleMessage(successResult())
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
+    function streamText(
+      adapter: InstanceType<typeof ClaudeCodeStreamAdapter>,
+      text: string,
+      parent: string | null = null
+    ) {
+      const send = (event: Record<string, unknown>) =>
+        adapter.handleMessage({ ...streamEvent(event), parent_tool_use_id: parent })
+      send({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      send({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text } })
+      send({ type: 'content_block_stop', index: 1 })
+    }
+
+    it('releases a divergent answer immediately without losing its ambiguous prefix', () => {
+      const { adapter, parts } = createAdapter()
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'text_delta', text: monologue.slice(0, 10) }
+        })
+      )
+      expect(parts.some((part) => part.type === 'text-delta')).toBe(false)
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'text_delta', text: ' actually answer now' }
+        })
+      )
+      expect(
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part: any) => part.delta)
+          .join('')
+      ).toBe(monologue.slice(0, 10) + ' actually answer now')
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+      expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
+      expect(parts.filter((part) => part.type === 'text-end')).toHaveLength(1)
+    })
+
+    it('preserves a completed shorter answer even when it is a prefix of the reasoning', () => {
+      const { adapter, parts } = createAdapter()
+      streamReasoning(adapter, monologue)
+      streamText(adapter, monologue.slice(0, 10))
+      expect(
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part: any) => part.delta)
+          .join('')
+      ).toBe(monologue.slice(0, 10))
+    })
+
+    it('suppresses boundary-whitespace copies but preserves a copy followed by a real suffix', () => {
+      const first = createAdapter()
+      streamReasoning(first.adapter, monologue)
+      streamText(first.adapter, '  ' + monologue + '\n')
+      expect(first.parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+      const second = createAdapter()
+      streamReasoning(second.adapter, monologue)
+      streamText(second.adapter, monologue + ' Final answer: 42')
+      expect(
+        second.parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part: any) => part.delta)
+          .join('')
+      ).toBe(monologue + ' Final answer: 42')
+    })
+
+    it('never suppresses streamed text of a different message or a parented flow', () => {
+      const { adapter, parts } = createAdapter()
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_2' } }))
+      streamText(adapter, monologue)
+      streamText(adapter, monologue, 'tool-parent')
+      expect(
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part: any) => part.delta)
+          .join('')
+      ).toBe(monologue + monologue)
+      expect(parts.filter((part) => part.type === 'text-start').at(-1)).toMatchObject({
+        providerMetadata: { 'claude-code': { parentToolCallId: 'tool-parent' } }
+      })
+    })
+
+    it('preserves a different assistant snapshot after the streamed reasoning copy was suppressed', () => {
+      const { adapter, parts } = createAdapter()
+      streamReasoning(adapter, monologue)
+      streamText(adapter, monologue)
+      adapter.handleMessage(assistant([{ type: 'text', text: 'Actual answer.' }]))
+      expect(
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part: any) => part.delta)
+          .join('')
+      ).toBe('Actual answer.')
+    })
+
+    it('emits an unfinished held prefix before truncation recovery returns', () => {
+      const { adapter, parts } = createAdapter()
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'text_delta', text: monologue.slice(0, 10) }
+        })
+      )
+      adapter.handleMessage({ ...assistant([]), aborted: true })
+      expect(adapter.handleTruncationError(new Error('stream closed'))).toBe(true)
+      expect(
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part: any) => part.delta)
+          .join('')
+      ).toBe(monologue.slice(0, 10))
+    })
+
+    it('settles an unfinished prefix before a different message starts', () => {
+      const { adapter, parts } = createAdapter()
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'text_delta', text: monologue.slice(0, 10) }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_2' } }))
+      streamText(adapter, 'new answer')
+      expect(
+        parts
+          .filter((part) => part.type === 'text-delta')
+          .map((part: any) => part.delta)
+          .join('')
+      ).toBe(monologue.slice(0, 10) + 'new answer')
+      expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(2)
+      expect(parts.filter((part) => part.type === 'text-end')).toHaveLength(2)
+    })
+
+    it('settles an unfinished ambiguous text block on result and error finalization', () => {
+      for (const ending of ['result', 'error']) {
+        const { adapter, parts } = createAdapter()
+        streamReasoning(adapter, monologue)
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+        )
+        adapter.handleMessage(
+          streamEvent({
+            type: 'content_block_delta',
+            index: 1,
+            delta: { type: 'text_delta', text: monologue.slice(0, 10) }
+          })
+        )
+        if (ending === 'result') adapter.handleMessage(successResult())
+        else adapter.finalizeOpenTextParts()
+        expect(
+          parts
+            .filter((part) => part.type === 'text-delta')
+            .map((part: any) => part.delta)
+            .join('')
+        ).toBe(monologue.slice(0, 10))
+      }
+    })
+
     it('drops a parentless text block identical to the reasoning streamed for the same message', () => {
       const { adapter, parts } = createAdapter()
 

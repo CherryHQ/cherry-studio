@@ -30,4 +30,20 @@ describe('getMcpConfigSampleFromReadme', () => {
     expect(getMcpConfigSampleFromReadme(readme)).toBeNull()
     expect(performance.now() - startedAt).toBeLessThan(1_000)
   })
+
+  it('keeps scanning after an empty mcpServers block', () => {
+    const readme =
+      '"mcpServers": {} and later "mcpServers": { "fs": { "command": "npx", "args": ["-y", "server-fs"] } }'
+
+    expect(getMcpConfigSampleFromReadme(readme)).toEqual({
+      command: 'npx',
+      args: ['-y', 'server-fs']
+    })
+  })
+
+  it('keeps scanning when the first server entry is null', () => {
+    const readme = '"mcpServers": { "broken": null } then "mcpServers": { "fs": { "command": "npx" } }'
+
+    expect(getMcpConfigSampleFromReadme(readme)).toEqual({ command: 'npx' })
+  })
 })

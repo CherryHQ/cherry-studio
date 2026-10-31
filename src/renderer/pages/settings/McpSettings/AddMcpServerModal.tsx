@@ -27,7 +27,6 @@ import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -107,7 +106,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [loading, setLoading] = useState(false)
   const [importMethod, setImportMethod] = useState<'json' | 'dxt' | 'mcpb'>(initialImportMethod)
-  const activeCmTheme = useCmTheme(visible && importMethod === 'json')
+
   const [packageFile, setPackageFile] = useState<File | null>(null)
   const { setTimeoutTimer } = useTimer()
   const invalidateCache = useInvalidateCache()
@@ -382,7 +381,6 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                     <FormLabel>{t('settings.mcp.addServer.importFrom.tooltip')}</FormLabel>
                     <FormControl>
                       <LazyCodeEditor
-                        theme={activeCmTheme}
                         fontSize={fontSize - 1}
                         value={field.value}
                         placeholder={initialJsonExample}

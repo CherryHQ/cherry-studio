@@ -79,6 +79,8 @@ export const screenshotRequestSchemas = {
   'screenshot.capture': defineRoute({ input: z.void(), output: z.void() }),
   /** Selection confirmed — copy to the clipboard and dismiss every overlay. */
   'screenshot.commit': defineRoute({ input: screenshotResultSchema, output: z.void() }),
+  /** Copy the selection to the clipboard without dismissing the overlays. */
+  'screenshot.copy': defineRoute({ input: screenshotResultSchema, output: z.void() }),
   /** Selection confirmed — save to a user-chosen file and dismiss every overlay. */
   'screenshot.save': defineRoute({ input: screenshotResultSchema, output: z.void() }),
   /** Dismiss every overlay without producing anything. */
