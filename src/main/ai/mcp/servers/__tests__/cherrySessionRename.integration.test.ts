@@ -15,6 +15,7 @@ import { callBuiltinTool, listBuiltinTools, toolText } from './builtinMcpClient'
 describe('session_rename persisted contract', () => {
   const dbh = setupTestDatabase()
   const getInteractionState = vi.fn()
+  const getSessionToolsAuthorization = vi.fn()
   let context: AutonomyToolsContext
 
   function createServer() {
@@ -34,7 +35,8 @@ describe('session_rename persisted contract', () => {
 
   beforeEach(() => {
     getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
-    MockApplicationUtils.setService('AgentSessionRuntimeService', { getInteractionState })
+    getSessionToolsAuthorization.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    MockApplicationUtils.setService('AgentSessionRuntimeService', { getInteractionState, getSessionToolsAuthorization })
     dbh.db
       .insert(agentTable)
       .values(
@@ -156,6 +158,7 @@ describe('session_rename persisted contract', () => {
     { currentTurn: 'interactive', userResponse: 'unavailable' }
   ])('denies renaming without an interactive responder: %j', async (interaction) => {
     getInteractionState.mockReturnValue(interaction)
+    getSessionToolsAuthorization.mockReturnValue(interaction)
     const target = createSession('rename-other')
     const result = await callBuiltinTool(createServer, 'session_rename', { session_id: target.id, title: 'New' })
 

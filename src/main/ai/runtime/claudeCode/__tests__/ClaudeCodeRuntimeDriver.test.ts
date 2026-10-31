@@ -167,6 +167,7 @@ const mocks = vi.hoisted(() => ({
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
+  clearNativeWorkflowAuthority: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -498,7 +499,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
-      if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
+      if (name === 'ClaudeCodeSessionStateService')
+        return { disposeToolPolicySnapshot: vi.fn(), clearNativeWorkflowAuthority: mocks.clearNativeWorkflowAuthority }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
@@ -3667,6 +3669,32 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: { type: 'error', error: expect.objectContaining({ message: 'ordinary query failure' }) }
     })
     expect(mocks.adapterInstances[0].finalizeOpenTextParts).toHaveBeenCalledOnce()
+    void connection.close()
+  })
+
+  // A workflow run's launch authority is retired by its completion, which only the connection's
+  // adapter can observe — a stale record would outlive the run and deny a later interactive run's
+  // children on the same warm connection.
+  it('retires a settled workflow run’s authority on this connection’s session', async () => {
+    const nextQueryResult = createDeferred<IteratorResult<any>>()
+    const query = {
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return { next: () => nextQueryResult.promise }
+      }
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-settled-workflow',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    mocks.adapterInstances[0].options.onBackgroundTaskSettled('workflow-tool-use')
+
+    expect(mocks.clearNativeWorkflowAuthority).toHaveBeenCalledWith('session-settled-workflow', 'workflow-tool-use')
     void connection.close()
   })
 

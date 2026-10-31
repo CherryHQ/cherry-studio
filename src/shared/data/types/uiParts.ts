@@ -71,7 +71,8 @@ export interface AgentTaskEventPartData {
   event: 'started' | 'progress' | 'updated' | 'notification'
   taskId: string
   toolUseId?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
+  /** `killed` is a deliberate kill, which unlike `error` produces no parent failure notification. */
+  status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'killed' | 'error'
   title?: string
   activeText?: string
   description?: string

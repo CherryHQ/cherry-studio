@@ -428,6 +428,10 @@ export class DingTalkAdapter extends ChannelAdapter {
   ): Promise<boolean> {
     const context = this.replies.get(this.key(chatId, opts?.replyToMessageId))
     if (!context) return suppress
+    // A successor execution (background wake on the same inbound message) must not touch the card
+    // its predecessor finalized — `updateCard` sends full replacement content, so accepting would
+    // overwrite the original answer and rejecting would drop the wake. It sends a fresh text reply.
+    if (context.finished) return false
     this.closeContext(context)
     await context.cardPromise
     await context.flusher?.waitForFlush()

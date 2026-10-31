@@ -19,36 +19,33 @@ const turn = (id: string): Turn => ({ id })
 const pending = (id: string): PendingTurn => ({ id })
 const reservation = (id: string): Reservation => ({ id })
 describe('agentSessionRuntimeState', () => {
-  it.each([false, true])(
-    'finishes the reply while a detached command keeps the connection alive (agents first: %s)',
-    (agentsFirst) => {
-      const current = turn('reply')
-      let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
-      state.connection = { kind: 'connected', connection: {} as never, occupancy: {} }
-      state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
-      state = transitionAgentSessionRuntime(state, {
-        type: 'connection-occupancy',
-        occupancy: 'background',
-        active: true,
-        awaitingReply: agentsFirst
-      }).state
-      let result = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } })
-      if (agentsFirst) {
-        expect(result.effects).toEqual([])
-        result = transitionAgentSessionRuntime(result.state, {
-          type: 'connection-occupancy',
-          occupancy: 'background',
-          active: true,
-          awaitingReply: false
-        })
-      }
-      expect(result.effects).toContainEqual({ type: 'settle-turn', turn: current, outcome: { status: 'success' } })
-      expect(result.state.connection).toMatchObject({ occupancy: { background: { awaitingReply: false } } })
-      expect(result.effects.some((effect) => effect.type === 'release-background-waiter')).toBe(false)
-    }
-  )
+  it('settles the reply while detached background work keeps the connection alive', () => {
+    const current = turn('reply')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state.connection = { kind: 'connected', connection: {} as never, occupancy: {} }
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-occupancy',
+      occupancy: 'background',
+      active: true
+    }).state
+    const result = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } })
+    // Background work never holds the reply open: the turn settles immediately; the detached work
+    // keeps its connection occupancy (and the topic stream) until it drains.
+    expect(result.effects).toContainEqual({ type: 'settle-turn', turn: current, outcome: { status: 'success' } })
+    expect(result.state.connection).toMatchObject({ occupancy: { background: { responder: 'headless' } } })
+    expect(result.effects.some((effect) => effect.type === 'release-background-waiter')).toBe(false)
+    expect(isAgentSessionRuntimeBusy(result.state)).toBe(true) // still awaiting-persistence
+    const settled = transitionAgentSessionRuntime(result.state, {
+      type: 'turn-terminal',
+      turn: current,
+      status: 'success'
+    }).state
+    expect(isAgentSessionRuntimeBusy(settled)).toBe(false)
+    expect(settled.connection).toMatchObject({ occupancy: { background: { responder: 'headless' } } })
+  })
 
-  it.each([false, true])('keeps one reply open until background work drains (wake: %s)', (wake) => {
+  it('delivers a background wake as its own generation after the spawning turn settles', () => {
     const current = turn('user-1')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
     state.connection = { kind: 'connected', connection: {} as never, occupancy: {} }
@@ -58,35 +55,45 @@ describe('agentSessionRuntimeState', () => {
       occupancy: 'background',
       active: true
     }).state
-    const initial = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } })
-    state = initial.state
-    expect(initial.effects).toEqual([])
-    expect(isAgentSessionRuntimeBusy(state)).toBe(true)
-    expect(state.execution).toMatchObject({ kind: 'turn', stream: 'open', turn: current })
-    if (wake) {
-      state = transitionAgentSessionRuntime(state, {
-        type: 'autonomous-turn-state',
-        state: 'started',
-        origin: { kind: 'background-work' }
-      }).state
-      expect(state.execution).toMatchObject({ kind: 'turn', stream: 'open', turn: current })
-      expect('terminal' in state.execution).toBe(false)
-      state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-state', state: 'finished' }).state
-      state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } }).state
-    }
+    state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'turn-terminal',
+      turn: current,
+      status: 'success'
+    }).state
+    expect(state.execution.kind).toBe('idle')
+    // The completed work's settlement wake opens a receive-only generation rather than reopening
+    // the settled user reply.
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' }
+    }).state
+    expect(state.execution).toMatchObject({ kind: 'autonomous-turn', origin: { kind: 'background-work' } })
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-state', state: 'finished' }).state
     const drained = transitionAgentSessionRuntime(state, {
       type: 'connection-occupancy',
       occupancy: 'background',
       active: false
     })
-    expect(drained.effects).toContainEqual({ type: 'settle-turn', turn: current, outcome: { status: 'success' } })
-    expect(isAgentSessionRuntimeBusy(drained.state)).toBe(true)
-    state = transitionAgentSessionRuntime(drained.state, {
-      type: 'turn-terminal',
-      turn: current,
-      status: 'success'
+    expect(drained.effects).toContainEqual({ type: 'release-background-waiter', connection: {} as never })
+    expect(drained.state.connection).toMatchObject({ occupancy: {} })
+  })
+
+  it('background occupancy keeps the topic continuing but never blocks a queued turn launch', () => {
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
+    state.connection = { kind: 'connected', connection: {} as never, occupancy: {} }
+    expect(willAgentSessionRuntimeContinue(state)).toBe(false)
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-occupancy',
+      occupancy: 'background',
+      active: true
     }).state
+    expect(willAgentSessionRuntimeContinue(state)).toBe(true)
     expect(isAgentSessionRuntimeBusy(state)).toBe(false)
+    // A queued follow-up schedules immediately — no waiting on the detached work.
+    const queued = transitionAgentSessionRuntime(state, { type: 'launch-requested', target: 'queued-turn' })
+    expect(queued.effects).toContainEqual({ type: 'schedule-launch', target: 'queued-turn' })
   })
 
   it.each(['paused', 'error'] as const)('does not hold a %s reply for background work', (status) => {
@@ -253,7 +260,7 @@ describe('agentSessionRuntimeState', () => {
     ])
   })
 
-  it.each([false, true])('latches early steer completion and waits for subagents when present (%s)', (background) => {
+  it('flushes an early steer completion regardless of background occupancy', () => {
     const original = turn('assistant-1')
     const continuation = turn('assistant-2')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(original)
@@ -278,30 +285,13 @@ describe('agentSessionRuntimeState', () => {
     }).state
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: continuation }).state
 
-    if (background) {
-      state.connection = {
-        kind: 'connected',
-        connection: {} as never,
-        occupancy: { background: { responder: 'interactive' } }
-      }
+    // Detached work on the connection must not hold the steer continuation's terminal either.
+    state.connection = {
+      kind: 'connected',
+      connection: {} as never,
+      occupancy: { background: { responder: 'interactive' } }
     }
     const result = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
-    if (background) {
-      expect(result.state.execution).toMatchObject({ kind: 'turn', stream: 'open', terminal: { status: 'success' } })
-      expect(result.effects.some((effect) => effect.type === 'settle-turn')).toBe(false)
-      const drained = transitionAgentSessionRuntime(result.state, {
-        type: 'connection-occupancy',
-        occupancy: 'background',
-        active: false
-      })
-      expect(drained.effects).toContainEqual({
-        type: 'settle-turn',
-        turn: continuation,
-        outcome: { status: 'success' }
-      })
-      return
-    }
-
     expect(result.state.execution).toMatchObject({ kind: 'turn', stream: 'awaiting-persistence' })
     expect(result.effects).toContainEqual({
       type: 'settle-turn',

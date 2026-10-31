@@ -108,6 +108,11 @@ export function disposeToolPolicySnapshot(sessionId: string): void {
 }
 
 /** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
+export function retireNativeWorkflowAuthority(sessionId: string, toolUseId: string): void {
+  sessionState().clearNativeWorkflowAuthority(sessionId, toolUseId)
+}
+
+/** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
 export function registerMcpSessionCatalogSync(
   sessionId: string,
   agentId: string,
@@ -531,7 +536,12 @@ async function buildToolPermissions(
     // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
     // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
     // `canUseTool` under bypassPermissions.
-    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    // Resolve by the CALLING execution, not the session: `opts.agentID` names the subagent that made
+    // this request, and a child spawned by a headless turn keeps that turn's unattended authority
+    // even once a desktop follow-up has made the shared root Session id interactive.
+    const interactionState = application
+      .get('AgentSessionRuntimeService')
+      .getToolGuardInteractionState(session.id, opts.agentID)
     const policy = findBuiltinToolPolicy(toolName, mountedServers)
     const delegationApproval =
       policy?.approval === 'delegation'

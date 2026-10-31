@@ -173,6 +173,7 @@ describe('AgentJobsService', () => {
           return {
             isSessionBusy: () => false,
             isSessionBusyForArchive: () => false,
+            hasPendingBackgroundWork: () => false,
             closeSession: async () => {},
             closeSessionForArchive: async () => {},
             cancelSessionForks: async () => {},

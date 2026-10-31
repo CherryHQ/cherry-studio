@@ -102,6 +102,13 @@ export interface StreamListener {
     attemptId?: number,
     sequence?: number
   ): void
+  /**
+   * The execution whose terminal is about to be fanned out, called synchronously for EVERY listener
+   * before any listener's async delivery. A listener that outlives its execution binds terminal
+   * identity here instead of inferring it from arrival order: an overlapping wake terminal can
+   * otherwise reach a later listener first.
+   */
+  prepareTerminal?(attemptId: number | undefined): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -197,6 +204,18 @@ export interface ActiveStream {
   expiresAt?: number
   /** Timer handle set by chat `lifecycle.cleanup` so `evictStream` can cancel. */
   cleanupTimer?: ReturnType<typeof setTimeout>
+  /**
+   * True while a settling execution deliberately kept this stream un-terminalized so an upcoming
+   * continuation can carry its listeners; cleared by `runTerminalLifecycle`. Lets a "no successor is
+   * coming after all" edge settle the stream instead of stranding it.
+   */
+  heldForContinuation?: boolean
+  /**
+   * When the foreground turn settled on a stream that detached background work keeps alive. The
+   * topic status stays live for the wake, so this is the only signal that a new user turn is free
+   * to start; absent while a turn is running and on a fresh stream.
+   */
+  turnSettledAt?: number
 }
 
 // ── Config ──────────────────────────────────────────────────────────

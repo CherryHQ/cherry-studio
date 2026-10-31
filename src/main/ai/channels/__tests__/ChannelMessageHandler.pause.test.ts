@@ -35,10 +35,14 @@ vi.mock('../security/OutputSanitizer', () => ({
 }))
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
-// AiStreamManager; the abort path reads it, so override locally.
+// AiStreamManager; the abort path reads it, so override locally. The turn-terminal wake
+// retention check reads the runtime service, which the default set omits too.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: { abort: vi.fn() } } as never)
+  return mockApplicationFactory({
+    AiStreamManager: { abort: vi.fn(), removeListener: vi.fn() },
+    AgentSessionRuntimeService: { hasPendingBackgroundWork: vi.fn(() => false) }
+  } as never)
 })
 
 vi.mock('@data/services/AgentService', () => ({

@@ -44,6 +44,32 @@ interface McpSessionCatalogState {
   subscription?: { dispose(): void }
 }
 
+/** One in-flight spawn call: `parentAgentId` absent = main thread, `headless` = its authority. */
+export interface NativeSpawnAttempt {
+  toolUseId: string
+  parentAgentId?: string
+  headless: boolean
+}
+
+/**
+ * One live asynchronous workflow run. `Workflow` starts children through its own `agent()` runner
+ * long after the tool call, so unlike a spawn attempt this is STANDING: every child the run starts
+ * reads it, and it lives until the run settles, its call fails, or the connection resets. A run
+ * that settled but kept this record would make a later run's children unattributable.
+ */
+export interface NativeWorkflowAuthority {
+  toolUseId: string
+  headless: boolean
+}
+
+/** What a `SubagentStart` may inherit: the spawner's authority, or fail-closed when unattributable. */
+export interface NativeSpawnAttribution {
+  parentAgentId?: string
+  headless: boolean
+  /** Pending spawn calls disagree on authority, so ordering cannot attribute this child. */
+  ambiguous: boolean
+}
+
 @Injectable('ClaudeCodeSessionStateService')
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeSessionStateService extends BaseService {
@@ -53,6 +79,8 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
   private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
+  private readonly nativeSpawnAttempts = new Map<string, NativeSpawnAttempt[]>()
+  private readonly nativeWorkflowAuthorities = new Map<string, NativeWorkflowAuthority[]>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -185,6 +213,105 @@ export class ClaudeCodeSessionStateService extends BaseService {
     return original
   }
 
+  /**
+   * `SubagentStart` names only the child, so the spawning execution is captured here from the
+   * `Task`/`Agent` call that is about to run — its `agent_id` when a child launched the spawn,
+   * absent when the main thread did. `headless` is resolved NOW: the caller's authority cannot be
+   * re-read later, when a foreground skill may have recorded its own attempt meanwhile.
+   */
+  recordNativeSpawnAttempt(sessionId: string, toolUseId: string, headless: boolean, parentAgentId?: string): void {
+    const attempts = this.nativeSpawnAttempts.get(sessionId) ?? []
+    attempts.push({ toolUseId, headless, ...(parentAgentId ? { parentAgentId } : {}) })
+    this.nativeSpawnAttempts.set(sessionId, attempts)
+  }
+
+  /**
+   * The attribution an announced spawn queue hands out. The SDK (0.3.284) gives no session-wide
+   * FIFO guarantee — a foreground skill and a surviving headless child can have spawn calls in
+   * flight at once — so a queue whose entries disagree on authority is unattributable: report it as
+   * ambiguous (fail closed) and leave the entries for the tool terminals to clear.
+   */
+  takeNativeSpawnAttempt(sessionId: string): NativeSpawnAttribution | undefined {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    if (!attempts?.length) return undefined
+    const [first] = attempts
+    if (attempts.some((attempt) => attempt.headless !== first.headless)) {
+      return { headless: true, ambiguous: true }
+    }
+    attempts.shift()
+    if (attempts.length === 0) this.nativeSpawnAttempts.delete(sessionId)
+    return {
+      headless: first.headless,
+      ambiguous: false,
+      ...(first.parentAgentId ? { parentAgentId: first.parentAgentId } : {})
+    }
+  }
+
+  /**
+   * The attribution a starting child inherits, resolved across BOTH launch sources: a spawn call
+   * that announced itself, and a live workflow run whose `agent()` launches children no call
+   * announces. `SubagentStart` names only the child, so while both can still launch and disagree
+   * this child is unattributable: fail closed WITHOUT consuming either record, or the announced
+   * call would lose the child it actually owns. Agreement has nothing to misattribute, so the
+   * announced queue keeps its FIFO.
+   */
+  resolveNativeSpawnAttribution(sessionId: string): NativeSpawnAttribution | undefined {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    const workflow = this.resolveNativeWorkflowAuthority(sessionId)
+    if (!attempts?.length) return workflow
+    const [first] = attempts
+    if (attempts.some((attempt) => attempt.headless !== first.headless)) return { headless: true, ambiguous: true }
+    if (workflow !== undefined && (workflow.ambiguous || workflow.headless !== first.headless)) {
+      return { headless: true, ambiguous: true }
+    }
+    return this.takeNativeSpawnAttempt(sessionId)
+  }
+
+  /** A spawn call that finished without starting a child (denied, errored) must not claim the next one. */
+  clearNativeSpawnAttempt(sessionId: string, toolUseId: string): void {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    if (!attempts) return
+    const remaining = attempts.filter((attempt) => attempt.toolUseId !== toolUseId)
+    if (remaining.length === 0) this.nativeSpawnAttempts.delete(sessionId)
+    else this.nativeSpawnAttempts.set(sessionId, remaining)
+  }
+
+  /**
+   * Record a workflow run's authority. It is NOT consumed by a `SubagentStart`: the run launches an
+   * unknown number of children through its asynchronous `agent()` runner, so one queue entry could
+   * cover at most one of them.
+   */
+  recordNativeWorkflowAuthority(sessionId: string, toolUseId: string, headless: boolean): void {
+    const runs = this.nativeWorkflowAuthorities.get(sessionId) ?? []
+    runs.push({ toolUseId, headless })
+    this.nativeWorkflowAuthorities.set(sessionId, runs)
+  }
+
+  /**
+   * A run that never started children (denied, errored, remote-only), or has settled, must not
+   * attribute a later child. Children already bound keep their binding — only the launch authority
+   * is retired.
+   */
+  clearNativeWorkflowAuthority(sessionId: string, toolUseId: string): void {
+    const runs = this.nativeWorkflowAuthorities.get(sessionId)
+    if (!runs) return
+    const remaining = runs.filter((run) => run.toolUseId !== toolUseId)
+    if (remaining.length === 0) this.nativeWorkflowAuthorities.delete(sessionId)
+    else this.nativeWorkflowAuthorities.set(sessionId, remaining)
+  }
+
+  /**
+   * The authority a child inherits when no explicit spawn call announced it. Concurrent runs that
+   * disagree are unattributable, so they fail closed like a mixed spawn queue.
+   */
+  resolveNativeWorkflowAuthority(sessionId: string): NativeSpawnAttribution | undefined {
+    const runs = this.nativeWorkflowAuthorities.get(sessionId)
+    if (!runs?.length) return undefined
+    const [first] = runs
+    if (runs.some((run) => run.headless !== first.headless)) return { headless: true, ambiguous: true }
+    return { headless: first.headless, ambiguous: false }
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
@@ -192,6 +319,8 @@ export class ClaudeCodeSessionStateService extends BaseService {
       if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
     }
     this.bashRewriteOrigins.delete(sessionId)
+    this.nativeSpawnAttempts.delete(sessionId)
+    this.nativeWorkflowAuthorities.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }
@@ -269,6 +398,8 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.toolPolicySnapshots.clear()
     this.bashOutcomes.clear()
     this.bashRewriteOrigins.clear()
+    this.nativeSpawnAttempts.clear()
+    this.nativeWorkflowAuthorities.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }

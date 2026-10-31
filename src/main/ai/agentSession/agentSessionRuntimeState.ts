@@ -36,8 +36,12 @@ export interface AgentSessionRuntimeConnectionTarget {
  * path can forget it.
  */
 export interface AgentSessionRuntimeConnectionOccupancy {
-  /** Detached tasks keep the connection alive. Deliberately not "busy": user turns may still start. */
-  background?: { responder: 'interactive' | 'headless'; awaitingReply?: boolean }
+  /**
+   * Detached tasks keep the connection alive and the session status "active", but never hold a
+   * reply open: user turns may still start, and the work's results arrive via later runtime
+   * generations (receive-only wakes) once it completes.
+   */
+  background?: { responder: 'interactive' | 'headless' }
   /** A context rewrite is in flight; it holds the session busy and the topic stream alive. */
   compaction?: true
 }
@@ -145,7 +149,6 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
       type: 'connection-occupancy'
       occupancy: 'background' | 'compaction'
       active: boolean
-      awaitingReply?: boolean
       responder?: 'interactive' | 'headless'
     }
   | { type: 'connection-started'; attemptId: string }
@@ -308,14 +311,6 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       }
     case 'autonomous-turn-state': {
       if (event.state === 'started') {
-        if (isAgentSessionRuntimeAwaitingBackground(state) && event.origin.kind === 'background-work') {
-          const execution = { ...state.execution } as Extract<
-            AgentSessionRuntimeExecution<TTurn, TReservation>,
-            { kind: 'turn' }
-          >
-          delete execution.terminal
-          return { state: { ...state, execution }, effects: [] }
-        }
         if (state.execution.kind === 'autonomous-turn') return { state, effects: [] }
         if (state.execution.kind === 'steer-transition') return invalid(state, event)
         const deferred = event.deferCurrentTurn && state.execution.kind === 'turn' ? state.execution : undefined
@@ -438,13 +433,8 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
     case 'runtime-terminal': {
       const execution = state.execution
       if (execution.kind === 'turn') {
-        if (
-          event.outcome.status === 'success' &&
-          hasAgentSessionRuntimePendingReply(state) &&
-          (execution.stream === 'open' || execution.stream === 'unopened')
-        ) {
-          return { state: { ...state, execution: { ...execution, terminal: event.outcome } }, effects: [] }
-        }
+        // Background work never holds a reply open: the turn settles when its own generation ends,
+        // and the work's results arrive via a later receive-only generation.
         if (execution.stream === 'unopened') {
           if (execution.terminal) return { state, effects: [] }
           return {
@@ -509,17 +499,11 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         if (execution.stream !== 'open' || (!execution.buffer?.length && !execution.terminal)) {
           return { state, effects: [] }
         }
-        const { buffer, terminal: recordedTerminal, ...rest } = execution
-        const held = recordedTerminal?.status === 'success' && hasAgentSessionRuntimePendingReply(state)
-        const terminal = held ? undefined : recordedTerminal
+        const { buffer, terminal, ...rest } = execution
         return {
           state: {
             ...state,
-            execution: {
-              ...rest,
-              ...(held ? { terminal: recordedTerminal } : {}),
-              stream: terminal ? 'awaiting-persistence' : 'open'
-            }
+            execution: { ...rest, stream: terminal ? 'awaiting-persistence' : 'open' }
           },
           effects: [
             ...(buffer?.length ? [{ type: 'deliver-buffer', turn: execution.turn, chunks: buffer } as const] : []),
@@ -643,37 +627,32 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         return { state: { ...state, connection: { ...connection, occupancy } }, effects: [] }
       }
       if (event.active) {
-        const updated: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation> = {
-          ...state,
-          connection: {
-            ...connection,
-            occupancy: {
-              ...connection.occupancy,
-              background: {
-                responder: connection.occupancy.background?.responder ?? event.responder ?? 'headless',
-                ...(event.awaitingReply === false ? { awaitingReply: false } : {})
+        return {
+          state: {
+            ...state,
+            connection: {
+              ...connection,
+              occupancy: {
+                ...connection.occupancy,
+                background: {
+                  responder: connection.occupancy.background?.responder ?? event.responder ?? 'headless'
+                }
               }
             }
-          }
+          },
+          effects: []
         }
-        return isAgentSessionRuntimeAwaitingBackground(state) && event.awaitingReply === false
-          ? transitionAgentSessionRuntime(updated, { type: 'runtime-terminal', outcome: { status: 'success' } })
-          : { state: updated, effects: [] }
       }
       if (!connection.occupancy.background) return { state, effects: [] }
       const occupancy = { ...connection.occupancy }
       delete occupancy.background
       // Draining background work also releases any rebuild it was blocking.
-      const released: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation> = {
-        ...state,
-        connection: { kind: 'connected', connection: connection.connection, occupancy }
-      }
-      const completion = isAgentSessionRuntimeAwaitingBackground(state)
-        ? transitionAgentSessionRuntime(released, { type: 'runtime-terminal', outcome: { status: 'success' } })
-        : { state: released, effects: [] }
       return {
-        state: completion.state,
-        effects: [{ type: 'release-background-waiter', connection: connection.connection }, ...completion.effects]
+        state: {
+          ...state,
+          connection: { kind: 'connected', connection: connection.connection, occupancy }
+        },
+        effects: [{ type: 'release-background-waiter', connection: connection.connection }]
       }
     }
     case 'connection-started':
@@ -876,31 +855,12 @@ export function willAgentSessionRuntimeContinue<TTurn, TPendingTurn, TReservatio
   const hasDeferredTurn = state.execution.kind === 'autonomous-turn' && state.execution.deferredTurn !== undefined
   return (
     isAgentSessionRuntimeCompacting(state) ||
+    // Background work keeps the topic stream alive across the inter-turn gap so its receive-only
+    // wake carries the renderer listeners (and the topic keeps reporting "still working").
+    hasAgentSessionRuntimeBackgroundWork(state) ||
     state.queue.length > 0 ||
     state.launch.kind !== 'idle' ||
     state.execution.kind === 'steer-transition' ||
     hasDeferredTurn
-  )
-}
-
-/** The SDK ended a generation, but the user reply still owns its background work. */
-export function isAgentSessionRuntimeAwaitingBackground<TTurn, TPendingTurn, TReservation>(
-  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
-): boolean {
-  return (
-    state.execution.kind === 'turn' &&
-    (state.execution.stream === 'open' || state.execution.stream === 'unopened') &&
-    state.execution.terminal?.status === 'success' &&
-    hasAgentSessionRuntimePendingReply(state)
-  )
-}
-
-function hasAgentSessionRuntimePendingReply<TTurn, TPendingTurn, TReservation>(
-  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
-): boolean {
-  return (
-    state.connection.kind === 'connected' &&
-    Boolean(state.connection.occupancy.background) &&
-    state.connection.occupancy.background?.awaitingReply !== false
   )
 }

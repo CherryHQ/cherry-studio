@@ -126,6 +126,9 @@ class FeishuStreamSession {
     try {
       await this.update(text)
     } finally {
+      // Latch before `stream` resolves: once the predecessor's card is finalized, a successor's
+      // text must never land in it (it opens its own stream session for the same response key).
+      this.disposed = true
       this.resolveCompletion()
     }
     await this.stream
@@ -428,7 +431,9 @@ class FeishuAdapter extends ChannelAdapter {
       })
       return false
     } finally {
-      this.streams.delete(streamKey)
+      // Identity-guarded: a successor turn can register its own stream session under this key while
+      // the predecessor's finalize is still in flight; an unconditional delete would drop it.
+      if (this.streams.get(streamKey) === stream) this.streams.delete(streamKey)
     }
   }
 
@@ -455,7 +460,7 @@ class FeishuAdapter extends ChannelAdapter {
       try {
         await stream.error(error)
       } finally {
-        this.streams.delete(streamKey)
+        if (this.streams.get(streamKey) === stream) this.streams.delete(streamKey)
       }
       return true
     }

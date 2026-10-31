@@ -36,6 +36,32 @@ import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
+/**
+ * Tools that can launch a native subagent: the SDK's `Task`/`Agent`, and `Skill` — a skill declared
+ * `context: fork` starts a descendant the same way (SDK 0.3.284). A plain skill invocation starts
+ * nothing, so its attempt is dropped at the tool's terminal instead of binding the next child.
+ */
+const SUBAGENT_LAUNCH_TOOL_NAMES: ReadonlySet<string> = new Set(['Task', 'Agent', SKILL_TOOL_NAME])
+
+/**
+ * The pinned SDK's workflow runner (`local_workflow`) launches native children through its own
+ * asynchronous `agent()`, so no spawn CALL announces them. Its authority is recorded as a standing
+ * attribution instead — consumed never, inherited by every child the run starts.
+ */
+const WORKFLOW_TOOL_NAME = 'Workflow'
+
+/**
+ * The pinned SDK returns a background agent launch's result BEFORE its `SubagentStart`
+ * (`status: 'async_launched'`), so a successful terminal there does not mean "no child is coming".
+ * A launch that failed (a Workflow whose compile produced `error`) reports the same status but
+ * registered no task, so no completion will ever retire its attribution.
+ */
+function isAsyncSpawnResult(response: unknown): boolean {
+  if (!response || typeof response !== 'object') return false
+  const record = response as Record<string, unknown>
+  if (record.error) return false
+  return record.status === 'async_launched' || record.isAsync === true
+}
 
 // Tools whose successful completion mutates the workspace and therefore breaks a no-progress run:
 // the native edit tools, plus the assistant-files MCP tools (referenced by runtime name).
@@ -93,10 +119,31 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!toolName) return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
+    // The spawn call is the only record of WHO is launching a child: `SubagentStart` carries just
+    // the child's `agent_id`. `input.agent_id` is the spawning child; absent means the main thread.
+    // Its authority is resolved HERE — a later foreground Skill attempt must not launder a
+    // headless child's spawn by queue position.
+    if ((SUBAGENT_LAUNCH_TOOL_NAMES.has(toolName) || toolName === WORKFLOW_TOOL_NAME) && toolUseId) {
+      const spawner = application
+        .get('AgentSessionRuntimeService')
+        .getToolGuardInteractionState(sessionId, input.agent_id)
+      const headless = spawner.currentTurn === 'headless'
+      if (toolName === WORKFLOW_TOOL_NAME) {
+        // Standing: the run may start children long after this call, after the session is reused.
+        sessionState().recordNativeWorkflowAuthority(sessionId, toolUseId, headless)
+      } else {
+        sessionState().recordNativeSpawnAttempt(sessionId, toolUseId, headless, input.agent_id)
+      }
+    }
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
-    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
+    // Resolve by the CALLING execution, not the session: a still-running native child spawned by a
+    // headless turn keeps its own unattended authority even when a desktop follow-up has since made
+    // the shared root Session id interactive. Main-thread calls carry no agent_id.
+    const interaction = application
+      .get('AgentSessionRuntimeService')
+      .getToolGuardInteractionState(sessionId, input.agent_id)
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
       toolName,
       input: toolInput,
@@ -137,6 +184,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       return {}
     }
     if (decision.effect === 'deny') {
+      // A denied spawn never starts a child, so its attribution must not mislabel a later one.
+      if (toolUseId) {
+        sessionState().clearNativeSpawnAttempt(sessionId, toolUseId)
+        if (toolName === WORKFLOW_TOOL_NAME) sessionState().clearNativeWorkflowAuthority(sessionId, toolUseId)
+      }
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }
     return {
@@ -231,11 +283,62 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
+  // Bind each native child to the turn that spawned it, before it can call a tool. `agent_id` is
+  // per-session-set, so the binding is what stops a still-running child from inheriting whichever
+  // turn is live when it finally calls (a headless child must stay headless under a desktop
+  // follow-up). The binding lives until the connection resets — SubagentStop is NOT authoritative.
+  const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'SubagentStart') return {}
+    // An announced spawn call and a live workflow run can both be waiting for a child here, so the
+    // state service resolves across both and fails closed when they disagree.
+    const spawn = sessionState().resolveNativeSpawnAttribution(sessionId)
+    application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id, spawn)
+    return {}
+  }
+
+  // A spawn-capable call that never started a child (denied, errored, or a non-fork skill) leaves
+  // no `SubagentStart` behind to consume its attribution — drop it so it cannot label the NEXT
+  // spawn with the wrong parent.
+  const spawnAttemptCleanupHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (
+      !input ||
+      (input.hook_event_name !== 'PostToolUse' &&
+        input.hook_event_name !== 'PostToolUseFailure' &&
+        input.hook_event_name !== 'PermissionDenied')
+    ) {
+      return {}
+    }
+    const event = input as unknown as Record<string, unknown>
+    if (
+      typeof event.tool_name === 'string' &&
+      (SUBAGENT_LAUNCH_TOOL_NAMES.has(event.tool_name) || event.tool_name === WORKFLOW_TOOL_NAME) &&
+      typeof event.tool_use_id === 'string'
+    ) {
+      // A background launch's child starts AFTER this success, so its attribution must survive to
+      // bind it; a failure, a denial, or a call whose child already ran cannot still spawn.
+      if (event.hook_event_name === 'PostToolUse' && isAsyncSpawnResult(event.tool_response)) {
+        // A workflow's standing authority covers the whole run, so it must outlive this call — but
+        // only for an in-process run; a remote launch starts its children on another host.
+        if (event.tool_name !== WORKFLOW_TOOL_NAME) return {}
+        if ((event.tool_response as Record<string, unknown> | undefined)?.taskType === 'local_workflow') return {}
+      }
+      sessionState().clearNativeSpawnAttempt(sessionId, event.tool_use_id)
+      if (event.tool_name === WORKFLOW_TOOL_NAME) {
+        sessionState().clearNativeWorkflowAuthority(sessionId, event.tool_use_id)
+      }
+    }
+    return {}
+  }
+
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
+  // The authorization binding deliberately stays (the SDK lets a SubagentStop hook continue the
+  // same child via additionalContext), but liveness drops: an unrelated task on the shared
+  // connection must not make the drained child look alive again.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
     sessionState().disposeBashScope(sessionId, input.agent_id)
+    application.get('AgentSessionRuntimeService').releaseNativeChildLiveness(sessionId, input.agent_id)
     return {}
   }
 
@@ -316,9 +419,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   return {
     ...createClaudeCodeIdentityHooks(agentDataPath),
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook, spawnAttemptCleanupHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, spawnAttemptCleanupHook] }],
+    PermissionDenied: [{ hooks: [spawnAttemptCleanupHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    SubagentStart: [{ hooks: [subagentStartHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }

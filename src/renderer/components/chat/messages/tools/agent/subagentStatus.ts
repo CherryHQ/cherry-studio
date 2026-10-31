@@ -19,6 +19,7 @@ export function getSubagentTaskStatus(
     case 'completed':
       return 'done'
     case 'stopped':
+    case 'killed':
       return 'cancelled'
     case 'error':
       return 'error'

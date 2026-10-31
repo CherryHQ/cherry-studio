@@ -66,12 +66,14 @@ export interface AgentStatusTask {
  * A process the run spawned — a subagent, shell or workflow — reported through the SDK's task
  * lifecycle events. It either runs or it settles; a done/total ratio over these would be
  * meaningless, which is why they are kept apart from the plan above.
+ * `killed` is a deliberate kill that has no successor delivery, which is why it stays distinct
+ * from both `stopped` (an ordinary cancel) and `error` (which owes the caller a failure notice).
  */
 export interface AgentRunTask {
   id: string
   toolUseId?: string
   title: string
-  status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
+  status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'killed' | 'error'
   activeText?: string
   /** SDK task type, e.g. 'subagent' | 'shell' | 'local_workflow'. */
   taskType?: string
@@ -666,7 +668,7 @@ function getTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined
   })
 }
 
-const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
+const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'killed', 'error'])
 
 function applyAgentTaskEvent(
   runTaskMap: Map<string, AgentRunTask>,
