@@ -104,12 +104,15 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" aria-describedby={undefined}>
+      <DialogContent
+        size="lg"
+        aria-describedby={undefined}
+        className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)]">
         <DialogHeader>
           <DialogTitle>{t('settings.about.feedback.dialog.title')}</DialogTitle>
         </DialogHeader>
 
-        <ItemGroup className="gap-3 px-2">
+        <ItemGroup className="min-h-0 gap-3 overflow-y-auto px-2">
           <FeedbackOption
             icon={<FileArchive className="size-5" />}
             title={t('settings.about.feedback.diagnostics.title')}
