@@ -9,6 +9,7 @@ import * as z from 'zod'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { assertAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
 import { isWin } from '@main/core/platform'
 
 const logger = loggerService.withContext('McpServer:AgentMemory')
@@ -91,47 +92,53 @@ async function assertRegularFileOrMissing(filePath: string): Promise<void> {
 async function memoryUpdate(content: string, ctx: MemoryToolContext): Promise<string> {
   const memoryDir = await assertMemoryDirectory(ctx)
   const factPath = await resolveFileCI(memoryDir, 'FACT.md')
-  await assertRegularFileOrMissing(factPath)
 
-  const tmpPath = path.join(memoryDir, `.FACT.md.${randomUUID()}.tmp`)
-  const handle = await open(tmpPath, 'wx', 0o600)
-  try {
-    await handle.writeFile(content, 'utf-8')
-    await handle.close()
-    await assertMemoryDirectory(ctx)
+  return withAgentMemoryFileLock(factPath, async () => {
     await assertRegularFileOrMissing(factPath)
-    await rename(tmpPath, factPath)
-  } catch (error) {
-    await handle.close().catch(() => undefined)
-    await unlink(tmpPath).catch(() => undefined)
-    throw error
-  }
 
-  logger.info('Memory FACT.md updated via tool', { agentId: ctx.agentId, length: content.length })
-  return 'Memory updated.'
+    const tmpPath = path.join(memoryDir, `.FACT.md.${randomUUID()}.tmp`)
+    const handle = await open(tmpPath, 'wx', 0o600)
+    try {
+      await handle.writeFile(content, 'utf-8')
+      await handle.close()
+      await assertMemoryDirectory(ctx)
+      await assertRegularFileOrMissing(factPath)
+      await rename(tmpPath, factPath)
+    } catch (error) {
+      await handle.close().catch(() => undefined)
+      await unlink(tmpPath).catch(() => undefined)
+      throw error
+    }
+
+    logger.info('Memory FACT.md updated via tool', { agentId: ctx.agentId, length: content.length })
+    return 'Memory updated.'
+  })
 }
 
 async function memoryAppend(text: string, tags: string[], ctx: MemoryToolContext): Promise<string> {
   const memoryDir = await assertMemoryDirectory(ctx)
   const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
-  await assertRegularFileOrMissing(journalPath)
-  const entry: JournalEntry = { ts: new Date().toISOString(), tags, text }
 
-  const handle = await open(
-    journalPath,
-    withNoFollow(constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY),
-    0o600
-  )
-  try {
-    const fileStat = await handle.stat()
-    if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
-    await handle.appendFile(`${JSON.stringify(entry)}\n`, 'utf-8')
-  } finally {
-    await handle.close()
-  }
+  return withAgentMemoryFileLock(journalPath, async () => {
+    await assertRegularFileOrMissing(journalPath)
+    const entry: JournalEntry = { ts: new Date().toISOString(), tags, text }
 
-  logger.info('Journal entry appended via tool', { agentId: ctx.agentId, tags })
-  return `Journal entry added at ${entry.ts}.`
+    const handle = await open(
+      journalPath,
+      withNoFollow(constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY),
+      0o600
+    )
+    try {
+      const fileStat = await handle.stat()
+      if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
+      await handle.appendFile(`${JSON.stringify(entry)}\n`, 'utf-8')
+    } finally {
+      await handle.close()
+    }
+
+    logger.info('Journal entry appended via tool', { agentId: ctx.agentId, tags })
+    return `Journal entry added at ${entry.ts}.`
+  })
 }
 
 async function memorySearch(query: string, tagFilter: string, limit: number, ctx: MemoryToolContext): Promise<string> {
