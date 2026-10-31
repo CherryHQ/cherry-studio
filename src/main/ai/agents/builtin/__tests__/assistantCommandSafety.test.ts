@@ -13,6 +13,13 @@ describe('detectDestructiveAssistantCommand', () => {
     ['powershell Remove-Item -Recurse C:\\temp', 'permanent Windows file deletion'],
     ['powershell rmdir C:\\temp', 'permanent Windows file deletion'],
     ['cmd /c del /s /q C:\\temp\\*', 'permanent Windows file deletion'],
+    ['DEL /Q file.txt', 'permanent Windows file deletion'],
+    ['echo hi && del file.txt', 'permanent Windows file deletion'],
+    ['if exist a.txt del a.txt', 'permanent Windows file deletion'],
+    ['for %i in (*) do erase %i', 'permanent Windows file deletion'],
+    ['cmd /c rd /s /q build', 'permanent Windows file deletion'],
+    ['powershell -Command "del foo"', 'permanent Windows file deletion'],
+    ['bash -c "del foo"', 'permanent Windows file deletion'],
     ['python -c "import shutil; shutil.rmtree(\'output\')"', 'scripted permanent file deletion'],
     ['find . -name "*.tmp" -delete', 'recursive find deletion'],
     ['diskutil eraseDisk APFS Empty /dev/disk4', 'disk formatting or wiping'],
@@ -46,7 +53,11 @@ describe('detectDestructiveAssistantCommand', () => {
     'mkdir -p output',
     'mv draft.md final.md',
     'cp source.md backup.md',
-    'grep -R "delete" src'
+    'grep -R "delete" src',
+    'pwd && ls -la "T:/Some folder del something"',
+    'cd "T:/Archivo General" && mkdir -p test && echo "prueba de tanteo del Bibliotecario" > test/file.txt && ls -la test',
+    'echo "DEL del Rd erase"',
+    'ls modelo'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })

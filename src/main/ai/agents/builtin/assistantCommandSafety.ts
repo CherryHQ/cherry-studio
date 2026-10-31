@@ -14,6 +14,10 @@ const LARK_FORM_SUBMISSION_PATTERN =
 const GITHUB_ISSUE_CREATION_PATTERN =
   /(?:^\s*|[;&|]\s*|\r?\n\s*)(?:"(?:[^"\r\n]*[\\/])?gh(?:\.exe)?"|'(?:[^'\r\n]*[\\/])?gh(?:\.exe)?'|(?:[^\s;&|]*[\\/])?gh(?:\.exe)?)\s+issue\s+create(?:\s|$)/i
 
+// `del`/`erase`/`rd` are ordinary words in prose (e.g. Spanish "del"), so only match them in command position.
+const WINDOWS_AMBIGUOUS_DELETE_PATTERN =
+  /(?:^|[;&|(){\r\n`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else|exist\s+\S+)(?=\s))\s*["']?\s*(?:del|erase|rd)(?=\s|$|["'])/i
+
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
     reason: 'permanent file deletion',
@@ -21,7 +25,11 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   },
   {
     reason: 'permanent Windows file deletion',
-    pattern: /\b(?:remove-item|clear-content|del|erase|rd|rmdir)\b/i
+    pattern: /\b(?:remove-item|clear-content|rmdir)\b/i
+  },
+  {
+    reason: 'permanent Windows file deletion',
+    pattern: WINDOWS_AMBIGUOUS_DELETE_PATTERN
   },
   {
     reason: 'scripted permanent file deletion',
